@@ -76,9 +76,13 @@ adminRouter.post("/force-admin", (req, res) => {
 });
 
 // Check admin status (for troubleshooting - no auth required)
-adminRouter.get("/check-admin/:email", (req, res) => {
+adminRouter.get("/check-admin", (req, res) => {
   try {
-    const { email } = req.params;
+    const email = req.query.email as string;
+    
+    if (!email) {
+      return res.status(400).json({ error: "Email query parameter is required" });
+    }
     
     const user = db.prepare("SELECT id, email, is_admin FROM users WHERE email = ?").get(email) as { id: string; email: string; is_admin: number } | undefined;
     
