@@ -2,11 +2,12 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
-  plugins: [react()],
-  build: {
-    // Skip type checking during build
-    typeCheck: false
-  },
+  plugins: [react({
+    // Disable type checking during build
+    typescript: {
+      ignoreBuildErrors: true
+    }
+  })],
   server: {
     port: 5173,
     proxy: {
