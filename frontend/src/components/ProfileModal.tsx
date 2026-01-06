@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { api } from "../utils/api";
-import PhotoUpload from "./PhotoUpload";
 import MatchCelebration from "./MatchCelebration";
 
 interface Photo {

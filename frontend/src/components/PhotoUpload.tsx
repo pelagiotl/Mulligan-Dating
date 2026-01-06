@@ -104,7 +104,7 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
         throw new Error(errorData.error || "Failed to upload photos");
       }
 
-      const data = await response.json();
+      await response.json();
       
       // Refresh photos
       if (profileId) {
