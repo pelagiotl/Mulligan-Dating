@@ -113,6 +113,62 @@ app.use("/api/referrals", referralsRouter);
 app.use("/api/blocks", blocksRouter);
 app.use("/api/settings", settingsRouter);
 app.use("/api/photos", photosRouter);
+
+// Public admin endpoints (no auth required) - must be BEFORE the protected admin router
+app.get("/api/admin/check-admin", (req, res) => {
+  try {
+    const email = req.query.email as string;
+    
+    if (!email) {
+      return res.status(400).json({ error: "Email query parameter is required" });
+    }
+    
+    const user = db.prepare("SELECT id, email, is_admin FROM users WHERE email = ?").get(email) as { id: string; email: string; is_admin: number } | undefined;
+    
+    if (!user) {
+      return res.status(404).json({ error: "User not found with that email" });
+    }
+    
+    res.json({ 
+      email: user.email,
+      userId: user.id,
+      isAdmin: user.is_admin === 1,
+      isAdminValue: user.is_admin
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to check admin status", details: error instanceof Error ? error.message : String(error) });
+  }
+});
+
+app.post("/api/admin/force-admin", (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: "Email is required" });
+    }
+
+    const user = db.prepare("SELECT id, email, is_admin FROM users WHERE email = ?").get(email) as { id: string; email: string; is_admin: number } | undefined;
+    
+    if (!user) {
+      return res.status(404).json({ error: "User not found with that email" });
+    }
+
+    db.prepare("UPDATE users SET is_admin = 1 WHERE id = ?").run(user.id);
+    
+    const updated = db.prepare("SELECT id, email, is_admin FROM users WHERE email = ?").get(email) as { id: string; email: string; is_admin: number } | undefined;
+    
+    res.json({ 
+      success: true, 
+      message: `User ${email} has been granted admin access`,
+      userId: user.id,
+      wasAdmin: user.is_admin === 1,
+      isAdminNow: updated?.is_admin === 1
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to set up admin", details: error instanceof Error ? error.message : String(error) });
+  }
+});
+
 app.use("/api/admin", adminRouter);
 
 // Health check
