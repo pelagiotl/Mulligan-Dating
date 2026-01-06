@@ -107,7 +107,12 @@ async function geocodeWithMapbox(location: string): Promise<GeocodeResult> {
     throw new Error(`Mapbox API error: ${response.status}`);
   }
 
-  const data = await response.json();
+  const data = await response.json() as {
+    features?: Array<{
+      center: [number, number];
+      place_name: string;
+    }>;
+  };
   if (data.features && data.features.length > 0) {
     const feature = data.features[0];
     const [lng, lat] = feature.center;

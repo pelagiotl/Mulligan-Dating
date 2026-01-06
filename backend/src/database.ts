@@ -1,9 +1,24 @@
 import Database from "better-sqlite3";
 import path from "path";
-import { fileURLToPath } from "url";
+import { v4 as uuidv4 } from "uuid";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dbPath = path.join(__dirname, "..", "mulligan.db");
+// Database path - use environment variable or default to backend directory
+// In production (compiled), dist/ is the working directory, so go up one level
+const dbPath = process.env.DATABASE_PATH || 
+  (process.env.NODE_ENV === 'production' 
+    ? path.join(process.cwd(), "..", "mulligan.db")
+    : path.join(process.cwd(), "mulligan.db"));
+
+// TokenRow interface for database operations
+interface TokenRow {
+  id: string;
+  user_id: string;
+  granted_at: string;
+  used_at: string | null;
+  returned_at: string | null;
+  match_id: string | null;
+  source?: string | null;
+}
 
 export const db = new Database(dbPath);
 

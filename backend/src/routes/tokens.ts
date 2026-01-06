@@ -12,6 +12,7 @@ interface TokenRow {
   used_at: string | null;
   returned_at: string | null;
   match_id: string | null;
+  source?: string | null;
 }
 
 // Get user's token balance and history
