@@ -134,29 +134,28 @@ app.get("/api/health", (req, res) => {
   }
 });
 
-// Development endpoint to reset rate limits (only in development)
-if (process.env.NODE_ENV !== 'production') {
-  app.post("/api/dev/reset-rate-limit", async (req, res) => {
-    const ip = req.ip || req.socket.remoteAddress || req.headers['x-forwarded-for'] || '';
-    const ipString = Array.isArray(ip) ? ip[0] : String(ip);
-    await resetAuthRateLimit(ipString);
-    res.json({ 
-      message: "Rate limit reset for your IP and common localhost variations",
-      ip: ipString
-    });
+// Endpoint to reset rate limits (works in both dev and production)
+// In production, this helps users who get rate limited during testing
+app.post("/api/reset-rate-limit", async (req, res) => {
+  const ip = req.ip || req.socket.remoteAddress || req.headers['x-forwarded-for'] || '';
+  const ipString = Array.isArray(ip) ? ip[0] : String(ip);
+  await resetAuthRateLimit(ipString);
+  res.json({ 
+    message: "Rate limit reset for your IP",
+    ip: ipString
   });
-  
-  // Also allow GET for easier access
-  app.get("/api/dev/reset-rate-limit", async (req, res) => {
-    const ip = req.ip || req.socket.remoteAddress || req.headers['x-forwarded-for'] || '';
-    const ipString = Array.isArray(ip) ? ip[0] : String(ip);
-    await resetAuthRateLimit(ipString);
-    res.json({ 
-      message: "Rate limit reset for your IP and common localhost variations",
-      ip: ipString
-    });
+});
+
+// Also allow GET for easier access
+app.get("/api/reset-rate-limit", async (req, res) => {
+  const ip = req.ip || req.socket.remoteAddress || req.headers['x-forwarded-for'] || '';
+  const ipString = Array.isArray(ip) ? ip[0] : String(ip);
+  await resetAuthRateLimit(ipString);
+  res.json({ 
+    message: "Rate limit reset for your IP",
+    ip: ipString
   });
-}
+});
 
 // Error handling middleware
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {

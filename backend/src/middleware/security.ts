@@ -13,9 +13,9 @@ try {
 // Rate limiter for authentication endpoints (prevent brute force)
 // More lenient in development, stricter in production
 const authLimiter = RateLimiterMemory ? new RateLimiterMemory({
-  points: process.env.NODE_ENV === 'production' ? 5 : 100, // 5 attempts in prod, 100 in dev
+  points: process.env.NODE_ENV === 'production' ? 20 : 100, // 20 attempts in prod, 100 in dev
   duration: 900, // per 15 minutes
-  blockDuration: process.env.NODE_ENV === 'production' ? 900 : 10, // 15 min in prod, 10 sec in dev
+  blockDuration: process.env.NODE_ENV === 'production' ? 300 : 10, // 5 min in prod, 10 sec in dev
 }) : null;
 
 // Rate limiter for general API endpoints
