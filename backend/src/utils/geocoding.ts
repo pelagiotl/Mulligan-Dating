@@ -138,7 +138,13 @@ async function geocodeWithGoogle(location: string): Promise<GeocodeResult> {
     throw new Error(`Google Maps API error: ${response.status}`);
   }
 
-  const data = await response.json();
+  const data = await response.json() as {
+    status: string;
+    results?: Array<{
+      geometry: { location: { lat: number; lng: number } };
+      formatted_address: string;
+    }>;
+  };
   if (data.status === 'OK' && data.results && data.results.length > 0) {
     const result = data.results[0];
     const { lat, lng } = result.geometry.location;
@@ -172,7 +178,11 @@ async function geocodeWithNominatim(location: string): Promise<GeocodeResult> {
     throw new Error(`Nominatim API error: ${response.status}`);
   }
 
-  const data = await response.json();
+  const data = await response.json() as Array<{
+    lat: string;
+    lon: string;
+    display_name: string;
+  }>;
   if (data && data.length > 0) {
     const result = data[0];
     return {
