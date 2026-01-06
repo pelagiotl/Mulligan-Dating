@@ -1,5 +1,6 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import MaintenanceBanner from './MaintenanceBanner'
 
 export default function Layout() {
   const { logout, isAdmin } = useAuth()
@@ -10,6 +11,7 @@ export default function Layout() {
 
   return (
     <div className="app-layout">
+      <MaintenanceBanner />
       <nav className="navbar">
         <div className="navbar-inner">
           <Link to="/browse" className="navbar-logo">
