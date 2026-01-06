@@ -201,7 +201,7 @@ export default function Referrals() {
               </button>
             </div>
             <div className="referral-share-buttons">
-              {navigator.share && (
+              {typeof navigator !== 'undefined' && navigator.share && (
                 <button
                   className="btn btn-primary share-btn"
                   onClick={shareReferralLink}

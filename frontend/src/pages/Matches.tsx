@@ -441,7 +441,7 @@ export default function Matches() {
     }, 3000);
   };
 
-  const handleRevealPhotos = async () => {
+  const _handleRevealPhotos = async () => {
     if (!selectedMatch) return;
 
     // Confirm with user
@@ -451,7 +451,7 @@ export default function Matches() {
 
     try {
       // Call REST endpoint to manually reveal
-      const result = await api.post(`/matches/${selectedMatch.id}/reveal`, {});
+      await api.post(`/matches/${selectedMatch.id}/reveal`, {});
       
       // Update match stage immediately
       setSelectedMatch((prev) => (prev ? { ...prev, stage: "stage2" as const } : null));
@@ -536,7 +536,7 @@ export default function Matches() {
     }
   };
 
-  const getActivityStatus = (lastActiveAt: string): string => {
+  const _getActivityStatus = (lastActiveAt: string): string => {
     const lastActive = new Date(lastActiveAt);
     const now = new Date();
     const diffMs = now.getTime() - lastActive.getTime();
