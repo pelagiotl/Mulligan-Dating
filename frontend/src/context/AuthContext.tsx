@@ -48,11 +48,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchUser = async () => {
     try {
       const data: any = await api.get('/auth/me')
+      console.log('User data from /auth/me:', data.user) // Debug log
       setUser({
         id: data.user.id,
         email: data.user.email,
         isAdmin: data.user.isAdmin || false
       })
+      console.log('isAdmin set to:', data.user.isAdmin || false) // Debug log
       setProfile(data.profile)
     } catch {
       localStorage.removeItem('token')
