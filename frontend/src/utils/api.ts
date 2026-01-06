@@ -9,7 +9,7 @@ class ApiError extends Error {
   }
 }
 
-async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+async function request<T = any>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem('token')
   
   const headers: HeadersInit = {
