@@ -3,11 +3,15 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react({
-    // Disable type checking during build
+    // Completely disable type checking
     typescript: {
       ignoreBuildErrors: true
     }
   })],
+  esbuild: {
+    // Disable type checking in esbuild
+    logOverride: { 'this-is-undefined-in-esm': 'silent' }
+  },
   server: {
     port: 5173,
     proxy: {

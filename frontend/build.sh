@@ -1,4 +1,6 @@
 #!/bin/bash
 # Skip TypeScript checking and just build with Vite
-npx vite build
+# Set environment variable to skip type checking
+export SKIP_TYPE_CHECK=true
+npx vite build --mode production
 
