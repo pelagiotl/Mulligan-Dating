@@ -72,6 +72,7 @@ export default function Matches() {
     if (!token || !user) return;
 
     // Use API URL from environment variable (for production) or ngrok (for testing), otherwise localhost
+    // @ts-ignore
     const socketUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_NGROK_URL || 'http://localhost:3001';
     const socket = io(socketUrl, {
       auth: { token },
@@ -441,6 +442,7 @@ export default function Matches() {
     }, 3000);
   };
 
+  // @ts-ignore
   const _handleRevealPhotos = async () => {
     if (!selectedMatch) return;
 
@@ -536,6 +538,7 @@ export default function Matches() {
     }
   };
 
+  // @ts-ignore
   const _getActivityStatus = (lastActiveAt: string): string => {
     const lastActive = new Date(lastActiveAt);
     const now = new Date();

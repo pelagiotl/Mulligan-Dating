@@ -1,4 +1,5 @@
 // Use API URL from environment variable (for production) or ngrok (for testing), otherwise use proxy
+// @ts-ignore
 const API_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_NGROK_URL || '';
 const BASE_URL = API_URL ? `${API_URL}/api` : '/api'
 

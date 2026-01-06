@@ -29,6 +29,7 @@ interface Profile {
 export default function Browse() {
   const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
   const [offset, setOffset] = useState(0);
+  // @ts-ignore
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");

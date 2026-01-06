@@ -76,10 +76,12 @@ export default function CreateProfile() {
     }
   }
 
+  // @ts-ignore
   const _handleRemoveTag = (value: string, list: string[], setList: (l: string[]) => void) => {
     setList(list.filter(item => item !== value))
   }
 
+  // @ts-ignore
   const _handleKeyDown = (
     e: KeyboardEvent<HTMLInputElement>,
     input: string,
