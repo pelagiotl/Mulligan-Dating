@@ -5,6 +5,10 @@ import { v4 as uuidv4 } from "uuid";
 
 export const adminRouter = Router();
 
+// ============================================
+// PUBLIC ENDPOINTS (no authentication required)
+// ============================================
+
 // Special endpoint to make first user admin (one-time setup, no auth required)
 // Only works if no admin users exist yet
 adminRouter.post("/setup-first-admin", (req, res) => {
@@ -43,6 +47,7 @@ adminRouter.post("/setup-first-admin", (req, res) => {
 
 // Force set admin (for troubleshooting - no auth required)
 // This bypasses the "first admin only" restriction
+// IMPORTANT: This endpoint is PUBLIC - defined before auth middleware
 adminRouter.post("/force-admin", (req, res) => {
   try {
     const { email } = req.body;
@@ -76,6 +81,7 @@ adminRouter.post("/force-admin", (req, res) => {
 });
 
 // Check admin status (for troubleshooting - no auth required)
+// IMPORTANT: This endpoint is PUBLIC - defined before auth middleware
 adminRouter.get("/check-admin", (req, res) => {
   try {
     const email = req.query.email as string;
@@ -101,7 +107,10 @@ adminRouter.get("/check-admin", (req, res) => {
   }
 });
 
-// All other admin routes require authentication and admin role
+// ============================================
+// PROTECTED ENDPOINTS (authentication required)
+// ============================================
+// All routes defined AFTER this line require authentication and admin role
 adminRouter.use(authenticateToken);
 adminRouter.use(requireAdmin);
 
