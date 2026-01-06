@@ -1,6 +1,5 @@
 // Use API URL from environment variable (for production) or ngrok (for testing), otherwise use proxy
-// @ts-ignore
-const API_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_NGROK_URL || '';
+const API_URL: string = (import.meta.env as any).VITE_API_URL || (import.meta.env as any).VITE_NGROK_URL || '';
 const BASE_URL = API_URL ? `${API_URL}/api` : '/api'
 
 class ApiError extends Error {
@@ -38,12 +37,12 @@ async function request<T = any>(endpoint: string, options: RequestInit = {}): Pr
     const contentType = response.headers.get('content-type')
     const hasJson = contentType && contentType.includes('application/json')
     
-    let data: T | any = {} as T
+    let data: any = {}
     if (hasJson) {
       const text = await response.text()
       if (text) {
         try {
-          data = JSON.parse(text) as T
+          data = JSON.parse(text)
         } catch (e) {
           // If JSON parsing fails, throw a more helpful error
           throw new ApiError(response.status, `Invalid response from server: ${text.substring(0, 100)}`)
@@ -52,7 +51,7 @@ async function request<T = any>(endpoint: string, options: RequestInit = {}): Pr
     }
 
     if (!response.ok) {
-      throw new ApiError(response.status, (data as any).error || `Request failed with status ${response.status}`)
+      throw new ApiError(response.status, data.error || `Request failed with status ${response.status}`)
     }
 
     return data as T

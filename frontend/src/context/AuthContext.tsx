@@ -47,17 +47,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchUser = async () => {
     try {
-      // @ts-ignore
-      const data = await api.get<{ user: { id: string; email: string; isAdmin?: boolean }; profile: Profile | null }>('/auth/me')
+      const data: any = await api.get('/auth/me')
       setUser({
-        // @ts-ignore
         id: data.user.id,
-        // @ts-ignore
         email: data.user.email,
-        // @ts-ignore
         isAdmin: data.user.isAdmin || false
       })
-      // @ts-ignore
       setProfile(data.profile)
     } catch {
       localStorage.removeItem('token')
@@ -67,21 +62,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const login = async (email: string, password: string) => {
-    // @ts-ignore
-    const data = await api.post<{ token: string; hasProfile: boolean }>('/auth/login', { email, password })
-    // @ts-ignore
+    const data: any = await api.post('/auth/login', { email, password })
     localStorage.setItem('token', data.token)
     await fetchUser()
-    // @ts-ignore
     return { hasProfile: data.hasProfile }
   }
 
   const signup = async (email: string, password: string, referralCode?: string) => {
-    // @ts-ignore
-    const data = await api.post<{ token: string; userId: string }>('/auth/signup', { email, password, referralCode })
-    // @ts-ignore
+    const data: any = await api.post('/auth/signup', { email, password, referralCode })
     localStorage.setItem('token', data.token)
-    // @ts-ignore
     setUser({ id: data.userId, email })
   }
 
@@ -93,9 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshProfile = async () => {
     try {
-      // @ts-ignore
-      const data = await api.get<{ profile: Profile }>('/profile')
-      // @ts-ignore
+      const data: any = await api.get('/profile')
       setProfile(data.profile)
     } catch {
       // Profile might not exist yet

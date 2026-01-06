@@ -76,12 +76,12 @@ export default function CreateProfile() {
     }
   }
 
-  // @ts-ignore
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const _handleRemoveTag = (value: string, list: string[], setList: (l: string[]) => void) => {
     setList(list.filter(item => item !== value))
   }
 
-  // @ts-ignore
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const _handleKeyDown = (
     e: KeyboardEvent<HTMLInputElement>,
     input: string,
