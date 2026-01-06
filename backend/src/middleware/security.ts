@@ -1,0 +1,232 @@
+import { Request, Response, NextFunction } from 'express';
+
+// Try to import rate limiter (optional dependency)
+let RateLimiterMemory: any = null;
+try {
+  const rateLimiterModule = require('rate-limiter-flexible');
+  RateLimiterMemory = rateLimiterModule.RateLimiterMemory;
+} catch (error) {
+  console.warn('⚠️  rate-limiter-flexible not installed. Rate limiting disabled.');
+  console.warn('   Install with: cd backend && npm install rate-limiter-flexible');
+}
+
+// Rate limiter for authentication endpoints (prevent brute force)
+// More lenient in development, stricter in production
+const authLimiter = RateLimiterMemory ? new RateLimiterMemory({
+  points: process.env.NODE_ENV === 'production' ? 5 : 100, // 5 attempts in prod, 100 in dev
+  duration: 900, // per 15 minutes
+  blockDuration: process.env.NODE_ENV === 'production' ? 900 : 10, // 15 min in prod, 10 sec in dev
+}) : null;
+
+// Rate limiter for general API endpoints
+const apiLimiter = RateLimiterMemory ? new RateLimiterMemory({
+  points: 100, // 100 requests
+  duration: 900, // per 15 minutes
+}) : null;
+
+// Rate limiter for admin endpoints (stricter)
+const adminLimiter = RateLimiterMemory ? new RateLimiterMemory({
+  points: 50, // 50 requests
+  duration: 900, // per 15 minutes
+}) : null;
+
+export async function rateLimitAuth(req: Request, res: Response, next: NextFunction) {
+  if (!authLimiter) {
+    // Rate limiting not available, skip
+    return next();
+  }
+  
+  // In development, allow bypass for localhost
+  if (process.env.NODE_ENV !== 'production') {
+    const ip = req.ip || req.socket.remoteAddress || req.headers['x-forwarded-for'] || '';
+    const ipString = Array.isArray(ip) ? ip[0] : String(ip);
+    
+    // Check for localhost in various formats
+    if (
+      ipString === '::1' || 
+      ipString === '127.0.0.1' || 
+      ipString.startsWith('::ffff:127.0.0.1') || 
+      ipString === 'localhost' ||
+      ipString.includes('127.0.0.1') ||
+      ipString === ''
+    ) {
+      // Allow localhost in development - bypass rate limiting
+      return next();
+    }
+  }
+  
+  try {
+    const key = req.ip || req.socket.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
+    const keyString = Array.isArray(key) ? key[0] : String(key);
+    await authLimiter.consume(keyString);
+    next();
+  } catch (rejRes: any) {
+    const secs = Math.round(rejRes.msBeforeNext / 1000) || 1;
+    res.status(429).json({
+      error: 'Too many authentication attempts',
+      message: `Please try again in ${secs} seconds`,
+      retryAfter: secs,
+    });
+  }
+}
+
+// Helper function to reset rate limit for a specific IP (for development/admin use)
+export async function resetAuthRateLimit(ip: string): Promise<void> {
+  if (authLimiter && ip) {
+    try {
+      // Try to delete with the IP as-is
+      await authLimiter.delete(ip);
+      
+      // Also try common IP variations
+      if (ip.includes('127.0.0.1') || ip === '::1' || ip === 'localhost') {
+        await authLimiter.delete('127.0.0.1');
+        await authLimiter.delete('::1');
+        await authLimiter.delete('::ffff:127.0.0.1');
+      }
+      
+      // In development, also try to reset all rate limits
+      if (process.env.NODE_ENV !== 'production') {
+        // Reset all keys (this is a workaround - rate-limiter-flexible doesn't have a clearAll method)
+        // We'll just delete common variations
+        const commonKeys = ['127.0.0.1', '::1', '::ffff:127.0.0.1', 'localhost', 'unknown'];
+        for (const key of commonKeys) {
+          try {
+            await authLimiter.delete(key);
+          } catch {
+            // Ignore errors for keys that don't exist
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to reset rate limit:', error);
+    }
+  }
+}
+
+export async function rateLimitAPI(req: Request, res: Response, next: NextFunction) {
+  if (!apiLimiter) {
+    // Rate limiting not available, skip
+    return next();
+  }
+  
+  // Skip rate limiting for admin routes (they have their own limiter or are trusted)
+  // Admin routes are at /api/admin, so check for /admin in the path
+  if (req.path.includes('/admin')) {
+    return next();
+  }
+  
+  try {
+    const key = req.ip || req.socket.remoteAddress || 'unknown';
+    await apiLimiter.consume(key);
+    next();
+  } catch (rejRes: any) {
+    const secs = Math.round(rejRes.msBeforeNext / 1000) || 1;
+    res.status(429).json({
+      error: 'Too many requests',
+      message: `Please try again in ${secs} seconds`,
+      retryAfter: secs,
+    });
+  }
+}
+
+export async function rateLimitAdmin(req: Request, res: Response, next: NextFunction) {
+  if (!adminLimiter) {
+    // Rate limiting not available, skip
+    return next();
+  }
+  
+  try {
+    const key = req.ip || req.socket.remoteAddress || 'unknown';
+    await adminLimiter.consume(key);
+    next();
+  } catch (rejRes: any) {
+    const secs = Math.round(rejRes.msBeforeNext / 1000) || 1;
+    res.status(429).json({
+      error: 'Too many admin requests',
+      message: `Please try again in ${secs} seconds`,
+      retryAfter: secs,
+    });
+  }
+}
+
+// Security headers middleware
+export function securityHeaders(req: Request, res: Response, next: NextFunction) {
+  // Prevent clickjacking
+  res.setHeader('X-Frame-Options', 'DENY');
+  
+  // Prevent MIME type sniffing
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  
+  // XSS Protection
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  
+  // Strict Transport Security (only in production with HTTPS)
+  if (process.env.NODE_ENV === 'production' && process.env.REQUIRE_HTTPS === 'true') {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  
+  // Content Security Policy
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:;"
+  );
+  
+  // Referrer Policy
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  
+  // Permissions Policy
+  res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+  
+  next();
+}
+
+// Input sanitization helper
+export function sanitizeInput(input: string): string {
+  if (typeof input !== 'string') {
+    return '';
+  }
+  
+  // Remove null bytes
+  let sanitized = input.replace(/\0/g, '');
+  
+  // Trim whitespace
+  sanitized = sanitized.trim();
+  
+  // Limit length (prevent DoS)
+  if (sanitized.length > 10000) {
+    sanitized = sanitized.substring(0, 10000);
+  }
+  
+  return sanitized;
+}
+
+// Validate JWT secret strength
+export function validateJWTSecret(): void {
+  const jwtSecret = process.env.JWT_SECRET;
+  
+  if (!jwtSecret) {
+    console.error('❌ JWT_SECRET environment variable is not set!');
+    console.error('   Set it in your .env file with a strong random string (min 32 characters)');
+    console.error('   Generate one with: openssl rand -base64 32');
+    if (process.env.NODE_ENV === 'production') {
+      process.exit(1);
+    }
+  } else if (jwtSecret.length < 32) {
+    console.error('⚠️  WARNING: JWT_SECRET is too short (minimum 32 characters recommended)');
+    console.error('   Generate a strong secret with: openssl rand -base64 32');
+    if (process.env.NODE_ENV === 'production') {
+      console.error('   Production requires a strong JWT_SECRET. Exiting...');
+      process.exit(1);
+    }
+  } else if (jwtSecret === 'mulligan-secret-key-change-in-production') {
+    console.error('❌ CRITICAL: Using default JWT_SECRET! This is insecure!');
+    console.error('   Set a strong JWT_SECRET in your .env file');
+    console.error('   Generate one with: openssl rand -base64 32');
+    if (process.env.NODE_ENV === 'production') {
+      process.exit(1);
+    }
+  } else {
+    console.log('✅ JWT_SECRET validated');
+  }
+}
+
