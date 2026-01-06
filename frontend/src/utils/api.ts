@@ -37,12 +37,12 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     const contentType = response.headers.get('content-type')
     const hasJson = contentType && contentType.includes('application/json')
     
-    let data: any = {}
+    let data: T | any = {} as T
     if (hasJson) {
       const text = await response.text()
       if (text) {
         try {
-          data = JSON.parse(text)
+          data = JSON.parse(text) as T
         } catch (e) {
           // If JSON parsing fails, throw a more helpful error
           throw new ApiError(response.status, `Invalid response from server: ${text.substring(0, 100)}`)
@@ -51,10 +51,10 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     }
 
     if (!response.ok) {
-      throw new ApiError(response.status, data.error || `Request failed with status ${response.status}`)
+      throw new ApiError(response.status, (data as any).error || `Request failed with status ${response.status}`)
     }
 
-    return data
+    return data as T
   } catch (error) {
     clearTimeout(timeoutId)
     if (error instanceof Error && error.name === 'AbortError') {
