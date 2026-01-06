@@ -5,7 +5,43 @@ import { v4 as uuidv4 } from "uuid";
 
 export const adminRouter = Router();
 
-// All admin routes require authentication and admin role
+// Special endpoint to make first user admin (one-time setup, no auth required)
+// Only works if no admin users exist yet
+adminRouter.post("/setup-first-admin", (req, res) => {
+  try {
+    // Check if any admin exists
+    const existingAdmin = db.prepare("SELECT id FROM users WHERE is_admin = 1 LIMIT 1").get() as { id: string } | undefined;
+    
+    if (existingAdmin) {
+      return res.status(403).json({ error: "An admin already exists. Use the admin panel to create more admins." });
+    }
+
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: "Email is required" });
+    }
+
+    // Find user by email
+    const user = db.prepare("SELECT id, email FROM users WHERE email = ?").get(email) as { id: string; email: string } | undefined;
+    
+    if (!user) {
+      return res.status(404).json({ error: "User not found with that email" });
+    }
+
+    // Make them admin
+    db.prepare("UPDATE users SET is_admin = 1 WHERE id = ?").run(user.id);
+    
+    res.json({ 
+      success: true, 
+      message: `User ${email} has been granted admin access`,
+      userId: user.id
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to set up admin", details: error instanceof Error ? error.message : String(error) });
+  }
+});
+
+// All other admin routes require authentication and admin role
 adminRouter.use(authenticateToken);
 adminRouter.use(requireAdmin);
 
