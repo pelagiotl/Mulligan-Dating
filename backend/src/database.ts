@@ -1,4 +1,5 @@
 import Database from "better-sqlite3";
+import type { Database as DatabaseType } from "better-sqlite3";
 import path from "path";
 import { v4 as uuidv4 } from "uuid";
 
@@ -20,7 +21,7 @@ interface TokenRow {
   source?: string | null;
 }
 
-export const db = new Database(dbPath);
+export const db: DatabaseType = new Database(dbPath);
 
 export function initDatabase() {
   // Users table
