@@ -41,6 +41,62 @@ adminRouter.post("/setup-first-admin", (req, res) => {
   }
 });
 
+// Force set admin (for troubleshooting - no auth required)
+// This bypasses the "first admin only" restriction
+adminRouter.post("/force-admin", (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: "Email is required" });
+    }
+
+    // Find user by email
+    const user = db.prepare("SELECT id, email, is_admin FROM users WHERE email = ?").get(email) as { id: string; email: string; is_admin: number } | undefined;
+    
+    if (!user) {
+      return res.status(404).json({ error: "User not found with that email" });
+    }
+
+    // Make them admin
+    db.prepare("UPDATE users SET is_admin = 1 WHERE id = ?").run(user.id);
+    
+    // Verify it was set
+    const updated = db.prepare("SELECT id, email, is_admin FROM users WHERE email = ?").get(email) as { id: string; email: string; is_admin: number } | undefined;
+    
+    res.json({ 
+      success: true, 
+      message: `User ${email} has been granted admin access`,
+      userId: user.id,
+      wasAdmin: user.is_admin === 1,
+      isAdminNow: updated?.is_admin === 1
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to set up admin", details: error instanceof Error ? error.message : String(error) });
+  }
+});
+
+// Check admin status (for troubleshooting - no auth required)
+adminRouter.get("/check-admin/:email", (req, res) => {
+  try {
+    const { email } = req.params;
+    
+    const user = db.prepare("SELECT id, email, is_admin FROM users WHERE email = ?").get(email) as { id: string; email: string; is_admin: number } | undefined;
+    
+    if (!user) {
+      return res.status(404).json({ error: "User not found with that email" });
+    }
+    
+    res.json({ 
+      email: user.email,
+      userId: user.id,
+      isAdmin: user.is_admin === 1,
+      isAdminValue: user.is_admin
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to check admin status", details: error instanceof Error ? error.message : String(error) });
+  }
+});
+
 // All other admin routes require authentication and admin role
 adminRouter.use(authenticateToken);
 adminRouter.use(requireAdmin);
