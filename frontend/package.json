@@ -5,8 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "prebuild": "echo 'Skipping type check'",
+    "build": "bash build.sh",
     "preview": "vite preview"
   },
   "dependencies": {
