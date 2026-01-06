@@ -70,7 +70,6 @@ export default function Signup() {
     setLoading(true)
 
     try {
-      // @ts-ignore
       await signup(email, password, referralCode || undefined)
       navigate('/create-profile')
     } catch (err) {

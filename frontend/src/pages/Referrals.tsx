@@ -201,8 +201,7 @@ export default function Referrals() {
               </button>
             </div>
             <div className="referral-share-buttons">
-              {/* @ts-ignore */}
-              {typeof navigator !== 'undefined' && typeof navigator.share === 'function' && (
+              {typeof navigator !== 'undefined' && 'share' in navigator && typeof (navigator as any).share === 'function' && (
                 <button
                   className="btn btn-primary share-btn"
                   onClick={shareReferralLink}
