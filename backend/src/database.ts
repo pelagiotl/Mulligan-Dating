@@ -106,17 +106,31 @@ class DatabaseWrapper {
     let paramIndex = 1;
     const pgSql = sql.replace(/\?/g, () => `$${paramIndex++}`);
     
+    // Helper to normalize params (handle both single value and array)
+    const normalizeParams = (params: any): any[] => {
+      if (params === undefined || params === null) {
+        return [];
+      }
+      if (Array.isArray(params)) {
+        return params;
+      }
+      return [params];
+    };
+    
     return {
-      get: async (params: any[] = []) => {
-        const result = await pgPool!.query(pgSql, params);
+      get: async (params?: any) => {
+        const normalizedParams = normalizeParams(params);
+        const result = await pgPool!.query(pgSql, normalizedParams);
         return result.rows[0] || null;
       },
-      run: async (params: any[] = []) => {
-        await pgPool!.query(pgSql, params);
+      run: async (params?: any) => {
+        const normalizedParams = normalizeParams(params);
+        await pgPool!.query(pgSql, normalizedParams);
         return { lastInsertRowid: 0, changes: 0 };
       },
-      all: async (params: any[] = []) => {
-        const result = await pgPool!.query(pgSql, params);
+      all: async (params?: any) => {
+        const normalizedParams = normalizeParams(params);
+        const result = await pgPool!.query(pgSql, normalizedParams);
         return result.rows;
       }
     };
