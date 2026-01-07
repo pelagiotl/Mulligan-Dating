@@ -120,7 +120,7 @@ app.use("/api/photos", photosRouter);
 app.use("/api/sms", smsRouter);
 
 // Public admin endpoints (no auth required) - must be BEFORE the protected admin router
-app.get("/api/admin/check-admin", (req, res) => {
+app.get("/api/admin/check-admin", async (req, res) => {
   try {
     const email = req.query.email as string;
     
@@ -128,7 +128,8 @@ app.get("/api/admin/check-admin", (req, res) => {
       return res.status(400).json({ error: "Email query parameter is required" });
     }
     
-    const user = db.prepare("SELECT id, email, is_admin FROM users WHERE email = ?").get(email) as { id: string; email: string; is_admin: number } | undefined;
+    const userStmt = db.prepare("SELECT id, email, is_admin FROM users WHERE email = ?");
+    const user = await (userStmt.get(email) as Promise<{ id: string; email: string; is_admin: number } | null>);
     
     if (!user) {
       return res.status(404).json({ error: "User not found with that email" });
@@ -145,22 +146,25 @@ app.get("/api/admin/check-admin", (req, res) => {
   }
 });
 
-app.post("/api/admin/force-admin", (req, res) => {
+app.post("/api/admin/force-admin", async (req, res) => {
   try {
     const { email } = req.body;
     if (!email) {
       return res.status(400).json({ error: "Email is required" });
     }
 
-    const user = db.prepare("SELECT id, email, is_admin FROM users WHERE email = ?").get(email) as { id: string; email: string; is_admin: number } | undefined;
+    const userStmt = db.prepare("SELECT id, email, is_admin FROM users WHERE email = ?");
+    const user = await (userStmt.get(email) as Promise<{ id: string; email: string; is_admin: number } | null>);
     
     if (!user) {
       return res.status(404).json({ error: "User not found with that email" });
     }
 
-    db.prepare("UPDATE users SET is_admin = 1 WHERE id = ?").run(user.id);
+    const updateStmt = db.prepare("UPDATE users SET is_admin = 1 WHERE id = ?");
+    await (updateStmt.run([user.id]) as Promise<any>);
     
-    const updated = db.prepare("SELECT id, email, is_admin FROM users WHERE email = ?").get(email) as { id: string; email: string; is_admin: number } | undefined;
+    const verifyStmt = db.prepare("SELECT id, email, is_admin FROM users WHERE email = ?");
+    const updated = await (verifyStmt.get(email) as Promise<{ id: string; email: string; is_admin: number } | null>);
     
     res.json({ 
       success: true, 
