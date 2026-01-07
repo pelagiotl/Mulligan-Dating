@@ -35,7 +35,21 @@ export default function Login() {
       const { hasProfile } = await login(email, password)
       navigate(hasProfile ? '/browse' : '/create-profile')
     } catch (err: any) {
-      setError(err.message || 'Invalid email or password')
+      console.error('Login error:', err)
+      // Show more specific error messages
+      let errorMessage = 'Invalid email or password'
+      if (err.message) {
+        if (err.message.includes('timeout') || err.message.includes('unavailable')) {
+          errorMessage = 'Server unavailable. Please try again.'
+        } else if (err.message.includes('Failed to fetch') || err.message.includes('Network error')) {
+          errorMessage = 'Connection failed. Please check your internet and try again.'
+        } else if (err.message.includes('load') || err.message.includes('fetch')) {
+          errorMessage = 'Failed to load user data. Please try again.'
+        } else {
+          errorMessage = err.message
+        }
+      }
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }
@@ -74,48 +88,80 @@ export default function Login() {
           <Link to="/" className="auth-logo-enhanced">
             <span className="auth-logo-icon">
               <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                {/* Circular path for rotation */}
+                <defs>
+                  {/* Gradient for heart */}
+                  <linearGradient id="heartGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
+                    <stop offset="50%" stopColor="#ffe4e6" stopOpacity="1" />
+                    <stop offset="100%" stopColor="#ffffff" stopOpacity="1" />
+                  </linearGradient>
+                  {/* Glow filter */}
+                  <filter id="glow">
+                    <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+                    <feMerge>
+                      <feMergeNode in="coloredBlur"/>
+                      <feMergeNode in="SourceGraphic"/>
+                    </feMerge>
+                  </filter>
+                </defs>
+                
+                {/* Rotating group with arrows */}
                 <g className="logo-rotate-group">
-                  {/* Heart shape - main element */}
+                  {/* Heart shape with gradient */}
                   <path 
                     d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z" 
-                    fill="currentColor"
+                    fill="url(#heartGradient)"
                     className="logo-heart"
+                    filter="url(#glow)"
                   />
-                  {/* Circular arrow - top right */}
-                  <path 
-                    d="M30 10C32 10 34 11 35.5 12.5" 
-                    stroke="currentColor" 
-                    strokeWidth="3" 
-                    strokeLinecap="round"
-                    fill="none"
-                    className="logo-arrow"
-                  />
-                  <path 
-                    d="M35.5 12.5L32 9" 
-                    stroke="currentColor" 
-                    strokeWidth="3" 
-                    strokeLinecap="round" 
-                    strokeLinejoin="round"
-                    className="logo-arrow"
-                  />
-                  {/* Circular arrow - bottom left */}
-                  <path 
-                    d="M18 38C16 38 14 37 12.5 35.5" 
-                    stroke="currentColor" 
-                    strokeWidth="3" 
-                    strokeLinecap="round"
-                    fill="none"
-                    className="logo-arrow"
-                  />
-                  <path 
-                    d="M12.5 35.5L16 39" 
-                    stroke="currentColor" 
-                    strokeWidth="3" 
-                    strokeLinecap="round" 
-                    strokeLinejoin="round"
-                    className="logo-arrow"
-                  />
+                  
+                  {/* Top right arrow - more prominent */}
+                  <g className="logo-arrow-top">
+                    <circle cx="36" cy="10" r="3" fill="currentColor" opacity="0.9" />
+                    <path 
+                      d="M30 10L36 10" 
+                      stroke="currentColor" 
+                      strokeWidth="3" 
+                      strokeLinecap="round"
+                      className="logo-arrow"
+                    />
+                    <path 
+                      d="M33 7L36 10L33 13" 
+                      stroke="currentColor" 
+                      strokeWidth="3" 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round"
+                      fill="none"
+                      className="logo-arrow"
+                    />
+                  </g>
+                  
+                  {/* Bottom left arrow - more prominent */}
+                  <g className="logo-arrow-bottom">
+                    <circle cx="12" cy="38" r="3" fill="currentColor" opacity="0.9" />
+                    <path 
+                      d="M18 38L12 38" 
+                      stroke="currentColor" 
+                      strokeWidth="3" 
+                      strokeLinecap="round"
+                      className="logo-arrow"
+                    />
+                    <path 
+                      d="M15 35L12 38L15 41" 
+                      stroke="currentColor" 
+                      strokeWidth="3" 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round"
+                      fill="none"
+                      className="logo-arrow"
+                    />
+                  </g>
+                  
+                  {/* Sparkle effects */}
+                  <circle cx="24" cy="8" r="1.5" fill="currentColor" opacity="0.8" className="logo-sparkle" />
+                  <circle cx="40" cy="24" r="1.5" fill="currentColor" opacity="0.8" className="logo-sparkle" />
+                  <circle cx="24" cy="40" r="1.5" fill="currentColor" opacity="0.8" className="logo-sparkle" />
+                  <circle cx="8" cy="24" r="1.5" fill="currentColor" opacity="0.8" className="logo-sparkle" />
                 </g>
               </svg>
             </span>

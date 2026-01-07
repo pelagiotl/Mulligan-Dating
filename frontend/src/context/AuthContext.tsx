@@ -56,18 +56,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       console.log('isAdmin set to:', data.user.isAdmin || false) // Debug log
       setProfile(data.profile)
-    } catch {
+    } catch (error) {
+      console.error('Failed to fetch user:', error)
       localStorage.removeItem('token')
+      setUser(null)
+      setProfile(null)
+      throw error // Re-throw so caller can handle it
     } finally {
       setLoading(false)
     }
   }
 
+  // Legacy email/password login (kept for backward compatibility)
   const login = async (email: string, password: string) => {
-    const data: any = await api.post('/auth/login', { email, password })
-    localStorage.setItem('token', data.token)
-    await fetchUser()
-    return { hasProfile: data.hasProfile }
+    try {
+      const data: any = await api.post('/auth/login', { email, password })
+      localStorage.setItem('token', data.token)
+      // Reset loading state before fetching user
+      setLoading(true)
+      await fetchUser()
+      return { hasProfile: data.hasProfile }
+    } catch (error) {
+      // If fetchUser fails, clean up token
+      localStorage.removeItem('token')
+      setUser(null)
+      setProfile(null)
+      setLoading(false)
+      throw error // Re-throw so login page can show error
+    }
   }
 
   const signup = async (email: string, password: string, referralCode?: string) => {
@@ -80,6 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('token')
     setUser(null)
     setProfile(null)
+    setLoading(false) // Reset loading state on logout
   }
 
   const refreshProfile = async () => {
