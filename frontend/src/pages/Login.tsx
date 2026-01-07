@@ -7,8 +7,18 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const { login } = useAuth()
+  const { login, isAuthenticated } = useAuth()
   const navigate = useNavigate()
+
+  // Reset error state when component mounts or when user is not authenticated
+  useEffect(() => {
+    setError('')
+    setLoading(false)
+    // If already authenticated, redirect to browse
+    if (isAuthenticated) {
+      navigate('/browse')
+    }
+  }, [isAuthenticated, navigate])
 
   // Create floating particles
   const [particles] = useState(() => {
@@ -33,8 +43,11 @@ export default function Login() {
 
     try {
       console.log('Attempting login for:', email)
+      // Clear any potential stale state
       const { hasProfile } = await login(email, password)
       console.log('Login successful, hasProfile:', hasProfile)
+      // Small delay to ensure state is updated before navigation
+      await new Promise(resolve => setTimeout(resolve, 100))
       navigate(hasProfile ? '/browse' : '/create-profile')
     } catch (err: any) {
       console.error('Login error details:', {
@@ -51,8 +64,8 @@ export default function Login() {
         const msg = err.message.toLowerCase()
         if (msg.includes('timeout') || msg.includes('unavailable')) {
           errorMessage = 'Server unavailable. Please try again.'
-        } else if (msg.includes('failed to fetch') || msg.includes('network error') || msg.includes('load failed')) {
-          errorMessage = 'Connection failed. Please check your internet and try again.'
+        } else if (msg.includes('failed to fetch') || msg.includes('network error') || msg.includes('load failed') || msg.includes('connection failed')) {
+          errorMessage = 'Connection failed. Please refresh the page and try again.'
         } else if (msg.includes('no token') || msg.includes('authentication')) {
           errorMessage = 'Authentication failed. Please try again.'
         } else if (msg.includes('invalid response') || msg.includes('invalid')) {

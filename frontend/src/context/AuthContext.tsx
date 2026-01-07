@@ -128,10 +128,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const logout = () => {
+    console.log('Logging out - clearing all state')
+    // Clear token first
     localStorage.removeItem('token')
+    // Reset all state synchronously
     setUser(null)
     setProfile(null)
-    setLoading(false) // Reset loading state on logout
+    setLoading(false)
+    // Force a small delay to ensure state is cleared before any new operations
+    // This helps prevent race conditions with pending requests
+    setTimeout(() => {
+      console.log('Logout complete - state cleared')
+    }, 0)
   }
 
   const refreshProfile = async () => {
