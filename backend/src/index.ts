@@ -14,6 +14,7 @@ import { blocksRouter } from "./routes/blocks.js";
 import { settingsRouter } from "./routes/settings.js";
 import { photosRouter } from "./routes/photos.js";
 import { adminRouter } from "./routes/admin.js";
+import { smsRouter } from "./routes/sms.js";
 import { initDatabase, db } from "./database.js";
 import { generateWeeklyMatchesForAll } from "./services/matching.js";
 import path from "path";
@@ -93,8 +94,11 @@ app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 // Validate security configuration
 validateJWTSecret();
 
-// Initialize database
-initDatabase();
+// Initialize database (async for PostgreSQL support)
+initDatabase().catch(err => {
+  console.error('❌ Failed to initialize database:', err);
+  process.exit(1);
+});
 
 // Initialize cron scheduler (async, won't block server startup)
 initCronScheduler();
@@ -113,6 +117,7 @@ app.use("/api/referrals", referralsRouter);
 app.use("/api/blocks", blocksRouter);
 app.use("/api/settings", settingsRouter);
 app.use("/api/photos", photosRouter);
+app.use("/api/sms", smsRouter);
 
 // Public admin endpoints (no auth required) - must be BEFORE the protected admin router
 app.get("/api/admin/check-admin", (req, res) => {
