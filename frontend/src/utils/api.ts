@@ -25,8 +25,11 @@ async function request<T = any>(endpoint: string, options: RequestInit = {}): Pr
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
 
+  const url = `${BASE_URL}${endpoint}`
+  console.log('Making API request:', { method: options.method || 'GET', url, hasToken: !!token })
+
   try {
-    const response = await fetch(`${BASE_URL}${endpoint}`, {
+    const response = await fetch(url, {
       ...options,
       headers,
       signal: controller.signal
@@ -57,11 +60,22 @@ async function request<T = any>(endpoint: string, options: RequestInit = {}): Pr
     return data as T
   } catch (error) {
     clearTimeout(timeoutId)
+    console.error('API request failed:', {
+      url,
+      error,
+      name: error instanceof Error ? error.name : 'Unknown',
+      message: error instanceof Error ? error.message : String(error)
+    })
+    
     if (error instanceof Error && error.name === 'AbortError') {
       throw new ApiError(408, 'Request timeout - server may be unavailable')
     }
     if (error instanceof ApiError) {
       throw error
+    }
+    // Check if it's a network error
+    if (error instanceof Error && (error.message.includes('Failed to fetch') || error.message.includes('NetworkError'))) {
+      throw new ApiError(0, 'Connection failed. Please check your internet connection and try again.')
     }
     throw new ApiError(0, error instanceof Error ? error.message : 'Network error')
   }

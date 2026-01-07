@@ -87,7 +87,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Legacy email/password login (kept for backward compatibility)
   const login = async (email: string, password: string) => {
     try {
+      console.log('Starting login process for:', email)
+      
+      // Clear any existing token first to avoid conflicts
+      const oldToken = localStorage.getItem('token')
+      if (oldToken) {
+        console.log('Clearing old token before login')
+        localStorage.removeItem('token')
+        // Small delay to ensure token is cleared
+        await new Promise(resolve => setTimeout(resolve, 50))
+      }
+      
       const data: any = await api.post('/auth/login', { email, password })
+      console.log('Login API call successful, received token:', !!data.token)
       
       // Ensure token is set before fetching user
       if (!data.token) {
@@ -95,9 +107,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       
       localStorage.setItem('token', data.token)
+      console.log('Token saved to localStorage')
       
       // Small delay to ensure token is persisted and available
-      await new Promise(resolve => setTimeout(resolve, 50))
+      await new Promise(resolve => setTimeout(resolve, 100))
       
       // Reset loading state before fetching user
       setLoading(true)
@@ -108,10 +121,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error('Token was not properly saved')
       }
       
+      console.log('Fetching user data after login...')
       await fetchUser()
+      console.log('Login complete, user data fetched')
       return { hasProfile: data.hasProfile }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login error:', error)
+      console.error('Error details:', {
+        message: error?.message,
+        status: error?.status,
+        name: error?.name
+      })
       // If fetchUser fails, clean up token
       localStorage.removeItem('token')
       setUser(null)
