@@ -22,6 +22,11 @@ let sqliteDb: DatabaseType | null = null;
 let pgPool: Pool | null = null;
 
 // Initialize database connection
+console.log('🔍 Checking database configuration...');
+console.log('🔍 DATABASE_URL exists:', !!process.env.DATABASE_URL);
+console.log('🔍 DATABASE_URL value:', process.env.DATABASE_URL ? 'SET (hidden)' : 'NOT SET');
+console.log('🔍 usePostgres:', usePostgres);
+
 if (usePostgres) {
   console.log('🐘 Using PostgreSQL database');
   const connectionString = process.env.DATABASE_URL;
