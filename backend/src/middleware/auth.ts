@@ -40,7 +40,7 @@ export interface AuthRequest extends Request {
   isAdmin?: boolean;
 }
 
-export function authenticateToken(req: AuthRequest, res: Response, next: NextFunction) {
+export async function authenticateToken(req: AuthRequest, res: Response, next: NextFunction) {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
@@ -55,14 +55,16 @@ export function authenticateToken(req: AuthRequest, res: Response, next: NextFun
     // Check if user is restricted
     if (req.userId) {
       const { db } = require('../database.js');
-      const user = db.prepare('SELECT is_restricted FROM users WHERE id = ?').get(req.userId) as { is_restricted: number } | undefined;
+      const userStmt = db.prepare('SELECT is_restricted FROM users WHERE id = ?');
+      const user = await (userStmt.get(req.userId) as Promise<{ is_restricted: number } | null>);
       
       if (user && user.is_restricted === 1) {
         return res.status(403).json({ error: 'Your account has been restricted. Please contact support at Mulligandating@gmail.com' });
       }
       
       // Update last active timestamp
-      db.prepare('UPDATE users SET last_active_at = CURRENT_TIMESTAMP WHERE id = ?').run(req.userId);
+      const updateStmt = db.prepare('UPDATE users SET last_active_at = CURRENT_TIMESTAMP WHERE id = ?');
+      await (updateStmt.run([req.userId]) as Promise<any>);
     }
     
     next();
@@ -76,14 +78,15 @@ export function generateToken(userId: string): string {
 }
 
 // Admin authentication middleware
-export function requireAdmin(req: AuthRequest, res: Response, next: NextFunction) {
+export async function requireAdmin(req: AuthRequest, res: Response, next: NextFunction) {
   if (!req.userId) {
     return res.status(401).json({ error: 'Authentication required' });
   }
 
   try {
     const { db } = require('../database.js');
-    const user = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(req.userId) as { is_admin: number } | undefined;
+    const userStmt = db.prepare('SELECT is_admin FROM users WHERE id = ?');
+    const user = await (userStmt.get(req.userId) as Promise<{ is_admin: number } | null>);
     
     if (!user || user.is_admin !== 1) {
       return res.status(403).json({ error: 'Admin access required' });
