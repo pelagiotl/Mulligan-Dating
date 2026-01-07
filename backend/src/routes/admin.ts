@@ -11,10 +11,11 @@ export const adminRouter = Router();
 
 // Special endpoint to make first user admin (one-time setup, no auth required)
 // Only works if no admin users exist yet
-adminRouter.post("/setup-first-admin", (req, res) => {
+adminRouter.post("/setup-first-admin", async (req, res) => {
   try {
     // Check if any admin exists
-    const existingAdmin = db.prepare("SELECT id FROM users WHERE is_admin = 1 LIMIT 1").get() as { id: string } | undefined;
+    const existingAdminStmt = db.prepare("SELECT id FROM users WHERE is_admin = 1 LIMIT 1");
+    const existingAdmin = await (existingAdminStmt.get() as Promise<{ id: string } | null>);
     
     if (existingAdmin) {
       return res.status(403).json({ error: "An admin already exists. Use the admin panel to create more admins." });
@@ -26,14 +27,16 @@ adminRouter.post("/setup-first-admin", (req, res) => {
     }
 
     // Find user by email
-    const user = db.prepare("SELECT id, email FROM users WHERE email = ?").get(email) as { id: string; email: string } | undefined;
+    const userStmt = db.prepare("SELECT id, email FROM users WHERE email = ?");
+    const user = await (userStmt.get(email) as Promise<{ id: string; email: string } | null>);
     
     if (!user) {
       return res.status(404).json({ error: "User not found with that email" });
     }
 
     // Make them admin
-    db.prepare("UPDATE users SET is_admin = 1 WHERE id = ?").run(user.id);
+    const updateStmt = db.prepare("UPDATE users SET is_admin = 1 WHERE id = ?");
+    await (updateStmt.run([user.id]) as Promise<any>);
     
     res.json({ 
       success: true, 
@@ -48,7 +51,7 @@ adminRouter.post("/setup-first-admin", (req, res) => {
 // Force set admin (for troubleshooting - no auth required)
 // This bypasses the "first admin only" restriction
 // IMPORTANT: This endpoint is PUBLIC - defined before auth middleware
-adminRouter.post("/force-admin", (req, res) => {
+adminRouter.post("/force-admin", async (req, res) => {
   try {
     const { email } = req.body;
     if (!email) {
@@ -56,17 +59,20 @@ adminRouter.post("/force-admin", (req, res) => {
     }
 
     // Find user by email
-    const user = db.prepare("SELECT id, email, is_admin FROM users WHERE email = ?").get(email) as { id: string; email: string; is_admin: number } | undefined;
+    const userStmt = db.prepare("SELECT id, email, is_admin FROM users WHERE email = ?");
+    const user = await (userStmt.get(email) as Promise<{ id: string; email: string; is_admin: number } | null>);
     
     if (!user) {
       return res.status(404).json({ error: "User not found with that email" });
     }
 
     // Make them admin
-    db.prepare("UPDATE users SET is_admin = 1 WHERE id = ?").run(user.id);
+    const updateStmt = db.prepare("UPDATE users SET is_admin = 1 WHERE id = ?");
+    await (updateStmt.run([user.id]) as Promise<any>);
     
     // Verify it was set
-    const updated = db.prepare("SELECT id, email, is_admin FROM users WHERE email = ?").get(email) as { id: string; email: string; is_admin: number } | undefined;
+    const verifyStmt = db.prepare("SELECT id, email, is_admin FROM users WHERE email = ?");
+    const updated = await (verifyStmt.get(email) as Promise<{ id: string; email: string; is_admin: number } | null>);
     
     res.json({ 
       success: true, 
@@ -82,7 +88,7 @@ adminRouter.post("/force-admin", (req, res) => {
 
 // Check admin status (for troubleshooting - no auth required)
 // IMPORTANT: This endpoint is PUBLIC - defined before auth middleware
-adminRouter.get("/check-admin", (req, res) => {
+adminRouter.get("/check-admin", async (req, res) => {
   try {
     const email = req.query.email as string;
     
@@ -90,7 +96,8 @@ adminRouter.get("/check-admin", (req, res) => {
       return res.status(400).json({ error: "Email query parameter is required" });
     }
     
-    const user = db.prepare("SELECT id, email, is_admin FROM users WHERE email = ?").get(email) as { id: string; email: string; is_admin: number } | undefined;
+    const userStmt = db.prepare("SELECT id, email, is_admin FROM users WHERE email = ?");
+    const user = await (userStmt.get(email) as Promise<{ id: string; email: string; is_admin: number } | null>);
     
     if (!user) {
       return res.status(404).json({ error: "User not found with that email" });
