@@ -25,7 +25,8 @@ authRouter.post('/signup', async (req, res) => {
     const { email, password, referralCode } = signupSchema.parse(req.body);
     
     // Check if user exists
-    const existingUser = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+    const existingUserStmt = db.prepare('SELECT id FROM users WHERE email = ?');
+    const existingUser = await (existingUserStmt.get(email) as Promise<any>);
     if (existingUser) {
       return res.status(400).json({ error: 'Email already registered' });
     }
@@ -34,7 +35,8 @@ authRouter.post('/signup', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 12);
     const userId = uuidv4();
     
-    db.prepare('INSERT INTO users (id, email, password) VALUES (?, ?, ?)').run(userId, email, hashedPassword);
+    const insertStmt = db.prepare('INSERT INTO users (id, email, password) VALUES (?, ?, ?)');
+    await (insertStmt.run([userId, email, hashedPassword]) as Promise<any>);
 
     // Generate referral code for the new user
     const newUserReferralCode = getOrCreateReferralCode(userId);
@@ -46,25 +48,24 @@ authRouter.post('/signup', async (req, res) => {
       
       if (referrerId && referrerId !== userId) {
         // Check if this user was already referred (prevent duplicate referrals)
-        const existingReferral = db
-          .prepare('SELECT id FROM referrals WHERE referred_id = ?')
-          .get(userId);
+        const existingReferralStmt = db.prepare('SELECT id FROM referrals WHERE referred_id = ?');
+        const existingReferral = await (existingReferralStmt.get(userId) as Promise<any>);
         
         if (!existingReferral) {
           // Create referral record
           const referralId = uuidv4();
-          db.prepare(
+          const insertReferralStmt = db.prepare(
             `INSERT INTO referrals (id, referrer_id, referred_id, referral_code) 
              VALUES (?, ?, ?, ?)`
-          ).run(referralId, referrerId, userId, referralCode);
+          );
+          await (insertReferralStmt.run([referralId, referrerId, userId, referralCode]) as Promise<any>);
 
           // Grant token to referrer
           grantReferralToken(referrerId);
           
           // Mark referral as having granted token
-          db.prepare(
-            `UPDATE referrals SET token_granted = 1 WHERE id = ?`
-          ).run(referralId);
+          const updateReferralStmt = db.prepare(`UPDATE referrals SET token_granted = 1 WHERE id = ?`);
+          await (updateReferralStmt.run([referralId]) as Promise<any>);
         }
       }
     }
@@ -92,7 +93,8 @@ authRouter.post('/login', async (req, res) => {
     console.log('🔐 Login attempt:', { email: req.body?.email, hasPassword: !!req.body?.password });
     const { email, password } = loginSchema.parse(req.body);
     
-    const user = db.prepare('SELECT id, password, is_restricted FROM users WHERE email = ?').get(email) as { id: string; password: string; is_restricted: number } | undefined;
+    const stmt = db.prepare('SELECT id, password, is_restricted FROM users WHERE email = ?');
+    const user = await (stmt.get(email) as Promise<{ id: string; password: string; is_restricted: number } | null>);
     
     if (!user) {
       return res.status(401).json({ error: 'Invalid email or password' });
@@ -135,7 +137,8 @@ authRouter.post('/login', async (req, res) => {
     // Check if profile exists
     let profile;
     try {
-      profile = db.prepare('SELECT id FROM profiles WHERE user_id = ?').get(user.id);
+      const profileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
+      profile = await (profileStmt.get(user.id) as Promise<any>);
     } catch (profileError) {
       console.error('Profile query error:', profileError);
       // Don't fail login if profile query fails, just assume no profile
@@ -165,9 +168,10 @@ authRouter.post('/login', async (req, res) => {
 });
 
 // Get current user
-authRouter.get('/me', authenticateToken, (req: AuthRequest, res) => {
+authRouter.get('/me', authenticateToken, async (req: AuthRequest, res) => {
   try {
-    const user = db.prepare('SELECT id, email, is_admin, created_at FROM users WHERE id = ?').get(req.userId) as { id: string; email: string; is_admin: number; created_at: string } | undefined;
+    const stmt = db.prepare('SELECT id, email, is_admin, created_at FROM users WHERE id = ?');
+    const user = await (stmt.get(req.userId) as Promise<{ id: string; email: string; is_admin: number; created_at: string } | null>);
     
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
@@ -175,7 +179,8 @@ authRouter.get('/me', authenticateToken, (req: AuthRequest, res) => {
 
     let profile = null;
     try {
-      profile = db.prepare('SELECT * FROM profiles WHERE user_id = ?').get(req.userId);
+      const profileStmt = db.prepare('SELECT * FROM profiles WHERE user_id = ?');
+      profile = await (profileStmt.get(req.userId) as Promise<any>);
     } catch (profileError) {
       console.error('Profile query error in /auth/me:', profileError);
       // Don't fail the request if profile query fails, just return null
