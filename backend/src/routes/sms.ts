@@ -49,7 +49,8 @@ smsRouter.post('/send-code', rateLimitAuth, async (req, res) => {
     }
 
     // Check if phone number is already registered (for login)
-    const existingUser = db.prepare('SELECT id, phone_verified FROM users WHERE phone_number = ?').get(formattedPhone) as { id: string; phone_verified: number } | undefined;
+    const existingUserStmt = db.prepare('SELECT id, phone_verified FROM users WHERE phone_number = ?');
+    const existingUser = await (existingUserStmt.get(formattedPhone) as Promise<{ id: string; phone_verified: number } | null>);
     
     // Debug logging
     console.log('📱 Phone lookup:', {
@@ -61,7 +62,8 @@ smsRouter.post('/send-code', rateLimitAuth, async (req, res) => {
     
     // For signup: check if email is provided and if user already exists
     if (email) {
-      const emailUser = db.prepare('SELECT id, phone_number FROM users WHERE email = ?').get(email) as { id: string; phone_number: string | null } | undefined;
+      const emailUserStmt = db.prepare('SELECT id, phone_number FROM users WHERE email = ?');
+      const emailUser = await (emailUserStmt.get(email) as Promise<{ id: string; phone_number: string | null } | null>);
       
       if (emailUser) {
         // Email exists - allow linking phone number to existing account
@@ -91,7 +93,8 @@ smsRouter.post('/send-code', rateLimitAuth, async (req, res) => {
     // If email provided, check if it's for linking to existing account
     let userIdForCode: string | undefined = existingUser?.id;
     if (email) {
-      const emailUserForCode = db.prepare('SELECT id FROM users WHERE email = ?').get(email) as { id: string } | undefined;
+      const emailUserForCodeStmt = db.prepare('SELECT id FROM users WHERE email = ?');
+      const emailUserForCode = await (emailUserForCodeStmt.get(email) as Promise<{ id: string } | null>);
       if (emailUserForCode) {
         userIdForCode = emailUserForCode.id; // Store userId for linking
       }
@@ -177,7 +180,8 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
       userId = stored.userId;
       
       // Update phone_verified if not already verified
-      db.prepare('UPDATE users SET phone_verified = 1 WHERE id = ?').run(userId);
+      const updateStmt = db.prepare('UPDATE users SET phone_verified = 1 WHERE id = ?');
+      await (updateStmt.run([userId]) as Promise<any>);
     } else {
       // Signup or linking phone to existing account
       if (!email) {
@@ -185,7 +189,8 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
       }
 
       // Check if email already exists (for linking phone to existing account)
-      const emailUser = db.prepare('SELECT id, phone_number FROM users WHERE email = ?').get(email) as { id: string; phone_number: string | null } | undefined;
+      const emailUserStmt = db.prepare('SELECT id, phone_number FROM users WHERE email = ?');
+      const emailUser = await (emailUserStmt.get(email) as Promise<{ id: string; phone_number: string | null } | null>);
       
       if (emailUser) {
         // Linking phone to existing account
@@ -193,9 +198,8 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
         isNewUser = false;
         
         // Update existing user with phone number
-        db.prepare(
-          'UPDATE users SET phone_number = ?, phone_verified = 1 WHERE id = ?'
-        ).run(formattedPhone, userId);
+        const updatePhoneStmt = db.prepare('UPDATE users SET phone_number = ?, phone_verified = 1 WHERE id = ?');
+        await (updatePhoneStmt.run([formattedPhone, userId]) as Promise<any>);
         
         console.log('✅ Phone number linked to existing account:', {
           userId,
@@ -208,9 +212,8 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
         isNewUser = true;
         
         // Create user with phone and email (no password needed)
-        db.prepare(
-          'INSERT INTO users (id, email, phone_number, phone_verified, password) VALUES (?, ?, ?, 1, ?)'
-        ).run(userId, email, formattedPhone, ''); // Empty password since we use SMS auth
+        const insertUserStmt = db.prepare('INSERT INTO users (id, email, phone_number, phone_verified, password) VALUES (?, ?, ?, 1, ?)');
+        await (insertUserStmt.run([userId, email, formattedPhone, '']) as Promise<any>); // Empty password since we use SMS auth
         
         console.log('✅ New user created:', {
           userId,
@@ -219,34 +222,33 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
         });
 
       // Generate referral code for the new user
-      const newUserReferralCode = getOrCreateReferralCode(userId);
+      const newUserReferralCode = await getOrCreateReferralCode(userId);
 
       // Handle referral if code provided
       let referrerId: string | null = null;
       if (req.body.referralCode) {
-        referrerId = getUserByReferralCode(req.body.referralCode);
+        referrerId = await getUserByReferralCode(req.body.referralCode);
         
         if (referrerId && referrerId !== userId) {
           // Check if this user was already referred (prevent duplicate referrals)
-          const existingReferral = db
-            .prepare('SELECT id FROM referrals WHERE referred_id = ?')
-            .get(userId);
+          const existingReferralStmt = db.prepare('SELECT id FROM referrals WHERE referred_id = ?');
+          const existingReferral = await (existingReferralStmt.get(userId) as Promise<any>);
           
           if (!existingReferral) {
             // Create referral record
             const referralId = uuidv4();
-            db.prepare(
+            const insertReferralStmt = db.prepare(
               `INSERT INTO referrals (id, referrer_id, referred_id, referral_code) 
                VALUES (?, ?, ?, ?)`
-            ).run(referralId, referrerId, userId, req.body.referralCode);
+            );
+            await (insertReferralStmt.run([referralId, referrerId, userId, req.body.referralCode]) as Promise<any>);
 
             // Grant token to referrer
-            grantReferralToken(referrerId);
+            await grantReferralToken(referrerId);
             
             // Mark referral as having granted token
-            db.prepare(
-              `UPDATE referrals SET token_granted = 1 WHERE id = ?`
-            ).run(referralId);
+            const updateReferralStmt = db.prepare(`UPDATE referrals SET token_granted = 1 WHERE id = ?`);
+            await (updateReferralStmt.run([referralId]) as Promise<any>);
           }
         }
       }
@@ -261,7 +263,8 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
     const token = generateToken(userId);
 
     // Check if profile exists
-    const profile = db.prepare('SELECT id FROM profiles WHERE user_id = ?').get(userId) as { id: string } | undefined;
+    const profileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
+    const profile = await (profileStmt.get(userId) as Promise<{ id: string } | null>);
     const hasProfile = !!profile;
 
     res.json({
@@ -270,7 +273,7 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
       userId,
       hasProfile,
       isNewUser,
-      referralCode: isNewUser ? getOrCreateReferralCode(userId) : undefined
+      referralCode: isNewUser ? await getOrCreateReferralCode(userId) : undefined
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

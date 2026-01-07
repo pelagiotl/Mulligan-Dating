@@ -9,24 +9,23 @@ import {
 export const referralsRouter = Router();
 
 // Get user's referral code and stats
-referralsRouter.get("/", authenticateToken, (req: AuthRequest, res) => {
+referralsRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
 
     // Get or create referral code
-    const referralCode = getOrCreateReferralCode(userId);
+    const referralCode = await getOrCreateReferralCode(userId);
 
     // Get referral stats
-    const referrals = db
-      .prepare(
-        `SELECT r.*, u.email as referred_email, p.display_name as referred_name
-         FROM referrals r
-         LEFT JOIN users u ON u.id = r.referred_id
-         LEFT JOIN profiles p ON p.user_id = r.referred_id
-         WHERE r.referrer_id = ?
-         ORDER BY r.created_at DESC`
-      )
-      .all(userId) as any[];
+    const referralsStmt = db.prepare(
+      `SELECT r.*, u.email as referred_email, p.display_name as referred_name
+       FROM referrals r
+       LEFT JOIN users u ON u.id = r.referred_id
+       LEFT JOIN profiles p ON p.user_id = r.referred_id
+       WHERE r.referrer_id = ?
+       ORDER BY r.created_at DESC`
+    );
+    const referrals = await (referralsStmt.all(userId) as Promise<any[]>);
 
     // Count total referrals and tokens earned
     const totalReferrals = referrals.length;
@@ -60,18 +59,17 @@ referralsRouter.get("/", authenticateToken, (req: AuthRequest, res) => {
 });
 
 // Validate a referral code (for signup page)
-referralsRouter.get("/validate/:code", (req, res) => {
+referralsRouter.get("/validate/:code", async (req, res) => {
   const { code } = req.params;
-  const referrerId = getUserByReferralCode(code);
+  const referrerId = await getUserByReferralCode(code);
 
   if (!referrerId) {
     return res.status(404).json({ valid: false, error: "Invalid referral code" });
   }
 
   // Get referrer's name if available
-  const profile = db
-    .prepare("SELECT display_name FROM profiles WHERE user_id = ?")
-    .get(referrerId) as { display_name: string } | undefined;
+  const profileStmt = db.prepare("SELECT display_name FROM profiles WHERE user_id = ?");
+  const profile = await (profileStmt.get(referrerId) as Promise<{ display_name: string } | null>);
 
   res.json({
     valid: true,

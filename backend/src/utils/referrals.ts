@@ -17,11 +17,10 @@ export function generateReferralCode(): string {
 /**
  * Get or create a referral code for a user
  */
-export function getOrCreateReferralCode(userId: string): string {
+export async function getOrCreateReferralCode(userId: string): Promise<string> {
   // Check if user already has a referral code
-  const user = db
-    .prepare("SELECT referral_code FROM users WHERE id = ?")
-    .get(userId) as { referral_code: string | null } | undefined;
+  const userStmt = db.prepare("SELECT referral_code FROM users WHERE id = ?");
+  const user = await (userStmt.get(userId) as Promise<{ referral_code: string | null } | null>);
 
   if (user?.referral_code) {
     return user.referral_code;
@@ -30,6 +29,7 @@ export function getOrCreateReferralCode(userId: string): string {
   // Generate a unique code
   let code: string;
   let attempts = 0;
+  let isUnique = false;
   do {
     code = generateReferralCode();
     attempts++;
@@ -37,16 +37,14 @@ export function getOrCreateReferralCode(userId: string): string {
       // Fallback to UUID-based code if we can't generate a short one
       code = uuidv4().substring(0, 8).toUpperCase().replace(/-/g, "");
     }
-  } while (
-    db.prepare("SELECT id FROM users WHERE referral_code = ?").get(code) &&
-    attempts < 10
-  );
+    const checkStmt = db.prepare("SELECT id FROM users WHERE referral_code = ?");
+    const existing = await (checkStmt.get(code) as Promise<any>);
+    isUnique = !existing;
+  } while (!isUnique && attempts < 10);
 
   // Save the code
-  db.prepare("UPDATE users SET referral_code = ? WHERE id = ?").run(
-    code,
-    userId
-  );
+  const updateStmt = db.prepare("UPDATE users SET referral_code = ? WHERE id = ?");
+  await (updateStmt.run([code, userId]) as Promise<any>);
 
   return code;
 }
@@ -54,10 +52,9 @@ export function getOrCreateReferralCode(userId: string): string {
 /**
  * Find user by referral code
  */
-export function getUserByReferralCode(code: string): string | null {
-  const user = db
-    .prepare("SELECT id FROM users WHERE referral_code = ?")
-    .get(code) as { id: string } | undefined;
+export async function getUserByReferralCode(code: string): Promise<string | null> {
+  const stmt = db.prepare("SELECT id FROM users WHERE referral_code = ?");
+  const user = await (stmt.get(code) as Promise<{ id: string } | null>);
 
   return user?.id || null;
 }
@@ -65,11 +62,12 @@ export function getUserByReferralCode(code: string): string | null {
 /**
  * Grant a referral token to a user
  */
-export function grantReferralToken(referrerId: string): string {
+export async function grantReferralToken(referrerId: string): Promise<string> {
   const tokenId = uuidv4();
-  db.prepare(
+  const stmt = db.prepare(
     `INSERT INTO mulligan_tokens (id, user_id, source) VALUES (?, ?, 'referral')`
-  ).run(tokenId, referrerId);
+  );
+  await (stmt.run([tokenId, referrerId]) as Promise<any>);
   return tokenId;
 }
 

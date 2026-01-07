@@ -39,12 +39,12 @@ authRouter.post('/signup', async (req, res) => {
     await (insertStmt.run([userId, email, hashedPassword]) as Promise<any>);
 
     // Generate referral code for the new user
-    const newUserReferralCode = getOrCreateReferralCode(userId);
+    const newUserReferralCode = await getOrCreateReferralCode(userId);
 
     // Handle referral if code provided
     let referrerId: string | null = null;
     if (referralCode) {
-      referrerId = getUserByReferralCode(referralCode);
+      referrerId = await getUserByReferralCode(referralCode);
       
       if (referrerId && referrerId !== userId) {
         // Check if this user was already referred (prevent duplicate referrals)
@@ -61,7 +61,7 @@ authRouter.post('/signup', async (req, res) => {
           await (insertReferralStmt.run([referralId, referrerId, userId, referralCode]) as Promise<any>);
 
           // Grant token to referrer
-          grantReferralToken(referrerId);
+          await grantReferralToken(referrerId);
           
           // Mark referral as having granted token
           const updateReferralStmt = db.prepare(`UPDATE referrals SET token_granted = 1 WHERE id = ?`);
