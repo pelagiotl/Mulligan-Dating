@@ -32,23 +32,46 @@ export default function Login() {
     setLoading(true)
 
     try {
+      console.log('Attempting login for:', email)
       const { hasProfile } = await login(email, password)
+      console.log('Login successful, hasProfile:', hasProfile)
       navigate(hasProfile ? '/browse' : '/create-profile')
     } catch (err: any) {
-      console.error('Login error:', err)
+      console.error('Login error details:', {
+        error: err,
+        message: err?.message,
+        status: err?.status,
+        name: err?.name,
+        stack: err?.stack
+      })
+      
       // Show more specific error messages
       let errorMessage = 'Invalid email or password'
-      if (err.message) {
-        if (err.message.includes('timeout') || err.message.includes('unavailable')) {
+      if (err?.message) {
+        const msg = err.message.toLowerCase()
+        if (msg.includes('timeout') || msg.includes('unavailable')) {
           errorMessage = 'Server unavailable. Please try again.'
-        } else if (err.message.includes('Failed to fetch') || err.message.includes('Network error')) {
+        } else if (msg.includes('failed to fetch') || msg.includes('network error') || msg.includes('load failed')) {
           errorMessage = 'Connection failed. Please check your internet and try again.'
-        } else if (err.message.includes('load') || err.message.includes('fetch')) {
-          errorMessage = 'Failed to load user data. Please try again.'
+        } else if (msg.includes('no token') || msg.includes('authentication')) {
+          errorMessage = 'Authentication failed. Please try again.'
+        } else if (msg.includes('invalid response') || msg.includes('invalid')) {
+          errorMessage = 'Server error. Please try again in a moment.'
         } else {
-          errorMessage = err.message
+          // Show the actual error message if it's meaningful
+          errorMessage = err.message.length > 100 ? 'An error occurred. Please try again.' : err.message
+        }
+      } else if (err?.status) {
+        if (err.status === 401 || err.status === 403) {
+          errorMessage = 'Invalid email or password'
+        } else if (err.status === 500) {
+          errorMessage = 'Server error. Please try again.'
+        } else if (err.status === 408) {
+          errorMessage = 'Request timeout. Please try again.'
         }
       }
+      
+      console.log('Setting error message:', errorMessage)
       setError(errorMessage)
     } finally {
       setLoading(false)

@@ -47,7 +47,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchUser = async () => {
     try {
+      // Verify token exists before making request
+      const token = localStorage.getItem('token')
+      if (!token) {
+        throw new Error('No authentication token found')
+      }
+      
+      console.log('Fetching user data with token:', token.substring(0, 20) + '...')
       const data: any = await api.get('/auth/me')
+      
+      if (!data || !data.user) {
+        throw new Error('Invalid response from server')
+      }
+      
       console.log('User data from /auth/me:', data.user) // Debug log
       setUser({
         id: data.user.id,
@@ -55,9 +67,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAdmin: data.user.isAdmin || false
       })
       console.log('isAdmin set to:', data.user.isAdmin || false) // Debug log
-      setProfile(data.profile)
-    } catch (error) {
+      setProfile(data.profile || null)
+    } catch (error: any) {
       console.error('Failed to fetch user:', error)
+      console.error('Error details:', {
+        message: error?.message,
+        status: error?.status,
+        name: error?.name
+      })
       localStorage.removeItem('token')
       setUser(null)
       setProfile(null)
@@ -71,12 +88,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string) => {
     try {
       const data: any = await api.post('/auth/login', { email, password })
+      
+      // Ensure token is set before fetching user
+      if (!data.token) {
+        throw new Error('No token received from server')
+      }
+      
       localStorage.setItem('token', data.token)
+      
+      // Small delay to ensure token is persisted and available
+      await new Promise(resolve => setTimeout(resolve, 50))
+      
       // Reset loading state before fetching user
       setLoading(true)
+      
+      // Verify token is available before making request
+      const tokenCheck = localStorage.getItem('token')
+      if (!tokenCheck) {
+        throw new Error('Token was not properly saved')
+      }
+      
       await fetchUser()
       return { hasProfile: data.hasProfile }
     } catch (error) {
+      console.error('Login error:', error)
       // If fetchUser fails, clean up token
       localStorage.removeItem('token')
       setUser(null)
