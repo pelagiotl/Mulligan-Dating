@@ -570,11 +570,22 @@ img {
   color: #ffffff;
   text-decoration: none;
   text-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-  transition: transform var(--transition-base);
+  transition: transform 0.3s ease-out, filter 0.3s ease-out;
+  position: relative;
 }
 
 .landing-logo-enhanced:hover {
-  transform: scale(1.05);
+  transform: scale(1.08);
+  filter: drop-shadow(0 6px 25px rgba(255, 255, 255, 0.4));
+}
+
+.landing-logo-enhanced:hover .landing-logo-icon {
+  filter: drop-shadow(0 6px 20px rgba(255, 255, 255, 0.5));
+  transform: rotate(5deg);
+}
+
+.landing-logo-enhanced:hover .landing-logo-text {
+  text-shadow: 0 6px 30px rgba(255, 255, 255, 0.5);
 }
 
 .landing-logo-icon {
@@ -585,6 +596,7 @@ img {
   height: 44px;
   color: #ffffff;
   filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.3));
+  transition: transform 0.3s ease-out, filter 0.3s ease-out;
 }
 
 .landing-logo-icon svg {
