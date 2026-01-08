@@ -1156,12 +1156,24 @@ img {
   text-decoration: none;
   margin-bottom: var(--space-6);
   text-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-  transition: transform var(--transition-base);
+  transition: transform 0.3s ease-out, filter 0.3s ease-out;
   animation: logoFloat 3s ease-in-out infinite;
+  position: relative;
 }
 
 .auth-logo-enhanced:hover {
-  transform: scale(1.05);
+  transform: scale(1.08) translateY(-2px);
+  filter: drop-shadow(0 6px 25px rgba(255, 255, 255, 0.4));
+  animation: none; /* Stop floating animation on hover */
+}
+
+.auth-logo-enhanced:hover .auth-logo-icon {
+  filter: drop-shadow(0 6px 20px rgba(255, 255, 255, 0.5));
+  transform: rotate(5deg);
+}
+
+.auth-logo-enhanced:hover .auth-logo-text {
+  text-shadow: 0 6px 30px rgba(255, 255, 255, 0.5);
 }
 
 @keyframes logoFloat {
@@ -1182,6 +1194,7 @@ img {
   color: #ffffff;
   filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.3));
   animation: logoPulse 3s ease-in-out infinite;
+  transition: transform 0.3s ease-out, filter 0.3s ease-out;
 }
 
 .auth-logo-icon svg {
@@ -1421,6 +1434,39 @@ img {
 
 .form-input-enhanced:focus ~ .form-input-glow {
   opacity: 1;
+}
+
+/* Password toggle button */
+.password-toggle {
+  position: absolute;
+  right: var(--space-4);
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.2rem;
+  padding: var(--space-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.6;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 2;
+}
+
+.password-toggle:hover {
+  opacity: 1;
+  transform: translateY(-50%) scale(1.1);
+}
+
+.password-toggle:active {
+  transform: translateY(-50%) scale(0.95);
+}
+
+/* Adjust input padding when password toggle is present */
+.form-input-wrapper:has(.password-toggle) .form-input-enhanced {
+  padding-right: calc(var(--space-5) + 2.5rem);
 }
 
 .btn-enhanced {

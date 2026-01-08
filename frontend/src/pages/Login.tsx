@@ -7,6 +7,7 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const { login, isAuthenticated } = useAuth()
   const navigate = useNavigate()
 
@@ -233,7 +234,7 @@ export default function Login() {
               <label htmlFor="password" className="form-label-enhanced">Password</label>
               <div className="form-input-wrapper">
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   id="password"
                   className="form-input-enhanced"
                   value={password}
@@ -242,6 +243,14 @@ export default function Login() {
                   required
                   autoComplete="current-password"
                 />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? "👁️" : "👁️‍🗨️"}
+                </button>
                 <span className="form-input-glow"></span>
               </div>
             </div>
