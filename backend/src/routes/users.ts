@@ -3,6 +3,7 @@ import { db } from '../database.js';
 import { authenticateToken, AuthRequest } from '../middleware/auth.js';
 import { geocodeLocation, calculateDistanceMiles } from '../utils/geocoding.js';
 import { checkDealbreakers as checkDealbreakersUtil } from '../utils/dealbreakers.js';
+import { getCompletenessBoost } from '../utils/profileCompleteness.js';
 
 export const usersRouter = Router();
 
@@ -333,7 +334,6 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
       
       // 10/10 FEATURES: Apply boosts
       // 1. Profile completeness boost
-      const { getCompletenessBoost } = await import("../utils/profileCompleteness.js");
       const completenessBoost = getCompletenessBoost(p.id);
       matchScore *= completenessBoost;
       
