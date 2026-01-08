@@ -425,7 +425,8 @@ function calculatePartnerQualitiesMatch(
     .prepare("SELECT quality FROM partner_qualities WHERE profile_id = ?")
     .all(candidateProfileId) as { quality: string }[];
   
-  const candidateQualityNames = new Set(candidateQualities.map(q => q.quality.toLowerCase()));
+  const candidateQualityNames = candidateQualities.map(q => q.quality);
+  const candidateQualityNamesLower = new Set(candidateQualityNames.map(q => q.toLowerCase()));
   
   // Also check bio and interests as fallback (some qualities might be mentioned there)
   const candidateInterests = db
@@ -438,17 +439,27 @@ function calculatePartnerQualitiesMatch(
   let totalImportance = 0;
   
   for (const quality of userQualities) {
-    const qualityLower = quality.quality.toLowerCase();
+    const qualityName = quality.quality;
+    const qualityLower = qualityName.toLowerCase();
     const importance = quality.importance || 5;
     
-    // Method 1: Check if quality exists in candidate's partner_qualities (most accurate)
-    if (candidateQualityNames.has(qualityLower)) {
-      totalScore += importance; // Full match
-    } else if (candidateText.includes(qualityLower)) {
-      // Method 2: Check if quality appears in candidate's profile/interests (fallback)
-      // Give partial credit (70% of importance) since it's less certain
-      totalScore += importance * 0.7;
+    let matchScore = 0;
+    
+    // Method 1: Exact match in partner_qualities (most accurate)
+    if (candidateQualityNamesLower.has(qualityLower)) {
+      matchScore = 1.0; // Full match
+    } else {
+      // Method 2: Semantic similarity matching (NEW - 10/10 feature)
+      const semanticMatch = findBestSemanticMatch(qualityName, candidateQualityNames);
+      if (semanticMatch >= 0.6) {
+        matchScore = semanticMatch; // Use semantic similarity score
+      } else if (candidateText.includes(qualityLower)) {
+        // Method 3: Keyword match in bio/interests (fallback)
+        matchScore = 0.7; // Partial credit
+      }
     }
+    
+    totalScore += importance * matchScore;
     totalImportance += importance;
   }
   

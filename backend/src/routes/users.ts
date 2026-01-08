@@ -329,7 +329,30 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
       
       // Combined score: Partner Qualities ("What I'm Looking For") 45%, Interests 30%, Lifestyle 25%
       // Partner Qualities is highest priority since it's explicitly "What I'm Looking For"
-      const matchScore = (qualitiesScore * 0.45) + (interestsScore * 0.30) + (lifestyleScore * 0.25);
+      let matchScore = (qualitiesScore * 0.45) + (interestsScore * 0.30) + (lifestyleScore * 0.25);
+      
+      // 10/10 FEATURES: Apply boosts
+      // 1. Profile completeness boost
+      const { getCompletenessBoost } = await import("../utils/profileCompleteness.js");
+      const completenessBoost = getCompletenessBoost(p.id);
+      matchScore *= completenessBoost;
+      
+      // 2. Recency boost (recently active users)
+      const candidateUser = db
+        .prepare("SELECT last_active_at FROM users WHERE id = ?")
+        .get(p.user_id) as { last_active_at: string | null } | undefined;
+      
+      if (candidateUser?.last_active_at) {
+        const lastActive = new Date(candidateUser.last_active_at).getTime();
+        const now = Date.now();
+        const daysSinceActive = (now - lastActive) / (1000 * 60 * 60 * 24);
+        
+        if (daysSinceActive <= 7) {
+          matchScore *= 1.05; // 5% boost if active in last 7 days
+        } else if (daysSinceActive <= 30) {
+          matchScore *= 1.02; // 2% boost if active in last 30 days
+        }
+      }
       
       return { profile: p, matchScore, sharedInterests, matchedQualities, lifestyleScore };
     });

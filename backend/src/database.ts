@@ -438,6 +438,20 @@ export async function initDatabase() {
     // Column already exists, ignore
   }
 
+  // FEEDBACK TRACKING: Swipe interactions table for learning from user behavior
+  await execSQL(`
+    CREATE TABLE IF NOT EXISTS swipe_interactions (
+      id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} PRIMARY KEY,
+      user_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      candidate_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      action ${usePostgres ? 'VARCHAR(50)' : 'TEXT'} NOT NULL,
+      created_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (candidate_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE(user_id, candidate_id)
+    )
+  `);
+
   // PERFORMANCE: Add indexes for frequently queried columns
   console.log("📊 Creating database indexes for performance...");
   
@@ -475,6 +489,14 @@ export async function initDatabase() {
     // Messages indexes
     await execSQL(`CREATE INDEX IF NOT EXISTS idx_messages_match_id ON messages(match_id)`);
     await execSQL(`CREATE INDEX IF NOT EXISTS idx_messages_sender_id ON messages(sender_id)`);
+    
+    // Swipe interactions indexes (for feedback learning)
+    await execSQL(`CREATE INDEX IF NOT EXISTS idx_swipe_interactions_user_id ON swipe_interactions(user_id)`);
+    await execSQL(`CREATE INDEX IF NOT EXISTS idx_swipe_interactions_candidate_id ON swipe_interactions(candidate_id)`);
+    await execSQL(`CREATE INDEX IF NOT EXISTS idx_swipe_interactions_action ON swipe_interactions(action)`);
+    
+    // Users last_active_at index
+    await execSQL(`CREATE INDEX IF NOT EXISTS idx_users_last_active_at ON users(last_active_at)`);
     
     console.log("✅ Database indexes created successfully");
   } catch (e) {
