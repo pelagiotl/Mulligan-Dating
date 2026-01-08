@@ -1,6 +1,8 @@
 import { v4 as uuidv4 } from "uuid";
 import { db } from "../database.js";
 import { geocodeLocation, calculateDistanceMiles } from "../utils/geocoding.js";
+import { findBestSemanticMatch } from "../utils/semanticMatching.js";
+import { getCompletenessBoost } from "../utils/profileCompleteness.js";
 
 /**
  * STATE-OF-THE-ART MATCHING ALGORITHM
