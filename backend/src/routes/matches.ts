@@ -272,7 +272,7 @@ matchesRouter.post("/connect", authenticateToken, async (req: AuthRequest, res) 
 
 // Request to reveal photos (manual override - auto-reveal happens after 2 messages each)
 // This endpoint is kept for manual override if needed, but reveal is now automatic
-matchesRouter.post("/:matchId/reveal", authenticateToken, (req: AuthRequest, res) => {
+matchesRouter.post("/:matchId/reveal", authenticateToken, async (req: AuthRequest, res) => {
   const userId = req.userId!;
   const { matchId } = req.params;
 
