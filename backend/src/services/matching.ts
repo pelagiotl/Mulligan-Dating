@@ -741,7 +741,31 @@ export async function generateWeeklyMatches(userId: string): Promise<{
     const distanceScoreWeighted = (distanceScore / 10) * 1; // 10% weight
 
     // Final score with all components
-    const totalScore = valuesScore + interestsScore + qualitiesScore + lookingForScore + lifestyleScore + intentScore + distanceScoreWeighted;
+    let totalScore = valuesScore + interestsScore + qualitiesScore + lookingForScore + lifestyleScore + intentScore + distanceScoreWeighted;
+    
+    // 10/10 FEATURES: Apply boosts
+    
+    // 1. Profile completeness boost (complete profiles get 15% boost)
+    const completenessBoost = getCompletenessBoost(candidate.id);
+    totalScore *= completenessBoost;
+    
+    // 2. Recency boost (recently active users get slight boost)
+    const candidateUser = db
+      .prepare("SELECT last_active_at FROM users WHERE id = ?")
+      .get(candidate.user_id) as { last_active_at: string | null } | undefined;
+    
+    if (candidateUser?.last_active_at) {
+      const lastActive = new Date(candidateUser.last_active_at).getTime();
+      const now = Date.now();
+      const daysSinceActive = (now - lastActive) / (1000 * 60 * 60 * 24);
+      
+      // Boost: 5% if active in last 7 days, 2% if active in last 30 days
+      if (daysSinceActive <= 7) {
+        totalScore *= 1.05;
+      } else if (daysSinceActive <= 30) {
+        totalScore *= 1.02;
+      }
+    }
     
     // Apply final sigmoid normalization to ensure scores are well-distributed
     // This helps with ranking and prevents score inflation
