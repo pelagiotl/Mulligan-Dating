@@ -772,6 +772,28 @@ img {
   transition: all var(--transition-base);
   position: relative;
   overflow: hidden;
+  opacity: 0;
+  transform: translateY(40px);
+  transition: opacity 0.8s ease-out, transform 0.8s ease-out;
+}
+
+/* Animation when card comes into view */
+.feature-card-enhanced.feature-card-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Stagger animation delays for each card */
+.feature-card-enhanced:nth-child(1).feature-card-visible {
+  transition-delay: 0.1s;
+}
+
+.feature-card-enhanced:nth-child(2).feature-card-visible {
+  transition-delay: 0.2s;
+}
+
+.feature-card-enhanced:nth-child(3).feature-card-visible {
+  transition-delay: 0.3s;
 }
 
 .feature-card-enhanced::before {
