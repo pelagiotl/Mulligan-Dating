@@ -161,138 +161,9 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
       }
     }
 
-    // NEW: Filter by lifestyle compatibility (automatic filtering based on lifestyle choices)
-    const userLifestyle = db
-      .prepare("SELECT * FROM lifestyle WHERE profile_id = ?")
-      .get(userProfile.id) as {
-        smoking: string | null;
-        drinking: string | null;
-        children: string | null;
-        pets: string | null;
-        religion: string | null;
-        work_life_balance: string | null;
-      } | undefined;
-    
-    if (userLifestyle) {
-      filteredProfiles = filteredProfiles.filter((p) => {
-        const candidateLifestyle = db
-          .prepare("SELECT * FROM lifestyle WHERE profile_id = ?")
-          .get(p.id) as {
-            smoking: string | null;
-            drinking: string | null;
-            children: string | null;
-            pets: string | null;
-            religion: string | null;
-            work_life_balance: string | null;
-          } | undefined;
-        
-        if (!candidateLifestyle) return true; // Include if candidate hasn't set lifestyle yet
-        
-        // Drinking compatibility
-        if (userLifestyle.drinking && candidateLifestyle.drinking) {
-          const userDrinking = userLifestyle.drinking.toLowerCase();
-          const candidateDrinking = candidateLifestyle.drinking.toLowerCase();
-          
-          // Non-drinkers don't see anyone who drinks
-          if (userDrinking === 'non-drinker') {
-            if (candidateDrinking === 'occasionally' || candidateDrinking === 'social drinker') {
-              return false; // Exclude drinkers
-            }
-          }
-        }
-        
-        // Smoking compatibility
-        if (userLifestyle.smoking && candidateLifestyle.smoking) {
-          const userSmoking = userLifestyle.smoking.toLowerCase();
-          const candidateSmoking = candidateLifestyle.smoking.toLowerCase();
-          
-          // Non-smokers don't see anyone who smokes cigarettes or uses marijuana
-          if (userSmoking === 'non-smoker') {
-            if (candidateSmoking === 'smokes cigarettes' || candidateSmoking === 'uses marijuana' || candidateSmoking === 'both') {
-              return false; // Exclude smokers/marijuana users
-            }
-          }
-          // Cigarette smokers don't see non-smokers
-          if (userSmoking === 'smokes cigarettes') {
-            if (candidateSmoking === 'non-smoker') {
-              return false; // Exclude non-smokers
-            }
-          }
-          // Marijuana users don't see non-smokers
-          if (userSmoking === 'uses marijuana') {
-            if (candidateSmoking === 'non-smoker') {
-              return false; // Exclude non-smokers
-            }
-          }
-          // Both don't see non-smokers
-          if (userSmoking === 'both') {
-            if (candidateSmoking === 'non-smoker') {
-              return false; // Exclude non-smokers
-            }
-          }
-        }
-        
-        // Children compatibility
-        if (userLifestyle.children && candidateLifestyle.children) {
-          const userChildren = userLifestyle.children.toLowerCase();
-          const candidateChildren = candidateLifestyle.children.toLowerCase();
-          
-          // Doesn't want children doesn't see wants/has children
-          if (userChildren === "doesn't want children") {
-            if (candidateChildren === 'wants children' || candidateChildren === 'has children') {
-              return false; // Exclude
-            }
-          }
-          // Wants children doesn't see doesn't want children
-          if (userChildren === 'wants children') {
-            if (candidateChildren === "doesn't want children") {
-              return false; // Exclude
-            }
-          }
-        }
-        
-        // Pets compatibility
-        if (userLifestyle.pets && candidateLifestyle.pets) {
-          const userPets = userLifestyle.pets.toLowerCase();
-          const candidatePets = candidateLifestyle.pets.toLowerCase();
-          
-          // Doesn't like pets doesn't see loves/has pets
-          if (userPets === "doesn't like pets") {
-            if (candidatePets === 'loves pets' || candidatePets === 'has pets') {
-              return false; // Exclude
-            }
-          }
-          // Allergic to pets doesn't see has pets
-          if (userPets === 'allergic to pets') {
-            if (candidatePets === 'has pets') {
-              return false; // Exclude
-            }
-          }
-          // "Open to pets" is flexible - can see everyone (no filtering needed)
-        }
-        
-        // Religion compatibility (only filter strict mismatches)
-        if (userLifestyle.religion && candidateLifestyle.religion) {
-          const userReligion = userLifestyle.religion.toLowerCase();
-          const candidateReligion = candidateLifestyle.religion.toLowerCase();
-          
-          // Religious doesn't see atheist
-          if (userReligion === 'religious') {
-            if (candidateReligion === 'atheist') {
-              return false; // Exclude
-            }
-          }
-          // Atheist doesn't see religious
-          if (userReligion === 'atheist') {
-            if (candidateReligion === 'religious') {
-              return false; // Exclude
-            }
-          }
-        }
-        
-        return true; // No lifestyle conflicts, include
-      });
-    }
+    // NOTE: Lifestyle is NOT used for hard filtering here
+    // It will be used for scoring/preference matching instead
+    // Only dealbreakers (checked below) will hard-filter users
     
     // NEW: Filter by dealbreakers
     const userDealbreakers = db
@@ -448,7 +319,7 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
       });
     }
 
-    // NEW: Score and sort by interests overlap and partner qualities
+    // NEW: Score and sort by interests overlap, partner qualities ("What I'm Looking For"), AND lifestyle compatibility
     const userInterests = db
       .prepare("SELECT name FROM interests WHERE profile_id = ?")
       .all(userProfile.id) as { name: string }[];
@@ -457,40 +328,162 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
       .prepare("SELECT quality FROM partner_qualities WHERE profile_id = ?")
       .all(userProfile.id) as { quality: string }[];
     
-    if (userInterests.length > 0 || userPartnerQualities.length > 0) {
-      const profilesWithScores = filteredProfiles.map((p) => {
-        // Calculate interests overlap
-        const candidateInterests = p.interests_list 
-          ? p.interests_list.split(',').map(i => i.trim().toLowerCase())
-          : [];
-        const userInterestNames = new Set(userInterests.map(i => i.name.toLowerCase()));
-        const candidateInterestNames = new Set(candidateInterests);
-        const sharedInterests = [...userInterestNames].filter(name => candidateInterestNames.has(name)).length;
-        const totalInterests = new Set([...userInterestNames, ...candidateInterestNames]).size;
-        const interestsScore = totalInterests > 0 ? (sharedInterests / totalInterests) : 0;
-        
-        // Calculate partner qualities match (now using interests - exact match)
-        const userQualities = userPartnerQualities.map(q => q.quality.toLowerCase());
-        // candidateInterestNames already declared above, reuse it
-        const matchedQualities = userQualities.filter(q => candidateInterestNames.has(q)).length;
-        const qualitiesScore = userQualities.length > 0 ? (matchedQualities / userQualities.length) : 0;
-        
-        // Combined score (interests 60%, qualities 40%)
-        const matchScore = (interestsScore * 0.6) + (qualitiesScore * 0.4);
-        
-        return { profile: p, matchScore, sharedInterests, matchedQualities };
-      });
+    const userLifestyle = db
+      .prepare("SELECT * FROM lifestyle WHERE profile_id = ?")
+      .get(userProfile.id) as {
+        smoking: string | null;
+        drinking: string | null;
+        children: string | null;
+        pets: string | null;
+        religion: string | null;
+        work_life_balance: string | null;
+      } | undefined;
+    
+    // Calculate match scores for all profiles (always score, even if no preferences set)
+    const profilesWithScores = filteredProfiles.map((p) => {
+      // Calculate interests overlap
+      const candidateInterests = p.interests_list 
+        ? p.interests_list.split(',').map(i => i.trim().toLowerCase())
+        : [];
+      const userInterestNames = new Set(userInterests.map(i => i.name.toLowerCase()));
+      const candidateInterestNames = new Set(candidateInterests);
+      const sharedInterests = [...userInterestNames].filter(name => candidateInterestNames.has(name)).length;
+      const totalInterests = new Set([...userInterestNames, ...candidateInterestNames]).size;
+      const interestsScore = totalInterests > 0 ? (sharedInterests / totalInterests) : 0.5; // Default to neutral if no interests
       
-      // Sort by match score (highest first), then by shared interests
-      profilesWithScores.sort((a, b) => {
-        if (b.matchScore !== a.matchScore) {
-          return b.matchScore - a.matchScore;
+      // Calculate partner qualities match ("What I'm Looking For")
+      const userQualities = userPartnerQualities.map(q => q.quality.toLowerCase());
+      const matchedQualities = userQualities.filter(q => candidateInterestNames.has(q)).length;
+      const qualitiesScore = userQualities.length > 0 ? (matchedQualities / userQualities.length) : 0.5; // Default to neutral if no qualities
+      
+      // Calculate lifestyle compatibility score
+      let lifestyleScore = 0.5; // Default to neutral if no lifestyle data
+      if (userLifestyle) {
+        const candidateLifestyle = db
+          .prepare("SELECT * FROM lifestyle WHERE profile_id = ?")
+          .get(p.id) as {
+            smoking: string | null;
+            drinking: string | null;
+            children: string | null;
+            pets: string | null;
+            religion: string | null;
+            work_life_balance: string | null;
+          } | undefined;
+        
+        if (candidateLifestyle) {
+          let matches = 0;
+          let total = 0;
+          
+          // Smoking match
+          if (userLifestyle.smoking && candidateLifestyle.smoking) {
+            total++;
+            const userSmoking = userLifestyle.smoking.toLowerCase();
+            const candidateSmoking = candidateLifestyle.smoking.toLowerCase();
+            if (userSmoking === candidateSmoking) {
+              matches += 1; // Exact match
+            } else if (
+              (userSmoking === 'non-smoker' && candidateSmoking === 'non-smoker') ||
+              (userSmoking.includes('smokes') && candidateSmoking.includes('smokes')) ||
+              (userSmoking.includes('marijuana') && candidateSmoking.includes('marijuana'))
+            ) {
+              matches += 0.5; // Partial match
+            }
+          }
+          
+          // Drinking match
+          if (userLifestyle.drinking && candidateLifestyle.drinking) {
+            total++;
+            const userDrinking = userLifestyle.drinking.toLowerCase();
+            const candidateDrinking = candidateLifestyle.drinking.toLowerCase();
+            if (userDrinking === candidateDrinking) {
+              matches += 1; // Exact match
+            } else if (
+              (userDrinking === 'non-drinker' && candidateDrinking === 'non-drinker') ||
+              (userDrinking.includes('drink') && candidateDrinking.includes('drink'))
+            ) {
+              matches += 0.5; // Partial match
+            }
+          }
+          
+          // Children match
+          if (userLifestyle.children && candidateLifestyle.children) {
+            total++;
+            const userChildren = userLifestyle.children.toLowerCase();
+            const candidateChildren = candidateLifestyle.children.toLowerCase();
+            if (userChildren === candidateChildren) {
+              matches += 1; // Exact match
+            } else if (
+              (userChildren.includes('children') && candidateChildren.includes('children')) ||
+              (userChildren.includes("doesn't want") && candidateChildren.includes("doesn't want"))
+            ) {
+              matches += 0.5; // Partial match
+            }
+          }
+          
+          // Pets match
+          if (userLifestyle.pets && candidateLifestyle.pets) {
+            total++;
+            const userPets = userLifestyle.pets.toLowerCase();
+            const candidatePets = candidateLifestyle.pets.toLowerCase();
+            if (userPets === candidatePets) {
+              matches += 1; // Exact match
+            } else if (
+              (userPets.includes('pets') && candidatePets.includes('pets')) ||
+              (userPets.includes("doesn't like") && candidatePets.includes("doesn't like"))
+            ) {
+              matches += 0.5; // Partial match
+            }
+          }
+          
+          // Religion match
+          if (userLifestyle.religion && candidateLifestyle.religion) {
+            total++;
+            const userReligion = userLifestyle.religion.toLowerCase();
+            const candidateReligion = candidateLifestyle.religion.toLowerCase();
+            if (userReligion === candidateReligion) {
+              matches += 1; // Exact match
+            } else if (
+              (userReligion === 'spiritual' && candidateReligion === 'spiritual') ||
+              (userReligion === 'agnostic' && candidateReligion === 'agnostic')
+            ) {
+              matches += 0.5; // Partial match
+            }
+          }
+          
+          // Work-life balance match
+          if (userLifestyle.work_life_balance && candidateLifestyle.work_life_balance) {
+            total++;
+            const userBalance = userLifestyle.work_life_balance.toLowerCase();
+            const candidateBalance = candidateLifestyle.work_life_balance.toLowerCase();
+            if (userBalance === candidateBalance) {
+              matches += 1; // Exact match
+            } else if (
+              (userBalance.includes('balanced') && candidateBalance.includes('balanced')) ||
+              (userBalance.includes('flexible') && candidateBalance.includes('flexible'))
+            ) {
+              matches += 0.5; // Partial match
+            }
+          }
+          
+          lifestyleScore = total > 0 ? matches / total : 0.5;
         }
-        return b.sharedInterests - a.sharedInterests;
-      });
+      }
       
-      filteredProfiles = profilesWithScores.map(({ profile }) => profile);
-    }
+      // Combined score: Partner Qualities ("What I'm Looking For") 40%, Interests 30%, Lifestyle 30%
+      const matchScore = (qualitiesScore * 0.4) + (interestsScore * 0.3) + (lifestyleScore * 0.3);
+      
+      return { profile: p, matchScore, sharedInterests, matchedQualities, lifestyleScore };
+    });
+    
+    // Sort by match score (highest first), then by shared interests
+    profilesWithScores.sort((a, b) => {
+      if (Math.abs(b.matchScore - a.matchScore) > 0.01) {
+        return b.matchScore - a.matchScore;
+      }
+      return b.sharedInterests - a.sharedInterests;
+    });
+    
+    filteredProfiles = profilesWithScores.map(({ profile }) => profile);
 
     // Get ONE profile at a time (swipe-style interface)
     const selectedProfile = filteredProfiles[offset] || null;
