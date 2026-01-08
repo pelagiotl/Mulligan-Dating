@@ -204,33 +204,12 @@ function parseJsonArray(jsonStr: string | null): string[] {
 
 /**
  * Check if candidate matches user's dealbreakers
+ * Uses the comprehensive dealbreaker checking utility
  */
+import { checkDealbreakers as checkDealbreakersUtil } from "../utils/dealbreakers.js";
+
 function checkDealbreakers(userProfileId: string, candidateProfileId: string): boolean {
-  // Get user's dealbreakers
-  const userDealbreakers = db
-    .prepare("SELECT description FROM dealbreakers WHERE profile_id = ?")
-    .all(userProfileId) as { description: string }[];
-  
-  // Get candidate's profile info to check against dealbreakers
-  const candidateProfile = db
-    .prepare("SELECT * FROM profiles WHERE id = ?")
-    .get(candidateProfileId) as ProfileRow | undefined;
-  
-  if (!candidateProfile) return false;
-  
-  // Simple keyword matching for dealbreakers
-  // In production, use NLP or more sophisticated matching
-  const candidateText = `${candidateProfile.bio || ''} ${candidateProfile.display_name || ''} ${candidateProfile.location || ''}`.toLowerCase();
-  
-  for (const dealbreaker of userDealbreakers) {
-    const keywords = dealbreaker.description.toLowerCase().split(/\s+/);
-    // If any keyword from dealbreaker appears in candidate's profile, it's a dealbreaker
-    if (keywords.some(keyword => keyword.length > 3 && candidateText.includes(keyword))) {
-      return false; // Dealbreaker matched
-    }
-  }
-  
-  return true; // No dealbreakers matched
+  return checkDealbreakersUtil(userProfileId, candidateProfileId);
 }
 
 /**
@@ -270,23 +249,27 @@ function calculateLifestyleMatch(
   let matches = 0;
   let total = 0;
 
-  // Smoking match
+  // Smoking match - improved logic
   if (userLifestyle.smoking && candidateLifestyle.smoking) {
     total++;
     const userSmoking = userLifestyle.smoking.toLowerCase();
     const candidateSmoking = candidateLifestyle.smoking.toLowerCase();
     if (userSmoking === candidateSmoking) {
       matches += 1; // Exact match
+    } else if (userSmoking === 'both' && (candidateSmoking === 'smokes cigarettes' || candidateSmoking === 'uses marijuana')) {
+      matches += 0.75; // "Both" matches either individual option
+    } else if (candidateSmoking === 'both' && (userSmoking === 'smokes cigarettes' || userSmoking === 'uses marijuana')) {
+      matches += 0.75; // Candidate has "both", user has one
     } else if (
       (userSmoking === 'non-smoker' && candidateSmoking === 'non-smoker') ||
-      (userSmoking.includes('smokes') && candidateSmoking.includes('smokes')) ||
-      (userSmoking.includes('marijuana') && candidateSmoking.includes('marijuana'))
+      (userSmoking.includes('smokes') && candidateSmoking.includes('smokes') && !userSmoking.includes('non') && !candidateSmoking.includes('non')) ||
+      (userSmoking.includes('marijuana') && candidateSmoking.includes('marijuana') && !userSmoking.includes('non') && !candidateSmoking.includes('non'))
     ) {
       matches += 0.5; // Partial match
     }
   }
 
-  // Drinking match
+  // Drinking match - improved logic
   if (userLifestyle.drinking && candidateLifestyle.drinking) {
     total++;
     const userDrinking = userLifestyle.drinking.toLowerCase();
@@ -295,13 +278,19 @@ function calculateLifestyleMatch(
       matches += 1; // Exact match
     } else if (
       (userDrinking === 'non-drinker' && candidateDrinking === 'non-drinker') ||
-      (userDrinking.includes('drink') && candidateDrinking.includes('drink'))
+      ((userDrinking === 'social drinker' || userDrinking === 'occasionally') && 
+       (candidateDrinking === 'social drinker' || candidateDrinking === 'occasionally'))
     ) {
-      matches += 0.5; // Partial match
+      matches += 0.75; // Both are drinkers (even if different levels)
+    } else if (
+      (userDrinking.includes('drink') && candidateDrinking.includes('drink') && 
+       !userDrinking.includes('non') && !candidateDrinking.includes('non'))
+    ) {
+      matches += 0.5; // Partial match - both drink but different levels
     }
   }
 
-  // Children match
+  // Children match - improved logic
   if (userLifestyle.children && candidateLifestyle.children) {
     total++;
     const userChildren = userLifestyle.children.toLowerCase();
@@ -309,14 +298,23 @@ function calculateLifestyleMatch(
     if (userChildren === candidateChildren) {
       matches += 1; // Exact match
     } else if (
-      (userChildren.includes('children') && candidateChildren.includes('children')) ||
+      (userChildren === 'has children' && candidateChildren === 'wants children') ||
+      (userChildren === 'wants children' && candidateChildren === 'has children')
+    ) {
+      matches += 0.8; // Very compatible - one has, one wants
+    } else if (
+      (userChildren.includes('children') && candidateChildren.includes('children') && 
+       !userChildren.includes("doesn't") && !candidateChildren.includes("doesn't"))
+    ) {
+      matches += 0.6; // Both want/have children
+    } else if (
       (userChildren.includes("doesn't want") && candidateChildren.includes("doesn't want"))
     ) {
-      matches += 0.5; // Partial match
+      matches += 0.75; // Both don't want - good match
     }
   }
 
-  // Pets match
+  // Pets match - improved logic
   if (userLifestyle.pets && candidateLifestyle.pets) {
     total++;
     const userPets = userLifestyle.pets.toLowerCase();
@@ -324,14 +322,29 @@ function calculateLifestyleMatch(
     if (userPets === candidatePets) {
       matches += 1; // Exact match
     } else if (
-      (userPets.includes('pets') && candidatePets.includes('pets')) ||
-      (userPets.includes("doesn't like") && candidatePets.includes("doesn't like"))
+      (userPets === 'loves pets' && candidatePets === 'has pets') ||
+      (userPets === 'has pets' && candidatePets === 'loves pets')
+    ) {
+      matches += 0.9; // Very compatible
+    } else if (
+      (userPets === 'open to pets' && (candidatePets === 'loves pets' || candidatePets === 'has pets')) ||
+      ((userPets === 'loves pets' || userPets === 'has pets') && candidatePets === 'open to pets')
+    ) {
+      matches += 0.7; // One is open, other loves/has
+    } else if (
+      (userPets.includes('pets') && candidatePets.includes('pets') && 
+       !userPets.includes("doesn't") && !candidatePets.includes("doesn't") &&
+       !userPets.includes('allergic') && !candidatePets.includes('allergic'))
     ) {
       matches += 0.5; // Partial match
+    } else if (
+      (userPets.includes("doesn't like") && candidatePets.includes("doesn't like"))
+    ) {
+      matches += 0.75; // Both don't like - compatible
     }
   }
 
-  // Religion match
+  // Religion match - improved logic
   if (userLifestyle.religion && candidateLifestyle.religion) {
     total++;
     const userReligion = userLifestyle.religion.toLowerCase();
@@ -339,14 +352,27 @@ function calculateLifestyleMatch(
     if (userReligion === candidateReligion) {
       matches += 1; // Exact match
     } else if (
-      (userReligion === 'spiritual' && candidateReligion === 'spiritual') ||
+      (userReligion === 'spiritual' && candidateReligion === 'spiritual')
+    ) {
+      matches += 1; // Spiritual matches spiritual
+    } else if (
       (userReligion === 'agnostic' && candidateReligion === 'agnostic')
     ) {
-      matches += 0.5; // Partial match
+      matches += 1; // Agnostic matches agnostic
+    } else if (
+      ((userReligion === 'spiritual' || userReligion === 'religious') && 
+       (candidateReligion === 'spiritual' || candidateReligion === 'religious'))
+    ) {
+      matches += 0.7; // Both are spiritual/religious
+    } else if (
+      ((userReligion === 'agnostic' || userReligion === 'atheist') && 
+       (candidateReligion === 'agnostic' || candidateReligion === 'atheist'))
+    ) {
+      matches += 0.7; // Both are non-religious
     }
   }
 
-  // Work-life balance match
+  // Work-life balance match - improved logic
   if (userLifestyle.work_life_balance && candidateLifestyle.work_life_balance) {
     total++;
     const userBalance = userLifestyle.work_life_balance.toLowerCase();
@@ -354,10 +380,18 @@ function calculateLifestyleMatch(
     if (userBalance === candidateBalance) {
       matches += 1; // Exact match
     } else if (
-      (userBalance.includes('balanced') && candidateBalance.includes('balanced')) ||
+      (userBalance.includes('balanced') && candidateBalance.includes('balanced'))
+    ) {
+      matches += 0.8; // Both value balance
+    } else if (
       (userBalance.includes('flexible') && candidateBalance.includes('flexible'))
     ) {
-      matches += 0.5; // Partial match
+      matches += 0.8; // Both are flexible
+    } else if (
+      ((userBalance.includes('balanced') || userBalance.includes('flexible')) && 
+       (candidateBalance.includes('balanced') || candidateBalance.includes('flexible')))
+    ) {
+      matches += 0.6; // Compatible approaches
     }
   }
 
@@ -386,7 +420,14 @@ function calculatePartnerQualitiesMatch(
   
   if (!candidateProfile) return 0;
   
-  // Get candidate's interests (as proxy for qualities)
+  // Get candidate's actual partner qualities (not just interests)
+  const candidateQualities = db
+    .prepare("SELECT quality FROM partner_qualities WHERE profile_id = ?")
+    .all(candidateProfileId) as { quality: string }[];
+  
+  const candidateQualityNames = new Set(candidateQualities.map(q => q.quality.toLowerCase()));
+  
+  // Also check bio and interests as fallback (some qualities might be mentioned there)
   const candidateInterests = db
     .prepare("SELECT name FROM interests WHERE profile_id = ?")
     .all(candidateProfileId) as { name: string }[];
@@ -400,9 +441,13 @@ function calculatePartnerQualitiesMatch(
     const qualityLower = quality.quality.toLowerCase();
     const importance = quality.importance || 5;
     
-    // Check if quality appears in candidate's profile/interests
-    if (candidateText.includes(qualityLower)) {
-      totalScore += importance;
+    // Method 1: Check if quality exists in candidate's partner_qualities (most accurate)
+    if (candidateQualityNames.has(qualityLower)) {
+      totalScore += importance; // Full match
+    } else if (candidateText.includes(qualityLower)) {
+      // Method 2: Check if quality appears in candidate's profile/interests (fallback)
+      // Give partial credit (70% of importance) since it's less certain
+      totalScore += importance * 0.7;
     }
     totalImportance += importance;
   }
@@ -614,7 +659,7 @@ export async function generateWeeklyMatches(userId: string): Promise<{
       continue; // Intent mismatch
     }
 
-    // Check shared values (at least 3)
+    // Check shared values (at least 3) - already pre-filtered for 2+, now check for 3+
     const sharedValues = userValues.filter((v) =>
       candidateValues.includes(v)
     ).length;

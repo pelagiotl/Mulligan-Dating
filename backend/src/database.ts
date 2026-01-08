@@ -438,5 +438,48 @@ export async function initDatabase() {
     // Column already exists, ignore
   }
 
+  // PERFORMANCE: Add indexes for frequently queried columns
+  console.log("📊 Creating database indexes for performance...");
+  
+  try {
+    // Profiles table indexes
+    await execSQL(`CREATE INDEX IF NOT EXISTS idx_profiles_user_id ON profiles(user_id)`);
+    await execSQL(`CREATE INDEX IF NOT EXISTS idx_profiles_age ON profiles(age)`);
+    await execSQL(`CREATE INDEX IF NOT EXISTS idx_profiles_gender ON profiles(gender)`);
+    
+    // Interests table indexes
+    await execSQL(`CREATE INDEX IF NOT EXISTS idx_interests_profile_id ON interests(profile_id)`);
+    await execSQL(`CREATE INDEX IF NOT EXISTS idx_interests_name ON interests(name)`);
+    
+    // Partner qualities indexes
+    await execSQL(`CREATE INDEX IF NOT EXISTS idx_partner_qualities_profile_id ON partner_qualities(profile_id)`);
+    
+    // Lifestyle indexes
+    await execSQL(`CREATE INDEX IF NOT EXISTS idx_lifestyle_profile_id ON lifestyle(profile_id)`);
+    
+    // Dealbreakers indexes
+    await execSQL(`CREATE INDEX IF NOT EXISTS idx_dealbreakers_profile_id ON dealbreakers(profile_id)`);
+    
+    // Preferences indexes
+    await execSQL(`CREATE INDEX IF NOT EXISTS idx_preferences_profile_id ON preferences(profile_id)`);
+    
+    // Matches indexes
+    await execSQL(`CREATE INDEX IF NOT EXISTS idx_matches_user1_id ON matches(user1_id)`);
+    await execSQL(`CREATE INDEX IF NOT EXISTS idx_matches_user2_id ON matches(user2_id)`);
+    await execSQL(`CREATE INDEX IF NOT EXISTS idx_matches_stage ON matches(stage)`);
+    
+    // Blocks indexes
+    await execSQL(`CREATE INDEX IF NOT EXISTS idx_blocks_blocker_id ON blocks(blocker_id)`);
+    await execSQL(`CREATE INDEX IF NOT EXISTS idx_blocks_blocked_id ON blocks(blocked_id)`);
+    
+    // Messages indexes
+    await execSQL(`CREATE INDEX IF NOT EXISTS idx_messages_match_id ON messages(match_id)`);
+    await execSQL(`CREATE INDEX IF NOT EXISTS idx_messages_sender_id ON messages(sender_id)`);
+    
+    console.log("✅ Database indexes created successfully");
+  } catch (e) {
+    console.warn("⚠️  Some indexes may already exist or failed to create:", e);
+  }
+
   console.log("✅ Database initialized");
 }
