@@ -76,10 +76,12 @@ export default function Login() {
       let errorMessage = 'Invalid email or password'
       if (err?.message) {
         const msg = err.message.toLowerCase()
-        if (msg.includes('timeout') || msg.includes('unavailable')) {
-          errorMessage = 'Server unavailable. Please try again.'
+        if (msg.includes('starting up') || msg.includes('cold start')) {
+          errorMessage = 'Server is waking up. Please wait 10-15 seconds and try again.'
+        } else if (msg.includes('timeout') || msg.includes('unavailable')) {
+          errorMessage = 'Server is starting up. Please wait a moment and try again.'
         } else if (msg.includes('failed to fetch') || msg.includes('network error') || msg.includes('load failed') || msg.includes('connection failed')) {
-          errorMessage = 'Connection failed. Please refresh the page and try again.'
+          errorMessage = 'Server is starting up. Please wait 10-15 seconds and try again.'
         } else if (msg.includes('no token') || msg.includes('authentication')) {
           errorMessage = 'Authentication failed. Please try again.'
         } else if (msg.includes('invalid response') || msg.includes('invalid')) {
@@ -94,7 +96,7 @@ export default function Login() {
         } else if (err.status === 500) {
           errorMessage = 'Server error. Please try again.'
         } else if (err.status === 408) {
-          errorMessage = 'Request timeout. Please try again.'
+          errorMessage = 'Server is starting up. Please wait 10-15 seconds and try again.'
         }
       }
       

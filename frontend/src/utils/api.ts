@@ -21,9 +21,9 @@ async function request<T = any>(endpoint: string, options: RequestInit = {}): Pr
     (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`
   }
 
-  // Add timeout to prevent hanging
+  // Add timeout to prevent hanging (increased for slower connections)
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+  const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
 
   const url = `${BASE_URL}${endpoint}`
   console.log('Making API request:', { method: options.method || 'GET', url, hasToken: !!token })
@@ -68,13 +68,22 @@ async function request<T = any>(endpoint: string, options: RequestInit = {}): Pr
     })
     
     if (error instanceof Error && error.name === 'AbortError') {
-      throw new ApiError(408, 'Request timeout - server may be unavailable')
+      console.error('Request was aborted (timeout)')
+      // Check if it's a login endpoint - might be cold start
+      if (url.includes('/auth/login')) {
+        throw new ApiError(408, 'Server is starting up. Please wait a moment and try again.')
+      }
+      throw new ApiError(408, 'Request timeout - the server may be slow or unavailable. Please try again.')
     }
     if (error instanceof ApiError) {
       throw error
     }
     // Check if it's a network error
     if (error instanceof Error && (error.message.includes('Failed to fetch') || error.message.includes('NetworkError'))) {
+      // Check if it's a login endpoint - might be cold start
+      if (url.includes('/auth/login')) {
+        throw new ApiError(0, 'Server is starting up. Please wait a moment and try again.')
+      }
       throw new ApiError(0, 'Connection failed. Please check your internet connection and try again.')
     }
     throw new ApiError(0, error instanceof Error ? error.message : 'Network error')
