@@ -162,6 +162,10 @@ export function initializeSocket(server: HTTPServer) {
         `INSERT INTO messages (id, match_id, sender_id, content) VALUES (?, ?, ?, ?)`
       ).run(messageId, matchId, userId, content.trim());
 
+      // Track success signal: message exchanged (engagement)
+      const { recordSuccessSignal } = await import("./utils/successTracking.js");
+      recordSuccessSignal(userId, otherUserId, matchId, "message_exchanged");
+
       // Don't mark sender's own messages as read - they should only be marked
       // as read when the recipient actually views them
 
