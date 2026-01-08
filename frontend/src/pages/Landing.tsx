@@ -34,20 +34,24 @@ export default function Landing() {
         })
       },
       {
-        threshold: 0.2, // Trigger when 20% of the card is visible
-        rootMargin: '0px 0px -50px 0px' // Start animation slightly before card is fully visible
+        threshold: 0.1, // Trigger when 10% of the card is visible
+        rootMargin: '0px 0px -100px 0px' // Start animation when card is 100px from viewport bottom
       }
     )
 
-    // Observe all feature cards
-    featureCardRefs.current.forEach((card) => {
-      if (card) {
-        observer.observe(card)
-      }
-    })
+    // Small delay to ensure refs are set
+    const timeoutId = setTimeout(() => {
+      // Observe all feature cards
+      featureCardRefs.current.forEach((card) => {
+        if (card) {
+          observer.observe(card)
+        }
+      })
+    }, 100)
 
     // Cleanup
     return () => {
+      clearTimeout(timeoutId)
       featureCardRefs.current.forEach((card) => {
         if (card) {
           observer.unobserve(card)
