@@ -774,7 +774,7 @@ img {
   overflow: hidden;
   opacity: 0;
   transform: translateY(40px);
-  transition: opacity 0.8s ease-out, transform 0.8s ease-out;
+  transition: opacity 1.5s ease-out, transform 1.5s ease-out;
 }
 
 /* Animation when card comes into view */
@@ -785,15 +785,15 @@ img {
 
 /* Stagger animation delays for each card */
 .feature-card-enhanced:nth-child(1).feature-card-visible {
-  transition-delay: 0.1s;
-}
-
-.feature-card-enhanced:nth-child(2).feature-card-visible {
   transition-delay: 0.2s;
 }
 
+.feature-card-enhanced:nth-child(2).feature-card-visible {
+  transition-delay: 0.4s;
+}
+
 .feature-card-enhanced:nth-child(3).feature-card-visible {
-  transition-delay: 0.3s;
+  transition-delay: 0.6s;
 }
 
 .feature-card-enhanced::before {
