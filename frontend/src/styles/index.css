@@ -5442,14 +5442,28 @@ img {
 
 .photo-primary-badge-small {
   position: absolute;
-  top: var(--space-1);
-  right: var(--space-1);
-  background: linear-gradient(135deg, var(--color-gold-400), var(--color-gold-500));
-  color: var(--color-wine-900);
+  top: var(--space-2);
+  right: var(--space-2);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.85));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-full);
-  font-size: 0.75rem;
-  box-shadow: var(--shadow-sm);
+  font-size: 0.9rem;
+  box-shadow: 
+    0 2px 8px rgba(0, 0, 0, 0.15),
+    0 0 0 1px rgba(244, 63, 94, 0.2) inset;
+  z-index: 2;
+  animation: badgeFloat 2s ease-in-out infinite;
+}
+
+@keyframes badgeFloat {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-3px) scale(1.05);
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════
