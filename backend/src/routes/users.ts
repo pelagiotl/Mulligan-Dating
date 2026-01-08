@@ -352,8 +352,14 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
       const interestsScore = totalInterests > 0 ? (sharedInterests / totalInterests) : 0.5; // Default to neutral if no interests
       
       // Calculate partner qualities match ("What I'm Looking For")
+      // Get candidate's actual partner qualities, not just interests
+      const candidatePartnerQualities = db
+        .prepare("SELECT quality FROM partner_qualities WHERE profile_id = ?")
+        .all(p.id) as { quality: string }[];
+      const candidateQualityNames = new Set(candidatePartnerQualities.map(q => q.quality.toLowerCase()));
+      
       const userQualities = userPartnerQualities.map(q => q.quality.toLowerCase());
-      const matchedQualities = userQualities.filter(q => candidateInterestNames.has(q)).length;
+      const matchedQualities = userQualities.filter(q => candidateQualityNames.has(q)).length;
       const qualitiesScore = userQualities.length > 0 ? (matchedQualities / userQualities.length) : 0.5; // Default to neutral if no qualities
       
       // Calculate lifestyle compatibility score
