@@ -3043,6 +3043,38 @@ img {
   z-index: -1;
 }
 
+/* Floating particles background */
+.matches-page::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: 
+    radial-gradient(circle at 20% 30%, rgba(244, 63, 94, 0.08) 0%, transparent 50%),
+    radial-gradient(circle at 80% 70%, rgba(251, 113, 133, 0.06) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(244, 63, 94, 0.04) 0%, transparent 50%);
+  animation: particleFloat 20s ease-in-out infinite;
+  pointer-events: none;
+  z-index: -1;
+}
+
+@keyframes particleFloat {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.6;
+  }
+  33% {
+    transform: translate(30px, -30px) scale(1.1);
+    opacity: 0.8;
+  }
+  66% {
+    transform: translate(-20px, 20px) scale(0.9);
+    opacity: 0.7;
+  }
+}
+
 @media (max-width: 900px) {
   .matches-page {
     grid-template-columns: 1fr;
@@ -3148,6 +3180,29 @@ img {
   position: relative;
   overflow: hidden;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transform-style: preserve-3d;
+  perspective: 1000px;
+}
+
+/* Shimmer effect on match cards */
+.match-item::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.4),
+    transparent
+  );
+  transition: left 0.5s ease;
+}
+
+.match-item:hover::after {
+  left: 100%;
 }
 
 .match-item::before {
@@ -3165,9 +3220,10 @@ img {
   background: linear-gradient(135deg, rgba(244, 63, 94, 0.08) 0%, rgba(255, 255, 255, 0.95) 100%);
   border-color: rgba(244, 63, 94, 0.3);
   box-shadow: 
-    0 8px 24px rgba(244, 63, 94, 0.12),
-    0 0 0 1px rgba(244, 63, 94, 0.1) inset;
-  transform: translateY(-2px) scale(1.01);
+    0 12px 32px rgba(244, 63, 94, 0.15),
+    0 0 0 1px rgba(244, 63, 94, 0.1) inset,
+    0 0 40px rgba(244, 63, 94, 0.1);
+  transform: translateY(-3px) scale(1.02) rotateX(2deg);
 }
 
 .match-item:hover::before {
@@ -3179,8 +3235,25 @@ img {
   border-color: rgba(244, 63, 94, 0.4);
   box-shadow: 
     0 12px 32px rgba(244, 63, 94, 0.2),
-    0 0 0 1px rgba(244, 63, 94, 0.2) inset;
+    0 0 0 1px rgba(244, 63, 94, 0.2) inset,
+    0 0 60px rgba(244, 63, 94, 0.15);
   transform: translateY(-1px);
+  animation: activeGlow 2s ease-in-out infinite;
+}
+
+@keyframes activeGlow {
+  0%, 100% {
+    box-shadow: 
+      0 12px 32px rgba(244, 63, 94, 0.2),
+      0 0 0 1px rgba(244, 63, 94, 0.2) inset,
+      0 0 60px rgba(244, 63, 94, 0.15);
+  }
+  50% {
+    box-shadow: 
+      0 12px 32px rgba(244, 63, 94, 0.25),
+      0 0 0 1px rgba(244, 63, 94, 0.25) inset,
+      0 0 80px rgba(244, 63, 94, 0.2);
+  }
 }
 
 .match-item.active::before {
@@ -3344,9 +3417,33 @@ img {
   white-space: nowrap;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: 
+    0 2px 8px rgba(0, 0, 0, 0.15),
+    0 0 0 1px rgba(255, 255, 255, 0.3) inset;
   transition: all var(--transition-fast);
   animation: pulseBadge 2s ease-in-out infinite;
+  position: relative;
+  overflow: hidden;
+}
+
+.stage-badge::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  animation: badgeShine 3s ease-in-out infinite;
+}
+
+@keyframes badgeShine {
+  0% {
+    left: -100%;
+  }
+  50%, 100% {
+    left: 100%;
+  }
 }
 
 .match-item:hover .stage-badge {
@@ -3370,6 +3467,26 @@ img {
   background: linear-gradient(135deg, #d1fae5, #a7f3d0);
   color: #065f46;
   border: 1px solid rgba(5, 95, 70, 0.2);
+  box-shadow: 
+    0 2px 8px rgba(5, 95, 70, 0.15),
+    0 0 0 1px rgba(255, 255, 255, 0.3) inset,
+    0 0 20px rgba(16, 185, 129, 0.2);
+  animation: stage2Glow 2s ease-in-out infinite;
+}
+
+@keyframes stage2Glow {
+  0%, 100% {
+    box-shadow: 
+      0 2px 8px rgba(5, 95, 70, 0.15),
+      0 0 0 1px rgba(255, 255, 255, 0.3) inset,
+      0 0 20px rgba(16, 185, 129, 0.2);
+  }
+  50% {
+    box-shadow: 
+      0 2px 8px rgba(5, 95, 70, 0.2),
+      0 0 0 1px rgba(255, 255, 255, 0.4) inset,
+      0 0 30px rgba(16, 185, 129, 0.3);
+  }
 }
 
 .match-badge-actions {
@@ -3824,9 +3941,45 @@ img {
 .typing-indicator {
   padding: var(--space-2) var(--space-3);
   font-size: 0.875rem;
-  color: var(--text-muted);
+  color: var(--color-rose-600);
   font-style: italic;
   min-height: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  animation: typingFade 1.5s ease-in-out infinite;
+}
+
+.typing-indicator::before {
+  content: '●';
+  animation: typingDot 1.4s ease-in-out infinite;
+  font-size: 0.5rem;
+}
+
+.typing-indicator::after {
+  content: '●●';
+  animation: typingDot 1.4s ease-in-out infinite 0.2s;
+  font-size: 0.5rem;
+}
+
+@keyframes typingFade {
+  0%, 100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes typingDot {
+  0%, 60%, 100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
 }
 
 .message-input-wrapper {
@@ -4361,12 +4514,55 @@ img {
 }
 
 .reveal-unlock-card {
-  background: linear-gradient(135deg, var(--color-rose-50), var(--color-rose-100));
-  border-radius: var(--radius-lg);
-  padding: var(--space-3);
-  margin-bottom: var(--space-2);
-  border: 1px solid var(--color-rose-200);
-  box-shadow: var(--shadow-sm);
+  background: linear-gradient(135deg, 
+    rgba(255, 255, 255, 0.95) 0%, 
+    rgba(251, 113, 133, 0.08) 100%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: var(--radius-xl);
+  padding: var(--space-5);
+  margin-bottom: var(--space-4);
+  border: 1px solid rgba(244, 63, 94, 0.2);
+  box-shadow: 
+    0 8px 24px rgba(244, 63, 94, 0.12),
+    0 0 0 1px rgba(255, 255, 255, 0.3) inset;
+  position: relative;
+  overflow: hidden;
+  animation: revealCardPulse 3s ease-in-out infinite;
+}
+
+.reveal-unlock-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  animation: revealShine 4s ease-in-out infinite;
+}
+
+@keyframes revealCardPulse {
+  0%, 100% {
+    box-shadow: 
+      0 8px 24px rgba(244, 63, 94, 0.12),
+      0 0 0 1px rgba(255, 255, 255, 0.3) inset;
+  }
+  50% {
+    box-shadow: 
+      0 12px 32px rgba(244, 63, 94, 0.18),
+      0 0 0 1px rgba(255, 255, 255, 0.4) inset,
+      0 0 40px rgba(244, 63, 94, 0.1);
+  }
+}
+
+@keyframes revealShine {
+  0% {
+    left: -100%;
+  }
+  50%, 100% {
+    left: 100%;
+  }
 }
 
 .reveal-unlock-header {
@@ -4440,15 +4636,65 @@ img {
   left: 0;
   top: 0;
   height: 100%;
-  background: linear-gradient(90deg, var(--color-rose-300), var(--color-rose-400));
+  background: linear-gradient(90deg, var(--color-rose-300), var(--color-rose-400), var(--color-rose-500));
+  background-size: 200% 100%;
   border-radius: var(--radius-full);
-  transition: width 0.3s ease, background 0.3s ease;
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s ease;
   min-width: 0;
+  animation: progressShimmer 2s ease-in-out infinite;
+  position: relative;
+  overflow: hidden;
+}
+
+.reveal-progress-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  animation: progressShine 2s ease-in-out infinite;
+}
+
+@keyframes progressShimmer {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes progressShine {
+  0% {
+    left: -100%;
+  }
+  50%, 100% {
+    left: 100%;
+  }
 }
 
 .reveal-progress-fill.complete {
-  background: linear-gradient(90deg, var(--color-rose-500), var(--color-rose-600));
-  box-shadow: 0 0 10px rgba(244, 63, 94, 0.3);
+  background: linear-gradient(90deg, var(--color-rose-500), var(--color-rose-600), #d91a4a);
+  background-size: 200% 100%;
+  box-shadow: 
+    0 0 20px rgba(244, 63, 94, 0.4),
+    0 0 40px rgba(244, 63, 94, 0.2);
+  animation: progressShimmer 1.5s ease-in-out infinite, completePulse 2s ease-in-out infinite;
+}
+
+@keyframes completePulse {
+  0%, 100% {
+    box-shadow: 
+      0 0 20px rgba(244, 63, 94, 0.4),
+      0 0 40px rgba(244, 63, 94, 0.2);
+  }
+  50% {
+    box-shadow: 
+      0 0 30px rgba(244, 63, 94, 0.6),
+      0 0 60px rgba(244, 63, 94, 0.3);
+  }
 }
 
 .reveal-progress-text {
@@ -5102,37 +5348,96 @@ img {
 .stage2-photos-section {
   margin-bottom: var(--space-6);
   padding: var(--space-6);
-  background: var(--bg-secondary);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-sm);
+  box-shadow: 
+    0 8px 24px rgba(244, 63, 94, 0.1),
+    0 0 0 1px rgba(255, 255, 255, 0.3) inset;
+  border: 1px solid rgba(244, 63, 94, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+.stage2-photos-section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--color-rose-400), transparent);
+  opacity: 0.5;
 }
 
 .stage2-photos-section h4 {
-  font-size: 1.1rem;
-  color: var(--color-wine-900);
-  margin-bottom: var(--space-4);
+  font-size: 1.25rem;
+  background: linear-gradient(135deg, var(--color-rose-600), #d91a4a);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: var(--space-5);
   font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.5px;
 }
 
 .match-photos-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: var(--space-3);
+  gap: var(--space-4);
 }
 
 .match-photo-item {
   aspect-ratio: 4/5;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   overflow: hidden;
   position: relative;
-  background: var(--color-rose-100);
-  box-shadow: var(--shadow-sm);
+  background: linear-gradient(135deg, var(--color-rose-100), var(--color-rose-200));
+  box-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.1),
+    0 0 0 1px rgba(244, 63, 94, 0.1) inset;
+  cursor: pointer;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-style: preserve-3d;
+}
+
+.match-photo-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(244, 63, 94, 0.1), transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 1;
+}
+
+.match-photo-item:hover {
+  transform: translateY(-8px) scale(1.05) rotateY(5deg);
+  box-shadow: 
+    0 12px 32px rgba(244, 63, 94, 0.25),
+    0 0 0 2px rgba(244, 63, 94, 0.2) inset,
+    0 0 40px rgba(244, 63, 94, 0.15);
+  z-index: 10;
+}
+
+.match-photo-item:hover::before {
+  opacity: 1;
 }
 
 .match-photo-item img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.match-photo-item:hover img {
+  transform: scale(1.1);
 }
 
 .photo-primary-badge-small {
