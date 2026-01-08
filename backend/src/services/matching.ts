@@ -234,6 +234,138 @@ function checkDealbreakers(userProfileId: string, candidateProfileId: string): b
 }
 
 /**
+ * Calculate lifestyle compatibility score
+ * Returns score 0-10 based on how well lifestyles match
+ */
+function calculateLifestyleMatch(
+  userProfileId: string,
+  candidateProfileId: string
+): number {
+  const userLifestyle = db
+    .prepare("SELECT * FROM lifestyle WHERE profile_id = ?")
+    .get(userProfileId) as {
+      smoking: string | null;
+      drinking: string | null;
+      children: string | null;
+      pets: string | null;
+      religion: string | null;
+      work_life_balance: string | null;
+    } | undefined;
+
+  const candidateLifestyle = db
+    .prepare("SELECT * FROM lifestyle WHERE profile_id = ?")
+    .get(candidateProfileId) as {
+      smoking: string | null;
+      drinking: string | null;
+      children: string | null;
+      pets: string | null;
+      religion: string | null;
+      work_life_balance: string | null;
+    } | undefined;
+
+  if (!userLifestyle || !candidateLifestyle) {
+    return 5; // Neutral score if no lifestyle data
+  }
+
+  let matches = 0;
+  let total = 0;
+
+  // Smoking match
+  if (userLifestyle.smoking && candidateLifestyle.smoking) {
+    total++;
+    const userSmoking = userLifestyle.smoking.toLowerCase();
+    const candidateSmoking = candidateLifestyle.smoking.toLowerCase();
+    if (userSmoking === candidateSmoking) {
+      matches += 1; // Exact match
+    } else if (
+      (userSmoking === 'non-smoker' && candidateSmoking === 'non-smoker') ||
+      (userSmoking.includes('smokes') && candidateSmoking.includes('smokes')) ||
+      (userSmoking.includes('marijuana') && candidateSmoking.includes('marijuana'))
+    ) {
+      matches += 0.5; // Partial match
+    }
+  }
+
+  // Drinking match
+  if (userLifestyle.drinking && candidateLifestyle.drinking) {
+    total++;
+    const userDrinking = userLifestyle.drinking.toLowerCase();
+    const candidateDrinking = candidateLifestyle.drinking.toLowerCase();
+    if (userDrinking === candidateDrinking) {
+      matches += 1; // Exact match
+    } else if (
+      (userDrinking === 'non-drinker' && candidateDrinking === 'non-drinker') ||
+      (userDrinking.includes('drink') && candidateDrinking.includes('drink'))
+    ) {
+      matches += 0.5; // Partial match
+    }
+  }
+
+  // Children match
+  if (userLifestyle.children && candidateLifestyle.children) {
+    total++;
+    const userChildren = userLifestyle.children.toLowerCase();
+    const candidateChildren = candidateLifestyle.children.toLowerCase();
+    if (userChildren === candidateChildren) {
+      matches += 1; // Exact match
+    } else if (
+      (userChildren.includes('children') && candidateChildren.includes('children')) ||
+      (userChildren.includes("doesn't want") && candidateChildren.includes("doesn't want"))
+    ) {
+      matches += 0.5; // Partial match
+    }
+  }
+
+  // Pets match
+  if (userLifestyle.pets && candidateLifestyle.pets) {
+    total++;
+    const userPets = userLifestyle.pets.toLowerCase();
+    const candidatePets = candidateLifestyle.pets.toLowerCase();
+    if (userPets === candidatePets) {
+      matches += 1; // Exact match
+    } else if (
+      (userPets.includes('pets') && candidatePets.includes('pets')) ||
+      (userPets.includes("doesn't like") && candidatePets.includes("doesn't like"))
+    ) {
+      matches += 0.5; // Partial match
+    }
+  }
+
+  // Religion match
+  if (userLifestyle.religion && candidateLifestyle.religion) {
+    total++;
+    const userReligion = userLifestyle.religion.toLowerCase();
+    const candidateReligion = candidateLifestyle.religion.toLowerCase();
+    if (userReligion === candidateReligion) {
+      matches += 1; // Exact match
+    } else if (
+      (userReligion === 'spiritual' && candidateReligion === 'spiritual') ||
+      (userReligion === 'agnostic' && candidateReligion === 'agnostic')
+    ) {
+      matches += 0.5; // Partial match
+    }
+  }
+
+  // Work-life balance match
+  if (userLifestyle.work_life_balance && candidateLifestyle.work_life_balance) {
+    total++;
+    const userBalance = userLifestyle.work_life_balance.toLowerCase();
+    const candidateBalance = candidateLifestyle.work_life_balance.toLowerCase();
+    if (userBalance === candidateBalance) {
+      matches += 1; // Exact match
+    } else if (
+      (userBalance.includes('balanced') && candidateBalance.includes('balanced')) ||
+      (userBalance.includes('flexible') && candidateBalance.includes('flexible'))
+    ) {
+      matches += 0.5; // Partial match
+    }
+  }
+
+  // Return normalized score (0-10)
+  return total > 0 ? (matches / total) * 10 : 5;
+}
+
+/**
  * Calculate partner qualities match score
  */
 function calculatePartnerQualitiesMatch(
@@ -510,6 +642,12 @@ export async function generateWeeklyMatches(userId: string): Promise<{
       candidate.id
     );
 
+    // NEW: Calculate lifestyle compatibility
+    const lifestyleMatch = calculateLifestyleMatch(
+      userProfile.id,
+      candidate.id
+    );
+
     // Calculate distance score using exponential decay (state-of-the-art)
     // Much better than linear - gives exponentially higher scores for closer matches
     const maxDistance = Math.max(userPrefs.max_distance, candidate.max_distance);
@@ -517,33 +655,37 @@ export async function generateWeeklyMatches(userId: string): Promise<{
 
     // STATE-OF-THE-ART SCORING SYSTEM with non-linear transformations
     // Uses sigmoid functions for better score distribution
-    // Values: 25% weight - non-linear boost for more shared values
-    // Interests: 20% weight - already uses weighted Jaccard
-    // Partner Qualities: 20% weight - importance-weighted
-    // Looking For: 15% weight - TF-IDF cosine similarity
+    // Values: 20% weight - non-linear boost for more shared values
+    // Interests: 15% weight - already uses weighted Jaccard
+    // Partner Qualities ("What I'm Looking For"): 20% weight - importance-weighted
+    // Looking For: 10% weight - TF-IDF cosine similarity
+    // Lifestyle: 15% weight - lifestyle compatibility matching
     // Intent: 10% weight - sigmoid for smooth intent matching
     // Distance: 10% weight - exponential decay
     
     // Non-linear value scoring (more shared values = exponentially better)
-    const valuesScore = sigmoid(sharedValues, 3, 0.5) * 7.5; // Max 7.5 points
+    const valuesScore = sigmoid(sharedValues, 3, 0.5) * 6; // Max 6 points (20% of 30)
     
     // Interests already has non-linear boost built in
-    const interestsScore = (sharedInterests / 10) * 2;
+    const interestsScore = (sharedInterests / 10) * 1.5; // 15% weight
     
     // Partner qualities with importance weighting (already sophisticated)
-    const qualitiesScore = (partnerQualitiesMatch / 10) * 2;
+    const qualitiesScore = (partnerQualitiesMatch / 10) * 2; // 20% weight
     
     // Looking for uses TF-IDF cosine similarity (state-of-the-art)
-    const lookingForScore = (lookingForMatch / 10) * 1.5;
+    const lookingForScore = (lookingForMatch / 10) * 1; // 10% weight
+    
+    // Lifestyle compatibility (NEW)
+    const lifestyleScore = (lifestyleMatch / 10) * 1.5; // 15% weight
     
     // Intent with sigmoid for smooth matching (exact match = 1, 1 diff = 0.7, 2 diff = 0.3)
-    const intentScore = sigmoid(2 - intentDiff, 0, 1.5) * 1;
+    const intentScore = sigmoid(2 - intentDiff, 0, 1.5) * 1; // 10% weight
     
     // Distance uses exponential decay (already calculated above)
-    const distanceScoreWeighted = (distanceScore / 10) * 1;
+    const distanceScoreWeighted = (distanceScore / 10) * 1; // 10% weight
 
     // Final score with all components
-    const totalScore = valuesScore + interestsScore + qualitiesScore + lookingForScore + intentScore + distanceScoreWeighted;
+    const totalScore = valuesScore + interestsScore + qualitiesScore + lookingForScore + lifestyleScore + intentScore + distanceScoreWeighted;
     
     // Apply final sigmoid normalization to ensure scores are well-distributed
     // This helps with ranking and prevents score inflation
