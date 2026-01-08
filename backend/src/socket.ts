@@ -156,6 +156,9 @@ export function initializeSocket(server: HTTPServer) {
         return;
       }
 
+      // Get the other user's ID (needed for success tracking)
+      const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
+
       // Save message to database
       const messageId = uuidv4();
       db.prepare(
@@ -169,9 +172,6 @@ export function initializeSocket(server: HTTPServer) {
 
       // Don't mark sender's own messages as read - they should only be marked
       // as read when the recipient actually views them
-
-      // Get the other user's ID
-      const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
 
       // Create message object
       const message = {
