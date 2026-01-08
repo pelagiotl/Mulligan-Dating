@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react'
 import { api } from '../utils/api'
 
 interface User {
@@ -35,6 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     const token = localStorage.getItem('token')
@@ -47,6 +48,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchUser = async () => {
     try {
+      // Cancel any pending requests
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+      
+      // Create new abort controller for this request
+      abortControllerRef.current = new AbortController()
+      
       // Verify token exists before making request
       const token = localStorage.getItem('token')
       if (!token) {
@@ -55,6 +64,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       console.log('Fetching user data with token:', token.substring(0, 20) + '...')
       const data: any = await api.get('/auth/me')
+      
+      // Check if request was aborted
+      if (abortControllerRef.current?.signal.aborted) {
+        return
+      }
       
       if (!data || !data.user) {
         throw new Error('Invalid response from server')
@@ -69,6 +83,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log('isAdmin set to:', data.user.isAdmin || false) // Debug log
       setProfile(data.profile || null)
     } catch (error: any) {
+      // Ignore aborted requests
+      if (error?.name === 'AbortError' || abortControllerRef.current?.signal.aborted) {
+        console.log('Request was aborted')
+        return
+      }
+      
       console.error('Failed to fetch user:', error)
       console.error('Error details:', {
         message: error?.message,
@@ -89,14 +109,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       console.log('Starting login process for:', email)
       
+      // Cancel any pending requests first
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+      
       // Clear any existing token first to avoid conflicts
       const oldToken = localStorage.getItem('token')
       if (oldToken) {
         console.log('Clearing old token before login')
         localStorage.removeItem('token')
-        // Small delay to ensure token is cleared
-        await new Promise(resolve => setTimeout(resolve, 50))
       }
+      
+      // Reset state before login
+      setUser(null)
+      setProfile(null)
+      setLoading(true)
+      
+      // Small delay to ensure state is cleared
+      await new Promise(resolve => setTimeout(resolve, 100))
       
       const data: any = await api.post('/auth/login', { email, password })
       console.log('Login API call successful, received token:', !!data.token)
@@ -111,9 +142,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // Small delay to ensure token is persisted and available
       await new Promise(resolve => setTimeout(resolve, 100))
-      
-      // Reset loading state before fetching user
-      setLoading(true)
       
       // Verify token is available before making request
       const tokenCheck = localStorage.getItem('token')
@@ -149,17 +177,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     console.log('Logging out - clearing all state')
+    
+    // Cancel any pending requests
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+    }
+    
     // Clear token first
     localStorage.removeItem('token')
+    
     // Reset all state synchronously
     setUser(null)
     setProfile(null)
     setLoading(false)
-    // Force a small delay to ensure state is cleared before any new operations
-    // This helps prevent race conditions with pending requests
-    setTimeout(() => {
-      console.log('Logout complete - state cleared')
-    }, 0)
+    
+    console.log('Logout complete - state cleared')
   }
 
   const refreshProfile = async () => {
