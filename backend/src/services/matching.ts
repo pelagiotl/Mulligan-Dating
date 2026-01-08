@@ -3,6 +3,7 @@ import { db } from "../database.js";
 import { geocodeLocation, calculateDistanceMiles } from "../utils/geocoding.js";
 import { findBestSemanticMatch } from "../utils/semanticMatching.js";
 import { getCompletenessBoost } from "../utils/profileCompleteness.js";
+import { checkDealbreakers as checkDealbreakersUtil } from "../utils/dealbreakers.js";
 
 /**
  * STATE-OF-THE-ART MATCHING ALGORITHM
@@ -208,8 +209,6 @@ function parseJsonArray(jsonStr: string | null): string[] {
  * Check if candidate matches user's dealbreakers
  * Uses the comprehensive dealbreaker checking utility
  */
-import { checkDealbreakers as checkDealbreakersUtil } from "../utils/dealbreakers.js";
-
 function checkDealbreakers(userProfileId: string, candidateProfileId: string): boolean {
   return checkDealbreakersUtil(userProfileId, candidateProfileId);
 }
