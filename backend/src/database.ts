@@ -438,19 +438,27 @@ export async function initDatabase() {
     // Column already exists, ignore
   }
 
-  // FEEDBACK TRACKING: Swipe interactions table for learning from user behavior
+  // SUCCESS SIGNAL TRACKING: Track real success indicators for learning
+  // Success signals: match creation, message engagement, stage advancement
   await execSQL(`
-    CREATE TABLE IF NOT EXISTS swipe_interactions (
+    CREATE TABLE IF NOT EXISTS success_signals (
       id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} PRIMARY KEY,
       user_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
-      candidate_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
-      action ${usePostgres ? 'VARCHAR(50)' : 'TEXT'} NOT NULL,
+      matched_user_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      match_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      signal_type ${usePostgres ? 'VARCHAR(50)' : 'TEXT'} NOT NULL,
+      signal_value ${usePostgres ? 'INT' : 'INTEGER'} DEFAULT 1,
       created_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-      FOREIGN KEY (candidate_id) REFERENCES users(id) ON DELETE CASCADE,
-      UNIQUE(user_id, candidate_id)
+      FOREIGN KEY (matched_user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE
     )
   `);
+  
+  // Index for fast queries
+  await execSQL(`CREATE INDEX IF NOT EXISTS idx_success_signals_user_id ON success_signals(user_id)`);
+  await execSQL(`CREATE INDEX IF NOT EXISTS idx_success_signals_match_id ON success_signals(match_id)`);
+  await execSQL(`CREATE INDEX IF NOT EXISTS idx_success_signals_type ON success_signals(signal_type)`);
 
   // PERFORMANCE: Add indexes for frequently queried columns
   console.log("📊 Creating database indexes for performance...");
@@ -490,10 +498,10 @@ export async function initDatabase() {
     await execSQL(`CREATE INDEX IF NOT EXISTS idx_messages_match_id ON messages(match_id)`);
     await execSQL(`CREATE INDEX IF NOT EXISTS idx_messages_sender_id ON messages(sender_id)`);
     
-    // Swipe interactions indexes (for feedback learning)
-    await execSQL(`CREATE INDEX IF NOT EXISTS idx_swipe_interactions_user_id ON swipe_interactions(user_id)`);
-    await execSQL(`CREATE INDEX IF NOT EXISTS idx_swipe_interactions_candidate_id ON swipe_interactions(candidate_id)`);
-    await execSQL(`CREATE INDEX IF NOT EXISTS idx_swipe_interactions_action ON swipe_interactions(action)`);
+    // Success signals indexes (for learning from real engagement)
+    await execSQL(`CREATE INDEX IF NOT EXISTS idx_success_signals_user_id ON success_signals(user_id)`);
+    await execSQL(`CREATE INDEX IF NOT EXISTS idx_success_signals_match_id ON success_signals(match_id)`);
+    await execSQL(`CREATE INDEX IF NOT EXISTS idx_success_signals_type ON success_signals(signal_type)`);
     
     // Users last_active_at index
     await execSQL(`CREATE INDEX IF NOT EXISTS idx_users_last_active_at ON users(last_active_at)`);

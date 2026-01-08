@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import { db } from "../database.js";
 import { authenticateToken, AuthRequest } from "../middleware/auth.js";
 import { generateWeeklyMatches } from "../services/matching.js";
+import { recordSuccessSignal } from "../utils/successTracking.js";
 
 export const matchesRouter = Router();
 
@@ -256,6 +257,10 @@ matchesRouter.post("/connect", authenticateToken, async (req: AuthRequest, res) 
     `UPDATE mulligan_tokens SET used_at = CURRENT_TIMESTAMP, match_id = ? WHERE id = ?`
   ).run(matchId, token.id);
 
+  // Track success signal: match created (both users connected)
+  recordSuccessSignal(userId, targetUserId, matchId, "match_created");
+  recordSuccessSignal(targetUserId, userId, matchId, "match_created");
+
   res.json({
     message: "It's a match! You can now chat.",
     matchId,
@@ -291,6 +296,11 @@ matchesRouter.post("/:matchId/reveal", authenticateToken, (req: AuthRequest, res
   db.prepare(
     `UPDATE matches SET stage = 'stage2', stage2_at = CURRENT_TIMESTAMP WHERE id = ?`
   ).run(matchId);
+
+  // Track success signal: stage advanced (strong engagement)
+  const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
+  recordSuccessSignal(userId, otherUserId, matchId, "stage_advanced");
+  recordSuccessSignal(otherUserId, userId, matchId, "stage_advanced");
 
   res.json({ 
     message: "Photos revealed manually! You can now see each other.", 

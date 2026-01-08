@@ -1,79 +1,60 @@
 import { db } from "../database.js";
+import { getSuccessfulMatches } from "./successTracking.js";
 
 /**
- * Collaborative filtering: "Users like you also liked..."
- * Finds users with similar swipe patterns and recommends profiles they liked
+ * Collaborative filtering: "Users like you also matched with..."
+ * Finds users with similar successful match patterns and recommends profiles they matched with
  */
 
-interface SwipeInteraction {
-  user_id: string;
-  candidate_id: string;
-  action: string;
-}
-
 /**
- * Find similar users based on swipe patterns
+ * Find similar users based on successful match patterns
  * Returns array of user IDs with similarity scores
  */
 export async function findSimilarUsers(
   userId: string,
   limit: number = 20
 ): Promise<Array<{ userId: string; similarity: number }>> {
-  // Get current user's swipe history
-  const userSwipes = db
-    .prepare("SELECT candidate_id, action FROM swipe_interactions WHERE user_id = ?")
-    .all(userId) as SwipeInteraction[];
-
-  if (userSwipes.length === 0) {
-    return []; // No data yet
+  // Get current user's successful matches
+  const userSuccessfulMatches = getSuccessfulMatches(userId);
+  
+  if (userSuccessfulMatches.length === 0) {
+    return []; // No successful matches yet
   }
 
-  const userLikedIds = new Set(
-    userSwipes.filter(s => s.action === 'like').map(s => s.candidate_id)
-  );
-  const userPassedIds = new Set(
-    userSwipes.filter(s => s.action === 'pass').map(s => s.candidate_id)
-  );
+  const userMatchSet = new Set(userSuccessfulMatches);
 
-  // Get all other users' swipe patterns
-  const allSwipes = db
-    .prepare("SELECT user_id, candidate_id, action FROM swipe_interactions WHERE user_id != ?")
-    .all(userId) as SwipeInteraction[];
+  // Get all other users' successful matches
+  const allSignals = db
+    .prepare(`
+      SELECT DISTINCT user_id, matched_user_id
+      FROM success_signals
+      WHERE user_id != ?
+      AND signal_type IN ('match_created', 'stage_advanced')
+    `)
+    .all(userId) as Array<{ user_id: string; matched_user_id: string }>;
 
   // Group by user_id
-  const userSwipeMap = new Map<string, { liked: Set<string>; passed: Set<string> }>();
+  const userMatchMap = new Map<string, Set<string>>();
   
-  for (const swipe of allSwipes) {
-    if (!userSwipeMap.has(swipe.user_id)) {
-      userSwipeMap.set(swipe.user_id, { liked: new Set(), passed: new Set() });
+  for (const signal of allSignals) {
+    if (!userMatchMap.has(signal.user_id)) {
+      userMatchMap.set(signal.user_id, new Set());
     }
-    const userData = userSwipeMap.get(swipe.user_id)!;
-    if (swipe.action === 'like') {
-      userData.liked.add(swipe.candidate_id);
-    } else if (swipe.action === 'pass') {
-      userData.passed.add(swipe.candidate_id);
-    }
+    userMatchMap.get(signal.user_id)!.add(signal.matched_user_id);
   }
 
   // Calculate Jaccard similarity for each user
   const similarities: Array<{ userId: string; similarity: number }> = [];
 
-  for (const [otherUserId, otherSwipes] of userSwipeMap.entries()) {
+  for (const [otherUserId, otherMatches] of userMatchMap.entries()) {
     // Calculate intersection and union
-    const likedIntersection = [...userLikedIds].filter(id => otherSwipes.liked.has(id)).length;
-    const passedIntersection = [...userPassedIds].filter(id => otherSwipes.passed.has(id)).length;
-    
-    const likedUnion = new Set([...userLikedIds, ...otherSwipes.liked]).size;
-    const passedUnion = new Set([...userPassedIds, ...otherSwipes.passed]).size;
+    const intersection = [...userMatchSet].filter(id => otherMatches.has(id)).length;
+    const union = new Set([...userMatchSet, ...otherMatches]).size;
 
-    // Weight likes more than passes (agreement on likes is more important)
-    const likedSimilarity = likedUnion > 0 ? likedIntersection / likedUnion : 0;
-    const passedSimilarity = passedUnion > 0 ? passedIntersection / passedUnion : 0;
-    
-    // Combined similarity (weighted: 70% likes, 30% passes)
-    const similarity = likedSimilarity * 0.7 + passedSimilarity * 0.3;
+    // Jaccard similarity
+    const similarity = union > 0 ? intersection / union : 0;
 
-    if (similarity > 0) {
+    if (similarity > 0.1) { // Only include if at least 10% similar
       similarities.push({ userId: otherUserId, similarity });
     }
   }
@@ -86,7 +67,7 @@ export async function findSimilarUsers(
 
 /**
  * Get recommendations based on collaborative filtering
- * Returns candidate IDs that similar users liked
+ * Returns candidate IDs that similar users successfully matched with
  */
 export async function getCollaborativeRecommendations(
   userId: string,
@@ -99,27 +80,30 @@ export async function getCollaborativeRecommendations(
     return []; // No similar users yet
   }
 
-  // Get profiles that similar users liked (weighted by similarity)
+  // Get profiles that similar users successfully matched with (weighted by similarity)
   const recommendations = new Map<string, number>(); // candidate_id -> weighted score
 
   for (const { userId: similarUserId, similarity } of similarUsers) {
-    const likedProfiles = db
-      .prepare("SELECT candidate_id FROM swipe_interactions WHERE user_id = ? AND action = 'like'")
-      .all(similarUserId) as Array<{ candidate_id: string }>;
+    const successfulMatches = getSuccessfulMatches(similarUserId);
 
-    for (const { candidate_id } of likedProfiles) {
-      // Skip if already excluded or if current user already swiped
-      if (excludeIds.includes(candidate_id)) continue;
+    for (const matchedUserId of successfulMatches) {
+      // Skip if already excluded or if current user already matched
+      if (excludeIds.includes(matchedUserId)) continue;
       
-      const existingSwipe = db
-        .prepare("SELECT id FROM swipe_interactions WHERE user_id = ? AND candidate_id = ?")
-        .get(userId, candidate_id);
+      // Check if already matched
+      const existingMatch = db
+        .prepare(`
+          SELECT id FROM matches 
+          WHERE ((user1_id = ? AND user2_id = ?) OR (user1_id = ? AND user2_id = ?))
+          AND stage != 'expired'
+        `)
+        .get(userId, matchedUserId, matchedUserId, userId);
       
-      if (existingSwipe) continue; // Already swiped
+      if (existingMatch) continue; // Already matched
 
-      // Add weighted score
-      const currentScore = recommendations.get(candidate_id) || 0;
-      recommendations.set(candidate_id, currentScore + similarity);
+      // Add weighted score (similarity * success weight)
+      const currentScore = recommendations.get(matchedUserId) || 0;
+      recommendations.set(matchedUserId, currentScore + similarity);
     }
   }
 

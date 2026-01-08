@@ -229,6 +229,11 @@ export function initializeSocket(server: HTTPServer) {
           ).run(matchId);
           autoAdvanced = true;
 
+          // Track success signal: stage advanced (strong engagement)
+          const { recordSuccessSignal } = await import("./utils/successTracking.js");
+          recordSuccessSignal(match.user1_id, match.user2_id, matchId, "stage_advanced");
+          recordSuccessSignal(match.user2_id, match.user1_id, matchId, "stage_advanced");
+
           // Notify both users that stage advanced
           io.to(`match:${matchId}`).emit('stage_advanced', {
             matchId,
