@@ -163,8 +163,9 @@ export function initializeSocket(server: HTTPServer) {
       ).run(messageId, matchId, userId, content.trim());
 
       // Track success signal: message exchanged (engagement)
+      // Saved to PostgreSQL database - persists across logouts/redeploys
       const { recordSuccessSignal } = await import("./utils/successTracking.js");
-      recordSuccessSignal(userId, otherUserId, matchId, "message_exchanged");
+      await recordSuccessSignal(userId, otherUserId, matchId, "message_exchanged");
 
       // Don't mark sender's own messages as read - they should only be marked
       // as read when the recipient actually views them
@@ -234,9 +235,10 @@ export function initializeSocket(server: HTTPServer) {
           autoAdvanced = true;
 
           // Track success signal: stage advanced (strong engagement)
+          // Saved to PostgreSQL database - persists across logouts/redeploys
           const { recordSuccessSignal } = await import("./utils/successTracking.js");
-          recordSuccessSignal(match.user1_id, match.user2_id, matchId, "stage_advanced");
-          recordSuccessSignal(match.user2_id, match.user1_id, matchId, "stage_advanced");
+          await recordSuccessSignal(match.user1_id, match.user2_id, matchId, "stage_advanced");
+          await recordSuccessSignal(match.user2_id, match.user1_id, matchId, "stage_advanced");
 
           // Notify both users that stage advanced
           io.to(`match:${matchId}`).emit('stage_advanced', {

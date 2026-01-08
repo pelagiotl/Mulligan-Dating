@@ -14,20 +14,28 @@ export type SuccessSignalType =
 
 /**
  * Record a success signal
+ * IMPORTANT: This saves to PostgreSQL database and persists across logouts/redeploys
  */
-export function recordSuccessSignal(
+export async function recordSuccessSignal(
   userId: string,
   matchedUserId: string,
   matchId: string,
   signalType: SuccessSignalType,
   value: number = 1
-): void {
+): Promise<void> {
   try {
     const id = uuidv4();
-    db.prepare(
+    const stmt = db.prepare(
       `INSERT INTO success_signals (id, user_id, matched_user_id, match_id, signal_type, signal_value)
        VALUES (?, ?, ?, ?, ?, ?)`
-    ).run(id, userId, matchedUserId, matchId, signalType, value);
+    );
+    // Await for PostgreSQL (async), works for SQLite too (sync)
+    await (stmt.run(id, userId, matchedUserId, matchId, signalType, value) as Promise<any>);
+    
+    // Log for debugging (only in dev)
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`✅ Success signal recorded: ${signalType} for user ${userId} with ${matchedUserId}`);
+    }
   } catch (error) {
     console.error("Error recording success signal:", error);
     // Don't throw - success tracking shouldn't break the app

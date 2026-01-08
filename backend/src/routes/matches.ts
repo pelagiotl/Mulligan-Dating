@@ -258,8 +258,9 @@ matchesRouter.post("/connect", authenticateToken, async (req: AuthRequest, res) 
   ).run(matchId, token.id);
 
   // Track success signal: match created (both users connected)
-  recordSuccessSignal(userId, targetUserId, matchId, "match_created");
-  recordSuccessSignal(targetUserId, userId, matchId, "match_created");
+  // These are saved to PostgreSQL and persist forever
+  await recordSuccessSignal(userId, targetUserId, matchId, "match_created");
+  await recordSuccessSignal(targetUserId, userId, matchId, "match_created");
 
   res.json({
     message: "It's a match! You can now chat.",
@@ -298,9 +299,10 @@ matchesRouter.post("/:matchId/reveal", authenticateToken, (req: AuthRequest, res
   ).run(matchId);
 
   // Track success signal: stage advanced (strong engagement)
+  // Saved to PostgreSQL database - persists across logouts/redeploys
   const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
-  recordSuccessSignal(userId, otherUserId, matchId, "stage_advanced");
-  recordSuccessSignal(otherUserId, userId, matchId, "stage_advanced");
+  await recordSuccessSignal(userId, otherUserId, matchId, "stage_advanced");
+  await recordSuccessSignal(otherUserId, userId, matchId, "stage_advanced");
 
   res.json({ 
     message: "Photos revealed manually! You can now see each other.", 
