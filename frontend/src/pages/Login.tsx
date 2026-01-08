@@ -8,6 +8,8 @@ export default function Login() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [success, setSuccess] = useState(false)
+  const [shake, setShake] = useState(false)
   const { login, isAuthenticated } = useAuth()
   const navigate = useNavigate()
 
@@ -40,6 +42,8 @@ export default function Login() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setError('')
+    setSuccess(false)
+    setShake(false)
     setLoading(true)
 
     try {
@@ -47,8 +51,13 @@ export default function Login() {
       // Clear any potential stale state
       const { hasProfile } = await login(email, password)
       console.log('Login successful, hasProfile:', hasProfile)
-      // Small delay to ensure state is updated before navigation
-      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      // Show success animation
+      setSuccess(true)
+      setLoading(false)
+      
+      // Wait for success animation to play, then navigate
+      await new Promise(resolve => setTimeout(resolve, 800))
       navigate(hasProfile ? '/browse' : '/create-profile')
     } catch (err: any) {
       console.error('Login error details:', {
@@ -58,6 +67,10 @@ export default function Login() {
         name: err?.name,
         stack: err?.stack
       })
+      
+      // Trigger shake animation
+      setShake(true)
+      setTimeout(() => setShake(false), 600)
       
       // Show more specific error messages
       let errorMessage = 'Invalid email or password'
@@ -87,7 +100,6 @@ export default function Login() {
       
       console.log('Setting error message:', errorMessage)
       setError(errorMessage)
-    } finally {
       setLoading(false)
     }
   }
@@ -208,8 +220,17 @@ export default function Login() {
           <p className="auth-subtitle-enhanced">Sign in to continue your journey</p>
         </div>
 
-        <div className="auth-card-enhanced">
+        <div className={`auth-card-enhanced ${shake ? 'shake' : ''} ${success ? 'success' : ''}`}>
           {error && <div className="auth-error-enhanced">{error}</div>}
+          {success && (
+            <div className="auth-success-enhanced">
+              <svg className="success-checkmark" viewBox="0 0 52 52">
+                <circle className="success-checkmark-circle" cx="26" cy="26" r="25" fill="none"/>
+                <path className="success-checkmark-check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+              </svg>
+              <span>Login successful!</span>
+            </div>
+          )}
           
           <form onSubmit={handleSubmit} className="auth-form-enhanced">
             <div className="form-group-enhanced">
@@ -218,13 +239,14 @@ export default function Login() {
                 <input
                   type="email"
                   id="email"
-                  className="form-input-enhanced"
+                  className={`form-input-enhanced ${shake ? 'input-shake' : ''}`}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
                   required
                   autoComplete="email"
                   autoFocus
+                  disabled={loading || success}
                 />
                 <span className="form-input-glow"></span>
               </div>
@@ -236,18 +258,20 @@ export default function Login() {
                 <input
                   type={showPassword ? "text" : "password"}
                   id="password"
-                  className="form-input-enhanced"
+                  className={`form-input-enhanced ${shake ? 'input-shake' : ''}`}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
                   required
                   autoComplete="current-password"
+                  disabled={loading || success}
                 />
                 <button
                   type="button"
                   className="password-toggle"
                   onClick={() => setShowPassword(!showPassword)}
                   aria-label={showPassword ? "Hide password" : "Show password"}
+                  disabled={loading || success}
                 >
                   {showPassword ? "👁️" : "👁️‍🗨️"}
                 </button>
@@ -258,10 +282,23 @@ export default function Login() {
             <button 
               type="submit" 
               className="btn-enhanced btn-primary-enhanced"
-              disabled={loading}
+              disabled={loading || success}
             >
-              <span className="btn-text">{loading ? 'Signing in...' : 'Sign in'}</span>
-              <span className="btn-shine"></span>
+              {loading ? (
+                <>
+                  <span className="btn-spinner"></span>
+                  <span className="btn-text">Signing in...</span>
+                </>
+              ) : success ? (
+                <>
+                  <span className="btn-text">Success!</span>
+                </>
+              ) : (
+                <>
+                  <span className="btn-text">Sign in</span>
+                  <span className="btn-shine"></span>
+                </>
+              )}
             </button>
           </form>
         </div>

@@ -1339,6 +1339,26 @@ img {
   animation: fadeInUp 0.8s ease-out 0.2s both;
   position: relative;
   overflow: hidden;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Shake animation for card on error */
+.auth-card-enhanced.shake {
+  animation: cardShake 0.6s ease-in-out;
+}
+
+@keyframes cardShake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-8px); }
+  20%, 40%, 60%, 80% { transform: translateX(8px); }
+}
+
+/* Success state */
+.auth-card-enhanced.success {
+  border-color: rgba(16, 185, 129, 0.3);
+  box-shadow: 
+    0 20px 60px rgba(16, 185, 129, 0.2),
+    0 0 0 1px rgba(16, 185, 129, 0.2) inset;
 }
 
 .auth-card-enhanced::before {
@@ -1509,6 +1529,85 @@ img {
   cursor: not-allowed;
 }
 
+/* Loading spinner */
+.btn-spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-right: var(--space-2);
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Success message with checkmark */
+.auth-success-enhanced {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(5, 150, 105, 0.1));
+  color: #065f46;
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-6);
+  font-size: 0.95rem;
+  font-weight: 600;
+  border: 2px solid rgba(16, 185, 129, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  animation: slideDown 0.4s ease-out;
+}
+
+.success-checkmark {
+  width: 24px;
+  height: 24px;
+  stroke-width: 3;
+}
+
+.success-checkmark-circle {
+  stroke: #10b981;
+  stroke-dasharray: 166;
+  stroke-dashoffset: 166;
+  stroke-width: 3;
+  stroke-miterlimit: 10;
+  fill: none;
+  animation: stroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+}
+
+.success-checkmark-check {
+  transform-origin: 50% 50%;
+  stroke-dasharray: 48;
+  stroke-dashoffset: 48;
+  stroke: #10b981;
+  animation: stroke 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.6s forwards;
+}
+
+@keyframes stroke {
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.btn-primary-enhanced:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
 .btn-text {
   position: relative;
   z-index: 2;
@@ -1543,6 +1642,18 @@ img {
   0%, 100% { transform: translateX(0); }
   25% { transform: translateX(-10px); }
   75% { transform: translateX(10px); }
+}
+
+/* Input shake animation */
+.input-shake {
+  animation: inputShake 0.5s ease-in-out;
+  border-color: var(--color-rose-600) !important;
+}
+
+@keyframes inputShake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+  20%, 40%, 60%, 80% { transform: translateX(5px); }
 }
 
 .auth-footer-enhanced {
