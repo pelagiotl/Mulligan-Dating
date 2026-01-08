@@ -21,9 +21,9 @@ async function request<T = any>(endpoint: string, options: RequestInit = {}): Pr
     (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`
   }
 
-  // Add timeout to prevent hanging (increased for slower connections)
+  // Add timeout to prevent hanging (increased for Render cold starts)
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
+  const timeoutId = setTimeout(() => controller.abort(), 45000) // 45 second timeout for cold starts
 
   const url = `${BASE_URL}${endpoint}`
   console.log('Making API request:', { method: options.method || 'GET', url, hasToken: !!token })
