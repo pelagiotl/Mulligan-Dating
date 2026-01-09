@@ -234,10 +234,10 @@ export default function Browse() {
     // Don't return error, show create profile button instead
   }
   
-  // If user just created a profile, wait a moment for state to update
+  // If user just created a profile, refresh the browse page
   useEffect(() => {
-    if (userProfile && needsProfile) {
-      // Profile exists in AuthContext but needsProfile is true - refresh the browse
+    if (userProfile && !loading) {
+      // Profile exists in AuthContext - try to fetch browse profiles
       console.log('Profile exists in AuthContext, refreshing browse...');
       fetchProfile();
     }
