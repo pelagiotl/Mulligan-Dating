@@ -230,7 +230,7 @@ profileRouter.put('/partner-qualities', authenticateToken, (req: AuthRequest, re
 });
 
 // Update lifestyle
-profileRouter.put('/lifestyle', authenticateToken, (req: AuthRequest, res) => {
+profileRouter.put('/lifestyle', authenticateToken, async (req: AuthRequest, res) => {
   const { smoking, drinking, children, pets, religion, workLifeBalance, worksOut } = req.body as {
     smoking?: string | null;
     drinking?: string | null;
@@ -241,49 +241,54 @@ profileRouter.put('/lifestyle', authenticateToken, (req: AuthRequest, res) => {
     worksOut?: string | null;
   };
   
-  const profile = db.prepare('SELECT id FROM profiles WHERE user_id = ?').get(req.userId) as { id: string } | undefined;
-  
-  if (!profile) {
-    return res.status(404).json({ error: 'Profile not found' });
-  }
+  try {
+    const profile = await (db.prepare('SELECT id FROM profiles WHERE user_id = ?').get(req.userId) as Promise<{ id: string } | undefined>);
+    
+    if (!profile) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
 
-  // Check if lifestyle record exists
-  const existing = db.prepare('SELECT id FROM lifestyle WHERE profile_id = ?').get(profile.id) as { id: string } | undefined;
-  
-  if (existing) {
-    // Update existing
-    db.prepare(`
-      UPDATE lifestyle SET 
-        smoking = ?, drinking = ?, children = ?, pets = ?, religion = ?, work_life_balance = ?, works_out = ?
-      WHERE profile_id = ?
-    `).run(
-      smoking || null,
-      drinking || null,
-      children || null,
-      pets || null,
-      religion || null,
-      workLifeBalance || null,
-      worksOut || null,
-      profile.id
-    );
-  } else {
-    // Insert new
-    db.prepare(`
-      INSERT INTO lifestyle (id, profile_id, smoking, drinking, children, pets, religion, work_life_balance, works_out)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      uuidv4(),
-      profile.id,
-      smoking || null,
-      drinking || null,
-      children || null,
-      pets || null,
-      religion || null,
-      workLifeBalance || null,
-      worksOut || null
-    );
-  }
+    // Check if lifestyle record exists
+    const existing = await (db.prepare('SELECT id FROM lifestyle WHERE profile_id = ?').get(profile.id) as Promise<{ id: string } | undefined>);
+    
+    if (existing) {
+      // Update existing
+      await (db.prepare(`
+        UPDATE lifestyle SET 
+          smoking = ?, drinking = ?, children = ?, pets = ?, religion = ?, work_life_balance = ?, works_out = ?
+        WHERE profile_id = ?
+      `).run([
+        smoking || null,
+        drinking || null,
+        children || null,
+        pets || null,
+        religion || null,
+        workLifeBalance || null,
+        worksOut || null,
+        profile.id
+      ]) as Promise<any>);
+    } else {
+      // Insert new
+      await (db.prepare(`
+        INSERT INTO lifestyle (id, profile_id, smoking, drinking, children, pets, religion, work_life_balance, works_out)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run([
+        uuidv4(),
+        profile.id,
+        smoking || null,
+        drinking || null,
+        children || null,
+        pets || null,
+        religion || null,
+        workLifeBalance || null,
+        worksOut || null
+      ]) as Promise<any>);
+    }
 
-  res.json({ message: 'Lifestyle updated' });
+    res.json({ message: 'Lifestyle updated' });
+  } catch (error) {
+    console.error('Lifestyle update error:', error);
+    res.status(500).json({ error: 'Failed to update lifestyle' });
+  }
 });
 
