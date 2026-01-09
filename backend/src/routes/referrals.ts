@@ -51,9 +51,12 @@ referralsRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
     });
   } catch (error) {
     console.error('Referrals route error:', error);
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    const errorMessage = error instanceof Error ? error.message : String(error);
     res.status(500).json({ 
       error: 'Failed to load referral data',
-      details: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined
+      message: errorMessage,
+      details: process.env.NODE_ENV === 'development' ? errorMessage : undefined
     });
   }
 });

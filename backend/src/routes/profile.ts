@@ -157,9 +157,13 @@ profileRouter.get('/', authenticateToken, async (req: AuthRequest, res) => {
     res.json({ profile, interests, preferences, dealbreakers, partnerQualities, lifestyle });
   } catch (error) {
     console.error('Profile GET error:', error);
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error('Error details:', errorMessage);
-    res.status(500).json({ error: `Failed to load profile: ${errorMessage}` });
+    res.status(500).json({ 
+      error: `Failed to load profile: ${errorMessage}`,
+      message: errorMessage
+    });
   }
 });
 
