@@ -111,8 +111,10 @@ export default function Layout() {
             )}
             <li>
               <button 
-                onClick={() => {
+                onClick={async () => {
                   logout()
+                  // Wait a moment for state to fully clear before navigating
+                  await new Promise(resolve => setTimeout(resolve, 100))
                   navigate('/login')
                 }}
                 className="navbar-link logout"
