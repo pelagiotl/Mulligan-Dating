@@ -170,7 +170,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signup = async (email: string, password: string, referralCode?: string, acceptTerms?: boolean, acceptPrivacy?: boolean) => {
-    const data: any = await api.post('/auth/signup', { email, password, referralCode })
+    const data: any = await api.post('/auth/signup', { 
+      email, 
+      password, 
+      referralCode: referralCode || undefined,
+      acceptTerms: acceptTerms || false,
+      acceptPrivacy: acceptPrivacy || false
+    })
     localStorage.setItem('token', data.token)
     setUser({ id: data.userId, email })
   }
