@@ -3020,6 +3020,11 @@ img {
   display: inline-block;
   animation: emojiFloat 3s ease-in-out infinite;
   transform-origin: center;
+  -webkit-text-fill-color: initial;
+  background: none;
+  -webkit-background-clip: initial;
+  background-clip: initial;
+  color: inherit;
 }
 
 .profile-detail-title span:nth-child(1) {
