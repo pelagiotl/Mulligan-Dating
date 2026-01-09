@@ -62,7 +62,7 @@ export default function Layout() {
                 to="/browse" 
                 className={`navbar-link ${isActive('/browse') ? 'active' : ''}`}
               >
-                💫 Find Your Match
+                <span>💫</span> Find Your Match
               </Link>
             </li>
             <li>
@@ -70,7 +70,7 @@ export default function Layout() {
                 to="/matches" 
                 className={`navbar-link ${isActive('/matches') ? 'active' : ''}`}
               >
-                💌 Matches
+                <span>💌</span> Matches
               </Link>
             </li>
             <li>
@@ -78,7 +78,7 @@ export default function Layout() {
                 to="/profile" 
                 className={`navbar-link ${isActive('/profile') ? 'active' : ''}`}
               >
-                👤 My Profile
+                <span>👤</span> My Profile
               </Link>
             </li>
             <li>
@@ -86,7 +86,7 @@ export default function Layout() {
                 to="/referrals" 
                 className={`navbar-link ${isActive('/referrals') ? 'active' : ''}`}
               >
-                🎁 Referrals
+                <span>🎁</span> Referrals
               </Link>
             </li>
             <li>
@@ -94,7 +94,7 @@ export default function Layout() {
                 to="/settings" 
                 className={`navbar-link ${isActive('/settings') ? 'active' : ''}`}
               >
-                ⚙️ Settings
+                <span>⚙️</span> Settings
               </Link>
             </li>
             {isAdmin && (
@@ -103,7 +103,7 @@ export default function Layout() {
                   to="/admin" 
                   className={`navbar-link ${isActive('/admin') ? 'active' : ''}`}
                 >
-                  🔐 Admin
+                  <span>🔐</span> Admin
                 </Link>
               </li>
             )}
