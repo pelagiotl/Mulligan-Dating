@@ -313,6 +313,13 @@ export async function initDatabase() {
     )
   `);
 
+  // Add works_out column if it doesn't exist (migration)
+  try {
+    await execSQL(`ALTER TABLE lifestyle ADD COLUMN works_out ${usePostgres ? 'VARCHAR(255)' : 'TEXT'}`);
+  } catch (e) {
+    // Column already exists, ignore
+  }
+
   // Mulligan Tokens table - users get 3 tokens per week (max 3 at a time)
   await execSQL(`
     CREATE TABLE IF NOT EXISTS mulligan_tokens (
