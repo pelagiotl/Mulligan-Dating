@@ -231,13 +231,14 @@ profileRouter.put('/partner-qualities', authenticateToken, (req: AuthRequest, re
 
 // Update lifestyle
 profileRouter.put('/lifestyle', authenticateToken, (req: AuthRequest, res) => {
-  const { smoking, drinking, children, pets, religion, workLifeBalance } = req.body as {
+  const { smoking, drinking, children, pets, religion, workLifeBalance, worksOut } = req.body as {
     smoking?: string | null;
     drinking?: string | null;
     children?: string | null;
     pets?: string | null;
     religion?: string | null;
     workLifeBalance?: string | null;
+    worksOut?: string | null;
   };
   
   const profile = db.prepare('SELECT id FROM profiles WHERE user_id = ?').get(req.userId) as { id: string } | undefined;
@@ -253,7 +254,7 @@ profileRouter.put('/lifestyle', authenticateToken, (req: AuthRequest, res) => {
     // Update existing
     db.prepare(`
       UPDATE lifestyle SET 
-        smoking = ?, drinking = ?, children = ?, pets = ?, religion = ?, work_life_balance = ?
+        smoking = ?, drinking = ?, children = ?, pets = ?, religion = ?, work_life_balance = ?, works_out = ?
       WHERE profile_id = ?
     `).run(
       smoking || null,
@@ -262,13 +263,14 @@ profileRouter.put('/lifestyle', authenticateToken, (req: AuthRequest, res) => {
       pets || null,
       religion || null,
       workLifeBalance || null,
+      worksOut || null,
       profile.id
     );
   } else {
     // Insert new
     db.prepare(`
-      INSERT INTO lifestyle (id, profile_id, smoking, drinking, children, pets, religion, work_life_balance)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO lifestyle (id, profile_id, smoking, drinking, children, pets, religion, work_life_balance, works_out)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       uuidv4(),
       profile.id,
@@ -277,7 +279,8 @@ profileRouter.put('/lifestyle', authenticateToken, (req: AuthRequest, res) => {
       children || null,
       pets || null,
       religion || null,
-      workLifeBalance || null
+      workLifeBalance || null,
+      worksOut || null
     );
   }
 

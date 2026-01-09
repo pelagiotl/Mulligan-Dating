@@ -308,6 +308,7 @@ export async function initDatabase() {
       pets ${usePostgres ? 'VARCHAR(255)' : 'TEXT'},
       religion ${usePostgres ? 'VARCHAR(255)' : 'TEXT'},
       work_life_balance ${usePostgres ? 'VARCHAR(255)' : 'TEXT'},
+      works_out ${usePostgres ? 'VARCHAR(255)' : 'TEXT'},
       FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
     )
   `);

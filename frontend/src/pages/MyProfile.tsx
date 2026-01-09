@@ -31,6 +31,7 @@ interface ProfileData {
     pets: string | null
     religion: string | null
     work_life_balance: string | null
+    works_out: string | null
   } | null
 }
 
@@ -187,6 +188,11 @@ export default function MyProfile() {
             {lifestyle.work_life_balance && (
               <div className="lifestyle-item">
                 <strong>Work-Life Balance:</strong> {lifestyle.work_life_balance}
+              </div>
+            )}
+            {lifestyle.works_out && (
+              <div className="lifestyle-item">
+                <strong>Works out:</strong> {lifestyle.works_out}
               </div>
             )}
           </div>

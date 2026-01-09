@@ -54,3 +54,4 @@ You could also create an admin endpoint to toggle maintenance mode via the datab
 - "Quick update in progress! The app will be unavailable for about 1 minute. Please save your work."
 - "New features incoming! We're updating the app. Back in 2 minutes! 🚀"
 
+

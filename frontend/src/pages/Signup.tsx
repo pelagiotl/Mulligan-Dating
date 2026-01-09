@@ -12,7 +12,6 @@ export default function Signup() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [validatingCode, setValidatingCode] = useState(false)
-  
   const { signup } = useAuth()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -21,7 +20,7 @@ export default function Signup() {
   useEffect(() => {
     const refCode = searchParams.get('ref')
     if (refCode) {
-      setReferralCode(refCode)
+      setReferralCode(refCode.toUpperCase())
       validateReferralCode(refCode)
     }
   }, [searchParams])
@@ -57,13 +56,14 @@ export default function Signup() {
     e.preventDefault()
     setError('')
 
-    if (password !== confirmPassword) {
-      setError('Passwords do not match')
+    // Validation
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters')
       return
     }
 
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters')
+    if (password !== confirmPassword) {
+      setError('Passwords do not match')
       return
     }
 
@@ -72,8 +72,8 @@ export default function Signup() {
     try {
       await signup(email, password, referralCode || undefined)
       navigate('/create-profile')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create account')
+    } catch (err: any) {
+      setError(err.message || 'Failed to create account')
     } finally {
       setLoading(false)
     }
@@ -103,6 +103,7 @@ export default function Signup() {
                 placeholder="you@example.com"
                 required
                 autoComplete="email"
+                autoFocus
               />
             </div>
 
@@ -117,6 +118,7 @@ export default function Signup() {
                 placeholder="At least 8 characters"
                 required
                 autoComplete="new-password"
+                minLength={8}
               />
               <p className="form-hint">Must be at least 8 characters</p>
             </div>
@@ -129,7 +131,7 @@ export default function Signup() {
                 className="form-input"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="••••••••"
+                placeholder="Confirm your password"
                 required
                 autoComplete="new-password"
               />
@@ -185,4 +187,3 @@ export default function Signup() {
     </div>
   )
 }
-

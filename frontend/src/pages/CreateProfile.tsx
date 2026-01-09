@@ -62,6 +62,7 @@ export default function CreateProfile() {
   const [pets, setPets] = useState('')
   const [religion, setReligion] = useState('')
   const [workLifeBalance, setWorkLifeBalance] = useState('')
+  const [worksOut, setWorksOut] = useState('')
 
   const handleAddTag = (
     input: string,
@@ -144,7 +145,7 @@ export default function CreateProfile() {
     }
     if (step === 5) {
       // Validate all lifestyle fields are filled
-      if (!smoking || !drinking || !children || !pets || !religion || !workLifeBalance) {
+      if (!smoking || !drinking || !children || !pets || !religion || !workLifeBalance || !worksOut) {
         setError('Please fill in all lifestyle fields')
         return
       }
@@ -262,7 +263,7 @@ export default function CreateProfile() {
     }
 
     // Always validate all lifestyle fields are filled before completing profile
-    if (!smoking || !drinking || !children || !pets || !religion || !workLifeBalance) {
+    if (!smoking || !drinking || !children || !pets || !religion || !workLifeBalance || !worksOut) {
       setError('Please fill in all lifestyle fields before completing your profile')
       setLoading(false)
       return
@@ -316,7 +317,8 @@ export default function CreateProfile() {
         children,
         pets,
         religion,
-        workLifeBalance
+        workLifeBalance,
+        worksOut
       })
 
       await refreshProfile()
