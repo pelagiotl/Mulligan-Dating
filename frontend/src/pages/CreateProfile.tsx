@@ -232,6 +232,7 @@ export default function CreateProfile() {
             setPets(data.lifestyle.pets || '')
             setReligion(data.lifestyle.religion || '')
             setWorkLifeBalance(data.lifestyle.work_life_balance || '')
+            setWorksOut(data.lifestyle.works_out || '')
           }
         }
       } catch (err) {
