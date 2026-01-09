@@ -49,6 +49,7 @@ interface MatchCandidate {
   partnerQualitiesMatch: number;
   lookingForMatch: number;
   intentDiff: number;
+  relationshipTypeMatch: number;
   distanceScore: number;
   breakdown: {
     values: number;
@@ -56,6 +57,7 @@ interface MatchCandidate {
     qualities: number;
     lookingFor: number;
     intent: number;
+    relationshipType: number;
     distance: number;
   };
 }
@@ -736,11 +738,29 @@ export async function generateWeeklyMatches(userId: string): Promise<{
     // Intent with sigmoid for smooth matching (exact match = 1, 1 diff = 0.7, 2 diff = 0.3)
     const intentScore = sigmoid(2 - intentDiff, 0, 1.5) * 0.8; // 8% weight
     
+    // Relationship type matching (NEW - prioritizes same relationship goals)
+    // Exact match = 1.0, different = 0.3 (still allows matching, just lower score)
+    let relationshipTypeScore = 0.3; // Default: different relationship types
+    if (userPrefs.relationship_type && candidate.relationship_type) {
+      if (userPrefs.relationship_type.toLowerCase().trim() === candidate.relationship_type.toLowerCase().trim()) {
+        relationshipTypeScore = 1.0; // Exact match - strong boost
+      }
+      // Special case: "Not sure yet" is compatible with everything (0.7 score)
+      if (userPrefs.relationship_type.toLowerCase().trim() === 'not sure yet' || 
+          candidate.relationship_type.toLowerCase().trim() === 'not sure yet') {
+        relationshipTypeScore = 0.7; // Partial boost for "not sure yet"
+      }
+    } else if (!userPrefs.relationship_type || !candidate.relationship_type) {
+      // If one or both haven't specified, give neutral score
+      relationshipTypeScore = 0.5;
+    }
+    const relationshipTypeScoreWeighted = relationshipTypeScore * 2; // 20% weight (high priority)
+    
     // Distance uses exponential decay (already calculated above)
     const distanceScoreWeighted = (distanceScore / 10) * 0.6; // 6% weight
 
     // Final score with all components
-    let totalScore = valuesScore + interestsScore + qualitiesScore + lookingForScore + lifestyleScore + intentScore + distanceScoreWeighted + relationshipTypeScoreWeighted;
+    let totalScore = valuesScore + interestsScore + qualitiesScore + lookingForScore + lifestyleScore + intentScore + relationshipTypeScoreWeighted + distanceScoreWeighted;
     
     // 10/10 FEATURES: Apply boosts
     
