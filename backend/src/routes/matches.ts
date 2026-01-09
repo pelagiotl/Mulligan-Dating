@@ -153,12 +153,18 @@ matchesRouter.get("/", authenticateToken, (req: AuthRequest, res) => {
 });
 
 // Send a match request (use a token) - AUTOMATIC MATCH
-matchesRouter.post("/connect", authenticateToken, async (req: AuthRequest, res) => {
+matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
   const userId = req.userId!;
   const { targetUserId } = req.body;
 
-  if (!targetUserId) {
+  if (!targetUserId || typeof targetUserId !== 'string') {
     return res.status(400).json({ error: "Target user ID required" });
+  }
+  
+  // Validate UUID format (basic check)
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(targetUserId)) {
+    return res.status(400).json({ error: "Invalid user ID format" });
   }
 
   if (targetUserId === userId) {
@@ -357,13 +363,25 @@ matchesRouter.get("/:matchId/messages", authenticateToken, (req: AuthRequest, re
 });
 
 // Send a message
-matchesRouter.post("/:matchId/messages", authenticateToken, async (req: AuthRequest, res) => {
+matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
   const userId = req.userId!;
   const { matchId } = req.params;
   const { content } = req.body;
 
-  if (!content || !content.trim()) {
+  if (!content || typeof content !== 'string' || !content.trim()) {
     return res.status(400).json({ error: "Message content required" });
+  }
+  
+  // Sanitize and validate message content
+  const { sanitizeText } = await import('../middleware/security.js');
+  const sanitizedContent = sanitizeText(content.trim(), 1000); // Max 1000 characters per message
+  
+  if (sanitizedContent.length === 0) {
+    return res.status(400).json({ error: "Message cannot be empty" });
+  }
+  
+  if (sanitizedContent.length > 1000) {
+    return res.status(400).json({ error: "Message must be at most 1000 characters" });
   }
 
   // Verify user is part of this match and it's mutual
@@ -380,7 +398,7 @@ matchesRouter.post("/:matchId/messages", authenticateToken, async (req: AuthRequ
   const messageId = uuidv4();
   db.prepare(
     `INSERT INTO messages (id, match_id, sender_id, content) VALUES (?, ?, ?, ?)`
-  ).run(messageId, matchId, userId, content.trim());
+  ).run(messageId, matchId, userId, sanitizedContent);
 
   // Check if we should auto-advance to stage2 (both users sent at least 2 messages, alternating)
   let autoAdvanced = false;
@@ -443,7 +461,7 @@ matchesRouter.post("/:matchId/messages", authenticateToken, async (req: AuthRequ
   res.json({
     message: {
       id: messageId,
-      content: content.trim(),
+      content: sanitizedContent,
       senderId: userId,
       sentAt: new Date().toISOString(),
       isOwn: true,

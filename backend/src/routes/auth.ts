@@ -5,24 +5,52 @@ import { z } from 'zod';
 import { db } from '../database.js';
 import { generateToken, authenticateToken, AuthRequest } from '../middleware/auth.js';
 import { getUserByReferralCode, getOrCreateReferralCode, grantReferralToken } from '../utils/referrals.js';
+import { sanitizeText, rateLimitAuth } from '../middleware/security.js';
 
 export const authRouter = Router();
 
 const signupSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
-  referralCode: z.string().optional()
+  email: z.string()
+    .email('Invalid email format')
+    .max(255, 'Email must be at most 255 characters')
+    .toLowerCase()
+    .trim(),
+  password: z.string()
+    .min(8, 'Password must be at least 8 characters')
+    .max(128, 'Password must be at most 128 characters')
+    .refine(
+      (pwd) => /[A-Z]/.test(pwd) || /[a-z]/.test(pwd),
+      'Password must contain at least one letter'
+    )
+    .refine(
+      (pwd) => /[0-9]/.test(pwd),
+      'Password must contain at least one number'
+    ),
+  referralCode: z.string()
+    .max(50, 'Referral code must be at most 50 characters')
+    .optional()
 });
 
 const loginSchema = z.object({
-  email: z.string().email(),
+  email: z.string()
+    .email('Invalid email format')
+    .max(255, 'Email must be at most 255 characters')
+    .toLowerCase()
+    .trim(),
   password: z.string()
+    .min(1, 'Password is required')
+    .max(128, 'Password must be at most 128 characters')
 });
 
 // Sign up
-authRouter.post('/signup', async (req, res) => {
+authRouter.post('/signup', rateLimitAuth, async (req, res) => {
   try {
-    const { email, password, referralCode } = signupSchema.parse(req.body);
+    const parsed = signupSchema.parse(req.body);
+    
+    // Sanitize email (already validated by Zod, but extra safety)
+    const email = sanitizeText(parsed.email.toLowerCase().trim(), 255);
+    const password = parsed.password; // Don't sanitize password (it's hashed)
+    const referralCode = parsed.referralCode ? sanitizeText(parsed.referralCode.trim(), 50) : undefined;
     
     // Check if user exists
     const existingUserStmt = db.prepare('SELECT id FROM users WHERE email = ?');
@@ -43,7 +71,7 @@ authRouter.post('/signup', async (req, res) => {
 
     // Handle referral if code provided
     let referrerId: string | null = null;
-    if (referralCode) {
+    if (referralCode && referralCode.trim()) {
       referrerId = await getUserByReferralCode(referralCode);
       
       if (referrerId && referrerId !== userId) {
@@ -88,10 +116,14 @@ authRouter.post('/signup', async (req, res) => {
 });
 
 // Login
-authRouter.post('/login', async (req, res) => {
+authRouter.post('/login', rateLimitAuth, async (req, res) => {
   try {
     console.log('🔐 Login attempt:', { email: req.body?.email, hasPassword: !!req.body?.password });
-    const { email, password } = loginSchema.parse(req.body);
+    const parsed = loginSchema.parse(req.body);
+    
+    // Sanitize email
+    const email = sanitizeText(parsed.email.toLowerCase().trim(), 255);
+    const password = parsed.password; // Don't sanitize password
     
     const stmt = db.prepare('SELECT id, password, is_restricted FROM users WHERE email = ?');
     const user = await (stmt.get(email) as Promise<{ id: string; password: string; is_restricted: number } | null>);
