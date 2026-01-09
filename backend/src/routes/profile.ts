@@ -64,16 +64,18 @@ profileRouter.post('/', authenticateToken, rateLimitAPI, async (req: AuthRequest
     };
     
     // Check if profile exists
-    const existingProfile = db.prepare('SELECT id FROM profiles WHERE user_id = ?').get(userId) as { id: string } | undefined;
+    const existingProfileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
+    const existingProfile = await (existingProfileStmt.get(userId) as Promise<{ id: string } | undefined>);
     
     if (existingProfile) {
       // Update existing profile
-      db.prepare(`
+      const updateStmt = db.prepare(`
         UPDATE profiles SET 
           display_name = ?, age = ?, gender = ?, location = ?, 
           bio = ?, photo_url = ?, looking_for = ?, updated_at = CURRENT_TIMESTAMP
         WHERE user_id = ?
-      `).run(
+      `);
+      await (updateStmt.run([
         sanitizedData.displayName,
         sanitizedData.age,
         sanitizedData.gender,
@@ -82,16 +84,17 @@ profileRouter.post('/', authenticateToken, rateLimitAPI, async (req: AuthRequest
         sanitizedData.photoUrl,
         sanitizedData.lookingFor,
         userId
-      );
+      ]) as Promise<any>);
       
       res.json({ message: 'Profile updated', profileId: existingProfile.id });
     } else {
       // Create new profile
       const profileId = uuidv4();
-      db.prepare(`
+      const insertStmt = db.prepare(`
         INSERT INTO profiles (id, user_id, display_name, age, gender, location, bio, photo_url, looking_for)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
+      `);
+      await (insertStmt.run([
         profileId,
         userId,
         sanitizedData.displayName,
@@ -101,13 +104,14 @@ profileRouter.post('/', authenticateToken, rateLimitAPI, async (req: AuthRequest
         sanitizedData.bio,
         sanitizedData.photoUrl,
         sanitizedData.lookingFor
-      );
+      ]) as Promise<any>);
 
       // Create default preferences
       const prefId = uuidv4();
-      db.prepare(`
+      const prefStmt = db.prepare(`
         INSERT INTO preferences (id, profile_id) VALUES (?, ?)
-      `).run(prefId, profileId);
+      `);
+      await (prefStmt.run([prefId, profileId]) as Promise<any>);
       
       res.status(201).json({ message: 'Profile created', profileId });
     }
@@ -121,28 +125,34 @@ profileRouter.post('/', authenticateToken, rateLimitAPI, async (req: AuthRequest
 });
 
 // Get current user's profile
-profileRouter.get('/', authenticateToken, (req: AuthRequest, res) => {
+profileRouter.get('/', authenticateToken, async (req: AuthRequest, res) => {
   try {
-    const profile = db.prepare('SELECT * FROM profiles WHERE user_id = ?').get(req.userId) as any;
+    const profileStmt = db.prepare('SELECT * FROM profiles WHERE user_id = ?');
+    const profile = await (profileStmt.get(req.userId) as Promise<any>);
     
     if (!profile) {
       return res.status(404).json({ error: 'Profile not found' });
     }
 
     // Get interests
-    const interests = db.prepare('SELECT * FROM interests WHERE profile_id = ?').all(profile.id);
+    const interestsStmt = db.prepare('SELECT * FROM interests WHERE profile_id = ?');
+    const interests = await (interestsStmt.all(profile.id) as Promise<any[]>);
     
     // Get preferences
-    const preferences = db.prepare('SELECT * FROM preferences WHERE profile_id = ?').get(profile.id);
+    const preferencesStmt = db.prepare('SELECT * FROM preferences WHERE profile_id = ?');
+    const preferences = await (preferencesStmt.get(profile.id) as Promise<any>);
     
     // Get dealbreakers
-    const dealbreakers = db.prepare('SELECT * FROM dealbreakers WHERE profile_id = ?').all(profile.id);
+    const dealbreakersStmt = db.prepare('SELECT * FROM dealbreakers WHERE profile_id = ?');
+    const dealbreakers = await (dealbreakersStmt.all(profile.id) as Promise<any[]>);
     
     // Get partner qualities
-    const partnerQualities = db.prepare('SELECT * FROM partner_qualities WHERE profile_id = ?').all(profile.id);
+    const partnerQualitiesStmt = db.prepare('SELECT * FROM partner_qualities WHERE profile_id = ?');
+    const partnerQualities = await (partnerQualitiesStmt.all(profile.id) as Promise<any[]>);
     
     // Get lifestyle
-    const lifestyle = db.prepare('SELECT * FROM lifestyle WHERE profile_id = ?').get(profile.id) as any;
+    const lifestyleStmt = db.prepare('SELECT * FROM lifestyle WHERE profile_id = ?');
+    const lifestyle = await (lifestyleStmt.get(profile.id) as Promise<any>);
 
     res.json({ profile, interests, preferences, dealbreakers, partnerQualities, lifestyle });
   } catch (error) {
@@ -154,7 +164,7 @@ profileRouter.get('/', authenticateToken, (req: AuthRequest, res) => {
 });
 
 // Update interests
-profileRouter.put('/interests', authenticateToken, rateLimitAPI, (req: AuthRequest, res) => {
+profileRouter.put('/interests', authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
   try {
     // Validate input
     if (!Array.isArray(req.body.interests)) {
@@ -174,14 +184,16 @@ profileRouter.put('/interests', authenticateToken, rateLimitAPI, (req: AuthReque
       }
     }
     
-    const profile = db.prepare('SELECT id FROM profiles WHERE user_id = ?').get(req.userId) as { id: string } | undefined;
+    const profileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
+    const profile = await (profileStmt.get(req.userId) as Promise<{ id: string } | undefined>);
     
     if (!profile) {
       return res.status(404).json({ error: 'Profile not found' });
     }
 
     // Delete existing interests
-    db.prepare('DELETE FROM interests WHERE profile_id = ?').run(profile.id);
+    const deleteStmt = db.prepare('DELETE FROM interests WHERE profile_id = ?');
+    await (deleteStmt.run(profile.id) as Promise<any>);
 
     // Insert new interests (sanitized)
     const insertStmt = db.prepare('INSERT INTO interests (id, profile_id, name, category) VALUES (?, ?, ?, ?)');
@@ -189,7 +201,7 @@ profileRouter.put('/interests', authenticateToken, rateLimitAPI, (req: AuthReque
     for (const interest of interests) {
       const sanitizedName = sanitizeText(interest.name, 50);
       const sanitizedCategory = interest.category ? sanitizeText(interest.category, 50) : null;
-      insertStmt.run(uuidv4(), profile.id, sanitizedName, sanitizedCategory);
+      await (insertStmt.run([uuidv4(), profile.id, sanitizedName, sanitizedCategory]) as Promise<any>);
     }
 
     res.json({ message: 'Interests updated' });
@@ -200,11 +212,12 @@ profileRouter.put('/interests', authenticateToken, rateLimitAPI, (req: AuthReque
 });
 
 // Update preferences
-profileRouter.put('/preferences', authenticateToken, (req: AuthRequest, res) => {
+profileRouter.put('/preferences', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const prefData = preferencesSchema.parse(req.body);
     
-    const profile = db.prepare('SELECT id FROM profiles WHERE user_id = ?').get(req.userId) as { id: string } | undefined;
+    const profileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
+    const profile = await (profileStmt.get(req.userId) as Promise<{ id: string } | undefined>);
     
     if (!profile) {
       return res.status(404).json({ error: 'Profile not found' });
@@ -213,11 +226,12 @@ profileRouter.put('/preferences', authenticateToken, (req: AuthRequest, res) => 
     // Cap max age at 50
     const maxAge = prefData.maxAge ? Math.min(prefData.maxAge, 50) : 50;
 
-    db.prepare(`
+    const updateStmt = db.prepare(`
       UPDATE preferences SET 
         min_age = ?, max_age = ?, preferred_genders = ?, max_distance = ?, relationship_type = ?, intent = ?, "values" = ?
       WHERE profile_id = ?
-    `).run(
+    `);
+    await (updateStmt.run([
       prefData.minAge || 18,
       maxAge,
       prefData.preferredGenders ? JSON.stringify(prefData.preferredGenders) : null,
@@ -226,7 +240,7 @@ profileRouter.put('/preferences', authenticateToken, (req: AuthRequest, res) => 
       prefData.intent || 5,
       prefData.values ? JSON.stringify(prefData.values) : null,
       profile.id
-    );
+    ]) as Promise<any>);
 
     res.json({ message: 'Preferences updated' });
   } catch (error) {
@@ -238,7 +252,7 @@ profileRouter.put('/preferences', authenticateToken, (req: AuthRequest, res) => 
 });
 
 // Update dealbreakers
-profileRouter.put('/dealbreakers', authenticateToken, rateLimitAPI, (req: AuthRequest, res) => {
+profileRouter.put('/dealbreakers', authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
   try {
     // Validate input
     if (!Array.isArray(req.body.dealbreakers)) {
@@ -258,14 +272,16 @@ profileRouter.put('/dealbreakers', authenticateToken, rateLimitAPI, (req: AuthRe
       }
     }
     
-    const profile = db.prepare('SELECT id FROM profiles WHERE user_id = ?').get(req.userId) as { id: string } | undefined;
+    const profileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
+    const profile = await (profileStmt.get(req.userId) as Promise<{ id: string } | undefined>);
     
     if (!profile) {
       return res.status(404).json({ error: 'Profile not found' });
     }
 
     // Delete existing dealbreakers
-    db.prepare('DELETE FROM dealbreakers WHERE profile_id = ?').run(profile.id);
+    const deleteStmt = db.prepare('DELETE FROM dealbreakers WHERE profile_id = ?');
+    await (deleteStmt.run(profile.id) as Promise<any>);
 
     // Insert new dealbreakers (sanitized)
     const insertStmt = db.prepare('INSERT INTO dealbreakers (id, profile_id, description, category) VALUES (?, ?, ?, ?)');
@@ -273,7 +289,7 @@ profileRouter.put('/dealbreakers', authenticateToken, rateLimitAPI, (req: AuthRe
     for (const db_ of dealbreakers) {
       const sanitizedDesc = sanitizeText(db_.description, 100);
       const sanitizedCategory = db_.category ? sanitizeText(db_.category, 50) : null;
-      insertStmt.run(uuidv4(), profile.id, sanitizedDesc, sanitizedCategory);
+      await (insertStmt.run([uuidv4(), profile.id, sanitizedDesc, sanitizedCategory]) as Promise<any>);
     }
 
     res.json({ message: 'Dealbreakers updated' });
@@ -284,7 +300,7 @@ profileRouter.put('/dealbreakers', authenticateToken, rateLimitAPI, (req: AuthRe
 });
 
 // Update partner qualities
-profileRouter.put('/partner-qualities', authenticateToken, rateLimitAPI, (req: AuthRequest, res) => {
+profileRouter.put('/partner-qualities', authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
   try {
     // Validate input
     if (!Array.isArray(req.body.qualities)) {
@@ -309,14 +325,16 @@ profileRouter.put('/partner-qualities', authenticateToken, rateLimitAPI, (req: A
       }
     }
     
-    const profile = db.prepare('SELECT id FROM profiles WHERE user_id = ?').get(req.userId) as { id: string } | undefined;
+    const profileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
+    const profile = await (profileStmt.get(req.userId) as Promise<{ id: string } | undefined>);
     
     if (!profile) {
       return res.status(404).json({ error: 'Profile not found' });
     }
 
     // Delete existing qualities
-    db.prepare('DELETE FROM partner_qualities WHERE profile_id = ?').run(profile.id);
+    const deleteStmt = db.prepare('DELETE FROM partner_qualities WHERE profile_id = ?');
+    await (deleteStmt.run(profile.id) as Promise<any>);
 
     // Insert new qualities (sanitized)
     const insertStmt = db.prepare('INSERT INTO partner_qualities (id, profile_id, quality, importance) VALUES (?, ?, ?, ?)');
@@ -324,7 +342,7 @@ profileRouter.put('/partner-qualities', authenticateToken, rateLimitAPI, (req: A
     for (const q of qualities) {
       const sanitizedQuality = sanitizeText(q.quality, 50);
       const importance = q.importance !== undefined ? Math.max(1, Math.min(10, Math.round(q.importance))) : 5;
-      insertStmt.run(uuidv4(), profile.id, sanitizedQuality, importance);
+      await (insertStmt.run([uuidv4(), profile.id, sanitizedQuality, importance]) as Promise<any>);
     }
 
     res.json({ message: 'Partner qualities updated' });
