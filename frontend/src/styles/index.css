@@ -2176,6 +2176,7 @@ img {
   font-size: 2.25rem;
   font-weight: 900;
   color: var(--text-inverse);
+  white-space: nowrap;
   background: linear-gradient(135deg, 
     #ff006e 0%, 
     var(--color-rose-500) 20%,
