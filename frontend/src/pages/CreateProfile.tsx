@@ -731,6 +731,23 @@ export default function CreateProfile() {
                   <option value="Prioritizes leisure">Prioritizes leisure</option>
                 </select>
               </div>
+
+              <div className="form-group">
+                <label htmlFor="worksOut" className="form-label">Works out *</label>
+                <select
+                  id="worksOut"
+                  className="form-input"
+                  value={worksOut}
+                  onChange={(e) => setWorksOut(e.target.value)}
+                  required
+                >
+                  <option value="">Select an option</option>
+                  <option value="All the time">All the time</option>
+                  <option value="Frequently">Frequently</option>
+                  <option value="Sometimes">Sometimes</option>
+                  <option value="Never">Never</option>
+                </select>
+              </div>
             </div>
           )}
 
