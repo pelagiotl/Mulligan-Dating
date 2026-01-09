@@ -3694,6 +3694,28 @@ img {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  position: relative;
+  z-index: 1;
+}
+
+.matches-list .match-item:nth-child(1) {
+  animation-delay: 0.1s;
+}
+
+.matches-list .match-item:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.matches-list .match-item:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+.matches-list .match-item:nth-child(4) {
+  animation-delay: 0.4s;
+}
+
+.matches-list .match-item:nth-child(n+5) {
+  animation-delay: 0.5s;
 }
 
 .match-item {
