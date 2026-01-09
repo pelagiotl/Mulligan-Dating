@@ -2054,8 +2054,35 @@ img {
 }
 
 .no-profiles-icon {
-  font-size: 4rem;
+  font-size: 5rem;
+  margin-bottom: var(--space-6);
+  filter: drop-shadow(0 4px 12px rgba(244, 63, 94, 0.3));
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.no-profiles h2 {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--color-wine-900);
   margin-bottom: var(--space-4);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.no-profiles p {
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: var(--space-6);
+  font-weight: 500;
 }
 
 /* Immersive Browse Container */
