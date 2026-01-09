@@ -222,15 +222,14 @@ export default function Browse() {
 
   // Check if user needs to create profile
   // Show create profile button if no profile AND no error (or error is profile-related)
-  const needsProfile = !currentProfile && !loading && (!error || error.toLowerCase().includes("profile") || error.toLowerCase().includes("complete"));
-
-  if (error && !error.includes("profile")) {
-    return (
-      <div className="no-profiles">
-        <div className="no-profiles-icon">😕</div>
-        <p>{error}</p>
-      </div>
-    );
+  // If there's an error and no profile, assume it's a profile issue and show create button
+  const needsProfile = !currentProfile && !loading;
+  
+  // If there's an error but we don't have a profile, treat it as a profile creation issue
+  // This is a fallback to ensure users can always create a profile
+  if (error && !currentProfile && !loading) {
+    console.log('Error detected but no profile - showing create profile option:', error);
+    // Don't return error, show create profile button instead
   }
 
   return (
