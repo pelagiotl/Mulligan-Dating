@@ -195,6 +195,49 @@ img {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  transition: all 0.3s ease;
+}
+
+.navbar-logo-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  color: var(--color-rose-600);
+  transition: transform 0.3s ease-out, filter 0.3s ease-out;
+}
+
+.navbar-logo:hover .navbar-logo-icon {
+  transform: scale(1.1) rotate(5deg);
+  filter: drop-shadow(0 4px 12px rgba(244, 63, 94, 0.4));
+}
+
+.navbar-logo-text {
+  background: linear-gradient(135deg, 
+    var(--color-rose-600) 0%, 
+    var(--color-rose-500) 50%,
+    var(--color-rose-600) 100%);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: navbarLogoGradient 3s ease infinite;
+  transition: all 0.3s ease;
+}
+
+.navbar-logo:hover .navbar-logo-text {
+  animation-duration: 1.5s;
+  filter: drop-shadow(0 2px 8px rgba(244, 63, 94, 0.3));
+}
+
+@keyframes navbarLogoGradient {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
 }
 
 .navbar-logo:hover {
@@ -215,6 +258,59 @@ img {
   border-radius: var(--radius-md);
   transition: all var(--transition-fast);
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  position: relative;
+}
+
+.navbar-link::first-letter {
+  font-size: 1.1em;
+  display: inline-block;
+  animation: navbarEmojiFloat 2.5s ease-in-out infinite;
+  transform-origin: center;
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+.navbar-link:nth-child(1)::first-letter {
+  animation-delay: 0s;
+}
+
+.navbar-link:nth-child(2)::first-letter {
+  animation-delay: 0.2s;
+}
+
+.navbar-link:nth-child(3)::first-letter {
+  animation-delay: 0.4s;
+}
+
+.navbar-link:nth-child(4)::first-letter {
+  animation-delay: 0.6s;
+}
+
+.navbar-link:nth-child(5)::first-letter {
+  animation-delay: 0.8s;
+}
+
+.navbar-link:nth-child(6)::first-letter {
+  animation-delay: 1s;
+}
+
+@keyframes navbarEmojiFloat {
+  0%, 100% {
+    transform: translateY(0) translateZ(0);
+  }
+  50% {
+    transform: translateY(-3px) translateZ(0);
+  }
+}
+
+.navbar-link:hover::first-letter,
+.navbar-link.active::first-letter {
+  animation-duration: 1.2s;
+  transform: scale(1.15) translateZ(0);
 }
 
 .navbar-link:hover,
