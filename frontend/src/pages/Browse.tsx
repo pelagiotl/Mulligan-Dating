@@ -70,12 +70,15 @@ export default function Browse() {
           fullProfile: data.profile
         });
       }
-    } catch (err) {
-      if (err instanceof Error && err.message.includes("complete your profile")) {
-        navigate("/create-profile");
+    } catch (err: any) {
+      // Check if error is about missing profile
+      const errorMessage = err?.message || err?.error || "Failed to load profiles";
+      if (errorMessage.includes("complete your profile") || errorMessage.includes("profile")) {
+        // Don't set error, we'll show a helpful message instead
+        setLoading(false);
         return;
       }
-      setError(err instanceof Error ? err.message : "Failed to load profiles");
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -184,7 +187,10 @@ export default function Browse() {
     return <div className="loading-screen">Finding amazing people...</div>;
   }
 
-  if (error) {
+  // Check if user needs to create profile
+  const needsProfile = !currentProfile && !loading && !error;
+
+  if (error && !error.includes("profile")) {
     return (
       <div className="no-profiles">
         <div className="no-profiles-icon">😕</div>
@@ -203,7 +209,24 @@ export default function Browse() {
         <TokenDisplay />
       </div>
 
-      {!currentProfile && !loading ? (
+      {needsProfile ? (
+        <div className="no-profiles">
+          <div className="no-profiles-icon">✨</div>
+          <h2>Create Your Profile to Start Matching</h2>
+          <p>Complete your profile to start discovering amazing people who share your interests and values!</p>
+          <button 
+            onClick={() => navigate("/create-profile")}
+            className="browse-connect-button immersive-button"
+            style={{ marginTop: '20px' }}
+          >
+            <span className="button-glow"></span>
+            <span className="button-shine"></span>
+            <span className="button-content">
+              Create Profile 🚀
+            </span>
+          </button>
+        </div>
+      ) : !currentProfile && !loading ? (
         <div className="no-profiles">
           <div className="no-profiles-icon">🔍</div>
           <h2>No more profiles</h2>

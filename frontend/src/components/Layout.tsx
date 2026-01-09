@@ -24,7 +24,7 @@ export default function Layout() {
                 to="/browse" 
                 className={`navbar-link ${isActive('/browse') ? 'active' : ''}`}
               >
-                🔍 Browse
+                💫 Find Your Match
               </Link>
             </li>
             <li>
