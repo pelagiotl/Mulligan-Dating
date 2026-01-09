@@ -17,12 +17,21 @@ export default function Login() {
   useEffect(() => {
     setError('')
     setLoading(false)
-    // If already authenticated, redirect to browse
-    // Add a small delay to ensure state has fully updated after logout
-    if (isAuthenticated) {
+    
+    // Check both isAuthenticated state AND localStorage token
+    // This prevents redirect issues after logout when state might be stale
+    const hasToken = localStorage.getItem('token')
+    const shouldRedirect = isAuthenticated && hasToken
+    
+    // If already authenticated with a valid token, redirect to browse
+    // Add a delay to ensure state has fully updated after logout
+    if (shouldRedirect) {
       const timer = setTimeout(() => {
-        navigate('/browse')
-      }, 100)
+        // Double-check token still exists before redirecting
+        if (localStorage.getItem('token')) {
+          navigate('/browse')
+        }
+      }, 200)
       return () => clearTimeout(timer)
     }
   }, [isAuthenticated, navigate])
