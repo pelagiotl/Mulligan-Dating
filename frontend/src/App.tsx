@@ -15,6 +15,7 @@ import Privacy from './pages/Privacy'
 import Layout from './components/Layout'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
+  // Always call hooks at the top level, before any conditional returns
   const { isAuthenticated, loading } = useAuth()
   
   if (loading) {
@@ -25,6 +26,7 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 }
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
+  // Always call hooks at the top level, before any conditional returns
   const { isAuthenticated, isAdmin, loading } = useAuth()
   
   if (loading) {
