@@ -173,17 +173,17 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
     });
 
     // NEW: Score and sort by interests overlap, partner qualities ("What I'm Looking For"), AND lifestyle compatibility
-    const userInterests = db
+    const userInterests = await (db
       .prepare("SELECT name FROM interests WHERE profile_id = ?")
-      .all(userProfile.id) as { name: string }[];
+      .all([userProfile.id]) as Promise<{ name: string }[]>);
     
-    const userPartnerQualities = db
+    const userPartnerQualities = await (db
       .prepare("SELECT quality FROM partner_qualities WHERE profile_id = ?")
-      .all(userProfile.id) as { quality: string }[];
+      .all([userProfile.id]) as Promise<{ quality: string }[]>);
     
-    const userLifestyle = db
+    const userLifestyle = await (db
       .prepare("SELECT * FROM lifestyle WHERE profile_id = ?")
-      .get(userProfile.id) as {
+      .get([userProfile.id]) as Promise<{
         smoking: string | null;
         drinking: string | null;
         children: string | null;
@@ -191,10 +191,10 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
         religion: string | null;
         work_life_balance: string | null;
         works_out: string | null;
-      } | undefined;
+      } | undefined>);
     
     // Calculate match scores for all profiles (always score, even if no preferences set)
-    const profilesWithScores = filteredProfiles.map((p) => {
+    const profilesWithScores = await Promise.all(filteredProfiles.map(async (p) => {
       // Calculate interests overlap
       const candidateInterests = p.interests_list 
         ? p.interests_list.split(',').map(i => i.trim().toLowerCase())
@@ -207,9 +207,14 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
       
       // Calculate partner qualities match ("What I'm Looking For")
       // Get candidate's actual partner qualities, not just interests
-      const candidatePartnerQualities = db
+      // Note: This is synchronous for SQLite but async for PostgreSQL
+      // We'll handle both cases
+      const candidatePartnerQualitiesPromise = db
         .prepare("SELECT quality FROM partner_qualities WHERE profile_id = ?")
-        .all(p.id) as { quality: string }[];
+        .all([p.id]);
+      const candidatePartnerQualities = Array.isArray(candidatePartnerQualitiesPromise) 
+        ? candidatePartnerQualitiesPromise 
+        : await (candidatePartnerQualitiesPromise as Promise<{ quality: string }[]>);
       const candidateQualityNames = new Set(candidatePartnerQualities.map(q => q.quality.toLowerCase()));
       
       const userQualities = userPartnerQualities.map(q => q.quality.toLowerCase());
@@ -219,9 +224,12 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
       // Calculate lifestyle compatibility score
       let lifestyleScore = 0.5; // Default to neutral if no lifestyle data
       if (userLifestyle) {
-        const candidateLifestyle = db
+        const candidateLifestylePromise = db
           .prepare("SELECT * FROM lifestyle WHERE profile_id = ?")
-          .get(p.id) as {
+          .get([p.id]);
+        const candidateLifestyle = (candidateLifestylePromise instanceof Promise
+          ? await candidateLifestylePromise
+          : candidateLifestylePromise) as {
             smoking: string | null;
             drinking: string | null;
             children: string | null;
@@ -376,9 +384,12 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
       matchScore *= completenessBoost;
       
       // 2. Recency boost (recently active users)
-      const candidateUser = db
+      const candidateUserPromise = db
         .prepare("SELECT last_active_at FROM users WHERE id = ?")
-        .get(p.user_id) as { last_active_at: string | null } | undefined;
+        .get([p.user_id]);
+      const candidateUser = (candidateUserPromise instanceof Promise
+        ? await candidateUserPromise
+        : candidateUserPromise) as { last_active_at: string | null } | undefined;
       
       if (candidateUser?.last_active_at) {
         const lastActive = new Date(candidateUser.last_active_at).getTime();
@@ -393,7 +404,7 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
       }
       
       return { profile: p, matchScore, sharedInterests, matchedQualities, lifestyleScore };
-    });
+    }));
     
     // Sort by match score (highest first), then by shared interests
     profilesWithScores.sort((a, b) => {
