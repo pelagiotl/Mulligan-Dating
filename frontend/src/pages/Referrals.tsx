@@ -18,6 +18,7 @@ interface ReferralData {
 export default function Referrals() {
   const [data, setData] = useState<ReferralData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string>('');
   const [copied, setCopied] = useState(false);
   const [copiedItem, setCopiedItem] = useState<'code' | 'link' | null>(null);
 
@@ -37,8 +38,6 @@ export default function Referrals() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const [error, setError] = useState<string>('');
 
   const fetchReferrals = async () => {
     try {
