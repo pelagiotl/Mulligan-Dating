@@ -2060,6 +2060,9 @@ img {
   margin: var(--space-6) auto;
   max-width: 500px;
   border: 2px solid rgba(244, 63, 94, 0.2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .no-profiles-icon {

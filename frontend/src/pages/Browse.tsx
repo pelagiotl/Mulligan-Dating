@@ -217,7 +217,7 @@ export default function Browse() {
           <button 
             onClick={() => navigate("/create-profile")}
             className="browse-connect-button immersive-button"
-            style={{ marginTop: '20px' }}
+            style={{ marginTop: '20px', alignSelf: 'center' }}
           >
             <span className="button-glow"></span>
             <span className="button-shine"></span>
