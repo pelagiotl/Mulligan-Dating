@@ -39,12 +39,7 @@ export default function Browse() {
   const [matchedProfile, setMatchedProfile] = useState<Profile | null>(null);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    // Clear error state when component mounts or offset changes
-    setError("");
-    fetchProfile();
-  }, [fetchProfile]);
-
+  // Define fetchProfile first with useCallback before using it in useEffect
   const fetchProfile = useCallback(async () => {
     try {
       setLoading(true);
