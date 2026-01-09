@@ -56,10 +56,12 @@ export interface DbAdapter {
   // Execute a query that doesn't return results (INSERT, UPDATE, DELETE)
   execute(sql: string, params?: any[]): Promise<void>;
   // Get a prepared statement (for SQLite compatibility)
+  // Note: PostgreSQL returns Promises, SQLite returns sync values
+  // Using 'any' to allow both sync and async implementations
   prepare(sql: string): {
     get: (params?: any) => any;
-    run: (params?: any) => { lastInsertRowid: number; changes: number };
-    all: (params?: any) => any[];
+    run: (params?: any) => any;
+    all: (params?: any) => any;
   };
 }
 
@@ -88,7 +90,18 @@ class SQLiteAdapter implements DbAdapter {
   }
 
   prepare(sql: string) {
-    return this.db.prepare(sql);
+    const stmt = this.db.prepare(sql);
+    return {
+      get: (params?: any) => stmt.get(params),
+      run: (params?: any) => {
+        const result = stmt.run(params);
+        return {
+          lastInsertRowid: Number(result.lastInsertRowid), // Convert bigint to number
+          changes: result.changes
+        };
+      },
+      all: (params?: any) => stmt.all(params) as any[]
+    };
   }
 }
 
@@ -129,17 +142,19 @@ class PostgresAdapter implements DbAdapter {
     });
     
     return {
-      get: async (params: any[] = []) => {
-        const result = await this.pool.query(pgSql, params);
-        return result.rows[0] || null;
+      get: (params: any = []) => {
+        const normalizedParams = Array.isArray(params) ? params : (params !== undefined ? [params] : []);
+        return this.pool.query(pgSql, normalizedParams).then(result => result.rows[0] || null);
       },
-      run: async (params: any[] = []) => {
-        await this.pool.query(pgSql, params);
-        return { lastInsertRowid: 0, changes: 0 }; // PostgreSQL doesn't return this easily
+      run: (params: any = []) => {
+        const normalizedParams = Array.isArray(params) ? params : (params !== undefined ? [params] : []);
+        return this.pool.query(pgSql, normalizedParams).then(() => {
+          return { lastInsertRowid: 0, changes: 0 }; // PostgreSQL doesn't return this easily
+        });
       },
-      all: async (params: any[] = []) => {
-        const result = await this.pool.query(pgSql, params);
-        return result.rows;
+      all: (params: any = []) => {
+        const normalizedParams = Array.isArray(params) ? params : (params !== undefined ? [params] : []);
+        return this.pool.query(pgSql, normalizedParams).then(result => result.rows);
       }
     };
   }
