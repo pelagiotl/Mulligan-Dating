@@ -3,17 +3,37 @@ import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
 import { db } from '../database.js';
 import { authenticateToken, AuthRequest } from '../middleware/auth.js';
+import { sanitizeText, sanitizeArray } from '../middleware/security.js';
+import { rateLimitAPI } from '../middleware/security.js';
 
 export const profileRouter = Router();
 
 const profileSchema = z.object({
-  displayName: z.string().min(2, 'Name must be at least 2 characters'),
+  displayName: z.string()
+    .min(2, 'Name must be at least 2 characters')
+    .max(50, 'Name must be at most 50 characters')
+    .refine(val => val.trim().length >= 2, 'Name cannot be only whitespace'),
   age: z.number().min(18, 'Must be at least 18').max(120),
-  gender: z.string(),
-  location: z.string().optional(),
-  bio: z.string().max(500).optional(),
-  photoUrl: z.string().url().optional(),
-  lookingFor: z.string().optional()
+  gender: z.string()
+    .min(1, 'Gender is required')
+    .max(50, 'Gender must be at most 50 characters'),
+  location: z.string()
+    .max(100, 'Location must be at most 100 characters')
+    .optional()
+    .nullable(),
+  bio: z.string()
+    .max(500, 'Bio must be at most 500 characters')
+    .optional()
+    .nullable(),
+  photoUrl: z.string()
+    .url('Photo URL must be a valid URL')
+    .max(2048, 'Photo URL must be at most 2048 characters')
+    .optional()
+    .nullable(),
+  lookingFor: z.string()
+    .max(500, 'Looking for must be at most 500 characters')
+    .optional()
+    .nullable()
 });
 
 const preferencesSchema = z.object({
@@ -27,10 +47,21 @@ const preferencesSchema = z.object({
 });
 
 // Create or update profile
-profileRouter.post('/', authenticateToken, async (req: AuthRequest, res) => {
+profileRouter.post('/', authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
   try {
     const profileData = profileSchema.parse(req.body);
     const userId = req.userId!;
+    
+    // Sanitize all text inputs to prevent XSS
+    const sanitizedData = {
+      displayName: sanitizeText(profileData.displayName, 50),
+      age: profileData.age,
+      gender: sanitizeText(profileData.gender, 50),
+      location: profileData.location ? sanitizeText(profileData.location, 100) : null,
+      bio: profileData.bio ? sanitizeText(profileData.bio, 500) : null,
+      photoUrl: profileData.photoUrl || null, // URL validation already done by Zod
+      lookingFor: profileData.lookingFor ? sanitizeText(profileData.lookingFor, 500) : null
+    };
     
     // Check if profile exists
     const existingProfile = db.prepare('SELECT id FROM profiles WHERE user_id = ?').get(userId) as { id: string } | undefined;
@@ -43,13 +74,13 @@ profileRouter.post('/', authenticateToken, async (req: AuthRequest, res) => {
           bio = ?, photo_url = ?, looking_for = ?, updated_at = CURRENT_TIMESTAMP
         WHERE user_id = ?
       `).run(
-        profileData.displayName,
-        profileData.age,
-        profileData.gender,
-        profileData.location || null,
-        profileData.bio || null,
-        profileData.photoUrl || null,
-        profileData.lookingFor || null,
+        sanitizedData.displayName,
+        sanitizedData.age,
+        sanitizedData.gender,
+        sanitizedData.location,
+        sanitizedData.bio,
+        sanitizedData.photoUrl,
+        sanitizedData.lookingFor,
         userId
       );
       
@@ -63,13 +94,13 @@ profileRouter.post('/', authenticateToken, async (req: AuthRequest, res) => {
       `).run(
         profileId,
         userId,
-        profileData.displayName,
-        profileData.age,
-        profileData.gender,
-        profileData.location || null,
-        profileData.bio || null,
-        profileData.photoUrl || null,
-        profileData.lookingFor || null
+        sanitizedData.displayName,
+        sanitizedData.age,
+        sanitizedData.gender,
+        sanitizedData.location,
+        sanitizedData.bio,
+        sanitizedData.photoUrl,
+        sanitizedData.lookingFor
       );
 
       // Create default preferences
@@ -123,26 +154,49 @@ profileRouter.get('/', authenticateToken, (req: AuthRequest, res) => {
 });
 
 // Update interests
-profileRouter.put('/interests', authenticateToken, (req: AuthRequest, res) => {
-  const { interests } = req.body as { interests: Array<{ name: string; category?: string }> };
-  
-  const profile = db.prepare('SELECT id FROM profiles WHERE user_id = ?').get(req.userId) as { id: string } | undefined;
-  
-  if (!profile) {
-    return res.status(404).json({ error: 'Profile not found' });
+profileRouter.put('/interests', authenticateToken, rateLimitAPI, (req: AuthRequest, res) => {
+  try {
+    // Validate input
+    if (!Array.isArray(req.body.interests)) {
+      return res.status(400).json({ error: 'Interests must be an array' });
+    }
+    
+    // Limit to 20 interests max
+    const interests = req.body.interests.slice(0, 20) as Array<{ name: string; category?: string }>;
+    
+    // Validate each interest
+    for (const interest of interests) {
+      if (!interest.name || typeof interest.name !== 'string') {
+        return res.status(400).json({ error: 'Each interest must have a name' });
+      }
+      if (interest.name.length > 50) {
+        return res.status(400).json({ error: 'Interest name must be at most 50 characters' });
+      }
+    }
+    
+    const profile = db.prepare('SELECT id FROM profiles WHERE user_id = ?').get(req.userId) as { id: string } | undefined;
+    
+    if (!profile) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+
+    // Delete existing interests
+    db.prepare('DELETE FROM interests WHERE profile_id = ?').run(profile.id);
+
+    // Insert new interests (sanitized)
+    const insertStmt = db.prepare('INSERT INTO interests (id, profile_id, name, category) VALUES (?, ?, ?, ?)');
+    
+    for (const interest of interests) {
+      const sanitizedName = sanitizeText(interest.name, 50);
+      const sanitizedCategory = interest.category ? sanitizeText(interest.category, 50) : null;
+      insertStmt.run(uuidv4(), profile.id, sanitizedName, sanitizedCategory);
+    }
+
+    res.json({ message: 'Interests updated' });
+  } catch (error) {
+    console.error('Interests update error:', error);
+    res.status(500).json({ error: 'Failed to update interests' });
   }
-
-  // Delete existing interests
-  db.prepare('DELETE FROM interests WHERE profile_id = ?').run(profile.id);
-
-  // Insert new interests
-  const insertStmt = db.prepare('INSERT INTO interests (id, profile_id, name, category) VALUES (?, ?, ?, ?)');
-  
-  for (const interest of interests) {
-    insertStmt.run(uuidv4(), profile.id, interest.name, interest.category || null);
-  }
-
-  res.json({ message: 'Interests updated' });
 });
 
 // Update preferences
@@ -184,49 +238,100 @@ profileRouter.put('/preferences', authenticateToken, (req: AuthRequest, res) => 
 });
 
 // Update dealbreakers
-profileRouter.put('/dealbreakers', authenticateToken, (req: AuthRequest, res) => {
-  const { dealbreakers } = req.body as { dealbreakers: Array<{ description: string; category?: string }> };
-  
-  const profile = db.prepare('SELECT id FROM profiles WHERE user_id = ?').get(req.userId) as { id: string } | undefined;
-  
-  if (!profile) {
-    return res.status(404).json({ error: 'Profile not found' });
+profileRouter.put('/dealbreakers', authenticateToken, rateLimitAPI, (req: AuthRequest, res) => {
+  try {
+    // Validate input
+    if (!Array.isArray(req.body.dealbreakers)) {
+      return res.status(400).json({ error: 'Dealbreakers must be an array' });
+    }
+    
+    // Limit to 10 dealbreakers max
+    const dealbreakers = req.body.dealbreakers.slice(0, 10) as Array<{ description: string; category?: string }>;
+    
+    // Validate each dealbreaker
+    for (const db_ of dealbreakers) {
+      if (!db_.description || typeof db_.description !== 'string') {
+        return res.status(400).json({ error: 'Each dealbreaker must have a description' });
+      }
+      if (db_.description.length > 100) {
+        return res.status(400).json({ error: 'Dealbreaker description must be at most 100 characters' });
+      }
+    }
+    
+    const profile = db.prepare('SELECT id FROM profiles WHERE user_id = ?').get(req.userId) as { id: string } | undefined;
+    
+    if (!profile) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+
+    // Delete existing dealbreakers
+    db.prepare('DELETE FROM dealbreakers WHERE profile_id = ?').run(profile.id);
+
+    // Insert new dealbreakers (sanitized)
+    const insertStmt = db.prepare('INSERT INTO dealbreakers (id, profile_id, description, category) VALUES (?, ?, ?, ?)');
+    
+    for (const db_ of dealbreakers) {
+      const sanitizedDesc = sanitizeText(db_.description, 100);
+      const sanitizedCategory = db_.category ? sanitizeText(db_.category, 50) : null;
+      insertStmt.run(uuidv4(), profile.id, sanitizedDesc, sanitizedCategory);
+    }
+
+    res.json({ message: 'Dealbreakers updated' });
+  } catch (error) {
+    console.error('Dealbreakers update error:', error);
+    res.status(500).json({ error: 'Failed to update dealbreakers' });
   }
-
-  // Delete existing dealbreakers
-  db.prepare('DELETE FROM dealbreakers WHERE profile_id = ?').run(profile.id);
-
-  // Insert new dealbreakers
-  const insertStmt = db.prepare('INSERT INTO dealbreakers (id, profile_id, description, category) VALUES (?, ?, ?, ?)');
-  
-  for (const db_ of dealbreakers) {
-    insertStmt.run(uuidv4(), profile.id, db_.description, db_.category || null);
-  }
-
-  res.json({ message: 'Dealbreakers updated' });
 });
 
 // Update partner qualities
-profileRouter.put('/partner-qualities', authenticateToken, (req: AuthRequest, res) => {
-  const { qualities } = req.body as { qualities: Array<{ quality: string; importance?: number }> };
-  
-  const profile = db.prepare('SELECT id FROM profiles WHERE user_id = ?').get(req.userId) as { id: string } | undefined;
-  
-  if (!profile) {
-    return res.status(404).json({ error: 'Profile not found' });
+profileRouter.put('/partner-qualities', authenticateToken, rateLimitAPI, (req: AuthRequest, res) => {
+  try {
+    // Validate input
+    if (!Array.isArray(req.body.qualities)) {
+      return res.status(400).json({ error: 'Qualities must be an array' });
+    }
+    
+    // Limit to 20 qualities max
+    const qualities = req.body.qualities.slice(0, 20) as Array<{ quality: string; importance?: number }>;
+    
+    // Validate each quality
+    for (const q of qualities) {
+      if (!q.quality || typeof q.quality !== 'string') {
+        return res.status(400).json({ error: 'Each quality must have a name' });
+      }
+      if (q.quality.length > 50) {
+        return res.status(400).json({ error: 'Quality name must be at most 50 characters' });
+      }
+      if (q.importance !== undefined) {
+        if (typeof q.importance !== 'number' || q.importance < 1 || q.importance > 10) {
+          return res.status(400).json({ error: 'Importance must be a number between 1 and 10' });
+        }
+      }
+    }
+    
+    const profile = db.prepare('SELECT id FROM profiles WHERE user_id = ?').get(req.userId) as { id: string } | undefined;
+    
+    if (!profile) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+
+    // Delete existing qualities
+    db.prepare('DELETE FROM partner_qualities WHERE profile_id = ?').run(profile.id);
+
+    // Insert new qualities (sanitized)
+    const insertStmt = db.prepare('INSERT INTO partner_qualities (id, profile_id, quality, importance) VALUES (?, ?, ?, ?)');
+    
+    for (const q of qualities) {
+      const sanitizedQuality = sanitizeText(q.quality, 50);
+      const importance = q.importance !== undefined ? Math.max(1, Math.min(10, Math.round(q.importance))) : 5;
+      insertStmt.run(uuidv4(), profile.id, sanitizedQuality, importance);
+    }
+
+    res.json({ message: 'Partner qualities updated' });
+  } catch (error) {
+    console.error('Partner qualities update error:', error);
+    res.status(500).json({ error: 'Failed to update partner qualities' });
   }
-
-  // Delete existing qualities
-  db.prepare('DELETE FROM partner_qualities WHERE profile_id = ?').run(profile.id);
-
-  // Insert new qualities
-  const insertStmt = db.prepare('INSERT INTO partner_qualities (id, profile_id, quality, importance) VALUES (?, ?, ?, ?)');
-  
-  for (const q of qualities) {
-    insertStmt.run(uuidv4(), profile.id, q.quality, q.importance || 5);
-  }
-
-  res.json({ message: 'Partner qualities updated' });
 });
 
 // Update lifestyle

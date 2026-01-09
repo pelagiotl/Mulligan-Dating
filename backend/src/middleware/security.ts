@@ -180,8 +180,8 @@ export function securityHeaders(req: Request, res: Response, next: NextFunction)
   next();
 }
 
-// Input sanitization helper
-export function sanitizeInput(input: string): string {
+// Input sanitization helper with XSS prevention
+export function sanitizeInput(input: string, maxLength: number = 10000): string {
   if (typeof input !== 'string') {
     return '';
   }
@@ -193,11 +193,68 @@ export function sanitizeInput(input: string): string {
   sanitized = sanitized.trim();
   
   // Limit length (prevent DoS)
-  if (sanitized.length > 10000) {
-    sanitized = sanitized.substring(0, 10000);
+  if (sanitized.length > maxLength) {
+    sanitized = sanitized.substring(0, maxLength);
   }
   
+  // XSS Prevention: Escape HTML entities
+  sanitized = sanitized
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+    .replace(/\//g, '&#x2F;');
+  
   return sanitized;
+}
+
+// Sanitize text input (allows some formatting, removes dangerous HTML)
+export function sanitizeText(input: string, maxLength: number = 10000): string {
+  if (typeof input !== 'string') {
+    return '';
+  }
+  
+  // Remove null bytes
+  let sanitized = input.replace(/\0/g, '');
+  
+  // Trim whitespace
+  sanitized = sanitized.trim();
+  
+  // Limit length
+  if (sanitized.length > maxLength) {
+    sanitized = sanitized.substring(0, maxLength);
+  }
+  
+  // Remove dangerous HTML tags and attributes (basic XSS prevention)
+  // Allow only safe characters, remove script tags, event handlers, etc.
+  sanitized = sanitized
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '') // Remove script tags
+    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '') // Remove iframes
+    .replace(/on\w+\s*=\s*["'][^"']*["']/gi, '') // Remove event handlers (onclick, onerror, etc.)
+    .replace(/javascript:/gi, '') // Remove javascript: protocol
+    .replace(/data:text\/html/gi, '') // Remove data URIs with HTML
+    .replace(/<[^>]+>/g, ''); // Remove all remaining HTML tags
+  
+  return sanitized;
+}
+
+// Sanitize array of strings
+export function sanitizeArray(input: string[], maxLength: number = 100, maxItems: number = 50): string[] {
+  if (!Array.isArray(input)) {
+    return [];
+  }
+  
+  // Limit number of items
+  const limited = input.slice(0, maxItems);
+  
+  // Sanitize each item
+  return limited.map(item => {
+    if (typeof item !== 'string') {
+      return '';
+    }
+    return sanitizeText(item, maxLength);
+  }).filter(item => item.length > 0); // Remove empty items
 }
 
 // Validate JWT secret strength
