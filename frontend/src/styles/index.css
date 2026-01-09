@@ -2214,8 +2214,8 @@ img {
 .no-profiles .browse-connect-button.immersive-button {
   width: auto;
   max-width: 100%;
-  padding: var(--space-6) var(--space-12);
-  font-size: 1.75rem;
+  padding: var(--space-7) var(--space-16);
+  font-size: 2rem;
   margin-top: var(--space-5);
 }
 
