@@ -24,7 +24,7 @@ interface AuthContextType {
   isAdmin: boolean
   loading: boolean
   login: (email: string, password: string) => Promise<{ hasProfile: boolean }>
-  signup: (email: string, password: string, referralCode?: string) => Promise<void>
+  signup: (email: string, password: string, referralCode?: string, acceptTerms?: boolean, acceptPrivacy?: boolean) => Promise<void>
   logout: () => void
   refreshProfile: () => Promise<void>
 }
