@@ -215,14 +215,10 @@ export default function Browse() {
             <div className="arrow-line"></div>
             <div className="arrow-head">↓</div>
           </div>
-          <div className="no-profiles">
-            <div className="no-profiles-icon">✨</div>
-            <h2>Create Your Profile to Start Matching</h2>
-            <p>Complete your profile to start discovering amazing people who share your interests and values!</p>
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '20px' }}>
             <button 
               onClick={() => navigate("/create-profile")}
               className="browse-connect-button immersive-button"
-              style={{ marginTop: '20px', alignSelf: 'center' }}
             >
               <span className="button-glow"></span>
               <span className="button-shine"></span>
