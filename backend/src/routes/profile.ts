@@ -65,7 +65,7 @@ profileRouter.post('/', authenticateToken, rateLimitAPI, async (req: AuthRequest
     
     // Check if profile exists
     const existingProfileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
-    const existingProfile = await (existingProfileStmt.get(userId) as Promise<{ id: string } | undefined>);
+    const existingProfile = await (existingProfileStmt.get([userId]) as Promise<{ id: string } | undefined>);
     
     if (existingProfile) {
       // Update existing profile
@@ -128,7 +128,7 @@ profileRouter.post('/', authenticateToken, rateLimitAPI, async (req: AuthRequest
 profileRouter.get('/', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const profileStmt = db.prepare('SELECT * FROM profiles WHERE user_id = ?');
-    const profile = await (profileStmt.get(req.userId) as Promise<any>);
+    const profile = await (profileStmt.get([req.userId]) as Promise<any>);
     
     if (!profile) {
       return res.status(404).json({ error: 'Profile not found' });
@@ -136,23 +136,23 @@ profileRouter.get('/', authenticateToken, async (req: AuthRequest, res) => {
 
     // Get interests
     const interestsStmt = db.prepare('SELECT * FROM interests WHERE profile_id = ?');
-    const interests = await (interestsStmt.all(profile.id) as Promise<any[]>);
+    const interests = await (interestsStmt.all([profile.id]) as Promise<any[]>);
     
     // Get preferences
     const preferencesStmt = db.prepare('SELECT * FROM preferences WHERE profile_id = ?');
-    const preferences = await (preferencesStmt.get(profile.id) as Promise<any>);
+    const preferences = await (preferencesStmt.get([profile.id]) as Promise<any>);
     
     // Get dealbreakers
     const dealbreakersStmt = db.prepare('SELECT * FROM dealbreakers WHERE profile_id = ?');
-    const dealbreakers = await (dealbreakersStmt.all(profile.id) as Promise<any[]>);
+    const dealbreakers = await (dealbreakersStmt.all([profile.id]) as Promise<any[]>);
     
     // Get partner qualities
     const partnerQualitiesStmt = db.prepare('SELECT * FROM partner_qualities WHERE profile_id = ?');
-    const partnerQualities = await (partnerQualitiesStmt.all(profile.id) as Promise<any[]>);
+    const partnerQualities = await (partnerQualitiesStmt.all([profile.id]) as Promise<any[]>);
     
     // Get lifestyle
     const lifestyleStmt = db.prepare('SELECT * FROM lifestyle WHERE profile_id = ?');
-    const lifestyle = await (lifestyleStmt.get(profile.id) as Promise<any>);
+    const lifestyle = await (lifestyleStmt.get([profile.id]) as Promise<any>);
 
     res.json({ profile, interests, preferences, dealbreakers, partnerQualities, lifestyle });
   } catch (error) {
@@ -185,7 +185,7 @@ profileRouter.put('/interests', authenticateToken, rateLimitAPI, async (req: Aut
     }
     
     const profileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
-    const profile = await (profileStmt.get(req.userId) as Promise<{ id: string } | undefined>);
+    const profile = await (profileStmt.get([req.userId]) as Promise<{ id: string } | undefined>);
     
     if (!profile) {
       return res.status(404).json({ error: 'Profile not found' });
@@ -193,7 +193,7 @@ profileRouter.put('/interests', authenticateToken, rateLimitAPI, async (req: Aut
 
     // Delete existing interests
     const deleteStmt = db.prepare('DELETE FROM interests WHERE profile_id = ?');
-    await (deleteStmt.run(profile.id) as Promise<any>);
+    await (deleteStmt.run([profile.id]) as Promise<any>);
 
     // Insert new interests (sanitized)
     const insertStmt = db.prepare('INSERT INTO interests (id, profile_id, name, category) VALUES (?, ?, ?, ?)');
@@ -217,7 +217,7 @@ profileRouter.put('/preferences', authenticateToken, async (req: AuthRequest, re
     const prefData = preferencesSchema.parse(req.body);
     
     const profileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
-    const profile = await (profileStmt.get(req.userId) as Promise<{ id: string } | undefined>);
+    const profile = await (profileStmt.get([req.userId]) as Promise<{ id: string } | undefined>);
     
     if (!profile) {
       return res.status(404).json({ error: 'Profile not found' });
@@ -273,7 +273,7 @@ profileRouter.put('/dealbreakers', authenticateToken, rateLimitAPI, async (req: 
     }
     
     const profileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
-    const profile = await (profileStmt.get(req.userId) as Promise<{ id: string } | undefined>);
+    const profile = await (profileStmt.get([req.userId]) as Promise<{ id: string } | undefined>);
     
     if (!profile) {
       return res.status(404).json({ error: 'Profile not found' });
@@ -281,7 +281,7 @@ profileRouter.put('/dealbreakers', authenticateToken, rateLimitAPI, async (req: 
 
     // Delete existing dealbreakers
     const deleteStmt = db.prepare('DELETE FROM dealbreakers WHERE profile_id = ?');
-    await (deleteStmt.run(profile.id) as Promise<any>);
+    await (deleteStmt.run([profile.id]) as Promise<any>);
 
     // Insert new dealbreakers (sanitized)
     const insertStmt = db.prepare('INSERT INTO dealbreakers (id, profile_id, description, category) VALUES (?, ?, ?, ?)');
