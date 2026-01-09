@@ -190,6 +190,7 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
         pets: string | null;
         religion: string | null;
         work_life_balance: string | null;
+        works_out: string | null;
       } | undefined;
     
     // Calculate match scores for all profiles (always score, even if no preferences set)
