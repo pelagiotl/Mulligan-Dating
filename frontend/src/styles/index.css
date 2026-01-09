@@ -2184,12 +2184,21 @@ img {
 }
 
 .interest-tag {
-  padding: var(--space-1) var(--space-3);
-  background: var(--color-rose-50);
+  padding: var(--space-2) var(--space-4);
+  background: linear-gradient(135deg, rgba(244, 63, 94, 0.1), rgba(251, 113, 133, 0.08));
   color: var(--color-rose-600);
   border-radius: var(--radius-full);
-  font-size: 0.8rem;
-  font-weight: 500;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: 1px solid rgba(244, 63, 94, 0.15);
+  box-shadow: 0 2px 6px rgba(244, 63, 94, 0.1);
+  transition: all 0.2s ease;
+}
+
+.interest-tag:hover {
+  background: linear-gradient(135deg, rgba(244, 63, 94, 0.15), rgba(251, 113, 133, 0.12));
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(244, 63, 94, 0.15);
 }
 
 .no-profiles {
@@ -2877,10 +2886,15 @@ img {
   gap: var(--space-8);
   margin-bottom: var(--space-10);
   padding: var(--space-6);
-  background: linear-gradient(135deg, var(--bg-secondary) 0%, rgba(255, 255, 255, 0.5) 100%);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(255, 245, 245, 0.95));
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border-radius: var(--radius-2xl);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 
+    0 20px 60px rgba(0, 0, 0, 0.1),
+    0 0 0 1px rgba(255, 255, 255, 0.2) inset,
+    0 0 40px rgba(244, 63, 94, 0.05);
+  border: 1px solid rgba(244, 63, 94, 0.08);
 }
 
 .my-profile-photo {
@@ -2894,6 +2908,10 @@ img {
   font-size: 5rem;
   color: var(--color-rose-500);
   flex-shrink: 0;
+  box-shadow: 
+    0 8px 24px rgba(244, 63, 94, 0.2),
+    0 0 0 3px rgba(255, 255, 255, 0.9) inset;
+  border: 2px solid rgba(244, 63, 94, 0.1);
 }
 
 .my-profile-photo img {
@@ -2922,8 +2940,12 @@ img {
   gap: var(--space-4);
   margin-bottom: var(--space-5);
   padding: var(--space-4);
-  background: rgba(255, 255, 255, 0.6);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.8), rgba(255, 250, 250, 0.7));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   border-radius: var(--radius-xl);
+  border: 1px solid rgba(244, 63, 94, 0.08);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04), 0 0 0 1px rgba(244, 63, 94, 0.05) inset;
 }
 
 .my-profile-meta-item {
@@ -2948,9 +2970,12 @@ img {
 
 .my-profile-bio-container {
   padding: var(--space-4);
-  background: rgba(255, 255, 255, 0.6);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.8), rgba(255, 250, 250, 0.7));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   border-radius: var(--radius-xl);
   border-left: 3px solid var(--color-rose-400);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04), 0 0 0 1px rgba(244, 63, 94, 0.05) inset;
 }
 
 .my-profile-bio {
@@ -2961,24 +2986,37 @@ img {
 }
 
 .profile-detail-section {
-  background: var(--bg-secondary);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(255, 245, 245, 0.95));
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border-radius: var(--radius-2xl);
   padding: var(--space-6);
   margin-bottom: var(--space-6);
-  box-shadow: var(--shadow-sm);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.08),
+    0 0 0 1px rgba(255, 255, 255, 0.2) inset,
+    0 0 30px rgba(244, 63, 94, 0.05);
+  border: 1px solid rgba(244, 63, 94, 0.08);
 }
 
 .profile-detail-title {
-  font-size: 1.25rem;
-  color: var(--color-wine-900);
-  margin-bottom: var(--space-4);
+  font-size: 1.5rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--color-rose-600), #d91a4a);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: var(--space-5);
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-3);
+  font-family: var(--font-display);
+  letter-spacing: -0.3px;
 }
 
 .profile-detail-title span {
-  font-size: 1.5rem;
+  font-size: 1.75rem;
+  filter: drop-shadow(0 2px 4px rgba(244, 63, 94, 0.2));
 }
 
 @media (max-width: 700px) {
