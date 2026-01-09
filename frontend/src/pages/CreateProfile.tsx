@@ -305,7 +305,8 @@ export default function CreateProfile() {
         minAge,
         maxAge,
         preferredGenders: preferredGenders.length > 0 ? preferredGenders : null,
-        maxDistance
+        maxDistance,
+        relationshipType: lookingFor || null
       })
 
           // Save lifestyle (all fields are required)
