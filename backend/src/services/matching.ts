@@ -4,6 +4,8 @@ import { geocodeLocation, calculateDistanceMiles } from "../utils/geocoding.js";
 import { findBestSemanticMatch } from "../utils/semanticMatching.js";
 import { getCompletenessBoost } from "../utils/profileCompleteness.js";
 import { checkDealbreakers as checkDealbreakersUtil } from "../utils/dealbreakers.js";
+import { getCollaborativeRecommendations as getCollaborativeRecs } from "../utils/collaborativeFiltering.js";
+import { getSuccessScore } from "../utils/successTracking.js";
 
 /**
  * STATE-OF-THE-ART MATCHING ALGORITHM
@@ -849,6 +851,23 @@ export async function generateWeeklyMatches(userId: string): Promise<{
         distance: distanceScoreWeighted,
       },
     });
+  }
+
+  // NEW: Get collaborative filtering recommendations
+  // These are candidates that similar users successfully matched with
+  const collaborativeRecommendations = await getCollaborativeRecs(
+    userId,
+    [], // Don't exclude any yet, we'll filter below
+    50 // Get top 50 recommendations
+  );
+  
+  // Boost scores for collaborative recommendations
+  const collaborativeSet = new Set(collaborativeRecommendations);
+  for (const candidate of candidates) {
+    if (collaborativeSet.has(candidate.userId)) {
+      // Boost by 15% if recommended by collaborative filtering
+      candidate.score *= 1.15;
+    }
   }
 
   // Sort by score (highest first)
