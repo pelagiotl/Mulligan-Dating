@@ -122,7 +122,7 @@ photosRouter.get("/me", authenticateToken, async (req: AuthRequest, res) => {
       return res.json({ photos: [] });
     }
 
-    const photos = await (db
+    const photosResult = await (db
       .prepare(
         `SELECT id, url, display_order, is_primary, created_at 
          FROM photos 
@@ -130,6 +130,9 @@ photosRouter.get("/me", authenticateToken, async (req: AuthRequest, res) => {
          ORDER BY display_order ASC`
       )
       .all([profile.id]) as Promise<any[]>);
+
+    // Ensure photos is always an array
+    const photos = Array.isArray(photosResult) ? photosResult : [];
 
     res.json({
       photos: photos.map((p) => ({
