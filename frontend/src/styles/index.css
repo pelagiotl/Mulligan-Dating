@@ -2159,7 +2159,7 @@ img {
   align-items: center;
   overflow: hidden;
   position: relative;
-  animation: boxBreathe 3s ease-in-out infinite, boxFloat 4s ease-in-out infinite;
+  animation: boxBreathe 2s ease-in-out infinite, boxFloat 3s ease-in-out infinite;
   transition: all 0.3s ease;
 }
 
@@ -2179,7 +2179,7 @@ img {
   border-radius: var(--radius-xl);
   z-index: -1;
   opacity: 0.5;
-  animation: borderGlow 3s ease infinite, gradientShift 4s ease infinite;
+  animation: borderGlow 2s ease infinite, gradientShift 3s ease infinite;
 }
 
 .no-profiles::after {
@@ -2193,7 +2193,7 @@ img {
     transparent, 
     rgba(255, 255, 255, 0.4), 
     transparent);
-  animation: boxShine 3s ease-in-out infinite;
+  animation: boxShine 2s ease-in-out infinite;
   z-index: 1;
   pointer-events: none;
 }
