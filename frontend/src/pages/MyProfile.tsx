@@ -39,19 +39,52 @@ export default function MyProfile() {
   const [data, setData] = useState<ProfileData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
+    // Reset state when component mounts
+    setError('')
+    setLoading(true)
     fetchProfile()
+
+    // Cleanup: cancel any pending requests when component unmounts
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+    }
   }, [])
 
   const fetchProfile = async () => {
     try {
+      // Cancel any previous request
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+
+      // Create new abort controller for this request
+      abortControllerRef.current = new AbortController()
+
+      // Note: The api.get doesn't currently accept an AbortSignal, but we'll handle cleanup
       const profileData = await api.get<ProfileData>('/profile')
+      
+      // Check if component is still mounted (request wasn't aborted)
+      if (abortControllerRef.current?.signal.aborted) {
+        return
+      }
+
       setData(profileData)
-    } catch (err) {
+      setError('')
+    } catch (err: any) {
+      // Ignore aborted requests
+      if (err?.name === 'AbortError' || abortControllerRef.current?.signal.aborted) {
+        return
+      }
       setError(err instanceof Error ? err.message : 'Failed to load profile')
     } finally {
-      setLoading(false)
+      if (!abortControllerRef.current?.signal.aborted) {
+        setLoading(false)
+      }
     }
   }
 

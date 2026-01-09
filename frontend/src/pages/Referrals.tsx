@@ -21,24 +21,55 @@ export default function Referrals() {
   const [copied, setCopied] = useState(false);
   const [copiedItem, setCopiedItem] = useState<'code' | 'link' | null>(null);
 
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   useEffect(() => {
+    // Reset state when component mounts
+    setLoading(true);
     fetchReferrals();
+
+    // Cleanup: cancel any pending requests when component unmounts
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, []);
 
   const fetchReferrals = async () => {
     try {
+      // Cancel any previous request
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+
+      // Create new abort controller for this request
+      abortControllerRef.current = new AbortController();
+
       const referralData = await api.get<ReferralData>("/referrals");
+      
+      // Check if component is still mounted (request wasn't aborted)
+      if (abortControllerRef.current?.signal.aborted) {
+        return;
+      }
+
       // Ensure referral link uses current origin (in case backend guessed wrong)
       if (referralData.referralLink && !referralData.referralLink.startsWith(window.location.origin)) {
         const url = new URL(referralData.referralLink);
         referralData.referralLink = `${window.location.origin}${url.pathname}${url.search}`;
       }
       setData(referralData);
-    } catch (err) {
+    } catch (err: any) {
+      // Ignore aborted requests
+      if (err?.name === 'AbortError' || abortControllerRef.current?.signal.aborted) {
+        return;
+      }
       console.error("Failed to fetch referrals:", err);
       // Keep loading false so error state shows
     } finally {
-      setLoading(false);
+      if (!abortControllerRef.current?.signal.aborted) {
+        setLoading(false);
+      }
     }
   };
 
