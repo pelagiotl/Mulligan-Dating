@@ -51,6 +51,16 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
     return <div className="loading-screen">Loading...</div>
   }
   
+  return <>{children}</>
+}
+
+function AuthRedirectRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, loading } = useAuth()
+  
+  if (loading) {
+    return <div className="loading-screen">Loading...</div>
+  }
+  
   return !isAuthenticated ? <>{children}</> : <Navigate to="/browse" />
 }
 
@@ -58,8 +68,8 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<PublicRoute><Landing /></PublicRoute>} />
-      <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
-      <Route path="/signup" element={<PublicRoute><Signup /></PublicRoute>} />
+      <Route path="/login" element={<AuthRedirectRoute><Login /></AuthRedirectRoute>} />
+      <Route path="/signup" element={<AuthRedirectRoute><Signup /></AuthRedirectRoute>} />
       <Route path="/terms" element={<Terms />} />
       <Route path="/privacy" element={<Privacy />} />
       <Route element={<Layout />}>
