@@ -304,50 +304,6 @@ img {
 .navbar-link span {
   font-size: 1.1em;
   display: inline-block;
-  animation: navbarEmojiFloat 2.5s ease-in-out infinite;
-  transform-origin: center;
-  will-change: transform;
-  backface-visibility: hidden;
-  -webkit-font-smoothing: antialiased;
-}
-
-.navbar-nav li:nth-child(1) .navbar-link span {
-  animation-delay: 0s;
-}
-
-.navbar-nav li:nth-child(2) .navbar-link span {
-  animation-delay: 0.2s;
-}
-
-.navbar-nav li:nth-child(3) .navbar-link span {
-  animation-delay: 0.4s;
-}
-
-.navbar-nav li:nth-child(4) .navbar-link span {
-  animation-delay: 0.6s;
-}
-
-.navbar-nav li:nth-child(5) .navbar-link span {
-  animation-delay: 0.8s;
-}
-
-.navbar-nav li:nth-child(6) .navbar-link span {
-  animation-delay: 1s;
-}
-
-@keyframes navbarEmojiFloat {
-  0%, 100% {
-    transform: translateY(0) translateZ(0);
-  }
-  50% {
-    transform: translateY(-3px) translateZ(0);
-  }
-}
-
-.navbar-link:hover span,
-.navbar-link.active span {
-  animation-duration: 1.2s;
-  transform: scale(1.15) translateZ(0);
 }
 
 .navbar-link:hover,
