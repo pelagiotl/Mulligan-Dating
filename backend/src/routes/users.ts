@@ -227,6 +227,7 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
             pets: string | null;
             religion: string | null;
             work_life_balance: string | null;
+            works_out: string | null;
           } | undefined;
         
         if (candidateLifestyle) {
@@ -321,6 +322,42 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
               (userBalance.includes('flexible') && candidateBalance.includes('flexible'))
             ) {
               matches += 0.5; // Partial match
+            }
+          }
+          
+          // Works out match - NEW field
+          if (userLifestyle.works_out && candidateLifestyle.works_out) {
+            total++;
+            const userWorksOut = userLifestyle.works_out.toLowerCase();
+            const candidateWorksOut = candidateLifestyle.works_out.toLowerCase();
+            if (userWorksOut === candidateWorksOut) {
+              matches += 1; // Exact match
+            } else if (
+              (userWorksOut === 'all the time' && candidateWorksOut === 'frequently') ||
+              (userWorksOut === 'frequently' && candidateWorksOut === 'all the time')
+            ) {
+              matches += 0.9; // Very compatible - both are active
+            } else if (
+              (userWorksOut === 'frequently' && candidateWorksOut === 'sometimes') ||
+              (userWorksOut === 'sometimes' && candidateWorksOut === 'frequently')
+            ) {
+              matches += 0.7; // Compatible - both exercise
+            } else if (
+              (userWorksOut === 'all the time' && candidateWorksOut === 'sometimes') ||
+              (userWorksOut === 'sometimes' && candidateWorksOut === 'all the time')
+            ) {
+              matches += 0.6; // Partial match
+            } else if (
+              (userWorksOut === 'never' && candidateWorksOut === 'never')
+            ) {
+              matches += 0.8; // Both don't work out - compatible
+            } else if (
+              ((userWorksOut === 'all the time' || userWorksOut === 'frequently') && 
+               candidateWorksOut === 'never') ||
+              (userWorksOut === 'never' && 
+               (candidateWorksOut === 'all the time' || candidateWorksOut === 'frequently'))
+            ) {
+              matches += 0.3; // Mismatch - one is very active, other isn't
             }
           }
           
