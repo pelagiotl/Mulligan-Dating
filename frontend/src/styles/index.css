@@ -2140,115 +2140,19 @@ img {
   text-align: center;
   padding: var(--space-10) var(--space-6);
   color: var(--text-primary);
-  background: linear-gradient(135deg, 
-    rgba(255, 255, 255, 0.95) 0%, 
-    rgba(255, 245, 245, 0.95) 50%,
-    rgba(255, 255, 255, 0.95) 100%);
-  background-size: 200% 200%;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(255, 245, 245, 0.95));
   backdrop-filter: blur(10px);
   border-radius: var(--radius-xl);
   box-shadow: 
-    0 8px 32px rgba(244, 63, 94, 0.2),
-    0 0 0 1px rgba(244, 63, 94, 0.1) inset,
-    0 0 60px rgba(244, 63, 94, 0.1);
+    0 8px 32px rgba(0, 0, 0, 0.1),
+    0 0 0 1px rgba(244, 63, 94, 0.1) inset;
   margin: var(--space-6) auto;
   max-width: 500px;
-  border: 2px solid rgba(244, 63, 94, 0.3);
+  border: 2px solid rgba(244, 63, 94, 0.2);
   display: flex;
   flex-direction: column;
   align-items: center;
   overflow: hidden;
-  position: relative;
-  animation: boxBreathe 2s ease-in-out infinite, boxFloat 3s ease-in-out infinite;
-  transition: all 0.3s ease;
-}
-
-.no-profiles::before {
-  content: '';
-  position: absolute;
-  top: -2px;
-  left: -2px;
-  right: -2px;
-  bottom: -2px;
-  background: linear-gradient(45deg, 
-    var(--color-rose-500), 
-    #ff006e, 
-    var(--color-rose-500),
-    #ff006e);
-  background-size: 400% 400%;
-  border-radius: var(--radius-xl);
-  z-index: -1;
-  opacity: 0.5;
-  animation: borderGlow 2s ease infinite, gradientShift 3s ease infinite;
-}
-
-.no-profiles::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, 
-    transparent, 
-    rgba(255, 255, 255, 0.4), 
-    transparent);
-  animation: boxShine 2s ease-in-out infinite;
-  z-index: 1;
-  pointer-events: none;
-}
-
-@keyframes boxBreathe {
-  0%, 100% {
-    transform: scale(1);
-    box-shadow: 
-      0 8px 32px rgba(244, 63, 94, 0.2),
-      0 0 0 1px rgba(244, 63, 94, 0.1) inset,
-      0 0 60px rgba(244, 63, 94, 0.1);
-  }
-  50% {
-    transform: scale(1.02);
-    box-shadow: 
-      0 12px 40px rgba(244, 63, 94, 0.3),
-      0 0 0 1px rgba(244, 63, 94, 0.15) inset,
-      0 0 80px rgba(244, 63, 94, 0.15);
-  }
-}
-
-@keyframes boxFloat {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-3px);
-  }
-}
-
-@keyframes borderGlow {
-  0%, 100% {
-    opacity: 0.3;
-  }
-  50% {
-    opacity: 0.6;
-  }
-}
-
-@keyframes gradientShift {
-  0%, 100% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-}
-
-@keyframes boxShine {
-  0% {
-    left: -100%;
-  }
-  100% {
-    left: 100%;
-  }
 }
 
 .no-profiles .browse-connect-button.immersive-button {
