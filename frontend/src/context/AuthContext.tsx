@@ -40,10 +40,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const token = localStorage.getItem('token')
     if (token) {
-      fetchUser()
+      fetchUser().catch((error) => {
+        console.error('Error in initial fetchUser:', error)
+        setLoading(false)
+      })
     } else {
       setLoading(false)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const fetchUser = async () => {
