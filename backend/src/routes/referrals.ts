@@ -27,19 +27,21 @@ referralsRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
     // Get referral stats
     let referrals: any[];
     try {
-      const referralsStmt = db.prepare(
-        `SELECT r.*, u.email as referred_email, p.display_name as referred_name
+      const referralsQuery = `SELECT r.*, u.email as referred_email, p.display_name as referred_name
          FROM referrals r
          LEFT JOIN users u ON u.id = r.referred_id
          LEFT JOIN profiles p ON p.user_id = r.referred_id
          WHERE r.referrer_id = ?
-         ORDER BY r.created_at DESC`
-      );
+         ORDER BY r.created_at DESC`;
+      const referralsStmt = db.prepare(referralsQuery);
+      console.log('📊 Executing referrals query with userId:', userId);
       referrals = await (referralsStmt.all([userId]) as Promise<any[]>);
       console.log('✅ Referrals fetched:', referrals.length);
     } catch (error) {
       console.error('❌ Error fetching referrals:', error);
       console.error('Error details:', error instanceof Error ? error.stack : 'No stack');
+      console.error('Error code:', (error as any)?.code);
+      console.error('Error message:', (error as any)?.message);
       throw new Error(`Failed to fetch referrals: ${error instanceof Error ? error.message : String(error)}`);
     }
 

@@ -122,109 +122,119 @@ adminRouter.use(authenticateToken);
 adminRouter.use(requireAdmin);
 
 // Get all users with pagination
-adminRouter.get("/users", (req: AuthRequest, res) => {
-  const page = parseInt(req.query.page as string) || 1;
-  const limit = parseInt(req.query.limit as string) || 50;
-  const offset = (page - 1) * limit;
-  const search = req.query.search as string || "";
+adminRouter.get("/users", authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const offset = (page - 1) * limit;
+    const search = req.query.search as string || "";
 
-  let query = `
-    SELECT u.id, u.email, u.is_admin, u.is_restricted, u.created_at, u.last_active_at,
-           p.display_name, p.age, p.gender, p.location
-    FROM users u
-    LEFT JOIN profiles p ON p.user_id = u.id
-    WHERE 1=1
-  `;
-  const params: any[] = [];
+    let query = `
+      SELECT u.id, u.email, u.is_admin, u.is_restricted, u.created_at, u.last_active_at,
+             p.display_name, p.age, p.gender, p.location
+      FROM users u
+      LEFT JOIN profiles p ON p.user_id = u.id
+      WHERE 1=1
+    `;
+    const params: any[] = [];
 
-  if (search) {
-    query += ` AND (u.email LIKE ? OR p.display_name LIKE ?)`;
-    params.push(`%${search}%`, `%${search}%`);
+    if (search) {
+      query += ` AND (u.email LIKE ? OR p.display_name LIKE ?)`;
+      params.push(`%${search}%`, `%${search}%`);
+    }
+
+    query += ` ORDER BY u.created_at DESC LIMIT ? OFFSET ?`;
+    params.push(limit, offset);
+
+    const users = await (db.prepare(query).all(params) as Promise<any[]>);
+
+    // Get total count
+    let countQuery = `SELECT COUNT(*) as total FROM users u LEFT JOIN profiles p ON p.user_id = u.id WHERE 1=1`;
+    const countParams: any[] = [];
+    if (search) {
+      countQuery += ` AND (u.email LIKE ? OR p.display_name LIKE ?)`;
+      countParams.push(`%${search}%`, `%${search}%`);
+    }
+    const total = await (db.prepare(countQuery).get(countParams) as Promise<{ total: number }>);
+
+    // Get token counts for each user
+    const usersWithTokens = await Promise.all(users.map(async (user) => {
+      const tokenCount = await (db
+        .prepare(
+          `SELECT COUNT(*) as count FROM mulligan_tokens WHERE user_id = ? AND used_at IS NULL AND returned_at IS NULL`
+        )
+        .get([user.id]) as Promise<{ count: number }>);
+      
+      return {
+        ...user,
+        is_admin: user.is_admin === 1,
+        is_restricted: user.is_restricted === 1,
+        tokenCount: tokenCount.count,
+      };
+    }));
+
+    res.json({
+      users: usersWithTokens,
+      pagination: {
+        page,
+        limit,
+        total: total.total,
+        totalPages: Math.ceil(total.total / limit),
+      },
+    });
+  } catch (error) {
+    console.error('Admin users route error:', error);
+    res.status(500).json({ error: 'Failed to fetch users' });
   }
-
-  query += ` ORDER BY u.created_at DESC LIMIT ? OFFSET ?`;
-  params.push(limit, offset);
-
-  const users = db.prepare(query).all(...params) as any[];
-
-  // Get total count
-  let countQuery = `SELECT COUNT(*) as total FROM users u LEFT JOIN profiles p ON p.user_id = u.id WHERE 1=1`;
-  const countParams: any[] = [];
-  if (search) {
-    countQuery += ` AND (u.email LIKE ? OR p.display_name LIKE ?)`;
-    countParams.push(`%${search}%`, `%${search}%`);
-  }
-  const total = db.prepare(countQuery).get(...countParams) as { total: number };
-
-  // Get token counts for each user
-  const usersWithTokens = users.map((user) => {
-    const tokenCount = db
-      .prepare(
-        `SELECT COUNT(*) as count FROM mulligan_tokens WHERE user_id = ? AND used_at IS NULL AND returned_at IS NULL`
-      )
-      .get(user.id) as { count: number };
-    
-    return {
-      ...user,
-      is_admin: user.is_admin === 1,
-      is_restricted: user.is_restricted === 1,
-      tokenCount: tokenCount.count,
-    };
-  });
-
-  res.json({
-    users: usersWithTokens,
-    pagination: {
-      page,
-      limit,
-      total: total.total,
-      totalPages: Math.ceil(total.total / limit),
-    },
-  });
 });
 
 // Get user details
-adminRouter.get("/users/:userId", (req: AuthRequest, res) => {
-  const { userId } = req.params;
+adminRouter.get("/users/:userId", authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { userId } = req.params;
 
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
-  if (!user) {
-    return res.status(404).json({ error: "User not found" });
+    const user = await (db.prepare("SELECT * FROM users WHERE id = ?").get([userId]) as Promise<any>);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const profile = await (db.prepare("SELECT * FROM profiles WHERE user_id = ?").get([userId]) as Promise<any>);
+    const tokens = await (db
+      .prepare("SELECT * FROM mulligan_tokens WHERE user_id = ? ORDER BY granted_at DESC")
+      .all([userId]) as Promise<any[]>);
+    const matches = await (db
+      .prepare(
+        `SELECT * FROM matches WHERE (user1_id = ? OR user2_id = ?) AND stage != 'expired' ORDER BY created_at DESC`
+      )
+      .all([userId, userId]) as Promise<any[]>);
+    const blocks = await (db
+      .prepare("SELECT * FROM blocks WHERE blocker_id = ? OR blocked_id = ?")
+      .all([userId, userId]) as Promise<any[]>);
+
+    const tokenCount = await (db
+      .prepare(
+        `SELECT COUNT(*) as count FROM mulligan_tokens WHERE user_id = ? AND used_at IS NULL AND returned_at IS NULL`
+      )
+      .get([userId]) as Promise<{ count: number } | undefined>);
+
+    res.json({
+      ...user,
+      is_admin: user.is_admin === 1,
+      is_restricted: user.is_restricted === 1,
+      profile,
+      tokens: tokens.map((t) => ({
+        ...t,
+        isUsed: !!t.used_at,
+        isReturned: !!t.returned_at,
+      })),
+      matches: matches.length,
+      blocks: blocks.length,
+      tokenCount: tokenCount?.count || 0,
+    });
+  } catch (error) {
+    console.error('Admin user details error:', error);
+    res.status(500).json({ error: 'Failed to fetch user details' });
   }
-
-  const profile = db.prepare("SELECT * FROM profiles WHERE user_id = ?").get(userId) as any;
-  const tokens = db
-    .prepare("SELECT * FROM mulligan_tokens WHERE user_id = ? ORDER BY granted_at DESC")
-    .all(userId) as any[];
-  const matches = db
-    .prepare(
-      `SELECT * FROM matches WHERE (user1_id = ? OR user2_id = ?) AND stage != 'expired' ORDER BY created_at DESC`
-    )
-    .all(userId, userId) as any[];
-  const blocks = db
-    .prepare("SELECT * FROM blocks WHERE blocker_id = ? OR blocked_id = ?")
-    .all(userId, userId) as any[];
-
-  const tokenCount = db
-    .prepare(
-      `SELECT COUNT(*) as count FROM mulligan_tokens WHERE user_id = ? AND used_at IS NULL AND returned_at IS NULL`
-    )
-    .get(userId) as { count: number } | undefined;
-
-  res.json({
-    ...user,
-    is_admin: user.is_admin === 1,
-    is_restricted: user.is_restricted === 1,
-    profile,
-    tokens: tokens.map((t) => ({
-      ...t,
-      isUsed: !!t.used_at,
-      isReturned: !!t.returned_at,
-    })),
-    matches: matches.length,
-    blocks: blocks.length,
-    tokenCount: tokenCount?.count || 0,
-  });
 });
 
 // Restrict/unrestrict a user
