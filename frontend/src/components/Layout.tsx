@@ -1,8 +1,13 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import MaintenanceBanner from './MaintenanceBanner'
+import { ReactNode } from 'react'
 
-export default function Layout() {
+interface LayoutProps {
+  children?: ReactNode
+}
+
+export default function Layout({ children }: LayoutProps = {}) {
   // Always call hooks at the top level, before any conditional logic
   const { logout, isAdmin } = useAuth()
   const location = useLocation()
@@ -125,7 +130,7 @@ export default function Layout() {
       </nav>
       
       <main className="main-content">
-        <Outlet />
+        {children || <Outlet />}
       </main>
       
       <footer style={{
