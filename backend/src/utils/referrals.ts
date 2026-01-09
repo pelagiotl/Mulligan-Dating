@@ -20,7 +20,7 @@ export function generateReferralCode(): string {
 export async function getOrCreateReferralCode(userId: string): Promise<string> {
   // Check if user already has a referral code
   const userStmt = db.prepare("SELECT referral_code FROM users WHERE id = ?");
-  const user = await (userStmt.get(userId) as Promise<{ referral_code: string | null } | null>);
+  const user = await (userStmt.get([userId]) as Promise<{ referral_code: string | null } | null>);
 
   if (user?.referral_code) {
     return user.referral_code;
@@ -38,7 +38,7 @@ export async function getOrCreateReferralCode(userId: string): Promise<string> {
       code = uuidv4().substring(0, 8).toUpperCase().replace(/-/g, "");
     }
     const checkStmt = db.prepare("SELECT id FROM users WHERE referral_code = ?");
-    const existing = await (checkStmt.get(code) as Promise<any>);
+    const existing = await (checkStmt.get([code]) as Promise<any>);
     isUnique = !existing;
   } while (!isUnique && attempts < 10);
 
@@ -54,7 +54,7 @@ export async function getOrCreateReferralCode(userId: string): Promise<string> {
  */
 export async function getUserByReferralCode(code: string): Promise<string | null> {
   const stmt = db.prepare("SELECT id FROM users WHERE referral_code = ?");
-  const user = await (stmt.get(code) as Promise<{ id: string } | null>);
+  const user = await (stmt.get([code]) as Promise<{ id: string } | null>);
 
   return user?.id || null;
 }

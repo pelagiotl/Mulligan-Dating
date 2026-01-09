@@ -25,7 +25,7 @@ referralsRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
        WHERE r.referrer_id = ?
        ORDER BY r.created_at DESC`
     );
-    const referrals = await (referralsStmt.all(userId) as Promise<any[]>);
+    const referrals = await (referralsStmt.all([userId]) as Promise<any[]>);
 
     // Count total referrals and tokens earned
     const totalReferrals = referrals.length;
@@ -69,7 +69,7 @@ referralsRouter.get("/validate/:code", async (req, res) => {
 
   // Get referrer's name if available
   const profileStmt = db.prepare("SELECT display_name FROM profiles WHERE user_id = ?");
-  const profile = await (profileStmt.get(referrerId) as Promise<{ display_name: string } | null>);
+  const profile = await (profileStmt.get([referrerId]) as Promise<{ display_name: string } | null>);
 
   res.json({
     valid: true,
