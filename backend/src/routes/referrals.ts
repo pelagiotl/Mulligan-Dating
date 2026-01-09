@@ -12,20 +12,36 @@ export const referralsRouter = Router();
 referralsRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
+    console.log('📊 Fetching referrals for user:', userId);
 
     // Get or create referral code
-    const referralCode = await getOrCreateReferralCode(userId);
+    let referralCode: string;
+    try {
+      referralCode = await getOrCreateReferralCode(userId);
+      console.log('✅ Referral code obtained:', referralCode);
+    } catch (error) {
+      console.error('❌ Error getting referral code:', error);
+      throw new Error(`Failed to get referral code: ${error instanceof Error ? error.message : String(error)}`);
+    }
 
     // Get referral stats
-    const referralsStmt = db.prepare(
-      `SELECT r.*, u.email as referred_email, p.display_name as referred_name
-       FROM referrals r
-       LEFT JOIN users u ON u.id = r.referred_id
-       LEFT JOIN profiles p ON p.user_id = r.referred_id
-       WHERE r.referrer_id = ?
-       ORDER BY r.created_at DESC`
-    );
-    const referrals = await (referralsStmt.all([userId]) as Promise<any[]>);
+    let referrals: any[];
+    try {
+      const referralsStmt = db.prepare(
+        `SELECT r.*, u.email as referred_email, p.display_name as referred_name
+         FROM referrals r
+         LEFT JOIN users u ON u.id = r.referred_id
+         LEFT JOIN profiles p ON p.user_id = r.referred_id
+         WHERE r.referrer_id = ?
+         ORDER BY r.created_at DESC`
+      );
+      referrals = await (referralsStmt.all([userId]) as Promise<any[]>);
+      console.log('✅ Referrals fetched:', referrals.length);
+    } catch (error) {
+      console.error('❌ Error fetching referrals:', error);
+      console.error('Error details:', error instanceof Error ? error.stack : 'No stack');
+      throw new Error(`Failed to fetch referrals: ${error instanceof Error ? error.message : String(error)}`);
+    }
 
     // Count total referrals and tokens earned
     const totalReferrals = referrals.length;

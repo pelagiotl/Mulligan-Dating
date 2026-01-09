@@ -127,33 +127,78 @@ profileRouter.post('/', authenticateToken, rateLimitAPI, async (req: AuthRequest
 // Get current user's profile
 profileRouter.get('/', authenticateToken, async (req: AuthRequest, res) => {
   try {
-    const profileStmt = db.prepare('SELECT * FROM profiles WHERE user_id = ?');
-    const profile = await (profileStmt.get([req.userId]) as Promise<any>);
+    console.log('👤 Fetching profile for user:', req.userId);
+    
+    let profile: any;
+    try {
+      const profileStmt = db.prepare('SELECT * FROM profiles WHERE user_id = ?');
+      profile = await (profileStmt.get([req.userId]) as Promise<any>);
+      console.log('✅ Profile fetched:', profile ? 'Found' : 'Not found');
+    } catch (error) {
+      console.error('❌ Error fetching profile:', error);
+      throw new Error(`Failed to fetch profile: ${error instanceof Error ? error.message : String(error)}`);
+    }
     
     if (!profile) {
       return res.status(404).json({ error: 'Profile not found' });
     }
 
     // Get interests
-    const interestsStmt = db.prepare('SELECT * FROM interests WHERE profile_id = ?');
-    const interests = await (interestsStmt.all([profile.id]) as Promise<any[]>);
+    let interests: any[];
+    try {
+      const interestsStmt = db.prepare('SELECT * FROM interests WHERE profile_id = ?');
+      interests = await (interestsStmt.all([profile.id]) as Promise<any[]>);
+      console.log('✅ Interests fetched:', interests.length);
+    } catch (error) {
+      console.error('❌ Error fetching interests:', error);
+      interests = []; // Default to empty array
+    }
     
     // Get preferences
-    const preferencesStmt = db.prepare('SELECT * FROM preferences WHERE profile_id = ?');
-    const preferences = await (preferencesStmt.get([profile.id]) as Promise<any>);
+    let preferences: any = null;
+    try {
+      const preferencesStmt = db.prepare('SELECT * FROM preferences WHERE profile_id = ?');
+      preferences = await (preferencesStmt.get([profile.id]) as Promise<any>);
+      console.log('✅ Preferences fetched:', preferences ? 'Found' : 'Not found');
+    } catch (error) {
+      console.error('❌ Error fetching preferences:', error);
+      preferences = null; // Default to null
+    }
     
     // Get dealbreakers
-    const dealbreakersStmt = db.prepare('SELECT * FROM dealbreakers WHERE profile_id = ?');
-    const dealbreakers = await (dealbreakersStmt.all([profile.id]) as Promise<any[]>);
+    let dealbreakers: any[] = [];
+    try {
+      const dealbreakersStmt = db.prepare('SELECT * FROM dealbreakers WHERE profile_id = ?');
+      dealbreakers = await (dealbreakersStmt.all([profile.id]) as Promise<any[]>);
+      console.log('✅ Dealbreakers fetched:', dealbreakers.length);
+    } catch (error) {
+      console.error('❌ Error fetching dealbreakers:', error);
+      dealbreakers = []; // Default to empty array
+    }
     
     // Get partner qualities
-    const partnerQualitiesStmt = db.prepare('SELECT * FROM partner_qualities WHERE profile_id = ?');
-    const partnerQualities = await (partnerQualitiesStmt.all([profile.id]) as Promise<any[]>);
+    let partnerQualities: any[] = [];
+    try {
+      const partnerQualitiesStmt = db.prepare('SELECT * FROM partner_qualities WHERE profile_id = ?');
+      partnerQualities = await (partnerQualitiesStmt.all([profile.id]) as Promise<any[]>);
+      console.log('✅ Partner qualities fetched:', partnerQualities.length);
+    } catch (error) {
+      console.error('❌ Error fetching partner qualities:', error);
+      partnerQualities = []; // Default to empty array
+    }
     
     // Get lifestyle
-    const lifestyleStmt = db.prepare('SELECT * FROM lifestyle WHERE profile_id = ?');
-    const lifestyle = await (lifestyleStmt.get([profile.id]) as Promise<any>);
+    let lifestyle: any = null;
+    try {
+      const lifestyleStmt = db.prepare('SELECT * FROM lifestyle WHERE profile_id = ?');
+      lifestyle = await (lifestyleStmt.get([profile.id]) as Promise<any>);
+      console.log('✅ Lifestyle fetched:', lifestyle ? 'Found' : 'Not found');
+    } catch (error) {
+      console.error('❌ Error fetching lifestyle:', error);
+      lifestyle = null; // Default to null
+    }
 
+    console.log('✅ Profile data assembled successfully');
     res.json({ profile, interests, preferences, dealbreakers, partnerQualities, lifestyle });
   } catch (error) {
     console.error('Profile GET error:', error);
