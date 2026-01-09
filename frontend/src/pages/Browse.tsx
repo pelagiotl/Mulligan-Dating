@@ -72,12 +72,25 @@ export default function Browse() {
       }
     } catch (err: any) {
       // Check if error is about missing profile
-      const errorMessage = err?.message || err?.error || "Failed to load profiles";
-      if (errorMessage.includes("complete your profile") || errorMessage.includes("profile")) {
+      const errorMessage = err?.message || err?.error || String(err) || "Failed to load profiles";
+      const errorLower = errorMessage.toLowerCase();
+      
+      // Check for various profile-related error messages
+      if (
+        errorLower.includes("complete your profile") || 
+        errorLower.includes("profile") ||
+        errorLower.includes("please complete") ||
+        err?.status === 400 ||
+        (err?.response?.data?.error && err.response.data.error.toLowerCase().includes("profile"))
+      ) {
         // Don't set error, we'll show a helpful message instead
+        setCurrentProfile(null);
         setLoading(false);
         return;
       }
+      
+      // For other errors, show them
+      console.error('Browse error:', err);
       setError(errorMessage);
     } finally {
       setLoading(false);
