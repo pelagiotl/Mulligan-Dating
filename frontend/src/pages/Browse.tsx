@@ -210,22 +210,28 @@ export default function Browse() {
       </div>
 
       {needsProfile ? (
-        <div className="no-profiles">
-          <div className="no-profiles-icon">✨</div>
-          <h2>Create Your Profile to Start Matching</h2>
-          <p>Complete your profile to start discovering amazing people who share your interests and values!</p>
-          <button 
-            onClick={() => navigate("/create-profile")}
-            className="browse-connect-button immersive-button"
-            style={{ marginTop: '20px', alignSelf: 'center' }}
-          >
-            <span className="button-glow"></span>
-            <span className="button-shine"></span>
-            <span className="button-content">
-              Create Profile <span className="rocket-emoji">🚀</span>
-            </span>
-          </button>
-        </div>
+        <>
+          <div className="profile-arrow-indicator">
+            <div className="arrow-line"></div>
+            <div className="arrow-head">↓</div>
+          </div>
+          <div className="no-profiles">
+            <div className="no-profiles-icon">✨</div>
+            <h2>Create Your Profile to Start Matching</h2>
+            <p>Complete your profile to start discovering amazing people who share your interests and values!</p>
+            <button 
+              onClick={() => navigate("/create-profile")}
+              className="browse-connect-button immersive-button"
+              style={{ marginTop: '20px', alignSelf: 'center' }}
+            >
+              <span className="button-glow"></span>
+              <span className="button-shine"></span>
+              <span className="button-content">
+                Create Profile <span className="rocket-emoji">🚀</span>
+              </span>
+            </button>
+          </div>
+        </>
       ) : !currentProfile && !loading ? (
         <div className="no-profiles">
           <div className="no-profiles-icon">🔍</div>
