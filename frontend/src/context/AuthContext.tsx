@@ -99,10 +99,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         status: error?.status,
         name: error?.name
       })
+      
+      // Clear invalid token and reset state
       localStorage.removeItem('token')
       setUser(null)
       setProfile(null)
-      throw error // Re-throw so caller can handle it
+      setLoading(false)
+      
+      // Don't re-throw in initial load - just log and continue
+      // This prevents white screen if token is invalid
     } finally {
       setLoading(false)
     }
