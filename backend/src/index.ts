@@ -129,7 +129,7 @@ app.get("/api/admin/check-admin", async (req, res) => {
     }
     
     const userStmt = db.prepare("SELECT id, email, is_admin FROM users WHERE email = ?");
-    const user = await (userStmt.get(email) as Promise<{ id: string; email: string; is_admin: number } | null>);
+    const user = await (userStmt.get([email]) as Promise<{ id: string; email: string; is_admin: number } | null>);
     
     if (!user) {
       return res.status(404).json({ error: "User not found with that email" });
@@ -154,7 +154,7 @@ app.post("/api/admin/force-admin", async (req, res) => {
     }
 
     const userStmt = db.prepare("SELECT id, email, is_admin FROM users WHERE email = ?");
-    const user = await (userStmt.get(email) as Promise<{ id: string; email: string; is_admin: number } | null>);
+    const user = await (userStmt.get([email]) as Promise<{ id: string; email: string; is_admin: number } | null>);
     
     if (!user) {
       return res.status(404).json({ error: "User not found with that email" });
@@ -181,10 +181,10 @@ app.post("/api/admin/force-admin", async (req, res) => {
 app.use("/api/admin", adminRouter);
 
 // Health check
-app.get("/api/health", (req, res) => {
+app.get("/api/health", async (req, res) => {
   try {
     // Test database connection
-    const test = db.prepare("SELECT 1 as test").get();
+    const test = await (db.prepare("SELECT 1 as test").get([]) as Promise<any>);
     res.json({ 
       status: "ok", 
       message: "Mulligan API is running 💘",
