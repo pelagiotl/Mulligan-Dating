@@ -326,7 +326,7 @@ profileRouter.put('/partner-qualities', authenticateToken, rateLimitAPI, async (
     }
     
     const profileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
-    const profile = await (profileStmt.get(req.userId) as Promise<{ id: string } | undefined>);
+    const profile = await (profileStmt.get([req.userId]) as Promise<{ id: string } | undefined>);
     
     if (!profile) {
       return res.status(404).json({ error: 'Profile not found' });
@@ -334,7 +334,7 @@ profileRouter.put('/partner-qualities', authenticateToken, rateLimitAPI, async (
 
     // Delete existing qualities
     const deleteStmt = db.prepare('DELETE FROM partner_qualities WHERE profile_id = ?');
-    await (deleteStmt.run(profile.id) as Promise<any>);
+    await (deleteStmt.run([profile.id]) as Promise<any>);
 
     // Insert new qualities (sanitized)
     const insertStmt = db.prepare('INSERT INTO partner_qualities (id, profile_id, quality, importance) VALUES (?, ?, ?, ?)');
@@ -365,14 +365,14 @@ profileRouter.put('/lifestyle', authenticateToken, async (req: AuthRequest, res)
   };
   
   try {
-    const profile = await (db.prepare('SELECT id FROM profiles WHERE user_id = ?').get(req.userId) as Promise<{ id: string } | undefined>);
+    const profile = await (db.prepare('SELECT id FROM profiles WHERE user_id = ?').get([req.userId]) as Promise<{ id: string } | undefined>);
     
     if (!profile) {
       return res.status(404).json({ error: 'Profile not found' });
     }
 
     // Check if lifestyle record exists
-    const existing = await (db.prepare('SELECT id FROM lifestyle WHERE profile_id = ?').get(profile.id) as Promise<{ id: string } | undefined>);
+    const existing = await (db.prepare('SELECT id FROM lifestyle WHERE profile_id = ?').get([profile.id]) as Promise<{ id: string } | undefined>);
     
     if (existing) {
       // Update existing
