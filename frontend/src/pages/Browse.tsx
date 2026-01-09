@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../utils/api";
+import { useAuth } from "../context/AuthContext";
 import MatchCelebration from "../components/MatchCelebration";
 import TokenDisplay from "../components/TokenDisplay";
 
@@ -27,6 +28,7 @@ interface Profile {
 }
 
 export default function Browse() {
+  const { profile: userProfile } = useAuth();
   const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true); // Used in fetchProfile
@@ -221,16 +223,25 @@ export default function Browse() {
   }
 
   // Check if user needs to create profile
-  // Show create profile button if no profile AND no error (or error is profile-related)
-  // If there's an error and no profile, assume it's a profile issue and show create button
-  const needsProfile = !currentProfile && !loading;
+  // Use AuthContext profile state as the source of truth
+  // If userProfile exists in AuthContext, they have a profile
+  const needsProfile = !userProfile && !loading;
   
   // If there's an error but we don't have a profile, treat it as a profile creation issue
   // This is a fallback to ensure users can always create a profile
-  if (error && !currentProfile && !loading) {
+  if (error && !userProfile && !loading) {
     console.log('Error detected but no profile - showing create profile option:', error);
     // Don't return error, show create profile button instead
   }
+  
+  // If user just created a profile, wait a moment for state to update
+  useEffect(() => {
+    if (userProfile && needsProfile) {
+      // Profile exists in AuthContext but needsProfile is true - refresh the browse
+      console.log('Profile exists in AuthContext, refreshing browse...');
+      fetchProfile();
+    }
+  }, [userProfile]);
 
   return (
     <div>

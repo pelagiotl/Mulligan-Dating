@@ -204,9 +204,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshProfile = async () => {
     try {
       const data: any = await api.get('/profile')
-      setProfile(data.profile)
-    } catch {
-      // Profile might not exist yet
+      if (data.profile) {
+        setProfile(data.profile)
+        console.log('Profile refreshed:', data.profile)
+      } else {
+        setProfile(null)
+      }
+    } catch (error) {
+      console.error('Failed to refresh profile:', error)
+      // Profile might not exist yet, set to null
+      setProfile(null)
     }
   }
 

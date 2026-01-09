@@ -322,9 +322,16 @@ export default function CreateProfile() {
         worksOut
       })
 
+      // Refresh profile to ensure it's loaded
       await refreshProfile()
+      
+      // Small delay to ensure profile is fully saved and state is updated
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      // Navigate to browse - the profile should now exist
       navigate('/browse')
     } catch (err) {
+      console.error('Profile creation error:', err)
       setError(err instanceof Error ? err.message : 'Failed to create profile')
     } finally {
       setLoading(false)
