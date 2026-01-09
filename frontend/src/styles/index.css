@@ -5824,6 +5824,34 @@ img {
   border-bottom: 2px solid var(--border-light);
 }
 
+.settings-section-title span {
+  font-size: 1.75rem;
+  display: inline-block;
+  animation: emojiFloat 2.5s ease-in-out infinite;
+  transform-origin: center;
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+.settings-section-title span:nth-child(1) {
+  animation-delay: 0s;
+}
+
+@keyframes emojiFloat {
+  0%, 100% {
+    transform: translateY(0) translateZ(0);
+  }
+  50% {
+    transform: translateY(-5px) translateZ(0);
+  }
+}
+
+.settings-section-title:hover span {
+  animation-duration: 1.2s;
+  transform: scale(1.1) translateZ(0);
+}
+
 .settings-info {
   display: grid;
   gap: var(--space-4);
