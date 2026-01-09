@@ -37,6 +37,7 @@ interface PreferencesRow {
   max_distance: number;
   intent: number;
   values: string | null;
+  relationship_type: string | null;
 }
 
 interface MatchCandidate {
@@ -665,11 +666,8 @@ export async function generateWeeklyMatches(userId: string): Promise<{
       continue; // Too far
     }
 
-    // Check intent compatibility (within 2 points)
+    // Calculate intent difference (no longer a hard filter - just for scoring)
     const intentDiff = Math.abs(userPrefs.intent - candidate.intent);
-    if (intentDiff > 2) {
-      continue; // Intent mismatch
-    }
 
     // Check shared values (at least 3) - already pre-filtered for 2+, now check for 3+
     const sharedValues = userValues.filter((v) =>
@@ -736,13 +734,13 @@ export async function generateWeeklyMatches(userId: string): Promise<{
     const lifestyleScore = (lifestyleMatch / 10) * 1.5; // 15% weight
     
     // Intent with sigmoid for smooth matching (exact match = 1, 1 diff = 0.7, 2 diff = 0.3)
-    const intentScore = sigmoid(2 - intentDiff, 0, 1.5) * 1; // 10% weight
+    const intentScore = sigmoid(2 - intentDiff, 0, 1.5) * 0.8; // 8% weight
     
     // Distance uses exponential decay (already calculated above)
-    const distanceScoreWeighted = (distanceScore / 10) * 1; // 10% weight
+    const distanceScoreWeighted = (distanceScore / 10) * 0.6; // 6% weight
 
     // Final score with all components
-    let totalScore = valuesScore + interestsScore + qualitiesScore + lookingForScore + lifestyleScore + intentScore + distanceScoreWeighted;
+    let totalScore = valuesScore + interestsScore + qualitiesScore + lookingForScore + lifestyleScore + intentScore + distanceScoreWeighted + relationshipTypeScoreWeighted;
     
     // 10/10 FEATURES: Apply boosts
     
@@ -781,6 +779,7 @@ export async function generateWeeklyMatches(userId: string): Promise<{
       partnerQualitiesMatch,
       lookingForMatch,
       intentDiff,
+      relationshipTypeMatch: relationshipTypeScore,
       distanceScore,
       breakdown: {
         values: valuesScore,
@@ -788,6 +787,7 @@ export async function generateWeeklyMatches(userId: string): Promise<{
         qualities: qualitiesScore,
         lookingFor: lookingForScore,
         intent: intentScore,
+        relationshipType: relationshipTypeScoreWeighted,
         distance: distanceScoreWeighted,
       },
     });
