@@ -162,6 +162,8 @@ export async function initDatabase() {
       password ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
       is_premium ${usePostgres ? 'INT' : 'INTEGER'} DEFAULT 0,
       referral_code ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} UNIQUE,
+      tos_accepted_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'},
+      privacy_accepted_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'},
       created_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -201,6 +203,16 @@ export async function initDatabase() {
   }
   try {
     await execSQL(`ALTER TABLE users ADD COLUMN phone_verified ${usePostgres ? 'INT' : 'INTEGER'} DEFAULT 0`);
+  } catch (e) {
+    // Column already exists, ignore
+  }
+  try {
+    await execSQL(`ALTER TABLE users ADD COLUMN tos_accepted_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'}`);
+  } catch (e) {
+    // Column already exists, ignore
+  }
+  try {
+    await execSQL(`ALTER TABLE users ADD COLUMN privacy_accepted_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'}`);
   } catch (e) {
     // Column already exists, ignore
   }

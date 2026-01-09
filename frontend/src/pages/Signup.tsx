@@ -12,6 +12,8 @@ export default function Signup() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [validatingCode, setValidatingCode] = useState(false)
+  const [acceptTerms, setAcceptTerms] = useState(false)
+  const [acceptPrivacy, setAcceptPrivacy] = useState(false)
   const { signup } = useAuth()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -67,10 +69,20 @@ export default function Signup() {
       return
     }
 
+    if (!acceptTerms) {
+      setError('You must accept the Terms of Service')
+      return
+    }
+
+    if (!acceptPrivacy) {
+      setError('You must accept the Privacy Policy')
+      return
+    }
+
     setLoading(true)
 
     try {
-      await signup(email, password, referralCode || undefined)
+      await signup(email, password, referralCode || undefined, acceptTerms, acceptPrivacy)
       navigate('/create-profile')
     } catch (err: any) {
       setError(err.message || 'Failed to create account')
@@ -169,10 +181,48 @@ export default function Signup() {
               </p>
             </div>
 
+            <div className="form-group">
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-2)' }}>
+                <input
+                  type="checkbox"
+                  id="acceptTerms"
+                  checked={acceptTerms}
+                  onChange={(e) => setAcceptTerms(e.target.checked)}
+                  required
+                  style={{ marginTop: '4px', cursor: 'pointer' }}
+                />
+                <label htmlFor="acceptTerms" style={{ cursor: 'pointer', fontSize: '0.9rem', lineHeight: '1.5' }}>
+                  I agree to the{' '}
+                  <Link to="/terms" target="_blank" style={{ color: 'var(--color-rose-600)', textDecoration: 'underline' }}>
+                    Terms of Service
+                  </Link>
+                </label>
+              </div>
+            </div>
+
+            <div className="form-group">
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-2)' }}>
+                <input
+                  type="checkbox"
+                  id="acceptPrivacy"
+                  checked={acceptPrivacy}
+                  onChange={(e) => setAcceptPrivacy(e.target.checked)}
+                  required
+                  style={{ marginTop: '4px', cursor: 'pointer' }}
+                />
+                <label htmlFor="acceptPrivacy" style={{ cursor: 'pointer', fontSize: '0.9rem', lineHeight: '1.5' }}>
+                  I agree to the{' '}
+                  <Link to="/privacy" target="_blank" style={{ color: 'var(--color-rose-600)', textDecoration: 'underline' }}>
+                    Privacy Policy
+                  </Link>
+                </label>
+              </div>
+            </div>
+
             <button 
               type="submit" 
               className="btn btn-primary w-full"
-              disabled={loading}
+              disabled={loading || !acceptTerms || !acceptPrivacy}
             >
               {loading ? 'Creating account...' : 'Create account'}
             </button>

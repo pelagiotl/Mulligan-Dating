@@ -126,6 +126,35 @@ export default function Layout() {
       <main className="main-content">
         <Outlet />
       </main>
+      
+      <footer style={{
+        padding: 'var(--space-6) var(--space-8)',
+        textAlign: 'center',
+        borderTop: '1px solid var(--border-light)',
+        background: 'var(--bg-secondary)',
+        marginTop: 'auto'
+      }}>
+        <div style={{
+          maxWidth: '1200px',
+          margin: '0 auto',
+          display: 'flex',
+          justifyContent: 'center',
+          gap: 'var(--space-6)',
+          flexWrap: 'wrap',
+          fontSize: '0.9rem',
+          color: 'var(--text-secondary)'
+        }}>
+          <Link to="/terms" style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}>
+            Terms of Service
+          </Link>
+          <span>•</span>
+          <Link to="/privacy" style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}>
+            Privacy Policy
+          </Link>
+          <span>•</span>
+          <span>© {new Date().getFullYear()} Mulligan Dating</span>
+        </div>
+      </footer>
     </div>
   )
 }

@@ -28,7 +28,9 @@ const signupSchema = z.object({
     ),
   referralCode: z.string()
     .max(50, 'Referral code must be at most 50 characters')
-    .optional()
+    .optional(),
+  acceptTerms: z.boolean().refine(val => val === true, 'You must accept the Terms of Service'),
+  acceptPrivacy: z.boolean().refine(val => val === true, 'You must accept the Privacy Policy')
 });
 
 const loginSchema = z.object({
@@ -62,9 +64,10 @@ authRouter.post('/signup', rateLimitAuth, async (req, res) => {
     // Hash password and create user
     const hashedPassword = await bcrypt.hash(password, 12);
     const userId = uuidv4();
+    const now = new Date().toISOString();
     
-    const insertStmt = db.prepare('INSERT INTO users (id, email, password) VALUES (?, ?, ?)');
-    await (insertStmt.run([userId, email, hashedPassword]) as Promise<any>);
+    const insertStmt = db.prepare('INSERT INTO users (id, email, password, tos_accepted_at, privacy_accepted_at) VALUES (?, ?, ?, ?, ?)');
+    await (insertStmt.run([userId, email, hashedPassword, now, now]) as Promise<any>);
 
     // Generate referral code for the new user
     const newUserReferralCode = await getOrCreateReferralCode(userId);

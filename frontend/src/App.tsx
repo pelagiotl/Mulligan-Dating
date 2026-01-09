@@ -10,6 +10,8 @@ import MyProfile from './pages/MyProfile'
 import Referrals from './pages/Referrals'
 import Settings from './pages/Settings'
 import Admin from './pages/Admin'
+import Terms from './pages/Terms'
+import Privacy from './pages/Privacy'
 import Layout from './components/Layout'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -56,6 +58,8 @@ export default function App() {
       <Route path="/" element={<PublicRoute><Landing /></PublicRoute>} />
       <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
       <Route path="/signup" element={<PublicRoute><Signup /></PublicRoute>} />
+      <Route path="/terms" element={<Terms />} />
+      <Route path="/privacy" element={<Privacy />} />
       <Route element={<Layout />}>
         <Route path="/create-profile" element={<PrivateRoute><CreateProfile /></PrivateRoute>} />
         <Route path="/browse" element={<PrivateRoute><Browse /></PrivateRoute>} />
