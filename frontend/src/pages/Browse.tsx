@@ -248,6 +248,17 @@ export default function Browse() {
             <div className="arrow-line"></div>
             <div className="arrow-head">↓</div>
           </div>
+          {error && (
+            <div style={{ 
+              textAlign: 'center', 
+              marginTop: 'var(--space-4)', 
+              color: 'var(--text-secondary)',
+              fontSize: '0.9rem',
+              padding: '0 var(--space-4)'
+            }}>
+              {error}
+            </div>
+          )}
           <div style={{ display: 'flex', justifyContent: 'center', marginTop: '20px' }}>
             <button 
               onClick={() => navigate("/create-profile")}
