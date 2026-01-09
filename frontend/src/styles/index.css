@@ -3561,7 +3561,45 @@ img {
   overflow-y: auto;
   border: 1px solid rgba(255, 255, 255, 0.3);
   position: relative;
-  animation: fadeInLeft 0.6s ease-out;
+  animation: fadeInLeft 0.6s ease-out, sidebarBreathe 4s ease-in-out infinite;
+  overflow: hidden;
+}
+
+.matches-sidebar::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(244, 63, 94, 0.05) 0%, transparent 70%);
+  animation: sidebarGlow 6s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+@keyframes sidebarBreathe {
+  0%, 100% {
+    box-shadow: 
+      0 20px 60px rgba(0, 0, 0, 0.1),
+      0 0 0 1px rgba(255, 255, 255, 0.2) inset;
+  }
+  50% {
+    box-shadow: 
+      0 25px 70px rgba(244, 63, 94, 0.15),
+      0 0 0 1px rgba(255, 255, 255, 0.3) inset;
+  }
+}
+
+@keyframes sidebarGlow {
+  0%, 100% {
+    opacity: 0.3;
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: translate(20px, -20px) scale(1.1);
+  }
 }
 
 .matches-sidebar::-webkit-scrollbar {
@@ -3584,7 +3622,11 @@ img {
 .matches-title {
   font-size: 1.75rem;
   font-weight: 700;
-  background: linear-gradient(135deg, var(--color-rose-600), #d91a4a);
+  background: linear-gradient(135deg, 
+    var(--color-rose-600) 0%, 
+    #d91a4a 50%,
+    var(--color-rose-600) 100%);
+  background-size: 200% 200%;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -3594,6 +3636,8 @@ img {
   font-family: var(--font-display);
   letter-spacing: -0.5px;
   position: relative;
+  animation: titleGradientShift 3s ease infinite;
+  filter: drop-shadow(0 2px 8px rgba(244, 63, 94, 0.2));
 }
 
 .matches-title::after {
@@ -3605,6 +3649,27 @@ img {
   height: 2px;
   background: linear-gradient(90deg, var(--color-rose-500), transparent);
   border-radius: var(--radius-full);
+  animation: titleUnderline 2s ease-in-out infinite;
+}
+
+@keyframes titleGradientShift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes titleUnderline {
+  0%, 100% {
+    width: 60px;
+    opacity: 0.8;
+  }
+  50% {
+    width: 100px;
+    opacity: 1;
+  }
 }
 
 .no-matches {
@@ -3648,6 +3713,18 @@ img {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
   transform-style: preserve-3d;
   perspective: 1000px;
+  animation: matchItemFadeIn 0.5s ease-out;
+}
+
+@keyframes matchItemFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 /* Shimmer effect on match cards */
@@ -3690,6 +3767,19 @@ img {
     0 0 0 1px rgba(244, 63, 94, 0.1) inset,
     0 0 40px rgba(244, 63, 94, 0.1);
   transform: translateY(-3px) scale(1.02) rotateX(2deg);
+  animation: matchItemHover 0.3s ease-out;
+}
+
+@keyframes matchItemHover {
+  0% {
+    transform: translateY(0) scale(1) rotateX(0deg);
+  }
+  50% {
+    transform: translateY(-2px) scale(1.01) rotateX(1deg);
+  }
+  100% {
+    transform: translateY(-3px) scale(1.02) rotateX(2deg);
+  }
 }
 
 .match-item:hover::before {
@@ -3994,10 +4084,24 @@ img {
   justify-content: space-between;
   padding: var(--space-5) var(--space-6);
   border-bottom: 1px solid rgba(244, 63, 94, 0.1);
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(251, 113, 133, 0.03));
+  background: linear-gradient(135deg, 
+    rgba(255, 255, 255, 0.9) 0%, 
+    rgba(251, 113, 133, 0.03) 50%,
+    rgba(255, 255, 255, 0.9) 100%);
+  background-size: 200% 200%;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   position: relative;
+  animation: chatHeaderGradient 4s ease infinite;
+}
+
+@keyframes chatHeaderGradient {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
 }
 
 .chat-header::after {
