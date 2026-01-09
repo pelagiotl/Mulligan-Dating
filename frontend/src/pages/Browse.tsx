@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../utils/api";
 import { useAuth } from "../context/AuthContext";
@@ -43,9 +43,9 @@ export default function Browse() {
     // Clear error state when component mounts or offset changes
     setError("");
     fetchProfile();
-  }, [offset]);
+  }, [fetchProfile]);
 
-  const fetchProfile = async () => {
+  const fetchProfile = useCallback(async () => {
     try {
       setLoading(true);
       const data = await api.get<{ profile: Profile | null; hasMore: boolean; offset: number; total: number }>(`/users/browse?offset=${offset}`);
@@ -117,7 +117,7 @@ export default function Browse() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [offset]);
 
   const playConnectSound = () => {
     try {
@@ -241,7 +241,7 @@ export default function Browse() {
       console.log('Profile exists in AuthContext, refreshing browse...');
       fetchProfile();
     }
-  }, [userProfile]);
+  }, [userProfile, loading, fetchProfile]);
 
   return (
     <div>
