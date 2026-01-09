@@ -2967,13 +2967,13 @@ img {
   flex-direction: column;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-6) var(--space-8);
+  padding: var(--space-5) var(--space-8);
   background: linear-gradient(135deg, 
     rgba(255, 255, 255, 0.95) 0%, 
     rgba(255, 245, 245, 0.95) 100%);
   backdrop-filter: blur(10px);
   border-radius: var(--radius-2xl);
-  margin-top: var(--space-6);
+  margin-bottom: var(--space-6);
   text-align: center;
   border: 2px solid rgba(244, 63, 94, 0.2);
   box-shadow: 
@@ -2981,6 +2981,9 @@ img {
     0 0 0 1px rgba(255, 255, 255, 0.5) inset;
   position: relative;
   overflow: hidden;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .token-display::before {

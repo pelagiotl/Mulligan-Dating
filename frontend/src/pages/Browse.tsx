@@ -202,11 +202,11 @@ export default function Browse() {
   return (
     <div>
       <div className="browse-header">
+        <TokenDisplay />
         <h1 className="browse-title">Discover People</h1>
         <p className="browse-subtitle">
           Find someone who shares your interests and values
         </p>
-        <TokenDisplay />
       </div>
 
       {needsProfile ? (
