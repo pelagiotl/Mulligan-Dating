@@ -62,13 +62,15 @@ export default function App() {
       <Route path="/signup" element={<PublicRoute><Signup /></PublicRoute>} />
       <Route path="/terms" element={<Terms />} />
       <Route path="/privacy" element={<Privacy />} />
-      <Route path="/create-profile" element={<PrivateRoute><Layout><CreateProfile /></Layout></PrivateRoute>} />
-      <Route path="/browse" element={<PrivateRoute><Layout><Browse /></Layout></PrivateRoute>} />
-      <Route path="/matches" element={<PrivateRoute><Layout><Matches /></Layout></PrivateRoute>} />
-      <Route path="/profile" element={<PrivateRoute><Layout><MyProfile /></Layout></PrivateRoute>} />
-      <Route path="/referrals" element={<PrivateRoute><Layout><Referrals /></Layout></PrivateRoute>} />
-      <Route path="/settings" element={<PrivateRoute><Layout><Settings /></Layout></PrivateRoute>} />
-      <Route path="/admin" element={<AdminRoute><Layout><Admin /></Layout></AdminRoute>} />
+      <Route element={<Layout />}>
+        <Route path="/create-profile" element={<PrivateRoute><CreateProfile /></PrivateRoute>} />
+        <Route path="/browse" element={<PrivateRoute><Browse /></PrivateRoute>} />
+        <Route path="/matches" element={<PrivateRoute><Matches /></PrivateRoute>} />
+        <Route path="/profile" element={<PrivateRoute><MyProfile /></PrivateRoute>} />
+        <Route path="/referrals" element={<PrivateRoute><Referrals /></PrivateRoute>} />
+        <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
+        <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
+      </Route>
     </Routes>
   )
 }
