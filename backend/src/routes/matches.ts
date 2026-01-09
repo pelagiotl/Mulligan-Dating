@@ -4,6 +4,7 @@ import { db } from "../database.js";
 import { authenticateToken, AuthRequest } from "../middleware/auth.js";
 import { generateWeeklyMatches } from "../services/matching.js";
 import { recordSuccessSignal } from "../utils/successTracking.js";
+import { rateLimitAPI } from "../middleware/security.js";
 
 export const matchesRouter = Router();
 
