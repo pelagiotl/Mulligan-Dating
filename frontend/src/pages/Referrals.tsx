@@ -25,6 +25,7 @@ export default function Referrals() {
 
   useEffect(() => {
     // Reset state when component mounts
+    setError('');
     setLoading(true);
     fetchReferrals();
 
@@ -34,7 +35,10 @@ export default function Referrals() {
         abortControllerRef.current.abort();
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const [error, setError] = useState<string>('');
 
   const fetchReferrals = async () => {
     try {
@@ -45,6 +49,9 @@ export default function Referrals() {
 
       // Create new abort controller for this request
       abortControllerRef.current = new AbortController();
+
+      // Reset error state
+      setError('');
 
       const referralData = await api.get<ReferralData>("/referrals");
       
@@ -59,13 +66,16 @@ export default function Referrals() {
         referralData.referralLink = `${window.location.origin}${url.pathname}${url.search}`;
       }
       setData(referralData);
+      setError('');
     } catch (err: any) {
       // Ignore aborted requests
       if (err?.name === 'AbortError' || abortControllerRef.current?.signal.aborted) {
         return;
       }
       console.error("Failed to fetch referrals:", err);
-      // Keep loading false so error state shows
+      const errorMessage = err?.message || err?.error || 'Failed to load referral data';
+      setError(errorMessage);
+      setData(null);
     } finally {
       if (!abortControllerRef.current?.signal.aborted) {
         setLoading(false);
@@ -166,11 +176,21 @@ export default function Referrals() {
     );
   }
 
-  if (!data) {
+  if (error || (!data && !loading)) {
     return (
       <div className="no-profiles">
         <div className="no-profiles-icon">😕</div>
-        <p>Failed to load referral data</p>
+        <p>{error || 'Failed to load referral data'}</p>
+        <button 
+          onClick={() => {
+            setError('');
+            setLoading(true);
+            fetchReferrals();
+          }}
+          className="btn btn-primary mt-4"
+        >
+          Try Again
+        </button>
       </div>
     );
   }
