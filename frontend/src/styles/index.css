@@ -3016,15 +3016,17 @@ img {
 
 .profile-detail-title span {
   font-size: 1.75rem;
-  filter: drop-shadow(0 2px 4px rgba(244, 63, 94, 0.2));
   display: inline-block;
-  animation: emojiFloat 3s ease-in-out infinite;
+  animation: emojiFloat 2.5s ease-in-out infinite;
   transform-origin: center;
   -webkit-text-fill-color: initial;
   background: none;
   -webkit-background-clip: initial;
   background-clip: initial;
   color: inherit;
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-font-smoothing: antialiased;
 }
 
 .profile-detail-title span:nth-child(1) {
@@ -3037,26 +3039,16 @@ img {
 
 @keyframes emojiFloat {
   0%, 100% {
-    transform: translateY(0) rotate(0deg) scale(1);
-    filter: drop-shadow(0 2px 4px rgba(244, 63, 94, 0.2));
-  }
-  25% {
-    transform: translateY(-4px) rotate(-5deg) scale(1.05);
-    filter: drop-shadow(0 4px 8px rgba(244, 63, 94, 0.3));
+    transform: translateY(0) translateZ(0);
   }
   50% {
-    transform: translateY(-6px) rotate(0deg) scale(1.1);
-    filter: drop-shadow(0 6px 12px rgba(244, 63, 94, 0.4));
-  }
-  75% {
-    transform: translateY(-4px) rotate(5deg) scale(1.05);
-    filter: drop-shadow(0 4px 8px rgba(244, 63, 94, 0.3));
+    transform: translateY(-5px) translateZ(0);
   }
 }
 
 .profile-detail-title:hover span {
-  animation-duration: 1.5s;
-  transform: scale(1.15) rotate(10deg);
+  animation-duration: 1.2s;
+  transform: scale(1.1) translateZ(0);
 }
 
 .profile-lifestyle {
