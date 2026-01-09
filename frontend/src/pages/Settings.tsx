@@ -133,7 +133,7 @@ export default function Settings() {
     <div className="settings-page">
       <div className="settings-container">
         <div className="settings-header">
-          <h1 className="page-title">⚙️ Settings</h1>
+          <h1 className="page-title"><span>⚙️</span> Settings</h1>
           <p className="page-subtitle">Manage your account preferences and security</p>
         </div>
 
@@ -147,11 +147,11 @@ export default function Settings() {
           </h2>
           <div className="settings-info">
             <div className="info-item">
-              <label>📧 Email</label>
+              <label data-emoji="📧">📧 Email</label>
               <span>{settings?.email}</span>
             </div>
             <div className="info-item">
-              <label>🎉 Member Since</label>
+              <label data-emoji="🎉">🎉 Member Since</label>
               <span>
                 {settings?.createdAt
                   ? new Date(settings.createdAt).toLocaleDateString('en-US', {
@@ -163,7 +163,7 @@ export default function Settings() {
               </span>
             </div>
             <div className="info-item">
-              <label>🟢 Last Active</label>
+              <label data-emoji="🟢">🟢 Last Active</label>
               <span>
                 {settings?.lastActiveAt
                   ? new Date(settings.lastActiveAt).toLocaleString()
