@@ -18,8 +18,12 @@ export default function Login() {
     setError('')
     setLoading(false)
     // If already authenticated, redirect to browse
+    // Add a small delay to ensure state has fully updated after logout
     if (isAuthenticated) {
-      navigate('/browse')
+      const timer = setTimeout(() => {
+        navigate('/browse')
+      }, 100)
+      return () => clearTimeout(timer)
     }
   }, [isAuthenticated, navigate])
 
