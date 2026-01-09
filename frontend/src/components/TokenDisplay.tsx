@@ -58,7 +58,7 @@ export default function TokenDisplay() {
       )}
 
       <p className="token-info">
-        Use tokens to connect with people. Get 3 new tokens each week! (Max 3 at a time)
+        Use tokens to connect with people. Get 3 new tokens each week!
       </p>
     </div>
   );
