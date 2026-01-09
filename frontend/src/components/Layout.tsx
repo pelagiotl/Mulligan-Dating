@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext'
 import MaintenanceBanner from './MaintenanceBanner'
 
 export default function Layout() {
+  // Always call hooks at the top level, before any conditional logic
   const { logout, isAdmin } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
