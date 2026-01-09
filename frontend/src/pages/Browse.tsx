@@ -222,7 +222,7 @@ export default function Browse() {
             <span className="button-glow"></span>
             <span className="button-shine"></span>
             <span className="button-content">
-              Create Profile 🚀
+              Create Profile <span className="rocket-emoji">🚀</span>
             </span>
           </button>
         </div>
