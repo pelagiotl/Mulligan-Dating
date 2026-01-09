@@ -35,122 +35,127 @@ interface ProfileRow {
 }
 
 // Get all matches for current user
-matchesRouter.get("/", authenticateToken, (req: AuthRequest, res) => {
-  const userId = req.userId!;
+matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
 
-  const matches = db
-    .prepare(
-      `SELECT m.*, 
-              p1.display_name as user1_name, p1.age as user1_age, p1.bio as user1_bio, 
-              p1.photo_url as user1_photo, p1.gender as user1_gender, p1.location as user1_location,
-              p2.display_name as user2_name, p2.age as user2_age, p2.bio as user2_bio,
-              p2.photo_url as user2_photo, p2.gender as user2_gender, p2.location as user2_location,
-              u1.last_active_at as user1_last_active, u2.last_active_at as user2_last_active
-       FROM matches m
-       LEFT JOIN profiles p1 ON p1.user_id = m.user1_id
-       LEFT JOIN profiles p2 ON p2.user_id = m.user2_id
-       LEFT JOIN users u1 ON u1.id = m.user1_id
-       LEFT JOIN users u2 ON u2.id = m.user2_id
-       WHERE (m.user1_id = ? OR m.user2_id = ?)
-       AND m.stage != 'expired'
-       ORDER BY m.created_at DESC`
-    )
-    .all(userId, userId) as any[];
+    const matches = await (db
+      .prepare(
+        `SELECT m.*, 
+                p1.display_name as user1_name, p1.age as user1_age, p1.bio as user1_bio, 
+                p1.photo_url as user1_photo, p1.gender as user1_gender, p1.location as user1_location,
+                p2.display_name as user2_name, p2.age as user2_age, p2.bio as user2_bio,
+                p2.photo_url as user2_photo, p2.gender as user2_gender, p2.location as user2_location,
+                u1.last_active_at as user1_last_active, u2.last_active_at as user2_last_active
+         FROM matches m
+         LEFT JOIN profiles p1 ON p1.user_id = m.user1_id
+         LEFT JOIN profiles p2 ON p2.user_id = m.user2_id
+         LEFT JOIN users u1 ON u1.id = m.user1_id
+         LEFT JOIN users u2 ON u2.id = m.user2_id
+         WHERE (m.user1_id = ? OR m.user2_id = ?)
+         AND m.stage != 'expired'
+         ORDER BY m.created_at DESC`
+      )
+      .all([userId, userId]) as Promise<any[]>);
 
-  // Format matches with appropriate info based on stage
-  const formattedMatches = matches.map((m) => {
-    const isUser1 = m.user1_id === userId;
-    const otherUserId = isUser1 ? m.user2_id : m.user1_id;
-    
-    // Get profile ID first (needed for photos and interests)
-    const otherProfileId = db
-      .prepare("SELECT id FROM profiles WHERE user_id = ?")
-      .get(otherUserId) as { id: string } | undefined;
-
-    // Get primary photo for the other user (from photos table or fallback to photo_url)
-    let primaryPhotoUrl: string | null = null;
-    if (otherProfileId) {
-      // First try to get primary photo from photos table
-      const primaryPhoto = db
-        .prepare("SELECT url FROM photos WHERE profile_id = ? AND is_primary = 1 LIMIT 1")
-        .get(otherProfileId.id) as { url: string } | undefined;
+    // Format matches with appropriate info based on stage
+    const formattedMatches = await Promise.all(matches.map(async (m) => {
+      const isUser1 = m.user1_id === userId;
+      const otherUserId = isUser1 ? m.user2_id : m.user1_id;
       
-      if (primaryPhoto) {
-        primaryPhotoUrl = primaryPhoto.url;
-      } else {
-        // Fallback to photo_url from profiles table
-        primaryPhotoUrl = isUser1 ? m.user2_photo : m.user1_photo;
+      // Get profile ID first (needed for photos and interests)
+      const otherProfileId = await (db
+        .prepare("SELECT id FROM profiles WHERE user_id = ?")
+        .get([otherUserId]) as Promise<{ id: string } | undefined>);
+
+      // Get primary photo for the other user (from photos table or fallback to photo_url)
+      let primaryPhotoUrl: string | null = null;
+      if (otherProfileId) {
+        // First try to get primary photo from photos table
+        const primaryPhoto = await (db
+          .prepare("SELECT url FROM photos WHERE profile_id = ? AND is_primary = 1 LIMIT 1")
+          .get([otherProfileId.id]) as Promise<{ url: string } | undefined>);
+        
+        if (primaryPhoto) {
+          primaryPhotoUrl = primaryPhoto.url;
+        } else {
+          // Fallback to photo_url from profiles table
+          primaryPhotoUrl = isUser1 ? m.user2_photo : m.user1_photo;
+        }
       }
-    }
 
-    const otherUser = {
-      userId: otherUserId,
-      displayName: isUser1 ? m.user2_name : m.user1_name,
-      age: isUser1 ? m.user2_age : m.user1_age,
-      bio: isUser1 ? m.user2_bio : m.user1_bio,
-      gender: isUser1 ? m.user2_gender : m.user1_gender,
-      location: isUser1 ? m.user2_location : m.user1_location,
-      // Show primary photo in stage1 and stage2 (all photos shown in stage2 via separate photos array)
-      photoUrl: (m.stage === "stage1" || m.stage === "stage2") ? primaryPhotoUrl : null,
-      last_active_at: isUser1 ? m.user2_last_active : m.user1_last_active,
-    };
+      const otherUser = {
+        userId: otherUserId,
+        displayName: isUser1 ? m.user2_name : m.user1_name,
+        age: isUser1 ? m.user2_age : m.user1_age,
+        bio: isUser1 ? m.user2_bio : m.user1_bio,
+        gender: isUser1 ? m.user2_gender : m.user1_gender,
+        location: isUser1 ? m.user2_location : m.user1_location,
+        // Show primary photo in stage1 and stage2 (all photos shown in stage2 via separate photos array)
+        photoUrl: (m.stage === "stage1" || m.stage === "stage2") ? primaryPhotoUrl : null,
+        last_active_at: isUser1 ? m.user2_last_active : m.user1_last_active,
+      };
 
-    const interests = otherProfileId
-      ? (db
-          .prepare("SELECT name FROM interests WHERE profile_id = ?")
-          .all(otherProfileId.id) as { name: string }[])
-      : [];
+      const interests = otherProfileId
+        ? await (db
+            .prepare("SELECT name FROM interests WHERE profile_id = ?")
+            .all([otherProfileId.id]) as Promise<{ name: string }[]>)
+        : [];
 
-    // Get values and partner qualities for the other user
-    const preferences = otherProfileId
-      ? (db
-          .prepare('SELECT "values" FROM preferences WHERE profile_id = ?')
-          .get(otherProfileId.id) as { values: string | null } | undefined)
-      : undefined;
+      // Get values and partner qualities for the other user
+      const preferences = otherProfileId
+        ? await (db
+            .prepare('SELECT "values" FROM preferences WHERE profile_id = ?')
+            .get([otherProfileId.id]) as Promise<{ values: string | null } | undefined>)
+        : undefined;
 
-    const partnerQualities = otherProfileId
-      ? (db
-          .prepare(
-            "SELECT quality, importance FROM partner_qualities WHERE profile_id = ?"
-          )
-          .all(otherProfileId.id) as { quality: string; importance: number }[])
-      : [];
+      const partnerQualities = otherProfileId
+        ? await (db
+            .prepare(
+              "SELECT quality, importance FROM partner_qualities WHERE profile_id = ?"
+            )
+            .all([otherProfileId.id]) as Promise<{ quality: string; importance: number }[]>)
+        : [];
 
-    let values: string[] = [];
-    if (preferences?.values) {
-      try {
-        values = JSON.parse(preferences.values);
-      } catch {
-        values = [];
+      let values: string[] = [];
+      if (preferences?.values) {
+        try {
+          values = JSON.parse(preferences.values);
+        } catch {
+          values = [];
+        }
       }
-    }
 
-    return {
-      id: m.id,
-      stage: m.stage,
-      status: m.status,
-      createdAt: m.created_at,
-      stage1At: m.stage1_at,
-      stage2At: m.stage2_at,
-      expiresAt: m.expires_at || null,
-      isInitiator: isUser1,
-      userWantsReveal: m.userWantsReveal === 1,
-      otherWantsReveal: m.otherWantsReveal === 1,
-      otherUser: {
-        ...otherUser,
-        profileId: otherProfileId?.id,
-        interests: interests.map((i) => i.name),
-        values,
-        partnerQualities: partnerQualities.map((q) => ({
-          quality: q.quality,
-          importance: q.importance,
-        })),
-        lastActiveAt: otherUser.last_active_at || null,
-      },
-    };
-  });
+      return {
+        id: m.id,
+        stage: m.stage,
+        status: m.status,
+        createdAt: m.created_at,
+        stage1At: m.stage1_at,
+        stage2At: m.stage2_at,
+        expiresAt: m.expires_at || null,
+        isInitiator: isUser1,
+        userWantsReveal: m.userWantsReveal === 1,
+        otherWantsReveal: m.otherWantsReveal === 1,
+        otherUser: {
+          ...otherUser,
+          profileId: otherProfileId?.id,
+          interests: interests.map((i) => i.name),
+          values,
+          partnerQualities: partnerQualities.map((q) => ({
+            quality: q.quality,
+            importance: q.importance,
+          })),
+          lastActiveAt: otherUser.last_active_at || null,
+        },
+      };
+    }));
 
-  res.json({ matches: formattedMatches });
+    res.json({ matches: formattedMatches });
+  } catch (error) {
+    console.error('Matches GET error:', error);
+    res.status(500).json({ error: 'Failed to load matches' });
+  }
 });
 
 // Send a match request (use a token) - AUTOMATIC MATCH

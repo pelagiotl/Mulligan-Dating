@@ -27,21 +27,21 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
     const offset = parseInt(req.query.offset as string) || 0;
 
     // Get current user's profile and preferences
-    const userProfile = db.prepare('SELECT * FROM profiles WHERE user_id = ?').get(req.userId) as ProfileRow | undefined;
+    const userProfile = await (db.prepare('SELECT * FROM profiles WHERE user_id = ?').get([req.userId]) as Promise<ProfileRow | undefined>);
     
     if (!userProfile) {
       return res.status(400).json({ error: 'Please complete your profile first' });
     }
 
-    const userPrefs = db.prepare('SELECT * FROM preferences WHERE profile_id = ?').get(userProfile.id) as {
+    const userPrefs = await (db.prepare('SELECT * FROM preferences WHERE profile_id = ?').get([userProfile.id]) as Promise<{
       min_age: number;
       max_age: number;
       preferred_genders: string | null;
       max_distance: number;
-    } | undefined;
+    } | undefined>);
 
     // Get list of user IDs that current user is already matched with
-    const existingMatches = db
+    const existingMatches = await (db
       .prepare(
         `SELECT 
           CASE 
@@ -52,18 +52,18 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
          WHERE (user1_id = ? OR user2_id = ?) 
          AND stage != 'expired'`
       )
-      .all(req.userId, req.userId, req.userId) as { matched_user_id: string }[];
+      .all([req.userId, req.userId, req.userId]) as Promise<{ matched_user_id: string }[]>);
     
     const matchedUserIds = existingMatches.map(m => m.matched_user_id);
 
     // Get list of blocked user IDs (both directions)
-    const blockedUsers = db
+    const blockedUsers = await (db
       .prepare(
         `SELECT blocked_id as user_id FROM blocks WHERE blocker_id = ?
          UNION
          SELECT blocker_id as user_id FROM blocks WHERE blocked_id = ?`
       )
-      .all(req.userId, req.userId) as { user_id: string }[];
+      .all([req.userId, req.userId]) as Promise<{ user_id: string }[]>);
     
     const blockedUserIds = blockedUsers.map(b => b.user_id);
 
