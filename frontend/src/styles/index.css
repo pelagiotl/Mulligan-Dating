@@ -1958,12 +1958,101 @@ img {
 .browse-header {
   text-align: center;
   margin-bottom: var(--space-10);
+  position: relative;
+  padding: var(--space-6) 0;
 }
 
 .browse-title {
-  font-size: 2rem;
-  color: var(--color-wine-900);
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: 800;
   margin-bottom: var(--space-2);
+  position: relative;
+  display: inline-block;
+  background: linear-gradient(135deg, 
+    var(--color-rose-600) 0%, 
+    var(--color-rose-500) 25%,
+    #ff006e 50%,
+    var(--color-rose-500) 75%,
+    var(--color-rose-600) 100%);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: titleGradient 4s ease infinite, titleFloat 3s ease-in-out infinite;
+  filter: drop-shadow(0 4px 12px rgba(244, 63, 94, 0.3));
+  text-shadow: 0 0 30px rgba(244, 63, 94, 0.5);
+}
+
+.browse-title::before {
+  content: 'Discover People';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, 
+    rgba(255, 255, 255, 0.3) 0%, 
+    rgba(255, 255, 255, 0.1) 50%,
+    rgba(255, 255, 255, 0.3) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: titleShine 3s ease-in-out infinite;
+  z-index: 1;
+}
+
+.browse-title::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 120%;
+  height: 150%;
+  background: radial-gradient(ellipse, rgba(244, 63, 94, 0.15) 0%, transparent 70%);
+  border-radius: 50%;
+  z-index: -1;
+  animation: titleGlow 2s ease-in-out infinite;
+}
+
+@keyframes titleGradient {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes titleFloat {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+@keyframes titleShine {
+  0%, 100% {
+    opacity: 0.3;
+    transform: translateX(-100%);
+  }
+  50% {
+    opacity: 0.6;
+    transform: translateX(100%);
+  }
+}
+
+@keyframes titleGlow {
+  0%, 100% {
+    opacity: 0.3;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: translate(-50%, -50%) scale(1.1);
+  }
 }
 
 .browse-subtitle {
