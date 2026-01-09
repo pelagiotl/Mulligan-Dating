@@ -38,6 +38,8 @@ export default function Browse() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Clear error state when component mounts or offset changes
+    setError("");
     fetchProfile();
   }, [offset]);
 
@@ -71,26 +73,44 @@ export default function Browse() {
         });
       }
     } catch (err: any) {
-      // Check if error is about missing profile
-      const errorMessage = err?.message || err?.error || String(err) || "Failed to load profiles";
+      console.error('Browse fetchProfile error:', {
+        err,
+        message: err?.message,
+        error: err?.error,
+        status: err?.status,
+        response: err?.response,
+        responseData: err?.response?.data
+      });
+      
+      // Extract error message from various possible locations
+      const errorMessage = 
+        err?.response?.data?.error || 
+        err?.error || 
+        err?.message || 
+        String(err) || 
+        "Failed to load profiles";
+      
       const errorLower = errorMessage.toLowerCase();
+      const status = err?.status || err?.response?.status;
       
       // Check for various profile-related error messages
       if (
+        status === 400 ||
         errorLower.includes("complete your profile") || 
-        errorLower.includes("profile") ||
+        errorLower.includes("please complete your profile") ||
         errorLower.includes("please complete") ||
-        err?.status === 400 ||
-        (err?.response?.data?.error && err.response.data.error.toLowerCase().includes("profile"))
+        (errorLower.includes("profile") && (errorLower.includes("not found") || errorLower.includes("complete")))
       ) {
-        // Don't set error, we'll show a helpful message instead
+        // This is a profile missing error - show create profile button
+        console.log('Profile missing detected, showing create profile button');
         setCurrentProfile(null);
+        setError(""); // Clear any error state
         setLoading(false);
         return;
       }
       
-      // For other errors, show them
-      console.error('Browse error:', err);
+      // For other errors, show them but also log for debugging
+      console.error('Non-profile error in Browse:', errorMessage);
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -201,7 +221,8 @@ export default function Browse() {
   }
 
   // Check if user needs to create profile
-  const needsProfile = !currentProfile && !loading && !error;
+  // Show create profile button if no profile AND no error (or error is profile-related)
+  const needsProfile = !currentProfile && !loading && (!error || error.toLowerCase().includes("profile") || error.toLowerCase().includes("complete"));
 
   if (error && !error.includes("profile")) {
     return (
