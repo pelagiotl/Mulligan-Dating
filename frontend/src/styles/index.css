@@ -208,6 +208,43 @@ img {
   transition: transform 0.3s ease-out, filter 0.3s ease-out;
 }
 
+.navbar-logo-icon .logo-heart {
+  animation: heartBeat 2s ease-in-out infinite;
+  transform-origin: center;
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.6));
+}
+
+.navbar-logo-icon .logo-arrow {
+  opacity: 0.95;
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.5));
+}
+
+.navbar-logo-icon .logo-arrow-top,
+.navbar-logo-icon .logo-arrow-bottom {
+  animation: arrowPulse 2s ease-in-out infinite;
+}
+
+.navbar-logo-icon .logo-sparkle {
+  animation: sparkle 2s ease-in-out infinite;
+  transform-origin: center;
+}
+
+.navbar-logo-icon .logo-sparkle:nth-of-type(1) {
+  animation-delay: 0s;
+}
+
+.navbar-logo-icon .logo-sparkle:nth-of-type(2) {
+  animation-delay: 0.5s;
+}
+
+.navbar-logo-icon .logo-sparkle:nth-of-type(3) {
+  animation-delay: 1s;
+}
+
+.navbar-logo-icon .logo-sparkle:nth-of-type(4) {
+  animation-delay: 1.5s;
+}
+
 .navbar-logo:hover .navbar-logo-icon {
   transform: scale(1.1) rotate(5deg);
   filter: drop-shadow(0 4px 12px rgba(244, 63, 94, 0.4));
