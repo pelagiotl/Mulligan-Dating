@@ -94,31 +94,73 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
       const BASE_URL = API_URL ? `${API_URL}/api` : '/api';
       
       const token = localStorage.getItem("token");
-      const response = await fetch(`${BASE_URL}/photos`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          // Don't set Content-Type - let browser set it with boundary for FormData
-        },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        let errorMessage = "Failed to upload photos";
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.error || errorMessage;
-        } catch (parseError) {
-          // If JSON parsing fails, try to get text response
-          const errorText = await response.text();
-          errorMessage = errorText || errorMessage;
+      
+      // Create AbortController for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout for large files
+      
+      let response: Response;
+      try {
+        response = await fetch(`${BASE_URL}/photos`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            // Don't set Content-Type - let browser set it with boundary for FormData
+          },
+          body: formData,
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+          throw new Error('Upload timeout - please try again with a smaller file');
         }
-        console.error('Photo upload error:', { status: response.status, error: errorMessage });
+        throw fetchError;
+      }
+
+      // Check content type before parsing
+      const contentType = response.headers.get('content-type');
+      const isJson = contentType && contentType.includes('application/json');
+      
+      if (!response.ok) {
+        let errorMessage = `Failed to upload photos (${response.status})`;
+        try {
+          if (isJson) {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorData.message || errorMessage;
+          } else {
+            const errorText = await response.text();
+            errorMessage = errorText || errorMessage;
+          }
+        } catch (parseError) {
+          console.error('Error parsing error response:', parseError);
+          errorMessage = `Server error: ${response.status} ${response.statusText}`;
+        }
+        console.error('Photo upload error:', { 
+          status: response.status, 
+          statusText: response.statusText,
+          contentType,
+          error: errorMessage 
+        });
         throw new Error(errorMessage);
       }
 
-      const result = await response.json();
-      console.log('Photo upload success:', result);
+      let result;
+      try {
+        if (isJson) {
+          result = await response.json();
+        } else {
+          const text = await response.text();
+          console.warn('Non-JSON response received:', text);
+          result = { message: 'Photo uploaded successfully' };
+        }
+        console.log('Photo upload success:', result);
+      } catch (parseError) {
+        console.error('Error parsing success response:', parseError);
+        // Even if parsing fails, assume success if status was ok
+        result = { message: 'Photo uploaded successfully' };
+      }
       
       // Refresh photos
       if (profileId) {

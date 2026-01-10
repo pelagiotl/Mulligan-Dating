@@ -234,14 +234,14 @@ export default function Browse() {
 
       console.log('✅ Connect successful:', result);
 
+      console.log('✅ Connect successful, showing celebration');
+
       // Show match celebration
       setMatchedProfile(profile);
       setShowMatchCelebration(true);
       
-      // Reset connecting state after a brief delay to allow celebration to show
-      setTimeout(() => {
-        setConnecting(false);
-      }, 100);
+      // Move to next profile after celebration (handled by handleCelebrationClose)
+      // Reset connecting state is handled in handleCelebrationClose
     } catch (err) {
       console.error('❌ Connect error:', err);
       // Show error
