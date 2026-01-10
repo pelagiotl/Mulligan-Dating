@@ -213,24 +213,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     console.log('Logging out - clearing all state')
     
-    // Cancel any pending requests
+    // Cancel any pending requests FIRST
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
       abortControllerRef.current = null
     }
     
-    // Clear token first
+    // Clear token FIRST (before state updates)
     localStorage.removeItem('token')
     
-    // Reset all state synchronously - use functional updates to ensure state is cleared
-    setUser(null)
-    setProfile(null)
+    // Reset all state immediately and synchronously
+    // Use function form to ensure we're setting from the latest state
+    setUser(prev => {
+      console.log('Clearing user state, previous:', prev)
+      return null
+    })
+    setProfile(prev => {
+      console.log('Clearing profile state, previous:', prev)
+      return null
+    })
     setLoading(false)
     
-    // Force a small delay to ensure state updates are processed
-    // This prevents race conditions when immediately trying to log back in
+    // Force state update to complete by using setTimeout
+    // This ensures React has processed the state updates before any new operations
     setTimeout(() => {
-      console.log('Logout complete - state cleared')
+      console.log('Logout complete - all state cleared')
+      // Verify token is gone
+      const token = localStorage.getItem('token')
+      if (token) {
+        console.error('ERROR: Token still exists after logout!')
+        localStorage.removeItem('token')
+      }
     }, 0)
   }
 

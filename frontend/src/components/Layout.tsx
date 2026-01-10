@@ -112,9 +112,19 @@ export default function Layout() {
             <li>
               <button 
                 onClick={async () => {
+                  console.log('Logout button clicked')
                   logout()
-                  // Wait a moment for state to fully clear before navigating
-                  await new Promise(resolve => setTimeout(resolve, 100))
+                  // Wait longer for state to fully clear before navigating
+                  // This ensures all React state updates are processed
+                  await new Promise(resolve => setTimeout(resolve, 200))
+                  // Verify logout completed
+                  const token = localStorage.getItem('token')
+                  if (token) {
+                    console.error('Token still exists after logout, removing...')
+                    localStorage.removeItem('token')
+                    await new Promise(resolve => setTimeout(resolve, 100))
+                  }
+                  console.log('Navigating to login page')
                   navigate('/login')
                 }}
                 className="navbar-link logout"

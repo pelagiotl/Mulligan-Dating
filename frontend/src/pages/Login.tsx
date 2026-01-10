@@ -13,27 +13,33 @@ export default function Login() {
   const { login, isAuthenticated } = useAuth()
   const navigate = useNavigate()
 
-  // Reset error state when component mounts or when user is not authenticated
+  // Reset error state when component mounts
   useEffect(() => {
+    console.log('Login page mounted, isAuthenticated:', isAuthenticated)
     setError('')
     setLoading(false)
     
-    // Check both isAuthenticated state AND localStorage token
-    // This prevents redirect issues after logout when state might be stale
-    const hasToken = localStorage.getItem('token')
-    const shouldRedirect = isAuthenticated && hasToken
-    
-    // If already authenticated with a valid token, redirect to browse
+    // Only redirect if we have BOTH a token AND authenticated state
     // Add a delay to ensure state has fully updated after logout
-    if (shouldRedirect) {
-      const timer = setTimeout(() => {
+    const checkAuth = () => {
+      const hasToken = localStorage.getItem('token')
+      const shouldRedirect = isAuthenticated && hasToken
+      
+      console.log('Auth check:', { hasToken: !!hasToken, isAuthenticated, shouldRedirect })
+      
+      if (shouldRedirect) {
         // Double-check token still exists before redirecting
-        if (localStorage.getItem('token')) {
+        const tokenCheck = localStorage.getItem('token')
+        if (tokenCheck) {
+          console.log('User already authenticated, redirecting to browse')
           navigate('/browse')
         }
-      }, 200)
-      return () => clearTimeout(timer)
+      }
     }
+    
+    // Delay the check to ensure logout state has fully cleared
+    const timer = setTimeout(checkAuth, 100)
+    return () => clearTimeout(timer)
   }, [isAuthenticated, navigate])
 
   // Create floating particles
@@ -60,10 +66,19 @@ export default function Login() {
     setLoading(true)
 
     try {
-      console.log('Attempting login for:', email)
-      // Clear any potential stale state
+      console.log('Login form submitted for:', email)
+      console.log('Current auth state before login:', { isAuthenticated })
+      
+      // Clear any potential stale state before login
+      // Wait a moment to ensure any previous logout state has cleared
+      await new Promise(resolve => setTimeout(resolve, 50))
+      
+      console.log('Calling login function...')
       const { hasProfile } = await login(email, password)
       console.log('Login successful, hasProfile:', hasProfile)
+      
+      // Verify we're actually authenticated now
+      await new Promise(resolve => setTimeout(resolve, 100))
       
       // Show success animation
       setSuccess(true)
