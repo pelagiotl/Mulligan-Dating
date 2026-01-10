@@ -39,7 +39,7 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
 
-    const matches = await (db
+    const matchesResult = db
       .prepare(
         `SELECT m.*, 
                 p1.display_name as user1_name, p1.age as user1_age, p1.bio as user1_bio, 
@@ -56,7 +56,10 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
          AND m.stage != 'expired'
          ORDER BY m.created_at DESC`
       )
-      .all([userId, userId]) as Promise<any[]>);
+      .all([userId, userId]);
+    const matches = (matchesResult instanceof Promise
+      ? await matchesResult
+      : matchesResult) as any[];
 
     // Format matches with appropriate info based on stage
     const formattedMatches = await Promise.all(matches.map(async (m) => {
@@ -64,17 +67,23 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
       const otherUserId = isUser1 ? m.user2_id : m.user1_id;
       
       // Get profile ID first (needed for photos and interests)
-      const otherProfileId = await (db
+      const otherProfileIdResult = db
         .prepare("SELECT id FROM profiles WHERE user_id = ?")
-        .get([otherUserId]) as Promise<{ id: string } | undefined>);
+        .get([otherUserId]);
+      const otherProfileId = (otherProfileIdResult instanceof Promise
+        ? await otherProfileIdResult
+        : otherProfileIdResult) as { id: string } | undefined;
 
       // Get primary photo for the other user (from photos table or fallback to photo_url)
       let primaryPhotoUrl: string | null = null;
       if (otherProfileId) {
         // First try to get primary photo from photos table
-        const primaryPhoto = await (db
+        const primaryPhotoResult = db
           .prepare("SELECT url FROM photos WHERE profile_id = ? AND is_primary = 1 LIMIT 1")
-          .get([otherProfileId.id]) as Promise<{ url: string } | undefined>);
+          .get([otherProfileId.id]);
+        const primaryPhoto = (primaryPhotoResult instanceof Promise
+          ? await primaryPhotoResult
+          : primaryPhotoResult) as { url: string } | undefined;
         
         if (primaryPhoto) {
           primaryPhotoUrl = primaryPhoto.url;
@@ -96,26 +105,35 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
         last_active_at: isUser1 ? m.user2_last_active : m.user1_last_active,
       };
 
-      const interests = otherProfileId
-        ? await (db
+      const interestsResult = otherProfileId
+        ? db
             .prepare("SELECT name FROM interests WHERE profile_id = ?")
-            .all([otherProfileId.id]) as Promise<{ name: string }[]>)
+            .all([otherProfileId.id])
         : [];
+      const interests = (interestsResult instanceof Promise
+        ? await interestsResult
+        : interestsResult) as { name: string }[];
 
       // Get values and partner qualities for the other user
-      const preferences = otherProfileId
-        ? await (db
+      const preferencesResult = otherProfileId
+        ? db
             .prepare('SELECT "values" FROM preferences WHERE profile_id = ?')
-            .get([otherProfileId.id]) as Promise<{ values: string | null } | undefined>)
+            .get([otherProfileId.id])
         : undefined;
+      const preferences = (preferencesResult instanceof Promise
+        ? await preferencesResult
+        : preferencesResult) as { values: string | null } | undefined;
 
-      const partnerQualities = otherProfileId
-        ? await (db
+      const partnerQualitiesResult = otherProfileId
+        ? db
             .prepare(
               "SELECT quality, importance FROM partner_qualities WHERE profile_id = ?"
             )
-            .all([otherProfileId.id]) as Promise<{ quality: string; importance: number }[]>)
+            .all([otherProfileId.id])
         : [];
+      const partnerQualities = (partnerQualitiesResult instanceof Promise
+        ? await partnerQualitiesResult
+        : partnerQualitiesResult) as { quality: string; importance: number }[];
 
       let values: string[] = [];
       if (preferences?.values) {
@@ -316,87 +334,114 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
 // Request to reveal photos (manual override - auto-reveal happens after 2 messages each)
 // This endpoint is kept for manual override if needed, but reveal is now automatic
 matchesRouter.post("/:matchId/reveal", authenticateToken, async (req: AuthRequest, res) => {
-  const userId = req.userId!;
-  const { matchId } = req.params;
+  try {
+    const userId = req.userId!;
+    const { matchId } = req.params;
 
-  const match = db
-    .prepare(
-      `SELECT * FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?)`
-    )
-    .get(matchId, userId, userId) as MatchRow | undefined;
+    const matchResult = db
+      .prepare(
+        `SELECT * FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?)`
+      )
+      .get([matchId, userId, userId]);
+    const match = (matchResult instanceof Promise
+      ? await matchResult
+      : matchResult) as MatchRow | undefined;
 
-  if (!match) {
-    return res.status(404).json({ error: "Match not found" });
-  }
+    if (!match) {
+      return res.status(404).json({ error: "Match not found" });
+    }
 
-  if (match.stage !== "stage1") {
-    return res.status(400).json({ 
-      error: "Match must be in stage 1 to manually reveal",
-      note: "Photos automatically reveal when both users send 2+ messages each"
+    if (match.stage !== "stage1") {
+      return res.status(400).json({ 
+        error: "Match must be in stage 1 to manually reveal",
+        note: "Photos automatically reveal when both users send 2+ messages each"
+      });
+    }
+
+    // Manual reveal - immediately advance to stage2
+    const updateResult = db.prepare(
+      `UPDATE matches SET stage = 'stage2', stage2_at = CURRENT_TIMESTAMP WHERE id = ?`
+    ).run([matchId]);
+    if (updateResult instanceof Promise) {
+      await updateResult;
+    }
+
+    // Track success signal: stage advanced (strong engagement)
+    // Saved to PostgreSQL database - persists across logouts/redeploys
+    const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
+    await recordSuccessSignal(userId, otherUserId, matchId, "stage_advanced");
+    await recordSuccessSignal(otherUserId, userId, matchId, "stage_advanced");
+
+    res.json({ 
+      message: "Photos revealed manually! You can now see each other.", 
+      stage: "stage2",
+      manualReveal: true
     });
+  } catch (error) {
+    console.error("Reveal error:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: `Failed to reveal photos: ${errorMessage}` });
   }
-
-  // Manual reveal - immediately advance to stage2
-  db.prepare(
-    `UPDATE matches SET stage = 'stage2', stage2_at = CURRENT_TIMESTAMP WHERE id = ?`
-  ).run(matchId);
-
-  // Track success signal: stage advanced (strong engagement)
-  // Saved to PostgreSQL database - persists across logouts/redeploys
-  const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
-  await recordSuccessSignal(userId, otherUserId, matchId, "stage_advanced");
-  await recordSuccessSignal(otherUserId, userId, matchId, "stage_advanced");
-
-  res.json({ 
-    message: "Photos revealed manually! You can now see each other.", 
-    stage: "stage2",
-    manualReveal: true
-  });
 });
 
 // Get messages for a match
-matchesRouter.get("/:matchId/messages", authenticateToken, (req: AuthRequest, res) => {
-  const userId = req.userId!;
-  const { matchId } = req.params;
+matchesRouter.get("/:matchId/messages", authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { matchId } = req.params;
 
-  // Verify user is part of this match
-  const match = db
-    .prepare(
-      `SELECT * FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?) AND stage IN ('stage1', 'stage2')`
-    )
-    .get(matchId, userId, userId) as MatchRow | undefined;
+    // Verify user is part of this match
+    const matchResult = db
+      .prepare(
+        `SELECT * FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?) AND stage IN ('stage1', 'stage2')`
+      )
+      .get([matchId, userId, userId]);
+    const match = (matchResult instanceof Promise
+      ? await matchResult
+      : matchResult) as MatchRow | undefined;
 
-  if (!match) {
-    return res.status(404).json({ error: "Match not found or not yet mutual" });
+    if (!match) {
+      return res.status(404).json({ error: "Match not found or not yet mutual" });
+    }
+
+    const messagesResult = db
+      .prepare(
+        `SELECT m.*, p.display_name as sender_name
+         FROM messages m
+         JOIN profiles p ON p.user_id = m.sender_id
+         WHERE m.match_id = ?
+         ORDER BY m.sent_at ASC`
+      )
+      .all([matchId]);
+    const messages = (messagesResult instanceof Promise
+      ? await messagesResult
+      : messagesResult) as any[];
+
+    // Mark messages as read
+    const updateReadResult = db.prepare(
+      `UPDATE messages SET read_at = CURRENT_TIMESTAMP 
+       WHERE match_id = ? AND sender_id != ? AND read_at IS NULL`
+    ).run([matchId, userId]);
+    if (updateReadResult instanceof Promise) {
+      await updateReadResult;
+    }
+
+    res.json({
+      messages: messages.map((m) => ({
+        id: m.id,
+        content: m.content,
+        senderId: m.sender_id,
+        senderName: m.sender_name,
+        sentAt: m.sent_at,
+        readAt: m.read_at || null,
+        isOwn: m.sender_id === userId,
+      })),
+    });
+  } catch (error) {
+    console.error("Get messages error:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: `Failed to load messages: ${errorMessage}` });
   }
-
-  const messages = db
-    .prepare(
-      `SELECT m.*, p.display_name as sender_name
-       FROM messages m
-       JOIN profiles p ON p.user_id = m.sender_id
-       WHERE m.match_id = ?
-       ORDER BY m.sent_at ASC`
-    )
-    .all(matchId) as any[];
-
-  // Mark messages as read
-  db.prepare(
-    `UPDATE messages SET read_at = CURRENT_TIMESTAMP 
-     WHERE match_id = ? AND sender_id != ? AND read_at IS NULL`
-  ).run(matchId, userId);
-
-  res.json({
-    messages: messages.map((m) => ({
-      id: m.id,
-      content: m.content,
-      senderId: m.sender_id,
-      senderName: m.sender_name,
-      sentAt: m.sent_at,
-      readAt: m.read_at || null,
-      isOwn: m.sender_id === userId,
-    })),
-  });
 });
 
 // Send a message
@@ -421,29 +466,38 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
     return res.status(400).json({ error: "Message must be at most 1000 characters" });
   }
 
-  // Verify user is part of this match and it's mutual
-  const match = db
-    .prepare(
-      `SELECT * FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?) AND stage IN ('stage1', 'stage2')`
-    )
-    .get(matchId, userId, userId) as MatchRow | undefined;
+    // Verify user is part of this match and it's mutual
+    const matchResult = db
+      .prepare(
+        `SELECT * FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?) AND stage IN ('stage1', 'stage2')`
+      )
+      .get([matchId, userId, userId]);
+    const match = (matchResult instanceof Promise
+      ? await matchResult
+      : matchResult) as MatchRow | undefined;
 
-  if (!match) {
-    return res.status(404).json({ error: "Match not found or not yet mutual" });
-  }
+    if (!match) {
+      return res.status(404).json({ error: "Match not found or not yet mutual" });
+    }
 
-  const messageId = uuidv4();
-  db.prepare(
-    `INSERT INTO messages (id, match_id, sender_id, content) VALUES (?, ?, ?, ?)`
-  ).run(messageId, matchId, userId, sanitizedContent);
+    const messageId = uuidv4();
+    const insertMessageResult = db.prepare(
+      `INSERT INTO messages (id, match_id, sender_id, content) VALUES (?, ?, ?, ?)`
+    ).run([messageId, matchId, userId, sanitizedContent]);
+    if (insertMessageResult instanceof Promise) {
+      await insertMessageResult;
+    }
 
-  // Check if we should auto-advance to stage2 (both users sent at least 2 messages, alternating)
-  let autoAdvanced = false;
-  if (match.stage === "stage1") {
-    // Get all messages in chronological order
-    const allMessages = db
-      .prepare(`SELECT sender_id, sent_at FROM messages WHERE match_id = ? ORDER BY sent_at ASC`)
-      .all(matchId) as Array<{ sender_id: string; sent_at: string }>;
+    // Check if we should auto-advance to stage2 (both users sent at least 2 messages, alternating)
+    let autoAdvanced = false;
+    if (match.stage === "stage1") {
+      // Get all messages in chronological order
+      const allMessagesResult = db
+        .prepare(`SELECT sender_id, sent_at FROM messages WHERE match_id = ? ORDER BY sent_at ASC`)
+        .all([matchId]);
+      const allMessages = (allMessagesResult instanceof Promise
+        ? await allMessagesResult
+        : allMessagesResult) as Array<{ sender_id: string; sent_at: string }>;
 
     // Count valid messages (only count if previous message was from the other user)
     let user1ValidCount = 0;
@@ -473,79 +527,117 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
       }
     }
 
-    // Both users need to have sent at least 2 valid messages (alternating)
-    if (user1ValidCount >= 2 && user2ValidCount >= 2) {
-      // Auto-advance to stage2
-      db.prepare(
-        `UPDATE matches SET stage = 'stage2', stage2_at = CURRENT_TIMESTAMP WHERE id = ?`
-      ).run(matchId);
-      autoAdvanced = true;
-      
-      // Emit socket event to notify both users
-      const { getIO } = await import('../socket.js');
-      const io = getIO();
-      if (io) {
-        io.to(`match:${matchId}`).emit('stage_advanced', {
-          matchId,
-          stage: 'stage2',
-          message: '🎉 You\'ve both sent 2+ messages! All photos are now revealed!',
-          autoAdvanced: true,
-        });
+      // Both users need to have sent at least 2 valid messages (alternating)
+      if (user1ValidCount >= 2 && user2ValidCount >= 2) {
+        // Auto-advance to stage2
+        const updateStageResult = db.prepare(
+          `UPDATE matches SET stage = 'stage2', stage2_at = CURRENT_TIMESTAMP WHERE id = ?`
+        ).run([matchId]);
+        if (updateStageResult instanceof Promise) {
+          await updateStageResult;
+        }
+        autoAdvanced = true;
+        
+        // Emit socket event to notify both users
+        const { getIO } = await import('../socket.js');
+        const io = getIO();
+        if (io) {
+          io.to(`match:${matchId}`).emit('stage_advanced', {
+            matchId,
+            stage: 'stage2',
+            message: '🎉 You\'ve both sent 2+ messages! All photos are now revealed!',
+            autoAdvanced: true,
+          });
+        }
       }
     }
-  }
 
-  res.json({
-    message: {
-      id: messageId,
-      content: sanitizedContent,
-      senderId: userId,
-      sentAt: new Date().toISOString(),
-      isOwn: true,
-    },
-    autoAdvanced,
-    stage: autoAdvanced ? "stage2" : match.stage,
-  });
+    // Track success signal: message exchanged
+    const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
+    await recordSuccessSignal(userId, otherUserId, matchId, "message_exchanged");
+
+    // If auto-advanced, track stage advanced signal
+    if (autoAdvanced) {
+      await recordSuccessSignal(match.user1_id, match.user2_id, matchId, "stage_advanced");
+      await recordSuccessSignal(match.user2_id, match.user1_id, matchId, "stage_advanced");
+    }
+
+    res.json({
+      message: {
+        id: messageId,
+        content: sanitizedContent,
+        senderId: userId,
+        sentAt: new Date().toISOString(),
+        isOwn: true,
+      },
+      autoAdvanced,
+      stage: autoAdvanced ? "stage2" : match.stage,
+    });
+  } catch (error) {
+    console.error("Send message error:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: `Failed to send message: ${errorMessage}` });
+  }
 });
 
 // Check if user has pending match from someone
-matchesRouter.get("/pending-from/:userId", authenticateToken, (req: AuthRequest, res) => {
-  const currentUserId = req.userId!;
-  const { userId: otherUserId } = req.params;
+matchesRouter.get("/pending-from/:userId", authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const currentUserId = req.userId!;
+    const { userId: otherUserId } = req.params;
 
-  const pendingMatch = db
-    .prepare(
-      `SELECT * FROM matches 
-       WHERE user1_id = ? AND user2_id = ? AND stage = 'pending'`
-    )
-    .get(otherUserId, currentUserId) as MatchRow | undefined;
+    const pendingMatchResult = db
+      .prepare(
+        `SELECT * FROM matches 
+         WHERE user1_id = ? AND user2_id = ? AND stage = 'pending'`
+      )
+      .get([otherUserId, currentUserId]);
+    const pendingMatch = (pendingMatchResult instanceof Promise
+      ? await pendingMatchResult
+      : pendingMatchResult) as MatchRow | undefined;
 
-  res.json({ hasPendingMatch: !!pendingMatch, matchId: pendingMatch?.id });
+    res.json({ hasPendingMatch: !!pendingMatch, matchId: pendingMatch?.id });
+  } catch (error) {
+    console.error("Pending match error:", error);
+    res.status(500).json({ error: "Failed to check pending match" });
+  }
 });
 
 // Unmatch with someone
-matchesRouter.delete("/:matchId", authenticateToken, (req: AuthRequest, res) => {
-  const userId = req.userId!;
-  const { matchId } = req.params;
+matchesRouter.delete("/:matchId", authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { matchId } = req.params;
 
-  // Verify user is part of this match
-  const match = db
-    .prepare(
-      `SELECT * FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?)`
-    )
-    .get(matchId, userId, userId) as MatchRow | undefined;
+    // Verify user is part of this match
+    const matchResult = db
+      .prepare(
+        `SELECT * FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?)`
+      )
+      .get([matchId, userId, userId]);
+    const match = (matchResult instanceof Promise
+      ? await matchResult
+      : matchResult) as MatchRow | undefined;
 
-  if (!match) {
-    return res.status(404).json({ error: "Match not found" });
+    if (!match) {
+      return res.status(404).json({ error: "Match not found" });
+    }
+
+    // Mark match as expired (soft delete)
+    const updateResult = db.prepare(`UPDATE matches SET stage = 'expired' WHERE id = ?`).run([matchId]);
+    if (updateResult instanceof Promise) {
+      await updateResult;
+    }
+
+    // Return tokens if they were used (optional - you might want to keep tokens used)
+    // For now, we'll just expire the match
+
+    res.json({ message: "Match removed successfully" });
+  } catch (error) {
+    console.error("Unmatch error:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: `Failed to unmatch: ${errorMessage}` });
   }
-
-  // Mark match as expired (soft delete)
-  db.prepare(`UPDATE matches SET stage = 'expired' WHERE id = ?`).run(matchId);
-
-  // Return tokens if they were used (optional - you might want to keep tokens used)
-  // For now, we'll just expire the match
-
-  res.json({ message: "Match removed successfully" });
 });
 
 // Generate weekly matches for current user

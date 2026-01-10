@@ -236,12 +236,14 @@ export default function Browse() {
 
       console.log('✅ Connect successful, showing celebration');
 
+      // Reset connecting state immediately since the API call succeeded
+      setConnecting(false);
+
       // Show match celebration
       setMatchedProfile(profile);
       setShowMatchCelebration(true);
       
       // Move to next profile after celebration (handled by handleCelebrationClose)
-      // Reset connecting state is handled in handleCelebrationClose
     } catch (err) {
       console.error('❌ Connect error:', err);
       // Show error
@@ -257,9 +259,9 @@ export default function Browse() {
   };
 
   const handleCelebrationClose = () => {
+    console.log('🎉 Celebration closed, moving to next profile');
     setShowMatchCelebration(false);
     setMatchedProfile(null);
-    setConnecting(false);
     // Move to next profile after celebration
     setOffset(prev => prev + 1);
   };
