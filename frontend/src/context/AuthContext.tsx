@@ -50,8 +50,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const fetchUser = async () => {
-    setLoading(true)
+  const fetchUser = async (shouldSetLoading = true) => {
+    if (shouldSetLoading) {
+      setLoading(true)
+    }
     try {
       // Cancel any pending requests
       if (abortControllerRef.current) {
@@ -71,6 +73,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // Check if request was aborted
       if (abortControllerRef.current?.signal.aborted) {
+        if (shouldSetLoading) {
+          setLoading(false)
+        }
         return
       }
       
@@ -87,7 +92,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error: any) {
       // Ignore aborted requests
       if (error?.name === 'AbortError' || abortControllerRef.current?.signal.aborted) {
-        setLoading(false)
+        if (shouldSetLoading) {
+          setLoading(false)
+        }
         return
       }
       
@@ -98,7 +105,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Re-throw so login can handle it
       throw error
     } finally {
-      setLoading(false)
+      if (shouldSetLoading) {
+        setLoading(false)
+      }
     }
   }
 
@@ -123,8 +132,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       localStorage.setItem('token', data.token)
       
-      // Fetch user data
-      await fetchUser()
+      // Fetch user data (don't set loading again, it's already set)
+      await fetchUser(false)
       
       // Return hasProfile
       return { hasProfile: data.hasProfile || false }
