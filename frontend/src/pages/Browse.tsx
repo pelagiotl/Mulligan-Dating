@@ -37,6 +37,7 @@ export default function Browse() {
   const [connecting, setConnecting] = useState(false);
   const [showMatchCelebration, setShowMatchCelebration] = useState(false);
   const [matchedProfile, setMatchedProfile] = useState<Profile | null>(null);
+  const [hasFetched, setHasFetched] = useState(false); // Track if we've fetched at least once
   const navigate = useNavigate();
 
   // Define fetchProfile first with useCallback before using it in useEffect
