@@ -184,23 +184,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await new Promise(resolve => setTimeout(resolve, 150))
       
       console.log('Fetching user data after login...')
+      let fetchUserSuccess = false
       try {
         await fetchUser()
         console.log('Login complete, user data fetched successfully')
+        fetchUserSuccess = true
       } catch (fetchError: any) {
         console.error('fetchUser failed after login:', fetchError)
-        // Even if fetchUser fails, we still have a valid token from login response
-        // Set minimal user state manually so isAuthenticated is true and user can navigate
-        // fetchUser will retry and update this later when navigating to pages
-        console.log('Setting minimal user state from login response due to fetchUser failure')
-        setUser({
-          id: data.userId || 'temp', // Use userId from login response
-          email: email, // Use email from login request
-          isAdmin: false // Will be updated by fetchUser later
-        })
-        setProfile(null) // Will be updated by fetchUser later
+        // Don't let fetchUser failure block login - we have a valid token
+      } finally {
+        // ALWAYS set minimal user state after login if we have a userId
+        // This ensures isAuthenticated is true even if fetchUser fails or is aborted
+        if (!fetchUserSuccess && data.userId) {
+          console.log('Setting minimal user state from login response (fetchUser failed or aborted)')
+          setUser({
+            id: data.userId, // Use userId from login response
+            email: email, // Use email from login request
+            isAdmin: false // Will be updated by fetchUser later if it succeeds
+          })
+          setProfile(null) // Will be updated by fetchUser later if it succeeds
+        }
         setLoading(false)
-        console.log('fetchUser failed but token is valid, continuing login with minimal user state...')
+        console.log('Login process complete - user state set, isAuthenticated should be true')
       }
       
       // Return hasProfile from the login response
