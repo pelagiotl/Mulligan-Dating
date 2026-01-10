@@ -157,14 +157,10 @@ async function startServer() {
   }
 }
 
-// Start the server
-startServer();
-
 // Initialize Socket.io
 import { initializeSocket } from './socket.js';
-const io = initializeSocket(server);
 
-// Routes with rate limiting
+// Routes with rate limiting (set up before server starts)
 app.use("/api/auth", rateLimitAuth, authRouter);
 app.use("/api/profile", profileRouter);
 app.use("/api/users", usersRouter);
@@ -288,8 +284,22 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
   });
 });
 
-server.listen(PORT, () => {
-  console.log(`
+// Initialize database (async for PostgreSQL support) - MUST complete before server starts
+async function startServer() {
+  try {
+    console.log('🔄 Initializing database...');
+    await initDatabase();
+    console.log('✅ Database initialized successfully');
+    
+    // Initialize cron scheduler (async, won't block server startup)
+    initCronScheduler();
+    
+    // Initialize Socket.io AFTER database is ready but BEFORE server starts listening
+    initializeSocket(server);
+    
+    // Start server only after database is ready
+    server.listen(PORT, () => {
+      console.log(`
   ╔═══════════════════════════════════════════╗
   ║                                           ║
   ║   💘 Mulligan API Server                  ║
@@ -298,9 +308,9 @@ server.listen(PORT, () => {
   ║                                           ║
   ╚═══════════════════════════════════════════╝
   `);
-}).on('error', (err: NodeJS.ErrnoException) => {
-  if (err.code === 'EADDRINUSE') {
-    console.error(`
+    }).on('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'EADDRINUSE') {
+        console.error(`
   ❌ Port ${PORT} is already in use!
   
   To fix this, run in your terminal:
@@ -313,8 +323,17 @@ server.listen(PORT, () => {
   Then kill it with:
   kill -9 <PID>
     `);
+        process.exit(1);
+      } else {
+        console.error('❌ Server error:', err);
+        process.exit(1);
+      }
+    });
+  } catch (err) {
+    console.error('❌ Failed to initialize database:', err);
     process.exit(1);
-  } else {
-    throw err;
   }
-});
+}
+
+// Start the server
+startServer();
