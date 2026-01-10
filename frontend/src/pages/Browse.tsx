@@ -247,14 +247,48 @@ export default function Browse() {
       // Move to next profile after celebration (handled by handleCelebrationClose)
     } catch (err) {
       console.error('❌ Connect error:', err);
-      // Show error
+      
+      // Extract error message - ApiError has a status property
+      let errorMessage = 'Failed to connect. Please try again.';
+      
       if (err instanceof Error) {
-        setError(err.message || 'Failed to connect. Please try again.');
-      } else {
-        setError('Failed to connect. Please try again.');
+        errorMessage = err.message || errorMessage;
+        
+        // Check if it's an ApiError (which has a status property)
+        if ('status' in err) {
+          const apiErr = err as Error & { status: number };
+          // Provide more specific error messages based on status code
+          if (apiErr.status === 400) {
+            // Bad request - likely validation error or missing requirements (no token, no photos, etc.)
+            errorMessage = err.message || 'Cannot connect. Please check that both you and the other person have photos uploaded and you have available tokens.';
+          } else if (apiErr.status === 401) {
+            errorMessage = 'Session expired. Please log in again.';
+          } else if (apiErr.status === 404) {
+            errorMessage = 'Profile not found. Please refresh and try again.';
+          } else if (apiErr.status === 408) {
+            errorMessage = 'Request timed out. The server may be slow. Please try again.';
+          }
+        }
+      } else if (err && typeof err === 'object' && 'message' in err) {
+        errorMessage = String((err as any).message) || errorMessage;
       }
-      // Clear error after 5 seconds
-      setTimeout(() => setError(""), 5000);
+      
+      console.error('❌ Connect error details:', {
+        error: err,
+        errorMessage,
+        profileId: profile?.id,
+        userId: profile?.userId,
+        errorType: err instanceof Error ? err.constructor.name : typeof err,
+        hasStatus: err instanceof Error && 'status' in err ? (err as any).status : 'N/A'
+      });
+      
+      // Show error
+      setError(errorMessage);
+      
+      // Clear error after 8 seconds (longer so user can read it)
+      setTimeout(() => setError(""), 8000);
+      
+      // Reset connecting state
       setConnecting(false);
     }
   };
@@ -387,6 +421,22 @@ export default function Browse() {
         </div>
       ) : currentProfile ? (
         <div className="browse-immersive-container">
+          {error && (
+            <div style={{ 
+              textAlign: 'center', 
+              marginBottom: 'var(--space-4)', 
+              color: 'var(--error-color, #ef4444)',
+              fontSize: '0.9rem',
+              padding: 'var(--space-3) var(--space-4)',
+              background: 'rgba(239, 68, 68, 0.1)',
+              borderRadius: '8px',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              margin: '0 auto var(--space-4)',
+              maxWidth: '600px'
+            }}>
+              ⚠️ {error}
+            </div>
+          )}
           <div className="button-wrapper">
             <div className="sparkle sparkle-1">✨</div>
             <div className="sparkle sparkle-2">💫</div>
