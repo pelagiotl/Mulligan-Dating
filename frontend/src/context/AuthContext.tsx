@@ -113,7 +113,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Reset state before login
       setUser(null)
       setProfile(null)
-      setLoading(true)
       
       const data: any = await api.post('/auth/login', { email, password })
       
@@ -123,7 +122,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       localStorage.setItem('token', data.token)
       
-      // Fetch user data - let it handle loading state
+      // Fetch user data - it handles loading state itself
       await fetchUser()
       
       // Return hasProfile
