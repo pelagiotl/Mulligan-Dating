@@ -20,7 +20,7 @@ interface ProfileRow {
  * 3. Checks interests
  * 4. Keyword matching in profile text (fallback)
  */
-export function checkDealbreakers(userProfileId: string, candidateProfileId: string): boolean {
+export async function checkDealbreakers(userProfileId: string, candidateProfileId: string): Promise<boolean> {
   // Get user's dealbreakers
   const userDealbreakers = db
     .prepare("SELECT description FROM dealbreakers WHERE profile_id = ?")
@@ -60,7 +60,8 @@ export function checkDealbreakers(userProfileId: string, candidateProfileId: str
     } | undefined;
 
   // Build candidate text for keyword matching (fallback)
-  const candidateText = `${candidateProfile.bio || ''} ${candidateProfile.display_name || ''} ${candidateProfile.location || ''} ${candidateInterests.map(i => i.name).join(' ')}`.toLowerCase();
+  const candidateInterestsText = candidateInterestsArray.map(i => i.name).join(' ');
+  const candidateText = `${candidateProfile.bio || ''} ${candidateProfile.display_name || ''} ${candidateProfile.location || ''} ${candidateInterestsText}`.toLowerCase();
 
   // Check each of the user's dealbreakers
   for (const dealbreaker of userDealbreakers) {
@@ -164,7 +165,7 @@ export function checkDealbreakers(userProfileId: string, candidateProfileId: str
 
     // Method 3: Check if dealbreaker appears in candidate's interests (for lifestyle dealbreakers)
     // For example: "Smoking" in interests means they smoke
-    const candidateHasInInterests = candidateInterests.some(
+    const candidateHasInInterests = candidateInterestsArray.some(
       i => i.name.toLowerCase() === dealbreakerLower
     );
     if (candidateHasInInterests) {
