@@ -164,15 +164,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log('Login complete, user data fetched')
       } catch (fetchError: any) {
         console.error('fetchUser failed after login:', fetchError)
-        // Even if fetchUser fails, we still have a valid token, so login should succeed
-        // The user can still navigate and fetchUser will retry later
-        // Don't clear the token - it's valid, just fetchUser had an issue
-        console.log('fetchUser failed but token is valid, continuing login...')
+        // Even if fetchUser fails, we still have a valid token from login response
+        // Set minimal user state manually so isAuthenticated is true and user can navigate
+        // fetchUser will retry and update this later when navigating to pages
+        console.log('Setting minimal user state from login response due to fetchUser failure')
+        setUser({
+          id: data.userId || 'temp', // Use userId from login response
+          email: email, // Use email from login request
+          isAdmin: false // Will be updated by fetchUser later
+        })
+        setProfile(null) // Will be updated by fetchUser later
+        setLoading(false)
+        console.log('fetchUser failed but token is valid, continuing login with minimal user state...')
       }
       
-      // Return hasProfile from the login response, not from fetchUser
-      // If the server didn't send hasProfile, check if we have a profile
-      const hasProfile = data.hasProfile !== undefined ? data.hasProfile : !!profile
+      // Return hasProfile from the login response
+      const hasProfile = data.hasProfile !== undefined ? data.hasProfile : false
       console.log('Login returning hasProfile:', hasProfile)
       return { hasProfile }
     } catch (error: any) {
