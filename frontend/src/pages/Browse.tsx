@@ -73,7 +73,6 @@ export default function Browse() {
       
       setCurrentProfile(data.profile);
       setHasMore(data.hasMore);
-      setHasFetched(true); // Mark that we've successfully fetched
       console.log('✅ State updated - currentProfile:', data.profile ? 'has profile' : 'null', 'hasMore:', data.hasMore);
       
       // Debug: Log distance info
@@ -121,18 +120,17 @@ export default function Browse() {
         console.log('ℹ️ Profile missing detected, showing create profile button');
         setCurrentProfile(null);
         setError(""); // Clear any error state
-        setLoading(false);
-        return;
+      } else {
+        // For other errors, show them but also log for debugging
+        console.error('❌ Non-profile error in Browse:', errorMessage);
+        setError(errorMessage);
+        setCurrentProfile(null); // Ensure we clear the profile on error
       }
-      
-      // For other errors, show them but also log for debugging
-      console.error('❌ Non-profile error in Browse:', errorMessage);
-      setError(errorMessage);
-      setCurrentProfile(null); // Ensure we clear the profile on error
     } finally {
-      // Always set loading to false, even if there's an error
-      console.log('✅ Setting loading to false');
+      // Always set loading to false and mark as fetched, even if there's an error
+      console.log('✅ Setting loading to false and marking as fetched');
       setLoading(false);
+      setHasFetched(true); // Mark that we've attempted a fetch (success or failure)
     }
   }, [offset]);
 
@@ -144,15 +142,17 @@ export default function Browse() {
       setError("");
       fetchProfile();
     }
-  }, [hasFetched, fetchProfile]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
 
-  // Refetch when offset changes (for pagination)
+  // Refetch when offset changes (for pagination) - only if we've already fetched once
   useEffect(() => {
     if (hasFetched && offset > 0) {
       console.log('🔄 Offset changed to:', offset, '- refetching');
       fetchProfile();
     }
-  }, [offset, hasFetched, fetchProfile]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [offset]); // Only depend on offset, not fetchProfile to avoid loops
 
   const playConnectSound = () => {
     try {
