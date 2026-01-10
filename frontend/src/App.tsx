@@ -19,7 +19,72 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth()
   
   if (loading) {
-    return <div className="loading-screen">Loading...</div>
+    return (
+      <div className="loading-screen-immersive">
+        <div className="loading-bg-gradient"></div>
+        <div className="loading-particles">
+          {Array.from({ length: 30 }).map((_, i) => (
+            <div
+              key={i}
+              className="loading-particle"
+              style={{
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`,
+                animationDelay: `${Math.random() * 3}s`,
+                animationDuration: `${10 + Math.random() * 10}s`
+              }}
+            />
+          ))}
+        </div>
+        <div className="loading-orbs">
+          <div className="loading-orb loading-orb-1"></div>
+          <div className="loading-orb loading-orb-2"></div>
+          <div className="loading-orb loading-orb-3"></div>
+        </div>
+        <div className="loading-content">
+          <div className="loading-logo-container">
+            <svg className="loading-logo" width="80" height="80" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="loadingHeartGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
+                  <stop offset="50%" stopColor="#ffe4e6" stopOpacity="1" />
+                  <stop offset="100%" stopColor="#ffffff" stopOpacity="1" />
+                </linearGradient>
+                <filter id="loadingGlow">
+                  <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                  <feMerge>
+                    <feMergeNode in="coloredBlur"/>
+                    <feMergeNode in="SourceGraphic"/>
+                  </feMerge>
+                </filter>
+              </defs>
+              <path 
+                d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z" 
+                fill="url(#loadingHeartGradient)"
+                filter="url(#loadingGlow)"
+              />
+              <g className="loading-arrow-top">
+                <circle cx="36" cy="10" r="3" fill="currentColor" opacity="0.9" />
+                <path d="M30 10L36 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                <path d="M33 7L36 10L33 13" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+              </g>
+              <g className="loading-arrow-bottom">
+                <circle cx="12" cy="38" r="3" fill="currentColor" opacity="0.9" />
+                <path d="M18 38L12 38" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                <path d="M15 35L12 38L15 41" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+              </g>
+            </svg>
+          </div>
+          <h1 className="loading-title">Welcome Back</h1>
+          <div className="loading-dots">
+            <span className="loading-dot"></span>
+            <span className="loading-dot"></span>
+            <span className="loading-dot"></span>
+          </div>
+          <p className="loading-subtitle">Preparing your experience</p>
+        </div>
+      </div>
+    )
   }
   
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" />
@@ -30,7 +95,61 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isAdmin, loading } = useAuth()
   
   if (loading) {
-    return <div className="loading-screen">Loading...</div>
+    return (
+      <div className="loading-screen-immersive">
+        <div className="loading-bg-gradient"></div>
+        <div className="loading-particles">
+          {Array.from({ length: 30 }).map((_, i) => (
+            <div
+              key={i}
+              className="loading-particle"
+              style={{
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`,
+                animationDelay: `${Math.random() * 3}s`,
+                animationDuration: `${10 + Math.random() * 10}s`
+              }}
+            />
+          ))}
+        </div>
+        <div className="loading-orbs">
+          <div className="loading-orb loading-orb-1"></div>
+          <div className="loading-orb loading-orb-2"></div>
+          <div className="loading-orb loading-orb-3"></div>
+        </div>
+        <div className="loading-content">
+          <div className="loading-logo-container">
+            <svg className="loading-logo" width="80" height="80" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="loadingHeartGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
+                  <stop offset="50%" stopColor="#ffe4e6" stopOpacity="1" />
+                  <stop offset="100%" stopColor="#ffffff" stopOpacity="1" />
+                </linearGradient>
+                <filter id="loadingGlow">
+                  <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                  <feMerge>
+                    <feMergeNode in="coloredBlur"/>
+                    <feMergeNode in="SourceGraphic"/>
+                  </feMerge>
+                </filter>
+              </defs>
+              <path 
+                d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z" 
+                fill="url(#loadingHeartGradient)"
+                filter="url(#loadingGlow)"
+              />
+            </svg>
+          </div>
+          <h1 className="loading-title">Loading Admin</h1>
+          <div className="loading-dots">
+            <span className="loading-dot"></span>
+            <span className="loading-dot"></span>
+            <span className="loading-dot"></span>
+          </div>
+        </div>
+      </div>
+    )
   }
   
   if (!isAuthenticated) {
@@ -48,7 +167,61 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth()
   
   if (loading) {
-    return <div className="loading-screen">Loading...</div>
+    return (
+      <div className="loading-screen-immersive">
+        <div className="loading-bg-gradient"></div>
+        <div className="loading-particles">
+          {Array.from({ length: 30 }).map((_, i) => (
+            <div
+              key={i}
+              className="loading-particle"
+              style={{
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`,
+                animationDelay: `${Math.random() * 3}s`,
+                animationDuration: `${10 + Math.random() * 10}s`
+              }}
+            />
+          ))}
+        </div>
+        <div className="loading-orbs">
+          <div className="loading-orb loading-orb-1"></div>
+          <div className="loading-orb loading-orb-2"></div>
+          <div className="loading-orb loading-orb-3"></div>
+        </div>
+        <div className="loading-content">
+          <div className="loading-logo-container">
+            <svg className="loading-logo" width="80" height="80" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="loadingHeartGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
+                  <stop offset="50%" stopColor="#ffe4e6" stopOpacity="1" />
+                  <stop offset="100%" stopColor="#ffffff" stopOpacity="1" />
+                </linearGradient>
+                <filter id="loadingGlow">
+                  <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                  <feMerge>
+                    <feMergeNode in="coloredBlur"/>
+                    <feMergeNode in="SourceGraphic"/>
+                  </feMerge>
+                </filter>
+              </defs>
+              <path 
+                d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z" 
+                fill="url(#loadingHeartGradient)"
+                filter="url(#loadingGlow)"
+              />
+            </svg>
+          </div>
+          <h1 className="loading-title">Mulligan</h1>
+          <div className="loading-dots">
+            <span className="loading-dot"></span>
+            <span className="loading-dot"></span>
+            <span className="loading-dot"></span>
+          </div>
+        </div>
+      </div>
+    )
   }
   
   return <>{children}</>
@@ -58,7 +231,61 @@ function AuthRedirectRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth()
   
   if (loading) {
-    return <div className="loading-screen">Loading...</div>
+    return (
+      <div className="loading-screen-immersive">
+        <div className="loading-bg-gradient"></div>
+        <div className="loading-particles">
+          {Array.from({ length: 30 }).map((_, i) => (
+            <div
+              key={i}
+              className="loading-particle"
+              style={{
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`,
+                animationDelay: `${Math.random() * 3}s`,
+                animationDuration: `${10 + Math.random() * 10}s`
+              }}
+            />
+          ))}
+        </div>
+        <div className="loading-orbs">
+          <div className="loading-orb loading-orb-1"></div>
+          <div className="loading-orb loading-orb-2"></div>
+          <div className="loading-orb loading-orb-3"></div>
+        </div>
+        <div className="loading-content">
+          <div className="loading-logo-container">
+            <svg className="loading-logo" width="80" height="80" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="loadingHeartGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
+                  <stop offset="50%" stopColor="#ffe4e6" stopOpacity="1" />
+                  <stop offset="100%" stopColor="#ffffff" stopOpacity="1" />
+                </linearGradient>
+                <filter id="loadingGlow">
+                  <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                  <feMerge>
+                    <feMergeNode in="coloredBlur"/>
+                    <feMergeNode in="SourceGraphic"/>
+                  </feMerge>
+                </filter>
+              </defs>
+              <path 
+                d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z" 
+                fill="url(#loadingHeartGradient)"
+                filter="url(#loadingGlow)"
+              />
+            </svg>
+          </div>
+          <h1 className="loading-title">Mulligan</h1>
+          <div className="loading-dots">
+            <span className="loading-dot"></span>
+            <span className="loading-dot"></span>
+            <span className="loading-dot"></span>
+          </div>
+        </div>
+      </div>
+    )
   }
   
   return !isAuthenticated ? <>{children}</> : <Navigate to="/browse" />
