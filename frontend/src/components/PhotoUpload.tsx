@@ -234,11 +234,33 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
         {photos.map((photo) => (
           <div key={photo.id} className="photo-item">
             <div className="photo-container">
-              <img src={getPhotoUrl(photo.url) || '#'} alt={`Photo ${photo.displayOrder + 1}`} onError={(e) => {
-                console.error('Failed to load photo:', photo.url);
-                const target = e.target as HTMLImageElement;
-                target.style.display = 'none';
-              }} />
+              <img 
+                src={getPhotoUrl(photo.url) || '#'} 
+                alt={`Photo ${photo.displayOrder + 1}`} 
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  const originalSrc = photo.url;
+                  const constructedUrl = getPhotoUrl(photo.url);
+                  const API_URL = (import.meta.env as any).VITE_API_URL || (import.meta.env as any).VITE_NGROK_URL || '';
+                  console.error('❌ Failed to load photo:', {
+                    photoId: photo.id,
+                    originalUrl: originalSrc,
+                    constructedUrl: constructedUrl,
+                    displayOrder: photo.displayOrder,
+                    apiUrl: API_URL ? 'SET' : 'NOT SET',
+                    error: 'Image failed to load - check URL and CORS'
+                  });
+                  // Hide broken image and show placeholder
+                  target.style.display = 'none';
+                }}
+                onLoad={() => {
+                  console.log('✅ Photo loaded successfully:', {
+                    photoId: photo.id,
+                    url: photo.url,
+                    constructedUrl: getPhotoUrl(photo.url)
+                  });
+                }}
+              />
               {photo.isPrimary && <div className="photo-primary-badge">⭐ Primary</div>}
               {!profileId && (
                 <div className="photo-actions">

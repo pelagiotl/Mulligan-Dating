@@ -6,10 +6,14 @@
  */
 export function getPhotoUrl(url: string | null | undefined): string {
   // Handle null/undefined
-  if (!url) return '';
+  if (!url) {
+    return '';
+  }
   
   // If already a full URL, return as-is
-  if (url.startsWith("http")) return url;
+  if (url.startsWith("http")) {
+    return url;
+  }
   
   // Get the backend API URL from environment variables (same logic as api.ts)
   const API_URL: string = (import.meta.env as any).VITE_API_URL || (import.meta.env as any).VITE_NGROK_URL || '';
@@ -18,8 +22,16 @@ export function getPhotoUrl(url: string | null | undefined): string {
   // Photo URLs are stored as /uploads/filename.jpg and served from backend
   if (API_URL) {
     // Remove /api suffix if present since photos are served directly from /uploads
-    const baseUrl = API_URL.replace(/\/api$/, '');
-    return url.startsWith("/") ? `${baseUrl}${url}` : `${baseUrl}/${url}`;
+    // Also handle case where API_URL might be just the domain without /api
+    let baseUrl = API_URL.replace(/\/api\/?$/, '');
+    
+    // Ensure baseUrl doesn't end with /
+    baseUrl = baseUrl.replace(/\/$/, '');
+    
+    // Construct the full URL
+    const fullUrl = url.startsWith("/") ? `${baseUrl}${url}` : `${baseUrl}/${url}`;
+    
+    return fullUrl;
   }
   
   // For local development, photos are served from backend at /uploads
