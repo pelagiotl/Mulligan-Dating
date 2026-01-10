@@ -3806,10 +3806,19 @@ img {
 }
 
 .claim-btn {
-  animation: pulse 2s infinite;
+  position: relative;
+  z-index: 2;
+  pointer-events: auto !important;
+  cursor: pointer !important;
+  animation: claimBtnPulse 2s infinite;
 }
 
-@keyframes pulse {
+.claim-btn:disabled {
+  cursor: wait !important;
+  pointer-events: auto !important;
+}
+
+@keyframes claimBtnPulse {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.05); }
 }
@@ -3817,6 +3826,15 @@ img {
 .token-info {
   font-size: 0.875rem;
   color: var(--text-muted);
+  position: relative;
+  z-index: 1;
+}
+
+.token-error,
+.token-success,
+.token-cannot-claim {
+  position: relative;
+  z-index: 1;
 }
 
 .token-icon {

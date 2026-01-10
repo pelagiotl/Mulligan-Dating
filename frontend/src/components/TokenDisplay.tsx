@@ -142,9 +142,13 @@ export default function TokenDisplay() {
           className="btn btn-primary btn-sm claim-btn"
           onClick={handleClaim}
           disabled={claiming}
+          type="button"
           style={{
             cursor: claiming ? 'wait' : 'pointer',
-            opacity: claiming ? 0.6 : 1
+            opacity: claiming ? 0.6 : 1,
+            position: 'relative',
+            zIndex: 2,
+            pointerEvents: 'auto'
           }}
         >
           {claiming ? "Claiming..." : "✨ Claim Weekly Tokens"}
