@@ -73,6 +73,7 @@ export default function Browse() {
       
       setCurrentProfile(data.profile);
       setHasMore(data.hasMore);
+      setHasFetched(true); // Mark that we've successfully fetched
       console.log('✅ State updated - currentProfile:', data.profile ? 'has profile' : 'null', 'hasMore:', data.hasMore);
       
       // Debug: Log distance info
@@ -135,21 +136,23 @@ export default function Browse() {
     }
   }, [offset]);
 
-  // Initial fetch on mount
+  // Initial fetch on mount - only once
   useEffect(() => {
-    // Clear error state when component mounts or offset changes
-    setError("");
-    fetchProfile();
-  }, [fetchProfile]);
-
-  // If user just created a profile, refresh the browse page
-  useEffect(() => {
-    if (userProfile && !loading && !currentProfile) {
-      // Profile exists in AuthContext - try to fetch browse profiles
-      console.log('Profile exists in AuthContext, refreshing browse...');
+    if (!hasFetched) {
+      console.log('🔵 Initial mount - fetching profile');
+      // Clear error state when component mounts
+      setError("");
       fetchProfile();
     }
-  }, [userProfile, loading, currentProfile, fetchProfile]);
+  }, [hasFetched, fetchProfile]);
+
+  // Refetch when offset changes (for pagination)
+  useEffect(() => {
+    if (hasFetched && offset > 0) {
+      console.log('🔄 Offset changed to:', offset, '- refetching');
+      fetchProfile();
+    }
+  }, [offset, hasFetched, fetchProfile]);
 
   const playConnectSound = () => {
     try {
