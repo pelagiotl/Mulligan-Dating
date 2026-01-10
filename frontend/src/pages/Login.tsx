@@ -59,16 +59,21 @@ export default function Login() {
       const { hasProfile } = await login(email, password)
       console.log('Login successful, hasProfile:', hasProfile)
       
-      // Verify we're actually authenticated now
-      await new Promise(resolve => setTimeout(resolve, 100))
-      
       // Show success animation
       setSuccess(true)
       setLoading(false)
       
-      // Wait for success animation to play, then navigate
-      await new Promise(resolve => setTimeout(resolve, 800))
-      navigate(hasProfile ? '/browse' : '/create-profile')
+      // Wait a moment for state to fully update, then let AuthRedirectRoute handle navigation
+      // The AuthRedirectRoute will automatically redirect to /browse once isAuthenticated is true
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      // If we're still on the login page after state update, manually navigate as fallback
+      // This ensures navigation happens even if AuthRedirectRoute doesn't trigger
+      const token = localStorage.getItem('token')
+      if (token) {
+        console.log('Token confirmed, navigating to:', hasProfile ? '/browse' : '/create-profile')
+        navigate(hasProfile ? '/browse' : '/create-profile', { replace: true })
+      }
     } catch (err: any) {
       console.error('Login error details:', {
         error: err,
