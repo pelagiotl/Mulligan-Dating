@@ -19,6 +19,13 @@ interface ProfileRow {
   looking_for: string | null;
 }
 
+type ProfileWithMetadata = ProfileRow & { 
+  interests_list: string | null;
+  candidate_min_age: number;
+  candidate_max_age: number;
+  candidate_preferred_genders: string | null;
+};
+
 // Browse profiles (excluding current user) - Returns ONE profile at a time
 usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
   try {
@@ -139,12 +146,7 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
     // Handle both sync (SQLite) and async (PostgreSQL)
     const allProfiles = (allProfilesResult instanceof Promise)
       ? await allProfilesResult
-      : allProfilesResult as (ProfileRow & { 
-          interests_list: string | null;
-          candidate_min_age: number;
-          candidate_max_age: number;
-          candidate_preferred_genders: string | null;
-        })[];
+      : allProfilesResult as ProfileWithMetadata[];
     
     console.log('📊 Found profiles before filtering:', allProfiles.length);
     if (allProfiles.length === 0) {
@@ -162,7 +164,7 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
       if (userLocationResult.coordinates) {
         // Filter profiles by distance
         const profilesWithDistance = await Promise.all(
-          allProfiles.map(async (p) => {
+          allProfiles.map(async (p: ProfileWithMetadata) => {
             if (!p.location) {
               return { profile: p, distance: null };
             }
@@ -193,7 +195,7 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
     // Only dealbreakers (checked below) will hard-filter users
     
     // NEW: Filter by dealbreakers using comprehensive utility
-    filteredProfiles = filteredProfiles.filter((p) => {
+    filteredProfiles = filteredProfiles.filter((p: ProfileWithMetadata) => {
       return checkDealbreakersUtil(userProfile.id, p.id);
     });
 
@@ -219,10 +221,10 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
       } | undefined>);
     
     // Calculate match scores for all profiles (always score, even if no preferences set)
-    const profilesWithScores = await Promise.all(filteredProfiles.map(async (p) => {
+    const profilesWithScores = await Promise.all(filteredProfiles.map(async (p: ProfileWithMetadata) => {
       // Calculate interests overlap
       const candidateInterests = p.interests_list 
-        ? p.interests_list.split(',').map(i => i.trim().toLowerCase())
+        ? p.interests_list.split(',').map((i: string) => i.trim().toLowerCase())
         : [];
       const userInterestNames = new Set(userInterests.map(i => i.name.toLowerCase()));
       const candidateInterestNames = new Set(candidateInterests);
