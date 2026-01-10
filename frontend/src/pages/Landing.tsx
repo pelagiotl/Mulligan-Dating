@@ -18,46 +18,23 @@ export default function Landing() {
     return particles
   })
 
-  // Refs for feature cards to observe scroll
+  // Refs for feature cards to animate automatically
   const featureCardRefs = useRef<(HTMLDivElement | null)[]>([])
 
-  // Set up Intersection Observer for scroll animations
+  // Automatically animate cards in one at a time on page load
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('feature-card-visible')
-            // Unobserve after animation to improve performance
-            observer.unobserve(entry.target)
-          }
-        })
-      },
-      {
-        threshold: 0.1, // Trigger when 10% of the card is visible
-        rootMargin: '0px 0px -100px 0px' // Start animation when card is 100px from viewport bottom
+    // Small delay to ensure refs are set and page is ready
+    const initialDelay = 500 // Start animations 500ms after page load
+    
+    // Animate each card with staggered delays
+    featureCardRefs.current.forEach((card, index) => {
+      if (card) {
+        const delay = initialDelay + (index * 400) // 400ms between each card
+        setTimeout(() => {
+          card.classList.add('feature-card-visible')
+        }, delay)
       }
-    )
-
-    // Small delay to ensure refs are set
-    const timeoutId = setTimeout(() => {
-      // Observe all feature cards
-      featureCardRefs.current.forEach((card) => {
-        if (card) {
-          observer.observe(card)
-        }
-      })
-    }, 100)
-
-    // Cleanup
-    return () => {
-      clearTimeout(timeoutId)
-      featureCardRefs.current.forEach((card) => {
-        if (card) {
-          observer.unobserve(card)
-        }
-      })
-    }
+    })
   }, [])
 
   return (
