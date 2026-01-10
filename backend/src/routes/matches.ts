@@ -446,25 +446,26 @@ matchesRouter.get("/:matchId/messages", authenticateToken, async (req: AuthReque
 
 // Send a message
 matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
-  const userId = req.userId!;
-  const { matchId } = req.params;
-  const { content } = req.body;
+  try {
+    const userId = req.userId!;
+    const { matchId } = req.params;
+    const { content } = req.body;
 
-  if (!content || typeof content !== 'string' || !content.trim()) {
-    return res.status(400).json({ error: "Message content required" });
-  }
-  
-  // Sanitize and validate message content
-  const { sanitizeText } = await import('../middleware/security.js');
-  const sanitizedContent = sanitizeText(content.trim(), 1000); // Max 1000 characters per message
-  
-  if (sanitizedContent.length === 0) {
-    return res.status(400).json({ error: "Message cannot be empty" });
-  }
-  
-  if (sanitizedContent.length > 1000) {
-    return res.status(400).json({ error: "Message must be at most 1000 characters" });
-  }
+    if (!content || typeof content !== 'string' || !content.trim()) {
+      return res.status(400).json({ error: "Message content required" });
+    }
+    
+    // Sanitize and validate message content
+    const { sanitizeText } = await import('../middleware/security.js');
+    const sanitizedContent = sanitizeText(content.trim(), 1000); // Max 1000 characters per message
+    
+    if (sanitizedContent.length === 0) {
+      return res.status(400).json({ error: "Message cannot be empty" });
+    }
+    
+    if (sanitizedContent.length > 1000) {
+      return res.status(400).json({ error: "Message must be at most 1000 characters" });
+    }
 
     // Verify user is part of this match and it's mutual
     const matchResult = db
@@ -499,33 +500,33 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
         ? await allMessagesResult
         : allMessagesResult) as Array<{ sender_id: string; sent_at: string }>;
 
-    // Count valid messages (only count if previous message was from the other user)
-    let user1ValidCount = 0;
-    let user2ValidCount = 0;
-    
-    for (let i = 0; i < allMessages.length; i++) {
-      const currentMessage = allMessages[i];
-      const isUser1 = currentMessage.sender_id === match.user1_id;
+      // Count valid messages (only count if previous message was from the other user)
+      let user1ValidCount = 0;
+      let user2ValidCount = 0;
       
-      if (i === 0) {
-        // First message always counts (it starts the conversation)
-        if (isUser1) user1ValidCount++;
-        else user2ValidCount++;
-      } else {
-        // Subsequent messages only count if the previous message was from the other user
-        const previousMessage = allMessages[i - 1];
-        const previousWasUser1 = previousMessage.sender_id === match.user1_id;
+      for (let i = 0; i < allMessages.length; i++) {
+        const currentMessage = allMessages[i];
+        const isUser1 = currentMessage.sender_id === match.user1_id;
         
-        if (isUser1 && !previousWasUser1) {
-          // User1 replied to User2
-          user1ValidCount++;
-        } else if (!isUser1 && previousWasUser1) {
-          // User2 replied to User1
-          user2ValidCount++;
+        if (i === 0) {
+          // First message always counts (it starts the conversation)
+          if (isUser1) user1ValidCount++;
+          else user2ValidCount++;
+        } else {
+          // Subsequent messages only count if the previous message was from the other user
+          const previousMessage = allMessages[i - 1];
+          const previousWasUser1 = previousMessage.sender_id === match.user1_id;
+          
+          if (isUser1 && !previousWasUser1) {
+            // User1 replied to User2
+            user1ValidCount++;
+          } else if (!isUser1 && previousWasUser1) {
+            // User2 replied to User1
+            user2ValidCount++;
+          }
+          // If same user sent consecutive messages, don't count the second one
         }
-        // If same user sent consecutive messages, don't count the second one
       }
-    }
 
       // Both users need to have sent at least 2 valid messages (alternating)
       if (user1ValidCount >= 2 && user2ValidCount >= 2) {
