@@ -42,9 +42,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (token) {
       fetchUser().catch(() => {
         // Silently fail on initial load - user will need to login
-        // fetchUser's finally block already sets loading to false
       })
     } else {
+      setUser(null)
+      setProfile(null)
       setLoading(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
