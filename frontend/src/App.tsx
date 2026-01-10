@@ -229,6 +229,14 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 
 function AuthRedirectRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth()
+  const [hasToken, setHasToken] = React.useState(false)
+  
+  // Reactively check token whenever isAuthenticated or loading changes
+  React.useEffect(() => {
+    const token = localStorage.getItem('token')
+    setHasToken(!!token)
+    console.log('AuthRedirectRoute token check:', { hasToken: !!token, isAuthenticated, loading })
+  }, [isAuthenticated, loading])
   
   if (loading) {
     return (
@@ -288,17 +296,16 @@ function AuthRedirectRoute({ children }: { children: React.ReactNode }) {
     )
   }
   
-  // Check BOTH token AND authenticated state - only redirect if both are true
+  // Only redirect if we have both token AND authenticated state
   // This prevents redirecting when state is stale after logout
-  const hasToken = localStorage.getItem('token')
+  // But allows redirect when login succeeds (token is set AND isAuthenticated becomes true)
   const shouldRedirect = isAuthenticated && hasToken
   
-  console.log('AuthRedirectRoute check:', { isAuthenticated, hasToken: !!hasToken, shouldRedirect })
+  console.log('AuthRedirectRoute final check:', { isAuthenticated, hasToken, shouldRedirect })
   
-  // Only redirect if we have both token AND authenticated state
-  // If no token, always show login/signup pages (even if isAuthenticated is briefly true)
   if (shouldRedirect) {
-    return <Navigate to="/browse" />
+    console.log('Redirecting authenticated user to /browse')
+    return <Navigate to="/browse" replace />
   }
   
   return <>{children}</>
