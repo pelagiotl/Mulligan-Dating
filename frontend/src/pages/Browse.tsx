@@ -43,7 +43,18 @@ export default function Browse() {
   const fetchProfile = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await api.get<{ profile: Profile | null; hasMore: boolean; offset: number; total: number }>(`/users/browse?offset=${offset}`);
+      setError(""); // Clear any previous errors
+      
+      // Add timeout to prevent infinite loading
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timeout - server may be starting up')), 30000);
+      });
+      
+      const data = await Promise.race([
+        api.get<{ profile: Profile | null; hasMore: boolean; offset: number; total: number }>(`/users/browse?offset=${offset}`),
+        timeoutPromise
+      ]) as { profile: Profile | null; hasMore: boolean; offset: number; total: number };
+      
       if (data.profile) {
         // Fetch photos for this profile
         try {
@@ -110,9 +121,17 @@ export default function Browse() {
       console.error('Non-profile error in Browse:', errorMessage);
       setError(errorMessage);
     } finally {
+      // Always set loading to false, even if there's an error
       setLoading(false);
     }
   }, [offset]);
+
+  // Initial fetch on mount
+  useEffect(() => {
+    // Clear error state when component mounts or offset changes
+    setError("");
+    fetchProfile();
+  }, [fetchProfile]);
 
   const playConnectSound = () => {
     try {
@@ -286,12 +305,12 @@ export default function Browse() {
   
   // If user just created a profile, refresh the browse page
   useEffect(() => {
-    if (userProfile && !loading) {
+    if (userProfile && !loading && !currentProfile) {
       // Profile exists in AuthContext - try to fetch browse profiles
       console.log('Profile exists in AuthContext, refreshing browse...');
       fetchProfile();
     }
-  }, [userProfile, loading, fetchProfile]);
+  }, [userProfile, loading, currentProfile, fetchProfile]);
 
   return (
     <div>
