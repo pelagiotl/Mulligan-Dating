@@ -91,10 +91,18 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
       params.push(...excludedUserIds);
     }
 
-    // Filter by age range (mutual)
+    // Filter by age range and gender preferences
+    // Make filtering less strict to avoid filtering out all profiles
     if (userPrefs) {
-      query += ` AND p.age >= ? AND p.age <= ?`;
-      params.push(userPrefs.min_age, userPrefs.max_age);
+      // Filter by user's age preferences (candidate's age must match user's preferences)
+      // Only apply if preferences are set (not NULL)
+      if (userPrefs.min_age != null && userPrefs.max_age != null) {
+        query += ` AND p.age >= ? AND p.age <= ?`;
+        params.push(userPrefs.min_age, userPrefs.max_age);
+        console.log('✅ Applied age filter:', { min: userPrefs.min_age, max: userPrefs.max_age });
+      } else {
+        console.log('ℹ️  No age preferences set - showing all ages');
+      }
       
       // Filter by gender preferences (if user has preferences set)
       if (userPrefs.preferred_genders) {
@@ -107,26 +115,43 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
             params.push(...preferredGenders);
             console.log('✅ Applied gender filter:', preferredGenders);
           } else {
-            console.log('⚠️  Preferred genders array is empty');
+            console.log('⚠️  Preferred genders array is empty - showing all genders');
           }
         } catch (error) {
           // Invalid JSON, skip gender filter
           console.error('❌ Failed to parse preferred_genders:', error, 'Raw value:', userPrefs.preferred_genders);
         }
       } else {
-        console.log('ℹ️  No preferred_genders set in preferences');
+        console.log('ℹ️  No preferred_genders set in preferences - showing all genders');
       }
+    } else {
+      console.log('⚠️  No user preferences found - showing all profiles');
     }
 
     query += ` ORDER BY p.created_at DESC`;
     // Note: We'll apply distance filtering after fetching, so we get more results to filter
 
-    const allProfiles = db.prepare(query).all(...params) as (ProfileRow & { 
-      interests_list: string | null;
-      candidate_min_age: number;
-      candidate_max_age: number;
-      candidate_preferred_genders: string | null;
-    })[];
+    console.log('🔍 Executing browse query');
+    console.log('🔍 Query:', query);
+    console.log('🔍 Params:', params);
+    const allProfilesStmt = db.prepare(query);
+    const allProfilesResult = allProfilesStmt.all(params);
+    // Handle both sync (SQLite) and async (PostgreSQL)
+    const allProfiles = (allProfilesResult instanceof Promise)
+      ? await allProfilesResult
+      : allProfilesResult as (ProfileRow & { 
+          interests_list: string | null;
+          candidate_min_age: number;
+          candidate_max_age: number;
+          candidate_preferred_genders: string | null;
+        })[];
+    
+    console.log('📊 Found profiles before filtering:', allProfiles.length);
+    if (allProfiles.length === 0) {
+      console.warn('⚠️  No profiles found after initial query. User preferences might be filtering out all candidates.');
+      console.warn('   User age:', userProfile.age);
+      console.warn('   User preferences:', userPrefs);
+    }
 
     // Filter by distance if user has location and max_distance preference
     let filteredProfiles = allProfiles;
