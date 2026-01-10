@@ -19,8 +19,6 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
   // Always call hooks at the top level, before any conditional returns
   const { isAuthenticated, loading, user } = useAuth()
   
-  console.log('PrivateRoute check:', { isAuthenticated, loading, hasUser: !!user, hasToken: !!localStorage.getItem('token') })
-  
   if (loading) {
     return (
       <div className="loading-screen-immersive">
@@ -90,23 +88,8 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
     )
   }
   
-  // Debug log to see what's happening
-  console.log('PrivateRoute final check:', { 
-    isAuthenticated, 
-    loading, 
-    hasUser: !!user, 
-    hasToken: !!localStorage.getItem('token'),
-    userEmail: user?.email 
-  })
-  
-  if (!isAuthenticated && !loading) {
-    console.log('PrivateRoute: Not authenticated, redirecting to login')
+  if (!isAuthenticated) {
     return <Navigate to="/login" replace />
-  }
-  
-  if (loading) {
-    // Loading state - already showing loading screen above
-    return null
   }
   
   return <>{children}</>
