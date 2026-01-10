@@ -159,9 +159,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       
       console.log('Fetching user data after login...')
-      await fetchUser()
-      console.log('Login complete, user data fetched')
-      return { hasProfile: data.hasProfile }
+      try {
+        await fetchUser()
+        console.log('Login complete, user data fetched')
+      } catch (fetchError: any) {
+        console.error('fetchUser failed after login:', fetchError)
+        // Even if fetchUser fails, we still have a valid token, so login should succeed
+        // The user can still navigate and fetchUser will retry later
+        // Don't clear the token - it's valid, just fetchUser had an issue
+        console.log('fetchUser failed but token is valid, continuing login...')
+      }
+      
+      // Return hasProfile from the login response, not from fetchUser
+      // If the server didn't send hasProfile, check if we have a profile
+      const hasProfile = data.hasProfile !== undefined ? data.hasProfile : !!profile
+      console.log('Login returning hasProfile:', hasProfile)
+      return { hasProfile }
     } catch (error: any) {
       console.error('Login error:', error)
       console.error('Error details:', {
@@ -169,7 +182,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         status: error?.status,
         name: error?.name
       })
-      // If fetchUser fails, clean up token
+      // If login API call fails, clean up token
       localStorage.removeItem('token')
       setUser(null)
       setProfile(null)
