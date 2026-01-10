@@ -35,14 +35,14 @@ tokensRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
   // Count available tokens (granted but not used, and not returned)
   // Cap at maximum of 3 tokens
   const availableTokens = Math.min(
-    tokens.filter((t) => !t.used_at && !t.returned_at).length,
+    tokens.filter((t: TokenRow) => !t.used_at && !t.returned_at).length,
     3
   );
 
   // Check if user should get weekly tokens (3 tokens per week)
   // Find the most recent weekly token grant
   // Look for tokens with source='weekly' or no source (old tokens)
-  const weeklyTokens = tokens.filter((t) => !t.source || t.source === 'weekly');
+  const weeklyTokens = tokens.filter((t: TokenRow) => !t.source || t.source === 'weekly');
   const lastWeeklyToken = weeklyTokens.length > 0 ? weeklyTokens[0] : null;
   const oneWeekAgo = new Date();
   oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
@@ -90,7 +90,7 @@ tokensRouter.post("/claim", authenticateToken, async (req: AuthRequest, res) => 
       : allTokensResult as TokenRow[];
 
   const availableTokens = allTokens.filter(
-    (t) => !t.used_at && !t.returned_at
+    (t: TokenRow) => !t.used_at && !t.returned_at
   ).length;
 
   // Can't claim if already at max (3 tokens)
@@ -102,7 +102,7 @@ tokensRouter.post("/claim", authenticateToken, async (req: AuthRequest, res) => 
 
   // Check if user can claim weekly tokens
   // Look for tokens with source='weekly' or no source (old tokens)
-  const weeklyTokens = allTokens.filter((t) => !t.source || t.source === 'weekly');
+  const weeklyTokens = allTokens.filter((t: TokenRow) => !t.source || t.source === 'weekly');
   const lastWeeklyToken = weeklyTokens.length > 0 ? weeklyTokens[0] : null;
   const oneWeekAgo = new Date();
   oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
