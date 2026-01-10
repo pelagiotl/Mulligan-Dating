@@ -40,9 +40,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const token = localStorage.getItem('token')
     if (token) {
-      fetchUser().catch((error) => {
-        console.error('Error in initial fetchUser:', error)
-        setLoading(false)
+      fetchUser().catch(() => {
+        // Silently fail on initial load - user will need to login
+        // fetchUser's finally block already sets loading to false
       })
     } else {
       setLoading(false)
