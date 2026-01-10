@@ -133,6 +133,15 @@ export default function Browse() {
     fetchProfile();
   }, [fetchProfile]);
 
+  // If user just created a profile, refresh the browse page
+  useEffect(() => {
+    if (userProfile && !loading && !currentProfile) {
+      // Profile exists in AuthContext - try to fetch browse profiles
+      console.log('Profile exists in AuthContext, refreshing browse...');
+      fetchProfile();
+    }
+  }, [userProfile, loading, currentProfile, fetchProfile]);
+
   const playConnectSound = () => {
     try {
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -232,6 +241,19 @@ export default function Browse() {
     setOffset(prev => prev + 1);
   };
 
+  // Check if user needs to create profile
+  // Use AuthContext profile state as the source of truth
+  // If userProfile exists in AuthContext, they have a profile
+  const needsProfile = !userProfile && !loading;
+  
+  // If there's an error but we don't have a profile, treat it as a profile creation issue
+  // This is a fallback to ensure users can always create a profile
+  if (error && !userProfile && !loading) {
+    console.log('Error detected but no profile - showing create profile option:', error);
+    // Don't return error, show create profile button instead
+  }
+
+  // Render loading screen
   if (loading) {
     return (
       <div className="loading-screen-immersive">
@@ -290,27 +312,6 @@ export default function Browse() {
       </div>
     );
   }
-
-  // Check if user needs to create profile
-  // Use AuthContext profile state as the source of truth
-  // If userProfile exists in AuthContext, they have a profile
-  const needsProfile = !userProfile && !loading;
-  
-  // If there's an error but we don't have a profile, treat it as a profile creation issue
-  // This is a fallback to ensure users can always create a profile
-  if (error && !userProfile && !loading) {
-    console.log('Error detected but no profile - showing create profile option:', error);
-    // Don't return error, show create profile button instead
-  }
-  
-  // If user just created a profile, refresh the browse page
-  useEffect(() => {
-    if (userProfile && !loading && !currentProfile) {
-      // Profile exists in AuthContext - try to fetch browse profiles
-      console.log('Profile exists in AuthContext, refreshing browse...');
-      fetchProfile();
-    }
-  }, [userProfile, loading, currentProfile, fetchProfile]);
 
   return (
     <div>
