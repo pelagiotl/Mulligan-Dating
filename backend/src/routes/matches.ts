@@ -177,109 +177,140 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
     return res.status(400).json({ error: "Cannot match with yourself" });
   }
 
-  // Check if already matched (but allow re-matching if match is expired)
-  const existingMatch = db
-    .prepare(
-      `SELECT * FROM matches 
-       WHERE ((user1_id = ? AND user2_id = ?) OR (user1_id = ? AND user2_id = ?))
-       AND stage != 'expired'`
-    )
-    .get(userId, targetUserId, targetUserId, userId) as MatchRow | undefined;
+  try {
+    // Check if already matched (but allow re-matching if match is expired)
+    const existingMatchResult = db
+      .prepare(
+        `SELECT * FROM matches 
+         WHERE ((user1_id = ? AND user2_id = ?) OR (user1_id = ? AND user2_id = ?))
+         AND stage != 'expired'`
+      )
+      .get([userId, targetUserId, targetUserId, userId]);
+    const existingMatch = (existingMatchResult instanceof Promise
+      ? await existingMatchResult
+      : existingMatchResult) as MatchRow | undefined;
 
-  // Only block if there's an active (non-expired) match
-  // Users can still match again if the previous match expired
-  if (existingMatch && existingMatch.stage !== 'expired') {
-    return res.status(400).json({ 
-      error: "Already matched with this user",
-      matchId: existingMatch.id,
-      note: "You can chat with them in your Matches section"
+    // Only block if there's an active (non-expired) match
+    // Users can still match again if the previous match expired
+    if (existingMatch && existingMatch.stage !== 'expired') {
+      return res.status(400).json({ 
+        error: "Already matched with this user",
+        matchId: existingMatch.id,
+        note: "You can chat with them in your Matches section"
+      });
+    }
+
+    // Check if user has at least 1 photo uploaded
+    const userProfileResult = db
+      .prepare("SELECT id FROM profiles WHERE user_id = ?")
+      .get([userId]);
+    const userProfile = (userProfileResult instanceof Promise
+      ? await userProfileResult
+      : userProfileResult) as { id: string } | undefined;
+
+    if (!userProfile) {
+      return res.status(400).json({ error: "Please complete your profile first" });
+    }
+
+    const userPhotoCountResult = db
+      .prepare("SELECT COUNT(*) as count FROM photos WHERE profile_id = ?")
+      .get([userProfile.id]);
+    const userPhotoCount = (userPhotoCountResult instanceof Promise
+      ? await userPhotoCountResult
+      : userPhotoCountResult) as { count: number } | undefined;
+
+    if (!userPhotoCount || userPhotoCount.count < 1) {
+      return res.status(400).json({ 
+        error: "You need at least 1 photo uploaded to use a mulligan token",
+        photoCount: userPhotoCount?.count || 0,
+        required: 1
+      });
+    }
+
+    // Check if target user has at least 1 photo uploaded
+    const targetProfileResult = db
+      .prepare("SELECT id FROM profiles WHERE user_id = ?")
+      .get([targetUserId]);
+    const targetProfile = (targetProfileResult instanceof Promise
+      ? await targetProfileResult
+      : targetProfileResult) as { id: string } | undefined;
+
+    if (!targetProfile) {
+      return res.status(400).json({ error: "Target user profile not found" });
+    }
+
+    const targetPhotoCountResult = db
+      .prepare("SELECT COUNT(*) as count FROM photos WHERE profile_id = ?")
+      .get([targetProfile.id]);
+    const targetPhotoCount = (targetPhotoCountResult instanceof Promise
+      ? await targetPhotoCountResult
+      : targetPhotoCountResult) as { count: number } | undefined;
+
+    if (!targetPhotoCount || targetPhotoCount.count < 1) {
+      return res.status(400).json({ 
+        error: "This user needs to upload at least 1 photo before you can match with them",
+        photoCount: targetPhotoCount?.count || 0,
+        required: 1
+      });
+    }
+
+    // Get available token
+    const tokenResult = db
+      .prepare(
+        `SELECT * FROM mulligan_tokens 
+         WHERE user_id = ? AND used_at IS NULL AND returned_at IS NULL
+         ORDER BY granted_at ASC LIMIT 1`
+      )
+      .get([userId]);
+    const token = (tokenResult instanceof Promise
+      ? await tokenResult
+      : tokenResult) as any;
+
+    if (!token) {
+      return res.status(400).json({ error: "No tokens available. Claim your weekly token!" });
+    }
+
+    // AUTOMATIC MATCH: Create mutual match immediately in stage1 (no pending state)
+    const matchId = uuidv4();
+    const sevenDaysFromNow = new Date();
+    // Add 7 days, but set time to end of day (23:59:59) to ensure we get exactly 7 days
+    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+    sevenDaysFromNow.setHours(23, 59, 59, 999);
+
+    // Create match directly in stage1 (mutual match, chat available immediately)
+    const insertMatchResult = db.prepare(
+      `INSERT INTO matches (id, user1_id, user2_id, user1_token_id, status, stage, stage1_at, expires_at)
+       VALUES (?, ?, ?, ?, 'mutual', 'stage1', CURRENT_TIMESTAMP, ?)`
+    ).run([matchId, userId, targetUserId, token.id, sevenDaysFromNow.toISOString()]);
+    if (insertMatchResult instanceof Promise) {
+      await insertMatchResult;
+    }
+
+    // Use the token
+    const updateTokenResult = db.prepare(
+      `UPDATE mulligan_tokens SET used_at = CURRENT_TIMESTAMP, match_id = ? WHERE id = ?`
+    ).run([matchId, token.id]);
+    if (updateTokenResult instanceof Promise) {
+      await updateTokenResult;
+    }
+
+    // Track success signal: match created (both users connected)
+    // These are saved to PostgreSQL and persist forever
+    await recordSuccessSignal(userId, targetUserId, matchId, "match_created");
+    await recordSuccessSignal(targetUserId, userId, matchId, "match_created");
+
+    res.json({
+      message: "It's a match! You can now chat.",
+      matchId,
+      stage: "stage1",
+      isMutual: true,
     });
+  } catch (error) {
+    console.error("Connect error:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Connect error stack:", error instanceof Error ? error.stack : 'No stack trace');
+    res.status(500).json({ error: `Failed to connect: ${errorMessage}` });
   }
-
-  // Check if user has at least 1 photo uploaded
-  const userProfile = db
-    .prepare("SELECT id FROM profiles WHERE user_id = ?")
-    .get(userId) as { id: string } | undefined;
-
-  if (!userProfile) {
-    return res.status(400).json({ error: "Please complete your profile first" });
-  }
-
-  const userPhotoCount = db
-    .prepare("SELECT COUNT(*) as count FROM photos WHERE profile_id = ?")
-    .get(userProfile.id) as { count: number } | undefined;
-
-  if (!userPhotoCount || userPhotoCount.count < 1) {
-    return res.status(400).json({ 
-      error: "You need at least 1 photo uploaded to use a mulligan token",
-      photoCount: userPhotoCount?.count || 0,
-      required: 1
-    });
-  }
-
-  // Check if target user has at least 1 photo uploaded
-  const targetProfile = db
-    .prepare("SELECT id FROM profiles WHERE user_id = ?")
-    .get(targetUserId) as { id: string } | undefined;
-
-  if (!targetProfile) {
-    return res.status(400).json({ error: "Target user profile not found" });
-  }
-
-  const targetPhotoCount = db
-    .prepare("SELECT COUNT(*) as count FROM photos WHERE profile_id = ?")
-    .get(targetProfile.id) as { count: number } | undefined;
-
-  if (!targetPhotoCount || targetPhotoCount.count < 1) {
-    return res.status(400).json({ 
-      error: "This user needs to upload at least 1 photo before you can match with them",
-      photoCount: targetPhotoCount?.count || 0,
-      required: 1
-    });
-  }
-
-  // Get available token
-  const token = db
-    .prepare(
-      `SELECT * FROM mulligan_tokens 
-       WHERE user_id = ? AND used_at IS NULL AND returned_at IS NULL
-       ORDER BY granted_at ASC LIMIT 1`
-    )
-    .get(userId) as any;
-
-  if (!token) {
-    return res.status(400).json({ error: "No tokens available. Claim your weekly token!" });
-  }
-
-  // AUTOMATIC MATCH: Create mutual match immediately in stage1 (no pending state)
-  const matchId = uuidv4();
-  const sevenDaysFromNow = new Date();
-  // Add 7 days, but set time to end of day (23:59:59) to ensure we get exactly 7 days
-  sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
-  sevenDaysFromNow.setHours(23, 59, 59, 999);
-
-  // Create match directly in stage1 (mutual match, chat available immediately)
-  db.prepare(
-    `INSERT INTO matches (id, user1_id, user2_id, user1_token_id, status, stage, stage1_at, expires_at)
-     VALUES (?, ?, ?, ?, 'mutual', 'stage1', CURRENT_TIMESTAMP, ?)`
-  ).run(matchId, userId, targetUserId, token.id, sevenDaysFromNow.toISOString());
-
-  // Use the token
-  db.prepare(
-    `UPDATE mulligan_tokens SET used_at = CURRENT_TIMESTAMP, match_id = ? WHERE id = ?`
-  ).run(matchId, token.id);
-
-  // Track success signal: match created (both users connected)
-  // These are saved to PostgreSQL and persist forever
-  await recordSuccessSignal(userId, targetUserId, matchId, "match_created");
-  await recordSuccessSignal(targetUserId, userId, matchId, "match_created");
-
-  res.json({
-    message: "It's a match! You can now chat.",
-    matchId,
-    stage: "stage1",
-    isMutual: true,
-  });
 });
 
 // Request to reveal photos (manual override - auto-reveal happens after 2 messages each)

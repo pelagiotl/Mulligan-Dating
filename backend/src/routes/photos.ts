@@ -17,18 +17,29 @@ photosRouter.post("/", authenticateToken, uploadMultiple, async (req: AuthReques
     }
 
     // Get user's profile
-    const profile = await (db
+    const profileResult = db
       .prepare("SELECT id FROM profiles WHERE user_id = ?")
-      .get([userId]) as Promise<{ id: string } | undefined>);
+      .get([userId]);
+    const profile = (profileResult instanceof Promise
+      ? await profileResult
+      : profileResult) as { id: string } | undefined;
 
     if (!profile) {
+      console.error('Photo upload: Profile not found for user:', userId);
       return res.status(404).json({ error: "Profile not found. Please create a profile first." });
     }
 
+    console.log('Photo upload: Profile found:', profile.id);
+
     // Check current photo count
-    const currentPhotoCount = await (db
+    const currentPhotoCountResult = db
       .prepare("SELECT COUNT(*) as count FROM photos WHERE profile_id = ?")
-      .get([profile.id]) as Promise<{ count: number }>);
+      .get([profile.id]);
+    const currentPhotoCount = (currentPhotoCountResult instanceof Promise
+      ? await currentPhotoCountResult
+      : currentPhotoCountResult) as { count: number };
+
+    console.log('Photo upload: Current photo count:', currentPhotoCount.count);
 
     const maxPhotos = 6;
     if (currentPhotoCount.count + files.length > maxPhotos) {
@@ -38,9 +49,12 @@ photosRouter.post("/", authenticateToken, uploadMultiple, async (req: AuthReques
     }
 
     // Get the next display order
-    const lastPhoto = await (db
+    const lastPhotoResult = db
       .prepare("SELECT display_order FROM photos WHERE profile_id = ? ORDER BY display_order DESC LIMIT 1")
-      .get([profile.id]) as Promise<{ display_order: number } | undefined>);
+      .get([profile.id]);
+    const lastPhoto = (lastPhotoResult instanceof Promise
+      ? await lastPhotoResult
+      : lastPhotoResult) as { display_order: number } | undefined;
 
     let nextOrder = lastPhoto ? lastPhoto.display_order + 1 : 0;
 
@@ -52,10 +66,17 @@ photosRouter.post("/", authenticateToken, uploadMultiple, async (req: AuthReques
       const photoId = uuidv4();
       const photoUrl = `/uploads/${file.filename}`;
 
-      await (db.prepare(
+      console.log('Photo upload: Inserting photo:', { photoId, profileId: profile.id, photoUrl, displayOrder: nextOrder, isPrimary: isFirst });
+
+      const insertResult = db.prepare(
         `INSERT INTO photos (id, profile_id, url, display_order, is_primary) 
          VALUES (?, ?, ?, ?, ?)`
-      ).run([photoId, profile.id, photoUrl, nextOrder, isFirst ? 1 : 0]) as Promise<any>);
+      ).run([photoId, profile.id, photoUrl, nextOrder, isFirst ? 1 : 0]);
+      if (insertResult instanceof Promise) {
+        await insertResult;
+      }
+
+      console.log('Photo upload: Photo inserted successfully:', photoId);
 
       uploadedPhotos.push({
         id: photoId,
@@ -76,6 +97,7 @@ photosRouter.post("/", authenticateToken, uploadMultiple, async (req: AuthReques
     console.error("Photo upload error:", error);
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error("Error details:", errorMessage);
+    console.error("Error stack:", error instanceof Error ? error.stack : 'No stack trace');
     res.status(500).json({ error: `Failed to upload photos: ${errorMessage}` });
   }
 });

@@ -227,21 +227,31 @@ export default function Browse() {
     
     try {
       // Consume token and create match immediately
-      await api.post<{ message: string; isMutual: boolean; matchId: string }>(
+      const result = await api.post<{ message: string; isMutual: boolean; matchId: string; stage: string }>(
         "/matches/connect",
         { targetUserId: profile.userId }
       );
 
+      console.log('✅ Connect successful:', result);
+
       // Show match celebration
       setMatchedProfile(profile);
       setShowMatchCelebration(true);
+      
+      // Reset connecting state after a brief delay to allow celebration to show
+      setTimeout(() => {
+        setConnecting(false);
+      }, 100);
     } catch (err) {
+      console.error('❌ Connect error:', err);
       // Show error
       if (err instanceof Error) {
-        setError(err.message);
-        // Clear error after 5 seconds
-        setTimeout(() => setError(""), 5000);
+        setError(err.message || 'Failed to connect. Please try again.');
+      } else {
+        setError('Failed to connect. Please try again.');
       }
+      // Clear error after 5 seconds
+      setTimeout(() => setError(""), 5000);
       setConnecting(false);
     }
   };

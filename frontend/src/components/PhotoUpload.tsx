@@ -89,8 +89,12 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
         formData.append("photos", file);
       });
 
+      // Use the same API URL logic as the api utility
+      const API_URL: string = (import.meta.env as any).VITE_API_URL || (import.meta.env as any).VITE_NGROK_URL || '';
+      const BASE_URL = API_URL ? `${API_URL}/api` : '/api';
+      
       const token = localStorage.getItem("token");
-      const response = await fetch("/api/photos", {
+      const response = await fetch(`${BASE_URL}/photos`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -100,11 +104,21 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to upload photos");
+        let errorMessage = "Failed to upload photos";
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (parseError) {
+          // If JSON parsing fails, try to get text response
+          const errorText = await response.text();
+          errorMessage = errorText || errorMessage;
+        }
+        console.error('Photo upload error:', { status: response.status, error: errorMessage });
+        throw new Error(errorMessage);
       }
 
-      await response.json();
+      const result = await response.json();
+      console.log('Photo upload success:', result);
       
       // Refresh photos
       if (profileId) {
