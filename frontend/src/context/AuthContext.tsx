@@ -38,27 +38,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const abortControllerRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
-    // Only fetch user if token exists AND we don't have user state already
-    // This prevents refetching on every render after logout
     const token = localStorage.getItem('token')
-    console.log('AuthContext initial mount:', { hasToken: !!token, hasUser: !!user })
-    
-    if (token && !user) {
-      // Only fetch if we have a token but no user (initial load)
-      console.log('Initial load: fetching user with token')
+    if (token) {
       fetchUser().catch((error) => {
         console.error('Error in initial fetchUser:', error)
         setLoading(false)
       })
-    } else if (!token) {
-      // No token means we're logged out, ensure state is clear
-      console.log('No token found on mount, ensuring logged out state')
-      setUser(null)
-      setProfile(null)
-      setLoading(false)
     } else {
-      // We have both token and user, just set loading to false
-      console.log('Token and user exist, skipping fetch')
       setLoading(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -92,36 +78,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error('Invalid response from server')
       }
       
-      console.log('User data from /auth/me:', data.user) // Debug log
       setUser({
         id: data.user.id,
         email: data.user.email,
         isAdmin: data.user.isAdmin || false
       })
-      console.log('isAdmin set to:', data.user.isAdmin || false) // Debug log
       setProfile(data.profile || null)
     } catch (error: any) {
       // Ignore aborted requests
       if (error?.name === 'AbortError' || abortControllerRef.current?.signal.aborted) {
-        console.log('Request was aborted')
         return
       }
-      
-      console.error('Failed to fetch user:', error)
-      console.error('Error details:', {
-        message: error?.message,
-        status: error?.status,
-        name: error?.name
-      })
       
       // Clear invalid token and reset state
       localStorage.removeItem('token')
       setUser(null)
       setProfile(null)
-      setLoading(false)
-      
-      // Don't re-throw in initial load - just log and continue
-      // This prevents white screen if token is invalid
     } finally {
       setLoading(false)
     }
@@ -130,102 +102,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Legacy email/password login (kept for backward compatibility)
   const login = async (email: string, password: string) => {
     try {
-      console.log('=== Starting login process for:', email === undefined ? 'undefined' : email)
-      
-      // Cancel any pending requests first (including any stale fetchUser calls)
+      // Cancel any pending requests
       if (abortControllerRef.current) {
-        console.log('Aborting any pending requests')
         abortControllerRef.current.abort()
-        abortControllerRef.current = null
       }
       
-      // Clear any existing token first to avoid conflicts
-      const oldToken = localStorage.getItem('token')
-      if (oldToken) {
-        console.log('Clearing old token before login')
-        localStorage.removeItem('token')
-      }
-      
-      // Reset state before login - use functional updates to ensure we're clearing from latest state
-      console.log('Resetting state before login')
-      setUser(prev => {
-        console.log('Clearing user state, previous:', prev)
-        return null
-      })
-      setProfile(prev => {
-        console.log('Clearing profile state, previous:', prev)
-        return null
-      })
+      // Reset state before login
+      setUser(null)
+      setProfile(null)
       setLoading(true)
       
-      // Wait a bit longer to ensure all state updates are processed
-      await new Promise(resolve => setTimeout(resolve, 150))
-      
-      console.log('Making login API call...')
       const data: any = await api.post('/auth/login', { email, password })
-      console.log('Login API call successful, received token:', !!data.token, 'userId:', data.userId)
       
-      // Ensure token is set before fetching user
       if (!data.token) {
         throw new Error('No token received from server')
       }
       
       localStorage.setItem('token', data.token)
-      console.log('Token saved to localStorage')
       
-      // Verify token was saved
-      const tokenCheck = localStorage.getItem('token')
-      if (!tokenCheck || tokenCheck !== data.token) {
-        throw new Error('Token was not properly saved to localStorage')
-      }
-      console.log('Token verified in localStorage')
+      // Fetch user data
+      await fetchUser()
       
-      // Wait a bit longer to ensure token is persisted and state is ready
-      await new Promise(resolve => setTimeout(resolve, 150))
-      
-      console.log('Fetching user data after login...')
-      let fetchUserSuccess = false
-      try {
-        await fetchUser()
-        console.log('Login complete, user data fetched successfully')
-        fetchUserSuccess = true
-      } catch (fetchError: any) {
-        console.error('fetchUser failed after login:', fetchError)
-        // Don't let fetchUser failure block login - we have a valid token
-      } finally {
-        // ALWAYS set minimal user state after login if we have a userId
-        // This ensures isAuthenticated is true even if fetchUser fails or is aborted
-        if (!fetchUserSuccess && data.userId) {
-          console.log('Setting minimal user state from login response (fetchUser failed or aborted)')
-          setUser({
-            id: data.userId, // Use userId from login response
-            email: email, // Use email from login request
-            isAdmin: false // Will be updated by fetchUser later if it succeeds
-          })
-          setProfile(null) // Will be updated by fetchUser later if it succeeds
-        }
-        setLoading(false)
-        console.log('Login process complete - user state set, isAuthenticated should be true')
-      }
-      
-      // Return hasProfile from the login response
-      const hasProfile = data.hasProfile !== undefined ? data.hasProfile : false
-      console.log('=== Login successful, returning hasProfile:', hasProfile)
-      return { hasProfile }
+      // Return hasProfile
+      return { hasProfile: data.hasProfile || false }
     } catch (error: any) {
-      console.error('=== Login error:', error)
-      console.error('Error details:', {
-        message: error?.message,
-        status: error?.status,
-        name: error?.name,
-        stack: error?.stack
-      })
-      // If login API call fails, clean up everything
       localStorage.removeItem('token')
       setUser(null)
       setProfile(null)
       setLoading(false)
-      throw error // Re-throw so login page can show error
+      throw error
     }
   }
 
@@ -242,40 +147,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const logout = () => {
-    console.log('Logging out - clearing all state')
-    
-    // Cancel any pending requests FIRST
+    // Cancel any pending requests
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
       abortControllerRef.current = null
     }
     
-    // Clear token FIRST (before state updates)
+    // Clear token and state
     localStorage.removeItem('token')
-    
-    // Reset all state immediately and synchronously
-    // Use function form to ensure we're setting from the latest state
-    setUser(prev => {
-      console.log('Clearing user state, previous:', prev)
-      return null
-    })
-    setProfile(prev => {
-      console.log('Clearing profile state, previous:', prev)
-      return null
-    })
+    setUser(null)
+    setProfile(null)
     setLoading(false)
-    
-    // Force state update to complete by using setTimeout
-    // This ensures React has processed the state updates before any new operations
-    setTimeout(() => {
-      console.log('Logout complete - all state cleared')
-      // Verify token is gone
-      const token = localStorage.getItem('token')
-      if (token) {
-        console.error('ERROR: Token still exists after logout!')
-        localStorage.removeItem('token')
-      }
-    }, 0)
   }
 
   const refreshProfile = async () => {
