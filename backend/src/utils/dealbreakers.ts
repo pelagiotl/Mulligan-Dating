@@ -22,45 +22,67 @@ interface ProfileRow {
  */
 export async function checkDealbreakers(userProfileId: string, candidateProfileId: string): Promise<boolean> {
   // Get user's dealbreakers
-  const userDealbreakers = db
+  const userDealbreakersResult = db
     .prepare("SELECT description FROM dealbreakers WHERE profile_id = ?")
-    .all(userProfileId) as { description: string }[];
+    .all([userProfileId]);
+  const userDealbreakers = (userDealbreakersResult instanceof Promise
+    ? await userDealbreakersResult
+    : userDealbreakersResult) as { description: string }[];
 
   if (userDealbreakers.length === 0) {
     return true; // No dealbreakers, always pass
   }
 
   // Get candidate's profile info
-  const candidateProfile = db
+  const candidateProfileResult = db
     .prepare("SELECT * FROM profiles WHERE id = ?")
-    .get(candidateProfileId) as ProfileRow | undefined;
+    .get([candidateProfileId]);
+  const candidateProfile = (candidateProfileResult instanceof Promise
+    ? await candidateProfileResult
+    : candidateProfileResult) as ProfileRow | undefined;
 
   if (!candidateProfile) {
     return false; // Can't check, exclude to be safe
   }
 
   // Get candidate's interests, dealbreakers, and lifestyle
-  const candidateInterests = db
+  const candidateInterestsResult = db
     .prepare("SELECT name FROM interests WHERE profile_id = ?")
-    .all(candidateProfileId) as { name: string }[];
+    .all([candidateProfileId]);
+  const candidateInterests = (candidateInterestsResult instanceof Promise
+    ? await candidateInterestsResult
+    : candidateInterestsResult) as { name: string }[];
+  
+  // Ensure candidateInterests is always an array
+  const candidateInterestsArray = Array.isArray(candidateInterests) ? candidateInterests : [];
 
-  const candidateDealbreakers = db
+  const candidateDealbreakersResult = db
     .prepare("SELECT description FROM dealbreakers WHERE profile_id = ?")
-    .all(candidateProfileId) as { description: string }[];
+    .all([candidateProfileId]);
+  const candidateDealbreakers = (candidateDealbreakersResult instanceof Promise
+    ? await candidateDealbreakersResult
+    : candidateDealbreakersResult) as { description: string }[];
+  
+  // Ensure candidateDealbreakers is always an array
+  const candidateDealbreakersArray = Array.isArray(candidateDealbreakers) ? candidateDealbreakers : [];
 
-  const candidateLifestyle = db
+  const candidateLifestyleResult = db
     .prepare("SELECT * FROM lifestyle WHERE profile_id = ?")
-    .get(candidateProfileId) as {
+    .get([candidateProfileId]);
+  const candidateLifestyle = (candidateLifestyleResult instanceof Promise
+    ? await candidateLifestyleResult
+    : candidateLifestyleResult) as {
       smoking: string | null;
       drinking: string | null;
       children: string | null;
       pets: string | null;
       religion: string | null;
       work_life_balance: string | null;
+      works_out: string | null;
     } | undefined;
 
   // Build candidate text for keyword matching (fallback)
-  const candidateInterestsText = candidateInterestsArray.map(i => i.name).join(' ');
+  const candidateInterestsText = candidateInterestsArray.map((i: { name: string }) => i.name).join(' ');
   const candidateText = `${candidateProfile.bio || ''} ${candidateProfile.display_name || ''} ${candidateProfile.location || ''} ${candidateInterestsText}`.toLowerCase();
 
   // Check each of the user's dealbreakers
@@ -69,8 +91,8 @@ export async function checkDealbreakers(userProfileId: string, candidateProfileI
 
     // Method 1: Check if candidate has this as their own dealbreaker (they also don't want it)
     // This is a positive signal - they're aligned, so we can include them
-    const candidateHasSameDealbreaker = candidateDealbreakers.some(
-      db => db.description.toLowerCase() === dealbreakerLower
+    const candidateHasSameDealbreaker = candidateDealbreakersArray.some(
+      (db: { description: string }) => db.description.toLowerCase() === dealbreakerLower
     );
     if (candidateHasSameDealbreaker) {
       continue; // They share the same dealbreaker, so it's not a problem
@@ -166,7 +188,7 @@ export async function checkDealbreakers(userProfileId: string, candidateProfileI
     // Method 3: Check if dealbreaker appears in candidate's interests (for lifestyle dealbreakers)
     // For example: "Smoking" in interests means they smoke
     const candidateHasInInterests = candidateInterestsArray.some(
-      i => i.name.toLowerCase() === dealbreakerLower
+      (i: { name: string }) => i.name.toLowerCase() === dealbreakerLower
     );
     if (candidateHasInInterests) {
       return false; // Candidate has this trait, exclude them
@@ -195,4 +217,3 @@ export async function checkDealbreakers(userProfileId: string, candidateProfileI
 
   return true; // No dealbreakers matched, include
 }
-
