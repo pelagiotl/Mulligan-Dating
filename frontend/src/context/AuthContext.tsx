@@ -116,11 +116,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Legacy email/password login (kept for backward compatibility)
   const login = async (email: string, password: string) => {
     try {
-      console.log('Starting login process for:', email)
+      console.log('=== Starting login process for:', email === undefined ? 'undefined' : email)
       
-      // Cancel any pending requests first
+      // Cancel any pending requests first (including any stale fetchUser calls)
       if (abortControllerRef.current) {
+        console.log('Aborting any pending requests')
         abortControllerRef.current.abort()
+        abortControllerRef.current = null
       }
       
       // Clear any existing token first to avoid conflicts
@@ -130,16 +132,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem('token')
       }
       
-      // Reset state before login
-      setUser(null)
-      setProfile(null)
+      // Reset state before login - use functional updates to ensure we're clearing from latest state
+      console.log('Resetting state before login')
+      setUser(prev => {
+        console.log('Clearing user state, previous:', prev)
+        return null
+      })
+      setProfile(prev => {
+        console.log('Clearing profile state, previous:', prev)
+        return null
+      })
       setLoading(true)
       
-      // Small delay to ensure state is cleared
-      await new Promise(resolve => setTimeout(resolve, 100))
+      // Wait a bit longer to ensure all state updates are processed
+      await new Promise(resolve => setTimeout(resolve, 150))
       
+      console.log('Making login API call...')
       const data: any = await api.post('/auth/login', { email, password })
-      console.log('Login API call successful, received token:', !!data.token)
+      console.log('Login API call successful, received token:', !!data.token, 'userId:', data.userId)
       
       // Ensure token is set before fetching user
       if (!data.token) {
@@ -149,19 +159,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem('token', data.token)
       console.log('Token saved to localStorage')
       
-      // Small delay to ensure token is persisted and available
-      await new Promise(resolve => setTimeout(resolve, 100))
-      
-      // Verify token is available before making request
+      // Verify token was saved
       const tokenCheck = localStorage.getItem('token')
-      if (!tokenCheck) {
-        throw new Error('Token was not properly saved')
+      if (!tokenCheck || tokenCheck !== data.token) {
+        throw new Error('Token was not properly saved to localStorage')
       }
+      console.log('Token verified in localStorage')
+      
+      // Wait a bit longer to ensure token is persisted and state is ready
+      await new Promise(resolve => setTimeout(resolve, 150))
       
       console.log('Fetching user data after login...')
       try {
         await fetchUser()
-        console.log('Login complete, user data fetched')
+        console.log('Login complete, user data fetched successfully')
       } catch (fetchError: any) {
         console.error('fetchUser failed after login:', fetchError)
         // Even if fetchUser fails, we still have a valid token from login response
@@ -180,16 +191,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // Return hasProfile from the login response
       const hasProfile = data.hasProfile !== undefined ? data.hasProfile : false
-      console.log('Login returning hasProfile:', hasProfile)
+      console.log('=== Login successful, returning hasProfile:', hasProfile)
       return { hasProfile }
     } catch (error: any) {
-      console.error('Login error:', error)
+      console.error('=== Login error:', error)
       console.error('Error details:', {
         message: error?.message,
         status: error?.status,
-        name: error?.name
+        name: error?.name,
+        stack: error?.stack
       })
-      // If login API call fails, clean up token
+      // If login API call fails, clean up everything
       localStorage.removeItem('token')
       setUser(null)
       setProfile(null)
