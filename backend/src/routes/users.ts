@@ -204,9 +204,16 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
     // It will be used for scoring/preference matching instead
     // Only dealbreakers (checked below) will hard-filter users
     
-    // NEW: Filter by dealbreakers using comprehensive utility
-    filteredProfiles = filteredProfiles.filter((p: ProfileWithMetadata) => {
-      return checkDealbreakersUtil(userProfile.id, p.id);
+    // NEW: Filter by dealbreakers using comprehensive utility (now async)
+    const dealbreakerResults = await Promise.all(
+      filteredProfiles.map(async (p: ProfileWithMetadata) => {
+        const passes = await checkDealbreakersUtil(userProfile.id, p.id);
+        return { profile: p, passes };
+      })
+    );
+    filteredProfiles = dealbreakerResults
+      .filter(({ passes }) => passes)
+      .map(({ profile }) => profile);
     });
 
     // NEW: Score and sort by interests overlap, partner qualities ("What I'm Looking For"), AND lifestyle compatibility
