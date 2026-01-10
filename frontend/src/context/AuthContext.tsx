@@ -51,6 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const fetchUser = async () => {
+    setLoading(true)
     try {
       // Cancel any pending requests
       if (abortControllerRef.current) {
@@ -66,7 +67,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error('No authentication token found')
       }
       
-      console.log('Fetching user data with token:', token.substring(0, 20) + '...')
       const data: any = await api.get('/auth/me')
       
       // Check if request was aborted
@@ -87,6 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error: any) {
       // Ignore aborted requests
       if (error?.name === 'AbortError' || abortControllerRef.current?.signal.aborted) {
+        setLoading(false)
         return
       }
       
@@ -94,6 +95,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem('token')
       setUser(null)
       setProfile(null)
+      // Re-throw so login can handle it
+      throw error
     } finally {
       setLoading(false)
     }
