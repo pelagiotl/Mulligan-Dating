@@ -41,32 +41,39 @@ export default function Browse() {
 
   // Define fetchProfile first with useCallback before using it in useEffect
   const fetchProfile = useCallback(async () => {
+    console.log('🔄 fetchProfile called, offset:', offset);
     try {
       setLoading(true);
       setError(""); // Clear any previous errors
       
-      // Add timeout to prevent infinite loading
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Request timeout - server may be starting up')), 30000);
-      });
+      console.log('📡 Making API request to /users/browse?offset=' + offset);
       
-      const data = await Promise.race([
-        api.get<{ profile: Profile | null; hasMore: boolean; offset: number; total: number }>(`/users/browse?offset=${offset}`),
-        timeoutPromise
-      ]) as { profile: Profile | null; hasMore: boolean; offset: number; total: number };
+      const data = await api.get<{ profile: Profile | null; hasMore: boolean; offset: number; total: number }>(`/users/browse?offset=${offset}`);
+      
+      console.log('✅ API response received:', { 
+        hasProfile: !!data.profile, 
+        hasMore: data.hasMore,
+        profileName: data.profile?.displayName || 'null'
+      });
       
       if (data.profile) {
         // Fetch photos for this profile
         try {
           const photosData = await api.get<{ photos: Photo[] }>(`/photos/profile/${data.profile.id}`);
           data.profile.photos = photosData.photos;
-        } catch {
+          console.log('✅ Photos fetched:', photosData.photos.length);
+        } catch (photoErr) {
           // Photos might not exist yet, that's okay
+          console.log('ℹ️ No photos found (this is okay)');
           data.profile.photos = [];
         }
+      } else {
+        console.log('ℹ️ No profile returned (no more profiles or error)');
       }
+      
       setCurrentProfile(data.profile);
       setHasMore(data.hasMore);
+      console.log('✅ State updated - currentProfile:', data.profile ? 'has profile' : 'null', 'hasMore:', data.hasMore);
       
       // Debug: Log distance info
       if (data.profile) {
@@ -81,7 +88,7 @@ export default function Browse() {
         });
       }
     } catch (err: any) {
-      console.error('Browse fetchProfile error:', {
+      console.error('❌ Browse fetchProfile error:', {
         err,
         message: err?.message,
         error: err?.error,
@@ -110,7 +117,7 @@ export default function Browse() {
         (errorLower.includes("profile") && (errorLower.includes("not found") || errorLower.includes("complete")))
       ) {
         // This is a profile missing error - show create profile button
-        console.log('Profile missing detected, showing create profile button');
+        console.log('ℹ️ Profile missing detected, showing create profile button');
         setCurrentProfile(null);
         setError(""); // Clear any error state
         setLoading(false);
@@ -118,10 +125,12 @@ export default function Browse() {
       }
       
       // For other errors, show them but also log for debugging
-      console.error('Non-profile error in Browse:', errorMessage);
+      console.error('❌ Non-profile error in Browse:', errorMessage);
       setError(errorMessage);
+      setCurrentProfile(null); // Ensure we clear the profile on error
     } finally {
       // Always set loading to false, even if there's an error
+      console.log('✅ Setting loading to false');
       setLoading(false);
     }
   }, [offset]);
