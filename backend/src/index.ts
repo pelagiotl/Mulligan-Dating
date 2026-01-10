@@ -109,55 +109,7 @@ process.on('uncaughtException', (error) => {
   process.exit(1);
 });
 
-// Initialize database (async for PostgreSQL support) - MUST complete before server starts
-async function startServer() {
-  try {
-    console.log('🔄 Initializing database...');
-    await initDatabase();
-    console.log('✅ Database initialized successfully');
-    
-    // Initialize cron scheduler (async, won't block server startup)
-    initCronScheduler();
-    
-    // Start server only after database is ready
-    server.listen(PORT, () => {
-      console.log(`
-  ╔═══════════════════════════════════════════╗
-  ║                                           ║
-  ║   💘 Mulligan API Server                  ║
-  ║   Running on http://localhost:${PORT}        ║
-  ║   🔌 WebSocket Server Ready              ║
-  ║                                           ║
-  ╚═══════════════════════════════════════════╝
-  `);
-    }).on('error', (err: NodeJS.ErrnoException) => {
-      if (err.code === 'EADDRINUSE') {
-        console.error(`
-  ❌ Port ${PORT} is already in use!
-  
-  To fix this, run in your terminal:
-  
-  kill -9 $(lsof -ti:${PORT})
-  
-  Or find the process manually:
-  lsof -i:${PORT}
-  
-  Then kill it with:
-  kill -9 <PID>
-    `);
-        process.exit(1);
-      } else {
-        console.error('❌ Server error:', err);
-        process.exit(1);
-      }
-    });
-  } catch (err) {
-    console.error('❌ Failed to initialize database:', err);
-    process.exit(1);
-  }
-}
-
-// Initialize Socket.io
+// Initialize Socket.io (import at top level)
 import { initializeSocket } from './socket.js';
 
 // Routes with rate limiting (set up before server starts)
