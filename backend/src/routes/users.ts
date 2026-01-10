@@ -5,6 +5,9 @@ import { geocodeLocation, calculateDistanceMiles } from '../utils/geocoding.js';
 import { checkDealbreakers as checkDealbreakersUtil } from '../utils/dealbreakers.js';
 import { getCompletenessBoost } from '../utils/profileCompleteness.js';
 
+// Check if using PostgreSQL
+const usePostgres = !!process.env.DATABASE_URL;
+
 export const usersRouter = Router();
 
 interface ProfileRow {
@@ -75,9 +78,16 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
     const blockedUserIds = blockedUsers.map(b => b.user_id);
 
     // Build query with preference filters
+    // Use PostgreSQL-compatible string_agg or SQLite GROUP_CONCAT
+    // Check at runtime, not module load time
+    const isPostgres = !!process.env.DATABASE_URL;
+    const interestsAgg = isPostgres 
+      ? `COALESCE((SELECT string_agg(name, ',') FROM interests WHERE profile_id = p.id), '')`
+      : `(SELECT GROUP_CONCAT(name) FROM interests WHERE profile_id = p.id)`;
+    
     let query = `
       SELECT p.*, 
-             (SELECT GROUP_CONCAT(name) FROM interests WHERE profile_id = p.id) as interests_list,
+             ${interestsAgg} as interests_list,
              pref.min_age as candidate_min_age,
              pref.max_age as candidate_max_age,
              pref.preferred_genders as candidate_preferred_genders
