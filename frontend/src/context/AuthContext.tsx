@@ -135,6 +135,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Fetch user data (don't set loading again, it's already set)
       await fetchUser(false)
       
+      // Ensure loading is false after successful login
+      setLoading(false)
+      
       // Return hasProfile
       return { hasProfile: data.hasProfile || false }
     } catch (error: any) {
