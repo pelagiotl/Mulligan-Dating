@@ -17,7 +17,9 @@ import Layout from './components/Layout'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   // Always call hooks at the top level, before any conditional returns
-  const { isAuthenticated, loading } = useAuth()
+  const { isAuthenticated, loading, user } = useAuth()
+  
+  console.log('PrivateRoute check:', { isAuthenticated, loading, hasUser: !!user, hasToken: !!localStorage.getItem('token') })
   
   if (loading) {
     return (
@@ -88,7 +90,26 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
     )
   }
   
-  return isAuthenticated ? <>{children}</> : <Navigate to="/login" />
+  // Debug log to see what's happening
+  console.log('PrivateRoute final check:', { 
+    isAuthenticated, 
+    loading, 
+    hasUser: !!user, 
+    hasToken: !!localStorage.getItem('token'),
+    userEmail: user?.email 
+  })
+  
+  if (!isAuthenticated && !loading) {
+    console.log('PrivateRoute: Not authenticated, redirecting to login')
+    return <Navigate to="/login" replace />
+  }
+  
+  if (loading) {
+    // Loading state - already showing loading screen above
+    return null
+  }
+  
+  return <>{children}</>
 }
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
