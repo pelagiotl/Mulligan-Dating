@@ -214,8 +214,8 @@ function parseJsonArray(jsonStr: string | null): string[] {
  * Check if candidate matches user's dealbreakers
  * Uses the comprehensive dealbreaker checking utility
  */
-function checkDealbreakers(userProfileId: string, candidateProfileId: string): boolean {
-  return checkDealbreakersUtil(userProfileId, candidateProfileId);
+async function checkDealbreakers(userProfileId: string, candidateProfileId: string): Promise<boolean> {
+  return await checkDealbreakersUtil(userProfileId, candidateProfileId);
 }
 
 /**
@@ -720,7 +720,7 @@ export async function generateWeeklyMatches(userId: string): Promise<{
     }
 
     // NEW: Check dealbreakers (must pass)
-    if (!checkDealbreakers(userProfile.id, candidate.id)) {
+    if (!(await checkDealbreakers(userProfile.id, candidate.id))) {
       continue; // Dealbreaker matched
     }
 
@@ -805,7 +805,7 @@ export async function generateWeeklyMatches(userId: string): Promise<{
     // 10/10 FEATURES: Apply boosts
     
     // 1. Profile completeness boost (complete profiles get 15% boost)
-    const completenessBoost = getCompletenessBoost(candidate.id);
+    const completenessBoost = await getCompletenessBoost(candidate.id);
     totalScore *= completenessBoost;
     
     // 2. Recency boost (recently active users get slight boost)

@@ -214,7 +214,6 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
     filteredProfiles = dealbreakerResults
       .filter(({ passes }) => passes)
       .map(({ profile }) => profile);
-    });
 
     // NEW: Score and sort by interests overlap, partner qualities ("What I'm Looking For"), AND lifestyle compatibility
     const userInterests = await (db
@@ -424,7 +423,7 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
       
       // 10/10 FEATURES: Apply boosts
       // 1. Profile completeness boost
-      const completenessBoost = getCompletenessBoost(p.id);
+      const completenessBoost = await getCompletenessBoost(p.id);
       matchScore *= completenessBoost;
       
       // 2. Recency boost (recently active users)

@@ -23,32 +23,44 @@ interface CompletenessData {
  * Calculate completeness score for a profile
  * Returns score 0-1 (1 = fully complete)
  */
-export function calculateCompleteness(profileId: string): number {
+export async function calculateCompleteness(profileId: string): Promise<number> {
   // Get profile data
-  const profile = db
+  const profileResult = db
     .prepare("SELECT bio, photo_url, looking_for, location FROM profiles WHERE id = ?")
-    .get(profileId) as ProfileData | undefined;
+    .get([profileId]);
+  const profile = (profileResult instanceof Promise
+    ? await profileResult
+    : profileResult) as ProfileData | undefined;
 
   if (!profile) {
     return 0; // No profile
   }
 
   // Count interests
-  const interests = db
+  const interestsResult = db
     .prepare("SELECT COUNT(*) as count FROM interests WHERE profile_id = ?")
-    .get(profileId) as { count: number } | undefined;
+    .get([profileId]);
+  const interests = (interestsResult instanceof Promise
+    ? await interestsResult
+    : interestsResult) as { count: number } | undefined;
   const interestsCount = interests?.count || 0;
 
   // Count partner qualities
-  const qualities = db
+  const qualitiesResult = db
     .prepare("SELECT COUNT(*) as count FROM partner_qualities WHERE profile_id = ?")
-    .get(profileId) as { count: number } | undefined;
+    .get([profileId]);
+  const qualities = (qualitiesResult instanceof Promise
+    ? await qualitiesResult
+    : qualitiesResult) as { count: number } | undefined;
   const qualitiesCount = qualities?.count || 0;
 
   // Check lifestyle completeness
-  const lifestyle = db
+  const lifestyleResult = db
     .prepare("SELECT smoking, drinking, children, pets, religion, work_life_balance FROM lifestyle WHERE profile_id = ?")
-    .get(profileId) as {
+    .get([profileId]);
+  const lifestyle = (lifestyleResult instanceof Promise
+    ? await lifestyleResult
+    : lifestyleResult) as {
       smoking: string | null;
       drinking: string | null;
       children: string | null;
@@ -103,8 +115,8 @@ export function calculateCompleteness(profileId: string): number {
  * Get completeness boost for matching
  * Returns multiplier (1.0 to 1.15) - complete profiles get 15% boost
  */
-export function getCompletenessBoost(profileId: string): number {
-  const completeness = calculateCompleteness(profileId);
+export async function getCompletenessBoost(profileId: string): Promise<number> {
+  const completeness = await calculateCompleteness(profileId);
   // Linear boost: 0% at 0 completeness, 15% at 100% completeness
   return 1.0 + (completeness * 0.15);
 }
