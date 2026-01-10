@@ -94,14 +94,71 @@ app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 // Validate security configuration
 validateJWTSecret();
 
-// Initialize database (async for PostgreSQL support)
-initDatabase().catch(err => {
-  console.error('❌ Failed to initialize database:', err);
+// Global error handlers
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+  // Don't exit in production - log and continue
+  if (process.env.NODE_ENV === 'production') {
+    console.error('⚠️  Continuing despite unhandled rejection');
+  }
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error);
+  // Exit on uncaught exceptions as they indicate a serious problem
   process.exit(1);
 });
 
-// Initialize cron scheduler (async, won't block server startup)
-initCronScheduler();
+// Initialize database (async for PostgreSQL support) - MUST complete before server starts
+async function startServer() {
+  try {
+    console.log('🔄 Initializing database...');
+    await initDatabase();
+    console.log('✅ Database initialized successfully');
+    
+    // Initialize cron scheduler (async, won't block server startup)
+    initCronScheduler();
+    
+    // Start server only after database is ready
+    server.listen(PORT, () => {
+      console.log(`
+  ╔═══════════════════════════════════════════╗
+  ║                                           ║
+  ║   💘 Mulligan API Server                  ║
+  ║   Running on http://localhost:${PORT}        ║
+  ║   🔌 WebSocket Server Ready              ║
+  ║                                           ║
+  ╚═══════════════════════════════════════════╝
+  `);
+    }).on('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'EADDRINUSE') {
+        console.error(`
+  ❌ Port ${PORT} is already in use!
+  
+  To fix this, run in your terminal:
+  
+  kill -9 $(lsof -ti:${PORT})
+  
+  Or find the process manually:
+  lsof -i:${PORT}
+  
+  Then kill it with:
+  kill -9 <PID>
+    `);
+        process.exit(1);
+      } else {
+        console.error('❌ Server error:', err);
+        process.exit(1);
+      }
+    });
+  } catch (err) {
+    console.error('❌ Failed to initialize database:', err);
+    process.exit(1);
+  }
+}
+
+// Start the server
+startServer();
 
 // Initialize Socket.io
 import { initializeSocket } from './socket.js';
