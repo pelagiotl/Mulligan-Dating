@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { io, Socket } from "socket.io-client";
 import { api } from "../utils/api";
 import { useAuth } from "../context/AuthContext";
+import { getPhotoUrl } from "../utils/photoUrl";
 import Notification from "../components/Notification";
 import ConfirmModal from "../components/ConfirmModal";
 
@@ -618,8 +619,12 @@ export default function Matches() {
                       if (match.otherUser.photoUrl) {
                         return (
                           <img
-                            src={match.otherUser.photoUrl}
+                            src={getPhotoUrl(match.otherUser.photoUrl)}
                             alt={match.otherUser.displayName}
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                            }}
                           />
                         );
                       }
@@ -628,8 +633,12 @@ export default function Matches() {
                         const primaryPhoto = match.otherUser.photos.find(p => p.isPrimary);
                         return (
                           <img
-                            src={primaryPhoto?.url || match.otherUser.photos[0].url}
+                            src={getPhotoUrl(primaryPhoto?.url || match.otherUser.photos[0].url)}
                             alt={match.otherUser.displayName}
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                            }}
                           />
                         );
                       }
@@ -693,8 +702,12 @@ export default function Matches() {
                   {(selectedMatch.stage === "stage1" || selectedMatch.stage === "stage2") &&
                   selectedMatch.otherUser.photoUrl ? (
                     <img
-                      src={selectedMatch.otherUser.photoUrl}
+                      src={getPhotoUrl(selectedMatch.otherUser.photoUrl)}
                       alt={selectedMatch.otherUser.displayName}
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                      }}
                     />
                   ) : (
                     <span className="avatar-placeholder large">
@@ -875,7 +888,14 @@ export default function Matches() {
                     <div className="match-photos-grid">
                       {selectedMatch.otherUser.photos.map((photo) => (
                         <div key={photo.id} className="match-photo-item">
-                          <img src={photo.url} alt={`${selectedMatch.otherUser.displayName} photo ${photo.displayOrder + 1}`} />
+                          <img 
+                            src={getPhotoUrl(photo.url)} 
+                            alt={`${selectedMatch.otherUser.displayName} photo ${photo.displayOrder + 1}`}
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                            }}
+                          />
                           {photo.isPrimary && <div className="photo-primary-badge-small">⭐</div>}
                         </div>
                       ))}

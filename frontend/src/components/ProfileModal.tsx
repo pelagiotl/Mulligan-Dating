@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { api } from "../utils/api";
+import { getPhotoUrl } from "../utils/photoUrl";
 import MatchCelebration from "./MatchCelebration";
 
 interface Photo {
@@ -123,7 +124,7 @@ export default function ProfileModal({ profile, onClose, onConnect }: ProfileMod
 
   // Get primary photo for match celebration
   const primaryPhoto = photos.find(p => p.isPrimary) || photos[0];
-  const photoUrl = primaryPhoto?.url || profile.photoUrl;
+  const photoUrl = primaryPhoto ? getPhotoUrl(primaryPhoto.url) : (profile.photoUrl ? getPhotoUrl(profile.photoUrl) : undefined);
 
   return (
     <>
@@ -148,11 +149,18 @@ export default function ProfileModal({ profile, onClose, onConnect }: ProfileMod
             <div className="profile-modal-avatar blurred">
               {photos.length > 0 ? (
                 <img 
-                  src={photos.find(p => p.isPrimary)?.url || photos[0].url} 
-                  alt={profile.displayName} 
+                  src={getPhotoUrl(photos.find(p => p.isPrimary)?.url || photos[0].url)} 
+                  alt={profile.displayName}
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                  }}
                 />
               ) : profile.photoUrl ? (
-                <img src={profile.photoUrl} alt={profile.displayName} />
+                <img src={getPhotoUrl(profile.photoUrl)} alt={profile.displayName} onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = 'none';
+                }} />
               ) : (
                 "👤"
               )}
@@ -182,7 +190,10 @@ export default function ProfileModal({ profile, onClose, onConnect }: ProfileMod
               <div className="profile-modal-photos">
                 {photos.map((photo) => (
                   <div key={photo.id} className="profile-modal-photo blurred">
-                    <img src={photo.url} alt={`${profile.displayName} photo ${photo.displayOrder + 1}`} />
+                    <img src={getPhotoUrl(photo.url)} alt={`${profile.displayName} photo ${photo.displayOrder + 1}`} onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                    }} />
                     <div className="blur-overlay-small">🔒</div>
                   </div>
                 ))}

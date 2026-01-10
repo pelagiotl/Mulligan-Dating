@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../utils/api";
 import { useAuth } from "../context/AuthContext";
+import { getPhotoUrl } from "../utils/photoUrl";
 import MatchCelebration from "../components/MatchCelebration";
 import TokenDisplay from "../components/TokenDisplay";
 
@@ -418,13 +419,17 @@ export default function Browse() {
         </div>
       ) : null}
 
-      {showMatchCelebration && matchedProfile && (
-        <MatchCelebration
-          profileName={matchedProfile.displayName}
-          photoUrl={matchedProfile.photos?.find(p => p.isPrimary)?.url || matchedProfile.photos?.[0]?.url || matchedProfile.photoUrl}
-          onClose={handleCelebrationClose}
-        />
-      )}
+      {showMatchCelebration && matchedProfile && (() => {
+        const primaryPhoto = matchedProfile.photos?.find(p => p.isPrimary) || matchedProfile.photos?.[0];
+        const photoUrl = primaryPhoto ? getPhotoUrl(primaryPhoto.url) : (matchedProfile.photoUrl ? getPhotoUrl(matchedProfile.photoUrl) : undefined);
+        return (
+          <MatchCelebration
+            profileName={matchedProfile.displayName}
+            photoUrl={photoUrl}
+            onClose={handleCelebrationClose}
+          />
+        );
+      })()}
     </div>
   );
 }

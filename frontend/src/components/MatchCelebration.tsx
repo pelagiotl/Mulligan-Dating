@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { getPhotoUrl } from "../utils/photoUrl";
 
 interface MatchCelebrationProps {
   profileName: string;
@@ -143,7 +144,10 @@ export default function MatchCelebration({ profileName, photoUrl, onClose }: Mat
           <div className="match-celebration-photo-ring ring-3" />
           <div className="match-celebration-photo">
             {photoUrl ? (
-              <img src={photoUrl} alt={profileName} />
+              <img src={getPhotoUrl(photoUrl)} alt={profileName} onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+              }} />
             ) : (
               <div className="match-celebration-placeholder">
                 {profileName.charAt(0).toUpperCase()}

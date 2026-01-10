@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { api } from "../utils/api";
+import { getPhotoUrl } from "../utils/photoUrl";
 
 interface Photo {
   id: string;
@@ -220,10 +221,6 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
     }
   };
 
-  const getPhotoUrl = (url: string) => {
-    if (url.startsWith("http")) return url;
-    return url.startsWith("/") ? url : `/${url}`;
-  };
 
   if (loading) {
     return <div className="photo-upload-loading">Loading photos...</div>;
@@ -237,7 +234,11 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
         {photos.map((photo) => (
           <div key={photo.id} className="photo-item">
             <div className="photo-container">
-              <img src={getPhotoUrl(photo.url)} alt={`Photo ${photo.displayOrder + 1}`} />
+              <img src={getPhotoUrl(photo.url) || '#'} alt={`Photo ${photo.displayOrder + 1}`} onError={(e) => {
+                console.error('Failed to load photo:', photo.url);
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+              }} />
               {photo.isPrimary && <div className="photo-primary-badge">⭐ Primary</div>}
               {!profileId && (
                 <div className="photo-actions">
