@@ -19,28 +19,10 @@ export default function Login() {
     setError('')
     setLoading(false)
     
-    // Only redirect if we have BOTH a token AND authenticated state
-    // Add a delay to ensure state has fully updated after logout
-    const checkAuth = () => {
-      const hasToken = localStorage.getItem('token')
-      const shouldRedirect = isAuthenticated && hasToken
-      
-      console.log('Auth check:', { hasToken: !!hasToken, isAuthenticated, shouldRedirect })
-      
-      if (shouldRedirect) {
-        // Double-check token still exists before redirecting
-        const tokenCheck = localStorage.getItem('token')
-        if (tokenCheck) {
-          console.log('User already authenticated, redirecting to browse')
-          navigate('/browse')
-        }
-      }
-    }
-    
-    // Delay the check to ensure logout state has fully cleared
-    const timer = setTimeout(checkAuth, 100)
-    return () => clearTimeout(timer)
-  }, [isAuthenticated, navigate])
+    // Don't auto-redirect here - let AuthRedirectRoute handle it
+    // This useEffect should only reset form state
+    // This prevents conflicts when user is trying to log in after logout
+  }, [])
 
   // Create floating particles
   const [particles] = useState(() => {

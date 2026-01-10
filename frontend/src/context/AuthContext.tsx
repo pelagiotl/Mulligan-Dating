@@ -38,13 +38,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const abortControllerRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
+    // Only fetch user if token exists AND we don't have user state already
+    // This prevents refetching on every render after logout
     const token = localStorage.getItem('token')
-    if (token) {
+    console.log('AuthContext initial mount:', { hasToken: !!token, hasUser: !!user })
+    
+    if (token && !user) {
+      // Only fetch if we have a token but no user (initial load)
+      console.log('Initial load: fetching user with token')
       fetchUser().catch((error) => {
         console.error('Error in initial fetchUser:', error)
         setLoading(false)
       })
+    } else if (!token) {
+      // No token means we're logged out, ensure state is clear
+      console.log('No token found on mount, ensuring logged out state')
+      setUser(null)
+      setProfile(null)
+      setLoading(false)
     } else {
+      // We have both token and user, just set loading to false
+      console.log('Token and user exist, skipping fetch')
       setLoading(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

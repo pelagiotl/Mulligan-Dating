@@ -288,7 +288,20 @@ function AuthRedirectRoute({ children }: { children: React.ReactNode }) {
     )
   }
   
-  return !isAuthenticated ? <>{children}</> : <Navigate to="/browse" />
+  // Check BOTH token AND authenticated state - only redirect if both are true
+  // This prevents redirecting when state is stale after logout
+  const hasToken = localStorage.getItem('token')
+  const shouldRedirect = isAuthenticated && hasToken
+  
+  console.log('AuthRedirectRoute check:', { isAuthenticated, hasToken: !!hasToken, shouldRedirect })
+  
+  // Only redirect if we have both token AND authenticated state
+  // If no token, always show login/signup pages (even if isAuthenticated is briefly true)
+  if (shouldRedirect) {
+    return <Navigate to="/browse" />
+  }
+  
+  return <>{children}</>
 }
 
 export default function App() {
