@@ -130,29 +130,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const lastLoginTime = localStorage.getItem('lastLoginTime')
       const now = new Date().toISOString()
       
-      if (lastLoginTime) {
-        try {
-          const matches = await api.get<{ matches: Array<{ id: string; createdAt: string; otherUser: { displayName: string } }> }>('/matches')
-          const newMatches = matches.matches.filter(match => {
+      try {
+        const matches = await api.get<{ matches: Array<{ id: string; createdAt: string; otherUser: { displayName: string } }> }>('/matches')
+        
+        let newMatches: Array<{ id: string; createdAt: string; otherUser: { displayName: string } }> = []
+        
+        if (lastLoginTime) {
+          // Compare against last login time
+          const lastLogin = new Date(lastLoginTime)
+          newMatches = matches.matches.filter(match => {
             const matchDate = new Date(match.createdAt)
-            const lastLogin = new Date(lastLoginTime)
             return matchDate > lastLogin
           })
-          
-          if (newMatches.length > 0) {
-            // Store new matches notification to show when user navigates
-            const matchNames = newMatches.map(m => m.otherUser.displayName).join(', ')
-            const message = newMatches.length === 1 
-              ? `🎉 You have a new match with ${matchNames}!`
-              : `🎉 You have ${newMatches.length} new matches: ${matchNames}`
-            
-            localStorage.setItem('newMatchesNotification', message)
-            localStorage.setItem('newMatchesCount', newMatches.length.toString())
-          }
-        } catch (err) {
-          // Silently fail - matches check is not critical for login
-          console.log('Could not check for new matches:', err)
+        } else {
+          // First login - check for matches created in the last 24 hours
+          const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
+          newMatches = matches.matches.filter(match => {
+            const matchDate = new Date(match.createdAt)
+            return matchDate > twentyFourHoursAgo
+          })
         }
+        
+        if (newMatches.length > 0) {
+          // Store new matches notification to show when user navigates
+          const matchNames = newMatches.map(m => m.otherUser.displayName).join(', ')
+          const message = newMatches.length === 1 
+            ? `🎉 You have a new match with ${matchNames}!`
+            : `🎉 You have ${newMatches.length} new matches: ${matchNames}`
+          
+          console.log('✅ New matches found on login:', newMatches.length, matchNames)
+          localStorage.setItem('newMatchesNotification', message)
+          localStorage.setItem('newMatchesCount', newMatches.length.toString())
+        } else {
+          console.log('ℹ️ No new matches found on login')
+        }
+      } catch (err) {
+        // Silently fail - matches check is not critical for login
+        console.log('Could not check for new matches:', err)
       }
       
       // Update last login time
