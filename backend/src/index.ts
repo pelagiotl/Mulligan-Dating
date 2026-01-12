@@ -124,8 +124,13 @@ import { initializeSocket } from './socket.js';
 
 // Request logging middleware (for debugging)
 app.use((req, res, next) => {
+  // Log all PUT and POST requests
   if (req.method === 'PUT' || req.method === 'POST') {
     console.log(`📥 ${req.method} ${req.path} - Body keys:`, Object.keys(req.body || {}));
+  }
+  // Also log 404s to see what's being requested
+  if (req.method === 'PUT' && req.path.includes('/profile/')) {
+    console.log(`🔍 PUT request to profile route: ${req.path}`);
   }
   next();
 });
@@ -242,6 +247,18 @@ app.get("/api/reset-rate-limit", async (req, res) => {
   res.json({ 
     message: "Rate limit reset for your IP",
     ip: ipString
+  });
+});
+
+// 404 handler - must be after all routes
+app.use((req: express.Request, res: express.Response) => {
+  console.log(`❌ 404 - Route not found: ${req.method} ${req.path}`);
+  console.log(`❌ Request headers:`, req.headers);
+  res.status(404).json({ 
+    error: "Route not found",
+    method: req.method,
+    path: req.path,
+    message: `The route ${req.method} ${req.path} does not exist`
   });
 });
 
