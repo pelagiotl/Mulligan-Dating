@@ -190,14 +190,21 @@ authRouter.post('/login', rateLimitAuth, async (req, res) => {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors[0].message });
     }
-    console.error('Login error:', error);
-    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
-    console.error('Request body:', { email: req.body?.email, hasPassword: !!req.body?.password });
+    console.error('❌ Login error:', error);
+    console.error('❌ Error type:', error instanceof Error ? error.constructor.name : typeof error);
+    console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    console.error('❌ Request body:', { email: req.body?.email, hasPassword: !!req.body?.password });
+    console.error('❌ Error details:', {
+      message: error instanceof Error ? error.message : String(error),
+      name: error instanceof Error ? error.name : 'Unknown',
+      code: (error as any)?.code,
+      errno: (error as any)?.errno
+    });
     const errorMessage = error instanceof Error ? error.message : String(error);
     res.status(500).json({ 
       error: 'Failed to login',
-      details: errorMessage,
-      stack: process.env.NODE_ENV === 'development' && error instanceof Error ? error.stack : undefined
+      message: errorMessage,
+      details: process.env.NODE_ENV === 'development' ? errorMessage : 'Please check server logs'
     });
   }
 });
