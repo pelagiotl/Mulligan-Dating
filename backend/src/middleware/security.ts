@@ -11,11 +11,11 @@ try {
 }
 
 // Rate limiter for authentication endpoints (prevent brute force)
-// More lenient in development, stricter in production
+// More lenient in development, less strict in production to handle shared IPs (load balancers)
 const authLimiter = RateLimiterMemory ? new RateLimiterMemory({
-  points: process.env.NODE_ENV === 'production' ? 20 : 100, // 20 attempts in prod, 100 in dev
+  points: process.env.NODE_ENV === 'production' ? 50 : 100, // 50 attempts in prod (increased from 20), 100 in dev
   duration: 900, // per 15 minutes
-  blockDuration: process.env.NODE_ENV === 'production' ? 300 : 10, // 5 min in prod, 10 sec in dev
+  blockDuration: process.env.NODE_ENV === 'production' ? 60 : 10, // 1 min in prod (reduced from 5 min), 10 sec in dev
 }) : null;
 
 // Rate limiter for signup endpoint (more lenient than login)
@@ -65,9 +65,29 @@ export async function rateLimitAuth(req: Request, res: Response, next: NextFunct
   }
   
   try {
-    const key = req.ip || req.socket.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
-    const keyString = Array.isArray(key) ? key[0] : String(key);
-    await authLimiter.consume(keyString);
+    // For login attempts, use email + IP to avoid shared IP issues behind load balancers
+    // This allows multiple users from the same IP to login independently
+    let key: string;
+    // Check if this is a login request by checking path or originalUrl
+    const isLoginRequest = req.method === 'POST' && 
+      (req.path === '/login' || req.path.endsWith('/login') || req.originalUrl?.includes('/auth/login'));
+    
+    if (isLoginRequest && req.body?.email) {
+      // Use email + IP for login to avoid shared IP rate limiting
+      const email = String(req.body.email).toLowerCase().trim();
+      const xForwardedFor = req.headers['x-forwarded-for'];
+      const ip = Array.isArray(xForwardedFor) ? xForwardedFor[0] : xForwardedFor || req.ip || req.socket.remoteAddress || 'unknown';
+      const ipString = Array.isArray(ip) ? ip[0] : String(ip);
+      key = `login:${email}:${ipString}`;
+    } else {
+      // For other auth endpoints, just use IP
+      const xForwardedFor = req.headers['x-forwarded-for'];
+      const ip = Array.isArray(xForwardedFor) ? xForwardedFor[0] : xForwardedFor || req.ip || req.socket.remoteAddress || 'unknown';
+      const ipString = Array.isArray(ip) ? ip[0] : String(ip);
+      key = ipString;
+    }
+    
+    await authLimiter.consume(key);
     next();
   } catch (rejRes: any) {
     const secs = Math.round(rejRes.msBeforeNext / 1000) || 1;
