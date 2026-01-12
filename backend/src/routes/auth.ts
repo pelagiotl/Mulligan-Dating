@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { db } from '../database.js';
 import { generateToken, authenticateToken, AuthRequest } from '../middleware/auth.js';
 import { getUserByReferralCode, getOrCreateReferralCode, grantReferralToken } from '../utils/referrals.js';
-import { sanitizeText, rateLimitAuth } from '../middleware/security.js';
+import { sanitizeText, rateLimitAuth, rateLimitSignup } from '../middleware/security.js';
 
 export const authRouter = Router();
 
@@ -45,7 +45,7 @@ const loginSchema = z.object({
 });
 
 // Sign up
-authRouter.post('/signup', rateLimitAuth, async (req, res) => {
+authRouter.post('/signup', rateLimitSignup, async (req, res) => {
   try {
     const parsed = signupSchema.parse(req.body);
     

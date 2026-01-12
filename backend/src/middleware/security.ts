@@ -18,6 +18,14 @@ const authLimiter = RateLimiterMemory ? new RateLimiterMemory({
   blockDuration: process.env.NODE_ENV === 'production' ? 300 : 10, // 5 min in prod, 10 sec in dev
 }) : null;
 
+// Rate limiter for signup endpoint (more lenient than login)
+// Signup is less security-critical than login, so we allow more attempts
+const signupLimiter = RateLimiterMemory ? new RateLimiterMemory({
+  points: process.env.NODE_ENV === 'production' ? 50 : 200, // 50 signups in prod, 200 in dev
+  duration: 900, // per 15 minutes
+  blockDuration: process.env.NODE_ENV === 'production' ? 60 : 5, // 1 min in prod, 5 sec in dev
+}) : null;
+
 // Rate limiter for general API endpoints
 // Increased limit for profile operations (multiple requests during profile creation)
 const apiLimiter = RateLimiterMemory ? new RateLimiterMemory({
@@ -65,6 +73,47 @@ export async function rateLimitAuth(req: Request, res: Response, next: NextFunct
     const secs = Math.round(rejRes.msBeforeNext / 1000) || 1;
     res.status(429).json({
       error: 'Too many authentication attempts',
+      message: `Please try again in ${secs} seconds`,
+      retryAfter: secs,
+    });
+  }
+}
+
+// Rate limiter for signup endpoint (more lenient than login)
+export async function rateLimitSignup(req: Request, res: Response, next: NextFunction) {
+  if (!signupLimiter) {
+    // Rate limiting not available, skip
+    return next();
+  }
+  
+  // In development, allow bypass for localhost
+  if (process.env.NODE_ENV !== 'production') {
+    const ip = req.ip || req.socket.remoteAddress || req.headers['x-forwarded-for'] || '';
+    const ipString = Array.isArray(ip) ? ip[0] : String(ip);
+    
+    // Check for localhost in various formats
+    if (
+      ipString === '::1' || 
+      ipString === '127.0.0.1' || 
+      ipString.startsWith('::ffff:127.0.0.1') || 
+      ipString === 'localhost' ||
+      ipString.includes('127.0.0.1') ||
+      ipString === ''
+    ) {
+      // Allow localhost in development - bypass rate limiting
+      return next();
+    }
+  }
+  
+  try {
+    const key = req.ip || req.socket.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
+    const keyString = Array.isArray(key) ? key[0] : String(key);
+    await signupLimiter.consume(keyString);
+    next();
+  } catch (rejRes: any) {
+    const secs = Math.round(rejRes.msBeforeNext / 1000) || 1;
+    res.status(429).json({
+      error: 'Too many signup attempts',
       message: `Please try again in ${secs} seconds`,
       retryAfter: secs,
     });
