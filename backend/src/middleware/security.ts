@@ -19,8 +19,9 @@ const authLimiter = RateLimiterMemory ? new RateLimiterMemory({
 }) : null;
 
 // Rate limiter for general API endpoints
+// Increased limit for profile operations (multiple requests during profile creation)
 const apiLimiter = RateLimiterMemory ? new RateLimiterMemory({
-  points: 100, // 100 requests
+  points: 200, // 200 requests (increased to handle profile creation with multiple steps)
   duration: 900, // per 15 minutes
 }) : null;
 
@@ -113,6 +114,28 @@ export async function rateLimitAPI(req: Request, res: Response, next: NextFuncti
   // Admin routes are at /api/admin, so check for /admin in the path
   if (req.path.includes('/admin')) {
     return next();
+  }
+  
+  // For profile creation/update endpoints, use a more lenient rate limit
+  // Profile creation involves multiple requests (interests, dealbreakers, preferences, etc.)
+  if (req.path.includes('/profile') && (req as any).userId) {
+    // Use a separate, more lenient limiter for profile operations
+    // This allows users to complete profile creation without hitting rate limits
+    const profileLimiter = RateLimiterMemory ? new RateLimiterMemory({
+      points: 50, // 50 profile operations
+      duration: 60, // per minute (resets quickly)
+    }) : null;
+    
+    if (profileLimiter) {
+      try {
+        const profileKey = `profile:${(req as any).userId}`;
+        await profileLimiter.consume(profileKey);
+        return next();
+      } catch (rejRes: any) {
+        // If profile limiter fails, fall through to regular limiter
+        // This gives users a second chance
+      }
+    }
   }
   
   // For authenticated routes, use user ID instead of IP to avoid shared rate limits

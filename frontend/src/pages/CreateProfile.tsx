@@ -142,6 +142,13 @@ export default function CreateProfile() {
         return
       }
     }
+    if (step === 4) {
+      // Validate minimum age is at least 18
+      if (minAge < 18) {
+        setError('Minimum age must be 18 or older')
+        return
+      }
+    }
     if (step === 5) {
       // Validate all lifestyle fields are filled
       if (!smoking || !drinking || !children || !pets || !religion || !workLifeBalance || !worksOut) {
