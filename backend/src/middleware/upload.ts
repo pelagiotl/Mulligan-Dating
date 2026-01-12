@@ -64,6 +64,7 @@ const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCa
   }
 
   // Additional validation: Check extension matches MIME type
+  // But be lenient - trust the extension if it's valid, since MIME types can be wrong
   const mimeToExt: { [key: string]: string[] } = {
     'image/jpeg': ['.jpg', '.jpeg'],
     'image/jpg': ['.jpg', '.jpeg'],
@@ -76,14 +77,28 @@ const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCa
   // Normalize MIME type for PNG (some browsers send image/x-png)
   const normalizedMime = file.mimetype === 'image/x-png' ? 'image/png' : file.mimetype;
 
+  // Check if extension matches MIME type
+  // But if the extension is valid and the MIME type is an image type, be lenient
+  // (Some files have wrong MIME types but correct extensions)
   if (mimeToExt[normalizedMime] && !mimeToExt[normalizedMime].includes(ext)) {
-    console.error('❌ MIME type mismatch:', {
-      mimetype: file.mimetype,
-      normalizedMime,
-      extension: ext,
-      expected: mimeToExt[normalizedMime]
-    });
-    return cb(new Error('File extension does not match file type.'));
+    // If extension is valid for images, trust it over MIME type
+    // (This handles cases where files are renamed or MIME type is misreported)
+    if (validExtensions.includes(ext)) {
+      console.warn('⚠️  MIME type mismatch but extension is valid - accepting file:', {
+        mimetype: file.mimetype,
+        extension: ext,
+        originalname: file.originalname
+      });
+      // Allow it - trust the extension
+    } else {
+      console.error('❌ MIME type mismatch:', {
+        mimetype: file.mimetype,
+        normalizedMime,
+        extension: ext,
+        expected: mimeToExt[normalizedMime]
+      });
+      return cb(new Error('File extension does not match file type.'));
+    }
   }
 
   console.log('✅ File validation passed:', file.originalname);
