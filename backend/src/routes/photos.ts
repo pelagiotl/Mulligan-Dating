@@ -3,8 +3,41 @@ import { v4 as uuidv4 } from "uuid";
 import { db } from "../database.js";
 import { authenticateToken, AuthRequest } from "../middleware/auth.js";
 import { uploadMultiple, uploadSingle } from "../middleware/upload.js";
+import fs from "fs";
+import path from "path";
 
 export const photosRouter = Router();
+
+// Helper function to clean up orphaned photos (database records without files)
+async function cleanupOrphanedPhotos(profileId: string): Promise<number> {
+  try {
+    const photosResult = await (db
+      .prepare("SELECT id, url FROM photos WHERE profile_id = ?")
+      .all([profileId]) as Promise<{ id: string; url: string }[]>);
+    
+    const photos = Array.isArray(photosResult) ? photosResult : [];
+    let cleanedCount = 0;
+    
+    for (const photo of photos) {
+      const filePath = path.join(process.cwd(), photo.url);
+      if (!fs.existsSync(filePath)) {
+        // File doesn't exist, delete the database record
+        console.log(`Cleaning up orphaned photo: ${photo.id} (file missing: ${photo.url})`);
+        await (db.prepare("DELETE FROM photos WHERE id = ?").run([photo.id]) as Promise<any>);
+        cleanedCount++;
+      }
+    }
+    
+    if (cleanedCount > 0) {
+      console.log(`Cleaned up ${cleanedCount} orphaned photo(s) for profile ${profileId}`);
+    }
+    
+    return cleanedCount;
+  } catch (error) {
+    console.error("Error cleaning up orphaned photos:", error);
+    return 0;
+  }
+}
 
 // Upload multiple photos for a profile
 photosRouter.post("/", authenticateToken, uploadMultiple, async (req: AuthRequest, res) => {
@@ -31,7 +64,10 @@ photosRouter.post("/", authenticateToken, uploadMultiple, async (req: AuthReques
 
     console.log('Photo upload: Profile found:', profile.id);
 
-    // Check current photo count
+    // Clean up orphaned photos (database records without files)
+    await cleanupOrphanedPhotos(profile.id);
+
+    // Check current photo count (after cleanup)
     const currentPhotoCountResult = db
       .prepare("SELECT COUNT(*) as count FROM photos WHERE profile_id = ?")
       .get([profile.id]);
@@ -39,7 +75,7 @@ photosRouter.post("/", authenticateToken, uploadMultiple, async (req: AuthReques
       ? await currentPhotoCountResult
       : currentPhotoCountResult) as { count: number };
 
-    console.log('Photo upload: Current photo count:', currentPhotoCount.count);
+    console.log('Photo upload: Current photo count (after cleanup):', currentPhotoCount.count);
 
     const maxPhotos = 6;
     if (currentPhotoCount.count + files.length > maxPhotos) {
@@ -107,7 +143,10 @@ photosRouter.get("/profile/:profileId", authenticateToken, async (req: AuthReque
   try {
     const { profileId } = req.params;
 
-    const photos = await (db
+    // Clean up orphaned photos before fetching
+    await cleanupOrphanedPhotos(profileId);
+
+    const photosResult = await (db
       .prepare(
         `SELECT id, url, display_order, is_primary, created_at 
          FROM photos 
@@ -116,8 +155,17 @@ photosRouter.get("/profile/:profileId", authenticateToken, async (req: AuthReque
       )
       .all([profileId]) as Promise<any[]>);
 
+    // Ensure photos is always an array
+    const photos = Array.isArray(photosResult) ? photosResult : [];
+
+    // Filter out photos where files don't exist (double-check)
+    const validPhotos = photos.filter((p) => {
+      const filePath = path.join(process.cwd(), p.url);
+      return fs.existsSync(filePath);
+    });
+
     res.json({
-      photos: photos.map((p) => ({
+      photos: validPhotos.map((p) => ({
         id: p.id,
         url: p.url,
         displayOrder: p.display_order,
@@ -144,6 +192,9 @@ photosRouter.get("/me", authenticateToken, async (req: AuthRequest, res) => {
       return res.json({ photos: [] });
     }
 
+    // Clean up orphaned photos before fetching
+    await cleanupOrphanedPhotos(profile.id);
+
     const photosResult = await (db
       .prepare(
         `SELECT id, url, display_order, is_primary, created_at 
@@ -156,8 +207,14 @@ photosRouter.get("/me", authenticateToken, async (req: AuthRequest, res) => {
     // Ensure photos is always an array
     const photos = Array.isArray(photosResult) ? photosResult : [];
 
+    // Filter out photos where files don't exist (double-check)
+    const validPhotos = photos.filter((p) => {
+      const filePath = path.join(process.cwd(), p.url);
+      return fs.existsSync(filePath);
+    });
+
     res.json({
-      photos: photos.map((p) => ({
+      photos: validPhotos.map((p) => ({
         id: p.id,
         url: p.url,
         displayOrder: p.display_order,
