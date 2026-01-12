@@ -6076,9 +6076,15 @@ img {
 
 .photo-upload-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: var(--space-4);
   margin-bottom: var(--space-6);
+}
+
+@media (min-width: 1200px) {
+  .photo-upload-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 
 .photo-item {
@@ -6201,6 +6207,44 @@ img {
 .photo-upload-hint {
   font-size: 0.875rem;
   color: var(--text-muted);
+}
+
+.photo-upload-slot-number {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: var(--space-1);
+  opacity: 0.7;
+}
+
+.photo-upload-progress {
+  margin-bottom: var(--space-4);
+  padding: var(--space-3);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+}
+
+.photo-upload-progress-bar {
+  width: 100%;
+  height: 8px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  margin-bottom: var(--space-2);
+}
+
+.photo-upload-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-rose-500), var(--color-rose-400));
+  border-radius: var(--radius-full);
+  transition: width 0.3s ease;
+  box-shadow: 0 0 10px rgba(244, 63, 94, 0.3);
+}
+
+.photo-upload-progress-text {
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  font-weight: 500;
 }
 
 .photo-upload-empty {

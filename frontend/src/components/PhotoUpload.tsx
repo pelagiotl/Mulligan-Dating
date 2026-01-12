@@ -19,6 +19,8 @@ interface PhotoUploadProps {
 export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 }: PhotoUploadProps) {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -63,36 +65,112 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
     }
   };
 
+  // Compress and resize image before upload
+  const compressImage = (file: File, maxWidth = 1920, maxHeight = 1920, quality = 0.85): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          // Calculate new dimensions
+          if (width > height) {
+            if (width > maxWidth) {
+              height = (height * maxWidth) / width;
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width = (width * maxHeight) / height;
+              height = maxHeight;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('Could not get canvas context'));
+            return;
+          }
+
+          ctx.drawImage(img, 0, 0, width, height);
+
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) {
+                reject(new Error('Compression failed'));
+                return;
+              }
+              // Create a new File with the compressed blob
+              const compressedFile = new File([blob], file.name, {
+                type: 'image/jpeg',
+                lastModified: Date.now(),
+              });
+              resolve(compressedFile);
+            },
+            'image/jpeg',
+            quality
+          );
+        };
+        img.onerror = () => reject(new Error('Failed to load image'));
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
     // Check photo limit
-    if (photos.length + files.length > maxPhotos) {
-      setError(`Maximum ${maxPhotos} photos allowed. You can upload ${maxPhotos - photos.length} more.`);
+    const remainingSlots = maxPhotos - photos.length;
+    if (files.length > remainingSlots) {
+      setError(`You can only upload ${remainingSlots} more photo(s). Maximum ${maxPhotos} photos allowed.`);
       return;
     }
 
-    // Validate file types and sizes
+    // Validate file types
     const validFiles: File[] = [];
     for (const file of Array.from(files)) {
       if (!file.type.startsWith("image/")) {
         setError(`${file.name} is not an image file`);
         return;
       }
-      if (file.size > 40 * 1024 * 1024) {
-        setError(`${file.name} is too large. Maximum size is 40MB`);
-        return;
-      }
       validFiles.push(file);
     }
 
     setUploading(true);
+    setUploadProgress(0);
     setError("");
 
     try {
+      // Compress images before upload
+      setUploadProgress(10);
+      const compressedFiles: File[] = [];
+      for (let i = 0; i < validFiles.length; i++) {
+        setUploadingIndex(i);
+        setUploadProgress(10 + (i / validFiles.length) * 30);
+        try {
+          const compressed = await compressImage(validFiles[i]);
+          compressedFiles.push(compressed);
+          console.log(`Compressed ${validFiles[i].name}: ${(validFiles[i].size / 1024 / 1024).toFixed(2)}MB → ${(compressed.size / 1024 / 1024).toFixed(2)}MB`);
+        } catch (compressionError) {
+          console.warn('Compression failed, using original:', compressionError);
+          compressedFiles.push(validFiles[i]);
+        }
+      }
+      setUploadingIndex(null);
+      setUploadProgress(40);
+
       const formData = new FormData();
-      validFiles.forEach((file) => {
+      compressedFiles.forEach((file) => {
         formData.append("photos", file);
       });
 
@@ -102,72 +180,61 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
       
       const token = localStorage.getItem("token");
       
-      // Create AbortController for timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout for large files
-      
-      let response: Response;
-      try {
-        response = await fetch(`${BASE_URL}/photos`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            // Don't set Content-Type - let browser set it with boundary for FormData
-          },
-          body: formData,
-          signal: controller.signal,
-        });
-        clearTimeout(timeoutId);
-      } catch (fetchError) {
-        clearTimeout(timeoutId);
-        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
-          throw new Error('Upload timeout - please try again with a smaller file');
-        }
-        throw fetchError;
-      }
-
-      // Check content type before parsing
-      const contentType = response.headers.get('content-type');
-      const isJson = contentType && contentType.includes('application/json');
-      
-      if (!response.ok) {
-        let errorMessage = `Failed to upload photos (${response.status})`;
-        try {
-          if (isJson) {
-            const errorData = await response.json();
-            errorMessage = errorData.error || errorData.message || errorMessage;
-          } else {
-            const errorText = await response.text();
-            errorMessage = errorText || errorMessage;
+      // Use XMLHttpRequest for progress tracking
+      const result = await new Promise<any>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        
+        // Track upload progress (40% to 90% of total progress)
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const percentComplete = 40 + (e.loaded / e.total) * 50;
+            setUploadProgress(Math.min(percentComplete, 90));
           }
-        } catch (parseError) {
-          console.error('Error parsing error response:', parseError);
-          errorMessage = `Server error: ${response.status} ${response.statusText}`;
-        }
-        console.error('Photo upload error:', { 
-          status: response.status, 
-          statusText: response.statusText,
-          contentType,
-          error: errorMessage 
         });
-        throw new Error(errorMessage);
-      }
 
-      let result;
-      try {
-        if (isJson) {
-          result = await response.json();
-        } else {
-          const text = await response.text();
-          console.warn('Non-JSON response received:', text);
-          result = { message: 'Photo uploaded successfully' };
-        }
-        console.log('Photo upload success:', result);
-      } catch (parseError) {
-        console.error('Error parsing success response:', parseError);
-        // Even if parsing fails, assume success if status was ok
-        result = { message: 'Photo uploaded successfully' };
-      }
+        xhr.addEventListener('load', () => {
+          setUploadProgress(95);
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const contentType = xhr.getResponseHeader('content-type');
+              if (contentType && contentType.includes('application/json')) {
+                const data = JSON.parse(xhr.responseText);
+                resolve(data);
+              } else {
+                resolve({ message: 'Photo uploaded successfully' });
+              }
+            } catch (parseError) {
+              console.error('Error parsing response:', parseError);
+              resolve({ message: 'Photo uploaded successfully' });
+            }
+          } else {
+            let errorMessage = `Failed to upload photos (${xhr.status})`;
+            try {
+              const errorData = JSON.parse(xhr.responseText);
+              errorMessage = errorData.error || errorData.message || errorMessage;
+            } catch {
+              errorMessage = xhr.responseText || errorMessage;
+            }
+            reject(new Error(errorMessage));
+          }
+        });
+
+        xhr.addEventListener('error', () => {
+          reject(new Error('Network error during upload'));
+        });
+
+        xhr.addEventListener('abort', () => {
+          reject(new Error('Upload cancelled'));
+        });
+
+        xhr.open('POST', `${BASE_URL}/photos`);
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        // Don't set Content-Type - let browser set it with boundary for FormData
+        xhr.send(formData);
+      });
+      
+      setUploadProgress(100);
+      console.log('Photo upload success:', result);
       
       // Refresh photos
       if (profileId) {
@@ -178,12 +245,16 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
 
       onPhotosUpdated?.();
       
-      // Reset file input
+      // Reset file input and progress
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
+      setUploadProgress(0);
+      setUploadingIndex(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to upload photos");
+      setUploadProgress(0);
+      setUploadingIndex(null);
     } finally {
       setUploading(false);
     }
@@ -232,102 +303,100 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
     return <div className="photo-upload-loading">Loading photos...</div>;
   }
 
+  // Create array of slots (filled + empty)
+  const slots = Array.from({ length: maxPhotos }, (_, index) => {
+    const photo = photos.find(p => p.displayOrder === index);
+    return { index, photo };
+  });
+
   return (
     <div className="photo-upload">
       {error && <div className="auth-error">{error}</div>}
 
-      <div className="photo-upload-grid">
-        {photos.map((photo) => (
-          <div key={photo.id} className="photo-item">
-            <div className="photo-container">
-              <img 
-                src={getPhotoUrl(photo.url) || '#'} 
-                alt={`Photo ${photo.displayOrder + 1}`} 
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  const originalSrc = photo.url;
-                  const constructedUrl = getPhotoUrl(photo.url);
-                  const API_URL = (import.meta.env as any).VITE_API_URL || (import.meta.env as any).VITE_NGROK_URL || '';
-                  console.error('❌ Failed to load photo:', {
-                    photoId: photo.id,
-                    originalUrl: originalSrc,
-                    constructedUrl: constructedUrl,
-                    displayOrder: photo.displayOrder,
-                    apiUrl: API_URL ? 'SET' : 'NOT SET',
-                    error: 'Image failed to load - check URL and CORS'
-                  });
-                  // Hide broken image and show placeholder
-                  target.style.display = 'none';
-                }}
-                onLoad={() => {
-                  console.log('✅ Photo loaded successfully:', {
-                    photoId: photo.id,
-                    url: photo.url,
-                    constructedUrl: getPhotoUrl(photo.url)
-                  });
-                }}
-              />
-              {photo.isPrimary && <div className="photo-primary-badge">⭐ Primary</div>}
-              {!profileId && (
-                <div className="photo-actions">
-                  {!photo.isPrimary && (
-                    <button
-                      className="btn btn-sm btn-secondary"
-                      onClick={() => handleSetPrimary(photo.id)}
-                      title="Set as primary"
-                    >
-                      ⭐
-                    </button>
-                  )}
-                  <button
-                    className="btn btn-sm btn-danger"
-                    onClick={() => handleDeletePhoto(photo.id)}
-                    title="Delete photo"
-                  >
-                    🗑️
-                  </button>
-                </div>
-              )}
-            </div>
+      {uploading && (
+        <div className="photo-upload-progress">
+          <div className="photo-upload-progress-bar">
+            <div 
+              className="photo-upload-progress-fill" 
+              style={{ width: `${uploadProgress}%` }}
+            ></div>
           </div>
-        ))}
-
-        {!profileId && photos.length < maxPhotos && (
-          <div className="photo-upload-placeholder">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={handleFileSelect}
-              style={{ display: "none" }}
-            />
-            <button
-              className="photo-upload-btn"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-            >
-              {uploading ? (
-                <span>Uploading...</span>
-              ) : (
-                <>
-                  <span className="photo-upload-icon">➕</span>
-                  <span>Add Photo</span>
-                  <span className="photo-upload-hint">
-                    {photos.length}/{maxPhotos}
-                  </span>
-                </>
-              )}
-            </button>
+          <div className="photo-upload-progress-text">
+            {uploadingIndex !== null 
+              ? `Compressing photo ${uploadingIndex + 1}...` 
+              : `Uploading... ${Math.round(uploadProgress)}%`}
           </div>
-        )}
-      </div>
-
-      {photos.length === 0 && !profileId && (
-        <div className="photo-upload-empty">
-          <p>No photos yet. Add your first photo to get started!</p>
         </div>
       )}
+
+      <div className="photo-upload-grid">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={handleFileSelect}
+          style={{ display: "none" }}
+        />
+        
+        {slots.map((slot) => {
+          if (slot.photo) {
+            // Filled slot - show photo
+            return (
+              <div key={slot.photo.id} className="photo-item">
+                <div className="photo-container">
+                  <img 
+                    src={getPhotoUrl(slot.photo.url) || '#'} 
+                    alt={`Photo ${slot.index + 1}`} 
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                    }}
+                  />
+                  {slot.photo.isPrimary && <div className="photo-primary-badge">⭐ Primary</div>}
+                  {!profileId && (
+                    <div className="photo-actions">
+                      {!slot.photo.isPrimary && (
+                        <button
+                          className="btn btn-sm btn-secondary"
+                          onClick={() => handleSetPrimary(slot.photo!.id)}
+                          title="Set as primary"
+                        >
+                          ⭐
+                        </button>
+                      )}
+                      <button
+                        className="btn btn-sm btn-danger"
+                        onClick={() => handleDeletePhoto(slot.photo!.id)}
+                        title="Delete photo"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          } else {
+            // Empty slot - show upload button
+            return (
+              <div key={`empty-${slot.index}`} className="photo-item photo-upload-placeholder">
+                {!profileId && (
+                  <button
+                    className="photo-upload-btn"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                  >
+                    <span className="photo-upload-icon">➕</span>
+                    <span>Add Photo</span>
+                    <span className="photo-upload-slot-number">{slot.index + 1}</span>
+                  </button>
+                )}
+              </div>
+            );
+          }
+        })}
+      </div>
     </div>
   );
 }
