@@ -151,7 +151,15 @@ photosRouter.post("/", authenticateToken, uploadMultiple, async (req: AuthReques
         await insertResult;
       }
 
+      // Verify file exists after insert
+      const filePath = path.join(process.cwd(), photoUrl);
+      const fileExists = fs.existsSync(filePath);
       console.log('Photo upload: Photo inserted successfully:', photoId);
+      console.log('Photo upload: File verification - Path:', filePath, 'Exists:', fileExists);
+      
+      if (!fileExists) {
+        console.error('Photo upload: WARNING - File does not exist after upload! This indicates an upload failure.');
+      }
 
       uploadedPhotos.push({
         id: photoId,
