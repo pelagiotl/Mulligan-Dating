@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import Landing from './pages/Landing'
 import Login from './pages/Login'
@@ -251,6 +251,7 @@ function AuthRedirectRoute({ children }: { children: React.ReactNode }) {
 function NewMatchesNotification() {
   const [notification, setNotification] = useState<string | null>(null)
   const navigate = useNavigate()
+  const location = useLocation()
   const { isAuthenticated } = useAuth()
 
   useEffect(() => {
@@ -271,7 +272,7 @@ function NewMatchesNotification() {
       
       return () => clearTimeout(timer)
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, location.pathname]) // Re-check when route changes
 
   if (!notification) return null
 
