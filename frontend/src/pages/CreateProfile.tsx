@@ -271,7 +271,10 @@ export default function CreateProfile() {
     }
 
     try {
+      console.log('🚀 Starting profile creation...');
+      
       // Create profile
+      console.log('📝 Step 1: Creating profile...');
       await api.post('/profile', {
         displayName,
         age: parseInt(age),
@@ -280,29 +283,37 @@ export default function CreateProfile() {
         bio,
         lookingFor
       })
+      console.log('✅ Profile created successfully');
 
       // Add interests
       if (interests.length > 0) {
+        console.log('📝 Step 2: Adding interests...', interests);
         await api.put('/profile/interests', {
           interests: interests.map(name => ({ name }))
         })
+        console.log('✅ Interests added successfully');
       }
 
       // Add dealbreakers
       if (dealbreakers.length > 0) {
+        console.log('📝 Step 3: Adding dealbreakers...', dealbreakers);
         await api.put('/profile/dealbreakers', {
           dealbreakers: dealbreakers.map(description => ({ description }))
         })
+        console.log('✅ Dealbreakers added successfully');
       }
 
       // Add partner qualities
       if (qualities.length > 0) {
+        console.log('📝 Step 4: Adding partner qualities...', qualities);
         await api.put('/profile/partner-qualities', {
           qualities: qualities.map(quality => ({ quality }))
         })
+        console.log('✅ Partner qualities added successfully');
       }
 
-          // Save dating preferences
+      // Save dating preferences
+      console.log('📝 Step 5: Saving preferences...');
       await api.put('/profile/preferences', {
         minAge,
         maxAge,
@@ -310,8 +321,10 @@ export default function CreateProfile() {
         maxDistance,
         relationshipType: lookingFor || null
       })
+      console.log('✅ Preferences saved successfully');
 
-          // Save lifestyle (all fields are required)
+      // Save lifestyle (all fields are required)
+      console.log('📝 Step 6: Saving lifestyle...');
       await api.put('/profile/lifestyle', {
         smoking,
         drinking,
@@ -321,6 +334,7 @@ export default function CreateProfile() {
         workLifeBalance,
         worksOut
       })
+      console.log('✅ Lifestyle saved successfully');
 
       // Refresh profile to ensure it's loaded
       await refreshProfile()
@@ -331,8 +345,14 @@ export default function CreateProfile() {
       // Navigate to browse - the profile should now exist
       navigate('/browse')
     } catch (err) {
-      console.error('Profile creation error:', err)
-      setError(err instanceof Error ? err.message : 'Failed to create profile')
+      console.error('❌ Profile creation error:', err)
+      console.error('❌ Error details:', {
+        message: err instanceof Error ? err.message : String(err),
+        status: (err as any)?.status,
+        response: (err as any)?.response
+      })
+      const errorMessage = err instanceof Error ? err.message : 'Failed to create profile'
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }
