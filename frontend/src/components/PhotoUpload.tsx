@@ -47,10 +47,16 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
   const fetchMyPhotos = async () => {
     try {
       setLoading(true);
+      console.log('🔄 PhotoUpload: Fetching photos...');
       const data = await api.get<{ photos: Photo[] }>("/photos/me");
-      setPhotos(data.photos);
+      console.log('✅ PhotoUpload: Photos fetched:', data.photos);
+      setPhotos(data.photos || []);
+      if (!data.photos || data.photos.length === 0) {
+        console.log('⚠️ PhotoUpload: No photos found');
+      }
     } catch (err) {
-      // Photos might not exist yet, that's okay
+      console.error('❌ PhotoUpload: Failed to fetch photos:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load photos');
       setPhotos([]);
     } finally {
       setLoading(false);
