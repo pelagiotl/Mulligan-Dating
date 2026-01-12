@@ -236,8 +236,10 @@ profileRouter.get('/', authenticateToken, async (req: AuthRequest, res) => {
 // Update interests
 profileRouter.put('/interests', authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
   try {
+    console.log('📝 PUT /api/profile/interests - Request received');
     const userId = req.userId!;
     const { interests } = req.body;
+    console.log('📝 Interests update:', { userId, interestsCount: interests?.length });
 
     if (!Array.isArray(interests)) {
       return res.status(400).json({ error: 'Interests must be an array' });
@@ -275,8 +277,10 @@ profileRouter.put('/interests', authenticateToken, rateLimitAPI, async (req: Aut
 // Update dealbreakers
 profileRouter.put('/dealbreakers', authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
   try {
+    console.log('📝 PUT /api/profile/dealbreakers - Request received');
     const userId = req.userId!;
     const { dealbreakers } = req.body;
+    console.log('📝 Dealbreakers update:', { userId, dealbreakersCount: dealbreakers?.length });
 
     if (!Array.isArray(dealbreakers)) {
       return res.status(400).json({ error: 'Dealbreakers must be an array' });
@@ -314,8 +318,10 @@ profileRouter.put('/dealbreakers', authenticateToken, rateLimitAPI, async (req: 
 // Update partner qualities
 profileRouter.put('/partner-qualities', authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
   try {
+    console.log('📝 PUT /api/profile/partner-qualities - Request received');
     const userId = req.userId!;
     const { qualities } = req.body;
+    console.log('📝 Partner qualities update:', { userId, qualitiesCount: qualities?.length });
 
     if (!Array.isArray(qualities)) {
       return res.status(400).json({ error: 'Qualities must be an array' });
@@ -354,8 +360,10 @@ profileRouter.put('/partner-qualities', authenticateToken, rateLimitAPI, async (
 // Update preferences
 profileRouter.put('/preferences', authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
   try {
+    console.log('📝 PUT /api/profile/preferences - Request received');
     const userId = req.userId!;
     const preferencesData = preferencesSchema.parse(req.body);
+    console.log('📝 Preferences update:', { userId, preferencesData });
 
     // Get user's profile
     const profileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
@@ -427,8 +435,10 @@ profileRouter.put('/preferences', authenticateToken, rateLimitAPI, async (req: A
 // Update lifestyle
 profileRouter.put('/lifestyle', authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
   try {
+    console.log('📝 PUT /api/profile/lifestyle - Request received');
     const userId = req.userId!;
     const { smoking, drinking, children, pets, religion, workLifeBalance, worksOut } = req.body;
+    console.log('📝 Lifestyle update:', { userId });
 
     // Get user's profile
     const profileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
