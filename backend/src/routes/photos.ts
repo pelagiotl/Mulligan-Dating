@@ -16,20 +16,29 @@ async function cleanupOrphanedPhotos(profileId: string): Promise<number> {
       .all([profileId]) as Promise<{ id: string; url: string }[]>);
     
     const photos = Array.isArray(photosResult) ? photosResult : [];
+    console.log(`Cleanup: Found ${photos.length} photo record(s) in database for profile ${profileId}`);
+    
     let cleanedCount = 0;
+    const uploadsDir = path.join(process.cwd(), 'uploads');
+    console.log(`Cleanup: Checking files in directory: ${uploadsDir}`);
     
     for (const photo of photos) {
       const filePath = path.join(process.cwd(), photo.url);
-      if (!fs.existsSync(filePath)) {
+      const fileExists = fs.existsSync(filePath);
+      console.log(`Cleanup: Photo ${photo.id} - URL: ${photo.url}, Path: ${filePath}, Exists: ${fileExists}`);
+      
+      if (!fileExists) {
         // File doesn't exist, delete the database record
-        console.log(`Cleaning up orphaned photo: ${photo.id} (file missing: ${photo.url})`);
+        console.log(`Cleanup: Removing orphaned photo record: ${photo.id} (file missing: ${photo.url})`);
         await (db.prepare("DELETE FROM photos WHERE id = ?").run([photo.id]) as Promise<any>);
         cleanedCount++;
       }
     }
     
     if (cleanedCount > 0) {
-      console.log(`Cleaned up ${cleanedCount} orphaned photo(s) for profile ${profileId}`);
+      console.log(`Cleanup: Removed ${cleanedCount} orphaned photo record(s) for profile ${profileId}`);
+    } else {
+      console.log(`Cleanup: No orphaned photos found for profile ${profileId}`);
     }
     
     return cleanedCount;
@@ -38,6 +47,29 @@ async function cleanupOrphanedPhotos(profileId: string): Promise<number> {
     return 0;
   }
 }
+
+// Manual cleanup endpoint (for debugging)
+photosRouter.post("/cleanup", authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const profile = await (db
+      .prepare("SELECT id FROM profiles WHERE user_id = ?")
+      .get([userId]) as Promise<{ id: string } | undefined>);
+
+    if (!profile) {
+      return res.status(404).json({ error: "Profile not found" });
+    }
+
+    const cleanedCount = await cleanupOrphanedPhotos(profile.id);
+    res.json({ 
+      message: `Cleaned up ${cleanedCount} orphaned photo(s)`,
+      cleanedCount 
+    });
+  } catch (error) {
+    console.error("Manual cleanup error:", error);
+    res.status(500).json({ error: "Failed to clean up photos" });
+  }
+});
 
 // Upload multiple photos for a profile
 photosRouter.post("/", authenticateToken, uploadMultiple, async (req: AuthRequest, res) => {
@@ -76,13 +108,20 @@ photosRouter.post("/", authenticateToken, uploadMultiple, async (req: AuthReques
       : currentPhotoCountResult) as { count: number };
 
     console.log('Photo upload: Current photo count (after cleanup):', currentPhotoCount.count);
+    console.log('Photo upload: Attempting to upload', files.length, 'file(s)');
 
     const maxPhotos = 6;
-    if (currentPhotoCount.count + files.length > maxPhotos) {
+    const totalAfterUpload = currentPhotoCount.count + files.length;
+    console.log('Photo upload: Total photos after upload would be:', totalAfterUpload, '/', maxPhotos);
+    
+    if (totalAfterUpload > maxPhotos) {
+      console.log('Photo upload: Blocked - would exceed max photos');
       return res.status(400).json({ 
         error: `Maximum ${maxPhotos} photos allowed. You currently have ${currentPhotoCount.count} photos.` 
       });
     }
+    
+    console.log('Photo upload: Proceeding with upload...');
 
     // Get the next display order
     const lastPhotoResult = db
