@@ -51,7 +51,6 @@ export default function CreateProfile() {
 
   // Step 4: Dating Preferences
   const [minAge, setMinAge] = useState(18)
-  const [maxAge, setMaxAge] = useState(50)
   const [preferredGenders, setPreferredGenders] = useState<string[]>([])
   const [maxDistance, setMaxDistance] = useState(50)
 
@@ -316,7 +315,7 @@ export default function CreateProfile() {
       console.log('📝 Step 5: Saving preferences...');
       await api.put('/profile/preferences', {
         minAge,
-        maxAge,
+        maxAge: null, // No maximum age limit
         preferredGenders: preferredGenders.length > 0 ? preferredGenders : null,
         maxDistance,
         relationshipType: lookingFor || null
@@ -584,31 +583,21 @@ export default function CreateProfile() {
                   min="18"
                   max="120"
                   value={minAge}
-                  onChange={(e) => setMinAge(parseInt(e.target.value) || 18)}
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="maxAge" className="form-label">Maximum Age</label>
-                <input
-                  type="number"
-                  id="maxAge"
-                  className="form-input"
-                  min="18"
-                  max="50"
-                  value={maxAge > 50 ? 50 : maxAge}
                   onChange={(e) => {
-                    const value = parseInt(e.target.value) || 50
-                    setMaxAge(Math.min(Math.max(value, 18), 50)) // Clamp between 18 and 50
+                    const value = parseInt(e.target.value) || 18
+                    // Enforce minimum of 18
+                    setMinAge(Math.max(value, 18))
+                  }}
+                  onBlur={(e) => {
+                    // Ensure value is at least 18 when field loses focus
+                    const value = parseInt(e.target.value) || 18
+                    if (value < 18) {
+                      setMinAge(18)
+                    }
                   }}
                   required
                 />
-                {maxAge > 50 && (
-                  <p className="form-hint" style={{ color: 'var(--color-rose-600)' }}>
-                    Maximum age is limited to 50
-                  </p>
-                )}
+                <p className="form-hint">Minimum age must be 18 or older</p>
               </div>
 
               <div className="form-group">
