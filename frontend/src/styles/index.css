@@ -3631,6 +3631,12 @@ img {
     align-items: center;
     text-align: center;
   }
+
+  .my-profile-avatar {
+    width: 120px;
+    height: 120px;
+    margin-bottom: var(--space-4);
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════
