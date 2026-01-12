@@ -152,22 +152,29 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
 
     try {
       // Compress images before upload
-      setUploadProgress(10);
+      console.log('🔄 Starting compression for', validFiles.length, 'file(s)');
+      setUploadProgress(5);
       const compressedFiles: File[] = [];
       for (let i = 0; i < validFiles.length; i++) {
         setUploadingIndex(i);
-        setUploadProgress(10 + (i / validFiles.length) * 30);
+        const progress = 5 + (i / validFiles.length) * 35;
+        setUploadProgress(progress);
+        console.log(`Compressing file ${i + 1}/${validFiles.length}...`);
         try {
+          const originalSize = validFiles[i].size;
           const compressed = await compressImage(validFiles[i]);
+          const newSize = compressed.size;
+          const reduction = ((1 - newSize / originalSize) * 100).toFixed(1);
+          console.log(`✅ Compressed ${validFiles[i].name}: ${(originalSize / 1024 / 1024).toFixed(2)}MB → ${(newSize / 1024 / 1024).toFixed(2)}MB (${reduction}% reduction)`);
           compressedFiles.push(compressed);
-          console.log(`Compressed ${validFiles[i].name}: ${(validFiles[i].size / 1024 / 1024).toFixed(2)}MB → ${(compressed.size / 1024 / 1024).toFixed(2)}MB`);
         } catch (compressionError) {
-          console.warn('Compression failed, using original:', compressionError);
+          console.warn('⚠️ Compression failed, using original:', compressionError);
           compressedFiles.push(validFiles[i]);
         }
       }
       setUploadingIndex(null);
       setUploadProgress(40);
+      console.log('✅ Compression complete, starting upload...');
 
       const formData = new FormData();
       compressedFiles.forEach((file) => {
@@ -188,7 +195,9 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
         xhr.upload.addEventListener('progress', (e) => {
           if (e.lengthComputable) {
             const percentComplete = 40 + (e.loaded / e.total) * 50;
-            setUploadProgress(Math.min(percentComplete, 90));
+            const progress = Math.min(percentComplete, 90);
+            setUploadProgress(progress);
+            console.log(`📤 Upload progress: ${Math.round(progress)}% (${(e.loaded / 1024 / 1024).toFixed(2)}MB / ${(e.total / 1024 / 1024).toFixed(2)}MB)`);
           }
         });
 
@@ -303,11 +312,25 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
     return <div className="photo-upload-loading">Loading photos...</div>;
   }
 
-  // Create array of slots (filled + empty)
-  const slots = Array.from({ length: maxPhotos }, (_, index) => {
-    const photo = photos.find(p => p.displayOrder === index);
-    return { index, photo };
+  // Sort photos by displayOrder to ensure correct order
+  const sortedPhotos = [...photos].sort((a, b) => a.displayOrder - b.displayOrder);
+  console.log('📸 PhotoUpload: Photos loaded:', sortedPhotos.length, 'of', maxPhotos);
+  console.log('📸 PhotoUpload: Photo display orders:', sortedPhotos.map(p => p.displayOrder));
+  
+  // Create array of slots: first show all photos, then fill remaining with empty slots
+  const slots: Array<{ index: number; photo: Photo | null }> = [];
+  
+  // Add filled slots for existing photos
+  sortedPhotos.forEach((photo, idx) => {
+    slots.push({ index: idx, photo });
   });
+  
+  // Add empty slots for remaining capacity
+  for (let i = sortedPhotos.length; i < maxPhotos; i++) {
+    slots.push({ index: i, photo: null });
+  }
+  
+  console.log('📸 PhotoUpload: Created', slots.length, 'slots (', sortedPhotos.length, 'filled,', slots.length - sortedPhotos.length, 'empty)');
 
   return (
     <div className="photo-upload">
