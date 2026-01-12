@@ -582,9 +582,36 @@ export default function CreateProfile() {
                   max="120"
                   value={minAge}
                   onChange={(e) => {
-                    const value = parseInt(e.target.value) || 18
-                    // Enforce minimum of 18
-                    setMinAge(Math.max(value, 18))
+                    const inputValue = e.target.value
+                    // Allow empty input while typing
+                    if (inputValue === '') {
+                      setMinAge(18)
+                      return
+                    }
+                    const value = parseInt(inputValue)
+                    // If value is invalid or less than 18, set to 18
+                    if (isNaN(value) || value < 18) {
+                      setMinAge(18)
+                    } else {
+                      setMinAge(value)
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    // Prevent typing numbers less than 1 or 8
+                    const key = e.key
+                    const currentValue = (e.target as HTMLInputElement).value
+                    const cursorPosition = (e.target as HTMLInputElement).selectionStart || 0
+                    
+                    // If trying to type a digit
+                    if (key >= '0' && key <= '9') {
+                      // If the input is empty or will result in a number starting with 0-7, prevent it
+                      const newValue = currentValue.slice(0, cursorPosition) + key + currentValue.slice(cursorPosition)
+                      const numValue = parseInt(newValue)
+                      if (numValue < 18 && newValue.length >= 2) {
+                        e.preventDefault()
+                        setMinAge(18)
+                      }
+                    }
                   }}
                   onBlur={(e) => {
                     // Ensure value is at least 18 when field loses focus

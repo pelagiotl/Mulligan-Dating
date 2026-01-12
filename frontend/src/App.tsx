@@ -276,30 +276,91 @@ function NewMatchesNotification() {
         top: '20px',
         left: '50%',
         transform: 'translateX(-50%)',
-        backgroundColor: '#10b981',
+        background: 'linear-gradient(135deg, #f43f5e 0%, #e11d48 50%, #be123c 100%)',
         color: 'white',
-        padding: '16px 24px',
-        borderRadius: '8px',
-        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+        padding: '20px 32px',
+        borderRadius: '16px',
+        boxShadow: '0 8px 32px rgba(244, 63, 94, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1)',
         zIndex: 1000,
         maxWidth: '90%',
         textAlign: 'center',
         cursor: 'pointer',
+        animation: 'slideDown 0.5s ease-out, pulse 2s ease-in-out infinite',
+        backdropFilter: 'blur(10px)',
+        border: '2px solid rgba(255, 255, 255, 0.2)',
+        position: 'relative',
+        overflow: 'hidden',
       }}
       onClick={() => {
         setNotification(null)
         navigate('/matches')
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.opacity = '0.95'
+        e.currentTarget.style.transform = 'translateX(-50%) scale(1.05)'
+        e.currentTarget.style.boxShadow = '0 12px 40px rgba(244, 63, 94, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.2)'
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.opacity = '1'
+        e.currentTarget.style.transform = 'translateX(-50%) scale(1)'
+        e.currentTarget.style.boxShadow = '0 8px 32px rgba(244, 63, 94, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1)'
       }}
     >
-      {notification}
-      <div style={{ fontSize: '0.85rem', marginTop: '4px', opacity: 0.9 }}>
-        Click to view matches
+      <style>{`
+        @keyframes slideDown {
+          from {
+            opacity: 0;
+            transform: translateX(-50%) translateY(-20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+          }
+        }
+        @keyframes pulse {
+          0%, 100% {
+            box-shadow: 0 8px 32px rgba(244, 63, 94, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1);
+          }
+          50% {
+            box-shadow: 0 8px 32px rgba(244, 63, 94, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.2), 0 0 20px rgba(244, 63, 94, 0.3);
+          }
+        }
+        @keyframes sparkle {
+          0%, 100% { opacity: 0; transform: scale(0) rotate(0deg); }
+          50% { opacity: 1; transform: scale(1) rotate(180deg); }
+        }
+      `}</style>
+      <div style={{
+        position: 'absolute',
+        top: '10px',
+        right: '10px',
+        fontSize: '1.2rem',
+        animation: 'sparkle 2s ease-in-out infinite',
+        animationDelay: '0s'
+      }}>✨</div>
+      <div style={{
+        position: 'absolute',
+        top: '10px',
+        left: '10px',
+        fontSize: '1.2rem',
+        animation: 'sparkle 2s ease-in-out infinite',
+        animationDelay: '1s'
+      }}>💖</div>
+      <div style={{
+        fontSize: '1.1rem',
+        fontWeight: '600',
+        marginBottom: '8px',
+        textShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
+        letterSpacing: '0.5px'
+      }}>
+        {notification}
+      </div>
+      <div style={{
+        fontSize: '0.9rem',
+        marginTop: '8px',
+        opacity: 0.95,
+        fontStyle: 'italic',
+        textShadow: '0 1px 4px rgba(0, 0, 0, 0.2)'
+      }}>
+        Click to view your matches →
       </div>
     </div>
   )
