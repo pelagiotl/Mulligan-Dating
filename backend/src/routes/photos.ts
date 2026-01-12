@@ -166,6 +166,7 @@ photosRouter.post("/", authenticateToken, (req: AuthRequest, res, next) => {
     // Insert photos
     const uploadedPhotos = [];
     let isFirst = photoCount === 0; // First photo becomes primary if no photos exist
+    let primaryPhotoUrl: string | null = null;
 
     for (const file of files) {
       const photoId = uuidv4();
@@ -179,6 +180,11 @@ photosRouter.post("/", authenticateToken, (req: AuthRequest, res, next) => {
       ).run([photoId, profile.id, photoUrl, nextOrder, isFirst ? 1 : 0]);
       if (insertResult instanceof Promise) {
         await insertResult;
+      }
+
+      // If this is the primary photo, save the URL to update profile
+      if (isFirst) {
+        primaryPhotoUrl = photoUrl;
       }
 
       // Verify file exists after insert
@@ -199,7 +205,14 @@ photosRouter.post("/", authenticateToken, (req: AuthRequest, res, next) => {
       });
 
       nextOrder++;
-      isFirst = false;
+      isFirst = false; // Only the first photo in this batch is primary
+    }
+
+    // Update profile's photo_url if we set a primary photo
+    if (primaryPhotoUrl) {
+      await (db.prepare("UPDATE profiles SET photo_url = ? WHERE id = ?").run([primaryPhotoUrl, profile.id]) as Promise<any>);
+      console.log('✅ Profile photo_url updated to primary photo:', primaryPhotoUrl);
+    }
     }
 
     res.json({
