@@ -79,7 +79,17 @@ export default function Login() {
       
       // Show more specific error messages
       let errorMessage = 'Invalid email or password'
-      if (err?.message) {
+      
+      // Check for rate limiting first
+      if (err?.status === 429) {
+        errorMessage = 'Too many login attempts. Please wait a minute and try again.'
+      } else if (err?.response?.data?.error) {
+        // Use the error message from the backend
+        errorMessage = err.response.data.error
+        if (err.response.data.message) {
+          errorMessage += ` - ${err.response.data.message}`
+        }
+      } else if (err?.message) {
         const msg = err.message.toLowerCase()
         if (msg.includes('starting up') || msg.includes('cold start')) {
           errorMessage = 'Server is waking up. Please wait 10-15 seconds and try again.'
@@ -87,6 +97,8 @@ export default function Login() {
           errorMessage = 'Server is starting up. Please wait a moment and try again.'
         } else if (msg.includes('failed to fetch') || msg.includes('network error') || msg.includes('load failed') || msg.includes('connection failed')) {
           errorMessage = 'Server is starting up. Please wait 10-15 seconds and try again.'
+        } else if (msg.includes('too many')) {
+          errorMessage = 'Too many login attempts. Please wait a minute and try again.'
         } else if (msg.includes('no token') || msg.includes('authentication')) {
           errorMessage = 'Authentication failed. Please try again.'
         } else if (msg.includes('invalid response') || msg.includes('invalid')) {
@@ -98,6 +110,8 @@ export default function Login() {
       } else if (err?.status) {
         if (err.status === 401 || err.status === 403) {
           errorMessage = 'Invalid email or password'
+        } else if (err.status === 429) {
+          errorMessage = 'Too many login attempts. Please wait a minute and try again.'
         } else if (err.status === 500) {
           errorMessage = 'Server error. Please try again.'
         } else if (err.status === 408) {
