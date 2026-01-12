@@ -161,8 +161,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               : `🎉 You have ${newMatches.length} new matches: ${matchNames}`
             
             console.log('✅ New matches found on login:', newMatches.length, matchNames)
+            console.log('✅ Storing notification in localStorage:', message)
             localStorage.setItem('newMatchesNotification', message)
             localStorage.setItem('newMatchesCount', newMatches.length.toString())
+            
+            // Trigger a custom event to notify the NewMatchesNotification component
+            window.dispatchEvent(new CustomEvent('newMatchesDetected', { detail: { message } }))
           } else {
             console.log('ℹ️ No new matches found on login')
           }

@@ -258,12 +258,34 @@ function NewMatchesNotification() {
     if (!isAuthenticated) return
 
     // Check for new matches notification stored during login
-    const newMatchesMessage = localStorage.getItem('newMatchesNotification')
-    if (newMatchesMessage) {
-      setNotification(newMatchesMessage)
-      // Clear it from storage (but keep showing until user clicks)
+    const checkNotification = () => {
+      const newMatchesMessage = localStorage.getItem('newMatchesNotification')
+      if (newMatchesMessage) {
+        console.log('✅ NewMatchesNotification: Found notification in localStorage:', newMatchesMessage)
+        setNotification(newMatchesMessage)
+        // Clear it from storage (but keep showing until user clicks)
+        localStorage.removeItem('newMatchesNotification')
+        localStorage.removeItem('newMatchesCount')
+      } else {
+        console.log('ℹ️ NewMatchesNotification: No notification found in localStorage')
+      }
+    }
+
+    // Check immediately
+    checkNotification()
+
+    // Also listen for custom event when matches are detected during login
+    const handleNewMatches = (event: CustomEvent) => {
+      console.log('✅ NewMatchesNotification: Received newMatchesDetected event:', event.detail)
+      setNotification(event.detail.message)
       localStorage.removeItem('newMatchesNotification')
       localStorage.removeItem('newMatchesCount')
+    }
+
+    window.addEventListener('newMatchesDetected', handleNewMatches as EventListener)
+
+    return () => {
+      window.removeEventListener('newMatchesDetected', handleNewMatches as EventListener)
     }
   }, [isAuthenticated, location.pathname]) // Re-check when route changes
 
