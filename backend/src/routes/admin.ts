@@ -266,51 +266,69 @@ adminRouter.post("/users/:userId/restrict", (req: AuthRequest, res) => {
 });
 
 // Grant tokens to a specific user
-adminRouter.post("/users/:userId/grant-tokens", (req: AuthRequest, res) => {
-  const { userId } = req.params;
-  const { count } = req.body;
+adminRouter.post("/users/:userId/grant-tokens", authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { userId } = req.params;
+    const { count } = req.body;
 
-  const tokenCount = parseInt(count) || 1;
-  if (tokenCount < 1 || tokenCount > 10) {
-    return res.status(400).json({ error: "Token count must be between 1 and 10" });
-  }
+    const tokenCount = parseInt(count) || 1;
+    if (tokenCount < 1 || tokenCount > 10) {
+      return res.status(400).json({ error: "Token count must be between 1 and 10" });
+    }
 
-  const user = db.prepare("SELECT id FROM users WHERE id = ?").get(userId) as { id: string } | undefined;
-  if (!user) {
-    return res.status(404).json({ error: "User not found" });
-  }
+    // Check if user exists
+    const userStmt = db.prepare("SELECT id FROM users WHERE id = ?");
+    const userResult = userStmt.get([userId]);
+    const user = (userResult instanceof Promise ? await userResult : userResult) as { id: string } | undefined;
+    
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
 
-  // Check current token count
-  const currentTokens = db
-    .prepare(
+    // Check current token count
+    const tokensStmt = db.prepare(
       `SELECT COUNT(*) as count FROM mulligan_tokens WHERE user_id = ? AND used_at IS NULL AND returned_at IS NULL`
-    )
-    .get(userId) as { count: number };
+    );
+    const tokensResult = tokensStmt.get([userId]);
+    const currentTokens = (tokensResult instanceof Promise ? await tokensResult : tokensResult) as { count: number };
 
-  // Don't grant if user already has 3+ tokens (respect max limit)
-  if (currentTokens.count >= 3) {
-    return res.status(400).json({
-      error: `User already has ${currentTokens.count} tokens. Maximum is 3.`,
+    // Don't grant if user already has 3+ tokens (respect max limit)
+    if (currentTokens.count >= 3) {
+      return res.status(400).json({
+        error: `User already has ${currentTokens.count} tokens. Maximum is 3.`,
+      });
+    }
+
+    const grantedTokenIds: string[] = [];
+    const tokensToGrant = Math.min(tokenCount, 3 - currentTokens.count);
+
+    // Grant tokens
+    for (let i = 0; i < tokensToGrant; i++) {
+      const tokenId = uuidv4();
+      const insertStmt = db.prepare(
+        `INSERT INTO mulligan_tokens (id, user_id, source) VALUES (?, ?, 'admin')`
+      );
+      const insertResult = insertStmt.run([tokenId, userId]);
+      if (insertResult instanceof Promise) {
+        await insertResult;
+      }
+      grantedTokenIds.push(tokenId);
+    }
+
+    console.log(`✅ Admin granted ${tokensToGrant} token(s) to user ${userId}`);
+    res.json({
+      message: `Granted ${tokensToGrant} token${tokensToGrant > 1 ? "s" : ""} to user`,
+      userId,
+      tokensGranted: tokensToGrant,
+      tokenIds: grantedTokenIds,
+    });
+  } catch (error) {
+    console.error('❌ Error granting tokens:', error);
+    res.status(500).json({ 
+      error: 'Failed to grant tokens',
+      details: error instanceof Error ? error.message : String(error)
     });
   }
-
-  const grantedTokenIds: string[] = [];
-  const tokensToGrant = Math.min(tokenCount, 3 - currentTokens.count);
-
-  for (let i = 0; i < tokensToGrant; i++) {
-    const tokenId = uuidv4();
-    db.prepare(
-      `INSERT INTO mulligan_tokens (id, user_id, source) VALUES (?, ?, 'admin')`
-    ).run(tokenId, userId);
-    grantedTokenIds.push(tokenId);
-  }
-
-  res.json({
-    message: `Granted ${tokensToGrant} token${tokensToGrant > 1 ? "s" : ""} to user`,
-    userId,
-    tokensGranted: tokensToGrant,
-    tokenIds: grantedTokenIds,
-  });
 });
 
 // Make a user an admin (or remove admin status)
