@@ -123,9 +123,10 @@ export async function rateLimitAPI(req: Request, res: Response, next: NextFuncti
     key = `user:${(req as any).userId}`;
   } else {
     // Unauthenticated request - use IP
-    key = req.ip || req.socket.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
-    const keyString = Array.isArray(key) ? key[0] : String(key);
-    key = keyString;
+    const forwardedFor = req.headers['x-forwarded-for'];
+    const ipFromHeader = Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor;
+    const ip = req.ip || req.socket.remoteAddress || ipFromHeader || 'unknown';
+    key = Array.isArray(ip) ? ip[0] : String(ip);
   }
   
   try {
