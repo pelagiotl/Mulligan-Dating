@@ -266,8 +266,10 @@ function NewMatchesNotification() {
         // Clear it from storage (but keep showing until user clicks)
         localStorage.removeItem('newMatchesNotification')
         localStorage.removeItem('newMatchesCount')
+        return true
       } else {
         console.log('ℹ️ NewMatchesNotification: No notification found in localStorage')
+        return false
       }
     }
 
@@ -282,10 +284,36 @@ function NewMatchesNotification() {
       localStorage.removeItem('newMatchesCount')
     }
 
+    // Listen for storage events (for same-window updates)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'newMatchesNotification' && e.newValue) {
+        console.log('✅ NewMatchesNotification: Storage event detected:', e.newValue)
+        setNotification(e.newValue)
+        localStorage.removeItem('newMatchesNotification')
+        localStorage.removeItem('newMatchesCount')
+      }
+    }
+
     window.addEventListener('newMatchesDetected', handleNewMatches as EventListener)
+    window.addEventListener('storage', handleStorageChange)
+
+    // Re-check periodically for a short time after login (in case check happens after component mounts)
+    const intervalId = setInterval(() => {
+      if (checkNotification()) {
+        clearInterval(intervalId)
+      }
+    }, 500) // Check every 500ms
+
+    // Stop checking after 5 seconds
+    const timeoutId = setTimeout(() => {
+      clearInterval(intervalId)
+    }, 5000)
 
     return () => {
       window.removeEventListener('newMatchesDetected', handleNewMatches as EventListener)
+      window.removeEventListener('storage', handleStorageChange)
+      clearInterval(intervalId)
+      clearTimeout(timeoutId)
     }
   }, [isAuthenticated, location.pathname]) // Re-check when route changes
 
