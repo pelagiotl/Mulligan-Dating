@@ -211,8 +211,6 @@ export default function CreateProfile() {
           
           if (data.preferences) {
             setMinAge(data.preferences.min_age)
-            // Cap max age at 50 if it's higher
-            setMaxAge(Math.min(data.preferences.max_age, 50))
             setMaxDistance(data.preferences.max_distance)
             if (data.preferences.preferred_genders) {
               try {
