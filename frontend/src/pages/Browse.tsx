@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../utils/api";
 import { useAuth } from "../context/AuthContext";
 import { getPhotoUrl } from "../utils/photoUrl";
 import MatchCelebration from "../components/MatchCelebration";
 import TokenDisplay from "../components/TokenDisplay";
+import { io, Socket } from "socket.io-client";
 
 interface Photo {
   id: string;
@@ -39,6 +40,8 @@ export default function Browse() {
   const [showMatchCelebration, setShowMatchCelebration] = useState(false);
   const [matchedProfile, setMatchedProfile] = useState<Profile | null>(null);
   const [hasFetched, setHasFetched] = useState(false); // Track if we've fetched at least once
+  const [matchNotification, setMatchNotification] = useState<{ message: string; type: "success" | "info" | "warning" | "error" } | null>(null);
+  const socketRef = useRef<Socket | null>(null);
   const navigate = useNavigate();
 
   // Define fetchProfile first with useCallback before using it in useEffect
@@ -155,6 +158,51 @@ export default function Browse() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [offset]); // Only depend on offset, not fetchProfile to avoid loops
+
+  // Initialize socket connection for match notifications
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token || !userProfile) return;
+
+    // Use API URL from environment variable (for production) or ngrok (for testing), otherwise localhost
+    const socketUrl: string = (import.meta.env as any).VITE_API_URL || (import.meta.env as any).VITE_NGROK_URL || 'http://localhost:3001';
+    const socket = io(socketUrl, {
+      auth: { token },
+      transports: ['websocket', 'polling'],
+    });
+
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      console.log('✅ Browse: Connected to WebSocket server');
+    });
+
+    socket.on('disconnect', () => {
+      console.log('❌ Browse: Disconnected from WebSocket server');
+    });
+
+    // Listen for new match notifications
+    socket.on('new_match', (data: { matchId: string; otherUserId: string; otherUserName: string; message: string; stage: string }) => {
+      console.log('🎉 Browse: New match notification received:', data);
+      
+      // Show notification
+      setMatchNotification({
+        message: data.message,
+        type: "success"
+      });
+
+      // Auto-dismiss notification after 5 seconds
+      setTimeout(() => {
+        setMatchNotification(null);
+      }, 5000);
+    });
+
+    // Cleanup on unmount
+    return () => {
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, []);
 
   const playConnectSound = () => {
     try {
@@ -375,6 +423,33 @@ export default function Browse() {
 
   return (
     <div>
+      {/* Match notification */}
+      {matchNotification && (
+        <div
+          style={{
+            position: 'fixed',
+            top: '20px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            backgroundColor: matchNotification.type === 'success' ? '#10b981' : '#ef4444',
+            color: 'white',
+            padding: '16px 24px',
+            borderRadius: '8px',
+            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+            zIndex: 1000,
+            maxWidth: '90%',
+            textAlign: 'center',
+            cursor: 'pointer',
+          }}
+          onClick={() => {
+            setMatchNotification(null);
+            navigate('/matches');
+          }}
+        >
+          {matchNotification.message}
+        </div>
+      )}
+
       <div className="browse-header">
         <TokenDisplay />
         <h1 className="browse-title">Discover People</h1>
