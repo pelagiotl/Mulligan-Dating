@@ -33,17 +33,25 @@ const storage = multer.diskStorage({
 
 // File filter - only allow images with enhanced security
 const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  console.log('📸 File upload attempt:', {
+    originalname: file.originalname,
+    mimetype: file.mimetype,
+    size: file.size
+  });
+
   // Check for path traversal attempts
   if (file.originalname.includes('..') || file.originalname.includes('/') || file.originalname.includes('\\')) {
+    console.error('❌ Invalid file name:', file.originalname);
     return cb(new Error('Invalid file name. File name contains illegal characters.'));
   }
 
   // Allowed MIME types
-  const allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+  const allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/x-png'];
   
   // Check MIME type
   if (!allowedMimes.includes(file.mimetype)) {
-    return cb(new Error('Invalid file type. Only images (JPEG, PNG, GIF, WebP) are allowed.'));
+    console.error('❌ Invalid MIME type:', file.mimetype, 'for file:', file.originalname);
+    return cb(new Error(`Invalid file type. Only images (JPEG, PNG, GIF, WebP) are allowed. Received: ${file.mimetype}`));
   }
 
   // Check file extension matches MIME type
@@ -51,6 +59,7 @@ const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCa
   const validExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
   
   if (!validExtensions.includes(ext)) {
+    console.error('❌ Invalid file extension:', ext, 'for file:', file.originalname);
     return cb(new Error('Invalid file extension. Only image files are allowed.'));
   }
 
@@ -59,14 +68,25 @@ const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCa
     'image/jpeg': ['.jpg', '.jpeg'],
     'image/jpg': ['.jpg', '.jpeg'],
     'image/png': ['.png'],
+    'image/x-png': ['.png'], // Some browsers send this for PNG
     'image/gif': ['.gif'],
     'image/webp': ['.webp'],
   };
 
-  if (mimeToExt[file.mimetype] && !mimeToExt[file.mimetype].includes(ext)) {
+  // Normalize MIME type for PNG (some browsers send image/x-png)
+  const normalizedMime = file.mimetype === 'image/x-png' ? 'image/png' : file.mimetype;
+
+  if (mimeToExt[normalizedMime] && !mimeToExt[normalizedMime].includes(ext)) {
+    console.error('❌ MIME type mismatch:', {
+      mimetype: file.mimetype,
+      normalizedMime,
+      extension: ext,
+      expected: mimeToExt[normalizedMime]
+    });
     return cb(new Error('File extension does not match file type.'));
   }
 
+  console.log('✅ File validation passed:', file.originalname);
   cb(null, true);
 };
 
