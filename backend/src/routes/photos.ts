@@ -213,7 +213,6 @@ photosRouter.post("/", authenticateToken, (req: AuthRequest, res, next) => {
       await (db.prepare("UPDATE profiles SET photo_url = ? WHERE id = ?").run([primaryPhotoUrl, profile.id]) as Promise<any>);
       console.log('✅ Profile photo_url updated to primary photo:', primaryPhotoUrl);
     }
-    }
 
     res.json({
       message: `Successfully uploaded ${files.length} photo(s)`,
