@@ -332,22 +332,13 @@ photosRouter.put("/:photoId/primary", authenticateToken, async (req: AuthRequest
       return res.status(404).json({ error: "Profile not found" });
     }
 
-    // Verify photo belongs to user
-    const photo = await (db
-      .prepare("SELECT id FROM photos WHERE id = ? AND profile_id = ?")
-      .get([photoId, profile.id]) as Promise<{ id: string } | undefined>);
-
-    if (!photo) {
-      return res.status(404).json({ error: "Photo not found" });
-    }
-
-    // Get the photo URL before updating
+    // Get the photo URL and verify it belongs to user
     const photoResult = db
-      .prepare("SELECT url FROM photos WHERE id = ? AND profile_id = ?")
+      .prepare("SELECT id, url FROM photos WHERE id = ? AND profile_id = ?")
       .get([photoId, profile.id]);
     const photo = (photoResult instanceof Promise
       ? await photoResult
-      : photoResult) as { url: string } | undefined;
+      : photoResult) as { id: string; url: string } | undefined;
 
     if (!photo) {
       return res.status(404).json({ error: "Photo not found" });
