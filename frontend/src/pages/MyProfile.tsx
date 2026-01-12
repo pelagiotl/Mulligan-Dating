@@ -67,9 +67,12 @@ export default function MyProfile() {
 
   const fetchPhotos = async () => {
     try {
+      console.log('🔄 Fetching photos...');
       const data = await api.get<{ photos: Photo[] }>("/photos/me");
-      setPhotos(data.photos);
+      console.log('✅ Photos fetched:', data.photos);
+      setPhotos(data.photos || []);
     } catch (err) {
+      console.error('❌ Failed to fetch photos:', err);
       // Photos might not exist yet, that's okay
       setPhotos([]);
     }
@@ -138,6 +141,14 @@ export default function MyProfile() {
   // Get primary photo or first photo
   const primaryPhoto = photos.find(p => p.isPrimary) || photos[0];
   const profilePhotoUrl = primaryPhoto ? getPhotoUrl(primaryPhoto.url) : (profile.photo_url ? getPhotoUrl(profile.photo_url) : null);
+  
+  console.log('📸 Profile photo debug:', {
+    photosCount: photos.length,
+    photos: photos,
+    primaryPhoto: primaryPhoto,
+    profilePhotoUrl: profilePhotoUrl,
+    profilePhotoUrlFromProfile: profile.photo_url
+  });
 
   return (
     <div className="my-profile">
