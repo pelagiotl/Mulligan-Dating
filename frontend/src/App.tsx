@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
+import { io, Socket } from 'socket.io-client'
 import Landing from './pages/Landing'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
@@ -252,12 +253,17 @@ function NewMatchesNotification() {
   const [notification, setNotification] = useState<string | null>(null)
   const navigate = useNavigate()
   const location = useLocation()
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, user } = useAuth()
+  const socketRef = useRef<Socket | null>(null)
+  const audioContextRef = useRef<AudioContext | null>(null)
 
   // Play a subtle, pleasant match notification sound
-  const playMatchSound = () => {
+  const playMatchSound = useCallback(() => {
     try {
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      const audioContext = audioContextRef.current;
       const duration = 0.6; // Slightly longer for a more pleasant chime
       const sampleRate = audioContext.sampleRate;
       const frameCount = sampleRate * duration;
@@ -303,10 +309,37 @@ function NewMatchesNotification() {
       // Silently fail if audio context is not available
       console.debug('Match notification sound not available');
     }
-  }
+  }, [])
 
   useEffect(() => {
-    if (!isAuthenticated) return
+    if (!isAuthenticated || !user) return
+
+    // Set up global socket connection for match notifications
+    const token = localStorage.getItem('token')
+    if (!token) return
+
+    const socketUrl: string = (import.meta.env as any).VITE_API_URL || (import.meta.env as any).VITE_NGROK_URL || 'http://localhost:3001'
+    const socket = io(socketUrl, {
+      auth: { token },
+      transports: ['websocket', 'polling'],
+    })
+
+    socketRef.current = socket
+
+    socket.on('connect', () => {
+      console.log('✅ NewMatchesNotification: Connected to WebSocket server')
+    })
+
+    socket.on('disconnect', () => {
+      console.log('❌ NewMatchesNotification: Disconnected from WebSocket server')
+    })
+
+    // Listen for new_match events from socket
+    socket.on('new_match', (data: { matchId: string; otherUserId: string; otherUserName: string; message: string; stage: string }) => {
+      console.log('✅ NewMatchesNotification: Received new_match event via socket:', data)
+      setNotification(data.message)
+      playMatchSound()
+    })
 
     // Check for new matches notification stored during login
     const checkNotification = () => {
@@ -371,8 +404,16 @@ function NewMatchesNotification() {
       window.removeEventListener('storage', handleStorageChange)
       clearInterval(intervalId)
       clearTimeout(timeoutId)
+      if (socketRef.current) {
+        socketRef.current.disconnect()
+        socketRef.current = null
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close()
+        audioContextRef.current = null
+      }
     }
-  }, [isAuthenticated, location.pathname]) // Re-check when route changes
+  }, [isAuthenticated, user, playMatchSound]) // Re-run when authentication state changes
 
   if (!notification) return null
 
