@@ -329,12 +329,28 @@ photosRouter.put("/:photoId/primary", authenticateToken, async (req: AuthRequest
       return res.status(404).json({ error: "Photo not found" });
     }
 
+    // Get the photo URL before updating
+    const photoResult = db
+      .prepare("SELECT url FROM photos WHERE id = ? AND profile_id = ?")
+      .get([photoId, profile.id]);
+    const photo = (photoResult instanceof Promise
+      ? await photoResult
+      : photoResult) as { url: string } | undefined;
+
+    if (!photo) {
+      return res.status(404).json({ error: "Photo not found" });
+    }
+
     // Remove primary from all photos
     await (db.prepare("UPDATE photos SET is_primary = 0 WHERE profile_id = ?").run([profile.id]) as Promise<any>);
 
     // Set this photo as primary
     await (db.prepare("UPDATE photos SET is_primary = 1 WHERE id = ?").run([photoId]) as Promise<any>);
 
+    // Update profile's photo_url to match the primary photo
+    await (db.prepare("UPDATE profiles SET photo_url = ? WHERE id = ?").run([photo.url, profile.id]) as Promise<any>);
+
+    console.log('✅ Primary photo updated and profile photo_url synced:', photo.url);
     res.json({ message: "Primary photo updated" });
   } catch (error) {
     console.error("Set primary photo error:", error);
