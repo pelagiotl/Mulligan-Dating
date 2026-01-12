@@ -317,6 +317,89 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
     await recordSuccessSignal(userId, targetUserId, matchId, "match_created");
     await recordSuccessSignal(targetUserId, userId, matchId, "match_created");
 
+    // Get user display names for notifications
+    const userDisplayNameResult = db
+      .prepare("SELECT display_name FROM profiles WHERE user_id = ?")
+      .get([userId]);
+    const userDisplayName = (userDisplayNameResult instanceof Promise
+      ? await userDisplayNameResult
+      : userDisplayNameResult) as { display_name: string } | undefined;
+
+    const targetDisplayNameResult = db
+      .prepare("SELECT display_name FROM profiles WHERE user_id = ?")
+      .get([targetUserId]);
+    const targetDisplayName = (targetDisplayNameResult instanceof Promise
+      ? await targetDisplayNameResult
+      : targetDisplayNameResult) as { display_name: string } | undefined;
+
+    // Send in-app notifications via Socket.io to both users
+    const { getIO } = await import('../socket.js');
+    const io = getIO();
+    if (io) {
+      // Notify the initiator (userId)
+      io.to(`user:${userId}`).emit('new_match', {
+        matchId,
+        otherUserId: targetUserId,
+        otherUserName: targetDisplayName?.display_name || 'Someone',
+        message: `🎉 It's a match! You matched with ${targetDisplayName?.display_name || 'someone'}. Start chatting now!`,
+        stage: 'stage1',
+      });
+
+      // Notify the target user (targetUserId)
+      io.to(`user:${targetUserId}`).emit('new_match', {
+        matchId,
+        otherUserId: userId,
+        otherUserName: userDisplayName?.display_name || 'Someone',
+        message: `🎉 It's a match! ${userDisplayName?.display_name || 'Someone'} matched with you. Start chatting now!`,
+        stage: 'stage1',
+      });
+
+      console.log(`✅ Sent match notifications to both users: ${userId} and ${targetUserId}`);
+    } else {
+      console.warn('⚠️  Socket.io not initialized, skipping in-app notifications');
+    }
+
+    // Send SMS notifications (if Twilio is configured and users have phone numbers)
+    try {
+      const { sendMatchNotification } = await import('../services/sms.js');
+      
+      // Get phone numbers for both users
+      const userPhoneResult = db
+        .prepare("SELECT phone_number FROM users WHERE id = ?")
+        .get([userId]);
+      const userPhone = (userPhoneResult instanceof Promise
+        ? await userPhoneResult
+        : userPhoneResult) as { phone_number: string | null } | undefined;
+
+      const targetPhoneResult = db
+        .prepare("SELECT phone_number FROM users WHERE id = ?")
+        .get([targetUserId]);
+      const targetPhone = (targetPhoneResult instanceof Promise
+        ? await targetPhoneResult
+        : targetPhoneResult) as { phone_number: string | null } | undefined;
+
+      // Send SMS to target user (the one who was matched with)
+      if (targetPhone?.phone_number) {
+        await sendMatchNotification(
+          targetPhone.phone_number,
+          userDisplayName?.display_name || 'Someone'
+        );
+        console.log(`✅ Sent SMS notification to ${targetUserId}`);
+      }
+
+      // Note: We typically only notify the person who was matched with, not the initiator
+      // But you can uncomment this if you want both users to get SMS:
+      // if (userPhone?.phone_number) {
+      //   await sendMatchNotification(
+      //     userPhone.phone_number,
+      //     targetProfile?.display_name || 'Someone'
+      //   );
+      // }
+    } catch (smsError) {
+      // SMS is optional, don't fail the match creation if SMS fails
+      console.warn('⚠️  Failed to send SMS notification (non-critical):', smsError);
+    }
+
     res.json({
       message: "It's a match! You can now chat.",
       matchId,

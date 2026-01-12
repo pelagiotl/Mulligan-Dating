@@ -4,10 +4,21 @@ import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 
 // Create uploads directory if it doesn't exist
-const uploadsDir = path.join(process.cwd(), 'uploads');
+// Use process.cwd() which should be the backend directory when running via npm scripts
+// If running from project root, try backend/uploads as fallback
+let uploadsDir = path.join(process.cwd(), 'uploads');
 if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
+  // Try backend/uploads if uploads doesn't exist in cwd
+  const backendUploads = path.join(process.cwd(), 'backend', 'uploads');
+  if (fs.existsSync(backendUploads)) {
+    uploadsDir = backendUploads;
+  } else {
+    // Create the directory
+    fs.mkdirSync(uploadsDir, { recursive: true });
+    console.log('✅ Created uploads directory:', uploadsDir);
+  }
 }
+console.log('📁 Uploads directory:', uploadsDir);
 
 // Configure storage
 const storage = multer.diskStorage({

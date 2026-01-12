@@ -206,6 +206,20 @@ export default function Matches() {
       }
     });
 
+    // Handle new match notification
+    socket.on('new_match', (data: { matchId: string; otherUserId: string; otherUserName: string; message: string; stage: string }) => {
+      console.log('🎉 New match notification received:', data);
+      
+      // Show notification
+      setNotification({
+        message: data.message,
+        type: "success"
+      });
+      
+      // Refresh matches list to include the new match
+      fetchMatches();
+    });
+
     // Handle reveal request from other user
     socket.on('reveal_requested', (data: { matchId: string; fromUserId: string; fromUserName: string }) => {
       setMatches((prev) =>

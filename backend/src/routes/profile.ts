@@ -233,3 +233,257 @@ profileRouter.get('/', authenticateToken, async (req: AuthRequest, res) => {
   }
 });
 
+// Update interests
+profileRouter.put('/interests', authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { interests } = req.body;
+
+    if (!Array.isArray(interests)) {
+      return res.status(400).json({ error: 'Interests must be an array' });
+    }
+
+    // Get user's profile
+    const profileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
+    const profileResult = await (profileStmt.get([userId]) as Promise<{ id: string } | undefined>);
+
+    if (!profileResult) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+
+    // Delete existing interests
+    const deleteStmt = db.prepare('DELETE FROM interests WHERE profile_id = ?');
+    await (deleteStmt.run([profileResult.id]) as Promise<any>);
+
+    // Insert new interests
+    if (interests.length > 0) {
+      const insertStmt = db.prepare('INSERT INTO interests (id, profile_id, name) VALUES (?, ?, ?)');
+      for (const interest of interests) {
+        const interestId = uuidv4();
+        const name = typeof interest === 'string' ? interest : interest.name;
+        await (insertStmt.run([interestId, profileResult.id, sanitizeText(name, 100)]) as Promise<any>);
+      }
+    }
+
+    res.json({ message: 'Interests updated', count: interests.length });
+  } catch (error) {
+    console.error('Update interests error:', error);
+    res.status(500).json({ error: 'Failed to update interests' });
+  }
+});
+
+// Update dealbreakers
+profileRouter.put('/dealbreakers', authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { dealbreakers } = req.body;
+
+    if (!Array.isArray(dealbreakers)) {
+      return res.status(400).json({ error: 'Dealbreakers must be an array' });
+    }
+
+    // Get user's profile
+    const profileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
+    const profileResult = await (profileStmt.get([userId]) as Promise<{ id: string } | undefined>);
+
+    if (!profileResult) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+
+    // Delete existing dealbreakers
+    const deleteStmt = db.prepare('DELETE FROM dealbreakers WHERE profile_id = ?');
+    await (deleteStmt.run([profileResult.id]) as Promise<any>);
+
+    // Insert new dealbreakers
+    if (dealbreakers.length > 0) {
+      const insertStmt = db.prepare('INSERT INTO dealbreakers (id, profile_id, description) VALUES (?, ?, ?)');
+      for (const dealbreaker of dealbreakers) {
+        const dealbreakerId = uuidv4();
+        const description = typeof dealbreaker === 'string' ? dealbreaker : dealbreaker.description;
+        await (insertStmt.run([dealbreakerId, profileResult.id, sanitizeText(description, 500)]) as Promise<any>);
+      }
+    }
+
+    res.json({ message: 'Dealbreakers updated', count: dealbreakers.length });
+  } catch (error) {
+    console.error('Update dealbreakers error:', error);
+    res.status(500).json({ error: 'Failed to update dealbreakers' });
+  }
+});
+
+// Update partner qualities
+profileRouter.put('/partner-qualities', authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { qualities } = req.body;
+
+    if (!Array.isArray(qualities)) {
+      return res.status(400).json({ error: 'Qualities must be an array' });
+    }
+
+    // Get user's profile
+    const profileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
+    const profileResult = await (profileStmt.get([userId]) as Promise<{ id: string } | undefined>);
+
+    if (!profileResult) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+
+    // Delete existing partner qualities
+    const deleteStmt = db.prepare('DELETE FROM partner_qualities WHERE profile_id = ?');
+    await (deleteStmt.run([profileResult.id]) as Promise<any>);
+
+    // Insert new partner qualities
+    if (qualities.length > 0) {
+      const insertStmt = db.prepare('INSERT INTO partner_qualities (id, profile_id, quality, importance) VALUES (?, ?, ?, ?)');
+      for (const quality of qualities) {
+        const qualityId = uuidv4();
+        const qualityName = typeof quality === 'string' ? quality : quality.quality;
+        const importance = typeof quality === 'object' && quality.importance ? quality.importance : 5;
+        await (insertStmt.run([qualityId, profileResult.id, sanitizeText(qualityName, 100), importance]) as Promise<any>);
+      }
+    }
+
+    res.json({ message: 'Partner qualities updated', count: qualities.length });
+  } catch (error) {
+    console.error('Update partner qualities error:', error);
+    res.status(500).json({ error: 'Failed to update partner qualities' });
+  }
+});
+
+// Update preferences
+profileRouter.put('/preferences', authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const preferencesData = preferencesSchema.parse(req.body);
+
+    // Get user's profile
+    const profileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
+    const profileResult = await (profileStmt.get([userId]) as Promise<{ id: string } | undefined>);
+
+    if (!profileResult) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+
+    // Check if preferences exist
+    const existingPrefsStmt = db.prepare('SELECT id FROM preferences WHERE profile_id = ?');
+    const existingPrefs = await (existingPrefsStmt.get([profileResult.id]) as Promise<{ id: string } | undefined>);
+
+    const preferredGendersJson = preferencesData.preferredGenders && preferencesData.preferredGenders.length > 0
+      ? JSON.stringify(preferencesData.preferredGenders)
+      : null;
+    const valuesJson = preferencesData.values && preferencesData.values.length > 0
+      ? JSON.stringify(preferencesData.values)
+      : null;
+
+    if (existingPrefs) {
+      // Update existing preferences
+      const updateStmt = db.prepare(`
+        UPDATE preferences SET
+          min_age = ?, max_age = ?, preferred_genders = ?, max_distance = ?,
+          relationship_type = ?, intent = ?, values = ?
+        WHERE profile_id = ?
+      `);
+      await (updateStmt.run([
+        preferencesData.minAge ?? null,
+        preferencesData.maxAge ?? null,
+        preferredGendersJson,
+        preferencesData.maxDistance ?? null,
+        preferencesData.relationshipType ?? null,
+        preferencesData.intent ?? null,
+        valuesJson,
+        profileResult.id
+      ]) as Promise<any>);
+    } else {
+      // Create new preferences
+      const prefId = uuidv4();
+      const insertStmt = db.prepare(`
+        INSERT INTO preferences (id, profile_id, min_age, max_age, preferred_genders, max_distance, relationship_type, intent, values)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      await (insertStmt.run([
+        prefId,
+        profileResult.id,
+        preferencesData.minAge ?? null,
+        preferencesData.maxAge ?? null,
+        preferredGendersJson,
+        preferencesData.maxDistance ?? null,
+        preferencesData.relationshipType ?? null,
+        preferencesData.intent ?? null,
+        valuesJson
+      ]) as Promise<any>);
+    }
+
+    res.json({ message: 'Preferences updated' });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors[0].message });
+    }
+    console.error('Update preferences error:', error);
+    res.status(500).json({ error: 'Failed to update preferences' });
+  }
+});
+
+// Update lifestyle
+profileRouter.put('/lifestyle', authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { smoking, drinking, children, pets, religion, workLifeBalance, worksOut } = req.body;
+
+    // Get user's profile
+    const profileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
+    const profileResult = await (profileStmt.get([userId]) as Promise<{ id: string } | undefined>);
+
+    if (!profileResult) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+
+    // Check if lifestyle exists
+    const existingLifestyleStmt = db.prepare('SELECT id FROM lifestyle WHERE profile_id = ?');
+    const existingLifestyle = await (existingLifestyleStmt.get([profileResult.id]) as Promise<{ id: string } | undefined>);
+
+    if (existingLifestyle) {
+      // Update existing lifestyle
+      const updateStmt = db.prepare(`
+        UPDATE lifestyle SET
+          smoking = ?, drinking = ?, children = ?, pets = ?,
+          religion = ?, work_life_balance = ?, works_out = ?
+        WHERE profile_id = ?
+      `);
+      await (updateStmt.run([
+        smoking ? sanitizeText(smoking, 50) : null,
+        drinking ? sanitizeText(drinking, 50) : null,
+        children ? sanitizeText(children, 50) : null,
+        pets ? sanitizeText(pets, 50) : null,
+        religion ? sanitizeText(religion, 50) : null,
+        workLifeBalance ? sanitizeText(workLifeBalance, 50) : null,
+        worksOut ? sanitizeText(worksOut, 50) : null,
+        profileResult.id
+      ]) as Promise<any>);
+    } else {
+      // Create new lifestyle
+      const lifestyleId = uuidv4();
+      const insertStmt = db.prepare(`
+        INSERT INTO lifestyle (id, profile_id, smoking, drinking, children, pets, religion, work_life_balance, works_out)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      await (insertStmt.run([
+        lifestyleId,
+        profileResult.id,
+        smoking ? sanitizeText(smoking, 50) : null,
+        drinking ? sanitizeText(drinking, 50) : null,
+        children ? sanitizeText(children, 50) : null,
+        pets ? sanitizeText(pets, 50) : null,
+        religion ? sanitizeText(religion, 50) : null,
+        workLifeBalance ? sanitizeText(workLifeBalance, 50) : null,
+        worksOut ? sanitizeText(worksOut, 50) : null
+      ]) as Promise<any>);
+    }
+
+    res.json({ message: 'Lifestyle updated' });
+  } catch (error) {
+    console.error('Update lifestyle error:', error);
+    res.status(500).json({ error: 'Failed to update lifestyle' });
+  }
+});
+

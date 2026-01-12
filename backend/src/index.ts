@@ -18,6 +18,7 @@ import { smsRouter } from "./routes/sms.js";
 import { initDatabase, db } from "./database.js";
 import { generateWeeklyMatchesForAll } from "./services/matching.js";
 import path from "path";
+import fs from "fs";
 
 // Initialize cron scheduler (optional - won't crash if node-cron isn't installed)
 async function initCronScheduler() {
@@ -89,7 +90,16 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Rate limiting for API endpoints
 app.use('/api', rateLimitAPI);
 // Serve uploaded images
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+// Try process.cwd() first (backend directory), then try backend/uploads
+let uploadsPath = path.join(process.cwd(), 'uploads');
+if (!fs.existsSync(uploadsPath)) {
+  const backendUploads = path.join(process.cwd(), 'backend', 'uploads');
+  if (fs.existsSync(backendUploads)) {
+    uploadsPath = backendUploads;
+  }
+}
+app.use('/uploads', express.static(uploadsPath));
+console.log('📁 Serving uploads from:', uploadsPath);
 
 // Validate security configuration
 validateJWTSecret();
@@ -230,6 +240,15 @@ app.get("/api/reset-rate-limit", async (req, res) => {
 // Error handling middleware
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error("Unhandled error:", err);
+  
+  // Handle multer errors specifically
+  if (err.name === 'MulterError') {
+    return res.status(400).json({ 
+      error: "File upload error",
+      message: err.message
+    });
+  }
+  
   res.status(500).json({ 
     error: "Internal server error",
     message: process.env.NODE_ENV === 'development' ? err.message : undefined

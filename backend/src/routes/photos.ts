@@ -72,7 +72,19 @@ photosRouter.post("/cleanup", authenticateToken, async (req: AuthRequest, res) =
 });
 
 // Upload multiple photos for a profile
-photosRouter.post("/", authenticateToken, uploadMultiple, async (req: AuthRequest, res) => {
+photosRouter.post("/", authenticateToken, (req: AuthRequest, res, next) => {
+  // Handle multer errors
+  uploadMultiple(req, res, (err) => {
+    if (err) {
+      console.error("Multer upload error:", err);
+      if (err instanceof Error) {
+        return res.status(400).json({ error: err.message });
+      }
+      return res.status(400).json({ error: "File upload error" });
+    }
+    next();
+  });
+}, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
     const files = req.files as Express.Multer.File[];
@@ -108,10 +120,13 @@ photosRouter.post("/", authenticateToken, uploadMultiple, async (req: AuthReques
       : currentPhotoCountResult) as { count: number | string };
 
     // Also get actual photo records to verify
-    const actualPhotosResult = await (db
+    const actualPhotosResult = db
       .prepare("SELECT id, url FROM photos WHERE profile_id = ?")
-      .all([profile.id]) as Promise<{ id: string; url: string }[]>);
-    const actualPhotos = Array.isArray(actualPhotosResult) ? actualPhotosResult : [];
+      .all([profile.id]);
+    const actualPhotosArray = (actualPhotosResult instanceof Promise
+      ? await actualPhotosResult
+      : actualPhotosResult) as { id: string; url: string }[];
+    const actualPhotos = Array.isArray(actualPhotosArray) ? actualPhotosArray : [];
     
     // Ensure count is a number (some DBs return strings)
     const photoCount = typeof currentPhotoCount.count === 'string' 

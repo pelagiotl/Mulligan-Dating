@@ -137,3 +137,60 @@ export function isValidPhoneNumber(phoneNumber: string): boolean {
   return e164Regex.test(formatted);
 }
 
+/**
+ * Send SMS notification for a new match
+ * @param phoneNumber - Phone number in E.164 format (e.g., +1234567890)
+ * @param matchName - Name of the person they matched with
+ * @returns Promise<boolean> - true if sent successfully
+ */
+export async function sendMatchNotification(phoneNumber: string, matchName: string): Promise<boolean> {
+  if (!twilioClient) {
+    console.warn('⚠️  Twilio client not initialized. Skipping SMS notification.');
+    return false;
+  }
+
+  const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
+  if (!twilioPhoneNumber) {
+    console.warn('⚠️  TWILIO_PHONE_NUMBER not set. Skipping SMS notification.');
+    return false;
+  }
+
+  // Format phone number to E.164 if needed
+  const formattedPhone = formatPhoneNumber(phoneNumber);
+  if (!formattedPhone) {
+    console.error('❌ Invalid phone number format:', phoneNumber);
+    return false;
+  }
+
+  try {
+    const message = await twilioClient.messages.create({
+      body: `🎉 You have a new match on Mulligan! ${matchName} matched with you. Open the app to start chatting!`,
+      from: twilioPhoneNumber,
+      to: formattedPhone
+    });
+
+    console.log(`✅ Match notification SMS sent to ${formattedPhone}. Message SID: ${message.sid}`);
+    return true;
+  } catch (error: any) {
+    console.error('❌ Failed to send match notification SMS:', error.message);
+    console.error('❌ Error details:', {
+      code: error.code,
+      status: error.status,
+      message: error.message,
+      moreInfo: error.moreInfo
+    });
+    
+    // Log helpful error messages
+    if (error.code === 21211) {
+      console.error('⚠️  Invalid phone number format. Make sure it\'s in E.164 format (e.g., +15551234567)');
+    } else if (error.code === 21608) {
+      console.error('⚠️  Unverified phone number. For Twilio trial accounts, you must verify recipient numbers first.');
+      console.error('   Go to: https://console.twilio.com/us1/develop/phone-numbers/manage/verified');
+    } else if (error.code === 21610) {
+      console.error('⚠️  Unverified caller ID. Verify your phone number in Twilio Console.');
+    }
+    
+    return false;
+  }
+}
+
