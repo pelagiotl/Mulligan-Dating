@@ -202,7 +202,7 @@ export default function Browse() {
       socket.disconnect();
       socketRef.current = null;
     };
-  }, []);
+  }, [userProfile]); // Reconnect if user changes
 
   const playConnectSound = () => {
     try {
