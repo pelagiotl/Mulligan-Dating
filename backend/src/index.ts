@@ -122,6 +122,14 @@ process.on('uncaughtException', (error) => {
 // Initialize Socket.io (import at top level)
 import { initializeSocket } from './socket.js';
 
+// Request logging middleware (for debugging)
+app.use((req, res, next) => {
+  if (req.method === 'PUT' || req.method === 'POST') {
+    console.log(`📥 ${req.method} ${req.path} - Body keys:`, Object.keys(req.body || {}));
+  }
+  next();
+});
+
 // Routes with rate limiting (set up before server starts)
 app.use("/api/auth", rateLimitAuth, authRouter);
 app.use("/api/profile", profileRouter);
