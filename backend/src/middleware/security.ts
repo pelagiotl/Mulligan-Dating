@@ -115,8 +115,20 @@ export async function rateLimitAPI(req: Request, res: Response, next: NextFuncti
     return next();
   }
   
+  // For authenticated routes, use user ID instead of IP to avoid shared rate limits
+  // This prevents all users behind a proxy/load balancer from sharing the same limit
+  let key: string;
+  if ((req as any).userId) {
+    // Authenticated request - use user ID
+    key = `user:${(req as any).userId}`;
+  } else {
+    // Unauthenticated request - use IP
+    key = req.ip || req.socket.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
+    const keyString = Array.isArray(key) ? key[0] : String(key);
+    key = keyString;
+  }
+  
   try {
-    const key = req.ip || req.socket.remoteAddress || 'unknown';
     await apiLimiter.consume(key);
     next();
   } catch (rejRes: any) {

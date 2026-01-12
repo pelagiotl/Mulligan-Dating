@@ -32,35 +32,36 @@ tokensRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
       ? await tokensResult
       : tokensResult as TokenRow[];
 
-  // Count available tokens (granted but not used, and not returned)
-  // Cap at maximum of 3 tokens
-  const availableTokens = Math.min(
-    tokens.filter((t: TokenRow) => !t.used_at && !t.returned_at).length,
-    3
-  );
+    // Count available tokens (granted but not used, and not returned)
+    // Cap at maximum of 3 tokens
+    const availableTokens = Math.min(
+      tokens.filter((t: TokenRow) => !t.used_at && !t.returned_at).length,
+      3
+    );
 
-  // Check if user should get weekly tokens (3 tokens per week)
-  // Find the most recent weekly token grant
-  // Look for tokens with source='weekly' or no source (old tokens)
-  const weeklyTokens = tokens.filter((t: TokenRow) => !t.source || t.source === 'weekly');
-  const lastWeeklyToken = weeklyTokens.length > 0 ? weeklyTokens[0] : null;
-  const oneWeekAgo = new Date();
-  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    // Check if user should get weekly tokens (3 tokens per week)
+    // Find the most recent weekly token grant
+    // Look for tokens with source='weekly' or no source (old tokens)
+    const weeklyTokens = tokens.filter((t: TokenRow) => !t.source || t.source === 'weekly');
+    const lastWeeklyToken = weeklyTokens.length > 0 ? weeklyTokens[0] : null;
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
-  let canClaimWeeklyToken = false;
-  if (!lastWeeklyToken) {
-    // No weekly tokens yet, can claim
-    canClaimWeeklyToken = true;
-  } else {
-    const lastGranted = new Date(lastWeeklyToken.granted_at);
-    canClaimWeeklyToken = lastGranted < oneWeekAgo;
-  }
+    let canClaimWeeklyToken = false;
+    if (!lastWeeklyToken) {
+      // No weekly tokens yet, can claim
+      canClaimWeeklyToken = true;
+    } else {
+      const lastGranted = new Date(lastWeeklyToken.granted_at);
+      canClaimWeeklyToken = lastGranted < oneWeekAgo;
+    }
 
-  // Can't claim if already at max (3 tokens)
-  if (availableTokens >= 3) {
-    canClaimWeeklyToken = false;
-  }
+    // Can't claim if already at max (3 tokens)
+    if (availableTokens >= 3) {
+      canClaimWeeklyToken = false;
+    }
 
+    console.log('✅ Tokens fetched:', { availableTokens, canClaimWeeklyToken, totalTokens: tokens.length });
     res.json({
       availableTokens,
       canClaimWeeklyToken,
