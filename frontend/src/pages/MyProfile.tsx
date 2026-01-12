@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../utils/api'
 import PhotoUpload from '../components/PhotoUpload'
+import { getPhotoUrl } from '../utils/photoUrl'
 
 interface ProfileData {
   profile: {
@@ -35,8 +36,16 @@ interface ProfileData {
   } | null
 }
 
+interface Photo {
+  id: string;
+  url: string;
+  displayOrder: number;
+  isPrimary: boolean;
+}
+
 export default function MyProfile() {
   const [data, setData] = useState<ProfileData | null>(null)
+  const [photos, setPhotos] = useState<Photo[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -46,6 +55,7 @@ export default function MyProfile() {
     setError('')
     setLoading(true)
     fetchProfile()
+    fetchPhotos()
 
     // Cleanup: cancel any pending requests when component unmounts
     return () => {
@@ -54,6 +64,16 @@ export default function MyProfile() {
       }
     }
   }, [])
+
+  const fetchPhotos = async () => {
+    try {
+      const data = await api.get<{ photos: Photo[] }>("/photos/me");
+      setPhotos(data.photos);
+    } catch (err) {
+      // Photos might not exist yet, that's okay
+      setPhotos([]);
+    }
+  }
 
   const fetchProfile = async () => {
     try {
@@ -80,7 +100,16 @@ export default function MyProfile() {
       if (err?.name === 'AbortError' || abortControllerRef.current?.signal.aborted) {
         return
       }
-      setError(err instanceof Error ? err.message : 'Failed to load profile')
+      
+      // Handle 404 specifically (profile not found)
+      if (err?.response?.status === 404 || err?.status === 404) {
+        setError('')
+        setData(null) // Clear data to show "Create Profile" UI
+      } else {
+        // For other errors, show the error message
+        const errorMessage = err?.response?.data?.error || err?.response?.data?.message || err?.message || 'Failed to load profile'
+        setError(errorMessage)
+      }
     } finally {
       if (!abortControllerRef.current?.signal.aborted) {
         setLoading(false)
@@ -106,9 +135,25 @@ export default function MyProfile() {
 
       const { profile, interests, dealbreakers, partnerQualities, lifestyle } = data
 
+  // Get primary photo or first photo
+  const primaryPhoto = photos.find(p => p.isPrimary) || photos[0];
+  const profilePhotoUrl = primaryPhoto ? getPhotoUrl(primaryPhoto.url) : (profile.photo_url ? getPhotoUrl(profile.photo_url) : null);
+
   return (
     <div className="my-profile">
       <div className="my-profile-header">
+        {profilePhotoUrl && (
+          <div className="my-profile-avatar">
+            <img 
+              src={profilePhotoUrl} 
+              alt={profile.display_name}
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+              }}
+            />
+          </div>
+        )}
         <div className="my-profile-info">
           <h1 className="my-profile-name">{profile.display_name}</h1>
           <div className="my-profile-meta-group">
@@ -145,7 +190,7 @@ export default function MyProfile() {
         <h2 className="profile-detail-title">
           <span>📸</span> My Photos
         </h2>
-        <PhotoUpload onPhotosUpdated={fetchProfile} />
+        <PhotoUpload onPhotosUpdated={() => { fetchProfile(); fetchPhotos(); }} />
       </div>
 
       {interests.length > 0 && (
