@@ -254,6 +254,57 @@ function NewMatchesNotification() {
   const location = useLocation()
   const { isAuthenticated } = useAuth()
 
+  // Play a subtle, pleasant match notification sound
+  const playMatchSound = () => {
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const duration = 0.6; // Slightly longer for a more pleasant chime
+      const sampleRate = audioContext.sampleRate;
+      const frameCount = sampleRate * duration;
+      const buffer = audioContext.createBuffer(1, frameCount, sampleRate);
+      const data = buffer.getChannelData(0);
+
+      // Create a pleasant ascending chime (like a bell or crystal)
+      // Multiple frequencies to create a rich, harmonic sound
+      const frequencies = [523.25, 659.25, 783.99]; // C5, E5, G5 - a pleasant major chord
+      
+      for (let freq = 0; freq < frequencies.length; freq++) {
+        const frequency = frequencies[freq];
+        for (let i = 0; i < frameCount; i++) {
+          const t = i / sampleRate;
+          const delay = freq * 0.1; // Stagger the notes slightly
+          const envelope = Math.exp(-t * 2) * (1 - Math.min(t / 0.3, 1)); // Soft attack and decay
+          const phase = 2 * Math.PI * frequency * Math.max(0, t - delay);
+          
+          // Add harmonics for a richer sound
+          const wave = Math.sin(phase) * 0.5 + 
+                      Math.sin(phase * 2) * 0.3 + 
+                      Math.sin(phase * 3) * 0.2;
+          
+          if (t >= delay) {
+            data[i] += wave * envelope * 0.15; // Keep it subtle (0.15 volume)
+          }
+        }
+      }
+
+      const source = audioContext.createBufferSource();
+      const gainNode = audioContext.createGain();
+      
+      source.buffer = buffer;
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime); // Subtle volume
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
+      
+      source.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      source.start();
+      source.stop(audioContext.currentTime + duration);
+    } catch (error) {
+      // Silently fail if audio context is not available
+      console.debug('Match notification sound not available');
+    }
+  }
+
   useEffect(() => {
     if (!isAuthenticated) return
 
@@ -266,6 +317,8 @@ function NewMatchesNotification() {
         // Clear it from storage (but keep showing until user clicks)
         localStorage.removeItem('newMatchesNotification')
         localStorage.removeItem('newMatchesCount')
+        // Play sound when notification appears
+        playMatchSound()
         return true
       } else {
         console.log('ℹ️ NewMatchesNotification: No notification found in localStorage')
@@ -282,6 +335,8 @@ function NewMatchesNotification() {
       setNotification(event.detail.message)
       localStorage.removeItem('newMatchesNotification')
       localStorage.removeItem('newMatchesCount')
+      // Play sound when notification appears
+      playMatchSound()
     }
 
     // Listen for storage events (for same-window updates)
@@ -291,6 +346,8 @@ function NewMatchesNotification() {
         setNotification(e.newValue)
         localStorage.removeItem('newMatchesNotification')
         localStorage.removeItem('newMatchesCount')
+        // Play sound when notification appears
+        playMatchSound()
       }
     }
 
