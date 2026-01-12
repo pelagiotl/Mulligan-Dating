@@ -1,5 +1,5 @@
-import React from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import React, { useEffect, useState } from 'react'
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import Landing from './pages/Landing'
 import Login from './pages/Login'
@@ -247,24 +247,85 @@ function AuthRedirectRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+// Global notification component for new matches after login
+function NewMatchesNotification() {
+  const [notification, setNotification] = useState<string | null>(null)
+  const navigate = useNavigate()
+  const { isAuthenticated } = useAuth()
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    // Check for new matches notification stored during login
+    const newMatchesMessage = localStorage.getItem('newMatchesNotification')
+    if (newMatchesMessage) {
+      setNotification(newMatchesMessage)
+      // Clear it after showing
+      localStorage.removeItem('newMatchesNotification')
+      localStorage.removeItem('newMatchesCount')
+      
+      // Auto-dismiss after 10 seconds
+      const timer = setTimeout(() => {
+        setNotification(null)
+      }, 10000)
+      
+      return () => clearTimeout(timer)
+    }
+  }, [isAuthenticated])
+
+  if (!notification) return null
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        top: '20px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        backgroundColor: '#10b981',
+        color: 'white',
+        padding: '16px 24px',
+        borderRadius: '8px',
+        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+        zIndex: 1000,
+        maxWidth: '90%',
+        textAlign: 'center',
+        cursor: 'pointer',
+      }}
+      onClick={() => {
+        setNotification(null)
+        navigate('/matches')
+      }}
+    >
+      {notification}
+      <div style={{ fontSize: '0.85rem', marginTop: '4px', opacity: 0.9 }}>
+        Click to view matches
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
   return (
-    <Routes>
-      <Route path="/" element={<PublicRoute><Landing /></PublicRoute>} />
-      <Route path="/login" element={<AuthRedirectRoute><Login /></AuthRedirectRoute>} />
-      <Route path="/signup" element={<AuthRedirectRoute><Signup /></AuthRedirectRoute>} />
-      <Route path="/terms" element={<Terms />} />
-      <Route path="/privacy" element={<Privacy />} />
-      <Route element={<Layout />}>
-        <Route path="/create-profile" element={<PrivateRoute><CreateProfile /></PrivateRoute>} />
-        <Route path="/browse" element={<PrivateRoute><Browse /></PrivateRoute>} />
-        <Route path="/matches" element={<PrivateRoute><Matches /></PrivateRoute>} />
-        <Route path="/profile" element={<PrivateRoute><MyProfile /></PrivateRoute>} />
-        <Route path="/referrals" element={<PrivateRoute><Referrals /></PrivateRoute>} />
-        <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
-        <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
-      </Route>
-    </Routes>
+    <>
+      <NewMatchesNotification />
+      <Routes>
+        <Route path="/" element={<PublicRoute><Landing /></PublicRoute>} />
+        <Route path="/login" element={<AuthRedirectRoute><Login /></AuthRedirectRoute>} />
+        <Route path="/signup" element={<AuthRedirectRoute><Signup /></AuthRedirectRoute>} />
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/privacy" element={<Privacy />} />
+        <Route element={<Layout />}>
+          <Route path="/create-profile" element={<PrivateRoute><CreateProfile /></PrivateRoute>} />
+          <Route path="/browse" element={<PrivateRoute><Browse /></PrivateRoute>} />
+          <Route path="/matches" element={<PrivateRoute><Matches /></PrivateRoute>} />
+          <Route path="/profile" element={<PrivateRoute><MyProfile /></PrivateRoute>} />
+          <Route path="/referrals" element={<PrivateRoute><Referrals /></PrivateRoute>} />
+          <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
+          <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
+        </Route>
+      </Routes>
+    </>
   )
 }
 

@@ -126,6 +126,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Fetch user data - it handles loading state itself
       await fetchUser()
       
+      // Check for new matches created since last login
+      const lastLoginTime = localStorage.getItem('lastLoginTime')
+      const now = new Date().toISOString()
+      
+      if (lastLoginTime) {
+        try {
+          const matches = await api.get<{ matches: Array<{ id: string; createdAt: string; otherUser: { displayName: string } }> }>('/matches')
+          const newMatches = matches.matches.filter(match => {
+            const matchDate = new Date(match.createdAt)
+            const lastLogin = new Date(lastLoginTime)
+            return matchDate > lastLogin
+          })
+          
+          if (newMatches.length > 0) {
+            // Store new matches notification to show when user navigates
+            const matchNames = newMatches.map(m => m.otherUser.displayName).join(', ')
+            const message = newMatches.length === 1 
+              ? `🎉 You have a new match with ${matchNames}!`
+              : `🎉 You have ${newMatches.length} new matches: ${matchNames}`
+            
+            localStorage.setItem('newMatchesNotification', message)
+            localStorage.setItem('newMatchesCount', newMatches.length.toString())
+          }
+        } catch (err) {
+          // Silently fail - matches check is not critical for login
+          console.log('Could not check for new matches:', err)
+        }
+      }
+      
+      // Update last login time
+      localStorage.setItem('lastLoginTime', now)
+      
       // Return hasProfile
       return { hasProfile: data.hasProfile || false }
     } catch (error: any) {
