@@ -233,6 +233,20 @@ profileRouter.get('/', authenticateToken, async (req: AuthRequest, res) => {
   }
 });
 
+// Test endpoint to verify routes are deployed
+profileRouter.get('/test-routes', authenticateToken, (req: AuthRequest, res) => {
+  res.json({ 
+    message: 'Profile routes are working',
+    availableRoutes: [
+      'PUT /api/profile/interests',
+      'PUT /api/profile/dealbreakers',
+      'PUT /api/profile/partner-qualities',
+      'PUT /api/profile/preferences',
+      'PUT /api/profile/lifestyle'
+    ]
+  });
+});
+
 // Update interests
 profileRouter.put('/interests', authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
   try {
