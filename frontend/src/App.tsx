@@ -261,16 +261,9 @@ function NewMatchesNotification() {
     const newMatchesMessage = localStorage.getItem('newMatchesNotification')
     if (newMatchesMessage) {
       setNotification(newMatchesMessage)
-      // Clear it after showing
+      // Clear it from storage (but keep showing until user clicks)
       localStorage.removeItem('newMatchesNotification')
       localStorage.removeItem('newMatchesCount')
-      
-      // Auto-dismiss after 10 seconds
-      const timer = setTimeout(() => {
-        setNotification(null)
-      }, 10000)
-      
-      return () => clearTimeout(timer)
     }
   }, [isAuthenticated, location.pathname]) // Re-check when route changes
 
@@ -296,6 +289,12 @@ function NewMatchesNotification() {
       onClick={() => {
         setNotification(null)
         navigate('/matches')
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.opacity = '0.95'
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.opacity = '1'
       }}
     >
       {notification}
