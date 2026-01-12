@@ -105,23 +105,38 @@ photosRouter.post("/", authenticateToken, uploadMultiple, async (req: AuthReques
       .get([profile.id]);
     const currentPhotoCount = (currentPhotoCountResult instanceof Promise
       ? await currentPhotoCountResult
-      : currentPhotoCountResult) as { count: number };
+      : currentPhotoCountResult) as { count: number | string };
 
-    console.log('Photo upload: Current photo count (after cleanup):', currentPhotoCount.count);
+    // Also get actual photo records to verify
+    const actualPhotosResult = await (db
+      .prepare("SELECT id, url FROM photos WHERE profile_id = ?")
+      .all([profile.id]) as Promise<{ id: string; url: string }[]>);
+    const actualPhotos = Array.isArray(actualPhotosResult) ? actualPhotosResult : [];
+    
+    // Ensure count is a number (some DBs return strings)
+    const photoCount = typeof currentPhotoCount.count === 'string' 
+      ? parseInt(currentPhotoCount.count, 10) 
+      : currentPhotoCount.count;
+    
+    console.log('Photo upload: Current photo count (after cleanup):', photoCount, '(type:', typeof photoCount, ')');
+    console.log('Photo upload: Actual photo records in DB:', actualPhotos.length);
+    console.log('Photo upload: Photo records:', actualPhotos.map(p => ({ id: p.id, url: p.url })));
     console.log('Photo upload: Attempting to upload', files.length, 'file(s)');
 
     const maxPhotos = 6;
-    const totalAfterUpload = currentPhotoCount.count + files.length;
+    const totalAfterUpload = photoCount + files.length;
+    console.log('Photo upload: Math check -', photoCount, '+', files.length, '=', totalAfterUpload);
     console.log('Photo upload: Total photos after upload would be:', totalAfterUpload, '/', maxPhotos);
+    console.log('Photo upload: Would exceed max?', totalAfterUpload > maxPhotos);
     
     if (totalAfterUpload > maxPhotos) {
-      console.log('Photo upload: Blocked - would exceed max photos');
+      console.log('Photo upload: BLOCKED - would exceed max photos');
       return res.status(400).json({ 
-        error: `Maximum ${maxPhotos} photos allowed. You currently have ${currentPhotoCount.count} photos.` 
+        error: `Maximum ${maxPhotos} photos allowed. You currently have ${photoCount} photos.` 
       });
     }
     
-    console.log('Photo upload: Proceeding with upload...');
+    console.log('Photo upload: ALLOWED - proceeding with upload');
 
     // Get the next display order
     const lastPhotoResult = db
@@ -135,7 +150,7 @@ photosRouter.post("/", authenticateToken, uploadMultiple, async (req: AuthReques
 
     // Insert photos
     const uploadedPhotos = [];
-    let isFirst = currentPhotoCount.count === 0; // First photo becomes primary if no photos exist
+    let isFirst = photoCount === 0; // First photo becomes primary if no photos exist
 
     for (const file of files) {
       const photoId = uuidv4();
