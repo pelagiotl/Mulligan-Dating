@@ -75,6 +75,7 @@ export default function PhoneLogin() {
       }
 
       setStep('verify')
+      setLoading(false) // Reset loading when switching to verify step
     } catch (err: any) {
       setShake(true)
       setTimeout(() => setShake(false), 600)
