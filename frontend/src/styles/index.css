@@ -2023,18 +2023,24 @@ img {
 .auth-footer-enhanced {
   text-align: center;
   margin-top: var(--space-8);
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 1rem;
+  color: var(--color-wine-900);
+  font-size: 0.9rem;
   animation: fadeInUp 0.8s ease-out 0.6s both;
+  opacity: 0.85;
 }
 
 .auth-link-enhanced {
-  color: #ffffff;
+  color: var(--color-rose-600);
   font-weight: 600;
   text-decoration: none;
   border-bottom: 2px solid transparent;
   transition: all var(--transition-base);
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+.auth-link-enhanced:hover {
+  border-bottom-color: var(--color-rose-600);
+  transform: translateY(-2px);
+  color: var(--color-rose-700);
 }
 
 .auth-link-enhanced:hover {

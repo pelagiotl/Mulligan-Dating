@@ -230,7 +230,7 @@ export default function PhoneLogin() {
 
               <button 
                 type="submit" 
-                className="btn-auth-primary" 
+                className="btn-enhanced btn-primary-enhanced" 
                 disabled={loading || phoneNumber.length < 10}
               >
                 {loading ? (
@@ -362,7 +362,7 @@ export default function PhoneLogin() {
 
             <button 
               type="submit" 
-              className="btn-auth-primary" 
+              className="btn-enhanced btn-primary-enhanced" 
               disabled={loading || code.length !== 6}
             >
               {loading ? (
@@ -377,7 +377,13 @@ export default function PhoneLogin() {
 
             <button
               type="button"
-              className="btn-auth-secondary"
+              className="btn-enhanced"
+              style={{
+                background: 'transparent',
+                color: 'var(--color-rose-600)',
+                border: '2px solid var(--color-rose-300)',
+                marginTop: 'var(--space-4)'
+              }}
               onClick={() => {
                 setStep('phone')
                 setCode('')
