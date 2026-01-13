@@ -43,8 +43,10 @@ smsRouter.post('/send-code', rateLimitAuth, async (req, res) => {
   try {
     const { phoneNumber } = sendCodeSchema.parse(req.body);
     
-    // Format and validate phone number (use SNS formatter if SNS is configured, otherwise Twilio)
+    // Check which service to use (SNS takes priority if configured)
     const useSNS = isSNSConfigured();
+    
+    // Format and validate phone number
     const formattedPhone = useSNS 
       ? formatPhoneNumberSNS(phoneNumber)
       : formatPhoneNumber(phoneNumber);
@@ -134,8 +136,10 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
   try {
     const { phoneNumber, code, referralCode, acceptTerms, acceptPrivacy } = verifyCodeSchema.parse(req.body);
     
-    // Format phone number (use SNS formatter if SNS is configured, otherwise Twilio)
+    // Check which service to use (SNS takes priority if configured)
     const useSNS = isSNSConfigured();
+    
+    // Format phone number
     const formattedPhone = useSNS 
       ? formatPhoneNumberSNS(phoneNumber)
       : formatPhoneNumber(phoneNumber);
