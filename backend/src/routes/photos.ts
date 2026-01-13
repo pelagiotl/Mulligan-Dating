@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import { db } from "../database.js";
 import { authenticateToken, AuthRequest } from "../middleware/auth.js";
 import { uploadMultiple, uploadSingle } from "../middleware/upload.js";
+import { uploadToCloudinary, deleteFromCloudinary, isCloudinaryConfigured } from "../services/cloudinary.js";
 import fs from "fs";
 import path from "path";
 
@@ -18,11 +19,22 @@ async function cleanupOrphanedPhotos(profileId: string): Promise<number> {
     const photos = Array.isArray(photosResult) ? photosResult : [];
     console.log(`Cleanup: Found ${photos.length} photo record(s) in database for profile ${profileId}`);
     
+    // Skip cleanup if using Cloudinary (URLs are always valid)
+    if (isCloudinaryConfigured()) {
+      console.log(`Cleanup: Using Cloudinary - skipping file existence checks`);
+      return 0;
+    }
+    
     let cleanedCount = 0;
     const uploadsDir = path.join(process.cwd(), 'uploads');
     console.log(`Cleanup: Checking files in directory: ${uploadsDir}`);
     
     for (const photo of photos) {
+      // Skip Cloudinary URLs
+      if (photo.url.startsWith('http://') || photo.url.startsWith('https://')) {
+        continue;
+      }
+      
       const filePath = path.join(process.cwd(), photo.url);
       const fileExists = fs.existsSync(filePath);
       console.log(`Cleanup: Photo ${photo.id} - URL: ${photo.url}, Path: ${filePath}, Exists: ${fileExists}`);
@@ -167,10 +179,43 @@ photosRouter.post("/", authenticateToken, (req: AuthRequest, res, next) => {
     const uploadedPhotos = [];
     let isFirst = photoCount === 0; // First photo becomes primary if no photos exist
     let primaryPhotoUrl: string | null = null;
+    const useCloudinary = isCloudinaryConfigured();
 
     for (const file of files) {
       const photoId = uuidv4();
-      const photoUrl = `/uploads/${file.filename}`;
+      let photoUrl: string;
+
+      if (useCloudinary) {
+        // Upload to Cloudinary
+        if (!file.buffer) {
+          console.error('Photo upload: No buffer available for Cloudinary upload');
+          return res.status(500).json({ error: 'File buffer not available' });
+        }
+
+        try {
+          console.log('☁️  Uploading to Cloudinary:', { photoId, size: file.buffer.length });
+          photoUrl = await uploadToCloudinary(file.buffer, 'mulligan-photos', photoId);
+          console.log('✅ Cloudinary upload successful:', photoUrl);
+        } catch (error) {
+          console.error('❌ Cloudinary upload failed:', error);
+          return res.status(500).json({ 
+            error: 'Failed to upload photo to cloud storage',
+            details: error instanceof Error ? error.message : String(error)
+          });
+        }
+      } else {
+        // Use local filesystem
+        photoUrl = `/uploads/${file.filename}`;
+        
+        // Verify file exists after insert (only for local storage)
+        const filePath = path.join(process.cwd(), photoUrl);
+        const fileExists = fs.existsSync(filePath);
+        console.log('Photo upload: File verification - Path:', filePath, 'Exists:', fileExists);
+        
+        if (!fileExists) {
+          console.error('Photo upload: WARNING - File does not exist after upload! This indicates an upload failure.');
+        }
+      }
 
       console.log('Photo upload: Inserting photo:', { photoId, profileId: profile.id, photoUrl, displayOrder: nextOrder, isPrimary: isFirst });
 
@@ -187,15 +232,7 @@ photosRouter.post("/", authenticateToken, (req: AuthRequest, res, next) => {
         primaryPhotoUrl = photoUrl;
       }
 
-      // Verify file exists after insert
-      const filePath = path.join(process.cwd(), photoUrl);
-      const fileExists = fs.existsSync(filePath);
       console.log('Photo upload: Photo inserted successfully:', photoId);
-      console.log('Photo upload: File verification - Path:', filePath, 'Exists:', fileExists);
-      
-      if (!fileExists) {
-        console.error('Photo upload: WARNING - File does not exist after upload! This indicates an upload failure.');
-      }
 
       uploadedPhotos.push({
         id: photoId,
@@ -247,11 +284,18 @@ photosRouter.get("/profile/:profileId", authenticateToken, async (req: AuthReque
     // Ensure photos is always an array
     const photos = Array.isArray(photosResult) ? photosResult : [];
 
-    // Filter out photos where files don't exist (double-check)
-    const validPhotos = photos.filter((p) => {
-      const filePath = path.join(process.cwd(), p.url);
-      return fs.existsSync(filePath);
-    });
+    // Filter out photos where files don't exist (only for local storage)
+    // Cloudinary URLs are always valid
+    const validPhotos = isCloudinaryConfigured()
+      ? photos.filter((p) => p.url.startsWith('http://') || p.url.startsWith('https://'))
+      : photos.filter((p) => {
+          // Skip Cloudinary URLs
+          if (p.url.startsWith('http://') || p.url.startsWith('https://')) {
+            return true;
+          }
+          const filePath = path.join(process.cwd(), p.url);
+          return fs.existsSync(filePath);
+        });
 
     res.json({
       photos: validPhotos.map((p) => ({
@@ -296,11 +340,18 @@ photosRouter.get("/me", authenticateToken, async (req: AuthRequest, res) => {
     // Ensure photos is always an array
     const photos = Array.isArray(photosResult) ? photosResult : [];
 
-    // Filter out photos where files don't exist (double-check)
-    const validPhotos = photos.filter((p) => {
-      const filePath = path.join(process.cwd(), p.url);
-      return fs.existsSync(filePath);
-    });
+    // Filter out photos where files don't exist (only for local storage)
+    // Cloudinary URLs are always valid
+    const validPhotos = isCloudinaryConfigured()
+      ? photos.filter((p) => p.url.startsWith('http://') || p.url.startsWith('https://'))
+      : photos.filter((p) => {
+          // Skip Cloudinary URLs
+          if (p.url.startsWith('http://') || p.url.startsWith('https://')) {
+            return true;
+          }
+          const filePath = path.join(process.cwd(), p.url);
+          return fs.existsSync(filePath);
+        });
 
     res.json({
       photos: validPhotos.map((p) => ({
@@ -386,11 +437,17 @@ photosRouter.delete("/:photoId", authenticateToken, async (req: AuthRequest, res
     }
 
     // Delete photo file
-    const fs = require("fs");
-    const path = require("path");
-    const filePath = path.join(process.cwd(), photo.url);
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+    if (isCloudinaryConfigured() && (photo.url.startsWith('http://') || photo.url.startsWith('https://'))) {
+      // Delete from Cloudinary
+      console.log('☁️  Deleting from Cloudinary:', photo.url);
+      await deleteFromCloudinary(photo.url);
+    } else {
+      // Delete from local filesystem
+      const filePath = path.join(process.cwd(), photo.url);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        console.log('📁 Deleted local file:', filePath);
+      }
     }
 
     // Delete from database
