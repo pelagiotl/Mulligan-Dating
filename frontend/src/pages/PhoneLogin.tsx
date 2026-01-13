@@ -362,6 +362,13 @@ export default function PhoneLogin() {
                   onChange={(e) => {
                     const digits = e.target.value.replace(/\D/g, '').slice(0, 6)
                     setCode(digits)
+                    // Don't auto-submit - let user click the button
+                  }}
+                  onKeyDown={(e) => {
+                    // Prevent Enter key from submitting until user explicitly clicks
+                    if (e.key === 'Enter' && code.length !== 6) {
+                      e.preventDefault()
+                    }
                   }}
                   maxLength={6}
                   required
