@@ -45,6 +45,12 @@ smsRouter.post('/send-code', rateLimitAuth, async (req, res) => {
     
     // Check which service to use (SNS takes priority if configured)
     const useSNS = isSNSConfigured();
+    console.log('📡 SMS Service Check:', {
+      useSNS,
+      hasAWSKey: !!process.env.AWS_ACCESS_KEY_ID,
+      hasAWSSecret: !!process.env.AWS_SECRET_ACCESS_KEY,
+      awsRegion: process.env.AWS_REGION || 'not set'
+    });
     
     // Format and validate phone number
     const formattedPhone = useSNS 
