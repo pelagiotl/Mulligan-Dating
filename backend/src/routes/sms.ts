@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { db } from '../database.js';
 import { v4 as uuidv4 } from 'uuid';
 import { sendVerificationCode, formatPhoneNumber, isValidPhoneNumber } from '../services/sms.js';
+import { sendVerificationCodeSNS, formatPhoneNumber as formatPhoneNumberSNS, isValidPhoneNumber as isValidPhoneNumberSNS, isSNSConfigured } from '../services/aws-sns.js';
 import { rateLimitAuth } from '../middleware/security.js';
 import { getUserByReferralCode, getOrCreateReferralCode, grantReferralToken } from '../utils/referrals.js';
 
@@ -42,9 +43,16 @@ smsRouter.post('/send-code', rateLimitAuth, async (req, res) => {
   try {
     const { phoneNumber } = sendCodeSchema.parse(req.body);
     
-    // Format and validate phone number
-    const formattedPhone = formatPhoneNumber(phoneNumber);
-    if (!formattedPhone || !isValidPhoneNumber(formattedPhone)) {
+    // Format and validate phone number (use SNS formatter if SNS is configured, otherwise Twilio)
+    const useSNS = isSNSConfigured();
+    const formattedPhone = useSNS 
+      ? formatPhoneNumberSNS(phoneNumber)
+      : formatPhoneNumber(phoneNumber);
+    const isValid = useSNS
+      ? isValidPhoneNumberSNS(formattedPhone || '')
+      : isValidPhoneNumber(formattedPhone || '');
+    
+    if (!formattedPhone || !isValid) {
       return res.status(400).json({ error: 'Invalid phone number format' });
     }
 
@@ -73,8 +81,11 @@ smsRouter.post('/send-code', rateLimitAuth, async (req, res) => {
       userId: existingUser?.id // Store userId if user exists (for login)
     });
 
-    // Send SMS
-    const sent = await sendVerificationCode(formattedPhone, code);
+    // Send SMS (use AWS SNS if configured, otherwise Twilio)
+    const useSNS = isSNSConfigured();
+    const sent = useSNS
+      ? await sendVerificationCodeSNS(formattedPhone, code)
+      : await sendVerificationCode(formattedPhone, code);
     
     // Always return the code for testing (even in production, for now)
     // This helps with debugging and allows users to proceed if SMS fails
@@ -123,9 +134,16 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
   try {
     const { phoneNumber, code, referralCode, acceptTerms, acceptPrivacy } = verifyCodeSchema.parse(req.body);
     
-    // Format phone number
-    const formattedPhone = formatPhoneNumber(phoneNumber);
-    if (!formattedPhone || !isValidPhoneNumber(formattedPhone)) {
+    // Format phone number (use SNS formatter if SNS is configured, otherwise Twilio)
+    const useSNS = isSNSConfigured();
+    const formattedPhone = useSNS 
+      ? formatPhoneNumberSNS(phoneNumber)
+      : formatPhoneNumber(phoneNumber);
+    const isValid = useSNS
+      ? isValidPhoneNumberSNS(formattedPhone || '')
+      : isValidPhoneNumber(formattedPhone || '');
+    
+    if (!formattedPhone || !isValid) {
       return res.status(400).json({ error: 'Invalid phone number format' });
     }
 
