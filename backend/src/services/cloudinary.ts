@@ -35,7 +35,7 @@ export async function uploadToCloudinary(
 
     const uploadStream = cloudinary.uploader.upload_stream(
       uploadOptions,
-      (error, result) => {
+      (error: any, result: any) => {
         if (error) {
           console.error('❌ Cloudinary upload error:', error);
           reject(error);
