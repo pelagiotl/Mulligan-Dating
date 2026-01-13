@@ -156,8 +156,6 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
       });
     } else {
       // Signup: create new user with phone number only
-      const { referralCode, acceptTerms, acceptPrivacy } = verifyCodeSchema.parse(req.body);
-      
       // Validate terms acceptance for new signups
       if (acceptTerms !== true || acceptPrivacy !== true) {
         return res.status(400).json({ error: 'You must accept the Terms of Service and Privacy Policy' });
@@ -232,7 +230,7 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
     const profile = await (profileStmt.get(userId) as Promise<{ id: string } | null>);
     const hasProfile = !!profile;
 
-    const referralCode = isNewUser ? await getOrCreateReferralCode(userId) : undefined;
+    const userReferralCode = isNewUser ? await getOrCreateReferralCode(userId) : undefined;
     
     res.json({
       message: isNewUser ? 'Account created successfully' : 'Login successful',
@@ -240,7 +238,7 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
       userId,
       hasProfile,
       isNewUser,
-      referralCode
+      referralCode: userReferralCode
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
