@@ -67,6 +67,13 @@ export async function sendVerificationCode(phoneNumber: string, code: string): P
     });
 
     console.log(`✅ SMS sent to ${phoneNumber}. Message SID: ${message.sid}`);
+    console.log(`📊 Message status: ${message.status}`);
+    
+    // Check if message was queued (might indicate trial account restrictions)
+    if (message.status === 'queued' || message.status === 'sending') {
+      console.log(`ℹ️  Message is ${message.status}. Check Twilio console for delivery status.`);
+    }
+    
     return true;
   } catch (error: any) {
     console.error('❌ Failed to send SMS:', error.message);
@@ -81,10 +88,14 @@ export async function sendVerificationCode(phoneNumber: string, code: string): P
     if (error.code === 21211) {
       console.error('⚠️  Invalid phone number format. Make sure it\'s in E.164 format (e.g., +15551234567)');
     } else if (error.code === 21608) {
-      console.error('⚠️  Unverified phone number. For Twilio trial accounts, you must verify recipient numbers first.');
-      console.error('   Go to: https://console.twilio.com/us1/develop/phone-numbers/manage/verified');
+      console.error('⚠️  Unverified recipient phone number. For Twilio trial accounts, you must verify the RECIPIENT phone number (the number you\'re sending TO), not just the sending number.');
+      console.error(`   Go to: https://console.twilio.com/us1/develop/phone-numbers/manage/verified`);
+      console.error(`   Add this number: ${phoneNumber}`);
     } else if (error.code === 21610) {
-      console.error('⚠️  Unverified caller ID. Verify your phone number in Twilio Console.');
+      console.error('⚠️  Unverified caller ID. Verify your sending phone number in Twilio Console.');
+    } else if (error.code === 21408) {
+      console.error('⚠️  Permission denied. Your Twilio account may still be in trial mode.');
+      console.error('   Upgrade your account or verify the recipient phone number.');
     }
     
     return false;

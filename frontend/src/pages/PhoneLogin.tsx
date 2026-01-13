@@ -60,17 +60,18 @@ export default function PhoneLogin() {
         phoneNumber
       })
 
-      // In development or if code is returned, show it
+      // Always show the code if it's returned (helps with debugging and if SMS fails)
       if (response.code) {
         console.log('🔐 Verification code:', response.code)
-        // Also show it in an alert for easy access
-        alert(`Your verification code is: ${response.code}\n\n(This is shown because SMS may not be configured yet)`)
+        // Show it in an alert for easy access
+        alert(`Your verification code is: ${response.code}\n\n(Enter this code to continue)`)
       }
 
       // Check if SMS was actually sent
       if (response.smsSent === false) {
         console.warn('⚠️ SMS was not sent, but code is available')
-        // Still proceed to verification step
+        // Show a helpful message
+        setError('SMS delivery may have failed. Check the alert above for your verification code.')
       }
 
       setStep('verify')
