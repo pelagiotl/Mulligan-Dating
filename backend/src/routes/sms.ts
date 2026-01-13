@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { db } from '../database.js';
 import { v4 as uuidv4 } from 'uuid';
-import { sendVerificationCode, formatPhoneNumber, isValidPhoneNumber } from '../services/sms.js';
+import { sendVerificationCode, formatPhoneNumber, isValidPhoneNumber, isTwilioVerifyConfigured, sendVerificationCodeViaVerify, verifyCodeViaVerify } from '../services/sms.js';
 import { sendVerificationCodeSNS, formatPhoneNumber as formatPhoneNumberSNS, isValidPhoneNumber as isValidPhoneNumberSNS, isSNSConfigured } from '../services/aws-sns.js';
 import { rateLimitAuth } from '../middleware/security.js';
 import { getUserByReferralCode, getOrCreateReferralCode, grantReferralToken } from '../utils/referrals.js';
@@ -43,13 +43,17 @@ smsRouter.post('/send-code', rateLimitAuth, async (req, res) => {
   try {
     const { phoneNumber } = sendCodeSchema.parse(req.body);
     
-    // Check which service to use (SNS takes priority if configured)
-    const useSNS = isSNSConfigured();
+    // Check which service to use (priority: Twilio Verify > AWS SNS > Twilio Messages)
+    const useVerify = isTwilioVerifyConfigured();
+    const useSNS = !useVerify && isSNSConfigured();
+    
     console.log('📡 SMS Service Check:', {
+      useVerify,
       useSNS,
       hasAWSKey: !!process.env.AWS_ACCESS_KEY_ID,
       hasAWSSecret: !!process.env.AWS_SECRET_ACCESS_KEY,
-      awsRegion: process.env.AWS_REGION || 'not set'
+      awsRegion: process.env.AWS_REGION || 'not set',
+      hasVerifyServiceSid: !!process.env.TWILIO_VERIFY_SERVICE_SID
     });
     
     // Format and validate phone number
@@ -77,6 +81,32 @@ smsRouter.post('/send-code', rateLimitAuth, async (req, res) => {
       isLogin: !!existingUser
     });
 
+    // If using Twilio Verify, use it (no code generation needed)
+    if (useVerify) {
+      const result = await sendVerificationCodeViaVerify(formattedPhone);
+      if (result.success) {
+        // Store userId for login flow (Verify handles code storage)
+        if (existingUser?.id) {
+          verificationCodes.set(formattedPhone, {
+            code: '', // Not needed with Verify
+            expiresAt: Date.now() + 10 * 60 * 1000, // 10 minutes
+            userId: existingUser.id
+          });
+        }
+        return res.json({
+          message: 'Verification code sent via SMS',
+          phoneNumber: formattedPhone,
+          smsSent: true,
+          usingVerify: true
+        });
+      } else {
+        return res.status(500).json({ 
+          error: 'Failed to send verification code. Please try again.' 
+        });
+      }
+    }
+
+    // Fallback to manual code generation (AWS SNS or Twilio Messages)
     // Generate 6-digit code
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     
@@ -89,7 +119,7 @@ smsRouter.post('/send-code', rateLimitAuth, async (req, res) => {
       userId: existingUser?.id // Store userId if user exists (for login)
     });
 
-    // Send SMS (use AWS SNS if configured, otherwise Twilio)
+    // Send SMS (use AWS SNS if configured, otherwise Twilio Messages)
     const sent = useSNS
       ? await sendVerificationCodeSNS(formattedPhone, code)
       : await sendVerificationCode(formattedPhone, code);
@@ -141,13 +171,17 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
   try {
     const { phoneNumber, code, referralCode, acceptTerms, acceptPrivacy } = verifyCodeSchema.parse(req.body);
     
-    // Check which service to use (SNS takes priority if configured)
-    const useSNS = isSNSConfigured();
+    // Check which service to use (priority: Twilio Verify > AWS SNS > Twilio Messages)
+    const useVerify = isTwilioVerifyConfigured();
+    const useSNS = !useVerify && isSNSConfigured();
+    
     console.log('📡 SMS Service Check (verify):', {
+      useVerify,
       useSNS,
       hasAWSKey: !!process.env.AWS_ACCESS_KEY_ID,
       hasAWSSecret: !!process.env.AWS_SECRET_ACCESS_KEY,
-      awsRegion: process.env.AWS_REGION || 'not set'
+      awsRegion: process.env.AWS_REGION || 'not set',
+      hasVerifyServiceSid: !!process.env.TWILIO_VERIFY_SERVICE_SID
     });
     
     // Format phone number
@@ -162,6 +196,106 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
       return res.status(400).json({ error: 'Invalid phone number format' });
     }
 
+    // If using Twilio Verify, verify code via Verify API
+    if (useVerify) {
+      const isValidCode = await verifyCodeViaVerify(formattedPhone, code);
+      if (!isValidCode) {
+        return res.status(400).json({ error: 'Invalid verification code' });
+      }
+      
+      // Code is valid - check if user exists
+      const existingUserStmt = db.prepare('SELECT id, phone_verified FROM users WHERE phone_number = ?');
+      const existingUser = await (existingUserStmt.get(formattedPhone) as Promise<{ id: string; phone_verified: number } | null>);
+      
+      let userId: string;
+      let isNewUser = false;
+
+      if (existingUser) {
+        // Login: user exists with this phone number
+        userId = existingUser.id;
+        isNewUser = false;
+        
+        // Update phone_verified if not already verified
+        const updateStmt = db.prepare('UPDATE users SET phone_verified = 1 WHERE id = ?');
+        await (updateStmt.run([userId]) as Promise<any>);
+        
+        console.log('✅ User logged in via phone (Verify):', {
+          userId,
+          phoneNumber: formattedPhone
+        });
+      } else {
+        // Signup: create new user with phone number only
+        if (acceptTerms !== true || acceptPrivacy !== true) {
+          return res.status(400).json({ error: 'You must accept the Terms of Service and Privacy Policy' });
+        }
+        
+        userId = uuidv4();
+        isNewUser = true;
+        const now = new Date().toISOString();
+        
+        const insertUserStmt = db.prepare(
+          'INSERT INTO users (id, phone_number, phone_verified, tos_accepted_at, privacy_accepted_at, password) VALUES (?, ?, 1, ?, ?, ?)'
+        );
+        await (insertUserStmt.run([userId, formattedPhone, now, now, '']) as Promise<any>);
+        
+        console.log('✅ New user created via phone (Verify):', {
+          userId,
+          phoneNumber: formattedPhone
+        });
+      }
+
+      // Generate referral code for new user and handle referrals (shared logic)
+      const userReferralCode = isNewUser ? await getOrCreateReferralCode(userId) : undefined;
+
+      // Handle referral if code provided
+      let referrerId: string | null = null;
+      if (referralCode && referralCode.trim()) {
+        referrerId = await getUserByReferralCode(referralCode.trim());
+        
+        if (referrerId && referrerId !== userId) {
+          const existingReferralStmt = db.prepare('SELECT id FROM referrals WHERE referred_id = ?');
+          const existingReferral = await (existingReferralStmt.get(userId) as Promise<any>);
+          
+          if (!existingReferral) {
+            const referralId = uuidv4();
+            const insertReferralStmt = db.prepare(
+              `INSERT INTO referrals (id, referrer_id, referred_id, referral_code) 
+               VALUES (?, ?, ?, ?)`
+            );
+            await (insertReferralStmt.run([referralId, referrerId, userId, referralCode.trim()]) as Promise<any>);
+
+            await grantReferralToken(referrerId);
+            
+            const updateReferralStmt = db.prepare(`UPDATE referrals SET token_granted = 1 WHERE id = ?`);
+            await (updateReferralStmt.run([referralId]) as Promise<any>);
+          }
+        }
+      }
+
+      // Clean up verification code
+      verificationCodes.delete(formattedPhone);
+
+      // Generate JWT token
+      const { generateToken } = await import('../middleware/auth.js');
+      const token = generateToken(userId);
+
+      // Check if profile exists
+      const profileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
+      const profile = await (profileStmt.get(userId) as Promise<{ id: string } | null>);
+      const hasProfile = !!profile;
+      
+      res.json({
+        message: isNewUser ? 'Account created successfully' : 'Login successful',
+        token,
+        userId,
+        hasProfile,
+        isNewUser,
+        referralCode: userReferralCode
+      });
+      return; // Exit early for Verify path
+    }
+
+    // Fallback to manual code verification (AWS SNS or Twilio Messages)
     // Get stored code
     const stored = verificationCodes.get(formattedPhone);
     if (!stored) {

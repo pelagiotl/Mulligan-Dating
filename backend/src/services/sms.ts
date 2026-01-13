@@ -2,13 +2,14 @@
 // To use this, you need to:
 // 1. Sign up for Twilio: https://www.twilio.com/try-twilio
 // 2. Get your Account SID and Auth Token from the Twilio Console
-// 3. Get a phone number from Twilio (free trial numbers available)
+// 3. Get a phone number from Twilio (free trial numbers available) OR use Twilio Verify
 // 4. Set environment variables:
 //    - TWILIO_ACCOUNT_SID
 //    - TWILIO_AUTH_TOKEN
-//    - TWILIO_PHONE_NUMBER
+//    - TWILIO_PHONE_NUMBER (for regular SMS) OR TWILIO_VERIFY_SERVICE_SID (for Verify - recommended)
 
 let twilioClient: any = null;
+let useTwilioVerify = false;
 
 // Try to import Twilio (optional dependency)
 try {
@@ -17,19 +18,33 @@ try {
   const authToken = process.env.TWILIO_AUTH_TOKEN;
   const phoneNumber = process.env.TWILIO_PHONE_NUMBER;
   
+  const verifyServiceSid = process.env.TWILIO_VERIFY_SERVICE_SID;
+  
   console.log('🔍 Twilio config check:', {
     hasAccountSid: !!accountSid,
     hasAuthToken: !!authToken,
     hasPhoneNumber: !!phoneNumber,
+    hasVerifyServiceSid: !!verifyServiceSid,
     accountSidPrefix: accountSid ? accountSid.substring(0, 5) : 'none',
-    phoneNumber: phoneNumber || 'none'
+    phoneNumber: phoneNumber || 'none',
+    verifyServiceSidPrefix: verifyServiceSid ? verifyServiceSid.substring(0, 5) : 'none'
   });
   
   if (accountSid && authToken) {
     twilioClient = twilio(accountSid, authToken);
-    console.log('✅ Twilio SMS service initialized');
-    if (!phoneNumber) {
-      console.warn('⚠️  TWILIO_PHONE_NUMBER not set. SMS sending will fail.');
+    
+    // Check if using Twilio Verify (recommended - no 10DLC needed)
+    if (verifyServiceSid) {
+      useTwilioVerify = true;
+      console.log('✅ Twilio Verify service initialized (no 10DLC registration needed!)');
+      console.log(`   Service SID: ${verifyServiceSid}`);
+    } else if (phoneNumber) {
+      console.log('✅ Twilio SMS service initialized (using Messages API)');
+      console.warn('⚠️  Consider using Twilio Verify instead - no 10DLC registration needed!');
+      console.warn('   Set TWILIO_VERIFY_SERVICE_SID instead of TWILIO_PHONE_NUMBER');
+    } else {
+      console.warn('⚠️  Neither TWILIO_PHONE_NUMBER nor TWILIO_VERIFY_SERVICE_SID set.');
+      console.warn('   Set TWILIO_VERIFY_SERVICE_SID (recommended) or TWILIO_PHONE_NUMBER');
     }
   } else {
     console.warn('⚠️  Twilio credentials not found. SMS verification will be disabled.');
@@ -42,7 +57,88 @@ try {
 }
 
 /**
- * Send SMS verification code to a phone number
+ * Check if Twilio Verify is configured
+ */
+export function isTwilioVerifyConfigured(): boolean {
+  return useTwilioVerify && !!process.env.TWILIO_VERIFY_SERVICE_SID && !!twilioClient;
+}
+
+/**
+ * Send verification code using Twilio Verify (recommended - no 10DLC needed)
+ * @param phoneNumber - Phone number in E.164 format (e.g., +1234567890)
+ * @returns Promise<{ success: boolean; sid?: string }> - success status and verification SID
+ */
+export async function sendVerificationCodeViaVerify(phoneNumber: string): Promise<{ success: boolean; sid?: string }> {
+  if (!twilioClient || !useTwilioVerify) {
+    console.error('❌ Twilio Verify not configured. Cannot send verification.');
+    return { success: false };
+  }
+
+  const verifyServiceSid = process.env.TWILIO_VERIFY_SERVICE_SID;
+  if (!verifyServiceSid) {
+    console.error('❌ TWILIO_VERIFY_SERVICE_SID not set in environment variables');
+    return { success: false };
+  }
+
+  try {
+    const verification = await twilioClient.verify.v2
+      .services(verifyServiceSid)
+      .verifications
+      .create({ to: phoneNumber, channel: 'sms' });
+
+    console.log(`✅ Verification sent via Twilio Verify to ${phoneNumber}. SID: ${verification.sid}`);
+    return { success: true, sid: verification.sid };
+  } catch (error: any) {
+    console.error('❌ Failed to send verification via Twilio Verify:', error.message);
+    console.error('❌ Error details:', {
+      code: error.code,
+      status: error.status,
+      message: error.message,
+      moreInfo: error.moreInfo
+    });
+    return { success: false };
+  }
+}
+
+/**
+ * Verify code using Twilio Verify
+ * @param phoneNumber - Phone number in E.164 format
+ * @param code - Code entered by user
+ * @returns Promise<boolean> - true if code is valid
+ */
+export async function verifyCodeViaVerify(phoneNumber: string, code: string): Promise<boolean> {
+  if (!twilioClient || !useTwilioVerify) {
+    console.error('❌ Twilio Verify not configured. Cannot verify code.');
+    return false;
+  }
+
+  const verifyServiceSid = process.env.TWILIO_VERIFY_SERVICE_SID;
+  if (!verifyServiceSid) {
+    console.error('❌ TWILIO_VERIFY_SERVICE_SID not set in environment variables');
+    return false;
+  }
+
+  try {
+    const verificationCheck = await twilioClient.verify.v2
+      .services(verifyServiceSid)
+      .verificationChecks
+      .create({ to: phoneNumber, code: code });
+
+    if (verificationCheck.status === 'approved') {
+      console.log(`✅ Code verified successfully for ${phoneNumber}`);
+      return true;
+    } else {
+      console.log(`❌ Code verification failed for ${phoneNumber}. Status: ${verificationCheck.status}`);
+      return false;
+    }
+  } catch (error: any) {
+    console.error('❌ Failed to verify code via Twilio Verify:', error.message);
+    return false;
+  }
+}
+
+/**
+ * Send SMS verification code to a phone number (using Messages API - requires phone number)
  * @param phoneNumber - Phone number in E.164 format (e.g., +1234567890)
  * @param code - 6-digit verification code
  * @returns Promise<boolean> - true if sent successfully
