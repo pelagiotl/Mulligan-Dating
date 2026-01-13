@@ -5,6 +5,7 @@ import { io, Socket } from 'socket.io-client'
 import Landing from './pages/Landing'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
+import PhoneLogin from './pages/PhoneLogin'
 import CreateProfile from './pages/CreateProfile'
 import Browse from './pages/Browse'
 import Matches from './pages/Matches'
@@ -520,8 +521,9 @@ export default function App() {
       <NewMatchesNotification />
       <Routes>
         <Route path="/" element={<PublicRoute><Landing /></PublicRoute>} />
-        <Route path="/login" element={<AuthRedirectRoute><Login /></AuthRedirectRoute>} />
-        <Route path="/signup" element={<AuthRedirectRoute><Signup /></AuthRedirectRoute>} />
+        <Route path="/login" element={<AuthRedirectRoute><PhoneLogin /></AuthRedirectRoute>} />
+        <Route path="/signup" element={<AuthRedirectRoute><PhoneLogin /></AuthRedirectRoute>} />
+        <Route path="/phone-login" element={<AuthRedirectRoute><PhoneLogin /></AuthRedirectRoute>} />
         <Route path="/terms" element={<Terms />} />
         <Route path="/privacy" element={<Privacy />} />
         <Route element={<Layout />}>

@@ -23,15 +23,15 @@ setInterval(() => {
 }, 10 * 60 * 1000);
 
 const sendCodeSchema = z.object({
-  phoneNumber: z.string().min(10, 'Phone number is required'),
-  email: z.string().email().optional() // For signup flow
+  phoneNumber: z.string().min(10, 'Phone number is required')
 });
 
 const verifyCodeSchema = z.object({
   phoneNumber: z.string().min(10, 'Phone number is required'),
   code: z.string().length(6, 'Code must be 6 digits'),
-  email: z.string().email().optional(), // For signup flow
-  referralCode: z.string().optional() // For signup flow
+  referralCode: z.string().optional(), // For signup flow
+  acceptTerms: z.boolean().optional(), // For signup flow
+  acceptPrivacy: z.boolean().optional() // For signup flow
 });
 
 /**
@@ -40,7 +40,7 @@ const verifyCodeSchema = z.object({
  */
 smsRouter.post('/send-code', rateLimitAuth, async (req, res) => {
   try {
-    const { phoneNumber, email } = sendCodeSchema.parse(req.body);
+    const { phoneNumber } = sendCodeSchema.parse(req.body);
     
     // Format and validate phone number
     const formattedPhone = formatPhoneNumber(phoneNumber);
@@ -48,7 +48,7 @@ smsRouter.post('/send-code', rateLimitAuth, async (req, res) => {
       return res.status(400).json({ error: 'Invalid phone number format' });
     }
 
-    // Check if phone number is already registered (for login)
+    // Check if phone number is already registered
     const existingUserStmt = db.prepare('SELECT id, phone_verified FROM users WHERE phone_number = ?');
     const existingUser = await (existingUserStmt.get(formattedPhone) as Promise<{ id: string; phone_verified: number } | null>);
     
@@ -57,54 +57,20 @@ smsRouter.post('/send-code', rateLimitAuth, async (req, res) => {
       input: phoneNumber,
       formatted: formattedPhone,
       found: !!existingUser,
-      userId: existingUser?.id
+      userId: existingUser?.id,
+      isLogin: !!existingUser
     });
-    
-    // For signup: check if email is provided and if user already exists
-    if (email) {
-      const emailUserStmt = db.prepare('SELECT id, phone_number FROM users WHERE email = ?');
-      const emailUser = await (emailUserStmt.get(email) as Promise<{ id: string; phone_number: string | null } | null>);
-      
-      if (emailUser) {
-        // Email exists - allow linking phone number to existing account
-        // Check if phone is already linked to a different account
-        if (existingUser && existingUser.id !== emailUser.id) {
-          return res.status(400).json({ error: 'Phone number already registered to another account' });
-        }
-        // If phone is already linked to this account, that's fine - allow resending code
-      } else {
-        // New email - normal signup flow
-        // Check if phone is already registered
-        if (existingUser) {
-          return res.status(400).json({ error: 'Phone number already registered' });
-        }
-      }
-    } else {
-      // For login: user must exist
-      if (!existingUser) {
-        return res.status(404).json({ error: 'Phone number not found' });
-      }
-    }
 
     // Generate 6-digit code
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     
     // Store code with 10-minute expiration
-    // If email provided, check if it's for linking to existing account
-    let userIdForCode: string | undefined = existingUser?.id;
-    if (email) {
-      const emailUserForCodeStmt = db.prepare('SELECT id FROM users WHERE email = ?');
-      const emailUserForCode = await (emailUserForCodeStmt.get(email) as Promise<{ id: string } | null>);
-      if (emailUserForCode) {
-        userIdForCode = emailUserForCode.id; // Store userId for linking
-      }
-    }
-    
+    // If user exists, store their userId for login flow
     const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
     verificationCodes.set(formattedPhone, {
       code,
       expiresAt,
-      userId: userIdForCode
+      userId: existingUser?.id // Store userId if user exists (for login)
     });
 
     // Send SMS
@@ -178,56 +144,56 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
     if (stored.userId) {
       // Login: user exists with this phone number
       userId = stored.userId;
+      isNewUser = false;
       
       // Update phone_verified if not already verified
       const updateStmt = db.prepare('UPDATE users SET phone_verified = 1 WHERE id = ?');
       await (updateStmt.run([userId]) as Promise<any>);
-    } else {
-      // Signup or linking phone to existing account
-      if (!email) {
-        return res.status(400).json({ error: 'Email is required for signup' });
-      }
-
-      // Check if email already exists (for linking phone to existing account)
-      const emailUserStmt = db.prepare('SELECT id, phone_number FROM users WHERE email = ?');
-      const emailUser = await (emailUserStmt.get(email) as Promise<{ id: string; phone_number: string | null } | null>);
       
-      if (emailUser) {
-        // Linking phone to existing account
-        userId = emailUser.id;
-        isNewUser = false;
-        
-        // Update existing user with phone number
-        const updatePhoneStmt = db.prepare('UPDATE users SET phone_number = ?, phone_verified = 1 WHERE id = ?');
-        await (updatePhoneStmt.run([formattedPhone, userId]) as Promise<any>);
-        
-        console.log('✅ Phone number linked to existing account:', {
-          userId,
-          email,
-          phoneNumber: formattedPhone
-        });
-      } else {
-        // New signup: create new user
-        userId = uuidv4();
-        isNewUser = true;
-        
-        // Create user with phone and email (no password needed)
-        const insertUserStmt = db.prepare('INSERT INTO users (id, email, phone_number, phone_verified, password) VALUES (?, ?, ?, 1, ?)');
-        await (insertUserStmt.run([userId, email, formattedPhone, '']) as Promise<any>); // Empty password since we use SMS auth
-        
-        console.log('✅ New user created:', {
-          userId,
-          email,
-          phoneNumber: formattedPhone
-        });
+      console.log('✅ User logged in via phone:', {
+        userId,
+        phoneNumber: formattedPhone
+      });
+    } else {
+      // Signup: create new user with phone number only
+      const { referralCode, acceptTerms, acceptPrivacy } = verifyCodeSchema.parse(req.body);
+      
+      // Validate terms acceptance for new signups
+      if (acceptTerms !== true || acceptPrivacy !== true) {
+        return res.status(400).json({ error: 'You must accept the Terms of Service and Privacy Policy' });
+      }
+      
+      // Check if phone number is already registered (shouldn't happen, but double-check)
+      const existingUserCheckStmt = db.prepare('SELECT id FROM users WHERE phone_number = ?');
+      const existingUserCheck = await (existingUserCheckStmt.get(formattedPhone) as Promise<{ id: string } | null>);
+      
+      if (existingUserCheck) {
+        return res.status(400).json({ error: 'Phone number already registered' });
+      }
+      
+      // Create new user with phone number only (no email, no password)
+      userId = uuidv4();
+      isNewUser = true;
+      const now = new Date().toISOString();
+      
+      // Create user with phone number only
+      const insertUserStmt = db.prepare(
+        'INSERT INTO users (id, phone_number, phone_verified, tos_accepted_at, privacy_accepted_at, password) VALUES (?, ?, 1, ?, ?, ?)'
+      );
+      await (insertUserStmt.run([userId, formattedPhone, now, now, '']) as Promise<any>); // Empty password since we use SMS auth
+      
+      console.log('✅ New user created via phone:', {
+        userId,
+        phoneNumber: formattedPhone
+      });
 
       // Generate referral code for the new user
       const newUserReferralCode = await getOrCreateReferralCode(userId);
 
       // Handle referral if code provided
       let referrerId: string | null = null;
-      if (req.body.referralCode) {
-        referrerId = await getUserByReferralCode(req.body.referralCode);
+      if (referralCode && referralCode.trim()) {
+        referrerId = await getUserByReferralCode(referralCode.trim());
         
         if (referrerId && referrerId !== userId) {
           // Check if this user was already referred (prevent duplicate referrals)
@@ -241,7 +207,7 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
               `INSERT INTO referrals (id, referrer_id, referred_id, referral_code) 
                VALUES (?, ?, ?, ?)`
             );
-            await (insertReferralStmt.run([referralId, referrerId, userId, req.body.referralCode]) as Promise<any>);
+            await (insertReferralStmt.run([referralId, referrerId, userId, referralCode.trim()]) as Promise<any>);
 
             // Grant token to referrer
             await grantReferralToken(referrerId);
@@ -251,7 +217,6 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
             await (updateReferralStmt.run([referralId]) as Promise<any>);
           }
         }
-      }
       }
     }
 
@@ -267,13 +232,15 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
     const profile = await (profileStmt.get(userId) as Promise<{ id: string } | null>);
     const hasProfile = !!profile;
 
+    const referralCode = isNewUser ? await getOrCreateReferralCode(userId) : undefined;
+    
     res.json({
       message: isNewUser ? 'Account created successfully' : 'Login successful',
       token,
       userId,
       hasProfile,
       isNewUser,
-      referralCode: isNewUser ? await getOrCreateReferralCode(userId) : undefined
+      referralCode
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
