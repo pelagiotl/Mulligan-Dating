@@ -65,6 +65,10 @@ export async function sendVerificationCodeSNS(phoneNumber: string, code: string)
           DataType: 'String',
           StringValue: 'Transactional', // Use Transactional for verification codes
         },
+        'AWS.SNS.SMS.MaxPrice': {
+          DataType: 'String',
+          StringValue: '0.50', // Maximum price per SMS in USD
+        },
       },
     });
 
@@ -87,9 +91,12 @@ export async function sendVerificationCodeSNS(phoneNumber: string, code: string)
       console.error('⚠️  Phone number has opted out of SMS. User needs to opt back in.');
     } else if (error.name === 'Throttling' || error.code === 'Throttling') {
       console.error('⚠️  Rate limit exceeded. Please wait a moment and try again.');
-    } else if (error.message?.includes('sandbox')) {
+    } else if (error.message?.includes('sandbox') || error.name === 'OptedOut') {
       console.error('⚠️  AWS SNS is in sandbox mode. You need to verify recipient phone numbers.');
-      console.error('   Go to: https://console.aws.amazon.com/sns/v3/home#/mobile/text-messaging');
+      console.error('   The phone number will be automatically verified on first send attempt.');
+      console.error('   Or verify manually at: https://console.aws.amazon.com/sns/v3/home#/mobile/text-messaging');
+    } else if (error.name === 'InvalidParameter' && error.message?.includes('phone')) {
+      console.error('⚠️  Phone number needs verification. AWS SNS will attempt to verify it automatically.');
     }
 
     return false;
