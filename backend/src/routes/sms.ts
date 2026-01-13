@@ -112,7 +112,7 @@ smsRouter.post('/send-code', rateLimitAuth, async (req, res) => {
  */
 smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
   try {
-    const { phoneNumber, code, email } = verifyCodeSchema.parse(req.body);
+    const { phoneNumber, code, referralCode, acceptTerms, acceptPrivacy } = verifyCodeSchema.parse(req.body);
     
     // Format phone number
     const formattedPhone = formatPhoneNumber(phoneNumber);
