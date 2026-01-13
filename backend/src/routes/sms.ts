@@ -84,7 +84,6 @@ smsRouter.post('/send-code', rateLimitAuth, async (req, res) => {
     });
 
     // Send SMS (use AWS SNS if configured, otherwise Twilio)
-    const useSNS = isSNSConfigured();
     const sent = useSNS
       ? await sendVerificationCodeSNS(formattedPhone, code)
       : await sendVerificationCode(formattedPhone, code);
