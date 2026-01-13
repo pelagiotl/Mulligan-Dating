@@ -142,10 +142,17 @@ export async function verifyCodeViaVerify(phoneNumber: string, code: string): Pr
   }
 
   try {
+    console.log(`🔍 Verifying code via Twilio Verify for ${phoneNumber}...`);
     const verificationCheck = await twilioClient.verify.v2
       .services(verifyServiceSid)
       .verificationChecks
       .create({ to: phoneNumber, code: code });
+
+    console.log(`📊 Verification check result:`, {
+      status: verificationCheck.status,
+      sid: verificationCheck.sid,
+      to: verificationCheck.to
+    });
 
     if (verificationCheck.status === 'approved') {
       console.log(`✅ Code verified successfully for ${phoneNumber}`);
@@ -156,6 +163,22 @@ export async function verifyCodeViaVerify(phoneNumber: string, code: string): Pr
     }
   } catch (error: any) {
     console.error('❌ Failed to verify code via Twilio Verify:', error.message);
+    console.error('❌ Error details:', {
+      code: error.code,
+      status: error.status,
+      message: error.message,
+      moreInfo: error.moreInfo
+    });
+    
+    // Log helpful error messages
+    if (error.code === 60202) {
+      console.error('⚠️  Invalid verification code. Please check and try again.');
+    } else if (error.code === 60203) {
+      console.error('⚠️  Max attempts reached. Please request a new code.');
+    } else if (error.code === 20429) {
+      console.error('⚠️  Too many requests. Please wait a moment and try again.');
+    }
+    
     return false;
   }
 }

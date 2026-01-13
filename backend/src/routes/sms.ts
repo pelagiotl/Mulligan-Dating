@@ -198,7 +198,10 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
 
     // If using Twilio Verify, verify code via Verify API
     if (useVerify) {
+      console.log(`🔍 Verifying code for ${formattedPhone} using Twilio Verify...`);
       const isValidCode = await verifyCodeViaVerify(formattedPhone, code);
+      console.log(`📊 Verification result: ${isValidCode ? 'valid' : 'invalid'}`);
+      
       if (!isValidCode) {
         return res.status(400).json({ error: 'Invalid verification code' });
       }
