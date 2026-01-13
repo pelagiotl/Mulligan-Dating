@@ -24,9 +24,9 @@ export async function uploadToCloudinary(
     const uploadOptions: any = {
       folder,
       resource_type: 'image',
-      format: 'auto', // Auto-optimize format (WebP when supported)
+      // Don't set format on upload - Cloudinary will detect it automatically
+      // Use fetch_format: 'auto' for delivery transformations (applied when serving)
       quality: 'auto', // Auto-optimize quality
-      fetch_format: 'auto',
     };
 
     if (publicId) {
