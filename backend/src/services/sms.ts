@@ -87,6 +87,15 @@ export async function sendVerificationCodeViaVerify(phoneNumber: string): Promis
       .create({ to: phoneNumber, channel: 'sms' });
 
     console.log(`✅ Verification sent via Twilio Verify to ${phoneNumber}. SID: ${verification.sid}`);
+    console.log(`📊 Verification status: ${verification.status}`);
+    console.log(`📊 Verification channel: ${verification.channel}`);
+    
+    // Log helpful info for troubleshooting
+    if (verification.status === 'pending') {
+      console.log('ℹ️  Verification is pending. Check Twilio console for delivery status.');
+      console.log(`   View in console: https://console.twilio.com/us1/develop/verify/services/${verifyServiceSid}/verifications/${verification.sid}`);
+    }
+    
     return { success: true, sid: verification.sid };
   } catch (error: any) {
     console.error('❌ Failed to send verification via Twilio Verify:', error.message);
@@ -96,6 +105,20 @@ export async function sendVerificationCodeViaVerify(phoneNumber: string): Promis
       message: error.message,
       moreInfo: error.moreInfo
     });
+    
+    // Log helpful error messages
+    if (error.code === 60200) {
+      console.error('⚠️  Invalid phone number format. Make sure it\'s in E.164 format (e.g., +15551234567)');
+    } else if (error.code === 60203) {
+      console.error('⚠️  Max attempts reached. Please wait before requesting another code.');
+    } else if (error.code === 60212) {
+      console.error('⚠️  Too many attempts. Please wait before requesting another code.');
+    } else if (error.message?.includes('trial') || error.message?.includes('unverified')) {
+      console.error('⚠️  Twilio trial account restriction. Verify your phone number in Twilio Console:');
+      console.error(`   https://console.twilio.com/us1/develop/phone-numbers/manage/verified`);
+      console.error(`   Add this number: ${phoneNumber}`);
+    }
+    
     return { success: false };
   }
 }
