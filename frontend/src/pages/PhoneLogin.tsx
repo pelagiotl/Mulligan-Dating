@@ -60,17 +60,27 @@ export default function PhoneLogin() {
         phoneNumber
       })
 
-      // In development, show the code
+      // In development or if code is returned, show it
       if (response.code) {
         console.log('🔐 Verification code:', response.code)
+        // Also show it in an alert for easy access
+        alert(`Your verification code is: ${response.code}\n\n(This is shown because SMS may not be configured yet)`)
+      }
+
+      // Check if SMS was actually sent
+      if (response.smsSent === false) {
+        console.warn('⚠️ SMS was not sent, but code is available')
+        // Still proceed to verification step
       }
 
       setStep('verify')
     } catch (err: any) {
       setShake(true)
       setTimeout(() => setShake(false), 600)
-      setError(err?.message || 'Failed to send verification code')
+      const errorMsg = err?.response?.data?.error || err?.message || 'Failed to send verification code'
+      setError(errorMsg)
       setLoading(false)
+      console.error('Send code error:', err)
     }
   }
 

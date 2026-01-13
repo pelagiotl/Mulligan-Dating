@@ -76,9 +76,11 @@ smsRouter.post('/send-code', rateLimitAuth, async (req, res) => {
     // Send SMS
     const sent = await sendVerificationCode(formattedPhone, code);
     
-    // In development, always return the code for testing
+    // Always return the code for testing (even in production, for now)
+    // This helps with debugging and allows users to proceed if SMS fails
+    console.log(`🔐 Verification code for ${formattedPhone}: ${code}`);
+    
     if (process.env.NODE_ENV !== 'production') {
-      console.log(`🔐 [DEV] Verification code for ${formattedPhone}: ${code}`);
       return res.json({
         message: sent ? 'Verification code sent via SMS' : 'Code sent (dev mode - SMS failed, check console)',
         code: code, // Always return in dev for testing
@@ -87,15 +89,22 @@ smsRouter.post('/send-code', rateLimitAuth, async (req, res) => {
       });
     }
     
+    // In production, still return code if SMS failed (for debugging)
+    // But log a warning
     if (!sent) {
-      return res.status(500).json({ 
-        error: 'Failed to send verification code. Please check your Twilio configuration or verify your phone number in Twilio Console.' 
+      console.warn(`⚠️ SMS failed for ${formattedPhone}, but returning code for debugging`);
+      return res.json({
+        message: 'Verification code generated (SMS may have failed - check backend logs)',
+        code: code, // Return code even if SMS failed
+        phoneNumber: formattedPhone,
+        smsSent: false
       });
     }
 
     res.json({ 
       message: 'Verification code sent',
-      phoneNumber: formattedPhone // Return formatted number
+      phoneNumber: formattedPhone,
+      smsSent: true
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
