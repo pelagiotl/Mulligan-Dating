@@ -9,7 +9,9 @@ import {
   ActivityIndicator,
   Alert,
   Dimensions,
+  Animated,
 } from 'react-native';
+import Svg, { G, Path, Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { useNavigation } from '@react-navigation/native';
 import { io, Socket } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -20,6 +22,121 @@ import TokenDisplay from '../components/TokenDisplay';
 import MatchCelebration from '../components/MatchCelebration';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// Animated Heart Logo Component
+function AnimatedLogo() {
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+  const heartScale = useRef(new Animated.Value(1)).current;
+  const sparkle1 = useRef(new Animated.Value(0.6)).current;
+  const sparkle2 = useRef(new Animated.Value(0.6)).current;
+  const sparkle3 = useRef(new Animated.Value(0.6)).current;
+  const sparkle4 = useRef(new Animated.Value(0.6)).current;
+
+  useEffect(() => {
+    // Continuous rotation (4s linear infinite)
+    Animated.loop(
+      Animated.timing(rotateAnim, {
+        toValue: 1,
+        duration: 4000,
+        useNativeDriver: true,
+      })
+    ).start();
+
+    // Heart beat (2s ease-in-out infinite)
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(heartScale, {
+          toValue: 1.1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(heartScale, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(heartScale, {
+          toValue: 1.1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(heartScale, {
+          toValue: 1,
+          duration: 1400,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Sparkle animations (2s ease-in-out infinite with delays)
+    const sparkleAnim = (anim: Animated.Value, delay: number) => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(anim, {
+            toValue: 1,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(anim, {
+            toValue: 0.6,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    };
+
+    sparkleAnim(sparkle1, 0);
+    sparkleAnim(sparkle2, 500);
+    sparkleAnim(sparkle3, 1000);
+    sparkleAnim(sparkle4, 1500);
+  }, []);
+
+  const rotate = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
+
+  return (
+    <View style={styles.logoWrapper}>
+      <Animated.View
+        style={[
+          styles.logoRotateGroup,
+          {
+            transform: [{ rotate }],
+          },
+        ]}
+      >
+        <Animated.View
+          style={{
+            transform: [{ scale: heartScale }],
+          }}
+        >
+          <Svg width={100} height={100} viewBox="0 0 48 48">
+            <Defs>
+              <LinearGradient id="heartGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <Stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
+                <Stop offset="50%" stopColor="#ffe4e6" stopOpacity="1" />
+                <Stop offset="100%" stopColor="#ffffff" stopOpacity="1" />
+              </LinearGradient>
+            </Defs>
+            <G>
+              <Path
+                d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z"
+                fill="url(#heartGradient)"
+              />
+              <AnimatedCircle cx="24" cy="8" r="1.5" fill="#fff" opacity={sparkle1} />
+              <AnimatedCircle cx="40" cy="24" r="1.5" fill="#fff" opacity={sparkle2} />
+              <AnimatedCircle cx="24" cy="40" r="1.5" fill="#fff" opacity={sparkle3} />
+              <AnimatedCircle cx="8" cy="24" r="1.5" fill="#fff" opacity={sparkle4} />
+            </G>
+          </Svg>
+        </Animated.View>
+      </Animated.View>
+    </View>
+  );
+}
 
 interface Photo {
   id: string;
@@ -362,8 +479,9 @@ export default function BrowseScreen() {
             
             {/* Main content */}
             <View style={styles.landingContent}>
-              <View style={styles.landingIconContainer}>
-                <Text style={styles.landingIcon}>💘</Text>
+              <View style={styles.landingLogoContainer}>
+                <AnimatedLogo />
+                <Text style={styles.landingLogoText}>Mulligan</Text>
               </View>
               
               <Text style={styles.landingTitle}>Discover People</Text>
@@ -736,22 +854,30 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
   },
-  landingIconContainer: {
+  landingLogoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+    gap: 12,
+  },
+  logoWrapper: {
     width: 100,
     height: 100,
-    borderRadius: 50,
-    backgroundColor: '#8B1538',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 24,
-    shadowColor: '#8B1538',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
   },
-  landingIcon: {
-    fontSize: 48,
+  logoRotateGroup: {
+    width: 100,
+    height: 100,
+  },
+  landingLogoText: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#8B1538',
+    textShadowColor: 'rgba(139, 21, 56, 0.2)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   landingTitle: {
     fontSize: 32,
