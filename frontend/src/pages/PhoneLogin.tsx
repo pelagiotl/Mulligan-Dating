@@ -11,6 +11,7 @@ export default function PhoneLogin() {
   const [referralCode, setReferralCode] = useState('')
   const [shake, setShake] = useState(false)
   const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
 
   // Check for referral code in URL
   useEffect(() => {
