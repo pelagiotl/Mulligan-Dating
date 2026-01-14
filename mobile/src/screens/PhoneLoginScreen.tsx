@@ -75,11 +75,18 @@ export default function PhoneLoginScreen() {
   };
 
   const handleVerifySubmit = async () => {
+    // Validate code length before submitting
+    const cleanCode = code.replace(/\D/g, '');
+    if (cleanCode.length !== 6) {
+      setError('Code must be 6 digits');
+      return;
+    }
+
     setError('');
     setLoading(true);
 
     try {
-      const { hasProfile } = await phoneLogin(phoneNumber, code, referralCode || undefined);
+      const { hasProfile } = await phoneLogin(phoneNumber, cleanCode, referralCode || undefined);
       
       // Navigate based on profile status
       if (hasProfile) {
@@ -201,9 +208,15 @@ export default function PhoneLoginScreen() {
                 onChangeText={(text) => {
                   const digits = text.replace(/\D/g, '').slice(0, 6);
                   setCode(digits);
-                  // Auto-submit when 6 digits are entered
+                  // Auto-submit when 6 digits are entered (with a small delay to ensure state is updated)
                   if (digits.length === 6 && !loading) {
-                    setTimeout(() => handleVerifySubmit(), 100);
+                    // Use a longer timeout to ensure state is fully updated
+                    setTimeout(() => {
+                      // Double-check the code is still 6 digits before submitting
+                      if (digits.length === 6) {
+                        handleVerifySubmit();
+                      }
+                    }, 200);
                   }
                 }}
                 keyboardType="number-pad"
