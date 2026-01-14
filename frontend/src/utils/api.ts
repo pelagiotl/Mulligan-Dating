@@ -1,5 +1,6 @@
-// Use API URL from environment variable (for production) or ngrok (for testing), otherwise use proxy
-const API_URL: string = (import.meta.env as any).VITE_API_URL || (import.meta.env as any).VITE_NGROK_URL || '';
+// Use API URL from environment variable (for production) or ngrok (for testing), otherwise use Render backend
+// Default to Render backend for local development if no env var is set
+const API_URL: string = (import.meta.env as any).VITE_API_URL || (import.meta.env as any).VITE_NGROK_URL || 'https://mulligan-backend.onrender.com';
 const BASE_URL = API_URL ? `${API_URL}/api` : '/api'
 
 class ApiError extends Error {

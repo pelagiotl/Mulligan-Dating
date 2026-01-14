@@ -70,16 +70,34 @@ export default function BrowseScreen() {
         offset: number;
         total: number;
       }>(`/users/browse?offset=0`);
+      // If we get data (even if null profile), browsing is unlocked
       setBrowseUnlocked(true);
       return true;
     } catch (err: any) {
-      if (err?.status === 403) {
+      const status = err?.status || err?.response?.status;
+      const errorMessage = err?.message || err?.error || '';
+      
+      // 403 status means browsing is locked
+      if (status === 403) {
+        console.log('🔒 Browsing is locked - need to unlock with token');
         setBrowseUnlocked(false);
         return false;
       }
-      // Other errors - assume unlocked for now
-      setBrowseUnlocked(true);
-      return true;
+      
+      // Check error message for lock-related text
+      if (errorMessage.toLowerCase().includes('browsing is locked') || 
+          errorMessage.toLowerCase().includes('locked') ||
+          errorMessage.toLowerCase().includes('use a token to unlock')) {
+        console.log('🔒 Browsing is locked (from error message)');
+        setBrowseUnlocked(false);
+        return false;
+      }
+      
+      // For other errors (network, etc), don't assume unlocked - show error
+      console.error('❌ Browse check error:', err);
+      setBrowseUnlocked(false); // Default to locked to be safe
+      setError('Failed to check browse status. Please try again.');
+      return false;
     }
   };
 
@@ -246,9 +264,17 @@ export default function BrowseScreen() {
         stage: string;
       }>('/matches/connect', { targetUserId: profile.userId });
 
-      setConnecting(false);
+      // Success! Automatically show match celebration
+      console.log('✅ Match created successfully:', result);
+      
+      // Clear the current profile immediately so it doesn't show behind the celebration
+      setCurrentProfile(null);
+      
+      // Show celebration modal - this will automatically appear
       setMatchedProfile(profile);
       setShowMatchCelebration(true);
+      
+      setConnecting(false);
     } catch (err: any) {
       let errorMessage = 'Failed to connect. Please try again.';
 
@@ -279,6 +305,7 @@ export default function BrowseScreen() {
   const handleCelebrationClose = () => {
     setShowMatchCelebration(false);
     setMatchedProfile(null);
+    // Move to next profile after celebration
     setOffset((prev) => prev + 1);
   };
 
@@ -468,7 +495,7 @@ export default function BrowseScreen() {
             )}
           </View>
 
-          {/* Connect Button */}
+          {/* Connect Button - Automatically creates match */}
           <TouchableOpacity
             style={[styles.connectButton, connecting && styles.connectButtonDisabled]}
             onPress={() => handleConnect(currentProfile)}
@@ -477,7 +504,7 @@ export default function BrowseScreen() {
             {connecting ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.connectButtonText}>Connect (Use Token) 🎟️</Text>
+              <Text style={styles.connectButtonText}>Connect & Match 🎟️</Text>
             )}
           </TouchableOpacity>
         </View>
