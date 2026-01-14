@@ -25,20 +25,22 @@ async function initCronScheduler() {
   try {
     const cron = (await import("node-cron")).default;
     
+    // DISABLED: Weekly match generation - matches are now only created when users use tokens to connect
     // Schedule weekly match generation (runs every Monday at 9 AM)
     // Cron format: minute hour day-of-month month day-of-week
-    cron.schedule("0 9 * * 1", async () => {
-      console.log("🔄 Running weekly match generation for all users...");
-      try {
-        const result = await generateWeeklyMatchesForAll();
-        console.log(
-          `✅ Weekly matches generated: ${result.totalMatches} matches for ${result.totalUsers} users`
-        );
-      } catch (error) {
-        console.error("❌ Error generating weekly matches:", error);
-      }
-    });
-    console.log("✅ Weekly match generation scheduled");
+    // cron.schedule("0 9 * * 1", async () => {
+    //   console.log("🔄 Running weekly match generation for all users...");
+    //   try {
+    //     const result = await generateWeeklyMatchesForAll();
+    //     console.log(
+    //       `✅ Weekly matches generated: ${result.totalMatches} matches for ${result.totalUsers} users`
+    //     );
+    //   } catch (error) {
+    //     console.error("❌ Error generating weekly matches:", error);
+    //   }
+    // });
+    // console.log("✅ Weekly match generation scheduled");
+    console.log("ℹ️  Weekly match generation is disabled. Matches are only created when users use tokens to connect.");
   } catch (error) {
     console.warn("⚠️  node-cron not installed. Weekly match generation will be disabled.");
     console.warn("   To enable: cd backend && npm install");
