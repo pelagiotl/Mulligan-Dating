@@ -158,7 +158,7 @@ export async function initDatabase() {
   await execSQL(`
     CREATE TABLE IF NOT EXISTS users (
       id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} PRIMARY KEY,
-      email ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} UNIQUE NOT NULL,
+      email ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} UNIQUE,
       password ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
       is_premium ${usePostgres ? 'INT' : 'INTEGER'} DEFAULT 0,
       referral_code ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} UNIQUE,
@@ -167,6 +167,16 @@ export async function initDatabase() {
       created_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  
+  // Migration: Make email nullable (for phone-only authentication)
+  try {
+    await execSQL(`ALTER TABLE users ALTER COLUMN email DROP NOT NULL`);
+  } catch (e: any) {
+    // Column might already be nullable, or error for other reason - ignore
+    if (!e.message?.includes('does not exist') && !e.message?.includes('column') && !e.message?.includes('constraint')) {
+      console.warn('⚠️  Could not make email nullable (might already be nullable):', e.message);
+    }
+  }
   
   // Add columns if they don't exist (migration)
   try {

@@ -237,9 +237,10 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
         const now = new Date().toISOString();
         
         const insertUserStmt = db.prepare(
-          'INSERT INTO users (id, phone_number, phone_verified, tos_accepted_at, privacy_accepted_at, password) VALUES (?, ?, 1, ?, ?, ?)'
+          'INSERT INTO users (id, email, phone_number, phone_verified, tos_accepted_at, privacy_accepted_at, password) VALUES (?, ?, ?, 1, ?, ?, ?)'
         );
-        await (insertUserStmt.run([userId, formattedPhone, now, now, '']) as Promise<any>);
+        // Use null for email since this is phone-only authentication
+        await (insertUserStmt.run([userId, null, formattedPhone, now, now, '']) as Promise<any>);
         
         console.log('✅ New user created via phone (Verify):', {
           userId,
@@ -355,9 +356,10 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
       
       // Create user with phone number only
       const insertUserStmt = db.prepare(
-        'INSERT INTO users (id, phone_number, phone_verified, tos_accepted_at, privacy_accepted_at, password) VALUES (?, ?, 1, ?, ?, ?)'
+        'INSERT INTO users (id, email, phone_number, phone_verified, tos_accepted_at, privacy_accepted_at, password) VALUES (?, ?, ?, 1, ?, ?, ?)'
       );
-      await (insertUserStmt.run([userId, formattedPhone, now, now, '']) as Promise<any>); // Empty password since we use SMS auth
+      // Use null for email since this is phone-only authentication
+      await (insertUserStmt.run([userId, null, formattedPhone, now, now, '']) as Promise<any>); // Empty password since we use SMS auth
       
       console.log('✅ New user created via phone:', {
         userId,
