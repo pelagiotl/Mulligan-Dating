@@ -41,8 +41,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const token = localStorage.getItem('token')
     if (token) {
-      fetchUser().catch(() => {
-        // Silently fail on initial load - user will need to login
+      fetchUser().catch((error) => {
+        // If token is invalid, clear it and show login page
+        console.log('Token invalid or expired, clearing:', error)
+        localStorage.removeItem('token')
+        setUser(null)
+        setProfile(null)
+        setLoading(false)
       })
     } else {
       setUser(null)
@@ -66,7 +71,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Verify token exists before making request
       const token = localStorage.getItem('token')
       if (!token) {
-        throw new Error('No authentication token found')
+        setUser(null)
+        setProfile(null)
+        setLoading(false)
+        return
       }
       
       const data: any = await api.get('/auth/me')
