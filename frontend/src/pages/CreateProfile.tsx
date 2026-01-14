@@ -41,6 +41,7 @@ export default function CreateProfile() {
   const [location, setLocation] = useState('')
   const [bio, setBio] = useState('')
   const [lookingFor, setLookingFor] = useState('')
+  const [detectingLocation, setDetectingLocation] = useState(false)
 
   // Step 2: Interests
   const [interests, setInterests] = useState<string[]>([])
@@ -435,15 +436,41 @@ export default function CreateProfile() {
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="location" className="form-label">Location</label>
+                  <label htmlFor="location" className="form-label">
+                    Location
+                    {detectingLocation && (
+                      <span style={{ marginLeft: '0.5rem', fontSize: '0.9rem', color: '#666', fontStyle: 'italic' }}>
+                        (Detecting your location...)
+                      </span>
+                    )}
+                  </label>
                   <input
                     type="text"
                     id="location"
                     className="form-input"
                     value={location}
                     onChange={(e) => setLocation(e.target.value)}
-                    placeholder="City, State"
+                    placeholder={detectingLocation ? "Detecting your location..." : "City, State"}
+                    disabled={detectingLocation}
                   />
+                  {!detectingLocation && !location && (
+                    <button
+                      type="button"
+                      onClick={detectLocation}
+                      style={{
+                        marginTop: '0.5rem',
+                        padding: '0.5rem 1rem',
+                        fontSize: '0.9rem',
+                        background: 'transparent',
+                        border: '1px solid #ccc',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        color: '#666'
+                      }}
+                    >
+                      📍 Use My Location
+                    </button>
+                  )}
                 </div>
               </div>
 
