@@ -232,8 +232,18 @@ export default function BrowseScreen() {
       await fetchProfile();
     } catch (err: any) {
       const errorMessage = err?.message || 'Failed to unlock browsing. Please try again.';
-      setError(errorMessage);
-      setTimeout(() => setError(''), 8000);
+      const errorLower = errorMessage.toLowerCase();
+      
+      // If already unlocked, just fetch profiles instead of showing error
+      if (errorLower.includes('already unlocked') || errorLower.includes('browsing is already unlocked')) {
+        console.log('✅ Browsing already unlocked, fetching profiles...');
+        setBrowseUnlocked(true);
+        setLoading(true);
+        await fetchProfile();
+      } else {
+        setError(errorMessage);
+        setTimeout(() => setError(''), 8000);
+      }
     } finally {
       setUnlocking(false);
     }
