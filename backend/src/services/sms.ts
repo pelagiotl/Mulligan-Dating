@@ -143,6 +143,9 @@ export async function verifyCodeViaVerify(phoneNumber: string, code: string): Pr
 
   try {
     console.log(`🔍 Verifying code via Twilio Verify for ${phoneNumber}...`);
+    console.log(`   Code provided: ${code}`);
+    console.log(`   Service SID: ${verifyServiceSid}`);
+    
     const verificationCheck = await twilioClient.verify.v2
       .services(verifyServiceSid)
       .verificationChecks
@@ -150,6 +153,7 @@ export async function verifyCodeViaVerify(phoneNumber: string, code: string): Pr
 
     console.log(`📊 Verification check result:`, {
       status: verificationCheck.status,
+      valid: verificationCheck.status === 'approved',
       sid: verificationCheck.sid,
       to: verificationCheck.to
     });
