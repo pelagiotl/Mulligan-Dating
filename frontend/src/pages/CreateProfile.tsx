@@ -249,12 +249,8 @@ export default function CreateProfile() {
     loadProfile()
   }, [])
 
-  // Auto-detect location when step 1 is shown and location is empty
-  useEffect(() => {
-    if (step === 1 && !location && !detectingLocation) {
-      detectLocation()
-    }
-  }, [step, location, detectingLocation])
+  // Don't auto-trigger - let user click the button instead
+  // This gives them control and explains why we need location
 
   /**
    * Detect user's location using browser geolocation and reverse geocode to city/state
@@ -522,32 +518,53 @@ export default function CreateProfile() {
                       </span>
                     )}
                   </label>
-                  <input
-                    type="text"
-                    id="location"
-                    className="form-input"
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                    placeholder={detectingLocation ? "Detecting your location..." : "City, State"}
-                    disabled={detectingLocation}
-                  />
-                  {!detectingLocation && !location && (
-                    <button
-                      type="button"
-                      onClick={detectLocation}
-                      style={{
-                        marginTop: '0.5rem',
-                        padding: '0.5rem 1rem',
-                        fontSize: '0.9rem',
-                        background: 'transparent',
-                        border: '1px solid #ccc',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        color: '#666'
-                      }}
-                    >
-                      📍 Use My Location
-                    </button>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+                    <input
+                      type="text"
+                      id="location"
+                      className="form-input"
+                      value={location}
+                      onChange={(e) => setLocation(e.target.value)}
+                      placeholder={detectingLocation ? "Detecting your location..." : "City, State"}
+                      disabled={detectingLocation}
+                      style={{ flex: 1 }}
+                    />
+                    {!detectingLocation && (
+                      <button
+                        type="button"
+                        onClick={detectLocation}
+                        style={{
+                          padding: '0.75rem 1.25rem',
+                          fontSize: '0.9rem',
+                          background: '#f43f5e',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          fontWeight: '500',
+                          whiteSpace: 'nowrap',
+                          transition: 'all 0.2s',
+                          boxShadow: '0 2px 4px rgba(244, 63, 94, 0.2)'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = '#e11d48'
+                          e.currentTarget.style.transform = 'translateY(-1px)'
+                          e.currentTarget.style.boxShadow = '0 4px 8px rgba(244, 63, 94, 0.3)'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = '#f43f5e'
+                          e.currentTarget.style.transform = 'translateY(0)'
+                          e.currentTarget.style.boxShadow = '0 2px 4px rgba(244, 63, 94, 0.2)'
+                        }}
+                      >
+                        📍 Use My Location
+                      </button>
+                    )}
+                  </div>
+                  {!location && !detectingLocation && (
+                    <p style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: '#666', fontStyle: 'italic' }}>
+                      We'll use your location to show you matches nearby. You can also type it manually.
+                    </p>
                   )}
                 </div>
               </div>
