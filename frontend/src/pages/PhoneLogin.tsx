@@ -1,6 +1,7 @@
 import { useState, FormEvent, useEffect } from 'react'
 import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { api } from '../utils/api'
+import { useAuth } from '../context/AuthContext'
 
 export default function PhoneLogin() {
   const [phoneNumber, setPhoneNumber] = useState('')
@@ -93,27 +94,11 @@ export default function PhoneLogin() {
     setLoading(true)
 
     try {
-      const response = await api.post<{ 
-        message: string
-        token: string
-        userId: string
-        hasProfile: boolean
-        isNewUser: boolean
-        referralCode?: string
-      }>('/sms/verify-code', {
-        phoneNumber,
-        code,
-        referralCode: referralCode || undefined,
-        acceptTerms: true, // User must accept to proceed
-        acceptPrivacy: true
-      })
-
-      // Store token
-      localStorage.setItem('token', response.token)
+      // Use phoneLogin from AuthContext which handles token storage and user fetching
+      const { hasProfile } = await phoneLogin(phoneNumber, code, referralCode || undefined)
       
-      // Use navigate instead of window.location.href for SPA routing
-      // The AuthContext will detect the token and fetch user data
-      navigate(response.hasProfile ? '/browse' : '/create-profile', { replace: true })
+      // Navigate after successful login
+      navigate(hasProfile ? '/browse' : '/create-profile', { replace: true })
     } catch (err: any) {
       setShake(true)
       setTimeout(() => setShake(false), 600)

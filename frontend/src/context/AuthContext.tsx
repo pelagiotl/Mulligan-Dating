@@ -25,6 +25,7 @@ interface AuthContextType {
   loading: boolean
   login: (email: string, password: string) => Promise<{ hasProfile: boolean }>
   signup: (email: string, password: string, referralCode?: string, acceptTerms?: boolean, acceptPrivacy?: boolean) => Promise<void>
+  phoneLogin: (phoneNumber: string, code: string, referralCode?: string) => Promise<{ hasProfile: boolean }>
   logout: () => void
   refreshProfile: () => Promise<void>
 }
@@ -209,6 +210,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser({ id: data.userId, email })
   }
 
+  const phoneLogin = async (phoneNumber: string, code: string, referralCode?: string): Promise<{ hasProfile: boolean }> => {
+    const data: any = await api.post('/sms/verify-code', {
+      phoneNumber,
+      code,
+      referralCode: referralCode || undefined,
+      acceptTerms: true,
+      acceptPrivacy: true
+    })
+    
+    // Store token
+    localStorage.setItem('token', data.token)
+    
+    // Fetch user data immediately
+    await fetchUser()
+    
+    return { hasProfile: data.hasProfile || false }
+  }
+
   const logout = () => {
     // Cancel any pending requests
     if (abortControllerRef.current) {
@@ -247,7 +266,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAdmin: user?.isAdmin || false,
       loading, 
       login, 
-      signup, 
+      signup,
+      phoneLogin,
       logout,
       refreshProfile 
     }}>
