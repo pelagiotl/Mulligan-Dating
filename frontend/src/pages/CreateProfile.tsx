@@ -253,10 +253,15 @@ export default function CreateProfile() {
   // This gives them control and explains why we need location
 
   /**
-   * Detect user's location using browser geolocation and reverse geocode to city/state
+   * Detect user's location using browser geolocation (web) or native location (React Native)
+   * For iOS native apps, this will use React Native's location API which shows native iOS permission dialog
    */
   const detectLocation = async () => {
-    if (!navigator.geolocation) {
+    // Check if we're in a React Native environment
+    const isReactNative = typeof (window as any).ReactNativeWebView !== 'undefined' || 
+                         typeof (navigator as any).product === 'ReactNative'
+    
+    if (!isReactNative && !navigator.geolocation) {
       console.log('Geolocation is not supported by this browser')
       return
     }
@@ -264,16 +269,29 @@ export default function CreateProfile() {
     setDetectingLocation(true)
     
     try {
-      // Get user's coordinates
-      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0
+      let latitude: number, longitude: number
+      
+      if (isReactNative) {
+        // For React Native, use native location API
+        // This will show native iOS permission dialog (in-app notification)
+        // Note: You'll need to install @react-native-community/geolocation or expo-location
+        // For now, this is a placeholder - will need to be implemented in React Native app
+        console.log('📍 React Native location detection - will use native iOS permission dialog')
+        throw new Error('React Native location not yet implemented - use native location library')
+      } else {
+        // Web: Use browser geolocation API
+        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0
+          })
         })
-      })
+        
+        latitude = position.coords.latitude
+        longitude = position.coords.longitude
+      }
 
-      const { latitude, longitude } = position.coords
       console.log('📍 Got coordinates:', { latitude, longitude })
 
       // Reverse geocode using Nominatim (free, no API key needed)
