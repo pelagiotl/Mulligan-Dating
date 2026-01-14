@@ -1,5 +1,5 @@
 import { useState, FormEvent, useEffect } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { api } from '../utils/api'
 
 export default function PhoneLogin() {
@@ -110,9 +110,9 @@ export default function PhoneLogin() {
       // Store token
       localStorage.setItem('token', response.token)
       
-      // Refresh the page to trigger AuthContext to fetch user data
-      // This is simpler than trying to manually call fetchUser
-      window.location.href = response.hasProfile ? '/browse' : '/create-profile'
+      // Use navigate instead of window.location.href for SPA routing
+      // The AuthContext will detect the token and fetch user data
+      navigate(response.hasProfile ? '/browse' : '/create-profile', { replace: true })
     } catch (err: any) {
       setShake(true)
       setTimeout(() => setShake(false), 600)
