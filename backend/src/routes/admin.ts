@@ -491,6 +491,65 @@ adminRouter.get("/matches/:matchId/messages", (req: AuthRequest, res) => {
   });
 });
 
+// Grant tokens to user by phone number (for testing - no auth required for now)
+adminRouter.post("/grant-tokens-by-phone", async (req, res) => {
+  try {
+    const { phoneNumber, tokenCount = 10 } = req.body;
+    
+    if (!phoneNumber) {
+      return res.status(400).json({ error: "Phone number is required" });
+    }
+    
+    // Normalize phone number
+    const normalizedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber.replace(/\D/g, '')}`;
+    
+    // Find user by phone number
+    const userStmt = db.prepare("SELECT id, phone_number FROM users WHERE phone_number = ?");
+    const user = await (userStmt.get(normalizedPhone) as Promise<{ id: string; phone_number: string } | undefined>);
+    
+    if (!user) {
+      return res.status(404).json({ error: `User not found with phone number: ${normalizedPhone}` });
+    }
+    
+    const grantedTokenIds: string[] = [];
+    const count = parseInt(tokenCount) || 10;
+    
+    // Grant tokens
+    for (let i = 0; i < count; i++) {
+      const tokenId = uuidv4();
+      const insertResult = db.prepare(
+        `INSERT INTO mulligan_tokens (id, user_id, source) VALUES (?, ?, 'admin')`
+      ).run([tokenId, user.id]);
+      
+      if (insertResult instanceof Promise) {
+        await insertResult;
+      }
+      
+      grantedTokenIds.push(tokenId);
+    }
+    
+    // Get current token count
+    const tokensResult = db.prepare(
+      `SELECT COUNT(*) as count FROM mulligan_tokens 
+       WHERE user_id = ? AND used_at IS NULL AND returned_at IS NULL`
+    ).get([user.id]);
+    
+    const tokenCountResult = (tokensResult instanceof Promise ? await tokensResult : tokensResult) as { count: number };
+    
+    res.json({
+      success: true,
+      message: `Granted ${count} token(s) to user with phone ${normalizedPhone}`,
+      userId: user.id,
+      tokensGranted: count,
+      totalAvailableTokens: tokenCountResult.count,
+      tokenIds: grantedTokenIds,
+    });
+  } catch (error) {
+    console.error('Grant tokens by phone error:', error);
+    res.status(500).json({ error: 'Failed to grant tokens', details: error instanceof Error ? error.message : String(error) });
+  }
+});
+
 // Get admin stats
 adminRouter.get("/stats", (req: AuthRequest, res) => {
   const totalUsers = db.prepare("SELECT COUNT(*) as count FROM users").get() as { count: number };
