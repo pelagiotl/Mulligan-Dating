@@ -90,12 +90,17 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
     // Check if browsing is unlocked
     const userResult = await (db.prepare('SELECT browse_unlocked_at FROM users WHERE id = ?').get([req.userId]) as Promise<{ browse_unlocked_at: string | null } | undefined>);
     
+    console.log('🔍 Browse check:', { userId: req.userId, browse_unlocked_at: userResult?.browse_unlocked_at });
+    
     if (!userResult?.browse_unlocked_at) {
+      console.log('🔒 Browsing is LOCKED for user:', req.userId);
       return res.status(403).json({ 
         error: 'Browsing is locked. Use a token to unlock browsing and see profiles.',
         requiresToken: true
       });
     }
+    
+    console.log('✅ Browsing is UNLOCKED for user:', req.userId);
 
     // Get one profile at a time (swipe-style interface)
     const limit = 1;

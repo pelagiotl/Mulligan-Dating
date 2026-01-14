@@ -133,6 +133,9 @@ export default function BrowseScreen() {
         total: number;
       }>(`/users/browse?offset=${offset}`);
 
+      // If we get here, browsing is unlocked
+      setBrowseUnlocked(true);
+
       if (data.profile) {
         // Fetch photos for this profile
         try {
@@ -159,10 +162,12 @@ export default function BrowseScreen() {
       const status = err?.status || err?.response?.status;
 
       // Check if browsing is locked (403 status)
-      if (status === 403 && errorLower.includes('browsing is locked')) {
+      if (status === 403) {
+        console.log('🔒 Browse endpoint returned 403 - browsing is locked');
         setBrowseUnlocked(false);
         setCurrentProfile(null);
         setError('');
+        setLoading(false);
         return;
       }
 
@@ -187,14 +192,8 @@ export default function BrowseScreen() {
 
   useEffect(() => {
     if (!hasFetched) {
-      // First check if browsing is unlocked
-      checkBrowseUnlocked().then((unlocked) => {
-        if (unlocked) {
-          fetchProfile();
-        } else {
-          setLoading(false);
-        }
-      });
+      // Try to fetch profile directly - fetchProfile will handle 403 errors
+      fetchProfile();
     }
   }, []);
 
