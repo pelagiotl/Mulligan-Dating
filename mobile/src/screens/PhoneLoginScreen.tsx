@@ -75,9 +75,14 @@ export default function PhoneLoginScreen() {
   };
 
   const handleVerifySubmit = async () => {
-    // Validate code length before submitting
+    // Use current code state
     const cleanCode = code.replace(/\D/g, '');
-    if (cleanCode.length !== 6) {
+    return handleVerifySubmitWithCode(cleanCode);
+  };
+
+  const handleVerifySubmitWithCode = async (codeToUse: string) => {
+    // Validate code length before submitting
+    if (codeToUse.length !== 6) {
       setError('Code must be 6 digits');
       return;
     }
@@ -86,7 +91,7 @@ export default function PhoneLoginScreen() {
     setLoading(true);
 
     try {
-      const { hasProfile } = await phoneLogin(phoneNumber, cleanCode, referralCode || undefined);
+      const { hasProfile } = await phoneLogin(phoneNumber, codeToUse, referralCode || undefined);
       
       // Navigate based on profile status
       if (hasProfile) {
@@ -208,15 +213,14 @@ export default function PhoneLoginScreen() {
                 onChangeText={(text) => {
                   const digits = text.replace(/\D/g, '').slice(0, 6);
                   setCode(digits);
-                  // Auto-submit when 6 digits are entered (with a small delay to ensure state is updated)
+                  // Auto-submit when 6 digits are entered
+                  // Use the digits value directly, not the state (which updates asynchronously)
                   if (digits.length === 6 && !loading) {
-                    // Use a longer timeout to ensure state is fully updated
+                    // Small delay to ensure UI updates
                     setTimeout(() => {
-                      // Double-check the code is still 6 digits before submitting
-                      if (digits.length === 6) {
-                        handleVerifySubmit();
-                      }
-                    }, 200);
+                      // Pass the digits directly to avoid state timing issues
+                      handleVerifySubmitWithCode(digits);
+                    }, 150);
                   }
                 }}
                 keyboardType="number-pad"
