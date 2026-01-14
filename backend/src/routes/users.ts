@@ -29,9 +29,74 @@ type ProfileWithMetadata = ProfileRow & {
   candidate_preferred_genders: string | null;
 };
 
+// Unlock browsing - uses a token to unlock the ability to see profiles
+usersRouter.post('/unlock-browse', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+
+    // Check if browsing is already unlocked
+    const userResult = await (db.prepare('SELECT browse_unlocked_at FROM users WHERE id = ?').get([userId]) as Promise<{ browse_unlocked_at: string | null } | undefined>);
+    
+    if (userResult?.browse_unlocked_at) {
+      return res.status(400).json({ error: 'Browsing is already unlocked. You can browse profiles now.' });
+    }
+
+    // Get available token
+    const tokenResult = db
+      .prepare(
+        `SELECT * FROM mulligan_tokens 
+         WHERE user_id = ? AND used_at IS NULL AND returned_at IS NULL
+         ORDER BY granted_at ASC LIMIT 1`
+      )
+      .get([userId]);
+    const token = (tokenResult instanceof Promise
+      ? await tokenResult
+      : tokenResult) as any;
+
+    if (!token) {
+      return res.status(400).json({ error: "No tokens available. Claim your weekly token!" });
+    }
+
+    // Use the token
+    const updateTokenResult = db.prepare(
+      `UPDATE mulligan_tokens SET used_at = CURRENT_TIMESTAMP WHERE id = ?`
+    ).run([token.id]);
+    if (updateTokenResult instanceof Promise) {
+      await updateTokenResult;
+    }
+
+    // Unlock browsing
+    const updateUserResult = db.prepare(
+      `UPDATE users SET browse_unlocked_at = CURRENT_TIMESTAMP WHERE id = ?`
+    ).run([userId]);
+    if (updateUserResult instanceof Promise) {
+      await updateUserResult;
+    }
+
+    res.json({ 
+      message: 'Browsing unlocked! You can now see profiles.',
+      tokenUsed: token.id
+    });
+  } catch (error) {
+    console.error('Unlock browse error:', error);
+    res.status(500).json({ error: 'Failed to unlock browsing' });
+  }
+});
+
 // Browse profiles (excluding current user) - Returns ONE profile at a time
+// REQUIRES: User must have unlocked browsing by using a token
 usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
   try {
+    // Check if browsing is unlocked
+    const userResult = await (db.prepare('SELECT browse_unlocked_at FROM users WHERE id = ?').get([req.userId]) as Promise<{ browse_unlocked_at: string | null } | undefined>);
+    
+    if (!userResult?.browse_unlocked_at) {
+      return res.status(403).json({ 
+        error: 'Browsing is locked. Use a token to unlock browsing and see profiles.',
+        requiresToken: true
+      });
+    }
+
     // Get one profile at a time (swipe-style interface)
     const limit = 1;
     const offset = parseInt(req.query.offset as string) || 0;

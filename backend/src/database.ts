@@ -184,6 +184,13 @@ export async function initDatabase() {
   } catch (e) {
     // Column already exists, ignore
   }
+  
+  // Add browse_unlocked_at column (tracks when user used a token to unlock browsing)
+  try {
+    await execSQL(`ALTER TABLE users ADD COLUMN browse_unlocked_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'}`);
+  } catch (e) {
+    // Column already exists, ignore
+  }
   try {
     await execSQL(`ALTER TABLE users ADD COLUMN referral_code ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} UNIQUE`);
   } catch (e) {
