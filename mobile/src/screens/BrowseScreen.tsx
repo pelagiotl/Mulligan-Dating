@@ -357,25 +357,57 @@ export default function BrowseScreen() {
         </View>
       ) : null}
 
-      {/* Browse Locked State */}
+      {/* Browse Locked State - Beautiful Landing Page */}
       {browseUnlocked === false && !needsProfile ? (
-        <View style={styles.lockedContainer}>
-          <Text style={styles.lockedEmoji}>🔒</Text>
-          <Text style={styles.lockedTitle}>Browsing is Locked</Text>
-          <Text style={styles.lockedText}>
-            Use a token to unlock browsing and start discovering people!
-          </Text>
-          <TouchableOpacity
-            style={[styles.unlockButton, unlocking && styles.unlockButtonDisabled]}
-            onPress={handleUnlockBrowse}
-            disabled={unlocking}
-          >
-            {unlocking ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.unlockButtonText}>Unlock Browsing (Use Token) 🎟️</Text>
-            )}
-          </TouchableOpacity>
+        <View style={styles.landingContainer}>
+          {/* Decorative gradient background */}
+          <View style={styles.landingGradient} />
+          
+          {/* Main content */}
+          <View style={styles.landingContent}>
+            <View style={styles.landingIconContainer}>
+              <Text style={styles.landingIcon}>💘</Text>
+            </View>
+            
+            <Text style={styles.landingTitle}>Discover People</Text>
+            <Text style={styles.landingSubtitle}>
+              Find someone who shares your interests and values
+            </Text>
+            
+            <View style={styles.landingFeatures}>
+              <View style={styles.featureItem}>
+                <Text style={styles.featureIcon}>✨</Text>
+                <Text style={styles.featureText}>Quality Matches</Text>
+              </View>
+              <View style={styles.featureItem}>
+                <Text style={styles.featureIcon}>🎯</Text>
+                <Text style={styles.featureText}>Shared Interests</Text>
+              </View>
+              <View style={styles.featureItem}>
+                <Text style={styles.featureIcon}>💝</Text>
+                <Text style={styles.featureText}>Meaningful Connections</Text>
+              </View>
+            </View>
+            
+            <TouchableOpacity
+              style={[styles.landingButton, unlocking && styles.landingButtonDisabled]}
+              onPress={handleUnlockBrowse}
+              disabled={unlocking}
+            >
+              {unlocking ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <>
+                  <Text style={styles.landingButtonText}>Connect (Use Token)</Text>
+                  <Text style={styles.landingButtonSubtext}>Start discovering amazing people</Text>
+                </>
+              )}
+            </TouchableOpacity>
+            
+            <Text style={styles.landingHint}>
+              Use a token to unlock browsing and see profiles
+            </Text>
+          </View>
         </View>
       ) : needsProfile ? (
         <View style={styles.noProfileContainer}>
@@ -651,6 +683,123 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
   },
+  // Landing page styles (when browsing is locked)
+  landingContainer: {
+    flex: 1,
+    position: 'relative',
+    marginTop: 20,
+    marginHorizontal: 20,
+    borderRadius: 24,
+    overflow: 'hidden',
+    minHeight: 500,
+  },
+  landingGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#8B1538',
+    opacity: 0.05,
+  },
+  landingContent: {
+    padding: 40,
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  landingIconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#8B1538',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+    shadowColor: '#8B1538',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  landingIcon: {
+    fontSize: 48,
+  },
+  landingTitle: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#8B1538',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  landingSubtitle: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 32,
+    lineHeight: 24,
+  },
+  landingFeatures: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+    marginBottom: 40,
+    paddingHorizontal: 20,
+  },
+  featureItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  featureIcon: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  featureText: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  landingButton: {
+    backgroundColor: '#8B1538',
+    paddingHorizontal: 48,
+    paddingVertical: 18,
+    borderRadius: 16,
+    width: '100%',
+    alignItems: 'center',
+    shadowColor: '#8B1538',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+    marginBottom: 12,
+  },
+  landingButtonDisabled: {
+    opacity: 0.6,
+  },
+  landingButtonText: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  landingButtonSubtext: {
+    color: '#fff',
+    fontSize: 14,
+    opacity: 0.9,
+  },
+  landingHint: {
+    fontSize: 13,
+    color: '#999',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  // Keep old styles for backward compatibility
   lockedContainer: {
     padding: 40,
     alignItems: 'center',
