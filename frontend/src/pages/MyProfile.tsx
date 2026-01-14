@@ -124,13 +124,24 @@ export default function MyProfile() {
     return <div className="loading-screen">Loading your profile...</div>
   }
 
-  if (error || !data) {
+  if (!loading && (!data || error)) {
     return (
-      <div className="no-profiles">
-        <div className="no-profiles-icon">😕</div>
-        <p>{error || 'Profile not found'}</p>
-        <Link to="/create-profile" className="btn btn-primary mt-4">
-          Create Profile
+      <div className="no-profiles" style={{ padding: '2rem', textAlign: 'center' }}>
+        <div className="no-profiles-icon" style={{ fontSize: '4rem', marginBottom: '1rem' }}>😕</div>
+        <p style={{ marginBottom: '1.5rem', fontSize: '1.2rem' }}>
+          {error || 'You haven\'t created your profile yet'}
+        </p>
+        <Link 
+          to="/create-profile" 
+          className="btn btn-primary mt-4"
+          style={{ 
+            display: 'inline-block', 
+            textDecoration: 'none',
+            padding: '0.75rem 2rem',
+            fontSize: '1.1rem'
+          }}
+        >
+          Create Your Profile
         </Link>
       </div>
     )
