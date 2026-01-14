@@ -126,10 +126,10 @@ function AnimatedLogo() {
                 d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z"
                 fill="url(#heartGradient)"
               />
-              <AnimatedCircle cx="24" cy="8" r="1.5" fill="#fff" opacity={sparkle1} />
-              <AnimatedCircle cx="40" cy="24" r="1.5" fill="#fff" opacity={sparkle2} />
-              <AnimatedCircle cx="24" cy="40" r="1.5" fill="#fff" opacity={sparkle3} />
-              <AnimatedCircle cx="8" cy="24" r="1.5" fill="#fff" opacity={sparkle4} />
+              <Circle cx="24" cy="8" r="1.5" fill="#fff" opacity={sparkle1} />
+              <Circle cx="40" cy="24" r="1.5" fill="#fff" opacity={sparkle2} />
+              <Circle cx="24" cy="40" r="1.5" fill="#fff" opacity={sparkle3} />
+              <Circle cx="8" cy="24" r="1.5" fill="#fff" opacity={sparkle4} />
             </G>
           </Svg>
         </Animated.View>
