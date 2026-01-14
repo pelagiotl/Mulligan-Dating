@@ -249,6 +249,84 @@ export default function CreateProfile() {
     loadProfile()
   }, [])
 
+  // Auto-detect location when step 1 is shown and location is empty
+  useEffect(() => {
+    if (step === 1 && !location && !detectingLocation) {
+      detectLocation()
+    }
+  }, [step, location, detectingLocation])
+
+  /**
+   * Detect user's location using browser geolocation and reverse geocode to city/state
+   */
+  const detectLocation = async () => {
+    if (!navigator.geolocation) {
+      console.log('Geolocation is not supported by this browser')
+      return
+    }
+
+    setDetectingLocation(true)
+    
+    try {
+      // Get user's coordinates
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        })
+      })
+
+      const { latitude, longitude } = position.coords
+      console.log('📍 Got coordinates:', { latitude, longitude })
+
+      // Reverse geocode using Nominatim (free, no API key needed)
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&addressdetails=1`,
+        {
+          headers: {
+            'User-Agent': 'Mulligan-Dating-App/1.0' // Required by Nominatim
+          }
+        }
+      )
+
+      if (!response.ok) {
+        throw new Error('Failed to reverse geocode location')
+      }
+
+      const data = await response.json()
+      console.log('📍 Reverse geocode result:', data)
+
+      // Extract city and state from address
+      const address = data.address || {}
+      const city = address.city || address.town || address.village || address.municipality || ''
+      const state = address.state || address.region || ''
+      const country = address.country || ''
+
+      // Format as "City, State" (US/Canada) or "City, Country" (international)
+      if (country === 'United States' || country === 'Canada') {
+        if (city && state) {
+          setLocation(`${city}, ${state}`)
+          console.log('✅ Auto-filled location:', `${city}, ${state}`)
+        } else if (city) {
+          setLocation(city)
+          console.log('✅ Auto-filled location:', city)
+        }
+      } else if (city && country) {
+        setLocation(`${city}, ${country}`)
+        console.log('✅ Auto-filled location:', `${city}, ${country}`)
+      } else if (city) {
+        setLocation(city)
+        console.log('✅ Auto-filled location:', city)
+      }
+    } catch (error: any) {
+      console.log('⚠️  Could not detect location:', error.message)
+      // Silently fail - user can still enter location manually
+    } finally {
+      setDetectingLocation(false)
+    }
+  }
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setLoading(true)
