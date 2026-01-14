@@ -57,7 +57,7 @@ export default function BrowseScreen() {
   const [hasFetched, setHasFetched] = useState(false);
   const [matchNotification, setMatchNotification] = useState<string | null>(null);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
-  const [browseUnlocked, setBrowseUnlocked] = useState<boolean | null>(null);
+  const [browseUnlocked, setBrowseUnlocked] = useState<boolean>(false); // Start as locked (false)
   const [unlocking, setUnlocking] = useState(false);
   const socketRef = useRef<Socket | null>(null);
 
@@ -110,7 +110,8 @@ export default function BrowseScreen() {
     try {
       await api.post('/users/unlock-browse', {});
       setBrowseUnlocked(true);
-      // Now fetch the first profile
+      // Now fetch the first profile after unlocking
+      setLoading(true);
       await fetchProfile();
     } catch (err: any) {
       const errorMessage = err?.message || 'Failed to unlock browsing. Please try again.';
@@ -191,9 +192,15 @@ export default function BrowseScreen() {
   }, [offset]);
 
   useEffect(() => {
+    // Don't automatically fetch profiles on mount
+    // Show landing page first, user must unlock with token
+    // Only check if browsing is unlocked if we haven't checked yet
     if (!hasFetched) {
-      // Try to fetch profile directly - fetchProfile will handle 403 errors
-      fetchProfile();
+      // Set as fetched so we don't show loading
+      setHasFetched(true);
+      setLoading(false);
+      // Browsing starts locked, so landing page will show
+      setBrowseUnlocked(false);
     }
   }, []);
 
@@ -328,8 +335,8 @@ export default function BrowseScreen() {
     );
   }
 
-  // Show landing page when browsing is locked (false or null initially)
-  const showLandingPage = (browseUnlocked === false || (browseUnlocked === null && hasFetched && !loading)) && !needsProfile;
+  // Show landing page when browsing is locked
+  const showLandingPage = browseUnlocked === false && !needsProfile;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
