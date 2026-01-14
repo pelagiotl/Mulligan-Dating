@@ -115,6 +115,44 @@ adminRouter.get("/check-admin", async (req, res) => {
 });
 
 // Grant tokens to user by phone number (for testing - no auth required)
+// Reset browse unlock for testing (public endpoint)
+adminRouter.post("/reset-browse-unlock-by-phone", async (req, res) => {
+  try {
+    const { phoneNumber } = req.body;
+    
+    if (!phoneNumber) {
+      return res.status(400).json({ error: "Phone number is required" });
+    }
+    
+    // Normalize phone number
+    const normalizedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber.replace(/\D/g, '')}`;
+    
+    // Find user by phone number
+    const userStmt = db.prepare("SELECT id, phone_number FROM users WHERE phone_number = ?");
+    const user = await (userStmt.get(normalizedPhone) as Promise<{ id: string; phone_number: string } | undefined>);
+    
+    if (!user) {
+      return res.status(404).json({ error: "User not found with that phone number" });
+    }
+    
+    // Reset browse_unlocked_at to NULL
+    const updateStmt = db.prepare("UPDATE users SET browse_unlocked_at = NULL WHERE id = ?");
+    await (updateStmt.run([user.id]) as Promise<any>);
+    
+    res.json({ 
+      success: true, 
+      message: `Browse unlock reset for ${normalizedPhone}. User must unlock with a token.`,
+      userId: user.id
+    });
+  } catch (error) {
+    console.error("Error resetting browse unlock:", error);
+    res.status(500).json({ 
+      error: "Failed to reset browse unlock", 
+      details: error instanceof Error ? error.message : String(error) 
+    });
+  }
+});
+
 adminRouter.post("/grant-tokens-by-phone", async (req, res) => {
   try {
     const { phoneNumber, tokenCount = 10 } = req.body;
