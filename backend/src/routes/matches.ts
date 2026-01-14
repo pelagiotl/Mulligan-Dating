@@ -724,20 +724,28 @@ matchesRouter.delete("/:matchId", authenticateToken, async (req: AuthRequest, re
   }
 });
 
-// Generate weekly matches for current user
+// DISABLED: Generate weekly matches for current user
+// Matches are now only created when users use tokens to connect
+// matchesRouter.post("/generate", authenticateToken, async (req: AuthRequest, res) => {
+//   const userId = req.userId!;
+//   
+//   try {
+//     const result = await generateWeeklyMatches(userId);
+//     res.json({
+//       message: `Generated ${result.matchesCreated} weekly match(es)`,
+//       matchesCreated: result.matchesCreated,
+//       matchIds: result.matches,
+//     });
+//   } catch (error) {
+//     console.error("Error generating matches:", error);
+//     res.status(500).json({ error: "Failed to generate matches" });
+//   }
+// });
+
+// Return error for manual match generation (disabled)
 matchesRouter.post("/generate", authenticateToken, async (req: AuthRequest, res) => {
-  const userId = req.userId!;
-  
-  try {
-    const result = await generateWeeklyMatches(userId);
-    res.json({
-      message: `Generated ${result.matchesCreated} weekly match(es)`,
-      matchesCreated: result.matchesCreated,
-      matchIds: result.matches,
-    });
-  } catch (error) {
-    console.error("Error generating matches:", error);
-    res.status(500).json({ error: "Failed to generate matches" });
-  }
+  res.status(403).json({ 
+    error: "Automatic match generation is disabled. Matches can only be created by using tokens to connect with profiles." 
+  });
 });
 
