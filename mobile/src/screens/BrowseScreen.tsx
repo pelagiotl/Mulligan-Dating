@@ -328,6 +328,9 @@ export default function BrowseScreen() {
     );
   }
 
+  // Show landing page when browsing is locked (false or null initially)
+  const showLandingPage = (browseUnlocked === false || (browseUnlocked === null && hasFetched && !loading)) && !needsProfile;
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
       {/* Match Notification */}
@@ -343,73 +346,82 @@ export default function BrowseScreen() {
         </TouchableOpacity>
       )}
 
-      {/* Header */}
-      <View style={styles.header}>
-        <TokenDisplay />
-        <Text style={styles.title}>Discover People</Text>
-        <Text style={styles.subtitle}>Find someone who shares your interests and values</Text>
-      </View>
-
-      {/* Error Message */}
-      {error ? (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>⚠️ {error}</Text>
-        </View>
-      ) : null}
-
       {/* Browse Locked State - Beautiful Landing Page */}
-      {browseUnlocked === false && !needsProfile ? (
-        <View style={styles.landingContainer}>
-          {/* Decorative gradient background */}
-          <View style={styles.landingGradient} />
-          
-          {/* Main content */}
-          <View style={styles.landingContent}>
-            <View style={styles.landingIconContainer}>
-              <Text style={styles.landingIcon}>💘</Text>
+      {showLandingPage ? (
+        <View style={styles.landingPageWrapper}>
+          <View style={styles.landingContainer}>
+            {/* Decorative gradient background */}
+            <View style={styles.landingGradient} />
+            
+            {/* Main content */}
+            <View style={styles.landingContent}>
+              <View style={styles.landingIconContainer}>
+                <Text style={styles.landingIcon}>💘</Text>
+              </View>
+              
+              <Text style={styles.landingTitle}>Discover People</Text>
+              <Text style={styles.landingSubtitle}>
+                Find someone who shares your interests and values
+              </Text>
+              
+              <View style={styles.landingFeatures}>
+                <View style={styles.featureItem}>
+                  <Text style={styles.featureIcon}>✨</Text>
+                  <Text style={styles.featureText}>Quality Matches</Text>
+                </View>
+                <View style={styles.featureItem}>
+                  <Text style={styles.featureIcon}>🎯</Text>
+                  <Text style={styles.featureText}>Shared Interests</Text>
+                </View>
+                <View style={styles.featureItem}>
+                  <Text style={styles.featureIcon}>💝</Text>
+                  <Text style={styles.featureText}>Meaningful Connections</Text>
+                </View>
+              </View>
+              
+              <TouchableOpacity
+                style={[styles.landingButton, unlocking && styles.landingButtonDisabled]}
+                onPress={handleUnlockBrowse}
+                disabled={unlocking}
+              >
+                {unlocking ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <>
+                    <Text style={styles.landingButtonText}>Connect (Use Token)</Text>
+                    <Text style={styles.landingButtonSubtext}>Start discovering amazing people</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+              
+              <Text style={styles.landingHint}>
+                Use a token to unlock browsing and see profiles
+              </Text>
             </View>
-            
-            <Text style={styles.landingTitle}>Discover People</Text>
-            <Text style={styles.landingSubtitle}>
-              Find someone who shares your interests and values
-            </Text>
-            
-            <View style={styles.landingFeatures}>
-              <View style={styles.featureItem}>
-                <Text style={styles.featureIcon}>✨</Text>
-                <Text style={styles.featureText}>Quality Matches</Text>
-              </View>
-              <View style={styles.featureItem}>
-                <Text style={styles.featureIcon}>🎯</Text>
-                <Text style={styles.featureText}>Shared Interests</Text>
-              </View>
-              <View style={styles.featureItem}>
-                <Text style={styles.featureIcon}>💝</Text>
-                <Text style={styles.featureText}>Meaningful Connections</Text>
-              </View>
-            </View>
-            
-            <TouchableOpacity
-              style={[styles.landingButton, unlocking && styles.landingButtonDisabled]}
-              onPress={handleUnlockBrowse}
-              disabled={unlocking}
-            >
-              {unlocking ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <>
-                  <Text style={styles.landingButtonText}>Connect (Use Token)</Text>
-                  <Text style={styles.landingButtonSubtext}>Start discovering amazing people</Text>
-                </>
-              )}
-            </TouchableOpacity>
-            
-            <Text style={styles.landingHint}>
-              Use a token to unlock browsing and see profiles
-            </Text>
           </View>
         </View>
-      ) : needsProfile ? (
+      ) : (
+        <>
+          {/* Header - only show when not on landing page */}
+          <View style={styles.header}>
+            <TokenDisplay />
+            <Text style={styles.title}>Discover People</Text>
+            <Text style={styles.subtitle}>Find someone who shares your interests and values</Text>
+          </View>
+
+          {/* Error Message */}
+          {error ? (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>⚠️ {error}</Text>
+            </View>
+          ) : null}
+        </>
+      )}
+
+      {/* Other states - only show when not on landing page */}
+      {!showLandingPage && (
+        <>
+          {needsProfile ? (
         <View style={styles.noProfileContainer}>
           <Text style={styles.noProfileEmoji}>🚀</Text>
           <Text style={styles.noProfileText}>
@@ -684,10 +696,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   // Landing page styles (when browsing is locked)
-  landingContainer: {
+  landingPageWrapper: {
     flex: 1,
+    paddingTop: 20,
+  },
+  landingContainer: {
     position: 'relative',
-    marginTop: 20,
     marginHorizontal: 20,
     borderRadius: 24,
     overflow: 'hidden',
