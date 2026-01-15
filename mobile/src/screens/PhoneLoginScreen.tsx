@@ -346,17 +346,17 @@ function AnimatedLogo() {
                   opacity={arrowBottomOpacityValue}
                 />
               </G>
-              {/* Sparkles with staggered animations and up/down movement */}
-              <G transform={`translate(0, ${sparkle1TranslateYValue})`}>
+              {/* Sparkles with dynamic animations - scale, opacity, and multi-directional movement */}
+              <G transform={`translate(${sparkle1TranslateXValue}, ${sparkle1TranslateYValue}) scale(${sparkle1ScaleValue})`}>
                 <Circle cx="24" cy="8" r="1.5" fill="#ffffff" opacity={sparkle1OpacityValue} />
               </G>
-              <G transform={`translate(0, ${sparkle2TranslateYValue})`}>
+              <G transform={`translate(${sparkle2TranslateXValue}, ${sparkle2TranslateYValue}) scale(${sparkle2ScaleValue})`}>
                 <Circle cx="40" cy="24" r="1.5" fill="#ffffff" opacity={sparkle2OpacityValue} />
               </G>
-              <G transform={`translate(0, ${sparkle3TranslateYValue})`}>
+              <G transform={`translate(${sparkle3TranslateXValue}, ${sparkle3TranslateYValue}) scale(${sparkle3ScaleValue})`}>
                 <Circle cx="24" cy="40" r="1.5" fill="#ffffff" opacity={sparkle3OpacityValue} />
               </G>
-              <G transform={`translate(0, ${sparkle4TranslateYValue})`}>
+              <G transform={`translate(${sparkle4TranslateXValue}, ${sparkle4TranslateYValue}) scale(${sparkle4ScaleValue})`}>
                 <Circle cx="8" cy="24" r="1.5" fill="#ffffff" opacity={sparkle4OpacityValue} />
               </G>
             </G>
