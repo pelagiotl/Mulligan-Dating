@@ -98,11 +98,11 @@ function AnimatedLogo() {
             </Defs>
             <G>
               {/* Subtle glow/fog circles around the heart - layered for depth */}
-              <Circle cx="24" cy="24" r="22" fill="#764ba2" opacity="0.15" />
-              <Circle cx="24" cy="24" r="20" fill="#f093fb" opacity="0.2" />
-              <Circle cx="24" cy="24" r="18" fill="#ffffff" opacity="0.25" />
-              <Circle cx="24" cy="24" r="17" fill="#f5576c" opacity="0.15" />
-              <Circle cx="24" cy="24" r="16" fill="#ffffff" opacity="0.3" />
+              <Circle cx="24" cy="24" r="22" fill="#ffffff" opacity="0.4" />
+              <Circle cx="24" cy="24" r="20" fill="#ffffff" opacity="0.35" />
+              <Circle cx="24" cy="24" r="18" fill="#ffffff" opacity="0.3" />
+              <Circle cx="24" cy="24" r="17" fill="#ffffff" opacity="0.25" />
+              <Circle cx="24" cy="24" r="16" fill="#ffffff" opacity="0.2" />
               
               {/* Heart */}
               <Path
