@@ -23,18 +23,15 @@ import { useNavigation } from '@react-navigation/native';
 import { api } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 
-// Animated Heart Logo Component (enhanced to match frontend)
+// Animated Heart Logo Component (enhanced with glow effects)
 function AnimatedLogo() {
   const rotateAnim = useRef(new Animated.Value(0)).current;
   const heartScale = useRef(new Animated.Value(1)).current;
-  const sparkle1 = useRef(new Animated.Value(0.6)).current;
-  const sparkle2 = useRef(new Animated.Value(0.6)).current;
-  const sparkle3 = useRef(new Animated.Value(0.6)).current;
-  const sparkle4 = useRef(new Animated.Value(0.6)).current;
-  const arrowTopScale = useRef(new Animated.Value(1)).current;
-  const arrowBottomScale = useRef(new Animated.Value(1)).current;
-  const arrowTopOpacity = useRef(new Animated.Value(0.9)).current;
-  const arrowBottomOpacity = useRef(new Animated.Value(0.9)).current;
+  const glow1 = useRef(new Animated.Value(0.3)).current;
+  const glow2 = useRef(new Animated.Value(0.2)).current;
+  const glow3 = useRef(new Animated.Value(0.25)).current;
+  const glow4 = useRef(new Animated.Value(0.2)).current;
+  const glow5 = useRef(new Animated.Value(0.3)).current;
 
   useEffect(() => {
     // Continuous rotation (3.5s linear infinite - slightly slower)
@@ -72,65 +69,30 @@ function AnimatedLogo() {
       ])
     ).start();
 
-    // Arrow pulse animations (2s ease-in-out infinite)
-    const arrowPulse = (scale: Animated.Value, opacity: Animated.Value, delay: number) => {
-      Animated.loop(
-        Animated.sequence([
-          Animated.delay(delay),
-          Animated.parallel([
-            Animated.timing(scale, {
-              toValue: 1.2,
-              duration: 1000,
-              useNativeDriver: true,
-            }),
-            Animated.timing(opacity, {
-              toValue: 1,
-              duration: 1000,
-              useNativeDriver: true,
-            }),
-          ]),
-          Animated.parallel([
-            Animated.timing(scale, {
-              toValue: 1,
-              duration: 1000,
-              useNativeDriver: true,
-            }),
-            Animated.timing(opacity, {
-              toValue: 0.9,
-              duration: 1000,
-              useNativeDriver: true,
-            }),
-          ]),
-        ])
-      ).start();
-    };
-
-    arrowPulse(arrowTopScale, arrowTopOpacity, 0);
-    arrowPulse(arrowBottomScale, arrowBottomOpacity, 1000);
-
-    // Sparkle animations (2s ease-in-out infinite with delays)
-    const sparkleAnim = (anim: Animated.Value, delay: number) => {
+    // Glow/fog animations - subtle pulsing effect
+    const glowAnim = (anim: Animated.Value, delay: number, min: number, max: number) => {
       Animated.loop(
         Animated.sequence([
           Animated.delay(delay),
           Animated.timing(anim, {
-            toValue: 1,
-            duration: 1000,
+            toValue: max,
+            duration: 2000 + Math.random() * 1000,
             useNativeDriver: true,
           }),
           Animated.timing(anim, {
-            toValue: 0.6,
-            duration: 1000,
+            toValue: min,
+            duration: 2000 + Math.random() * 1000,
             useNativeDriver: true,
           }),
         ])
       ).start();
     };
 
-    sparkleAnim(sparkle1, 0);
-    sparkleAnim(sparkle2, 500);
-    sparkleAnim(sparkle3, 1000);
-    sparkleAnim(sparkle4, 1500);
+    glowAnim(glow1, 0, 0.2, 0.4);
+    glowAnim(glow2, 400, 0.15, 0.35);
+    glowAnim(glow3, 800, 0.2, 0.4);
+    glowAnim(glow4, 1200, 0.15, 0.3);
+    glowAnim(glow5, 1600, 0.2, 0.35);
   }, []);
 
   const rotate = rotateAnim.interpolate({
