@@ -623,15 +623,15 @@ export default function BrowseScreen() {
               <View style={styles.landingFeatures}>
                 <View style={styles.featureItem}>
                   <Text style={styles.featureIcon}>✨</Text>
-                  <Text style={styles.featureText}>Quality Matches</Text>
+                  <Text style={styles.featureText} numberOfLines={2}>Quality Matches</Text>
                 </View>
                 <View style={styles.featureItem}>
                   <Text style={styles.featureIcon}>🎯</Text>
-                  <Text style={styles.featureText}>Shared Interests</Text>
+                  <Text style={styles.featureText} numberOfLines={2}>Shared Interests</Text>
                 </View>
                 <View style={styles.featureItem}>
                   <Text style={styles.featureIcon}>💝</Text>
-                  <Text style={styles.featureText}>Meaningful Connections</Text>
+                  <Text style={styles.featureText} numberOfLines={2} adjustsFontSizeToFit={false}>Meaningful{'\n'}Connections</Text>
                 </View>
               </View>
               
@@ -1082,22 +1082,20 @@ const styles = StyleSheet.create({
   featureItem: {
     alignItems: 'center',
     flex: 1,
-    paddingHorizontal: 8,
-    minWidth: 110,
-    maxWidth: 120,
+    paddingHorizontal: 6,
+    minWidth: 105,
   },
   featureIcon: {
     fontSize: 36,
     marginBottom: 12,
   },
   featureText: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#666',
     textAlign: 'center',
     fontWeight: '600',
-    lineHeight: 18,
+    lineHeight: 16,
     width: '100%',
-    flexShrink: 0,
   },
   landingButtonContainer: {
     width: '100%',
