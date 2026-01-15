@@ -27,11 +27,6 @@ import { useAuth } from '../context/AuthContext';
 function AnimatedLogo() {
   const rotateAnim = useRef(new Animated.Value(0)).current;
   const heartScale = useRef(new Animated.Value(1)).current;
-  const glow1 = useRef(new Animated.Value(0.3)).current;
-  const glow2 = useRef(new Animated.Value(0.2)).current;
-  const glow3 = useRef(new Animated.Value(0.25)).current;
-  const glow4 = useRef(new Animated.Value(0.2)).current;
-  const glow5 = useRef(new Animated.Value(0.3)).current;
 
   useEffect(() => {
     // Continuous rotation (3.5s linear infinite - slightly slower)
@@ -69,30 +64,6 @@ function AnimatedLogo() {
       ])
     ).start();
 
-    // Glow/fog animations - subtle pulsing effect
-    const glowAnim = (anim: Animated.Value, delay: number, min: number, max: number) => {
-      Animated.loop(
-        Animated.sequence([
-          Animated.delay(delay),
-          Animated.timing(anim, {
-            toValue: max,
-            duration: 2000 + Math.random() * 1000,
-            useNativeDriver: true,
-          }),
-          Animated.timing(anim, {
-            toValue: min,
-            duration: 2000 + Math.random() * 1000,
-            useNativeDriver: true,
-          }),
-        ])
-      ).start();
-    };
-
-    glowAnim(glow1, 0, 0.2, 0.4);
-    glowAnim(glow2, 400, 0.15, 0.35);
-    glowAnim(glow3, 800, 0.2, 0.4);
-    glowAnim(glow4, 1200, 0.15, 0.3);
-    glowAnim(glow5, 1600, 0.2, 0.35);
   }, []);
 
   const rotate = rotateAnim.interpolate({
