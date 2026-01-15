@@ -153,11 +153,13 @@ function AnimatedLogo() {
             transform: [{ scale: heartScale }],
           }}
         >
-          <Svg width={120} height={120} viewBox="0 0 48 48">
+          <Svg width={90} height={90} viewBox="0 0 48 48">
             <Defs>
               <SvgLinearGradient id="heartGradientLogin" x1="0%" y1="0%" x2="100%" y2="100%">
                 <Stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
-                <Stop offset="50%" stopColor="#ffe4e6" stopOpacity="1" />
+                <Stop offset="30%" stopColor="#ffffff" stopOpacity="1" />
+                <Stop offset="50%" stopColor="#ffd1d9" stopOpacity="1" />
+                <Stop offset="70%" stopColor="#ffffff" stopOpacity="1" />
                 <Stop offset="100%" stopColor="#ffffff" stopOpacity="1" />
               </SvgLinearGradient>
             </Defs>
@@ -506,18 +508,18 @@ const styles = StyleSheet.create({
     marginBottom: 30,
   },
   logoWrapper: {
-    width: 120,
-    height: 120,
+    width: 90,
+    height: 90,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
   },
   logoRotateGroup: {
-    width: 120,
-    height: 120,
+    width: 90,
+    height: 90,
   },
   title: {
-    fontSize: 36,
+    fontSize: 30,
     fontWeight: '700',
     color: '#ffffff',
     marginBottom: 12,
@@ -526,6 +528,7 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 10,
     letterSpacing: -0.5,
+    flexWrap: 'nowrap',
   },
   subtitle: {
     fontSize: 16,
