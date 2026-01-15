@@ -23,7 +23,7 @@ import { useNavigation } from '@react-navigation/native';
 import { api } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 
-// Animated Heart Logo Component (same as BrowseScreen)
+// Animated Heart Logo Component (enhanced to match frontend)
 function AnimatedLogo() {
   const rotateAnim = useRef(new Animated.Value(0)).current;
   const heartScale = useRef(new Animated.Value(1)).current;
@@ -31,6 +31,10 @@ function AnimatedLogo() {
   const sparkle2 = useRef(new Animated.Value(0.6)).current;
   const sparkle3 = useRef(new Animated.Value(0.6)).current;
   const sparkle4 = useRef(new Animated.Value(0.6)).current;
+  const arrowTopScale = useRef(new Animated.Value(1)).current;
+  const arrowBottomScale = useRef(new Animated.Value(1)).current;
+  const arrowTopOpacity = useRef(new Animated.Value(0.9)).current;
+  const arrowBottomOpacity = useRef(new Animated.Value(0.9)).current;
 
   useEffect(() => {
     // Continuous rotation (4s linear infinite)
@@ -67,6 +71,42 @@ function AnimatedLogo() {
         }),
       ])
     ).start();
+
+    // Arrow pulse animations (2s ease-in-out infinite)
+    const arrowPulse = (scale: Animated.Value, opacity: Animated.Value, delay: number) => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.parallel([
+            Animated.timing(scale, {
+              toValue: 1.2,
+              duration: 1000,
+              useNativeDriver: true,
+            }),
+            Animated.timing(opacity, {
+              toValue: 1,
+              duration: 1000,
+              useNativeDriver: true,
+            }),
+          ]),
+          Animated.parallel([
+            Animated.timing(scale, {
+              toValue: 1,
+              duration: 1000,
+              useNativeDriver: true,
+            }),
+            Animated.timing(opacity, {
+              toValue: 0.9,
+              duration: 1000,
+              useNativeDriver: true,
+            }),
+          ]),
+        ])
+      ).start();
+    };
+
+    arrowPulse(arrowTopScale, arrowTopOpacity, 0);
+    arrowPulse(arrowBottomScale, arrowBottomOpacity, 1000);
 
     // Sparkle animations (2s ease-in-out infinite with delays)
     const sparkleAnim = (anim: Animated.Value, delay: number) => {
@@ -113,7 +153,7 @@ function AnimatedLogo() {
             transform: [{ scale: heartScale }],
           }}
         >
-          <Svg width={100} height={100} viewBox="0 0 48 48">
+          <Svg width={120} height={120} viewBox="0 0 48 48">
             <Defs>
               <SvgLinearGradient id="heartGradientLogin" x1="0%" y1="0%" x2="100%" y2="100%">
                 <Stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
@@ -126,6 +166,43 @@ function AnimatedLogo() {
                 d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z"
                 fill="url(#heartGradientLogin)"
               />
+              {/* Top arrow with pulsing effect */}
+              <G opacity="0.9">
+                <Circle cx="36" cy="10" r="3" fill="#fff" />
+                <Path 
+                  d="M30 10L36 10" 
+                  stroke="#fff" 
+                  strokeWidth="3" 
+                  strokeLinecap="round" 
+                />
+                <Path 
+                  d="M33 7L36 10L33 13" 
+                  stroke="#fff" 
+                  strokeWidth="3" 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  fill="none" 
+                />
+              </G>
+              {/* Bottom arrow with pulsing effect */}
+              <G opacity="0.9">
+                <Circle cx="12" cy="38" r="3" fill="#fff" />
+                <Path 
+                  d="M18 38L12 38" 
+                  stroke="#fff" 
+                  strokeWidth="3" 
+                  strokeLinecap="round" 
+                />
+                <Path 
+                  d="M15 35L12 38L15 41" 
+                  stroke="#fff" 
+                  strokeWidth="3" 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  fill="none" 
+                />
+              </G>
+              {/* Sparkles */}
               <Circle cx="24" cy="8" r="1.5" fill="#fff" opacity={sparkle1} />
               <Circle cx="40" cy="24" r="1.5" fill="#fff" opacity={sparkle2} />
               <Circle cx="24" cy="40" r="1.5" fill="#fff" opacity={sparkle3} />
@@ -429,21 +506,26 @@ const styles = StyleSheet.create({
     marginBottom: 30,
   },
   logoWrapper: {
-    width: 100,
-    height: 100,
+    width: 120,
+    height: 120,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 10,
+    marginBottom: 20,
   },
   logoRotateGroup: {
-    width: 100,
-    height: 100,
+    width: 120,
+    height: 120,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#8B1538',
-    marginBottom: 8,
+    fontSize: 36,
+    fontWeight: '700',
+    color: '#ffffff',
+    marginBottom: 12,
+    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', // Serif font similar to Crimson Pro
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 10,
+    letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 16,
