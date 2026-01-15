@@ -190,6 +190,7 @@ export default function BrowseScreen() {
   const checkBrowseUnlocked = async () => {
     try {
       // Try to fetch a profile - if we get 403, browsing is locked
+      console.log('🔍 Checking browse status...');
       const data = await api.get<{
         profile: Profile | null;
         hasMore: boolean;
@@ -197,10 +198,17 @@ export default function BrowseScreen() {
         total: number;
       }>(`/users/browse?offset=0`);
       
+      console.log('📊 Browse API response:', { 
+        hasProfile: !!data.profile, 
+        profile: data.profile ? 'exists' : 'null',
+        hasMore: data.hasMore,
+        total: data.total
+      });
+      
       // Only unlock if we actually got a profile (not just empty data)
       // If profile is null, browsing is still locked
       if (data.profile !== null && data.profile !== undefined) {
-        console.log('✅ Browsing is unlocked - profile found');
+        console.log('✅ Browsing is unlocked - profile found:', data.profile.displayName);
         setBrowseUnlocked(true);
         return true;
       } else {
@@ -412,6 +420,14 @@ export default function BrowseScreen() {
 
   // Show landing page when browsing is locked
   const showLandingPage = browseUnlocked === false && !needsProfile;
+  
+  console.log('🎨 Landing page state:', { 
+    browseUnlocked, 
+    needsProfile, 
+    showLandingPage,
+    loading,
+    hasFetched
+  });
 
   // Button pulse animation (only when landing page is shown)
   // MUST be before any early returns
