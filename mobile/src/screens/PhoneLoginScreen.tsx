@@ -89,11 +89,11 @@ function AnimatedLogo() {
           <Svg width={90} height={90} viewBox="0 0 48 48">
             <Defs>
               <SvgLinearGradient id="heartGradientLogin" x1="0%" y1="0%" x2="100%" y2="100%">
-                <Stop offset="0%" stopColor="#667eea" stopOpacity="1" />
-                <Stop offset="25%" stopColor="#764ba2" stopOpacity="1" />
-                <Stop offset="50%" stopColor="#f093fb" stopOpacity="1" />
-                <Stop offset="75%" stopColor="#f5576c" stopOpacity="1" />
-                <Stop offset="100%" stopColor="#667eea" stopOpacity="1" />
+                <Stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
+                <Stop offset="30%" stopColor="#ffffff" stopOpacity="1" />
+                <Stop offset="50%" stopColor="#ffe4e6" stopOpacity="1" />
+                <Stop offset="70%" stopColor="#ffffff" stopOpacity="1" />
+                <Stop offset="100%" stopColor="#ffffff" stopOpacity="1" />
               </SvgLinearGradient>
             </Defs>
             <G>
