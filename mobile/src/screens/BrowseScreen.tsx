@@ -758,7 +758,7 @@ export default function BrowseScreen() {
               </Animated.View>
               
               <Text style={styles.landingHint}>
-                Use a token to unlock browsing and see profiles
+                Use a token to see your match 😊
               </Text>
             </View>
           </View>
