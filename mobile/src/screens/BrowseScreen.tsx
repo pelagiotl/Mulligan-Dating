@@ -196,9 +196,19 @@ export default function BrowseScreen() {
         offset: number;
         total: number;
       }>(`/users/browse?offset=0`);
-      // If we get data (even if null profile), browsing is unlocked
-      setBrowseUnlocked(true);
-      return true;
+      
+      // Only unlock if we actually got a profile (not just empty data)
+      // If profile is null, browsing is still locked
+      if (data.profile !== null && data.profile !== undefined) {
+        console.log('✅ Browsing is unlocked - profile found');
+        setBrowseUnlocked(true);
+        return true;
+      } else {
+        // No profile returned - browsing is locked
+        console.log('🔒 No profile returned - browsing is locked');
+        setBrowseUnlocked(false);
+        return false;
+      }
     } catch (err: any) {
       const status = err?.status || err?.response?.status;
       const errorMessage = err?.message || err?.error || '';
