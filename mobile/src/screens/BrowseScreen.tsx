@@ -11,7 +11,8 @@ import {
   Dimensions,
   Animated,
 } from 'react-native';
-import Svg, { G, Path, Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
+import { LinearGradient } from 'expo-linear-gradient';
+import Svg, { G, Path, Circle, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
 import { useNavigation } from '@react-navigation/native';
 import { io, Socket } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -115,11 +116,11 @@ function AnimatedLogo() {
         >
           <Svg width={100} height={100} viewBox="0 0 48 48">
             <Defs>
-              <LinearGradient id="heartGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <SvgLinearGradient id="heartGradient" x1="0%" y1="0%" x2="100%" y2="100%">
                 <Stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
                 <Stop offset="50%" stopColor="#ffe4e6" stopOpacity="1" />
                 <Stop offset="100%" stopColor="#ffffff" stopOpacity="1" />
-              </LinearGradient>
+              </SvgLinearGradient>
             </Defs>
             <G>
               <Path
@@ -534,8 +535,31 @@ export default function BrowseScreen() {
       {showLandingPage ? (
         <View style={styles.landingPageWrapper}>
           <View style={styles.landingContainer}>
-            {/* Decorative gradient background */}
-            <View style={styles.landingGradient} />
+            {/* Animated gradient background (matching web version) */}
+            <Animated.View
+              style={[
+                StyleSheet.absoluteFill,
+                {
+                  opacity: gradientPosition.interpolate({
+                    inputRange: [0, 0.5, 1],
+                    outputRange: [1, 0.8, 1],
+                  }),
+                },
+              ]}
+            >
+              <LinearGradient
+                colors={[
+                  '#667eea', // Purple
+                  '#764ba2', // Purple-pink
+                  '#f093fb', // Pink
+                  '#f5576c', // Coral
+                  '#4facfe', // Blue
+                ]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={StyleSheet.absoluteFill}
+              />
+            </Animated.View>
             
             {/* Main content */}
             <View style={styles.landingContent}>
@@ -935,15 +959,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     minHeight: 600,
   },
-  landingGradient: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: '#8B1538',
-    opacity: 0.08,
-  },
+  // landingGradient removed - now using animated LinearGradient component
   landingContent: {
     padding: 48,
     alignItems: 'center',
