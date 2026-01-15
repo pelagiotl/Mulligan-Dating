@@ -23,47 +23,140 @@ import { useNavigation } from '@react-navigation/native';
 import { api } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 
-// Animated Heart Logo Component (enhanced with glow effects)
+// Animated Heart Logo Component (matching frontend exactly)
 function AnimatedLogo() {
   const rotateAnim = useRef(new Animated.Value(0)).current;
   const heartScale = useRef(new Animated.Value(1)).current;
+  const arrowTopScale = useRef(new Animated.Value(1)).current;
+  const arrowTopOpacity = useRef(new Animated.Value(0.9)).current;
+  const arrowBottomScale = useRef(new Animated.Value(1)).current;
+  const arrowBottomOpacity = useRef(new Animated.Value(0.9)).current;
+  const sparkle1Opacity = useRef(new Animated.Value(0.6)).current;
+  const sparkle2Opacity = useRef(new Animated.Value(0.6)).current;
+  const sparkle3Opacity = useRef(new Animated.Value(0.6)).current;
+  const sparkle4Opacity = useRef(new Animated.Value(0.6)).current;
+  
+  // State for SVG opacity values (react-native-svg doesn't support Animated.Value directly)
+  const [sparkle1OpacityValue, setSparkle1OpacityValue] = useState(0.6);
+  const [sparkle2OpacityValue, setSparkle2OpacityValue] = useState(0.6);
+  const [sparkle3OpacityValue, setSparkle3OpacityValue] = useState(0.6);
+  const [sparkle4OpacityValue, setSparkle4OpacityValue] = useState(0.6);
+  const [arrowTopOpacityValue, setArrowTopOpacityValue] = useState(0.9);
+  const [arrowBottomOpacityValue, setArrowBottomOpacityValue] = useState(0.9);
 
   useEffect(() => {
-    // Continuous rotation (3.5s linear infinite - slightly slower)
+    // Continuous rotation (4s linear infinite - matching frontend)
     Animated.loop(
       Animated.timing(rotateAnim, {
         toValue: 1,
-        duration: 3500,
+        duration: 4000,
         useNativeDriver: true,
       })
     ).start();
 
-    // Heart beat (2s ease-in-out infinite)
+    // Heart beat (2s ease-in-out infinite - matching frontend keyframes)
+    // 0%, 100%: scale(1), 10%, 30%: scale(1.1)
     Animated.loop(
       Animated.sequence([
         Animated.timing(heartScale, {
           toValue: 1.1,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(heartScale, {
-          toValue: 1,
-          duration: 200,
+          duration: 200, // 10% of 2000ms
           useNativeDriver: true,
         }),
         Animated.timing(heartScale, {
           toValue: 1.1,
-          duration: 200,
+          duration: 400, // 20% of 2000ms (10% to 30%)
           useNativeDriver: true,
         }),
         Animated.timing(heartScale, {
           toValue: 1,
-          duration: 1400,
+          duration: 1400, // 70% of 2000ms (30% to 100%)
           useNativeDriver: true,
         }),
       ])
     ).start();
 
+    // Arrow pulse animations (2s ease-in-out infinite)
+    const arrowPulse = (scale: Animated.Value, opacity: Animated.Value) => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.parallel([
+            Animated.timing(scale, {
+              toValue: 1.1,
+              duration: 1000,
+              useNativeDriver: true,
+            }),
+            Animated.timing(opacity, {
+              toValue: 1,
+              duration: 1000,
+              useNativeDriver: true,
+            }),
+          ]),
+          Animated.parallel([
+            Animated.timing(scale, {
+              toValue: 1,
+              duration: 1000,
+              useNativeDriver: true,
+            }),
+            Animated.timing(opacity, {
+              toValue: 0.9,
+              duration: 1000,
+              useNativeDriver: true,
+            }),
+          ]),
+        ])
+      ).start();
+    };
+
+    arrowPulse(arrowTopScale, arrowTopOpacity);
+    arrowPulse(arrowBottomScale, arrowBottomOpacity);
+
+    // Sparkle animations (2s ease-in-out infinite with delays)
+    const sparkleAnim = (opacity: Animated.Value, setOpacity: (val: number) => void, delay: number) => {
+      const listener = opacity.addListener(({ value }) => {
+        setOpacity(value);
+      });
+      
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(opacity, {
+            toValue: 1,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(opacity, {
+            toValue: 0.6,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+      
+      return () => opacity.removeListener(listener);
+    };
+
+    const cleanup1 = sparkleAnim(sparkle1Opacity, setSparkle1OpacityValue, 0);
+    const cleanup2 = sparkleAnim(sparkle2Opacity, setSparkle2OpacityValue, 500);
+    const cleanup3 = sparkleAnim(sparkle3Opacity, setSparkle3OpacityValue, 1000);
+    const cleanup4 = sparkleAnim(sparkle4Opacity, setSparkle4OpacityValue, 1500);
+    
+    // Arrow opacity listeners
+    const arrowTopListener = arrowTopOpacity.addListener(({ value }) => {
+      setArrowTopOpacityValue(value);
+    });
+    const arrowBottomListener = arrowBottomOpacity.addListener(({ value }) => {
+      setArrowBottomOpacityValue(value);
+    });
+    
+    return () => {
+      cleanup1?.();
+      cleanup2?.();
+      cleanup3?.();
+      cleanup4?.();
+      arrowTopOpacity.removeListener(arrowTopListener);
+      arrowBottomOpacity.removeListener(arrowBottomListener);
+    };
   }, []);
 
   const rotate = rotateAnim.interpolate({
@@ -90,25 +183,61 @@ function AnimatedLogo() {
             <Defs>
               <SvgLinearGradient id="heartGradientLogin" x1="0%" y1="0%" x2="100%" y2="100%">
                 <Stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
-                <Stop offset="30%" stopColor="#ffffff" stopOpacity="1" />
                 <Stop offset="50%" stopColor="#ffe4e6" stopOpacity="1" />
-                <Stop offset="70%" stopColor="#ffffff" stopOpacity="1" />
                 <Stop offset="100%" stopColor="#ffffff" stopOpacity="1" />
               </SvgLinearGradient>
             </Defs>
             <G>
-              {/* Subtle glow/fog circles around the heart - layered for depth */}
-              <Circle cx="24" cy="24" r="22" fill="#ffffff" opacity="0.4" />
-              <Circle cx="24" cy="24" r="20" fill="#ffffff" opacity="0.35" />
-              <Circle cx="24" cy="24" r="18" fill="#ffffff" opacity="0.3" />
-              <Circle cx="24" cy="24" r="17" fill="#ffffff" opacity="0.25" />
-              <Circle cx="24" cy="24" r="16" fill="#ffffff" opacity="0.2" />
-              
               {/* Heart */}
               <Path
                 d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z"
                 fill="url(#heartGradientLogin)"
               />
+              {/* Top arrow */}
+              <G>
+                <Circle cx="36" cy="10" r="3" fill="#ffffff" opacity={arrowTopOpacityValue} />
+                <Path 
+                  d="M30 10L36 10" 
+                  stroke="#ffffff" 
+                  strokeWidth="3" 
+                  strokeLinecap="round" 
+                  opacity={arrowTopOpacityValue}
+                />
+                <Path 
+                  d="M33 7L36 10L33 13" 
+                  stroke="#ffffff" 
+                  strokeWidth="3" 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  fill="none" 
+                  opacity={arrowTopOpacityValue}
+                />
+              </G>
+              {/* Bottom arrow */}
+              <G>
+                <Circle cx="12" cy="38" r="3" fill="#ffffff" opacity={arrowBottomOpacityValue} />
+                <Path 
+                  d="M18 38L12 38" 
+                  stroke="#ffffff" 
+                  strokeWidth="3" 
+                  strokeLinecap="round" 
+                  opacity={arrowBottomOpacityValue}
+                />
+                <Path 
+                  d="M15 35L12 38L15 41" 
+                  stroke="#ffffff" 
+                  strokeWidth="3" 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  fill="none" 
+                  opacity={arrowBottomOpacityValue}
+                />
+              </G>
+              {/* Sparkles with staggered animations */}
+              <Circle cx="24" cy="8" r="1.5" fill="#ffffff" opacity={sparkle1OpacityValue} />
+              <Circle cx="40" cy="24" r="1.5" fill="#ffffff" opacity={sparkle2OpacityValue} />
+              <Circle cx="24" cy="40" r="1.5" fill="#ffffff" opacity={sparkle3OpacityValue} />
+              <Circle cx="8" cy="24" r="1.5" fill="#ffffff" opacity={sparkle4OpacityValue} />
             </G>
           </Svg>
         </Animated.View>
