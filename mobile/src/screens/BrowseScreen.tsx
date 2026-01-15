@@ -139,6 +139,66 @@ function AnimatedLogo() {
   );
 }
 
+// Animated Emoji Component for feature icons
+function AnimatedEmoji({ emoji, delay = 0 }: { emoji: string; delay?: number }) {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Gentle pulse animation (subtle and alive)
+    Animated.loop(
+      Animated.sequence([
+        Animated.delay(delay),
+        Animated.timing(scaleAnim, {
+          toValue: 1.15,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 1,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Subtle rotation animation
+    Animated.loop(
+      Animated.sequence([
+        Animated.delay(delay),
+        Animated.timing(rotateAnim, {
+          toValue: 1,
+          duration: 4000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(rotateAnim, {
+          toValue: 0,
+          duration: 4000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, [delay]);
+
+  const rotate = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['-5deg', '5deg'],
+  });
+
+  return (
+    <Animated.View
+      style={{
+        transform: [
+          { scale: scaleAnim },
+          { rotate },
+        ],
+      }}
+    >
+      <Text style={styles.featureIcon}>{emoji}</Text>
+    </Animated.View>
+  );
+}
+
 interface Photo {
   id: string;
   url: string;
@@ -622,15 +682,15 @@ export default function BrowseScreen() {
               
               <View style={styles.landingFeatures}>
                 <View style={styles.featureItem}>
-                  <Text style={styles.featureIcon}>✨</Text>
+                  <AnimatedEmoji emoji="✨" delay={0} />
                   <Text style={styles.featureText} numberOfLines={2}>Quality Matches</Text>
                 </View>
                 <View style={styles.featureItem}>
-                  <Text style={styles.featureIcon}>🎯</Text>
+                  <AnimatedEmoji emoji="🎯" delay={500} />
                   <Text style={styles.featureText} numberOfLines={2}>Shared Interests</Text>
                 </View>
                 <View style={styles.featureItem}>
-                  <Text style={styles.featureIcon}>💝</Text>
+                  <AnimatedEmoji emoji="💝" delay={1000} />
                   <Text style={styles.featureText} numberOfLines={2} adjustsFontSizeToFit={false}>Meaningful{'\n'}Connections</Text>
                 </View>
               </View>
@@ -1100,6 +1160,11 @@ const styles = StyleSheet.create({
   landingButtonContainer: {
     width: '100%',
     marginBottom: 16,
+  },
+  landingButtonTouchable: {
+    width: '100%',
+    borderRadius: 16,
+    overflow: 'hidden',
   },
   landingButton: {
     backgroundColor: '#8B1538',
