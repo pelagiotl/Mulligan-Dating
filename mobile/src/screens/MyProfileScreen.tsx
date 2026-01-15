@@ -465,7 +465,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: 'transparent',
   },
   loadingText: {
     marginTop: 16,
@@ -477,7 +477,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 32,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: 'transparent',
   },
   noProfileEmoji: {
     fontSize: 64,
@@ -591,7 +591,7 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   section: {
-    backgroundColor: '#fff',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)', // Semi-transparent to show gradient
     padding: 20,
     marginTop: 12,
     borderTopWidth: 1,
