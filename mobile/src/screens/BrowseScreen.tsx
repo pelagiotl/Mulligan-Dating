@@ -971,6 +971,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingTop: 40,
     paddingBottom: 40,
+    position: 'relative',
   },
   landingContainer: {
     position: 'relative',
@@ -983,7 +984,7 @@ const styles = StyleSheet.create({
   landingContent: {
     padding: 48,
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)', // Semi-transparent to show gradient behind
     borderRadius: 32,
     shadowColor: '#8B1538',
     shadowOffset: { width: 0, height: 8 },
@@ -991,7 +992,8 @@ const styles = StyleSheet.create({
     shadowRadius: 24,
     elevation: 12,
     borderWidth: 1,
-    borderColor: 'rgba(139, 21, 56, 0.1)',
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    overflow: 'hidden',
   },
   landingLogoContainer: {
     flexDirection: 'row',
