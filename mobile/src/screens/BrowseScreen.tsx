@@ -395,6 +395,7 @@ export default function BrowseScreen() {
   const showLandingPage = browseUnlocked === false && !needsProfile;
 
   // Button pulse animation (only when landing page is shown)
+  // MUST be before any early returns
   useEffect(() => {
     if (showLandingPage && !unlocking) {
       // Continuous pulse animation
