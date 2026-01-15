@@ -3,7 +3,7 @@
  * Converted from web version to React Native
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -15,8 +15,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import Svg, { G, Path, Circle, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
 import { useNavigation } from '@react-navigation/native';
 import { api } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
@@ -131,7 +133,7 @@ export default function PhoneLoginScreen() {
         >
           <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.header}>
-            <Text style={styles.logo}>💘</Text>
+            <AnimatedLogo />
             <Text style={styles.title}>Welcome to Mulligan</Text>
             <Text style={styles.subtitle}>Enter your phone number to get started</Text>
           </View>
@@ -223,7 +225,7 @@ export default function PhoneLoginScreen() {
       >
         <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
-          <Text style={styles.logo}>💘</Text>
+          <AnimatedLogo />
           <Text style={styles.title}>Verify Your Phone</Text>
           <Text style={styles.subtitle}>We sent a 6-digit code to {phoneNumber}</Text>
         </View>
