@@ -845,7 +845,8 @@ export default function BrowseScreen() {
           onClose={handleCelebrationClose}
         />
       )}
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
