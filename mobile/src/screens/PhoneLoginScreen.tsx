@@ -521,6 +521,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
+    shadowColor: '#ffffff',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 15,
+    elevation: 10,
   },
   logoRotateGroup: {
     width: 90,
