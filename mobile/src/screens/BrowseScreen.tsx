@@ -537,7 +537,7 @@ export default function BrowseScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, showLandingPage && { backgroundColor: 'transparent' }]}>
       {/* Animated gradient background (matching web version) - full screen behind everything */}
       {showLandingPage && (
         <Animated.View
@@ -546,7 +546,7 @@ export default function BrowseScreen() {
             {
               opacity: gradientPosition.interpolate({
                 inputRange: [0, 0.5, 1],
-                outputRange: [1, 0.9, 1],
+                outputRange: [1, 0.95, 1],
               }),
             },
           ]}
@@ -567,7 +567,7 @@ export default function BrowseScreen() {
       )}
       
       <ScrollView 
-        style={styles.scrollView} 
+        style={[styles.scrollView, showLandingPage && { backgroundColor: 'transparent' }]} 
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
@@ -852,7 +852,7 @@ export default function BrowseScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: showLandingPage ? 'transparent' : '#f5f5f5',
+    backgroundColor: '#f5f5f5',
   },
   scrollView: {
     flex: 1,
