@@ -537,48 +537,56 @@ export default function BrowseScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-      {/* Match Notification */}
-      {matchNotification && (
-        <TouchableOpacity
-          style={styles.notification}
-          onPress={() => {
-            setMatchNotification(null);
-            navigation.navigate('Matches' as never);
-          }}
+    <View style={styles.container}>
+      {/* Animated gradient background (matching web version) - full screen behind everything */}
+      {showLandingPage && (
+        <Animated.View
+          style={[
+            StyleSheet.absoluteFill,
+            {
+              opacity: gradientPosition.interpolate({
+                inputRange: [0, 0.5, 1],
+                outputRange: [1, 0.9, 1],
+              }),
+            },
+          ]}
         >
-          <Text style={styles.notificationText}>{matchNotification}</Text>
-        </TouchableOpacity>
-      )}
-
-      {/* Browse Locked State - Beautiful Landing Page */}
-      {showLandingPage ? (
-        <View style={styles.landingPageWrapper}>
-          {/* Animated gradient background (matching web version) - behind everything */}
-          <Animated.View
-            style={[
-              StyleSheet.absoluteFill,
-              {
-                opacity: gradientPosition.interpolate({
-                  inputRange: [0, 0.5, 1],
-                  outputRange: [1, 0.9, 1],
-                }),
-              },
+          <LinearGradient
+            colors={[
+              '#667eea', // Purple
+              '#764ba2', // Purple-pink
+              '#f093fb', // Pink
+              '#f5576c', // Coral
+              '#4facfe', // Blue
             ]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+        </Animated.View>
+      )}
+      
+      <ScrollView 
+        style={styles.scrollView} 
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Match Notification */}
+        {matchNotification && (
+          <TouchableOpacity
+            style={styles.notification}
+            onPress={() => {
+              setMatchNotification(null);
+              navigation.navigate('Matches' as never);
+            }}
           >
-            <LinearGradient
-              colors={[
-                '#667eea', // Purple
-                '#764ba2', // Purple-pink
-                '#f093fb', // Pink
-                '#f5576c', // Coral
-                '#4facfe', // Blue
-              ]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={StyleSheet.absoluteFill}
-            />
-          </Animated.View>
+            <Text style={styles.notificationText}>{matchNotification}</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Browse Locked State - Beautiful Landing Page */}
+        {showLandingPage ? (
+          <View style={styles.landingPageWrapper}>
           
           <View style={styles.landingContainer}>
             {/* Main content */}
@@ -844,10 +852,14 @@ export default function BrowseScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: showLandingPage ? 'transparent' : '#f5f5f5',
+  },
+  scrollView: {
+    flex: 1,
   },
   contentContainer: {
     paddingBottom: 40,
+    flexGrow: 1,
   },
   loadingContainer: {
     flex: 1,
@@ -969,9 +981,11 @@ const styles = StyleSheet.create({
   // Landing page styles (when browsing is locked)
   landingPageWrapper: {
     flex: 1,
+    minHeight: Dimensions.get('window').height - 100,
     paddingTop: 40,
     paddingBottom: 40,
     position: 'relative',
+    justifyContent: 'center',
   },
   landingContainer: {
     position: 'relative',
