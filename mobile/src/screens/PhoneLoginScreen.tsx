@@ -228,51 +228,59 @@ function AnimatedLogo() {
                 d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z"
                 fill="url(#heartGradientLogin)"
               />
-              {/* Top arrow */}
+              {/* Top arrow - smaller */}
               <G>
-                <Circle cx="36" cy="10" r="3" fill="#ffffff" opacity={arrowTopOpacityValue} />
+                <Circle cx="36" cy="10" r="2.5" fill="#ffffff" opacity={arrowTopOpacityValue} />
                 <Path 
                   d="M30 10L36 10" 
                   stroke="#ffffff" 
-                  strokeWidth="3" 
+                  strokeWidth="2.5" 
                   strokeLinecap="round" 
                   opacity={arrowTopOpacityValue}
                 />
                 <Path 
                   d="M33 7L36 10L33 13" 
                   stroke="#ffffff" 
-                  strokeWidth="3" 
+                  strokeWidth="2.5" 
                   strokeLinecap="round" 
                   strokeLinejoin="round" 
                   fill="none" 
                   opacity={arrowTopOpacityValue}
                 />
               </G>
-              {/* Bottom arrow */}
+              {/* Bottom arrow - smaller */}
               <G>
-                <Circle cx="12" cy="38" r="3" fill="#ffffff" opacity={arrowBottomOpacityValue} />
+                <Circle cx="12" cy="38" r="2.5" fill="#ffffff" opacity={arrowBottomOpacityValue} />
                 <Path 
                   d="M18 38L12 38" 
                   stroke="#ffffff" 
-                  strokeWidth="3" 
+                  strokeWidth="2.5" 
                   strokeLinecap="round" 
                   opacity={arrowBottomOpacityValue}
                 />
                 <Path 
                   d="M15 35L12 38L15 41" 
                   stroke="#ffffff" 
-                  strokeWidth="3" 
+                  strokeWidth="2.5" 
                   strokeLinecap="round" 
                   strokeLinejoin="round" 
                   fill="none" 
                   opacity={arrowBottomOpacityValue}
                 />
               </G>
-              {/* Sparkles with staggered animations */}
-              <Circle cx="24" cy="8" r="1.5" fill="#ffffff" opacity={sparkle1OpacityValue} />
-              <Circle cx="40" cy="24" r="1.5" fill="#ffffff" opacity={sparkle2OpacityValue} />
-              <Circle cx="24" cy="40" r="1.5" fill="#ffffff" opacity={sparkle3OpacityValue} />
-              <Circle cx="8" cy="24" r="1.5" fill="#ffffff" opacity={sparkle4OpacityValue} />
+              {/* Sparkles with staggered animations and up/down movement */}
+              <G transform={`translate(0, ${sparkle1TranslateYValue})`}>
+                <Circle cx="24" cy="8" r="1.5" fill="#ffffff" opacity={sparkle1OpacityValue} />
+              </G>
+              <G transform={`translate(0, ${sparkle2TranslateYValue})`}>
+                <Circle cx="40" cy="24" r="1.5" fill="#ffffff" opacity={sparkle2OpacityValue} />
+              </G>
+              <G transform={`translate(0, ${sparkle3TranslateYValue})`}>
+                <Circle cx="24" cy="40" r="1.5" fill="#ffffff" opacity={sparkle3OpacityValue} />
+              </G>
+              <G transform={`translate(0, ${sparkle4TranslateYValue})`}>
+                <Circle cx="8" cy="24" r="1.5" fill="#ffffff" opacity={sparkle4OpacityValue} />
+              </G>
             </G>
           </Svg>
         </Animated.View>
