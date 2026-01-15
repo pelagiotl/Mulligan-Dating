@@ -434,17 +434,17 @@ export default function BrowseScreen() {
         ])
       ).start();
       
-      // Animated gradient shift (matching web version)
+      // Animated gradient shift (matching web version) - animate colors
       Animated.loop(
         Animated.sequence([
           Animated.timing(gradientPosition, {
             toValue: 1,
-            duration: 15000,
+            duration: 8000,
             useNativeDriver: false, // Colors can't use native driver
           }),
           Animated.timing(gradientPosition, {
             toValue: 0,
-            duration: 15000,
+            duration: 8000,
             useNativeDriver: false,
           }),
         ])
@@ -538,19 +538,19 @@ export default function BrowseScreen() {
 
   return (
     <View style={[styles.container, showLandingPage && { backgroundColor: 'transparent' }]}>
-      {/* Animated gradient background (matching web version) - full screen behind everything */}
+      {/* Beautiful gradient background (matching web version) - full screen behind everything */}
       {showLandingPage && (
         <LinearGradient
           colors={[
-            '#667eea', // Purple
+            '#667eea', // Vibrant Purple
             '#764ba2', // Purple-pink
-            '#f093fb', // Pink
+            '#f093fb', // Bright Pink
             '#f5576c', // Coral
             '#4facfe', // Blue
           ]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={StyleSheet.absoluteFill}
+          style={[StyleSheet.absoluteFill, { zIndex: 0 }]}
         />
       )}
       
