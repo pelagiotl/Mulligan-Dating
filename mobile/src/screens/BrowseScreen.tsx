@@ -540,30 +540,18 @@ export default function BrowseScreen() {
     <View style={[styles.container, showLandingPage && { backgroundColor: 'transparent' }]}>
       {/* Animated gradient background (matching web version) - full screen behind everything */}
       {showLandingPage && (
-        <Animated.View
-          style={[
-            StyleSheet.absoluteFill,
-            {
-              opacity: gradientPosition.interpolate({
-                inputRange: [0, 0.5, 1],
-                outputRange: [1, 0.95, 1],
-              }),
-            },
+        <LinearGradient
+          colors={[
+            '#667eea', // Purple
+            '#764ba2', // Purple-pink
+            '#f093fb', // Pink
+            '#f5576c', // Coral
+            '#4facfe', // Blue
           ]}
-        >
-          <LinearGradient
-            colors={[
-              '#667eea', // Purple
-              '#764ba2', // Purple-pink
-              '#f093fb', // Pink
-              '#f5576c', // Coral
-              '#4facfe', // Blue
-            ]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={StyleSheet.absoluteFill}
-          />
-        </Animated.View>
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
       )}
       
       <ScrollView 
@@ -999,7 +987,7 @@ const styles = StyleSheet.create({
   landingContent: {
     padding: 48,
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)', // Semi-transparent to show gradient behind
+    backgroundColor: 'rgba(255, 255, 255, 0.85)', // More transparent to show gradient better
     borderRadius: 32,
     shadowColor: '#8B1538',
     shadowOffset: { width: 0, height: 8 },
@@ -1007,7 +995,7 @@ const styles = StyleSheet.create({
     shadowRadius: 24,
     elevation: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderColor: 'rgba(255, 255, 255, 0.5)',
     overflow: 'hidden',
   },
   landingLogoContainer: {
