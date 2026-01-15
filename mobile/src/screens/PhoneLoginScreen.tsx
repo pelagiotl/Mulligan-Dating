@@ -3,7 +3,7 @@
  * Converted from web version to React Native
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -526,9 +526,9 @@ export default function PhoneLoginScreen() {
             ) : null}
 
             <TouchableOpacity
-              style={[styles.button, styles.primaryButton, (loading || phoneNumber.replace(/\D/g, '').length < 10) && styles.buttonDisabled]}
+              style={[styles.button, styles.primaryButton, (loading || !isValidPhoneNumber) && styles.buttonDisabled]}
               onPress={handlePhoneSubmit}
-              disabled={loading || phoneNumber.replace(/\D/g, '').length < 10}
+              disabled={loading || !isValidPhoneNumber}
             >
               {loading ? (
                 <ActivityIndicator color="#fff" />
