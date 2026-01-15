@@ -162,19 +162,11 @@ function AnimatedLogo() {
                 <Stop offset="75%" stopColor="#ffffff" stopOpacity="1" />
                 <Stop offset="100%" stopColor="#ffffff" stopOpacity="1" />
               </SvgLinearGradient>
-              <filter id="glowLogin">
-                <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
-                <feMerge>
-                  <feMergeNode in="coloredBlur"/>
-                  <feMergeNode in="SourceGraphic"/>
-                </feMerge>
-              </filter>
             </Defs>
             <G>
               <Path
                 d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z"
                 fill="url(#heartGradientLogin)"
-                filter="url(#glowLogin)"
               />
               {/* Top arrow with pulsing effect */}
               <G opacity="0.9">
