@@ -406,23 +406,13 @@ export default function BrowseScreen() {
   }, [offset]);
 
   useEffect(() => {
-    // Check if browsing is already unlocked on mount
+    // Always start with landing page - don't check unlock status on mount
+    // User must explicitly unlock browsing to see profiles
     if (!hasFetched) {
-      console.log('🔍 Initial browse check - starting as locked');
-      checkBrowseUnlocked().then((unlocked) => {
-        console.log('🔍 Browse check result:', unlocked);
-        if (unlocked) {
-          // Already unlocked, fetch first profile
-          console.log('✅ Browsing unlocked - fetching profile');
-          fetchProfile();
-        } else {
-          // Locked, show landing page
-          console.log('🔒 Browsing locked - showing landing page');
-          setBrowseUnlocked(false); // Ensure it's false
-          setHasFetched(true);
-          setLoading(false);
-        }
-      });
+      console.log('🔍 Initial load - showing landing page (browsing locked by default)');
+      setBrowseUnlocked(false);
+      setHasFetched(true);
+      setLoading(false);
     }
   }, []);
 
