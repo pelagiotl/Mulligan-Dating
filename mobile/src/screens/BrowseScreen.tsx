@@ -473,6 +473,47 @@ export default function BrowseScreen() {
   // Show landing page when browsing is locked
   const showLandingPage = browseUnlocked === false && !needsProfile;
 
+  // Button pulse animation (only when landing page is shown)
+  useEffect(() => {
+    if (showLandingPage && !unlocking) {
+      // Continuous pulse animation
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(buttonPulse, {
+            toValue: 1.05,
+            duration: 1500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(buttonPulse, {
+            toValue: 1,
+            duration: 1500,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+
+      // Shimmer effect
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(shimmerTranslate, {
+            toValue: 400,
+            duration: 2000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(shimmerTranslate, {
+            toValue: -200,
+            duration: 0,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    } else {
+      // Stop animations when not on landing page or when unlocking
+      buttonPulse.setValue(1);
+      shimmerTranslate.setValue(-200);
+    }
+  }, [showLandingPage, unlocking]);
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
       {/* Match Notification */}
