@@ -126,51 +126,18 @@ function AnimatedLogo() {
               </SvgLinearGradient>
             </Defs>
             <G>
+              {/* Subtle glow/fog circles around the heart - layered for depth */}
+              <Circle cx="24" cy="24" r="22" fill="#764ba2" opacity="0.15" />
+              <Circle cx="24" cy="24" r="20" fill="#f093fb" opacity="0.2" />
+              <Circle cx="24" cy="24" r="18" fill="#ffffff" opacity="0.25" />
+              <Circle cx="24" cy="24" r="17" fill="#f5576c" opacity="0.15" />
+              <Circle cx="24" cy="24" r="16" fill="#ffffff" opacity="0.3" />
+              
+              {/* Heart */}
               <Path
                 d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z"
                 fill="url(#heartGradientLogin)"
               />
-              {/* Top arrow with pulsing effect */}
-              <G opacity="0.9">
-                <Circle cx="36" cy="10" r="3" fill="#fff" />
-                <Path 
-                  d="M30 10L36 10" 
-                  stroke="#fff" 
-                  strokeWidth="3" 
-                  strokeLinecap="round" 
-                />
-                <Path 
-                  d="M33 7L36 10L33 13" 
-                  stroke="#fff" 
-                  strokeWidth="3" 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round" 
-                  fill="none" 
-                />
-              </G>
-              {/* Bottom arrow with pulsing effect */}
-              <G opacity="0.9">
-                <Circle cx="12" cy="38" r="3" fill="#fff" />
-                <Path 
-                  d="M18 38L12 38" 
-                  stroke="#fff" 
-                  strokeWidth="3" 
-                  strokeLinecap="round" 
-                />
-                <Path 
-                  d="M15 35L12 38L15 41" 
-                  stroke="#fff" 
-                  strokeWidth="3" 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round" 
-                  fill="none" 
-                />
-              </G>
-              {/* Sparkles - brighter */}
-              <Circle cx="24" cy="8" r="2" fill="#fff" opacity={sparkle1} />
-              <Circle cx="40" cy="24" r="2" fill="#fff" opacity={sparkle2} />
-              <Circle cx="24" cy="40" r="2" fill="#fff" opacity={sparkle3} />
-              <Circle cx="8" cy="24" r="2" fill="#fff" opacity={sparkle4} />
             </G>
           </Svg>
         </Animated.View>
