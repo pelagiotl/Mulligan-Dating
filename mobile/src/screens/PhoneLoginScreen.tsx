@@ -391,6 +391,12 @@ export default function PhoneLoginScreen() {
     }
   };
 
+  // Memoize phone number validation to avoid recalculating on every render
+  const isValidPhoneNumber = useMemo(() => {
+    const digits = phoneNumber.replace(/\D/g, '');
+    return digits.length >= 10;
+  }, [phoneNumber]);
+
   const handlePhoneSubmit = async () => {
     setError('');
     setLoading(true);
