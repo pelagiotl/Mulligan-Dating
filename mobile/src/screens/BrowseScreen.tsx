@@ -704,7 +704,6 @@ export default function BrowseScreen() {
                 ]}
               >
                 <TouchableOpacity
-                  style={[styles.landingButton, unlocking && styles.landingButtonDisabled]}
                   onPress={handleUnlockBrowse}
                   onPressIn={() => {
                     Animated.spring(buttonScale, {
@@ -720,33 +719,44 @@ export default function BrowseScreen() {
                   }}
                   disabled={unlocking}
                   activeOpacity={0.9}
+                  style={styles.landingButtonTouchable}
                 >
-                  {/* Shimmer effect overlay */}
-                  {!unlocking && (
-                    <Animated.View
-                      style={[
-                        styles.buttonShimmer,
-                        {
-                          transform: [{ translateX: shimmerTranslate }],
-                        },
-                      ]}
-                    />
-                  )}
-                  
-                  <Animated.View
-                    style={{
-                      transform: [{ scale: buttonScale }],
-                    }}
+                  <LinearGradient
+                    colors={['#667eea', '#764ba2', '#f093fb', '#f5576c']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={[
+                      styles.landingButton,
+                      unlocking && styles.landingButtonDisabled,
+                    ]}
                   >
-                    {unlocking ? (
-                      <ActivityIndicator color="#fff" size="large" />
-                    ) : (
-                      <>
-                        <Text style={styles.landingButtonText}>Connect (Use Token)</Text>
-                        <Text style={styles.landingButtonSubtext}>Start discovering amazing people</Text>
-                      </>
+                    {/* Shimmer effect overlay */}
+                    {!unlocking && (
+                      <Animated.View
+                        style={[
+                          styles.buttonShimmer,
+                          {
+                            transform: [{ translateX: shimmerTranslate }],
+                          },
+                        ]}
+                      />
                     )}
-                  </Animated.View>
+                    
+                    <Animated.View
+                      style={{
+                        transform: [{ scale: buttonScale }],
+                      }}
+                    >
+                      {unlocking ? (
+                        <ActivityIndicator color="#fff" size="large" />
+                      ) : (
+                        <>
+                          <Text style={styles.landingButtonText}>Connect</Text>
+                          <Text style={styles.landingButtonSubtext}>Start discovering amazing people</Text>
+                        </>
+                      )}
+                    </Animated.View>
+                  </LinearGradient>
                 </TouchableOpacity>
               </Animated.View>
               
