@@ -32,15 +32,23 @@ function AnimatedLogo() {
   const arrowBottomScale = useRef(new Animated.Value(1)).current;
   const arrowBottomOpacity = useRef(new Animated.Value(0.9)).current;
   const sparkle1Opacity = useRef(new Animated.Value(0.6)).current;
+  const sparkle1TranslateY = useRef(new Animated.Value(0)).current;
   const sparkle2Opacity = useRef(new Animated.Value(0.6)).current;
+  const sparkle2TranslateY = useRef(new Animated.Value(0)).current;
   const sparkle3Opacity = useRef(new Animated.Value(0.6)).current;
+  const sparkle3TranslateY = useRef(new Animated.Value(0)).current;
   const sparkle4Opacity = useRef(new Animated.Value(0.6)).current;
+  const sparkle4TranslateY = useRef(new Animated.Value(0)).current;
   
   // State for SVG opacity values (react-native-svg doesn't support Animated.Value directly)
   const [sparkle1OpacityValue, setSparkle1OpacityValue] = useState(0.6);
+  const [sparkle1TranslateYValue, setSparkle1TranslateYValue] = useState(0);
   const [sparkle2OpacityValue, setSparkle2OpacityValue] = useState(0.6);
+  const [sparkle2TranslateYValue, setSparkle2TranslateYValue] = useState(0);
   const [sparkle3OpacityValue, setSparkle3OpacityValue] = useState(0.6);
+  const [sparkle3TranslateYValue, setSparkle3TranslateYValue] = useState(0);
   const [sparkle4OpacityValue, setSparkle4OpacityValue] = useState(0.6);
+  const [sparkle4TranslateYValue, setSparkle4TranslateYValue] = useState(0);
   const [arrowTopOpacityValue, setArrowTopOpacityValue] = useState(0.9);
   const [arrowBottomOpacityValue, setArrowBottomOpacityValue] = useState(0.9);
 
@@ -111,35 +119,58 @@ function AnimatedLogo() {
     arrowPulse(arrowTopScale, arrowTopOpacity);
     arrowPulse(arrowBottomScale, arrowBottomOpacity);
 
-    // Sparkle animations (2s ease-in-out infinite with delays)
-    const sparkleAnim = (opacity: Animated.Value, setOpacity: (val: number) => void, delay: number) => {
-      const listenerId = opacity.addListener(({ value }) => {
+    // Sparkle animations (2s ease-in-out infinite with delays) - with up/down movement
+    const sparkleAnim = (
+      opacity: Animated.Value, 
+      translateY: Animated.Value,
+      setOpacity: (val: number) => void,
+      setTranslateY: (val: number) => void,
+      delay: number
+    ) => {
+      const opacityListenerId = opacity.addListener(({ value }) => {
         setOpacity(value);
+      });
+      const translateYListenerId = translateY.addListener(({ value }) => {
+        setTranslateY(value);
       });
       
       Animated.loop(
         Animated.sequence([
           Animated.delay(delay),
-          Animated.timing(opacity, {
-            toValue: 1,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-          Animated.timing(opacity, {
-            toValue: 0.6,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
+          Animated.parallel([
+            Animated.timing(opacity, {
+              toValue: 1,
+              duration: 1000,
+              useNativeDriver: true,
+            }),
+            Animated.timing(translateY, {
+              toValue: -3, // Move up
+              duration: 1000,
+              useNativeDriver: true,
+            }),
+          ]),
+          Animated.parallel([
+            Animated.timing(opacity, {
+              toValue: 0.6,
+              duration: 1000,
+              useNativeDriver: true,
+            }),
+            Animated.timing(translateY, {
+              toValue: 0, // Move back down
+              duration: 1000,
+              useNativeDriver: true,
+            }),
+          ]),
         ])
       ).start();
       
-      return listenerId;
+      return { opacity: opacityListenerId, translateY: translateYListenerId };
     };
 
-    const listener1 = sparkleAnim(sparkle1Opacity, setSparkle1OpacityValue, 0);
-    const listener2 = sparkleAnim(sparkle2Opacity, setSparkle2OpacityValue, 500);
-    const listener3 = sparkleAnim(sparkle3Opacity, setSparkle3OpacityValue, 1000);
-    const listener4 = sparkleAnim(sparkle4Opacity, setSparkle4OpacityValue, 1500);
+    const listener1 = sparkleAnim(sparkle1Opacity, sparkle1TranslateY, setSparkle1OpacityValue, setSparkle1TranslateYValue, 0);
+    const listener2 = sparkleAnim(sparkle2Opacity, sparkle2TranslateY, setSparkle2OpacityValue, setSparkle2TranslateYValue, 500);
+    const listener3 = sparkleAnim(sparkle3Opacity, sparkle3TranslateY, setSparkle3OpacityValue, setSparkle3TranslateYValue, 1000);
+    const listener4 = sparkleAnim(sparkle4Opacity, sparkle4TranslateY, setSparkle4OpacityValue, setSparkle4TranslateYValue, 1500);
     
     // Arrow opacity listeners
     const arrowTopListenerId = arrowTopOpacity.addListener(({ value }) => {
@@ -150,10 +181,14 @@ function AnimatedLogo() {
     });
     
     return () => {
-      sparkle1Opacity.removeListener(listener1);
-      sparkle2Opacity.removeListener(listener2);
-      sparkle3Opacity.removeListener(listener3);
-      sparkle4Opacity.removeListener(listener4);
+      sparkle1Opacity.removeListener(listener1.opacity);
+      sparkle1TranslateY.removeListener(listener1.translateY);
+      sparkle2Opacity.removeListener(listener2.opacity);
+      sparkle2TranslateY.removeListener(listener2.translateY);
+      sparkle3Opacity.removeListener(listener3.opacity);
+      sparkle3TranslateY.removeListener(listener3.translateY);
+      sparkle4Opacity.removeListener(listener4.opacity);
+      sparkle4TranslateY.removeListener(listener4.translateY);
       arrowTopOpacity.removeListener(arrowTopListenerId);
       arrowBottomOpacity.removeListener(arrowBottomListenerId);
     };
