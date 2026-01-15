@@ -37,11 +37,11 @@ function AnimatedLogo() {
   const arrowBottomOpacity = useRef(new Animated.Value(0.9)).current;
 
   useEffect(() => {
-    // Continuous rotation (4s linear infinite)
+    // Continuous rotation (3s linear infinite - faster for more visible rotation)
     Animated.loop(
       Animated.timing(rotateAnim, {
         toValue: 1,
-        duration: 4000,
+        duration: 3000,
         useNativeDriver: true,
       })
     ).start();
@@ -204,11 +204,11 @@ function AnimatedLogo() {
                   fill="none" 
                 />
               </G>
-              {/* Sparkles */}
-              <Circle cx="24" cy="8" r="1.5" fill="#fff" opacity={sparkle1} />
-              <Circle cx="40" cy="24" r="1.5" fill="#fff" opacity={sparkle2} />
-              <Circle cx="24" cy="40" r="1.5" fill="#fff" opacity={sparkle3} />
-              <Circle cx="8" cy="24" r="1.5" fill="#fff" opacity={sparkle4} />
+              {/* Sparkles - brighter */}
+              <Circle cx="24" cy="8" r="2" fill="#fff" opacity={sparkle1} />
+              <Circle cx="40" cy="24" r="2" fill="#fff" opacity={sparkle2} />
+              <Circle cx="24" cy="40" r="2" fill="#fff" opacity={sparkle3} />
+              <Circle cx="8" cy="24" r="2" fill="#fff" opacity={sparkle4} />
             </G>
           </Svg>
         </Animated.View>
