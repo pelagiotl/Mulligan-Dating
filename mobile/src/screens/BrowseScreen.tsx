@@ -522,20 +522,60 @@ export default function BrowseScreen() {
                 </View>
               </View>
               
-              <TouchableOpacity
-                style={[styles.landingButton, unlocking && styles.landingButtonDisabled]}
-                onPress={handleUnlockBrowse}
-                disabled={unlocking}
+              <Animated.View
+                style={[
+                  styles.landingButtonContainer,
+                  {
+                    transform: [{ scale: buttonPulse }],
+                  },
+                ]}
               >
-                {unlocking ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <>
-                    <Text style={styles.landingButtonText}>Connect (Use Token)</Text>
-                    <Text style={styles.landingButtonSubtext}>Start discovering amazing people</Text>
-                  </>
-                )}
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.landingButton, unlocking && styles.landingButtonDisabled]}
+                  onPress={handleUnlockBrowse}
+                  onPressIn={() => {
+                    Animated.spring(buttonScale, {
+                      toValue: 0.95,
+                      useNativeDriver: true,
+                    }).start();
+                  }}
+                  onPressOut={() => {
+                    Animated.spring(buttonScale, {
+                      toValue: 1,
+                      useNativeDriver: true,
+                    }).start();
+                  }}
+                  disabled={unlocking}
+                  activeOpacity={0.9}
+                >
+                  {/* Shimmer effect overlay */}
+                  {!unlocking && (
+                    <Animated.View
+                      style={[
+                        styles.buttonShimmer,
+                        {
+                          transform: [{ translateX: shimmerTranslate }],
+                        },
+                      ]}
+                    />
+                  )}
+                  
+                  <Animated.View
+                    style={{
+                      transform: [{ scale: buttonScale }],
+                    }}
+                  >
+                    {unlocking ? (
+                      <ActivityIndicator color="#fff" size="large" />
+                    ) : (
+                      <>
+                        <Text style={styles.landingButtonText}>Connect (Use Token)</Text>
+                        <Text style={styles.landingButtonSubtext}>Start discovering amazing people</Text>
+                      </>
+                    )}
+                  </Animated.View>
+                </TouchableOpacity>
+              </Animated.View>
               
               <Text style={styles.landingHint}>
                 Use a token to unlock browsing and see profiles
