@@ -183,6 +183,9 @@ export default function BrowseScreen() {
   const buttonPulse = useRef(new Animated.Value(1)).current;
   const buttonScale = useRef(new Animated.Value(1)).current;
   const shimmerTranslate = useRef(new Animated.Value(-200)).current;
+  
+  // Animated gradient colors (matching web version)
+  const gradientPosition = useRef(new Animated.Value(0)).current;
 
   const checkBrowseUnlocked = async () => {
     try {
@@ -430,10 +433,27 @@ export default function BrowseScreen() {
           }),
         ])
       ).start();
+      
+      // Animated gradient shift (matching web version)
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(gradientPosition, {
+            toValue: 1,
+            duration: 15000,
+            useNativeDriver: false, // Colors can't use native driver
+          }),
+          Animated.timing(gradientPosition, {
+            toValue: 0,
+            duration: 15000,
+            useNativeDriver: false,
+          }),
+        ])
+      ).start();
     } else {
       // Stop animations when not on landing page or when unlocking
       buttonPulse.setValue(1);
       shimmerTranslate.setValue(-200);
+      gradientPosition.setValue(0);
     }
   }, [showLandingPage, unlocking]);
 
