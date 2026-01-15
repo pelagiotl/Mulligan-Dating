@@ -113,7 +113,7 @@ function AnimatedLogo() {
 
     // Sparkle animations (2s ease-in-out infinite with delays)
     const sparkleAnim = (opacity: Animated.Value, setOpacity: (val: number) => void, delay: number) => {
-      const listener = opacity.addListener(({ value }) => {
+      const listenerId = opacity.addListener(({ value }) => {
         setOpacity(value);
       });
       
@@ -133,29 +133,29 @@ function AnimatedLogo() {
         ])
       ).start();
       
-      return () => opacity.removeListener(listener);
+      return listenerId;
     };
 
-    const cleanup1 = sparkleAnim(sparkle1Opacity, setSparkle1OpacityValue, 0);
-    const cleanup2 = sparkleAnim(sparkle2Opacity, setSparkle2OpacityValue, 500);
-    const cleanup3 = sparkleAnim(sparkle3Opacity, setSparkle3OpacityValue, 1000);
-    const cleanup4 = sparkleAnim(sparkle4Opacity, setSparkle4OpacityValue, 1500);
+    const listener1 = sparkleAnim(sparkle1Opacity, setSparkle1OpacityValue, 0);
+    const listener2 = sparkleAnim(sparkle2Opacity, setSparkle2OpacityValue, 500);
+    const listener3 = sparkleAnim(sparkle3Opacity, setSparkle3OpacityValue, 1000);
+    const listener4 = sparkleAnim(sparkle4Opacity, setSparkle4OpacityValue, 1500);
     
     // Arrow opacity listeners
-    const arrowTopListener = arrowTopOpacity.addListener(({ value }) => {
+    const arrowTopListenerId = arrowTopOpacity.addListener(({ value }) => {
       setArrowTopOpacityValue(value);
     });
-    const arrowBottomListener = arrowBottomOpacity.addListener(({ value }) => {
+    const arrowBottomListenerId = arrowBottomOpacity.addListener(({ value }) => {
       setArrowBottomOpacityValue(value);
     });
     
     return () => {
-      cleanup1?.();
-      cleanup2?.();
-      cleanup3?.();
-      cleanup4?.();
-      arrowTopOpacity.removeListener(arrowTopListener);
-      arrowBottomOpacity.removeListener(arrowBottomListener);
+      sparkle1Opacity.removeListener(listener1);
+      sparkle2Opacity.removeListener(listener2);
+      sparkle3Opacity.removeListener(listener3);
+      sparkle4Opacity.removeListener(listener4);
+      arrowTopOpacity.removeListener(arrowTopListenerId);
+      arrowBottomOpacity.removeListener(arrowBottomListenerId);
     };
   }, []);
 
