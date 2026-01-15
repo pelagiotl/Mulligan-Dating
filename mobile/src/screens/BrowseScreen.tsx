@@ -750,10 +750,7 @@ export default function BrowseScreen() {
                       {unlocking ? (
                         <ActivityIndicator color="#fff" size="large" />
                       ) : (
-                        <>
-                          <Text style={styles.landingButtonText}>Connect</Text>
-                          <Text style={styles.landingButtonSubtext}>Start discovering amazing people</Text>
-                        </>
+                        <Text style={styles.landingButtonText}>Connect</Text>
                       )}
                     </Animated.View>
                   </LinearGradient>
