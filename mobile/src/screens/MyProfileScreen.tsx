@@ -505,7 +505,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 32,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: 'transparent',
   },
   errorText: {
     fontSize: 16,
@@ -525,7 +525,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   header: {
-    backgroundColor: '#fff',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)', // Semi-transparent to show gradient
     padding: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
