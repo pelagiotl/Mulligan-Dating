@@ -9,6 +9,7 @@ import {
   Animated,
   Dimensions,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { getPhotoUrl } from '../utils/photoUrl';
 
@@ -245,6 +246,14 @@ export default function MatchCelebration({
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
+        {/* Beautiful gradient background */}
+        <LinearGradient
+          colors={['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+        
         {/* Confetti particles */}
         {showConfetti && (
           <View style={styles.confettiContainer} pointerEvents="none">
@@ -456,7 +465,7 @@ function SparklesComponent() {
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)', // Slightly more transparent to show gradient
     justifyContent: 'center',
     alignItems: 'center',
   },
