@@ -37,11 +37,11 @@ function AnimatedLogo() {
   const arrowBottomOpacity = useRef(new Animated.Value(0.9)).current;
 
   useEffect(() => {
-    // Continuous rotation (3s linear infinite - faster for more visible rotation)
+    // Continuous rotation (3.5s linear infinite - slightly slower)
     Animated.loop(
       Animated.timing(rotateAnim, {
         toValue: 1,
-        duration: 3000,
+        duration: 3500,
         useNativeDriver: true,
       })
     ).start();
@@ -157,16 +157,24 @@ function AnimatedLogo() {
             <Defs>
               <SvgLinearGradient id="heartGradientLogin" x1="0%" y1="0%" x2="100%" y2="100%">
                 <Stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
-                <Stop offset="30%" stopColor="#ffffff" stopOpacity="1" />
-                <Stop offset="50%" stopColor="#ffd1d9" stopOpacity="1" />
-                <Stop offset="70%" stopColor="#ffffff" stopOpacity="1" />
+                <Stop offset="25%" stopColor="#ffffff" stopOpacity="1" />
+                <Stop offset="50%" stopColor="#ffc0cb" stopOpacity="1" />
+                <Stop offset="75%" stopColor="#ffffff" stopOpacity="1" />
                 <Stop offset="100%" stopColor="#ffffff" stopOpacity="1" />
               </SvgLinearGradient>
+              <filter id="glowLogin">
+                <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+                <feMerge>
+                  <feMergeNode in="coloredBlur"/>
+                  <feMergeNode in="SourceGraphic"/>
+                </feMerge>
+              </filter>
             </Defs>
             <G>
               <Path
                 d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z"
                 fill="url(#heartGradientLogin)"
+                filter="url(#glowLogin)"
               />
               {/* Top arrow with pulsing effect */}
               <G opacity="0.9">
