@@ -514,9 +514,6 @@ export default function BrowseScreen() {
     );
   }
 
-  // Show landing page when browsing is locked
-  const showLandingPage = browseUnlocked === false && !needsProfile;
-
   // Button pulse animation (only when landing page is shown)
   useEffect(() => {
     if (showLandingPage && !unlocking) {
