@@ -554,33 +554,33 @@ export default function BrowseScreen() {
       {/* Browse Locked State - Beautiful Landing Page */}
       {showLandingPage ? (
         <View style={styles.landingPageWrapper}>
-          <View style={styles.landingContainer}>
-            {/* Animated gradient background (matching web version) */}
-            <Animated.View
-              style={[
-                StyleSheet.absoluteFill,
-                {
-                  opacity: gradientPosition.interpolate({
-                    inputRange: [0, 0.5, 1],
-                    outputRange: [1, 0.8, 1],
-                  }),
-                },
+          {/* Animated gradient background (matching web version) - behind everything */}
+          <Animated.View
+            style={[
+              StyleSheet.absoluteFill,
+              {
+                opacity: gradientPosition.interpolate({
+                  inputRange: [0, 0.5, 1],
+                  outputRange: [1, 0.9, 1],
+                }),
+              },
+            ]}
+          >
+            <LinearGradient
+              colors={[
+                '#667eea', // Purple
+                '#764ba2', // Purple-pink
+                '#f093fb', // Pink
+                '#f5576c', // Coral
+                '#4facfe', // Blue
               ]}
-            >
-              <LinearGradient
-                colors={[
-                  '#667eea', // Purple
-                  '#764ba2', // Purple-pink
-                  '#f093fb', // Pink
-                  '#f5576c', // Coral
-                  '#4facfe', // Blue
-                ]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={StyleSheet.absoluteFill}
-              />
-            </Animated.View>
-            
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={StyleSheet.absoluteFill}
+            />
+          </Animated.View>
+          
+          <View style={styles.landingContainer}>
             {/* Main content */}
             <View style={styles.landingContent}>
               <View style={styles.landingLogoContainer}>
