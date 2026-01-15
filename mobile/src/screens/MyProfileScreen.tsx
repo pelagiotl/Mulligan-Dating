@@ -445,14 +445,18 @@ export default function MyProfileScreen() {
       >
         <Text style={styles.editButtonText}>Edit Profile</Text>
       </TouchableOpacity>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    flex: 1,
+  },
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: 'transparent',
   },
   contentContainer: {
     paddingBottom: 40,
