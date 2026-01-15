@@ -16,6 +16,7 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { api } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
@@ -110,11 +111,25 @@ export default function PhoneLoginScreen() {
 
   if (step === 'phone') {
     return (
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.container}
-      >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+      <View style={styles.container}>
+        {/* Beautiful gradient background */}
+        <LinearGradient
+          colors={[
+            '#667eea', // Purple
+            '#764ba2', // Purple-pink
+            '#f093fb', // Pink
+            '#f5576c', // Coral
+            '#4facfe', // Blue
+          ]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardView}
+        >
+          <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.header}>
             <Text style={styles.logo}>💘</Text>
             <Text style={styles.title}>Welcome to Mulligan</Text>
@@ -180,18 +195,33 @@ export default function PhoneLoginScreen() {
               By continuing, you agree to our Terms of Service and Privacy Policy
             </Text>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </View>
     );
   }
 
   // Verification step
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
-    >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+    <View style={styles.container}>
+      {/* Beautiful gradient background */}
+      <LinearGradient
+        colors={[
+          '#667eea', // Purple
+          '#764ba2', // Purple-pink
+          '#f093fb', // Pink
+          '#f5576c', // Coral
+          '#4facfe', // Blue
+        ]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardView}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
           <Text style={styles.logo}>💘</Text>
           <Text style={styles.title}>Verify Your Phone</Text>
@@ -258,15 +288,19 @@ export default function PhoneLoginScreen() {
             <Text style={[styles.buttonText, styles.secondaryButtonText]}>Change Phone Number</Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: 'transparent',
+  },
+  keyboardView: {
+    flex: 1,
   },
   scrollContent: {
     flexGrow: 1,

@@ -1082,18 +1082,21 @@ const styles = StyleSheet.create({
   featureItem: {
     alignItems: 'center',
     flex: 1,
-    paddingHorizontal: 8,
+    paddingHorizontal: 12,
+    minWidth: 100,
   },
   featureIcon: {
     fontSize: 36,
     marginBottom: 12,
   },
   featureText: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#666',
     textAlign: 'center',
     fontWeight: '600',
-    lineHeight: 18,
+    lineHeight: 20,
+    flexWrap: 'wrap',
+    width: '100%',
   },
   landingButtonContainer: {
     width: '100%',
