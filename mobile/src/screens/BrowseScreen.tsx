@@ -177,6 +177,11 @@ export default function BrowseScreen() {
   const [browseUnlocked, setBrowseUnlocked] = useState<boolean>(false); // Start as locked (false)
   const [unlocking, setUnlocking] = useState(false);
   const socketRef = useRef<Socket | null>(null);
+  
+  // Button animations
+  const buttonPulse = useRef(new Animated.Value(1)).current;
+  const buttonScale = useRef(new Animated.Value(1)).current;
+  const shimmerTranslate = useRef(new Animated.Value(-200)).current;
 
   const checkBrowseUnlocked = async () => {
     try {
@@ -936,6 +941,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     lineHeight: 18,
   },
+  landingButtonContainer: {
+    width: '100%',
+    marginBottom: 16,
+  },
   landingButton: {
     backgroundColor: '#8B1538',
     paddingHorizontal: 56,
@@ -948,9 +957,20 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.4,
     shadowRadius: 12,
     elevation: 8,
-    marginBottom: 16,
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.2)',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  buttonShimmer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: 100,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    transform: [{ skewX: '-20deg' }],
   },
   landingButtonDisabled: {
     opacity: 0.6,
