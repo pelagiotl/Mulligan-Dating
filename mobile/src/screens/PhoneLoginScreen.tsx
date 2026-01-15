@@ -313,9 +313,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 30,
   },
-  logo: {
-    fontSize: 64,
+  logoWrapper: {
+    width: 100,
+    height: 100,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 10,
+  },
+  logoRotateGroup: {
+    width: 100,
+    height: 100,
   },
   title: {
     fontSize: 28,
