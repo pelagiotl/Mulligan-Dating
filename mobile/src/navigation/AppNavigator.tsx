@@ -7,7 +7,7 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Platform, Text, StyleSheet } from 'react-native';
+import { Platform, Text, View, StyleSheet } from 'react-native';
 
 // Screens (we'll create these)
 import PhoneLoginScreen from '../screens/PhoneLoginScreen';
@@ -16,12 +16,18 @@ import BrowseScreen from '../screens/BrowseScreen';
 import MatchesScreen from '../screens/MatchesScreen';
 import MyProfileScreen from '../screens/MyProfileScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import AdminScreen from '../screens/AdminScreen';
+import TermsScreen from '../screens/TermsScreen';
+import PrivacyScreen from '../screens/PrivacyScreen';
+import { useAuth } from '../context/AuthContext';
 
 // Types
 export type RootStackParamList = {
   PhoneLogin: undefined;
   CreateProfile: undefined;
   MainTabs: undefined;
+  Terms: undefined;
+  Privacy: undefined;
 };
 
 export type MainTabParamList = {
@@ -29,6 +35,7 @@ export type MainTabParamList = {
   Matches: undefined;
   MyProfile: undefined;
   Settings: undefined;
+  Admin: undefined;
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -36,6 +43,9 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 
 // Main Tab Navigator (shown after login)
 function MainTabs() {
+  const { user } = useAuth();
+  const isAdmin = user?.isAdmin || false;
+
   return (
     <Tab.Navigator
       screenOptions={{
@@ -62,6 +72,10 @@ function MainTabs() {
         },
         tabBarIconStyle: {
           marginTop: 4,
+          width: 30,
+          height: 30,
+          justifyContent: 'center',
+          alignItems: 'center',
         },
         tabBarShowLabel: true,
         tabBarHideOnKeyboard: true,
@@ -72,9 +86,11 @@ function MainTabs() {
         component={BrowseScreen}
         options={{
           tabBarIcon: ({ focused, color }) => (
-            <Text style={[styles.tabIcon, { opacity: focused ? 1 : 0.6 }]}>🔍</Text>
+            <View style={styles.emojiContainer}>
+              <Text style={[styles.emojiIcon, { opacity: focused ? 1 : 0.6 }]}>😍</Text>
+            </View>
           ),
-          tabBarLabel: 'Browse',
+          tabBarLabel: 'Connect',
         }}
       />
       <Tab.Screen 
@@ -82,7 +98,7 @@ function MainTabs() {
         component={MatchesScreen}
         options={{
           tabBarIcon: ({ focused, color }) => (
-            <Text style={[styles.tabIcon, { opacity: focused ? 1 : 0.6 }]}>💌</Text>
+            <Text style={[styles.tabIcon, styles.sleekIcon, { opacity: focused ? 1 : 0.6, color: focused ? '#8B1538' : '#999' }]}>❤️</Text>
           ),
           tabBarLabel: 'Matches',
         }}
@@ -92,7 +108,7 @@ function MainTabs() {
         component={MyProfileScreen}
         options={{
           tabBarIcon: ({ focused, color }) => (
-            <Text style={[styles.tabIcon, { opacity: focused ? 1 : 0.6 }]}>👤</Text>
+            <Text style={[styles.tabIcon, styles.sleekIcon, { opacity: focused ? 1 : 0.6, color: focused ? '#8B1538' : '#999' }]}>👤</Text>
           ),
           tabBarLabel: 'Profile',
         }}
@@ -102,11 +118,23 @@ function MainTabs() {
         component={SettingsScreen}
         options={{
           tabBarIcon: ({ focused, color }) => (
-            <Text style={[styles.tabIcon, { opacity: focused ? 1 : 0.6 }]}>⚙️</Text>
+            <Text style={[styles.tabIcon, styles.sleekIcon, { opacity: focused ? 1 : 0.6, color: focused ? '#8B1538' : '#999' }]}>⚙️</Text>
           ),
           tabBarLabel: 'Settings',
         }}
       />
+      {isAdmin && (
+        <Tab.Screen 
+          name="Admin" 
+          component={AdminScreen}
+          options={{
+            tabBarIcon: ({ focused, color }) => (
+              <Text style={[styles.tabIcon, styles.sleekIcon, { opacity: focused ? 1 : 0.6, color: focused ? '#8B1538' : '#999' }]}>👑</Text>
+            ),
+            tabBarLabel: 'Admin',
+          }}
+        />
+      )}
     </Tab.Navigator>
   );
 }
@@ -124,6 +152,8 @@ export default function AppNavigator() {
         <Stack.Screen name="PhoneLogin" component={PhoneLoginScreen} />
         <Stack.Screen name="CreateProfile" component={CreateProfileScreen} />
         <Stack.Screen name="MainTabs" component={MainTabs} />
+        <Stack.Screen name="Terms" component={TermsScreen} />
+        <Stack.Screen name="Privacy" component={PrivacyScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
@@ -133,6 +163,23 @@ const styles = StyleSheet.create({
   tabIcon: {
     fontSize: 24,
     textAlign: 'center',
+  },
+  sleekIcon: {
+    fontSize: 26,
+    fontWeight: '300',
+    transform: [{ scale: 1.05 }],
+  },
+  emojiContainer: {
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emojiIcon: {
+    fontSize: 28,
+    lineHeight: 32,
+    textAlign: 'center',
+    includeFontPadding: false,
   },
 });
 
