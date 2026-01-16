@@ -312,14 +312,14 @@ app.post("/api/create-test-users", async (req, res) => {
           continue; // Skip if already exists
         }
 
-        // Create user
+        // Create user (phone-based users use empty string for password)
         const userStmt = db.prepare(`
           INSERT INTO users (
-            id, phone_number, phone_verified, browse_unlocked_at, 
+            id, email, phone_number, phone_verified, password, browse_unlocked_at, 
             tos_accepted_at, privacy_accepted_at, created_at, last_active_at
-          ) VALUES (?, ?, 1, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, ?)
         `);
-        await (userStmt.run([userId, userData.phone, now, now, now, now, now]) as Promise<any>);
+        await (userStmt.run([userId, null, userData.phone, '', now, now, now, now, now]) as Promise<any>);
 
         // Create profile
         const profileStmt = db.prepare(`
@@ -363,19 +363,31 @@ app.post("/api/create-test-users", async (req, res) => {
         await (tokenStmt.run([tokenId, userId, now, 'test_account']) as Promise<any>);
 
         createdUsers.push(userData.name);
+        console.log(`✅ Successfully created test user: ${userData.name} (${userData.phone})`);
       } catch (error: any) {
-        console.error(`Error creating user ${userData.name}:`, error.message);
+        console.error(`❌ Error creating user ${userData.name}:`, error);
+        console.error(`   Error message:`, error.message);
+        console.error(`   Error stack:`, error.stack);
+        // Don't silently fail - log the error but continue with next user
       }
     }
 
+    console.log(`📊 Test user creation summary: ${createdUsers.length} created out of ${testUsers.length} attempted`);
+
+    const skipped = testUsers.length - createdUsers.length;
     res.json({
-      message: `Successfully created ${createdUsers.length} test user accounts`,
+      message: `Successfully created ${createdUsers.length} test user accounts${skipped > 0 ? ` (${skipped} skipped - may already exist)` : ''}`,
       createdUsers,
-      total: testUsers.length
+      total: testUsers.length,
+      skipped,
+      success: createdUsers.length > 0
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating test users:', error);
-    res.status(500).json({ error: 'Failed to create test users' });
+    res.status(500).json({ 
+      error: 'Failed to create test users',
+      details: error.message || String(error)
+    });
   }
 });
 
