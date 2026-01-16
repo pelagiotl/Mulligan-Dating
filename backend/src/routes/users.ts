@@ -221,6 +221,12 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
     console.log('🔍 Executing browse query');
     console.log('🔍 Query:', query);
     console.log('🔍 Params:', params);
+    console.log('🔍 User preferences:', {
+      min_age: userPrefs?.min_age,
+      max_age: userPrefs?.max_age,
+      preferred_genders: userPrefs?.preferred_genders,
+      max_distance: userPrefs?.max_distance
+    });
     const allProfilesStmt = db.prepare(query);
     const allProfilesResult = allProfilesStmt.all(params);
     // Handle both sync (SQLite) and async (PostgreSQL)
@@ -228,7 +234,20 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
       ? await allProfilesResult
       : allProfilesResult as ProfileWithMetadata[];
     
-    console.log('📊 Found profiles before filtering:', allProfiles.length);
+    console.log('📊 Found profiles before distance/dealbreaker filtering:', allProfiles.length);
+    if (allProfiles.length > 0) {
+      console.log('📊 Sample profiles found:', allProfiles.slice(0, 3).map((p: ProfileWithMetadata) => ({
+        name: p.display_name,
+        age: p.age,
+        gender: p.gender,
+        location: p.location
+      })));
+    } else {
+      console.log('⚠️  No profiles found after initial query - checking why...');
+      // Debug: Check if any profiles exist at all
+      const allProfilesCheck = await (db.prepare('SELECT COUNT(*) as count FROM profiles WHERE user_id != ?').get([req.userId]) as Promise<{ count: number } | undefined>);
+      console.log('📊 Total profiles in database (excluding self):', allProfilesCheck?.count || 0);
+    }
     if (allProfiles.length === 0) {
       console.warn('⚠️  No profiles found after initial query. User preferences might be filtering out all candidates.');
       console.warn('   User age:', userProfile.age);
@@ -275,15 +294,20 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
     // Only dealbreakers (checked below) will hard-filter users
     
     // NEW: Filter by dealbreakers using comprehensive utility (now async)
+    console.log('🔍 Checking dealbreakers for', filteredProfiles.length, 'profiles...');
     const dealbreakerResults = await Promise.all(
       filteredProfiles.map(async (p: ProfileWithMetadata) => {
         const passes = await checkDealbreakersUtil(userProfile.id, p.id);
+        if (!passes) {
+          console.log(`   ❌ ${p.display_name} filtered out by dealbreakers`);
+        }
         return { profile: p, passes };
       })
     );
     filteredProfiles = dealbreakerResults
       .filter(({ passes }) => passes)
       .map(({ profile }) => profile);
+    console.log('📊 Profiles after dealbreaker filtering:', filteredProfiles.length);
 
     // NEW: Score and sort by interests overlap, partner qualities ("What I'm Looking For"), AND lifestyle compatibility
     const userInterests = await (db
