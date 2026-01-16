@@ -212,8 +212,8 @@ authRouter.post('/login', rateLimitAuth, async (req, res) => {
 // Get current user
 authRouter.get('/me', authenticateToken, async (req: AuthRequest, res) => {
   try {
-    const stmt = db.prepare('SELECT id, email, is_admin, created_at FROM users WHERE id = ?');
-    const user = await (stmt.get(req.userId) as Promise<{ id: string; email: string; is_admin: number; created_at: string } | null>);
+    const stmt = db.prepare('SELECT id, email, phone_number, is_admin, created_at FROM users WHERE id = ?');
+    const user = await (stmt.get(req.userId) as Promise<{ id: string; email: string | null; phone_number: string | null; is_admin: number; created_at: string } | null>);
     
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
@@ -233,6 +233,7 @@ authRouter.get('/me', authenticateToken, async (req: AuthRequest, res) => {
       user: {
         id: user.id,
         email: user.email,
+        phoneNumber: user.phone_number,
         isAdmin: user.is_admin === 1,
         createdAt: user.created_at
       }, 
