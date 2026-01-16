@@ -317,9 +317,9 @@ app.post("/api/create-test-users", async (req, res) => {
           INSERT INTO users (
             id, email, phone_number, phone_verified, password, browse_unlocked_at, 
             tos_accepted_at, privacy_accepted_at, created_at, last_active_at
-          ) VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
-        await (userStmt.run([userId, null, userData.phone, '', now, now, now, now, now]) as Promise<any>);
+        await (userStmt.run([userId, null, userData.phone, 1, '', now, now, now, now, now]) as Promise<any>);
 
         // Create profile
         const profileStmt = db.prepare(`
