@@ -351,19 +351,21 @@ app.post("/api/create-test-users", async (req, res) => {
           userData.location, userData.bio, userData.lookingFor, now, now
         ]) as Promise<any>);
 
-        // Create preferences
+        // Create preferences (very open to match anyone)
         const preferencesId = uuidv4();
         const preferencesStmt = db.prepare(`
           INSERT INTO preferences (
             id, profile_id, min_age, max_age, preferred_genders, max_distance
           ) VALUES (?, ?, ?, ?, ?, ?)
         `);
-        const minAge = Math.max(18, userData.age - 5);
-        const maxAge = userData.age + 5;
+        // Very open preferences: age 18-99, all genders, 500 miles (essentially no filter)
+        const minAge = 18;
+        const maxAge = 99;
         const preferredGenders = JSON.stringify(['Male', 'Female', 'Non-binary']);
         await (preferencesStmt.run([
-          preferencesId, profileId, minAge, maxAge, preferredGenders, 50
+          preferencesId, profileId, minAge, maxAge, preferredGenders, 500
         ]) as Promise<any>);
+        console.log(`   ✅ Preferences created: age ${minAge}-${maxAge}, all genders, 500mi`);
 
         // Create interests
         for (const interest of userData.interests) {
