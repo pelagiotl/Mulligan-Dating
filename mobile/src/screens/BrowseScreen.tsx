@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { G, Path, Circle, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { io, Socket } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '../utils/api';
@@ -647,20 +647,10 @@ export default function BrowseScreen() {
         setTimeout(() => setError(''), 5000);
       }
     } catch (err: any) {
-      console.error('❌ Unlock browse error:', err);
       const errorMessage = err?.message || 'Failed to unlock browsing. Please try again.';
       const errorLower = errorMessage.toLowerCase();
       
-      // Check if it's an authentication error
-      if (errorLower.includes('authentication required') || errorLower.includes('authentication')) {
-        setError('Session expired. Please log in again.');
-        // Clear invalid token
-        await AsyncStorage.removeItem('token');
-        setTimeout(() => setError(''), 5000);
-        return;
-      }
-      
-      // If already unlocked, try to fetch and match with first profile
+      // If already unlocked, this is expected - just continue to fetch and match
       if (errorLower.includes('already unlocked') || errorLower.includes('browsing is already unlocked')) {
         console.log('✅ Browsing already unlocked, fetching and matching with first profile...');
         setBrowseUnlocked(true);
@@ -672,6 +662,13 @@ export default function BrowseScreen() {
             offset: number;
             total: number;
           }>(`/users/browse?offset=0`);
+
+          console.log('📊 Browse API response:', { 
+            hasProfile: !!data.profile, 
+            profile: data.profile ? data.profile.displayName : 'null',
+            hasMore: data.hasMore,
+            total: data.total
+          });
 
           if (data.profile) {
             // Fetch photos for this profile
@@ -700,8 +697,12 @@ export default function BrowseScreen() {
             
             await handleConnect(data.profile);
           } else {
+            // No profiles available
+            console.log('⚠️ No profiles available to match with');
             setCurrentProfile(null);
             setHasMore(data.hasMore);
+            setError('No profiles available at the moment. Check back later!');
+            setTimeout(() => setError(''), 8000);
           }
         } catch (fetchErr: any) {
           console.error('❌ Fetch profile error:', fetchErr);
@@ -709,6 +710,18 @@ export default function BrowseScreen() {
           setTimeout(() => setError(''), 8000);
         }
       } else {
+        // Only log and show error for unexpected errors
+        console.error('❌ Unlock browse error:', err);
+        
+        // Check if it's an authentication error
+        if (errorLower.includes('authentication required') || errorLower.includes('authentication')) {
+          setError('Session expired. Please log in again.');
+          // Clear invalid token
+          await AsyncStorage.removeItem('token');
+          setTimeout(() => setError(''), 5000);
+          return;
+        }
+        
         setError(errorMessage);
         setTimeout(() => setError(''), 8000);
       }
@@ -728,6 +741,14 @@ export default function BrowseScreen() {
         offset: number;
         total: number;
       }>(`/users/browse?offset=${offset}`);
+
+      console.log('📊 Browse API response:', { 
+        hasProfile: !!data.profile, 
+        profile: data.profile ? data.profile.displayName : 'null',
+        hasMore: data.hasMore,
+        total: data.total,
+        offset
+      });
 
       // If we get here, browsing is unlocked
       setBrowseUnlocked(true);
@@ -796,6 +817,24 @@ export default function BrowseScreen() {
       setLoading(false);
     }
   }, []);
+
+  // Refresh browse status when tab is focused
+  useFocusEffect(
+    useCallback(() => {
+      // When the tab is focused, check if browsing is unlocked and refresh if needed
+      if (hasFetched && browseUnlocked) {
+        console.log('🔄 Tab focused - refreshing browse status');
+        // If no current profile, fetch one
+        if (!currentProfile && !loading) {
+          setOffset(0);
+          fetchProfile();
+        }
+      } else if (hasFetched && !browseUnlocked) {
+        // If browsing is locked, check if it should be unlocked
+        checkBrowseUnlocked();
+      }
+    }, [hasFetched, browseUnlocked, currentProfile, loading, fetchProfile])
+  );
 
   useEffect(() => {
     if (hasFetched && offset > 0) {
