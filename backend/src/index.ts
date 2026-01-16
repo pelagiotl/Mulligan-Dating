@@ -309,8 +309,11 @@ app.post("/api/create-test-users", async (req, res) => {
         const existingUser = await (existingUserStmt.get([userData.phone]) as Promise<{ id: string } | undefined>);
 
         if (existingUser) {
+          console.log(`⏭️  User ${userData.name} (${userData.phone}) already exists, skipping...`);
           continue; // Skip if already exists
         }
+
+        console.log(`🔄 Creating test user: ${userData.name} (${userData.phone})...`);
 
         // Create user (phone-based users use empty string for password)
         const userStmt = db.prepare(`
@@ -319,7 +322,23 @@ app.post("/api/create-test-users", async (req, res) => {
             tos_accepted_at, privacy_accepted_at, created_at, last_active_at
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
-        await (userStmt.run([userId, null, userData.phone, 1, '', now, now, now, now, now]) as Promise<any>);
+        
+        const userParams = [userId, null, userData.phone, 1, '', now, now, now, now, now];
+        console.log(`   📝 User INSERT params: ${userParams.length} values`);
+        console.log(`   📝 User ID: ${userId}, Phone: ${userData.phone}`);
+        
+        try {
+          await (userStmt.run(userParams) as Promise<any>);
+          console.log(`   ✅ User created successfully: ${userId}`);
+        } catch (userError: any) {
+          console.error(`   ❌ User creation failed:`, userError);
+          console.error(`   ❌ Error details:`, {
+            message: userError.message,
+            code: userError.code,
+            name: userError.name
+          });
+          throw userError; // Re-throw to be caught by outer catch
+        }
 
         // Create profile
         const profileStmt = db.prepare(`
@@ -365,9 +384,14 @@ app.post("/api/create-test-users", async (req, res) => {
         createdUsers.push(userData.name);
         console.log(`✅ Successfully created test user: ${userData.name} (${userData.phone})`);
       } catch (error: any) {
-        console.error(`❌ Error creating user ${userData.name}:`, error);
+        console.error(`❌ Error creating user ${userData.name} (${userData.phone}):`, error);
         console.error(`   Error message:`, error.message);
-        console.error(`   Error stack:`, error.stack);
+        console.error(`   Error name:`, error.name);
+        console.error(`   Error code:`, error.code);
+        if (error.stack) {
+          console.error(`   Error stack:`, error.stack);
+        }
+        // Include error details in response for debugging
         // Don't silently fail - log the error but continue with next user
       }
     }
@@ -375,11 +399,14 @@ app.post("/api/create-test-users", async (req, res) => {
     console.log(`📊 Test user creation summary: ${createdUsers.length} created out of ${testUsers.length} attempted`);
 
     const skipped = testUsers.length - createdUsers.length;
+    const errors = testUsers.length - createdUsers.length - skipped;
+    
     res.json({
-      message: `Successfully created ${createdUsers.length} test user accounts${skipped > 0 ? ` (${skipped} skipped - may already exist)` : ''}`,
+      message: `Successfully created ${createdUsers.length} test user accounts${skipped > 0 ? ` (${skipped} skipped - may already exist)` : ''}${errors > 0 ? ` (${errors} failed)` : ''}`,
       createdUsers,
       total: testUsers.length,
       skipped,
+      errors,
       success: createdUsers.length > 0
     });
   } catch (error: any) {
