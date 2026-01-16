@@ -61,6 +61,8 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
       ? await matchesResult
       : matchesResult) as any[];
 
+    console.log(`📊 Matches query returned ${matches.length} matches for user ${userId}`);
+
     // Format matches with appropriate info based on stage
     const formattedMatches = await Promise.all(matches.map(async (m) => {
       const isUser1 = m.user1_id === userId;
@@ -169,6 +171,7 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
       };
     }));
 
+    console.log(`✅ Returning ${formattedMatches.length} formatted matches to user ${userId}`);
     res.json({ matches: formattedMatches });
   } catch (error) {
     console.error('Matches GET error:', error);
