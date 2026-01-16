@@ -230,22 +230,23 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
       return res.status(400).json({ error: "Please complete your profile first" });
     }
 
-    const userPhotoCountResult = db
-      .prepare("SELECT COUNT(*) as count FROM photos WHERE profile_id = ?")
-      .get([userProfile.id]);
-    const userPhotoCount = (userPhotoCountResult instanceof Promise
-      ? await userPhotoCountResult
-      : userPhotoCountResult) as { count: number } | undefined;
+    // Photo requirement temporarily removed - will be added back later
+    // const userPhotoCountResult = db
+    //   .prepare("SELECT COUNT(*) as count FROM photos WHERE profile_id = ?")
+    //   .get([userProfile.id]);
+    // const userPhotoCount = (userPhotoCountResult instanceof Promise
+    //   ? await userPhotoCountResult
+    //   : userPhotoCountResult) as { count: number } | undefined;
 
-    if (!userPhotoCount || userPhotoCount.count < 1) {
-      return res.status(400).json({ 
-        error: "You need at least 1 photo uploaded to use a mulligan token",
-        photoCount: userPhotoCount?.count || 0,
-        required: 1
-      });
-    }
+    // if (!userPhotoCount || userPhotoCount.count < 1) {
+    //   return res.status(400).json({ 
+    //     error: "You need at least 1 photo uploaded to use a mulligan token",
+    //     photoCount: userPhotoCount?.count || 0,
+    //     required: 1
+    //   });
+    // }
 
-    // Check if target user has at least 1 photo uploaded
+    // Check if target user profile exists
     const targetProfileResult = db
       .prepare("SELECT id FROM profiles WHERE user_id = ?")
       .get([targetUserId]);
@@ -257,20 +258,21 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
       return res.status(400).json({ error: "Target user profile not found" });
     }
 
-    const targetPhotoCountResult = db
-      .prepare("SELECT COUNT(*) as count FROM photos WHERE profile_id = ?")
-      .get([targetProfile.id]);
-    const targetPhotoCount = (targetPhotoCountResult instanceof Promise
-      ? await targetPhotoCountResult
-      : targetPhotoCountResult) as { count: number } | undefined;
+    // Photo requirement temporarily removed - will be added back later
+    // const targetPhotoCountResult = db
+    //   .prepare("SELECT COUNT(*) as count FROM photos WHERE profile_id = ?")
+    //   .get([targetProfile.id]);
+    // const targetPhotoCount = (targetPhotoCountResult instanceof Promise
+    //   ? await targetPhotoCountResult
+    //   : targetPhotoCountResult) as { count: number } | undefined;
 
-    if (!targetPhotoCount || targetPhotoCount.count < 1) {
-      return res.status(400).json({ 
-        error: "This user needs to upload at least 1 photo before you can match with them",
-        photoCount: targetPhotoCount?.count || 0,
-        required: 1
-      });
-    }
+    // if (!targetPhotoCount || targetPhotoCount.count < 1) {
+    //   return res.status(400).json({ 
+    //     error: "This user needs to upload at least 1 photo before you can match with them",
+    //     photoCount: targetPhotoCount?.count || 0,
+    //     required: 1
+    //   });
+    // }
 
     // Get available token
     const tokenResult = db
