@@ -818,22 +818,18 @@ export default function BrowseScreen() {
     }
   }, []);
 
-  // Refresh browse status when tab is focused
+  // Reset to landing page when tab is focused
   useFocusEffect(
     useCallback(() => {
-      // When the tab is focused, check if browsing is unlocked and refresh if needed
-      if (hasFetched && browseUnlocked) {
-        console.log('🔄 Tab focused - refreshing browse status');
-        // If no current profile, fetch one
-        if (!currentProfile && !loading) {
-          setOffset(0);
-          fetchProfile();
-        }
-      } else if (hasFetched && !browseUnlocked) {
-        // If browsing is locked, check if it should be unlocked
-        checkBrowseUnlocked();
-      }
-    }, [hasFetched, browseUnlocked, currentProfile, loading, fetchProfile])
+      // When the Connect tab is focused, always reset to show the landing page
+      // This allows users to click "Connect" again to match with a new profile
+      console.log('🔄 Connect tab focused - resetting to landing page');
+      setBrowseUnlocked(false);
+      setCurrentProfile(null);
+      setOffset(0);
+      setError('');
+      setLoading(false);
+    }, [])
   );
 
   useEffect(() => {
