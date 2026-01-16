@@ -358,12 +358,12 @@ app.post("/api/create-test-users", async (req, res) => {
             id, profile_id, min_age, max_age, preferred_genders, max_distance
           ) VALUES (?, ?, ?, ?, ?, ?)
         `);
-        // Very open preferences: age 18-99, all genders, 500 miles (essentially no filter)
+        // Very open preferences: age 18-99, all genders, 10000 miles (US-wide)
         const minAge = 18;
         const maxAge = 99;
         const preferredGenders = JSON.stringify(['Male', 'Female', 'Non-binary']);
         await (preferencesStmt.run([
-          preferencesId, profileId, minAge, maxAge, preferredGenders, 500
+          preferencesId, profileId, minAge, maxAge, preferredGenders, 10000
         ]) as Promise<any>);
         console.log(`   ✅ Preferences created: age ${minAge}-${maxAge}, all genders, 500mi`);
 
