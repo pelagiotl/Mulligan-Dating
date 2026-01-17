@@ -9,6 +9,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const API_URL = process.env.API_URL || 'https://mulligan-backend.onrender.com';
 const BASE_URL = `${API_URL}/api`;
 
+console.log('🔧 API Client initialized:', { API_URL, BASE_URL });
+
 class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);

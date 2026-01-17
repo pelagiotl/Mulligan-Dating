@@ -3,7 +3,7 @@
  * Converted from web version to React Native
  */
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, memo, useMemo } from 'react';
 import {
   View,
   Text,
@@ -24,7 +24,9 @@ import { api } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 
 // Animated Heart Logo Component (matching frontend exactly)
-function AnimatedLogo() {
+// Memoized to prevent parent re-renders when this component updates
+// This allows smooth animations without affecting input performance
+const AnimatedLogo = memo(function AnimatedLogo() {
   const rotateAnim = useRef(new Animated.Value(0)).current;
   const heartScale = useRef(new Animated.Value(1)).current;
   const arrowTopScale = useRef(new Animated.Value(1)).current;
@@ -49,6 +51,20 @@ function AnimatedLogo() {
   const sparkle4TranslateX = useRef(new Animated.Value(0)).current;
   
   // State for SVG values (react-native-svg doesn't support Animated.Value directly)
+  // Use light throttling (16ms = ~60fps) to keep animations smooth while preventing input lag
+  const lastUpdateRef = useRef<{ [key: string]: number }>({});
+  const THROTTLE_MS = 16; // ~60fps - smooth enough to look continuous
+  
+  const throttledSetState = useCallback((setter: (val: number) => void, value: number, key: string) => {
+    const now = performance.now();
+    const lastUpdate = lastUpdateRef.current[key] || 0;
+    
+    if (now - lastUpdate >= THROTTLE_MS) {
+      setter(value);
+      lastUpdateRef.current[key] = now;
+    }
+  }, []);
+  
   const [sparkle1OpacityValue, setSparkle1OpacityValue] = useState(0.6);
   const [sparkle1ScaleValue, setSparkle1ScaleValue] = useState(1);
   const [sparkle1TranslateYValue, setSparkle1TranslateYValue] = useState(0);
@@ -147,19 +163,20 @@ function AnimatedLogo() {
       setTranslateX: (val: number) => void,
       delay: number,
       xOffset: number,
-      yOffset: number
+      yOffset: number,
+      keyPrefix: string
     ) => {
       const opacityListenerId = opacity.addListener(({ value }) => {
-        setOpacity(value);
+        throttledSetState(setOpacity, value, `${keyPrefix}_opacity`);
       });
       const scaleListenerId = scale.addListener(({ value }) => {
-        setScale(value);
+        throttledSetState(setScale, value, `${keyPrefix}_scale`);
       });
       const translateYListenerId = translateY.addListener(({ value }) => {
-        setTranslateY(value);
+        throttledSetState(setTranslateY, value, `${keyPrefix}_translateY`);
       });
       const translateXListenerId = translateX.addListener(({ value }) => {
-        setTranslateX(value);
+        throttledSetState(setTranslateX, value, `${keyPrefix}_translateX`);
       });
       
       Animated.loop(
@@ -224,30 +241,30 @@ function AnimatedLogo() {
     const listener1 = sparkleAnim(
       sparkle1Opacity, sparkle1Scale, sparkle1TranslateY, sparkle1TranslateX,
       setSparkle1OpacityValue, setSparkle1ScaleValue, setSparkle1TranslateYValue, setSparkle1TranslateXValue,
-      0, 2, -4 // Top sparkle: moves right and up
+      0, 2, -4, 'sparkle1' // Top sparkle: moves right and up
     );
     const listener2 = sparkleAnim(
       sparkle2Opacity, sparkle2Scale, sparkle2TranslateY, sparkle2TranslateX,
       setSparkle2OpacityValue, setSparkle2ScaleValue, setSparkle2TranslateYValue, setSparkle2TranslateXValue,
-      500, -2, 0 // Right sparkle: moves left
+      500, -2, 0, 'sparkle2' // Right sparkle: moves left
     );
     const listener3 = sparkleAnim(
       sparkle3Opacity, sparkle3Scale, sparkle3TranslateY, sparkle3TranslateX,
       setSparkle3OpacityValue, setSparkle3ScaleValue, setSparkle3TranslateYValue, setSparkle3TranslateXValue,
-      1000, 0, 4 // Bottom sparkle: moves down
+      1000, 0, 4, 'sparkle3' // Bottom sparkle: moves down
     );
     const listener4 = sparkleAnim(
       sparkle4Opacity, sparkle4Scale, sparkle4TranslateY, sparkle4TranslateX,
       setSparkle4OpacityValue, setSparkle4ScaleValue, setSparkle4TranslateYValue, setSparkle4TranslateXValue,
-      1500, -2, -2 // Left sparkle: moves left and up
+      1500, -2, -2, 'sparkle4' // Left sparkle: moves left and up
     );
     
     // Arrow opacity listeners
     const arrowTopListenerId = arrowTopOpacity.addListener(({ value }) => {
-      setArrowTopOpacityValue(value);
+      throttledSetState(setArrowTopOpacityValue, value, 'arrowTop');
     });
     const arrowBottomListenerId = arrowBottomOpacity.addListener(({ value }) => {
-      setArrowBottomOpacityValue(value);
+      throttledSetState(setArrowBottomOpacityValue, value, 'arrowBottom');
     });
     
     return () => {
@@ -270,7 +287,7 @@ function AnimatedLogo() {
       arrowTopOpacity.removeListener(arrowTopListenerId);
       arrowBottomOpacity.removeListener(arrowBottomListenerId);
     };
-  }, []);
+  }, [throttledSetState]);
 
   const rotate = rotateAnim.interpolate({
     inputRange: [0, 1],
@@ -365,23 +382,47 @@ function AnimatedLogo() {
       </Animated.View>
     </View>
   );
-}
+});
 
 export default function PhoneLoginScreen() {
-  const [phoneNumber, setPhoneNumber] = useState('');
+  // Combine phone number and validation into single state to reduce re-renders
+  const [phoneState, setPhoneState] = useState({ value: '', isValid: false });
   const [code, setCode] = useState('');
   const [step, setStep] = useState<'phone' | 'verify'>('phone');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [referralCode, setReferralCode] = useState('');
+  const codeInputRef = useRef<TextInput>(null);
   const navigation = useNavigation();
   const { phoneLogin } = useAuth();
+  
+  // Aliases for easier access
+  const phoneNumber = phoneState.value;
+  const isValidPhoneNumber = phoneState.isValid;
 
-  const formatPhoneInput = (value: string) => {
-    // Remove all non-digits
-    const digits = value.replace(/\D/g, '');
+  // Ultra-fast digit extraction - count digits directly from input
+  const extractDigits = useCallback((value: string) => {
+    let digits = '';
+    for (let i = 0; i < value.length; i++) {
+      const code = value.charCodeAt(i);
+      if (code >= 48 && code <= 57) {
+        digits += value[i];
+      }
+    }
+    return digits;
+  }, []);
+
+  // Ultra-fast format function - optimized for minimal string operations
+  const formatPhoneInput = useCallback((value: string) => {
+    // Fast path: if already formatted correctly, return as-is
+    if (value.length === 14 && value[0] === '(' && value[4] === ')' && value[9] === '-') {
+      return value;
+    }
     
-    // Format as (XXX) XXX-XXXX
+    // Extract digits using optimized function
+    const digits = extractDigits(value);
+    
+    // Format as (XXX) XXX-XXXX - optimized string building
     if (digits.length <= 3) {
       return digits;
     } else if (digits.length <= 6) {
@@ -389,22 +430,57 @@ export default function PhoneLoginScreen() {
     } else {
       return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
     }
-  };
+  }, [extractDigits]);
 
-  // Memoize phone number validation to avoid recalculating on every render
-  const isValidPhoneNumber = useMemo(() => {
-    const digits = phoneNumber.replace(/\D/g, '');
-    return digits.length >= 10;
-  }, [phoneNumber]);
+  // Ultra-fast validation function - optimized for immediate calculation
+  const calculateValidation = useCallback((formatted: string) => {
+    // Fastest path: complete formatted number is exactly 14 chars
+    if (formatted.length === 14) {
+      return true;
+    }
+    // For partial input, count digits efficiently
+    // Stop counting once we reach 10 digits (early exit optimization)
+    let digitCount = 0;
+    const len = formatted.length;
+    for (let i = 0; i < len; i++) {
+      const code = formatted.charCodeAt(i);
+      // Check if digit (48-57 are '0'-'9') - faster than string comparison
+      if (code >= 48 && code <= 57) {
+        digitCount++;
+        if (digitCount >= 10) return true; // Early exit
+      }
+    }
+    return false;
+  }, []);
+  
+  // Ultra-optimized onChange handler - single state update for minimal re-renders
+  // Validation calculated from raw input BEFORE formatting for instant button update
+  const handlePhoneNumberChange = useCallback((text: string) => {
+    // Extract digits FIRST for instant validation (no formatting delay)
+    const digits = extractDigits(text);
+    const isValid = digits.length >= 10;
+    
+    // Format phone number
+    const formatted = formatPhoneInput(text);
+    
+    // Single state update - React batches this, but it's still one update
+    // This reduces the number of re-renders compared to two separate updates
+    setPhoneState({ value: formatted, isValid });
+  }, [extractDigits, formatPhoneInput]);
 
   const handlePhoneSubmit = async () => {
+    console.log('📱 handlePhoneSubmit called with phoneNumber:', phoneNumber);
     setError('');
     setLoading(true);
 
     try {
+      // Clean phone number to just digits for API
+      const cleanPhoneNumber = extractDigits(phoneNumber);
+      console.log('📱 Calling /sms/send-code with cleanPhoneNumber:', cleanPhoneNumber);
       const response = await api.post<{ message: string; phoneNumber: string; code?: string; smsSent: boolean }>('/sms/send-code', {
-        phoneNumber
+        phoneNumber: cleanPhoneNumber
       });
+      console.log('✅ /sms/send-code response:', response);
 
       // Show code if returned (for debugging)
       if (response.code) {
@@ -421,9 +497,14 @@ export default function PhoneLoginScreen() {
       setLoading(false);
     } catch (err: any) {
       const errorMsg = err?.response?.data?.error || err?.message || 'Failed to send verification code';
+      console.error('❌ Send code error caught in handlePhoneSubmit:', {
+        error: err,
+        message: errorMsg,
+        errorName: err?.name,
+        errorStack: err?.stack
+      });
       setError(errorMsg);
       setLoading(false);
-      console.error('Send code error:', err);
     }
   };
 
@@ -444,7 +525,9 @@ export default function PhoneLoginScreen() {
     setLoading(true);
 
     try {
-      const { hasProfile } = await phoneLogin(phoneNumber, codeToUse, referralCode || undefined);
+      // Clean phone number to just digits for API
+      const cleanPhoneNumber = extractDigits(phoneNumber);
+      const { hasProfile } = await phoneLogin(cleanPhoneNumber, codeToUse, referralCode || undefined);
       
       // Navigate based on profile status
       if (hasProfile) {
@@ -456,10 +539,40 @@ export default function PhoneLoginScreen() {
         navigation.navigate('CreateProfile' as never);
       }
     } catch (err: any) {
-      setError(err?.message || 'Invalid verification code');
+      const errorMessage = err?.message || 'Invalid verification code';
+      setError(errorMessage);
       setLoading(false);
+      
+      // If code is invalid, suggest resending
+      if (errorMessage.toLowerCase().includes('invalid') || errorMessage.toLowerCase().includes('expired')) {
+        // Error message will show, user can click "Resend Code"
+      }
     }
   };
+
+  // Auto-focus code input when step changes to verify
+  useEffect(() => {
+    if (step === 'verify') {
+      // Small delay to ensure the input is rendered
+      const timer = setTimeout(() => {
+        codeInputRef.current?.focus();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [step]);
+
+  // Memoize verification code handler
+  const handleCodeChange = useCallback((text: string) => {
+    const digits = text.replace(/\D/g, '').slice(0, 6);
+    setCode(digits);
+    // Auto-submit when 6 digits are entered
+    if (digits.length === 6 && !loading) {
+      // Small delay to ensure UI updates
+      setTimeout(() => {
+        handleVerifySubmitWithCode(digits);
+      }, 150);
+    }
+  }, [loading, handleVerifySubmitWithCode]);
 
   if (step === 'phone') {
     return (
@@ -481,7 +594,11 @@ export default function PhoneLoginScreen() {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.keyboardView}
         >
-          <ScrollView contentContainerStyle={styles.scrollContent}>
+          <ScrollView 
+            contentContainerStyle={styles.scrollContent}
+            removeClippedSubviews={true}
+            keyboardShouldPersistTaps="handled"
+          >
           <View style={styles.header}>
             <AnimatedLogo />
             <Text style={styles.title}>Welcome to Mulligan</Text>
@@ -500,10 +617,7 @@ export default function PhoneLoginScreen() {
                   placeholder="(555) 123-4567"
                   placeholderTextColor="#999"
                   value={phoneNumber}
-                  onChangeText={(text) => {
-                    const formatted = formatPhoneInput(text);
-                    setPhoneNumber(formatted);
-                  }}
+                  onChangeText={handlePhoneNumberChange}
                   keyboardType="phone-pad"
                   maxLength={14}
                   editable={!loading}
@@ -573,7 +687,11 @@ export default function PhoneLoginScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          removeClippedSubviews={true}
+          keyboardShouldPersistTaps="handled"
+        >
         <View style={styles.header}>
           <AnimatedLogo />
           <Text style={styles.title}>Verify Your Phone</Text>
@@ -588,26 +706,15 @@ export default function PhoneLoginScreen() {
             <View style={styles.inputWrapper}>
               <Text style={styles.inputIcon}>🔒</Text>
               <TextInput
+                ref={codeInputRef}
                 style={[styles.input, styles.codeInput]}
                 placeholder="123456"
                 placeholderTextColor="#999"
                 value={code}
-                onChangeText={(text) => {
-                  const digits = text.replace(/\D/g, '').slice(0, 6);
-                  setCode(digits);
-                  // Auto-submit when 6 digits are entered
-                  // Use the digits value directly, not the state (which updates asynchronously)
-                  if (digits.length === 6 && !loading) {
-                    // Small delay to ensure UI updates
-                    setTimeout(() => {
-                      // Pass the digits directly to avoid state timing issues
-                      handleVerifySubmitWithCode(digits);
-                    }, 150);
-                  }
-                }}
+                onChangeText={handleCodeChange}
                 keyboardType="number-pad"
                 maxLength={6}
-                autoFocus
+                autoFocus={true}
                 editable={!loading}
                 returnKeyType="done"
                 onSubmitEditing={handleVerifySubmit}
@@ -628,17 +735,26 @@ export default function PhoneLoginScreen() {
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.button, styles.secondaryButton]}
-            onPress={() => {
-              setStep('phone');
-              setCode('');
-              setError('');
-            }}
-            disabled={loading}
-          >
-            <Text style={[styles.buttonText, styles.secondaryButtonText]}>Change Phone Number</Text>
-          </TouchableOpacity>
+          <View style={styles.verifyActions}>
+            <TouchableOpacity
+              style={[styles.button, styles.resendButton]}
+              onPress={handlePhoneSubmit}
+              disabled={loading}
+            >
+              <Text style={[styles.buttonText, styles.resendButtonText]}>Resend Code</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.button, styles.secondaryButton]}
+              onPress={() => {
+                setStep('phone');
+                setCode('');
+                setError('');
+              }}
+              disabled={loading}
+            >
+              <Text style={[styles.buttonText, styles.secondaryButtonText]}>Change Phone</Text>
+            </TouchableOpacity>
+          </View>
         </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -750,8 +866,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#8B1538',
   },
   secondaryButton: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
+    flex: 1,
+    backgroundColor: '#fff',
+    borderWidth: 1.5,
     borderColor: '#8B1538',
   },
   buttonDisabled: {
@@ -764,6 +881,22 @@ const styles = StyleSheet.create({
   },
   secondaryButtonText: {
     color: '#8B1538',
+    fontWeight: '600',
+  },
+  verifyActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  resendButton: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderWidth: 1.5,
+    borderColor: '#8B1538',
+  },
+  resendButtonText: {
+    color: '#8B1538',
+    fontWeight: '600',
   },
   error: {
     color: '#d32f2f',
