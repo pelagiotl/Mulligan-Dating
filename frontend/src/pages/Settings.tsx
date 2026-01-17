@@ -1,7 +1,7 @@
 import { useState, useEffect, FormEvent } from "react";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../utils/api";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 interface SettingsData {
   email: string;
@@ -9,10 +9,19 @@ interface SettingsData {
   lastActiveAt: string | null;
 }
 
+interface TokenPackage {
+  id: number;
+  tokens: number;
+  price: number;
+  priceFormatted: string;
+  pricePerToken: string;
+}
+
 
 export default function Settings() {
   const { logout } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [settings, setSettings] = useState<SettingsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -35,9 +44,25 @@ export default function Settings() {
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
+  // Token purchase
+  const [packages, setPackages] = useState<TokenPackage[]>([]);
+  const [loadingPackages, setLoadingPackages] = useState(false);
+  const [purchasing, setPurchasing] = useState<number | null>(null);
+
   useEffect(() => {
     fetchSettings();
-  }, []);
+    fetchPackages();
+    
+    // Check for payment success/cancel in URL
+    const paymentStatus = searchParams.get("payment");
+    if (paymentStatus === "success") {
+      setSuccess("Payment successful! Your tokens have been added.");
+      setSearchParams({}); // Clear URL params
+    } else if (paymentStatus === "canceled") {
+      setError("Payment was canceled.");
+      setSearchParams({}); // Clear URL params
+    }
+  }, [searchParams, setSearchParams]);
 
   const fetchSettings = async () => {
     try {
@@ -47,6 +72,38 @@ export default function Settings() {
       setError(err instanceof Error ? err.message : "Failed to load settings");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchPackages = async () => {
+    setLoadingPackages(true);
+    try {
+      const data = await api.get<{ packages: TokenPackage[] }>("/payments/packages");
+      setPackages(data.packages);
+    } catch (err) {
+      console.error("Failed to load token packages:", err);
+    } finally {
+      setLoadingPackages(false);
+    }
+  };
+
+  const handlePurchase = async (packageId: number) => {
+    setPurchasing(packageId);
+    setError("");
+    setSuccess("");
+    
+    try {
+      const data = await api.post<{ url: string }>("/payments/create-checkout", { packageId });
+      // Redirect to Stripe Checkout
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        setError("Failed to initiate payment. Please try again.");
+        setPurchasing(null);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to initiate payment");
+      setPurchasing(null);
     }
   };
 
@@ -171,6 +228,62 @@ export default function Settings() {
               </span>
             </div>
           </div>
+        </div>
+
+        {/* Buy Tokens */}
+        <div className="settings-section">
+          <h2 className="settings-section-title">
+            <span>💳</span> Buy Tokens
+          </h2>
+          <p className="settings-description" style={{ marginBottom: 'var(--space-4)' }}>
+            Purchase tokens to connect with more people. Tokens don't expire!
+          </p>
+          
+          {loadingPackages ? (
+            <div style={{ padding: 'var(--space-4)', textAlign: 'center' }}>Loading packages...</div>
+          ) : packages.length > 0 ? (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--space-3)' }}>
+              {packages.map((pkg) => (
+                <div
+                  key={pkg.id}
+                  style={{
+                    border: '2px solid var(--border-medium)',
+                    borderRadius: 'var(--radius-lg)',
+                    padding: 'var(--space-4)',
+                    textAlign: 'center',
+                    background: pkg.id === 3 || pkg.id === 10 ? 'rgba(244, 63, 94, 0.05)' : 'var(--bg-secondary)',
+                  }}
+                >
+                  <div style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: 'var(--space-2)' }}>
+                    {pkg.tokens} {pkg.tokens === 1 ? 'Token' : 'Tokens'}
+                  </div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: '600', color: 'var(--color-rose-600)', marginBottom: 'var(--space-2)' }}>
+                    {pkg.priceFormatted}
+                  </div>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>
+                    ${pkg.pricePerToken} per token
+                  </div>
+                  {(pkg.id === 3 || pkg.id === 10) && (
+                    <div style={{ fontSize: '0.75rem', color: 'var(--color-rose-600)', fontWeight: '600', marginBottom: 'var(--space-2)' }}>
+                      ⭐ Best Value
+                    </div>
+                  )}
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => handlePurchase(pkg.id)}
+                    disabled={purchasing === pkg.id}
+                    style={{ width: '100%', marginTop: 'var(--space-2)' }}
+                  >
+                    {purchasing === pkg.id ? "Processing..." : "Buy Now"}
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ padding: 'var(--space-4)', color: 'var(--text-secondary)' }}>
+              Failed to load token packages. Please try again later.
+            </div>
+          )}
         </div>
 
         {/* Change Password */}
