@@ -47,7 +47,13 @@ async function request<T = any>(endpoint: string, options: RequestInit & { body?
   const timeoutId = setTimeout(() => controller.abort(), 45000); // 45 second timeout
 
   const url = `${BASE_URL}${endpoint}`;
-  console.log('Making API request:', { method: options.method || 'GET', url, hasToken: !!token });
+  console.log('🌐 Making API request:', { 
+    method: options.method || 'GET', 
+    url, 
+    hasToken: !!token,
+    endpoint,
+    baseUrl: BASE_URL
+  });
 
   try {
     const response = await fetch(url, {
@@ -88,12 +94,16 @@ async function request<T = any>(endpoint: string, options: RequestInit & { body?
     return data as T;
   } catch (error) {
     clearTimeout(timeoutId);
-    console.error('API request failed:', {
+    const errorDetails = {
       url,
+      endpoint,
+      baseUrl: BASE_URL,
       error,
       name: error instanceof Error ? error.name : 'Unknown',
-      message: error instanceof Error ? error.message : String(error)
-    });
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    };
+    console.error('❌ API request failed:', errorDetails);
     
     if (error instanceof Error && error.name === 'AbortError') {
       console.error('Request was aborted (timeout)');
