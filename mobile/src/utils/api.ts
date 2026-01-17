@@ -106,10 +106,14 @@ async function request<T = any>(endpoint: string, options: RequestInit & { body?
       throw error;
     }
     if (error instanceof Error && (error.message.includes('Failed to fetch') || error.message.includes('NetworkError'))) {
-      if (url.includes('/auth/login') || url.includes('/sms/verify-code')) {
+      // More helpful error messages for specific endpoints
+      if (url.includes('/sms/send-code') || url.includes('/sms/verify-code')) {
+        throw new ApiError(0, 'Cannot connect to server. The backend may be starting up (this can take 30-60 seconds). Please wait a moment and try again.');
+      }
+      if (url.includes('/auth/login')) {
         throw new ApiError(0, 'Server is starting up. Please wait a moment and try again.');
       }
-      throw new ApiError(0, 'Connection failed. Please check your internet connection and try again.');
+      throw new ApiError(0, `Connection failed. Please check your internet connection and try again. (URL: ${url})`);
     }
     throw new ApiError(0, error instanceof Error ? error.message : 'Network error');
   }
