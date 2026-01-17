@@ -41,6 +41,11 @@ const verifyCodeSchema = z.object({
  */
 smsRouter.post('/send-code', rateLimitAuth, async (req, res) => {
   try {
+    console.log('📥 POST /api/sms/send-code - Request received');
+    console.log('   Origin:', req.headers.origin || 'no origin');
+    console.log('   User-Agent:', req.headers['user-agent'] || 'no user-agent');
+    console.log('   Body:', { phoneNumber: req.body?.phoneNumber || 'missing' });
+    
     const { phoneNumber } = sendCodeSchema.parse(req.body);
     
     // Check which service to use (priority: Twilio Verify > AWS SNS > Twilio Messages)

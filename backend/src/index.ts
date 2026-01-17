@@ -15,6 +15,7 @@ import { settingsRouter } from "./routes/settings.js";
 import { photosRouter } from "./routes/photos.js";
 import { adminRouter } from "./routes/admin.js";
 import { smsRouter } from "./routes/sms.js";
+import { paymentsRouter } from "./routes/payments.js";
 import { initDatabase, db } from "./database.js";
 import { generateWeeklyMatchesForAll } from "./services/matching.js";
 import path from "path";
@@ -60,7 +61,7 @@ app.use(securityHeaders);
 // CORS configuration
 const allowedOrigins = process.env.NODE_ENV === 'production' 
   ? (process.env.ALLOWED_ORIGINS?.split(',') || [])
-  : ["http://localhost:5173", "http://localhost:5174"];
+  : ["http://localhost:5173", "http://localhost:5174", "http://127.0.0.1:5173", "http://127.0.0.1:5174"];
 
 app.use(
   cors({
@@ -71,6 +72,12 @@ app.use(
       }
       // Allow ngrok URLs in development
       if (origin && process.env.NODE_ENV !== 'production' && origin.includes('ngrok')) {
+        return callback(null, true);
+      }
+      // Allow localhost and 127.0.0.1 in development
+      if (origin && process.env.NODE_ENV !== 'production' && (
+        origin.includes('localhost') || origin.includes('127.0.0.1')
+      )) {
         return callback(null, true);
       }
       if (!origin || allowedOrigins.includes(origin)) {
@@ -148,6 +155,9 @@ app.use("/api/blocks", blocksRouter);
 app.use("/api/settings", settingsRouter);
 app.use("/api/photos", photosRouter);
 app.use("/api/sms", smsRouter);
+// Stripe webhook must use raw body for signature verification - register BEFORE other payment routes
+app.use("/api/payments/webhook", express.raw({ type: "application/json" }), paymentsRouter);
+app.use("/api/payments", paymentsRouter);
 
 // Public admin endpoints (no auth required) - must be BEFORE the protected admin router
 app.get("/api/admin/check-admin", async (req, res) => {

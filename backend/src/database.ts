@@ -475,6 +475,24 @@ export async function initDatabase() {
     // Column already exists, ignore
   }
 
+  // Payments table - tracks token purchases via Stripe
+  await execSQL(`
+    CREATE TABLE IF NOT EXISTS payments (
+      id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} PRIMARY KEY,
+      user_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      payment_intent_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} UNIQUE NOT NULL,
+      amount_cents ${usePostgres ? 'INT' : 'INTEGER'} NOT NULL,
+      tokens_to_grant ${usePostgres ? 'INT' : 'INTEGER'} NOT NULL,
+      package_id ${usePostgres ? 'INT' : 'INTEGER'} NOT NULL,
+      status ${usePostgres ? 'VARCHAR(50)' : 'TEXT'} DEFAULT 'pending',
+      token_ids ${usePostgres ? 'TEXT' : 'TEXT'},
+      created_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP,
+      tokens_granted_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'},
+      failed_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'},
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
   // SUCCESS SIGNAL TRACKING: Track real success indicators for learning
   // Success signals: match creation, message engagement, stage advancement
   await execSQL(`
