@@ -297,6 +297,7 @@ export default function Settings() {
               <input
                 type="password"
                 id="currentPassword"
+                className="form-input"
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 required
@@ -307,6 +308,7 @@ export default function Settings() {
               <input
                 type="password"
                 id="newPassword"
+                className="form-input"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 required
@@ -318,6 +320,7 @@ export default function Settings() {
               <input
                 type="password"
                 id="confirmPassword"
+                className="form-input"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
@@ -345,8 +348,10 @@ export default function Settings() {
               <input
                 type="email"
                 id="newEmail"
+                className="form-input"
                 value={newEmail}
                 onChange={(e) => setNewEmail(e.target.value)}
+                placeholder="you@example.com"
                 required
               />
             </div>
@@ -355,6 +360,7 @@ export default function Settings() {
               <input
                 type="password"
                 id="emailPassword"
+                className="form-input"
                 value={emailPassword}
                 onChange={(e) => setEmailPassword(e.target.value)}
                 required
@@ -398,6 +404,7 @@ export default function Settings() {
                 <input
                   type="password"
                   id="deletePassword"
+                  className="form-input"
                   value={deletePassword}
                   onChange={(e) => setDeletePassword(e.target.value)}
                   required
