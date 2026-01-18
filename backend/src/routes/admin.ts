@@ -23,7 +23,7 @@ adminRouter.post('/create-test-users', async (req: AuthRequest, res) => {
       {
         name: 'Alex',
         age: 28,
-        gender: 'Male',
+        gender: 'Man',
         location: 'San Francisco, CA',
         bio: 'Love hiking, coffee, and good conversations. Looking for someone to explore the city with!',
         lookingFor: 'Long-term relationship',
@@ -33,7 +33,7 @@ adminRouter.post('/create-test-users', async (req: AuthRequest, res) => {
       {
         name: 'Jordan',
         age: 26,
-        gender: 'Female',
+        gender: 'Woman',
         location: 'Los Angeles, CA',
         bio: 'Foodie, bookworm, and adventure seeker. Always up for trying something new!',
         lookingFor: 'Friendship or more',
@@ -53,7 +53,7 @@ adminRouter.post('/create-test-users', async (req: AuthRequest, res) => {
       {
         name: 'Taylor',
         age: 25,
-        gender: 'Female',
+        gender: 'Woman',
         location: 'Austin, TX',
         bio: 'Tech enthusiast, dog lover, and weekend explorer. Let\'s build something amazing together!',
         lookingFor: 'Long-term relationship',
@@ -63,7 +63,7 @@ adminRouter.post('/create-test-users', async (req: AuthRequest, res) => {
       {
         name: 'Casey',
         age: 29,
-        gender: 'Male',
+        gender: 'Man',
         location: 'Seattle, WA',
         bio: 'Coffee snob, music producer, and nature enthusiast. Looking for my person!',
         lookingFor: 'Serious relationship',
@@ -137,7 +137,7 @@ adminRouter.post('/create-test-users', async (req: AuthRequest, res) => {
 
         const minAge = Math.max(18, userData.age - 5);
         const maxAge = userData.age + 5;
-        const preferredGenders = JSON.stringify(['Male', 'Female', 'Non-binary']);
+        const preferredGenders = JSON.stringify(['Man', 'Woman', 'Non-binary']);
 
         await (preferencesStmt.run([
           preferencesId,

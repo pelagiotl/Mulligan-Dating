@@ -269,14 +269,14 @@ app.post("/api/create-test-users", async (req, res) => {
   try {
     const testUsers = [
       {
-        name: 'Alex', age: 28, gender: 'Male', location: 'San Francisco, CA',
+        name: 'Alex', age: 28, gender: 'Man', location: 'San Francisco, CA',
         bio: 'Love hiking, coffee, and good conversations. Looking for someone to explore the city with!',
         lookingFor: 'Long-term relationship',
         interests: ['Hiking', 'Coffee', 'Photography', 'Travel', 'Yoga'],
         phone: '+15551234567'
       },
       {
-        name: 'Jordan', age: 26, gender: 'Female', location: 'Los Angeles, CA',
+        name: 'Jordan', age: 26, gender: 'Woman', location: 'Los Angeles, CA',
         bio: 'Foodie, bookworm, and adventure seeker. Always up for trying something new!',
         lookingFor: 'Friendship or more',
         interests: ['Reading', 'Cooking', 'Travel', 'Movies', 'Fitness'],
@@ -290,14 +290,14 @@ app.post("/api/create-test-users", async (req, res) => {
         phone: '+15551234569'
       },
       {
-        name: 'Taylor', age: 25, gender: 'Female', location: 'Austin, TX',
+        name: 'Taylor', age: 25, gender: 'Woman', location: 'Austin, TX',
         bio: 'Tech enthusiast, dog lover, and weekend explorer. Let\'s build something amazing together!',
         lookingFor: 'Long-term relationship',
         interests: ['Technology', 'Dogs', 'Outdoor Activities', 'Gaming', 'Cooking'],
         phone: '+15551234570'
       },
       {
-        name: 'Casey', age: 29, gender: 'Male', location: 'Seattle, WA',
+        name: 'Casey', age: 29, gender: 'Man', location: 'Seattle, WA',
         bio: 'Coffee snob, music producer, and nature enthusiast. Looking for my person!',
         lookingFor: 'Serious relationship',
         interests: ['Music', 'Coffee', 'Nature', 'Photography', 'Cooking'],
