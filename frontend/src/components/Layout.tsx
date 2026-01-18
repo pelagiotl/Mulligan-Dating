@@ -1,15 +1,37 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { api } from '../utils/api'
 import MaintenanceBanner from './MaintenanceBanner'
 
 export default function Layout() {
   // Always call hooks at the top level, before any conditional logic
   // This ensures hooks are called in the same order on every render
-  const { logout, isAdmin } = useAuth()
+  const { logout, isAdmin, isAuthenticated } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
+  const [tokenCount, setTokenCount] = useState<number | null>(null)
 
   const isActive = (path: string) => location.pathname === path
+
+  // Fetch token count when authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchTokenCount()
+    } else {
+      setTokenCount(null)
+    }
+  }, [isAuthenticated])
+
+  const fetchTokenCount = async () => {
+    try {
+      const data = await api.get<{ availableTokens: number }>("/tokens")
+      setTokenCount(data.availableTokens)
+    } catch (err) {
+      // Silently fail - token count is not critical for navbar
+      console.error('Failed to fetch token count:', err)
+    }
+  }
 
   return (
     <div className="app-layout">
@@ -57,6 +79,40 @@ export default function Layout() {
             </span>
             <span className="navbar-logo-text">Mulligan</span>
           </Link>
+          
+          {/* Token Count Badge */}
+          {isAuthenticated && tokenCount !== null && (
+            <Link 
+              to="/settings" 
+              className="navbar-token-badge"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 'var(--space-2)',
+                padding: 'var(--space-2) var(--space-3)',
+                background: 'rgba(244, 63, 94, 0.1)',
+                border: '1px solid rgba(244, 63, 94, 0.2)',
+                borderRadius: 'var(--radius-lg)',
+                color: 'var(--color-rose-600)',
+                textDecoration: 'none',
+                fontWeight: 600,
+                fontSize: '0.9rem',
+                transition: 'all 0.2s ease',
+                cursor: 'pointer'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(244, 63, 94, 0.15)'
+                e.currentTarget.style.transform = 'translateY(-1px)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(244, 63, 94, 0.1)'
+                e.currentTarget.style.transform = 'translateY(0)'
+              }}
+            >
+              <span>🎟️</span>
+              <span>{tokenCount}</span>
+            </Link>
+          )}
           
           <ul className="navbar-nav">
             <li>
