@@ -88,28 +88,35 @@ export default function Layout() {
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: 'var(--space-2)',
-                padding: 'var(--space-2) var(--space-3)',
-                background: 'rgba(244, 63, 94, 0.1)',
-                border: '1px solid rgba(244, 63, 94, 0.2)',
-                borderRadius: 'var(--radius-lg)',
+                gap: '0.4rem',
+                padding: '0.5rem 0.875rem',
+                marginLeft: 'var(--space-6)',
+                background: 'linear-gradient(135deg, rgba(244, 63, 94, 0.12) 0%, rgba(244, 63, 94, 0.08) 100%)',
+                border: '1.5px solid rgba(244, 63, 94, 0.25)',
+                borderRadius: 'var(--radius-xl)',
                 color: 'var(--color-rose-600)',
                 textDecoration: 'none',
-                fontWeight: 600,
-                fontSize: '0.9rem',
-                transition: 'all 0.2s ease',
+                fontWeight: 700,
+                fontSize: '0.875rem',
+                letterSpacing: '0.01em',
+                boxShadow: '0 2px 8px rgba(244, 63, 94, 0.15)',
+                transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
                 cursor: 'pointer'
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(244, 63, 94, 0.15)'
-                e.currentTarget.style.transform = 'translateY(-1px)'
+                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(244, 63, 94, 0.18) 0%, rgba(244, 63, 94, 0.12) 100%)'
+                e.currentTarget.style.transform = 'translateY(-2px)'
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(244, 63, 94, 0.25)'
+                e.currentTarget.style.borderColor = 'rgba(244, 63, 94, 0.35)'
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(244, 63, 94, 0.1)'
+                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(244, 63, 94, 0.12) 0%, rgba(244, 63, 94, 0.08) 100%)'
                 e.currentTarget.style.transform = 'translateY(0)'
+                e.currentTarget.style.boxShadow = '0 2px 8px rgba(244, 63, 94, 0.15)'
+                e.currentTarget.style.borderColor = 'rgba(244, 63, 94, 0.25)'
               }}
             >
-              <span>🎟️</span>
+              <span style={{ fontSize: '1rem' }}>🎟️</span>
               <span>{tokenCount}</span>
             </Link>
           )}
