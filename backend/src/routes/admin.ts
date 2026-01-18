@@ -189,11 +189,11 @@ adminRouter.post('/create-test-users', async (req: AuthRequest, res) => {
 adminRouter.post('/create-unique-test-users', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const testUsersTemplate = [
-      { name: 'Alex', age: 28, gender: 'Male', location: 'San Francisco, CA', bio: 'Love hiking, coffee, and good conversations.', lookingFor: 'Long-term relationship', interests: ['Hiking', 'Coffee', 'Photography', 'Travel', 'Yoga'] },
-      { name: 'Jordan', age: 26, gender: 'Female', location: 'Los Angeles, CA', bio: 'Foodie, bookworm, and adventure seeker.', lookingFor: 'Friendship or more', interests: ['Reading', 'Cooking', 'Travel', 'Movies', 'Fitness'] },
+      { name: 'Alex', age: 28, gender: 'Man', location: 'San Francisco, CA', bio: 'Love hiking, coffee, and good conversations.', lookingFor: 'Long-term relationship', interests: ['Hiking', 'Coffee', 'Photography', 'Travel', 'Yoga'] },
+      { name: 'Jordan', age: 26, gender: 'Woman', location: 'Los Angeles, CA', bio: 'Foodie, bookworm, and adventure seeker.', lookingFor: 'Friendship or more', interests: ['Reading', 'Cooking', 'Travel', 'Movies', 'Fitness'] },
       { name: 'Sam', age: 30, gender: 'Non-binary', location: 'New York, NY', bio: 'Artist, musician, and creative soul.', lookingFor: 'Meaningful connection', interests: ['Art', 'Music', 'Writing', 'Meditation', 'Dancing'] },
-      { name: 'Taylor', age: 25, gender: 'Female', location: 'Austin, TX', bio: 'Tech enthusiast, dog lover, and weekend explorer.', lookingFor: 'Long-term relationship', interests: ['Technology', 'Dogs', 'Outdoor Activities', 'Gaming', 'Cooking'] },
-      { name: 'Casey', age: 29, gender: 'Male', location: 'Seattle, WA', bio: 'Coffee snob, music producer, and nature enthusiast.', lookingFor: 'Serious relationship', interests: ['Music', 'Coffee', 'Nature', 'Photography', 'Cooking'] }
+      { name: 'Taylor', age: 25, gender: 'Woman', location: 'Austin, TX', bio: 'Tech enthusiast, dog lover, and weekend explorer.', lookingFor: 'Long-term relationship', interests: ['Technology', 'Dogs', 'Outdoor Activities', 'Gaming', 'Cooking'] },
+      { name: 'Casey', age: 29, gender: 'Man', location: 'Seattle, WA', bio: 'Coffee snob, music producer, and nature enthusiast.', lookingFor: 'Serious relationship', interests: ['Music', 'Coffee', 'Nature', 'Photography', 'Cooking'] }
     ];
 
     const timestamp = Date.now();
@@ -246,7 +246,7 @@ adminRouter.post('/create-unique-test-users', authenticateToken, requireAdmin, a
           ) VALUES (?, ?, ?, ?, ?, ?)
         `);
         await (preferencesStmt.run([
-          preferencesId, profileId, 18, 99, JSON.stringify(['Male', 'Female', 'Non-binary']), 10000
+          preferencesId, profileId, 18, 99, JSON.stringify(['Man', 'Woman', 'Non-binary']), 10000
         ]) as Promise<any>);
 
         // Create interests
