@@ -343,7 +343,10 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
       params.push(searchTerm, searchTerm, searchTerm);
     }
 
-    query += ` GROUP BY u.id ORDER BY u.created_at DESC LIMIT ? OFFSET ?`;
+    // PostgreSQL requires all non-aggregated columns in GROUP BY
+    query += ` GROUP BY u.id, u.email, u.phone_number, u.is_admin, u.is_restricted, 
+        u.created_at, u.last_active_at, p.display_name, p.age, p.gender, p.location
+      ORDER BY u.created_at DESC LIMIT ? OFFSET ?`;
     params.push(limit, offset);
 
     const usersResult = await (db.prepare(query).all(params) as Promise<any[]>);
