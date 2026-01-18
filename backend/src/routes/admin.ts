@@ -324,15 +324,14 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
     const offset = (page - 1) * limit;
     const search = req.query.search as string || '';
 
+    // Get users with profiles
     let query = `
       SELECT 
         u.id, u.email, u.phone_number, u.is_admin, u.is_restricted, 
         u.created_at, u.last_active_at,
-        p.display_name, p.age, p.gender, p.location,
-        COUNT(DISTINCT mt.id) as tokenCount
+        p.display_name, p.age, p.gender, p.location
       FROM users u
       LEFT JOIN profiles p ON p.user_id = u.id
-      LEFT JOIN mulligan_tokens mt ON mt.user_id = u.id AND mt.used_at IS NULL AND mt.returned_at IS NULL
     `;
 
     const params: any[] = [];
@@ -343,10 +342,7 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
       params.push(searchTerm, searchTerm, searchTerm);
     }
 
-    // PostgreSQL requires all non-aggregated columns in GROUP BY
-    query += ` GROUP BY u.id, u.email, u.phone_number, u.is_admin, u.is_restricted, 
-        u.created_at, u.last_active_at, p.display_name, p.age, p.gender, p.location
-      ORDER BY u.created_at DESC LIMIT ? OFFSET ?`;
+    query += ` ORDER BY u.created_at DESC LIMIT ? OFFSET ?`;
     params.push(limit, offset);
 
     const usersResult = await (db.prepare(query).all(params) as Promise<any[]>);
@@ -360,6 +356,22 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
     const totalResult = await (db.prepare(countQuery).get(countParams) as Promise<{ count: number }>);
     const total = totalResult?.count || 0;
 
+    // Get token counts for all users (more efficient than per-user queries)
+    const userIds = usersResult.map((u: any) => u.id);
+    let tokenCounts: Record<string, number> = {};
+    
+    if (userIds.length > 0) {
+      // Create placeholders for IN clause
+      const placeholders = userIds.map((_, i) => `?`).join(',');
+      const tokensQuery = `SELECT user_id, COUNT(*) as count FROM mulligan_tokens WHERE user_id IN (${placeholders}) AND used_at IS NULL AND returned_at IS NULL GROUP BY user_id`;
+      const tokensResult = await (db.prepare(tokensQuery).all(userIds) as Promise<{ user_id: string; count: number }[]>);
+      
+      // Build tokenCounts map
+      tokensResult.forEach((row: any) => {
+        tokenCounts[row.user_id] = parseInt(row.count) || 0;
+      });
+    }
+
     const users = usersResult.map((u: any) => ({
       id: u.id,
       email: u.email || u.phone_number || 'N/A',
@@ -372,7 +384,7 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
       is_restricted: u.is_restricted === 1,
       created_at: u.created_at,
       last_active_at: u.last_active_at,
-      tokenCount: parseInt(u.tokenCount) || 0
+      tokenCount: tokenCounts[u.id] || 0
     }));
 
     res.json({
