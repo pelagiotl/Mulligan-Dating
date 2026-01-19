@@ -1,0 +1,75 @@
+{
+  "expo": {
+    "name": "Mulligan",
+    "slug": "mulligan",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.lukepelagiotomerlin.mulligan",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Mulligan uses your location to find matches near you.",
+        "NSPhotoLibraryUsageDescription": "Mulligan needs access to your photos to upload profile pictures.",
+        "NSCameraUsageDescription": "Mulligan needs access to your camera to take profile pictures.",
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIBackgroundModes": ["audio"]
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#8B1538"
+      },
+      "permissions": [
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Mulligan uses your location to find matches near you."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Mulligan needs access to your photos to upload profile pictures."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#ffffff"
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Mulligan does not use the microphone. Audio playback is used for match notifications."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "ffe7d520-859b-4e18-a2d8-10b607bbf90b"
+      }
+    }
+  }
+}

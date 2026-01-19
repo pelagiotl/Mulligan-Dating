@@ -1,17 +1,29 @@
 // Expo Push Notification service
 // To use this, you need an Expo account (free) and push notification certificates
 
-import { Expo, ExpoPushMessage } from 'expo-server-sdk';
+// Optional import - handle case where expo-server-sdk might not be installed
+let Expo: any = null;
+let ExpoPushMessage: any = null;
 
-let expo: Expo | null = null;
-
-// Initialize Expo client (optional dependency)
 try {
-  expo = new Expo();
+  const expoSdk = require('expo-server-sdk');
+  Expo = expoSdk.Expo || expoSdk.default?.Expo || expoSdk;
+  ExpoPushMessage = expoSdk.ExpoPushMessage || expoSdk.default?.ExpoPushMessage;
   console.log('✅ Expo Push Notification service initialized');
 } catch (error) {
   console.warn('⚠️  Expo Push Notification SDK not installed. Push notifications will be disabled.');
   console.warn('   Install with: cd backend && npm install expo-server-sdk');
+}
+
+let expo: any = null;
+
+// Initialize Expo client (optional dependency)
+try {
+  if (Expo) {
+    expo = new Expo();
+  }
+} catch (error) {
+  console.warn('⚠️  Failed to initialize Expo client:', error);
 }
 
 /**
@@ -26,6 +38,9 @@ export function isPushNotificationConfigured(): boolean {
  * Expo push tokens look like: ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]
  */
 export function isExpoPushToken(token: string): boolean {
+  if (!Expo || !Expo.isExpoPushToken) {
+    return false;
+  }
   return Expo.isExpoPushToken(token);
 }
 
@@ -54,7 +69,7 @@ export async function sendPushNotification(
   }
 
   try {
-    const message: ExpoPushMessage = {
+    const message: any = {
       to: pushToken,
       sound: 'default',
       title,
