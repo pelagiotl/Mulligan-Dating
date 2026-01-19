@@ -5,8 +5,8 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// API URL from environment or default to production
-const API_URL = process.env.API_URL || 'https://mulligan-backend.onrender.com';
+// API URL - use EXPO_PUBLIC_ for production builds, fallback to hardcoded production URL
+export const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://mulligan-backend.onrender.com';
 const BASE_URL = `${API_URL}/api`;
 
 console.log('🔧 API Client initialized:', { API_URL, BASE_URL });
@@ -22,20 +22,48 @@ async function request<T = any>(endpoint: string, options: RequestInit & { body?
   // Get token from AsyncStorage (async, unlike localStorage)
   const token = await AsyncStorage.getItem('token');
   
+  // Validate token - must be non-null, non-empty string
+  const hasValidToken = token && typeof token === 'string' && token.trim().length > 0;
+  
   // Check if body is FormData - if so, don't set Content-Type (let fetch set it with boundary)
   const isFormData = options.body instanceof FormData;
   
-  const headers: HeadersInit = {
-    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
-    ...options.headers
-  };
+  // Build headers object - merge any existing headers from options first
+  const headers: Record<string, string> = {};
+  
+  // If options has headers, merge them (but convert to plain object if needed)
+  if (options.headers) {
+    if (options.headers instanceof Headers) {
+      options.headers.forEach((value, key) => {
+        headers[key] = value;
+      });
+    } else if (Array.isArray(options.headers)) {
+      options.headers.forEach(([key, value]) => {
+        headers[key] = value;
+      });
+    } else {
+      Object.assign(headers, options.headers);
+    }
+  }
+  
+  // Set Content-Type if not FormData
+  if (!isFormData && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json';
+  }
 
-  if (token) {
-    (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
-    console.log('✅ Token found for request to:', endpoint);
+  // Set Authorization header if we have a valid token
+  if (hasValidToken) {
+    headers['Authorization'] = `Bearer ${token.trim()}`;
+    console.log('✅ Token found for request to:', endpoint, 'Token length:', token.trim().length);
   } else {
-    console.warn('⚠️ No token found in AsyncStorage for request to:', endpoint);
+    console.warn('⚠️ No valid token found in AsyncStorage for request to:', endpoint);
+    console.warn('   Token value:', token ? `"${token.substring(0, 20)}..." (${token.length} chars)` : 'null/undefined');
     console.warn('   This will likely result in an authentication error');
+  }
+  
+  // Log headers for debugging (but not the full token value for security)
+  if (hasValidToken) {
+    console.log('📋 Request headers include Authorization:', !!headers['Authorization']);
   }
   
   // Prepare body - stringify JSON if not FormData
@@ -58,12 +86,15 @@ async function request<T = any>(endpoint: string, options: RequestInit & { body?
   });
 
   try {
-    const response = await fetch(url, {
+    // Build fetch options, ensuring headers are set correctly and Authorization is not overridden
+    const fetchOptions: RequestInit = {
       ...options,
-      headers,
+      headers, // Set headers after spreading options to ensure our Authorization header is used
       body,
-      signal: controller.signal
-    });
+      signal: controller.signal,
+    };
+    
+    const response = await fetch(url, fetchOptions);
     clearTimeout(timeoutId);
 
     // Check if response has content before trying to parse JSON
@@ -84,13 +115,32 @@ async function request<T = any>(endpoint: string, options: RequestInit & { body?
 
     if (!response.ok) {
       const errorMsg = data.error || `Request failed with status ${response.status}`;
-      console.error('❌ API request failed:', {
-        endpoint,
-        status: response.status,
-        error: errorMsg,
-        hasToken: !!token
-      });
-      throw new ApiError(response.status, errorMsg);
+      const errorMsgLower = errorMsg.toLowerCase();
+      
+      // Suppress logging for informational messages that are handled gracefully
+      const isInformational = errorMsgLower.includes('already unlocked') || 
+                               errorMsgLower.includes('browsing is already unlocked');
+      
+      // Suppress 404 errors for push-token endpoint (backend may not have it deployed yet)
+      const isPushToken404 = response.status === 404 && endpoint === '/auth/push-token';
+      
+      if (!isInformational && !isPushToken404) {
+        console.error('❌ API request failed:', {
+          endpoint,
+          status: response.status,
+          error: errorMsg,
+          hasToken: !!token
+        });
+      }
+      const apiError = new ApiError(response.status, errorMsg);
+      // Preserve additional error data (like code, canClaimWeeklyToken) for error handling
+      if (data.code) {
+        (apiError as any).code = data.code;
+      }
+      if (data.canClaimWeeklyToken !== undefined) {
+        (apiError as any).canClaimWeeklyToken = data.canClaimWeeklyToken;
+      }
+      throw apiError;
     }
 
     return data as T;

@@ -394,7 +394,7 @@ export default function PhoneLoginScreen() {
   const [referralCode, setReferralCode] = useState('');
   const codeInputRef = useRef<TextInput>(null);
   const navigation = useNavigation();
-  const { phoneLogin } = useAuth();
+  const { phoneLogin, profile: authProfile, user: authUser } = useAuth();
   
   // Aliases for easier access
   const phoneNumber = phoneState.value;
@@ -529,14 +529,34 @@ export default function PhoneLoginScreen() {
       const cleanPhoneNumber = extractDigits(phoneNumber);
       const { hasProfile } = await phoneLogin(cleanPhoneNumber, codeToUse, referralCode || undefined);
       
-      // Navigate based on profile status
-      if (hasProfile) {
+      // Wait a moment for auth state to update and check profile from context
+      // Use both API response and auth context for reliability
+      await new Promise(resolve => setTimeout(resolve, 150));
+      
+      // Double-check profile state from auth context (in case API response was wrong)
+      const finalHasProfile = hasProfile || (authUser && !!authProfile);
+      
+      console.log('📱 Login complete - navigating:', { 
+        hasProfile, 
+        authProfile: !!authProfile, 
+        finalHasProfile 
+      });
+      
+      // Navigate based on profile status - use reset to ensure proper navigation
+      if (finalHasProfile) {
+        // User has profile - go to main app
+        console.log('📱 Navigating to MainTabs (user has profile)');
         navigation.reset({
           index: 0,
           routes: [{ name: 'MainTabs' as never }],
         });
       } else {
-        navigation.navigate('CreateProfile' as never);
+        // User has no profile - navigate to create profile
+        console.log('📱 Navigating to CreateProfile (user needs profile)');
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'CreateProfile' as never }],
+        });
       }
     } catch (err: any) {
       const errorMessage = err?.message || 'Invalid verification code';
@@ -622,7 +642,12 @@ export default function PhoneLoginScreen() {
                   maxLength={14}
                   editable={!loading}
                   returnKeyType="send"
-                  onSubmitEditing={handlePhoneSubmit}
+                  onSubmitEditing={() => {
+                    // Only submit if phone number is valid
+                    if (isValidPhoneNumber && !loading) {
+                      handlePhoneSubmit();
+                    }
+                  }}
                   blurOnSubmit={false}
                 />
               </View>

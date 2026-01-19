@@ -248,3 +248,36 @@ authRouter.get('/me', authenticateToken, async (req: AuthRequest, res) => {
   }
 });
 
+// Update push notification token
+authRouter.post('/push-token', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const { pushToken } = req.body;
+    const userId = req.userId!;
+
+    // Validate push token format (Expo push tokens start with "ExponentPushToken[")
+    if (pushToken && typeof pushToken === 'string' && pushToken.length > 0) {
+      // Update user's push token
+      const updateStmt = db.prepare('UPDATE users SET push_token = ? WHERE id = ?');
+      await (updateStmt.run([pushToken, userId]) as Promise<any>);
+      
+      console.log(`✅ Push token updated for user ${userId}`);
+      res.json({ message: 'Push token updated successfully' });
+    } else if (pushToken === null || pushToken === '') {
+      // Remove push token if explicitly cleared
+      const updateStmt = db.prepare('UPDATE users SET push_token = NULL WHERE id = ?');
+      await (updateStmt.run([userId]) as Promise<any>);
+      
+      console.log(`✅ Push token cleared for user ${userId}`);
+      res.json({ message: 'Push token cleared successfully' });
+    } else {
+      return res.status(400).json({ error: 'Invalid push token format' });
+    }
+  } catch (error) {
+    console.error('Error updating push token:', error);
+    res.status(500).json({ 
+      error: 'Failed to update push token',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+

@@ -1,36 +1,42 @@
 import { Audio } from 'expo-av';
+import Constants from 'expo-constants';
 
 let matchSound: Audio.Sound | null = null;
 let soundAsset: any = null;
 
 // Try to load sound file at module load time
-// This works in development, TestFlight, and production iOS builds
-console.log('🎵 Attempting to load sound file...');
-try {
-  // Try MP3 first (best Metro bundler support)
-  soundAsset = require('../assets/match-sound.mp3');
-  console.log('🎵 ✅ MP3 require() succeeded! Type:', typeof soundAsset, 'Value:', soundAsset);
-} catch (mp3Error: any) {
-  console.log('🎵 ❌ MP3 require() failed:', mp3Error?.message || String(mp3Error));
+// This works in TestFlight and production iOS builds, but NOT in Expo Go
+// Metro bundler doesn't support audio file require() in Expo Go
+// This is expected and handled gracefully - sound will work in TestFlight/production
+const isExpoGo = typeof Constants !== 'undefined' && Constants?.executionEnvironment === 'storeClient';
+
+// Only attempt to load if not in Expo Go (to avoid noisy errors)
+if (!isExpoGo) {
   try {
-    // Try M4A (Mac/iOS native format)
-    soundAsset = require('../assets/match-sound.m4a');
-    console.log('🎵 ✅ M4A require() succeeded!');
-  } catch (m4aError: any) {
-    console.log('🎵 ❌ M4A require() failed:', m4aError?.message || String(m4aError));
+    // Try MP3 first (best Metro bundler support)
+    soundAsset = require('../assets/match-sound.mp3');
+    console.log('🎵 ✅ Match sound loaded successfully (MP3)');
+  } catch (mp3Error: any) {
     try {
-      // Try WAV (may not bundle with Metro, but works if it does)
-      soundAsset = require('../assets/match-sound.wav');
-      console.log('🎵 ✅ WAV require() succeeded!');
-    } catch (wavError: any) {
-      // No sound file found - app will work fine without sound
-      soundAsset = null;
-      console.log('🎵 ❌ All formats failed - match sound will be disabled');
-      console.log('🎵 MP3 error:', mp3Error?.message || String(mp3Error));
-      console.log('🎵 M4A error:', m4aError?.message || String(m4aError));
-      console.log('🎵 WAV error:', wavError?.message || String(wavError));
+      // Try M4A (Mac/iOS native format)
+      soundAsset = require('../assets/match-sound.m4a');
+      console.log('🎵 ✅ Match sound loaded successfully (M4A)');
+    } catch (m4aError: any) {
+      try {
+        // Try WAV (may not bundle with Metro, but works if it does)
+        soundAsset = require('../assets/match-sound.wav');
+        console.log('🎵 ✅ Match sound loaded successfully (WAV)');
+      } catch (wavError: any) {
+        // No sound file found - app will work fine without sound
+        soundAsset = null;
+        console.warn('🎵 ⚠️  Match sound file not found. Sound notifications will be disabled.');
+      }
     }
   }
+} else {
+  // In Expo Go, audio files won't bundle - this is expected
+  soundAsset = null;
+  console.log('🎵 ℹ️  Running in Expo Go - sound will be disabled (this is normal)');
 }
 
 /**

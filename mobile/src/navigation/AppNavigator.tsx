@@ -44,7 +44,21 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 
 // Main Tab Navigator (shown after login)
 function MainTabs() {
-  const { user, profile, loading } = useAuth();
+  let authContext;
+  try {
+    authContext = useAuth();
+  } catch (error) {
+    console.error('❌ Error accessing auth context in MainTabs:', error);
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+        <Text style={{ fontSize: 18, textAlign: 'center', color: '#d32f2f' }}>
+          Authentication error. Please restart the app.
+        </Text>
+      </View>
+    );
+  }
+
+  const { user, profile, loading } = authContext;
   const navigation = useNavigation();
   const isAdmin = user?.isAdmin || false;
 
@@ -55,10 +69,17 @@ function MainTabs() {
       if (!loading && user && !profile) {
         // User is logged in but has no profile - redirect to create profile
         try {
-          const rootNavigation = (navigation as any).getParent?.() || navigation;
-          if (rootNavigation && rootNavigation.navigate) {
-            rootNavigation.navigate('CreateProfile');
-          }
+          // Wait a tick to ensure navigation is ready
+          setTimeout(() => {
+            try {
+              const rootNavigation = (navigation as any).getParent?.() || navigation;
+              if (rootNavigation && rootNavigation.navigate && typeof rootNavigation.navigate === 'function') {
+                rootNavigation.navigate('CreateProfile');
+              }
+            } catch (err) {
+              console.error('Navigation error in MainTabs setTimeout:', err);
+            }
+          }, 100);
         } catch (err) {
           console.error('Navigation error in MainTabs:', err);
         }
@@ -87,7 +108,7 @@ function MainTabs() {
             onPress: () => {
               try {
                 const rootNavigation = (navigation as any).getParent?.() || navigation;
-                if (rootNavigation && rootNavigation.navigate) {
+                if (rootNavigation && rootNavigation.navigate && typeof rootNavigation.navigate === 'function') {
                   rootNavigation.navigate('CreateProfile');
                 }
               } catch (err) {
@@ -199,43 +220,129 @@ function MainTabs() {
 
 // Root Stack Navigator
 export default function AppNavigator() {
-  const { user, profile, loading } = useAuth();
+  let authContext;
+  try {
+    authContext = useAuth();
+  } catch (error) {
+    console.error('❌ Error accessing auth context:', error);
+    // Return a fallback UI if auth context fails
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+        <Text style={{ fontSize: 18, textAlign: 'center', color: '#d32f2f' }}>
+          App initialization error. Please restart the app.
+        </Text>
+      </View>
+    );
+  }
+
+  const { user, profile, loading } = authContext;
   const navigationRef = React.useRef<NavigationContainerRef<RootStackParamList>>(null);
+  const [isNavigationReady, setIsNavigationReady] = React.useState(false);
+
+  // Track when navigation container is ready
+  const handleNavigationReady = React.useCallback(() => {
+    setIsNavigationReady(true);
+  }, []);
 
   // Check profile status on mount and when auth state changes
   React.useEffect(() => {
-    if (!loading && navigationRef.current) {
+    // Wait for navigation container to be ready
+    if (!loading && isNavigationReady && navigationRef.current) {
       if (user && !profile) {
         // User is logged in but has no profile - navigate to create profile
         try {
           const currentRoute = navigationRef.current.getCurrentRoute();
-          // Only navigate if we're not already on CreateProfile
-          if (currentRoute?.name !== 'CreateProfile') {
-            navigationRef.current.navigate('CreateProfile');
+          // Only navigate if we're NOT already on CreateProfile or PhoneLogin
+          // This handles the case where user just logged in from PhoneLogin screen
+          if (currentRoute?.name !== 'CreateProfile' && currentRoute?.name !== 'PhoneLogin') {
+            // Use reset to ensure clean navigation stack
+            navigationRef.current.reset({
+              index: 0,
+              routes: [{ name: 'CreateProfile' }],
+            });
+          } else if (currentRoute?.name === 'PhoneLogin') {
+            // If still on PhoneLogin after login, navigate to CreateProfile
+            // Small delay to ensure navigation is ready
+            setTimeout(() => {
+              try {
+                if (navigationRef.current && navigationRef.current.isReady?.()) {
+                  navigationRef.current.navigate('CreateProfile');
+                }
+              } catch (err) {
+                console.error('Navigation error in AppNavigator setTimeout:', err);
+              }
+            }, 200);
           }
         } catch (err) {
           console.error('Navigation error in AppNavigator:', err);
         }
+      } else if (user && profile && isNavigationReady && navigationRef.current) {
+        // User has profile - make sure we're on MainTabs if we're on PhoneLogin
+        const currentRoute = navigationRef.current.getCurrentRoute();
+        if (currentRoute?.name === 'PhoneLogin') {
+          setTimeout(() => {
+            try {
+              if (navigationRef.current && navigationRef.current.isReady?.()) {
+                navigationRef.current.reset({
+                  index: 0,
+                  routes: [{ name: 'MainTabs' }],
+                });
+              }
+            } catch (err) {
+              console.error('Navigation error navigating to MainTabs:', err);
+            }
+          }, 200);
+        }
       }
     }
-  }, [loading, user, profile]);
+  }, [loading, user, profile, isNavigationReady]);
 
-  return (
-    <NavigationContainer ref={navigationRef}>
-      <Stack.Navigator
-        initialRouteName="PhoneLogin"
-        screenOptions={{
-          headerShown: false,
-        }}
-      >
-        <Stack.Screen name="PhoneLogin" component={PhoneLoginScreen} />
-        <Stack.Screen name="CreateProfile" component={CreateProfileScreen} />
-        <Stack.Screen name="MainTabs" component={MainTabs} />
-        <Stack.Screen name="Terms" component={TermsScreen} />
-        <Stack.Screen name="Privacy" component={PrivacyScreen} />
-      </Stack.Navigator>
-    </NavigationContainer>
-  );
+  // Determine initial route based on auth state
+  // If user is already logged in, skip PhoneLogin screen
+  const getInitialRouteName = (): keyof RootStackParamList => {
+    if (loading) {
+      // Still loading auth state - show PhoneLogin for now
+      return 'PhoneLogin';
+    }
+    if (user && profile) {
+      // User is logged in and has profile - go to main app
+      return 'MainTabs';
+    }
+    if (user && !profile) {
+      // User is logged in but needs to create profile
+      return 'CreateProfile';
+    }
+    // Not logged in - show login screen
+    return 'PhoneLogin';
+  };
+
+  try {
+    return (
+      <NavigationContainer ref={navigationRef} onReady={handleNavigationReady}>
+        <Stack.Navigator
+          initialRouteName={getInitialRouteName()}
+          screenOptions={{
+            headerShown: false,
+          }}
+        >
+          <Stack.Screen name="PhoneLogin" component={PhoneLoginScreen} />
+          <Stack.Screen name="CreateProfile" component={CreateProfileScreen} />
+          <Stack.Screen name="MainTabs" component={MainTabs} />
+          <Stack.Screen name="Terms" component={TermsScreen} />
+          <Stack.Screen name="Privacy" component={PrivacyScreen} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    );
+  } catch (error) {
+    console.error('❌ Navigation setup error:', error);
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+        <Text style={{ fontSize: 18, textAlign: 'center', color: '#d32f2f' }}>
+          Navigation error. Please restart the app.
+        </Text>
+      </View>
+    );
+  }
 }
 
 const styles = StyleSheet.create({
