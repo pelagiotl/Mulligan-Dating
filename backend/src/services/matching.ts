@@ -920,12 +920,16 @@ export async function generateWeeklyMatches(userId: string): Promise<{
         return total > 0 ? shared / total : 0;
       });
       
-      const avgSimilarity = similarities.reduce((a, b) => a + b, 0) / similarities.length;
+      const avgSimilarity = similarities.length > 0 
+        ? similarities.reduce((a, b) => a + b, 0) / similarities.length 
+        : 0;
       
       // Only add if average similarity is below threshold (ensures diversity)
       // But still allow if score is very high (top 10% of candidates)
-      const scoreThreshold = availableCandidates[0].score * 0.9;
-      isDiverse = avgSimilarity < 0.7 || candidate.score >= scoreThreshold;
+      const scoreThreshold = availableCandidates.length > 0 && availableCandidates[0]
+        ? availableCandidates[0].score * 0.9
+        : 0;
+      isDiverse = avgSimilarity < 0.7 || (scoreThreshold > 0 && candidate.score >= scoreThreshold);
     }
     
     if (isDiverse && !selectedProfileIds.has(candidate.profileId)) {
@@ -967,6 +971,116 @@ export async function generateWeeklyMatches(userId: string): Promise<{
   return {
     matchesCreated: matchIds.length,
     matches: matchIds,
+  };
+}
+
+/**
+ * Generate match explanation for why two users matched
+ * Returns human-readable reasons for the match
+ */
+export async function generateMatchExplanation(
+  userProfileId: string,
+  candidateProfileId: string
+): Promise<{
+  reasons: string[];
+  sharedInterests: string[];
+  sharedValues: number;
+}> {
+  // Get shared interests
+  const userInterests = db
+    .prepare("SELECT name FROM interests WHERE profile_id = ?")
+    .all(userProfileId) as { name: string }[];
+  const candidateInterests = db
+    .prepare("SELECT name FROM interests WHERE profile_id = ?")
+    .all(candidateProfileId) as { name: string }[];
+
+  const userInterestNames = new Set(userInterests.map(i => i.name.toLowerCase()));
+  const candidateInterestNames = new Set(candidateInterests.map(i => i.name.toLowerCase()));
+  const sharedInterests = [...userInterestNames].filter(name => candidateInterestNames.has(name));
+
+  // Get shared values
+  const userProfile = db
+    .prepare("SELECT * FROM profiles WHERE id = ?")
+    .get(userProfileId) as ProfileRow | undefined;
+  const candidateProfile = db
+    .prepare("SELECT * FROM profiles WHERE id = ?")
+    .get(candidateProfileId) as ProfileRow | undefined;
+
+  if (!userProfile || !candidateProfile) {
+    return { reasons: [], sharedInterests: [], sharedValues: 0 };
+  }
+
+  const userPrefs = db
+    .prepare("SELECT values FROM preferences WHERE profile_id = ?")
+    .get(userProfileId) as { values: string | null } | undefined;
+  const candidatePrefs = db
+    .prepare("SELECT values FROM preferences WHERE profile_id = ?")
+    .get(candidateProfileId) as { values: string | null } | undefined;
+
+  const userValues = parseJsonArray(userPrefs?.values || null);
+  const candidateValues = parseJsonArray(candidatePrefs?.values || null);
+  const sharedValues = userValues.filter(v => candidateValues.includes(v));
+
+  // Build reasons array
+  const reasons: string[] = [];
+
+  // Shared interests
+  if (sharedInterests.length > 0) {
+    if (sharedInterests.length >= 5) {
+      reasons.push(`You both love ${sharedInterests.slice(0, 3).join(', ')} and more!`);
+    } else if (sharedInterests.length >= 3) {
+      reasons.push(`You share ${sharedInterests.length} interests: ${sharedInterests.slice(0, 3).join(', ')}`);
+    } else {
+      reasons.push(`You both enjoy ${sharedInterests.join(' and ')}`);
+    }
+  }
+
+  // Shared values
+  if (sharedValues.length >= 5) {
+    reasons.push(`You share ${sharedValues.length} core values`);
+  } else if (sharedValues.length >= 3) {
+    reasons.push(`You have ${sharedValues.length} shared values: ${sharedValues.slice(0, 3).join(', ')}`);
+  }
+
+  // Partner qualities match
+  const qualitiesMatch = calculatePartnerQualitiesMatch(userProfileId, candidateProfileId);
+  if (qualitiesMatch >= 7) {
+    reasons.push(`They match what you're looking for`);
+  }
+
+  // Lifestyle compatibility
+  const lifestyleMatch = calculateLifestyleMatch(userProfileId, candidateProfileId);
+  if (lifestyleMatch >= 7) {
+    reasons.push(`Similar lifestyle preferences`);
+  }
+
+  // Distance (if close)
+  if (userProfile.location && candidateProfile.location) {
+    try {
+      const distance = await calculateDistance(userProfile.location, candidateProfile.location);
+      if (distance < 25) {
+        reasons.push(`Just ${Math.round(distance)} miles away`);
+      } else if (distance < 50) {
+        reasons.push(`${Math.round(distance)} miles away`);
+      }
+    } catch {
+      // Ignore distance errors
+    }
+  }
+
+  // Looking for compatibility
+  const lookingForMatch = calculateLookingForMatch(userProfileId, candidateProfileId);
+  if (lookingForMatch >= 7 && userProfile.looking_for && candidateProfile.looking_for) {
+    reasons.push(`Looking for the same thing`);
+  }
+
+  return {
+    reasons: reasons.slice(0, 4), // Limit to top 4 reasons
+    sharedInterests: sharedInterests.map(i => {
+      // Capitalize first letter
+      return i.charAt(0).toUpperCase() + i.slice(1);
+    }),
+    sharedValues: sharedValues.length,
   };
 }
 
