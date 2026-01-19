@@ -7,7 +7,8 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Platform, Text, View, StyleSheet } from 'react-native';
+import { Platform, Text, View, StyleSheet, Alert } from 'react-native';
+import { useNavigation, useFocusEffect, NavigationContainerRef } from '@react-navigation/native';
 
 // Screens (we'll create these)
 import PhoneLoginScreen from '../screens/PhoneLoginScreen';
@@ -43,8 +44,62 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 
 // Main Tab Navigator (shown after login)
 function MainTabs() {
-  const { user } = useAuth();
+  const { user, profile, loading } = useAuth();
+  const navigation = useNavigation();
   const isAdmin = user?.isAdmin || false;
+
+  // Check if user has profile when trying to access tabs that require it
+  useFocusEffect(
+    React.useCallback(() => {
+      // Only check if not loading and user is authenticated
+      if (!loading && user && !profile) {
+        // User is logged in but has no profile - redirect to create profile
+        try {
+          const rootNavigation = (navigation as any).getParent?.() || navigation;
+          if (rootNavigation && rootNavigation.navigate) {
+            rootNavigation.navigate('CreateProfile');
+          }
+        } catch (err) {
+          console.error('Navigation error in MainTabs:', err);
+        }
+      }
+    }, [loading, user, profile, navigation])
+  );
+
+  // Prevent navigation to tabs that require a profile
+  const handleTabPress = (e: any, route: any) => {
+    // Safety check - route might be undefined
+    if (!route || !route.name) {
+      return;
+    }
+    
+    // Tabs that require a profile
+    const requiresProfile = ['Browse', 'Matches'];
+    
+    if (requiresProfile.includes(route.name) && !profile && !loading) {
+      e.preventDefault();
+      Alert.alert(
+        'Profile Required',
+        'Please create your profile first to access this feature.',
+        [
+          {
+            text: 'Create Profile',
+            onPress: () => {
+              try {
+                const rootNavigation = (navigation as any).getParent?.() || navigation;
+                if (rootNavigation && rootNavigation.navigate) {
+                  rootNavigation.navigate('CreateProfile');
+                }
+              } catch (err) {
+                console.error('Navigation error:', err);
+              }
+            },
+          },
+          { text: 'Cancel', style: 'cancel' },
+        ]
+      );
+    }
+  };
 
   return (
     <Tab.Navigator
@@ -79,6 +134,9 @@ function MainTabs() {
         },
         tabBarShowLabel: true,
         tabBarHideOnKeyboard: true,
+      }}
+      screenListeners={{
+        tabPress: handleTabPress,
       }}
     >
       <Tab.Screen 
@@ -141,8 +199,29 @@ function MainTabs() {
 
 // Root Stack Navigator
 export default function AppNavigator() {
+  const { user, profile, loading } = useAuth();
+  const navigationRef = React.useRef<NavigationContainerRef<RootStackParamList>>(null);
+
+  // Check profile status on mount and when auth state changes
+  React.useEffect(() => {
+    if (!loading && navigationRef.current) {
+      if (user && !profile) {
+        // User is logged in but has no profile - navigate to create profile
+        try {
+          const currentRoute = navigationRef.current.getCurrentRoute();
+          // Only navigate if we're not already on CreateProfile
+          if (currentRoute?.name !== 'CreateProfile') {
+            navigationRef.current.navigate('CreateProfile');
+          }
+        } catch (err) {
+          console.error('Navigation error in AppNavigator:', err);
+        }
+      }
+    }
+  }, [loading, user, profile]);
+
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <Stack.Navigator
         initialRouteName="PhoneLogin"
         screenOptions={{

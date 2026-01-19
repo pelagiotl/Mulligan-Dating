@@ -2,7 +2,7 @@ import { Router } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { db } from "../database.js";
 import { authenticateToken, AuthRequest } from "../middleware/auth.js";
-import { generateWeeklyMatches } from "../services/matching.js";
+import { generateWeeklyMatches, generateMatchExplanation } from "../services/matching.js";
 import { recordSuccessSignal } from "../utils/successTracking.js";
 import { rateLimitAPI } from "../middleware/security.js";
 
@@ -290,7 +290,34 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
       : tokenResult) as any;
 
     if (!token) {
-      return res.status(400).json({ error: "No tokens available. Claim your weekly token!" });
+      // Check if user can claim weekly tokens
+      const allTokensResult = db
+        .prepare(
+          `SELECT * FROM mulligan_tokens WHERE user_id = ? ORDER BY granted_at DESC`
+        )
+        .all([userId]);
+      const allTokens = (allTokensResult instanceof Promise
+        ? await allTokensResult
+        : allTokensResult) as any[];
+
+      const weeklyTokens = allTokens.filter((t: any) => !t.source || t.source === 'weekly');
+      const lastWeeklyToken = weeklyTokens.length > 0 ? weeklyTokens[0] : null;
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+      let canClaimWeeklyToken = false;
+      if (!lastWeeklyToken) {
+        canClaimWeeklyToken = true;
+      } else {
+        const lastGranted = new Date(lastWeeklyToken.granted_at);
+        canClaimWeeklyToken = lastGranted < oneWeekAgo;
+      }
+
+      return res.status(400).json({ 
+        error: "No tokens available. Claim your weekly token!",
+        canClaimWeeklyToken,
+        code: "NO_TOKENS"
+      });
     }
 
     // AUTOMATIC MATCH: Create mutual match immediately in stage1 (no pending state)
@@ -321,6 +348,15 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
     // These are saved to PostgreSQL and persist forever
     await recordSuccessSignal(userId, targetUserId, matchId, "match_created");
     await recordSuccessSignal(targetUserId, userId, matchId, "match_created");
+
+    // Generate match explanation
+    let matchExplanation = null;
+    try {
+      matchExplanation = await generateMatchExplanation(userProfile.id, targetProfile.id);
+    } catch (err) {
+      console.warn('Failed to generate match explanation:', err);
+      // Continue without explanation - not critical
+    }
 
     // Get user display names for notifications
     const userDisplayNameResult = db
@@ -364,45 +400,49 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
       console.warn('⚠️  Socket.io not initialized, skipping in-app notifications');
     }
 
-    // Send SMS notifications (if Twilio is configured and users have phone numbers)
+    // Send push notifications to both users (primary notification method)
+    // Push notifications are the standard for match notifications in modern dating apps
+    // SMS is reserved for verification codes only
     try {
-      const { sendMatchNotification } = await import('../services/sms.js');
+      const { sendMatchPushNotification } = await import('../services/pushNotifications.js');
       
-      // Get phone numbers for both users
-      const userPhoneResult = db
-        .prepare("SELECT phone_number FROM users WHERE id = ?")
+      // Get push tokens for both users
+      const userPushTokenResult = db
+        .prepare("SELECT push_token FROM users WHERE id = ?")
         .get([userId]);
-      const userPhone = (userPhoneResult instanceof Promise
-        ? await userPhoneResult
-        : userPhoneResult) as { phone_number: string | null } | undefined;
+      const userPushToken = (userPushTokenResult instanceof Promise
+        ? await userPushTokenResult
+        : userPushTokenResult) as { push_token: string | null } | undefined;
 
-      const targetPhoneResult = db
-        .prepare("SELECT phone_number FROM users WHERE id = ?")
+      const targetPushTokenResult = db
+        .prepare("SELECT push_token FROM users WHERE id = ?")
         .get([targetUserId]);
-      const targetPhone = (targetPhoneResult instanceof Promise
-        ? await targetPhoneResult
-        : targetPhoneResult) as { phone_number: string | null } | undefined;
+      const targetPushToken = (targetPushTokenResult instanceof Promise
+        ? await targetPushTokenResult
+        : targetPushTokenResult) as { push_token: string | null } | undefined;
 
-      // Send SMS to target user (the one who was matched with)
-      if (targetPhone?.phone_number) {
-        await sendMatchNotification(
-          targetPhone.phone_number,
-          userDisplayName?.display_name || 'Someone'
+      // Send push notification to target user (User B - the one who was matched with)
+      if (targetPushToken?.push_token) {
+        await sendMatchPushNotification(
+          targetPushToken.push_token,
+          userDisplayName?.display_name || 'Someone',
+          matchId
         );
-        console.log(`✅ Sent SMS notification to ${targetUserId}`);
+        console.log(`✅ Sent push notification to ${targetUserId} (User B)`);
       }
 
-      // Note: We typically only notify the person who was matched with, not the initiator
-      // But you can uncomment this if you want both users to get SMS:
-      // if (userPhone?.phone_number) {
-      //   await sendMatchNotification(
-      //     userPhone.phone_number,
-      //     targetProfile?.display_name || 'Someone'
-      //   );
-      // }
-    } catch (smsError) {
-      // SMS is optional, don't fail the match creation if SMS fails
-      console.warn('⚠️  Failed to send SMS notification (non-critical):', smsError);
+      // Send push notification to initiator (User A - the one who initiated the match)
+      if (userPushToken?.push_token) {
+        await sendMatchPushNotification(
+          userPushToken.push_token,
+          targetDisplayName?.display_name || 'Someone',
+          matchId
+        );
+        console.log(`✅ Sent push notification to ${userId} (User A)`);
+      }
+    } catch (pushError) {
+      // Push notifications are optional, don't fail the match creation if push fails
+      console.warn('⚠️  Failed to send push notification (non-critical):', pushError);
     }
 
     res.json({
@@ -410,6 +450,7 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
       matchId,
       stage: "stage1",
       isMutual: true,
+      explanation: matchExplanation, // Include match explanation
     });
   } catch (error) {
     console.error("Connect error:", error);

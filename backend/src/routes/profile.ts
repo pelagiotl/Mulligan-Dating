@@ -511,3 +511,49 @@ profileRouter.put('/lifestyle', authenticateToken, rateLimitAPI, async (req: Aut
   }
 });
 
+// Delete profile (for testing - removes profile but keeps user account)
+profileRouter.delete('/', authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    
+    // Get profile ID
+    const profileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
+    const profileResult = await (profileStmt.get([userId]) as Promise<{ id: string } | undefined>);
+    
+    if (!profileResult) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+    
+    const profileId = profileResult.id;
+    
+    // Delete all related data (cascade delete)
+    const deleteInterests = db.prepare('DELETE FROM interests WHERE profile_id = ?');
+    await (deleteInterests.run([profileId]) as Promise<any>);
+    
+    const deleteDealbreakers = db.prepare('DELETE FROM dealbreakers WHERE profile_id = ?');
+    await (deleteDealbreakers.run([profileId]) as Promise<any>);
+    
+    const deletePartnerQualities = db.prepare('DELETE FROM partner_qualities WHERE profile_id = ?');
+    await (deletePartnerQualities.run([profileId]) as Promise<any>);
+    
+    const deletePreferences = db.prepare('DELETE FROM preferences WHERE profile_id = ?');
+    await (deletePreferences.run([profileId]) as Promise<any>);
+    
+    const deleteLifestyle = db.prepare('DELETE FROM lifestyle WHERE profile_id = ?');
+    await (deleteLifestyle.run([profileId]) as Promise<any>);
+    
+    const deletePhotos = db.prepare('DELETE FROM photos WHERE profile_id = ?');
+    await (deletePhotos.run([profileId]) as Promise<any>);
+    
+    // Finally delete the profile itself
+    const deleteProfile = db.prepare('DELETE FROM profiles WHERE id = ?');
+    await (deleteProfile.run([profileId]) as Promise<any>);
+    
+    console.log(`✅ Profile deleted for user ${userId}`);
+    res.json({ message: 'Profile deleted successfully' });
+  } catch (error) {
+    console.error('Delete profile error:', error);
+    res.status(500).json({ error: 'Failed to delete profile' });
+  }
+});
+

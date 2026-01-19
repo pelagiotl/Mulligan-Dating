@@ -22,6 +22,7 @@ import { useAuth } from '../context/AuthContext';
 import TokenDisplay from '../components/TokenDisplay';
 import MatchCelebration from '../components/MatchCelebration';
 import LegalFooter from '../components/LegalFooter';
+import NoTokensModal from '../components/NoTokensModal';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -501,12 +502,20 @@ export default function BrowseScreen() {
   const [error, setError] = useState('');
   const [connecting, setConnecting] = useState(false);
   const [showMatchCelebration, setShowMatchCelebration] = useState(false);
+  const [showNoTokensModal, setShowNoTokensModal] = useState(false);
   const [matchedProfile, setMatchedProfile] = useState<Profile | null>(null);
+  const [matchId, setMatchId] = useState<string | null>(null);
+  const [matchExplanation, setMatchExplanation] = useState<{
+    reasons: string[];
+    sharedInterests: string[];
+    sharedValues: number;
+  } | null>(null);
   const [hasFetched, setHasFetched] = useState(false);
   const [matchNotification, setMatchNotification] = useState<string | null>(null);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [browseUnlocked, setBrowseUnlocked] = useState<boolean>(false); // Start as locked (false)
   const [unlocking, setUnlocking] = useState(false);
+  const [isAutoMatching, setIsAutoMatching] = useState(false); // Track when auto-matching to prevent UI flash
   const socketRef = useRef<Socket | null>(null);
   
   // Button animations
@@ -599,10 +608,11 @@ export default function BrowseScreen() {
     
     setUnlocking(true);
     setError('');
+    setIsAutoMatching(true); // Mark that we're auto-matching to prevent UI flash
 
     try {
       await api.post('/users/unlock-browse', {});
-      setBrowseUnlocked(true);
+      // DON'T set browseUnlocked yet - wait until after match is created
       
       // Fetch the first profile after unlocking
       setLoading(true);
@@ -613,39 +623,68 @@ export default function BrowseScreen() {
         total: number;
       }>(`/users/browse?offset=0`);
 
-      if (data.profile) {
-        // Fetch photos for this profile
-        try {
-          const photosData = await api.get<{ photos: Photo[] }>(
-            `/photos/profile/${data.profile.id}`
-          );
-          data.profile.photos = photosData.photos;
-        } catch (photoErr) {
-          data.profile.photos = [];
-        }
-        
-        // Automatically match with the first profile and show celebration
-        console.log('🎉 Auto-matching with first profile:', data.profile.displayName);
-        
-        // Ensure we're still authenticated before connecting
-        const token = await AsyncStorage.getItem('token');
-        if (!token) {
-          setError('Session expired. Please log in again.');
-          setTimeout(() => setError(''), 5000);
-          return;
-        }
-        
-        // Small delay to ensure state is updated
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        await handleConnect(data.profile);
-      } else {
-        // No profiles available
-        setCurrentProfile(null);
-        setHasMore(data.hasMore);
-        setError('No profiles available at the moment. Check back later!');
-        setTimeout(() => setError(''), 5000);
-      }
+          if (data.profile) {
+            // Fetch photos for this profile
+            try {
+              const photosData = await api.get<{ photos: Photo[] }>(
+                `/photos/profile/${data.profile.id}`
+              );
+              data.profile.photos = photosData.photos;
+            } catch (photoErr) {
+              data.profile.photos = [];
+            }
+            
+            // Automatically match with the first profile and show celebration
+            console.log('🎉 Auto-matching with first profile:', data.profile.displayName);
+            
+            // Ensure we're still authenticated before connecting
+            const token = await AsyncStorage.getItem('token');
+            if (!token) {
+              setError('Session expired. Please log in again.');
+              setTimeout(() => setError(''), 5000);
+              setIsAutoMatching(false);
+              setBrowseUnlocked(true); // Unlock so user can see the error
+              return;
+            }
+            
+            // Connect and create match - this will show the celebration
+            await handleConnect(data.profile);
+            
+            // After match is created, wait a moment for celebration to appear, then unlock browsing
+            setTimeout(() => {
+              setBrowseUnlocked(true);
+              setIsAutoMatching(false);
+            }, 200);
+          } else {
+            // No profiles available - show notification and stay on landing page
+            console.log('⚠️ No profiles available to match with');
+            // Reset all states first - do this synchronously
+            setCurrentProfile(null);
+            setHasMore(data.hasMore);
+            setIsAutoMatching(false);
+            setUnlocking(false);
+            setLoading(false);
+            // Explicitly set browseUnlocked to false to show landing page
+            setBrowseUnlocked(false);
+            console.log('🔄 Set browseUnlocked to false, should show landing page');
+            // Show notification - use setTimeout to ensure state updates first
+            setTimeout(() => {
+              Alert.alert(
+                'No Profiles Available',
+                'There are no other profiles to match with at the moment. Check back later for new people!',
+                [{ 
+                  text: 'OK',
+                  onPress: () => {
+                    // Ensure we stay on landing page after alert is dismissed
+                    console.log('🔄 Alert dismissed, ensuring landing page stays visible');
+                    setBrowseUnlocked(false);
+                    setIsAutoMatching(false);
+                  }
+                }]
+              );
+            }, 100);
+            return; // Exit early to prevent any further state changes
+          }
     } catch (err: any) {
       const errorMessage = err?.message || 'Failed to unlock browsing. Please try again.';
       const errorLower = errorMessage.toLowerCase();
@@ -653,7 +692,8 @@ export default function BrowseScreen() {
       // If already unlocked, this is expected - just continue to fetch and match
       if (errorLower.includes('already unlocked') || errorLower.includes('browsing is already unlocked')) {
         console.log('✅ Browsing already unlocked, fetching and matching with first profile...');
-        setBrowseUnlocked(true);
+        setIsAutoMatching(true); // Mark that we're auto-matching
+        // DON'T set browseUnlocked yet - wait until after match is created
         setLoading(true);
         try {
           const data = await api.get<{
@@ -689,25 +729,55 @@ export default function BrowseScreen() {
             if (!token) {
               setError('Session expired. Please log in again.');
               setTimeout(() => setError(''), 5000);
+              setIsAutoMatching(false);
+              setBrowseUnlocked(true); // Unlock so user can see the error
               return;
             }
             
-            // Small delay to ensure state is updated
-            await new Promise(resolve => setTimeout(resolve, 100));
-            
+            // Connect and create match - this will show the celebration
             await handleConnect(data.profile);
+            
+            // After match is created, wait a moment for celebration to appear, then unlock browsing
+            setTimeout(() => {
+              setBrowseUnlocked(true);
+              setIsAutoMatching(false);
+            }, 200);
           } else {
-            // No profiles available
+            // No profiles available - show notification and stay on landing page
             console.log('⚠️ No profiles available to match with');
+            // Reset all states first
             setCurrentProfile(null);
             setHasMore(data.hasMore);
-            setError('No profiles available at the moment. Check back later!');
-            setTimeout(() => setError(''), 8000);
+            setIsAutoMatching(false);
+            setUnlocking(false);
+            setLoading(false);
+            // Explicitly set browseUnlocked to false to show landing page
+            setBrowseUnlocked(false);
+            console.log('🔄 Set browseUnlocked to false, should show landing page');
+            // Show notification - use setTimeout to ensure state updates first
+            setTimeout(() => {
+              Alert.alert(
+                'No Profiles Available',
+                'There are no other profiles to match with at the moment. Check back later for new people!',
+                [{ 
+                  text: 'OK',
+                  onPress: () => {
+                    // Ensure we stay on landing page after alert is dismissed
+                    console.log('🔄 Alert dismissed, ensuring landing page stays visible');
+                    setBrowseUnlocked(false);
+                    setIsAutoMatching(false);
+                  }
+                }]
+              );
+            }, 100);
+            return; // Exit early to prevent any further state changes
           }
         } catch (fetchErr: any) {
           console.error('❌ Fetch profile error:', fetchErr);
           setError(fetchErr?.message || 'Failed to load profiles');
           setTimeout(() => setError(''), 8000);
+          setIsAutoMatching(false);
+          setBrowseUnlocked(true); // Unlock so error can be shown
         }
       } else {
         // Only log and show error for unexpected errors
@@ -724,9 +794,16 @@ export default function BrowseScreen() {
         
         setError(errorMessage);
         setTimeout(() => setError(''), 8000);
+        setIsAutoMatching(false);
+        // If error occurred, unlock browsing so user can see the error
+        setBrowseUnlocked(true);
       }
     } finally {
       setUnlocking(false);
+      // If we're not auto-matching anymore and no error occurred, ensure browsing is unlocked
+      if (!isAutoMatching && !error) {
+        setBrowseUnlocked(true);
+      }
     }
   };
 
@@ -846,7 +923,7 @@ export default function BrowseScreen() {
       const token = await AsyncStorage.getItem('token');
       if (!token || !userProfile) return;
 
-      const API_URL = process.env.API_URL || 'https://mulligan-backend.onrender.com';
+      const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://mulligan-backend.onrender.com';
       socket = io(API_URL, {
         auth: { token },
         transports: ['websocket', 'polling'],
@@ -884,8 +961,8 @@ export default function BrowseScreen() {
     };
   }, [userProfile]);
 
-  // Show landing page when browsing is locked
-  const showLandingPage = browseUnlocked === false && !needsProfile;
+  // Show landing page when browsing is locked OR when auto-matching (to prevent UI flash)
+  const showLandingPage = (browseUnlocked === false || isAutoMatching) && !needsProfile && !showMatchCelebration;
   
   console.log('🎨 Landing page state:', { 
     browseUnlocked, 
@@ -997,6 +1074,11 @@ export default function BrowseScreen() {
         isMutual: boolean;
         matchId: string;
         stage: string;
+        explanation?: {
+          reasons: string[];
+          sharedInterests: string[];
+          sharedValues: number;
+        } | null;
       }>('/matches/connect', { targetUserId: profile.userId });
 
       // Success! Automatically show match celebration
@@ -1006,27 +1088,46 @@ export default function BrowseScreen() {
       // Clear the current profile immediately so it doesn't show behind the celebration
       setCurrentProfile(null);
       
-      // Set matched profile first, then show celebration
+      // Set matched profile, match ID, and explanation first, then show celebration
       // This ensures both states are set before React re-renders
       setMatchedProfile(profile);
+      setMatchId(result.matchId);
+      setMatchExplanation(result.explanation || null);
       
       // Use a small delay to ensure state updates properly before showing celebration
       // This helps ensure React has time to process the state changes
       setTimeout(() => {
         setShowMatchCelebration(true);
-        console.log('🎉 Celebration state set - showMatchCelebration: true, matchedProfile:', profile?.displayName);
+        console.log('🎉 Celebration state set - showMatchCelebration: true, matchedProfile:', profile?.displayName, 'matchId:', result.matchId);
       }, 50);
       
       setConnecting(false);
     } catch (err: any) {
       console.error('❌ Connect error:', err);
       let errorMessage = 'Failed to connect. Please try again.';
+      let isTokenError = false;
 
       if (err instanceof Error) {
         errorMessage = err.message || errorMessage;
         if ('status' in err) {
           const apiErr = err as Error & { status: number };
           if (apiErr.status === 400) {
+            // Check if this is a token error
+            const errorLower = errorMessage.toLowerCase();
+            if (errorLower.includes('no tokens') || 
+                errorLower.includes('claim your weekly token') ||
+                (err as any).code === 'NO_TOKENS') {
+              isTokenError = true;
+              setShowNoTokensModal(true);
+              setConnecting(false);
+              
+              // If we were auto-matching and got an error, unlock browsing
+              if (isAutoMatching) {
+                setIsAutoMatching(false);
+                setBrowseUnlocked(true);
+              }
+              return; // Don't show regular error message for token errors
+            }
             errorMessage =
               err.message ||
               'Cannot connect. Please check that both you and the other person have photos uploaded and you have available tokens.';
@@ -1054,12 +1155,23 @@ export default function BrowseScreen() {
       setError(errorMessage);
       setTimeout(() => setError(''), 8000);
       setConnecting(false);
+      
+      // If we were auto-matching and got an error, unlock browsing so user can see the error
+      if (isAutoMatching) {
+        setIsAutoMatching(false);
+        setBrowseUnlocked(true);
+      }
     }
   };
 
   const handleCelebrationClose = () => {
     setShowMatchCelebration(false);
     setMatchedProfile(null);
+    setMatchId(null);
+    setMatchExplanation(null);
+    // Ensure browsing is unlocked after celebration closes
+    setBrowseUnlocked(true);
+    setIsAutoMatching(false);
     // Move to next profile after celebration
     setOffset((prev) => prev + 1);
   };
@@ -1074,10 +1186,17 @@ export default function BrowseScreen() {
     ? getPhotoUrl(currentProfile.photoUrl)
     : null;
 
-  if (loading && !hasFetched) {
+  // Only show initial loading screen if we're not auto-matching (auto-matching should show landing page)
+  if (loading && !hasFetched && !isAutoMatching) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#8B1538" />
+        <LinearGradient
+          colors={['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+        <ActivityIndicator size="large" color="#fff" />
         <Text style={styles.loadingText}>Finding Amazing People</Text>
         <Text style={styles.loadingSubtitle}>Searching for your perfect match</Text>
       </View>
@@ -1220,7 +1339,9 @@ export default function BrowseScreen() {
                       {unlocking ? (
                         <ActivityIndicator color="#fff" size="large" />
                       ) : (
-                        <Text style={styles.landingButtonText}>Connect</Text>
+                        <Text style={styles.landingButtonText} numberOfLines={1}>
+                        Connect
+                      </Text>
                       )}
                     </Animated.View>
                   </LinearGradient>
@@ -1237,7 +1358,7 @@ export default function BrowseScreen() {
         <>
           {/* Header - only show when not on landing page */}
           <View style={styles.header}>
-            <TokenDisplay />
+            <TokenDisplay compact={true} />
             <Animated.Text
               style={[
                 styles.title,
@@ -1398,7 +1519,9 @@ export default function BrowseScreen() {
               {connecting ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.connectButtonText}>Connect & Match 🎟️</Text>
+                <Text style={styles.connectButtonText} numberOfLines={1}>
+                  Connect & Match 🎟️
+                </Text>
               )}
             </LinearGradient>
           </TouchableOpacity>
@@ -1418,8 +1541,30 @@ export default function BrowseScreen() {
             undefined
           }
           onClose={handleCelebrationClose}
+          explanation={matchExplanation}
+          matchId={matchId}
         />
       )}
+
+      {/* No Tokens Modal */}
+      <NoTokensModal
+        visible={showNoTokensModal}
+        onClose={() => {
+          setShowNoTokensModal(false);
+          // Reset to landing page when modal closes
+          setBrowseUnlocked(false);
+          setIsAutoMatching(false);
+          setCurrentProfile(null);
+        }}
+        onTokenClaimed={() => {
+          // Refresh token display if needed
+          setShowNoTokensModal(false);
+          // Reset to landing page after claiming tokens
+          setBrowseUnlocked(false);
+          setIsAutoMatching(false);
+          setCurrentProfile(null);
+        }}
+      />
 
       {/* Legal Footer */}
       <LegalFooter />
@@ -1444,18 +1589,27 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: 'transparent',
   },
   loadingText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#8B1538',
-    marginTop: 16,
+    fontSize: 26,
+    fontWeight: '900',
+    color: '#fff',
+    marginTop: 20,
+    letterSpacing: 0.5,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   loadingSubtitle: {
-    fontSize: 16,
-    color: '#666',
-    marginTop: 8,
+    fontSize: 18,
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginTop: 10,
+    fontWeight: '600',
+    letterSpacing: 0.2,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   notification: {
     position: 'absolute',
@@ -1585,17 +1739,17 @@ const styles = StyleSheet.create({
   },
   // landingGradient removed - now using animated LinearGradient component
   landingContent: {
-    padding: 48,
+    padding: 52,
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.92)', // Glassmorphism effect
-    borderRadius: 32,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)', // Glassmorphism effect
+    borderRadius: 36,
     shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.25,
-    shadowRadius: 32,
-    elevation: 16,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.8)',
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.3,
+    shadowRadius: 40,
+    elevation: 20,
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.9)',
     overflow: 'hidden',
     backdropFilter: 'blur(20px)', // Note: React Native doesn't support backdrop-filter, but keeping for web compatibility
   },
@@ -1662,19 +1816,19 @@ const styles = StyleSheet.create({
   featureItem: {
     alignItems: 'center',
     flex: 1,
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     minWidth: 105,
-    paddingVertical: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.6)',
-    borderRadius: 20,
+    paddingVertical: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    borderRadius: 24,
     marginHorizontal: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.8)',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.9)',
     shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 6,
   },
   featureIcon: {
     fontSize: 36,
@@ -1700,20 +1854,22 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   landingButton: {
-    paddingHorizontal: 56,
-    paddingVertical: 22,
-    borderRadius: 24,
+    paddingHorizontal: 48,
+    paddingVertical: 24,
+    borderRadius: 28,
     width: '100%',
     alignItems: 'center',
+    justifyContent: 'center',
     shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.5,
-    shadowRadius: 16,
-    elevation: 12,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.55,
+    shadowRadius: 20,
+    elevation: 16,
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
     overflow: 'hidden',
     position: 'relative',
+    minHeight: 70,
   },
   buttonShimmer: {
     position: 'absolute',
@@ -1730,13 +1886,15 @@ const styles = StyleSheet.create({
   },
   landingButtonText: {
     color: '#fff',
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '900',
     marginBottom: 6,
-    letterSpacing: 1.5,
+    letterSpacing: 0.8,
     textShadowColor: 'rgba(0, 0, 0, 0.4)',
     textShadowOffset: { width: 0, height: 3 },
     textShadowRadius: 6,
+    textAlign: 'center',
+    includeFontPadding: false,
   },
   landingButtonSubtext: {
     color: '#fff',
@@ -1791,15 +1949,17 @@ const styles = StyleSheet.create({
   profileCard: {
     backgroundColor: '#fff',
     margin: 20,
-    borderRadius: 24,
+    borderRadius: 32,
     overflow: 'hidden',
     shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 24,
-    elevation: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(102, 126, 234, 0.1)',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 32,
+    elevation: 16,
+    borderWidth: 3,
+    borderColor: '#fff',
+    width: SCREEN_WIDTH - 40,
+    alignSelf: 'center',
   },
   photoGallery: {
     position: 'relative',
@@ -1852,16 +2012,20 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   name: {
-    fontSize: 32,
-    fontWeight: '800',
+    fontSize: 34,
+    fontWeight: '900',
     color: '#1a1a1a',
     marginRight: 8,
-    letterSpacing: -0.5,
+    letterSpacing: -0.6,
+    textShadowColor: 'rgba(102, 126, 234, 0.15)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
   },
   age: {
-    fontSize: 26,
+    fontSize: 28,
     color: '#666',
-    fontWeight: '600',
+    fontWeight: '700',
+    letterSpacing: -0.3,
   },
   locationContainer: {
     flexDirection: 'row',
@@ -1941,11 +2105,11 @@ const styles = StyleSheet.create({
   },
   interestTag: {
     backgroundColor: '#f8f9ff',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 22,
     marginBottom: 8,
-    borderWidth: 1.5,
+    borderWidth: 2,
     borderColor: '#e0e7ff',
     shadowColor: '#667eea',
     shadowOffset: { width: 0, height: 2 },
@@ -1960,30 +2124,39 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   connectButton: {
-    margin: 20,
-    borderRadius: 20,
+    marginHorizontal: 20,
+    marginVertical: 20,
+    borderRadius: 28,
     overflow: 'hidden',
+    alignSelf: 'stretch',
   },
   connectButtonGradient: {
-    paddingVertical: 18,
+    paddingVertical: 20,
+    paddingHorizontal: 12,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.45,
+    shadowRadius: 20,
+    elevation: 12,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    minHeight: 60,
   },
   connectButtonDisabled: {
     opacity: 0.6,
   },
   connectButtonText: {
     color: '#fff',
-    fontSize: 20,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-    textShadowColor: 'rgba(0, 0, 0, 0.2)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
+    fontSize: 15,
+    fontWeight: '900',
+    letterSpacing: 0,
+    textShadowColor: 'rgba(0, 0, 0, 0.25)',
+    textShadowOffset: { width: 0, height: 3 },
+    textShadowRadius: 6,
+    textAlign: 'center',
+    includeFontPadding: false,
+    flexWrap: 'nowrap',
   },
 });
