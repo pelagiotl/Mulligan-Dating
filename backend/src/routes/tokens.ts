@@ -15,6 +15,32 @@ interface TokenRow {
   source?: string | null;
 }
 
+/**
+ * Grant initial tokens to a new user (7 tokens)
+ * This should be called when a user first signs up
+ */
+export async function grantInitialTokens(userId: string): Promise<string[]> {
+  const grantedTokenIds: string[] = [];
+  
+  // Grant 7 initial tokens
+  for (let i = 0; i < 7; i++) {
+    const tokenId = uuidv4();
+    const insertResult = db.prepare(
+      `INSERT INTO mulligan_tokens (id, user_id, source) VALUES (?, ?, 'initial')`
+    ).run([tokenId, userId]);
+    
+    // Handle both sync (SQLite) and async (PostgreSQL)
+    if (insertResult instanceof Promise) {
+      await insertResult;
+    }
+    
+    grantedTokenIds.push(tokenId);
+  }
+  
+  console.log(`✅ Granted 7 initial tokens to user ${userId}`);
+  return grantedTokenIds;
+}
+
 // Get user's token balance and history
 tokensRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
   try {
@@ -33,13 +59,10 @@ tokensRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
       : tokensResult as TokenRow[];
 
     // Count available tokens (granted but not used, and not returned)
-    // Cap at maximum of 3 tokens
-    const availableTokens = Math.min(
-      tokens.filter((t: TokenRow) => !t.used_at && !t.returned_at).length,
-      3
-    );
+    // Don't cap here - show actual count (the cap is enforced when claiming)
+    const availableTokens = tokens.filter((t: TokenRow) => !t.used_at && !t.returned_at).length;
 
-    // Check if user should get weekly tokens (3 tokens per week)
+    // Check if user should get weekly tokens (7 tokens per week, fills up to 7 max)
     // Find the most recent weekly token grant
     // Look for tokens with source='weekly' or no source (old tokens)
     const weeklyTokens = tokens.filter((t: TokenRow) => !t.source || t.source === 'weekly');
@@ -56,15 +79,25 @@ tokensRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
       canClaimWeeklyToken = lastGranted < oneWeekAgo;
     }
 
-    // Can't claim if already at max (3 tokens)
-    if (availableTokens >= 3) {
+    // Can't claim if already at max (7 tokens)
+    if (availableTokens >= 7) {
       canClaimWeeklyToken = false;
+    }
+
+    // Calculate next weekly refill date
+    let nextRefillDate: string | null = null;
+    if (lastWeeklyToken) {
+      const lastGranted = new Date(lastWeeklyToken.granted_at);
+      const nextRefill = new Date(lastGranted);
+      nextRefill.setDate(nextRefill.getDate() + 7);
+      nextRefillDate = nextRefill.toISOString();
     }
 
     console.log('✅ Tokens fetched:', { availableTokens, canClaimWeeklyToken, totalTokens: tokens.length });
     res.json({
       availableTokens,
       canClaimWeeklyToken,
+      nextRefillDate,
       tokens: tokens.slice(0, 10), // Last 10 tokens
     });
   } catch (error) {
@@ -73,7 +106,7 @@ tokensRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
   }
 });
 
-// Claim weekly tokens (3 tokens per week)
+// Claim weekly tokens (7 tokens per week, fills up to 7 max)
 tokensRouter.post("/claim", authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
@@ -94,10 +127,10 @@ tokensRouter.post("/claim", authenticateToken, async (req: AuthRequest, res) => 
     (t: TokenRow) => !t.used_at && !t.returned_at
   ).length;
 
-  // Can't claim if already at max (3 tokens)
-  if (availableTokens >= 3) {
+  // Can't claim if already at max (7 tokens)
+  if (availableTokens >= 7) {
     return res.status(400).json({ 
-      error: "You already have 3 tokens. Use them before claiming more!" 
+      error: "You already have 7 tokens. Use them before claiming more!" 
     });
   }
 
@@ -113,15 +146,16 @@ tokensRouter.post("/claim", authenticateToken, async (req: AuthRequest, res) => 
     if (lastGranted >= oneWeekAgo) {
       return res
         .status(400)
-        .json({ error: "You can only claim 3 tokens per week. Wait until next week!" });
+        .json({ error: "You can only claim weekly tokens once per week. Wait until next week!" });
     }
   }
 
-  // Calculate how many tokens to grant (up to 3 total)
-  const tokensToGrant = Math.min(3, 3 - availableTokens);
+  // Calculate how many tokens to grant (fill up to 7 max)
+  // If user has 2 tokens, grant 5 more to reach 7 (not 7 more)
+  const tokensToGrant = 7 - availableTokens;
   const grantedTokenIds: string[] = [];
 
-    // Grant tokens (up to 3)
+    // Grant tokens (fill up to 7)
     for (let i = 0; i < tokensToGrant; i++) {
       const tokenId = uuidv4();
       const insertResult = db.prepare(

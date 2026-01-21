@@ -378,6 +378,10 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
         phoneNumber: formattedPhone
       });
 
+      // Grant initial 7 tokens to new user
+      const { grantInitialTokens } = await import('./tokens.js');
+      await grantInitialTokens(userId);
+
       // Generate referral code for the new user
       const newUserReferralCode = await getOrCreateReferralCode(userId);
 

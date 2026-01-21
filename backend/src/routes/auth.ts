@@ -69,6 +69,10 @@ authRouter.post('/signup', rateLimitSignup, async (req, res) => {
     const insertStmt = db.prepare('INSERT INTO users (id, email, password, tos_accepted_at, privacy_accepted_at) VALUES (?, ?, ?, ?, ?)');
     await (insertStmt.run([userId, email, hashedPassword, now, now]) as Promise<any>);
 
+    // Grant initial 7 tokens to new user
+    const { grantInitialTokens } = await import('./tokens.js');
+    await grantInitialTokens(userId);
+
     // Generate referral code for the new user
     const newUserReferralCode = await getOrCreateReferralCode(userId);
 

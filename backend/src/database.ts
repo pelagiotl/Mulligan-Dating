@@ -233,6 +233,11 @@ export async function initDatabase() {
   } catch (e) {
     // Column already exists, ignore
   }
+  try {
+    await execSQL(`ALTER TABLE users ADD COLUMN push_token ${usePostgres ? 'VARCHAR(500)' : 'TEXT'}`);
+  } catch (e) {
+    // Column already exists, ignore
+  }
 
   // Profiles table
   await execSQL(`
@@ -349,7 +354,7 @@ export async function initDatabase() {
     // Column already exists, ignore
   }
 
-  // Mulligan Tokens table - users get 3 tokens per week (max 3 at a time)
+  // Mulligan Tokens table - users get 7 tokens initially and 7 more per week (max 7 at a time)
   await execSQL(`
     CREATE TABLE IF NOT EXISTS mulligan_tokens (
       id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} PRIMARY KEY,
