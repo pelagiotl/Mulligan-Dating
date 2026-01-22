@@ -629,8 +629,12 @@ adminRouter.get('/users/:id/messages', authenticateToken, requireAdmin, async (r
 // Delete all test users
 adminRouter.delete('/delete-test-users', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    // Identify test users by email patterns
-    // Common test patterns: test@, newtest@, testing@, testboy@, newaccount@
+    // Identify test users by multiple criteria:
+    // 1. Email patterns: test@, newtest@, testing@, testboy@, newaccount@
+    // 2. Phone numbers from create-test-users endpoint: +15551234567-71
+    // 3. Users with tokens from 'test_account' source
+    // 4. Display names from test user list: Alex, Jordan, Sam, Taylor, Casey
+    
     const testEmailPatterns = [
       '%test%@%',
       '%testing%@%',
@@ -638,21 +642,46 @@ adminRouter.delete('/delete-test-users', authenticateToken, requireAdmin, async 
       '%testboy%@%',
       '%newaccount%@%'
     ];
+    
+    const testPhoneNumbers = [
+      '+15551234567',
+      '+15551234568',
+      '+15551234569',
+      '+15551234570',
+      '+15551234571'
+    ];
+    
+    const testDisplayNames = ['Alex', 'Jordan', 'Sam', 'Taylor', 'Casey'];
 
-    // Find all test users
+    // Find all test users by email patterns OR phone numbers OR display names OR test account tokens
     const testUsersQuery = `
-      SELECT u.id, u.email, p.display_name
+      SELECT DISTINCT u.id, u.email, u.phone_number, p.display_name
       FROM users u
       LEFT JOIN profiles p ON p.user_id = u.id
-      WHERE (
-        ${testEmailPatterns.map(() => 'u.email LIKE ?').join(' OR ')}
+      LEFT JOIN mulligan_tokens t ON t.user_id = u.id
+      WHERE u.is_admin = 0
+      AND (
+        -- Email patterns
+        ${testEmailPatterns.length > 0 ? `(${testEmailPatterns.map(() => 'u.email LIKE ?').join(' OR ')})` : '0=1'}
+        -- Phone numbers
+        ${testPhoneNumbers.length > 0 ? `OR u.phone_number IN (${testPhoneNumbers.map(() => '?').join(', ')})` : ''}
+        -- Display names
+        ${testDisplayNames.length > 0 ? `OR p.display_name IN (${testDisplayNames.map(() => '?').join(', ')})` : ''}
+        -- Test account tokens
+        OR t.source = 'test_account'
       )
-      AND u.is_admin = 0
     `;
     
-    const testUsers = await (db.prepare(testUsersQuery).all(testEmailPatterns) as Promise<Array<{
+    const queryParams = [
+      ...testEmailPatterns,
+      ...testPhoneNumbers,
+      ...testDisplayNames
+    ];
+    
+    const testUsers = await (db.prepare(testUsersQuery).all(queryParams) as Promise<Array<{
       id: string;
       email: string | null;
+      phone_number: string | null;
       display_name: string | null;
     }>>);
 
@@ -731,10 +760,10 @@ adminRouter.delete('/delete-test-users', authenticateToken, requireAdmin, async 
         // 7. Delete user
         await (db.prepare('DELETE FROM users WHERE id = ?').run([userId]) as Promise<any>);
         
-        deletedUsers.push(user.display_name || user.email || userId);
+        deletedUsers.push(user.display_name || user.email || user.phone_number || userId);
         deletedCount++;
         
-        console.log(`  ✅ Deleted: ${user.display_name || user.email || userId}`);
+        console.log(`  ✅ Deleted: ${user.display_name || user.email || user.phone_number || userId}`);
       } catch (error: any) {
         console.error(`  ❌ Error deleting user ${user.id}:`, error.message);
       }
