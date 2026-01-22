@@ -189,26 +189,30 @@ export function initializeSocket(server: HTTPServer) {
 
       // Send push notification to the other user (if they're not in the app)
       try {
-        const { sendPushNotification } = await import('./services/pushNotifications.js');
+        const { sendPushNotification, isPushNotificationConfigured, isExpoPushToken } = await import('./services/pushNotifications.js');
         
-        // Get the other user's push token
-        const otherUserPushTokenResult = db
-          .prepare("SELECT push_token FROM users WHERE id = ?")
-          .get(otherUserId) as { push_token: string | null } | undefined;
-        
-        if (otherUserPushTokenResult?.push_token) {
-          await sendPushNotification(
-            otherUserPushTokenResult.push_token,
-            profile.display_name,
-            content.trim().length > 50 ? content.trim().substring(0, 50) + '...' : content.trim(),
-            {
-              type: 'new_message',
+        if (!isPushNotificationConfigured()) {
+          console.warn('⚠️  Push notification service not configured, skipping message notification');
+        } else {
+          // Get the other user's push token
+          const otherUserPushTokenResult = db
+            .prepare("SELECT push_token FROM users WHERE id = ?")
+            .get(otherUserId) as { push_token: string | null } | undefined;
+          
+          if (otherUserPushTokenResult?.push_token && isExpoPushToken(otherUserPushTokenResult.push_token)) {
+            const messagePreview = content.trim().length > 50 ? content.trim().substring(0, 50) + '...' : content.trim();
+            const { sendMessagePushNotification } = await import('./services/pushNotifications.js');
+            await sendMessagePushNotification(
+              otherUserPushTokenResult.push_token,
+              profile.display_name,
+              messagePreview,
               matchId,
-              senderId: userId,
-              senderName: profile.display_name,
-            }
-          );
-          console.log(`✅ Sent push notification for new message to ${otherUserId}`);
+              userId
+            );
+            console.log(`✅ Sent push notification with message sound to ${otherUserId}`);
+          } else {
+            console.warn(`⚠️  No valid push token for user ${otherUserId}, skipping message notification`);
+          }
         }
       } catch (pushError) {
         // Push notifications are optional, don't fail message sending if push fails

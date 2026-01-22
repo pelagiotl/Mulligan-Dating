@@ -106,28 +106,67 @@ settingsRouter.post("/delete-account", authenticateToken, async (req: AuthReques
   }
 });
 
-// Update email (optional - if you want to allow email changes)
+// Update email (optional - for phone auth users, password is optional)
 settingsRouter.put("/email", authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
-    const { email, password } = z.object({
-      email: z.string().email(),
-      password: z.string(),
-    }).parse(req.body);
+    
+    // Log the request body for debugging
+    console.log(`📧 Update email request for user ${userId}:`, { 
+      email: req.body?.email, 
+      emailType: typeof req.body?.email,
+      hasPassword: !!req.body?.password,
+      bodyKeys: Object.keys(req.body || {}),
+      rawBody: req.body
+    });
+    
+    // Check if email is provided
+    if (!req.body || !req.body.email) {
+      console.error('❌ Email update error: email field is missing');
+      return res.status(400).json({ 
+        error: "Email is required" 
+      });
+    }
+    
+    const emailSchema = z.object({
+      email: z.string().min(1, "Email is required").email("Invalid email format"),
+      password: z.string().optional(),
+    });
+    
+    const validationResult = emailSchema.safeParse(req.body);
+    
+    if (!validationResult.success) {
+      const firstError = validationResult.error.errors[0];
+      console.error('❌ Email update validation error:', firstError);
+      console.error('   Full validation errors:', validationResult.error.errors);
+      return res.status(400).json({ 
+        error: firstError.message || "Invalid email format" 
+      });
+    }
+    
+    const { email, password } = validationResult.data;
 
-    // Verify password
+    // Get user to check if they have a password (phone auth users may not have one)
     const user = await (db
       .prepare("SELECT password FROM users WHERE id = ?")
-      .get(userId) as Promise<{ password: string } | undefined>);
+      .get(userId) as Promise<{ password: string | null } | undefined>);
 
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    const validPassword = await bcrypt.compare(password, user.password);
-    if (!validPassword) {
-      return res.status(401).json({ error: "Password is incorrect" });
+    // If user has a password and one was provided, verify it
+    // If user doesn't have a password (phone auth), allow update without password
+    if (user.password && password) {
+      const validPassword = await bcrypt.compare(password, user.password);
+      if (!validPassword) {
+        return res.status(401).json({ error: "Password is incorrect" });
+      }
+    } else if (user.password && !password) {
+      // User has password but didn't provide one
+      return res.status(401).json({ error: "Password required to update email" });
     }
+    // If user has no password (phone auth), proceed without password verification
 
     // Check if email already exists
     const existingUser = await (db
@@ -139,7 +178,7 @@ settingsRouter.put("/email", authenticateToken, async (req: AuthRequest, res) =>
     }
 
     // Update email
-    await (db.prepare("UPDATE users SET email = ? WHERE id = ?").run([email, userId]) as Promise<any>);
+    await (db.prepare("UPDATE users SET email = ? WHERE id = ?").run([email.toLowerCase().trim(), userId]) as Promise<any>);
 
     res.json({ message: "Email updated successfully" });
   } catch (error) {

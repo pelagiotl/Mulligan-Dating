@@ -733,7 +733,57 @@ matchesRouter.get("/pending-from/:userId", authenticateToken, async (req: AuthRe
   }
 });
 
-// Unmatch with someone
+// Unmatch with someone (POST endpoint for frontend compatibility)
+matchesRouter.post("/:matchId/unmatch", authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { matchId } = req.params;
+
+    // Validate matchId format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(matchId)) {
+      return res.status(400).json({ error: "Invalid match ID format" });
+    }
+
+    // Verify user is part of this match
+    const matchResult = db
+      .prepare(
+        `SELECT * FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?) AND stage != 'expired'`
+      )
+      .get([matchId, userId, userId]);
+    const match = (matchResult instanceof Promise
+      ? await matchResult
+      : matchResult) as MatchRow | undefined;
+
+    if (!match) {
+      return res.status(404).json({ error: "Match not found or already unmatched" });
+    }
+
+    // Set match stage to 'expired' (soft delete - keeps history)
+    await (db
+      .prepare(`UPDATE matches SET stage = 'expired', expires_at = CURRENT_TIMESTAMP WHERE id = ?`)
+      .run([matchId]) as Promise<any>);
+
+    // Notify via Socket.io if available
+    try {
+      const { io } = await import('../index.js');
+      if (io) {
+        io.to(`match:${matchId}`).emit('match_unmatched', { matchId, unmatchedBy: userId });
+      }
+    } catch (socketError) {
+      console.warn('⚠️  Socket.io not available for unmatch notification');
+    }
+
+    console.log(`✅ User ${userId} unmatched with match ${matchId}`);
+    res.json({ message: "Successfully unmatched" });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Unmatch error:", error);
+    res.status(500).json({ error: `Failed to unmatch: ${errorMessage}` });
+  }
+});
+
+// Unmatch with someone (DELETE endpoint - alternative method)
 matchesRouter.delete("/:matchId", authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;

@@ -50,13 +50,15 @@ export function isExpoPushToken(token: string): boolean {
  * @param title - Notification title
  * @param body - Notification body
  * @param data - Optional data payload
+ * @param sound - Optional custom sound name (defaults to 'default')
  * @returns Promise<boolean> - true if sent successfully
  */
 export async function sendPushNotification(
   pushToken: string,
   title: string,
   body: string,
-  data?: any
+  data?: any,
+  sound?: string
 ): Promise<boolean> {
   if (!expo) {
     console.warn('⚠️  Expo Push Notification service not initialized. Skipping push notification.');
@@ -71,11 +73,13 @@ export async function sendPushNotification(
   try {
     const message: any = {
       to: pushToken,
-      sound: 'default',
+      sound: sound || 'default', // Use custom sound if provided, otherwise system default
       title,
       body,
       data: data || {},
       badge: 1, // Show badge on app icon
+      priority: 'high', // High priority ensures sound plays
+      channelId: 'default', // Android notification channel
     };
 
     const chunks = expo.chunkPushNotifications([message]);
@@ -129,15 +133,90 @@ export async function sendMatchPushNotification(
   matchName: string,
   matchId: string
 ): Promise<boolean> {
+  if (!expo) {
+    console.warn('⚠️  Expo Push Notification service not initialized. Skipping push notification.');
+    return false;
+  }
+
+  if (!isExpoPushToken(pushToken)) {
+    console.error('❌ Invalid Expo push token:', pushToken);
+    return false;
+  }
+
+  try {
+    const message: any = {
+      to: pushToken,
+      sound: 'match-sound', // Custom match sound (match-sound.mp3 in app bundle)
+      title: '🎉 New Match!',
+      body: `${matchName} matched with you. Start chatting now!`,
+      data: {
+        type: 'new_match',
+        matchId,
+        matchName,
+      },
+      badge: 1,
+      priority: 'high', // High priority ensures sound plays
+      channelId: 'default', // Android notification channel
+    };
+
+    const chunks = expo.chunkPushNotifications([message]);
+    const tickets = [];
+
+    for (const chunk of chunks) {
+      try {
+        const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
+        tickets.push(...ticketChunk);
+      } catch (error: any) {
+        console.error('❌ Error sending match push notification chunk:', error.message);
+        return false;
+      }
+    }
+
+    // Check ticket errors
+    for (const ticket of tickets) {
+      if (ticket.status === 'error') {
+        console.error('❌ Match push notification error:', ticket.message);
+        return false;
+      }
+    }
+
+    console.log(`✅ Match push notification sent successfully to ${pushToken.substring(0, 20)}...`);
+    return true;
+  } catch (error: any) {
+    console.error('❌ Failed to send match push notification:', error.message);
+    return false;
+  }
+}
+
+/**
+ * Send push notification for a new message
+ * @param pushToken - Expo push token
+ * @param senderName - Name of the person who sent the message
+ * @param messagePreview - Preview of the message content
+ * @param matchId - Match ID
+ * @param senderId - Sender user ID
+ * @returns Promise<boolean> - true if sent successfully
+ */
+export async function sendMessagePushNotification(
+  pushToken: string,
+  senderName: string,
+  messagePreview: string,
+  matchId: string,
+  senderId: string
+): Promise<boolean> {
+  // Use 'message-sound' for messages (different from match sound)
+  // Make sure message-sound.mp3 is in mobile/assets/ directory
   return sendPushNotification(
     pushToken,
-    '🎉 New Match!',
-    `${matchName} matched with you. Start chatting now!`,
+    senderName,
+    messagePreview,
     {
-      type: 'new_match',
+      type: 'new_message',
       matchId,
-      matchName,
-    }
+      senderId,
+      senderName,
+    },
+    'message-sound' // Custom message sound (message-sound.mp3 in app bundle)
   );
 }
 
