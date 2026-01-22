@@ -17,6 +17,7 @@ import BrowseScreen from '../screens/BrowseScreen';
 import MatchesScreen from '../screens/MatchesScreen';
 import MyProfileScreen from '../screens/MyProfileScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import JourneyScreen from '../screens/JourneyScreen';
 import AdminScreen from '../screens/AdminScreen';
 import TermsScreen from '../screens/TermsScreen';
 import PrivacyScreen from '../screens/PrivacyScreen';
@@ -34,6 +35,7 @@ export type RootStackParamList = {
 export type MainTabParamList = {
   Browse: undefined;
   Matches: undefined;
+  Journey: undefined;
   MyProfile: undefined;
   Settings: undefined;
   Admin: undefined;
@@ -183,6 +185,16 @@ function MainTabs() {
         }}
       />
       <Tab.Screen 
+        name="Journey" 
+        component={JourneyScreen}
+        options={{
+          tabBarIcon: ({ focused, color }) => (
+            <Text style={[styles.tabIcon, styles.sleekIcon, { opacity: focused ? 1 : 0.6, color: focused ? '#8B1538' : '#999' }]}>🌱</Text>
+          ),
+          tabBarLabel: 'Journey',
+        }}
+      />
+      <Tab.Screen 
         name="MyProfile" 
         component={MyProfileScreen}
         options={{
@@ -298,7 +310,7 @@ export default function AppNavigator() {
   }, [loading, user, profile, isNavigationReady]);
 
   // Determine initial route based on auth state
-  // If user is already logged in, skip PhoneLogin screen
+  // If user is already logged in, skip PhoneLogin screen (standard auto-login behavior)
   const getInitialRouteName = (): keyof RootStackParamList => {
     if (loading) {
       // Still loading auth state - show PhoneLogin for now

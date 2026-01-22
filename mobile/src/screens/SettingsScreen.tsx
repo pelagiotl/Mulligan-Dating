@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  TextInput,
   ActivityIndicator,
   Alert,
   Linking,
@@ -16,6 +15,7 @@ import { useNavigation } from '@react-navigation/native';
 import { api } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import LegalFooter from '../components/LegalFooter';
+import { playMatchSound } from '../utils/sounds';
 
 interface SettingsData {
   email: string;
@@ -31,11 +31,6 @@ export default function SettingsScreen() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  // Email management
-  const [newEmail, setNewEmail] = useState('');
-  const [editingEmail, setEditingEmail] = useState(false);
-  const [updatingEmail, setUpdatingEmail] = useState(false);
-
   // Delete account
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -48,6 +43,9 @@ export default function SettingsScreen() {
     price: number;
     priceFormatted: string;
     pricePerToken: string;
+    available?: boolean;
+    wouldExceedLimit?: boolean;
+    maxTokensCanBuy?: number;
   }>>([]);
   const [loadingPackages, setLoadingPackages] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
@@ -61,7 +59,6 @@ export default function SettingsScreen() {
       setLoading(true);
       const data = await api.get<SettingsData>('/settings');
       setSettings(data);
-      setNewEmail(data.email || '');
     } catch (err: any) {
       setError(err?.message || 'Failed to load settings');
     } finally {
@@ -69,52 +66,32 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleUpdateEmail = async () => {
-    setError('');
-    setSuccess('');
-
-    if (!newEmail.trim()) {
-      setError('Please enter an email address');
-      return;
-    }
-
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(newEmail.trim())) {
-      setError('Please enter a valid email address');
-      return;
-    }
-
-    setUpdatingEmail(true);
-    try {
-      // Update email - password is optional for phone auth users
-      await api.put('/settings/email', {
-        email: newEmail.trim().toLowerCase(),
-      });
-      setSuccess('Email updated successfully!');
-      setEditingEmail(false);
-      await fetchSettings();
-    } catch (err: any) {
-      setError(err?.message || 'Failed to update email');
-    } finally {
-      setUpdatingEmail(false);
-    }
-  };
-
-
   const fetchPackages = async () => {
     try {
       setLoadingPackages(true);
       setError('');
       console.log('🔄 Fetching token packages...');
-      const response = await api.get<{ packages: Array<{
-        id: number;
-        tokens: number;
-        price: number;
-        priceFormatted: string;
-        pricePerToken: string;
-      }> }>('/payments/packages');
+      const response = await api.get<{ 
+        packages: Array<{
+          id: number;
+          tokens: number;
+          price: number;
+          priceFormatted: string;
+          pricePerToken: string;
+          available?: boolean;
+          wouldExceedLimit?: boolean;
+          maxTokensCanBuy?: number;
+        }>;
+        availableTokens?: number;
+      }>('/payments/packages');
       console.log('✅ Packages fetched:', response);
+      console.log('📦 Package details:', response.packages?.map(p => ({
+        id: p.id,
+        tokens: p.tokens,
+        available: p.available,
+        wouldExceedLimit: p.wouldExceedLimit,
+        maxTokensCanBuy: p.maxTokensCanBuy
+      })));
       setPackages(response.packages || []);
     } catch (err: any) {
       console.error('❌ Failed to fetch packages:', err);
@@ -273,93 +250,46 @@ export default function SettingsScreen() {
       <View style={styles.section}>
         <View style={styles.sectionTitleContainer}>
           <Text style={styles.sectionEmoji}>👤</Text>
-          <Text style={styles.sectionTitle}>Account Information</Text>
+          <Text style={styles.sectionTitle}>Account</Text>
         </View>
-        <View style={styles.infoCard}>
-          <View style={styles.infoItem}>
-            <Text style={styles.infoLabel}>📧 Email</Text>
-            {!editingEmail ? (
-              <View style={styles.infoValueContainer}>
-                <Text style={styles.infoValue}>{settings?.email || 'Not set'}</Text>
-                <TouchableOpacity
-                  style={styles.editButton}
-                  onPress={() => {
-                    setEditingEmail(true);
-                    setNewEmail(settings?.email || '');
-                    setError('');
-                    setSuccess('');
-                  }}
-                >
-                  <Text style={styles.editButtonText}>{settings?.email ? 'Edit' : 'Add'}</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <View style={styles.emailEditContainer}>
-                <TextInput
-                  style={styles.emailInput}
-                  placeholder="Enter your email"
-                  placeholderTextColor="#999"
-                  value={newEmail}
-                  onChangeText={setNewEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-                <View style={styles.emailEditActions}>
-                  <TouchableOpacity
-                    style={[styles.emailActionButton, styles.cancelButton]}
-                    onPress={() => {
-                      setEditingEmail(false);
-                      setNewEmail(settings?.email || '');
-                      setError('');
-                    }}
-                  >
-                    <Text style={styles.cancelButtonText}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.emailActionButton, updatingEmail && styles.buttonDisabled]}
-                    onPress={handleUpdateEmail}
-                    disabled={updatingEmail}
-                  >
-                    <LinearGradient
-                      colors={updatingEmail ? ['#a0aec0', '#718096'] : ['#667eea', '#764ba2', '#f093fb']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.saveButton}
-                    >
-                      {updatingEmail ? (
-                        <ActivityIndicator color="#fff" size="small" />
-                      ) : (
-                        <Text style={styles.saveButtonText}>Save</Text>
-                      )}
-                    </LinearGradient>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-          </View>
-          <View style={styles.divider} />
-          <View style={styles.infoItem}>
-            <Text style={styles.infoLabel}>🎉 Member Since</Text>
-            <Text style={styles.infoValue}>
+
+        {/* Account Stats Cards */}
+        <View style={styles.statsRow}>
+          <LinearGradient
+            colors={['#667eea', '#764ba2']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.statCard}
+          >
+            <Text style={styles.statEmoji}>🎉</Text>
+            <Text style={styles.statLabel}>Member Since</Text>
+            <Text style={styles.statValue}>
               {settings?.createdAt
                 ? new Date(settings.createdAt).toLocaleDateString('en-US', {
+                    month: 'short',
                     year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
                   })
                 : 'N/A'}
             </Text>
-          </View>
-          <View style={styles.divider} />
-          <View style={styles.infoItem}>
-            <Text style={styles.infoLabel}>🟢 Last Active</Text>
-            <Text style={styles.infoValue}>
+          </LinearGradient>
+
+          <LinearGradient
+            colors={['#f093fb', '#f5576c']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.statCard}
+          >
+            <Text style={styles.statEmoji}>🟢</Text>
+            <Text style={styles.statLabel}>Last Active</Text>
+            <Text style={styles.statValue}>
               {settings?.lastActiveAt
-                ? new Date(settings.lastActiveAt).toLocaleString()
+                ? new Date(settings.lastActiveAt).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                  })
                 : 'Just now'}
             </Text>
-          </View>
+          </LinearGradient>
         </View>
       </View>
 
@@ -367,26 +297,68 @@ export default function SettingsScreen() {
       <View style={styles.section}>
         <View style={styles.sectionTitleContainer}>
           <Text style={styles.sectionEmoji}>💳</Text>
-          <Text style={styles.sectionTitle}>Buy Tokens</Text>
+          <Text style={styles.sectionTitle}>Tokens</Text>
         </View>
-        <Text style={styles.sectionDescription}>
-          Need more tokens to connect with people? Purchase Mulligan tokens to get more matches.
+        <LinearGradient
+          colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.05)']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.tokensCard}
+        >
+          <Text style={styles.tokensCardTitle}>Need more tokens?</Text>
+          <Text style={styles.tokensCardDescription}>
+            Purchase Mulligan tokens to connect with more people
+          </Text>
+          <TouchableOpacity
+            style={styles.button}
+            onPress={() => {
+              setShowPurchaseModal(true);
+              fetchPackages();
+            }}
+          >
+            <LinearGradient
+              colors={['#667eea', '#764ba2', '#f093fb']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.primaryButton}
+            >
+              <Text style={[styles.buttonText, styles.primaryButtonText]}>💳 Buy Tokens</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </LinearGradient>
+      </View>
+
+      {/* Test: Match Sound */}
+      <View style={[styles.section, styles.testSection]}>
+        <View style={styles.sectionTitleContainer}>
+          <Text style={styles.sectionEmoji}>🔊</Text>
+          <Text style={styles.sectionTitle}>Test: Match Sound</Text>
+        </View>
+        <Text style={styles.testText}>
+          Test the match celebration sound. In Expo Go, the sound won't play (this is expected), but you'll see detailed logs in the console. In TestFlight/production builds, the sound should play.
         </Text>
         <TouchableOpacity
-          style={styles.button}
-          onPress={() => {
-            setShowPurchaseModal(true);
-            fetchPackages();
+          style={[styles.button, styles.testButton]}
+          onPress={async () => {
+            try {
+              console.log('🧪 [TEST] User clicked "Test Match Sound" button');
+              await playMatchSound();
+              Alert.alert(
+                'Sound Test',
+                'Sound test triggered! Check the console logs for details. In Expo Go, sound won\'t play (expected). In TestFlight builds, you should hear the sound.',
+                [{ text: 'OK' }]
+              );
+            } catch (error: any) {
+              console.error('🧪 [TEST] Error testing sound:', error);
+              Alert.alert(
+                'Sound Test Error',
+                `Error: ${error?.message || String(error)}\n\nCheck console logs for details.`,
+                [{ text: 'OK' }]
+              );
+            }
           }}
         >
-          <LinearGradient
-            colors={['#667eea', '#764ba2', '#f093fb']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.primaryButton}
-          >
-            <Text style={[styles.buttonText, styles.primaryButtonText]}>💳 Buy Tokens</Text>
-          </LinearGradient>
+          <Text style={[styles.buttonText, styles.testButtonText]}>🔊 Test Match Sound</Text>
         </TouchableOpacity>
       </View>
 
@@ -515,7 +487,7 @@ export default function SettingsScreen() {
             ]);
           }}
         >
-          <Text style={[styles.buttonText, styles.logoutButtonText]}>Logout</Text>
+          <Text style={[styles.buttonText, styles.logoutButtonText]}>🚪 Logout</Text>
         </TouchableOpacity>
       </View>
 
@@ -543,28 +515,67 @@ export default function SettingsScreen() {
               <ActivityIndicator size="large" color="#8B1538" style={styles.modalLoading} />
             ) : (
               <ScrollView style={styles.packagesList}>
-                {packages.map((pkg) => (
-                  <TouchableOpacity
-                    key={pkg.id}
-                    style={[
-                      styles.packageItem,
-                      (pkg.id === 3 || pkg.id === 10) && styles.packageItemBestValue
-                    ]}
-                    onPress={() => handlePurchase(pkg.id)}
-                    disabled={purchasing}
-                  >
-                    <View style={styles.packageHeader}>
-                      <Text style={styles.packageTokens}>{pkg.tokens} Token{pkg.tokens > 1 ? 's' : ''}</Text>
-                      {(pkg.id === 3 || pkg.id === 10) && (
-                        <Text style={styles.bestValueBadge}>Best Value</Text>
+                {packages.length === 0 ? (
+                  <View style={styles.emptyPackages}>
+                    <Text style={styles.emptyPackagesText}>No packages available</Text>
+                  </View>
+                ) : (
+                  packages.map((pkg) => {
+                    // Only disable if purchasing OR if it would exceed limit
+                    // available can be undefined (backwards compatibility), so only check if it's explicitly false
+                    const isDisabled = purchasing || (pkg.wouldExceedLimit === true);
+                    console.log(`📦 Package ${pkg.id}: tokens=${pkg.tokens}, disabled=${isDisabled}, wouldExceed=${pkg.wouldExceedLimit}, available=${pkg.available}`);
+                    return (
+                    <TouchableOpacity
+                      key={pkg.id}
+                      style={[
+                        styles.packageItem,
+                        (pkg.id === 3 || pkg.id === 7) && styles.packageItemBestValue,
+                        isDisabled && styles.packageItemDisabled
+                      ]}
+                      onPress={() => {
+                        if (pkg.wouldExceedLimit) {
+                          Alert.alert(
+                            'Token Limit Reached',
+                            `This purchase would exceed your 7 token limit. You can only purchase up to ${pkg.maxTokensCanBuy || 0} more token${(pkg.maxTokensCanBuy || 0) > 1 ? 's' : ''}.`,
+                            [{ text: 'OK' }]
+                          );
+                          return;
+                        }
+                        if (!pkg.available) {
+                          Alert.alert(
+                            'Package Unavailable',
+                            'This package is not available at this time.',
+                            [{ text: 'OK' }]
+                          );
+                          return;
+                        }
+                        handlePurchase(pkg.id);
+                      }}
+                      disabled={isDisabled}
+                    >
+                      <View style={styles.packageHeader}>
+                        <Text style={styles.packageTokens}>{pkg.tokens} Token{pkg.tokens > 1 ? 's' : ''}</Text>
+                        {(pkg.id === 3 || pkg.id === 7) && (
+                          <Text style={styles.bestValueBadge}>Best Value</Text>
+                        )}
+                        {pkg.wouldExceedLimit && (
+                          <Text style={styles.limitExceededBadge}>Limit Exceeded</Text>
+                        )}
+                      </View>
+                      <Text style={styles.packagePrice}>{pkg.priceFormatted}</Text>
+                      <Text style={styles.packagePricePerToken}>
+                        ${pkg.pricePerToken} per token
+                      </Text>
+                      {pkg.wouldExceedLimit && (
+                        <Text style={styles.limitExceededText}>
+                          You can only purchase up to {pkg.maxTokensCanBuy} more token{(pkg.maxTokensCanBuy || 0) > 1 ? 's' : ''}
+                        </Text>
                       )}
-                    </View>
-                    <Text style={styles.packagePrice}>{pkg.priceFormatted}</Text>
-                    <Text style={styles.packagePricePerToken}>
-                      ${pkg.pricePerToken} per token
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                    </TouchableOpacity>
+                    );
+                  })
+                )}
               </ScrollView>
             )}
 
@@ -589,7 +600,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: 24,
+    padding: 20,
     paddingTop: 0,
     paddingBottom: 40,
   },
@@ -610,57 +621,57 @@ const styles = StyleSheet.create({
   },
   headerGradient: {
     paddingTop: 60,
-    paddingBottom: 36,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
-    marginBottom: 28,
+    paddingBottom: 32,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    marginBottom: 24,
     shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.35,
-    shadowRadius: 28,
-    elevation: 14,
-    borderWidth: 3,
-    borderColor: '#fff',
-    marginHorizontal: 16,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 24,
+    elevation: 12,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    marginHorizontal: 20,
   },
   header: {
     alignItems: 'center',
   },
   headerIconContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 24,
-    borderWidth: 5,
-    borderColor: '#fff',
+    marginBottom: 20,
+    borderWidth: 4,
+    borderColor: 'rgba(255, 255, 255, 0.9)',
     shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 20,
-    elevation: 12,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 10,
   },
   headerIcon: {
-    fontSize: 48,
+    fontSize: 40,
   },
   headerTitle: {
-    fontSize: 42,
-    fontWeight: '900',
+    fontSize: 36,
+    fontWeight: '800',
     color: '#fff',
-    marginBottom: 12,
-    letterSpacing: -1,
+    marginBottom: 8,
+    letterSpacing: -0.8,
     textAlign: 'center',
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 0, height: 3 },
-    textShadowRadius: 8,
+    textShadowColor: 'rgba(0, 0, 0, 0.25)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
   },
   headerSubtitle: {
-    fontSize: 18,
-    color: 'rgba(255, 255, 255, 0.98)',
-    fontWeight: '600',
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.95)',
+    fontWeight: '500',
     textAlign: 'center',
-    letterSpacing: 0.2,
+    letterSpacing: 0.1,
   },
   errorContainer: {
     backgroundColor: 'rgba(239, 68, 68, 0.1)',
@@ -689,8 +700,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   section: {
-    marginBottom: 28,
-    marginHorizontal: 16,
+    marginBottom: 32,
+    marginHorizontal: 20,
   },
   sectionTitleContainer: {
     flexDirection: 'row',
@@ -698,141 +709,134 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   sectionEmoji: {
-    fontSize: 28,
-    marginRight: 14,
+    fontSize: 26,
+    marginRight: 12,
   },
   sectionTitle: {
-    fontSize: 26,
-    fontWeight: '900',
+    fontSize: 24,
+    fontWeight: '800',
     color: '#fff',
-    letterSpacing: -0.5,
+    letterSpacing: -0.4,
     textShadowColor: 'rgba(0, 0, 0, 0.2)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 6,
   },
   infoCard: {
     backgroundColor: '#fff',
-    borderRadius: 32,
-    padding: 32,
+    borderRadius: 24,
+    padding: 24,
     shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 28,
-    elevation: 14,
-    borderWidth: 3,
-    borderColor: '#fff',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 24,
+    elevation: 12,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.8)',
+    marginBottom: 16,
   },
   infoItem: {
-    paddingVertical: 18,
+    paddingVertical: 0,
   },
-  infoLabel: {
-    fontSize: 13,
-    color: '#667eea',
-    fontWeight: '900',
-    textTransform: 'uppercase',
-    letterSpacing: 1.4,
+  infoItemHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 12,
   },
-  infoValue: {
-    fontSize: 20,
+  infoLabel: {
+    fontSize: 12,
+    color: '#667eea',
     fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+  },
+  infoValue: {
+    fontSize: 18,
+    fontWeight: '700',
     color: '#1a1a1a',
-    letterSpacing: -0.3,
+    letterSpacing: -0.2,
   },
   infoValueContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  divider: {
-    height: 1.5,
-    backgroundColor: '#f0f0f0',
-    marginVertical: 6,
-    borderRadius: 1,
-  },
-  editButton: {
-    paddingHorizontal: 22,
-    paddingVertical: 12,
-    borderRadius: 24,
-    backgroundColor: '#f8f9ff',
-    borderWidth: 2.5,
-    borderColor: '#667eea',
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 6,
-  },
-  editButtonText: {
-    fontSize: 14,
-    fontWeight: '900',
-    color: '#667eea',
-    letterSpacing: 0.6,
-  },
-  emailEditContainer: {
-    marginTop: 8,
-  },
-  emailInput: {
-    backgroundColor: '#f8f9ff',
-    borderWidth: 3,
-    borderColor: '#667eea',
-    borderRadius: 24,
-    paddingHorizontal: 20,
-    paddingVertical: 18,
-    fontSize: 18,
-    color: '#1a1a1a',
-    marginBottom: 18,
-    fontWeight: '600',
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  emailEditActions: {
+  statsRow: {
     flexDirection: 'row',
     gap: 12,
   },
-  emailActionButton: {
+  statCard: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 16,
+    borderRadius: 20,
+    padding: 20,
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cancelButton: {
-    backgroundColor: '#fff',
-    borderWidth: 2.5,
-    borderColor: '#e5e7eb',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  saveButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
     shadowColor: '#667eea',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 14,
-    elevation: 8,
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 10,
   },
-  cancelButtonText: {
-    fontSize: 17,
-    fontWeight: '900',
-    color: '#666',
-    letterSpacing: 0.4,
+  statEmoji: {
+    fontSize: 32,
+    marginBottom: 8,
   },
-  saveButtonText: {
-    fontSize: 17,
-    fontWeight: '900',
+  statLabel: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 6,
+  },
+  statValue: {
+    fontSize: 16,
+    fontWeight: '800',
     color: '#fff',
-    letterSpacing: 0.4,
+    textAlign: 'center',
+  },
+  tokensCard: {
+    borderRadius: 24,
+    padding: 24,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  tokensCardTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#fff',
+    marginBottom: 8,
+    letterSpacing: -0.3,
+  },
+  tokensCardDescription: {
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginBottom: 20,
+    lineHeight: 22,
+    fontWeight: '500',
+  },
+  editButton: {
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#f8f9ff',
+    borderWidth: 2,
+    borderColor: '#667eea',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  editButtonText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#667eea',
+    letterSpacing: 0.5,
   },
   formContainer: {
     backgroundColor: '#f9f9f9',
@@ -850,27 +854,28 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   button: {
-    borderRadius: 28,
-    marginTop: 12,
+    borderRadius: 20,
+    marginTop: 0,
     overflow: 'hidden',
     shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 20,
-    elevation: 12,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 10,
   },
   primaryButton: {
-    paddingVertical: 20,
+    paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
   secondaryButton: {
     backgroundColor: '#fff',
-    borderWidth: 2.5,
+    borderWidth: 2,
     borderColor: '#667eea',
-    paddingVertical: 18,
+    paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -879,24 +884,26 @@ const styles = StyleSheet.create({
   },
   dangerButton: {
     backgroundColor: '#ef4444',
-    paddingVertical: 20,
+    paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: 20,
     shadowColor: '#ef4444',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.45,
-    shadowRadius: 16,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
   },
   logoutButton: {
-    backgroundColor: '#666',
-    paddingVertical: 20,
+    backgroundColor: 'rgba(102, 102, 102, 0.9)',
+    paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: 20,
     shadowColor: '#666',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
     elevation: 8,
   },
   buttonDisabled: {
@@ -904,12 +911,12 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: '#fff',
-    fontSize: 19,
-    fontWeight: '900',
-    letterSpacing: 0.8,
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: 0.5,
     textShadowColor: 'rgba(0, 0, 0, 0.2)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   secondaryButtonText: {
     color: '#667eea',
@@ -922,38 +929,35 @@ const styles = StyleSheet.create({
   },
   dangerSection: {
     backgroundColor: 'rgba(239, 68, 68, 0.08)',
-    borderRadius: 32,
-    padding: 32,
-    borderWidth: 3,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
+    borderRadius: 24,
+    padding: 24,
+    borderWidth: 2,
+    borderColor: 'rgba(239, 68, 68, 0.25)',
     shadowColor: '#ef4444',
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.2,
-    shadowRadius: 20,
-    elevation: 10,
+    shadowRadius: 16,
+    elevation: 8,
   },
   dangerText: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 24,
-    lineHeight: 24,
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginBottom: 20,
+    lineHeight: 22,
     fontWeight: '500',
-    letterSpacing: 0.2,
+    letterSpacing: 0.1,
   },
   deleteActions: {
     flexDirection: 'row',
     gap: 12,
   },
   sectionDescription: {
-    fontSize: 16,
+    fontSize: 15,
     color: 'rgba(255, 255, 255, 0.9)',
-    lineHeight: 24,
+    lineHeight: 22,
     marginBottom: 20,
     fontWeight: '500',
-    letterSpacing: 0.2,
-  },
-  primaryButton: {
-    backgroundColor: '#8B1538',
+    letterSpacing: 0.1,
   },
   primaryButtonText: {
     color: '#fff',
@@ -1056,6 +1060,35 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
   },
+  packageItemDisabled: {
+    opacity: 0.5,
+    borderColor: '#ccc',
+    backgroundColor: '#f5f5f5',
+  },
+  limitExceededBadge: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#ef4444',
+    backgroundColor: '#fee2e2',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  limitExceededText: {
+    fontSize: 12,
+    color: '#ef4444',
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
+  emptyPackages: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  emptyPackagesText: {
+    fontSize: 16,
+    color: '#666',
+    fontStyle: 'italic',
+  },
   purchasingOverlay: {
     position: 'absolute',
     top: 0,
@@ -1072,35 +1105,38 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   testSection: {
-    backgroundColor: 'rgba(255, 193, 7, 0.1)',
-    borderRadius: 32,
-    padding: 32,
-    borderWidth: 3,
-    borderColor: 'rgba(255, 193, 7, 0.3)',
+    backgroundColor: 'rgba(255, 193, 7, 0.08)',
+    borderRadius: 24,
+    padding: 24,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 193, 7, 0.25)',
     borderStyle: 'dashed',
-    marginBottom: 28,
+    marginBottom: 24,
   },
   testText: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 24,
-    lineHeight: 24,
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.85)',
+    marginBottom: 20,
+    lineHeight: 22,
     fontWeight: '500',
-    letterSpacing: 0.2,
+    letterSpacing: 0.1,
   },
   testButton: {
     backgroundColor: '#ffc107',
-    paddingVertical: 20,
+    paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: 20,
     shadowColor: '#ffc107',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.45,
-    shadowRadius: 16,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
   },
   testButtonText: {
     color: '#1a1a1a',
-    fontWeight: '900',
+    fontWeight: '800',
+    fontSize: 16,
+    letterSpacing: 0.3,
   },
 });
