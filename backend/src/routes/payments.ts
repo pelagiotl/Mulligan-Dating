@@ -30,7 +30,7 @@ const TOKEN_PACKAGES = {
   1: { tokens: 1, price: 199 }, // $1.99 for 1 token
   3: { tokens: 3, price: 499 }, // $4.99 for 3 tokens (best value)
   5: { tokens: 5, price: 799 }, // $7.99 for 5 tokens
-  10: { tokens: 10, price: 1499 }, // $14.99 for 10 tokens (best value)
+  7: { tokens: 7, price: 1099 }, // $10.99 for 7 tokens (max allowed)
 };
 
 // Create payment intent for token purchase
@@ -48,6 +48,37 @@ paymentsRouter.post("/create-intent", authenticateToken, rateLimitAPI, async (re
     }
 
     const package_ = TOKEN_PACKAGES[packageId as keyof typeof TOKEN_PACKAGES];
+    
+    // Check current token count to prevent exceeding 7 token limit
+    const tokensResult = db
+      .prepare(
+        `SELECT * FROM mulligan_tokens WHERE user_id = ? ORDER BY granted_at DESC`
+      )
+      .all([userId]);
+    
+    const allTokens = (tokensResult instanceof Promise)
+      ? await tokensResult
+      : tokensResult as any[];
+
+    const availableTokens = allTokens.filter(
+      (t: any) => !t.used_at && !t.returned_at
+    ).length;
+
+    // Calculate how many tokens would be granted (cap at 7 max)
+    const tokensAfterPurchase = availableTokens + package_.tokens;
+    
+    if (tokensAfterPurchase > 7) {
+      const maxTokensCanBuy = 7 - availableTokens;
+      if (maxTokensCanBuy <= 0) {
+        return res.status(400).json({ 
+          error: "You already have 7 tokens (the maximum). Use some tokens before purchasing more." 
+        });
+      }
+      return res.status(400).json({ 
+        error: `This purchase would exceed your 7 token limit. You can only purchase up to ${maxTokensCanBuy} more token${maxTokensCanBuy > 1 ? 's' : ''}.` 
+      });
+    }
+
     const amount = package_.price; // Price in cents
     const tokensToGrant = package_.tokens;
 
@@ -88,9 +119,33 @@ paymentsRouter.post("/create-intent", authenticateToken, rateLimitAPI, async (re
 
 // Grant tokens after successful payment
 async function grantPurchaseTokens(userId: string, tokensToGrant: number, paymentId: string): Promise<string[]> {
+  // Check current token count to ensure we don't exceed 7 token limit
+  const tokensResult = db
+    .prepare(
+      `SELECT * FROM mulligan_tokens WHERE user_id = ? ORDER BY granted_at DESC`
+    )
+    .all([userId]);
+  
+  const allTokens = (tokensResult instanceof Promise)
+    ? await tokensResult
+    : tokensResult as any[];
+
+  const availableTokens = allTokens.filter(
+    (t: any) => !t.used_at && !t.returned_at
+  ).length;
+
+  // Calculate how many tokens we can actually grant (cap at 7 max)
+  const maxTokensCanGrant = 7 - availableTokens;
+  const actualTokensToGrant = Math.min(tokensToGrant, maxTokensCanGrant);
+
+  if (actualTokensToGrant <= 0) {
+    console.warn(`⚠️  Cannot grant tokens: User ${userId} already has ${availableTokens} tokens (max 7)`);
+    return [];
+  }
+
   const grantedTokenIds: string[] = [];
 
-  for (let i = 0; i < tokensToGrant; i++) {
+  for (let i = 0; i < actualTokensToGrant; i++) {
     const tokenId = uuidv4();
     const insertTokenStmt = db.prepare(
       `INSERT INTO mulligan_tokens (id, user_id, source, match_id) 
@@ -98,6 +153,10 @@ async function grantPurchaseTokens(userId: string, tokensToGrant: number, paymen
     );
     await (insertTokenStmt.run([tokenId, userId]) as Promise<any>);
     grantedTokenIds.push(tokenId);
+  }
+
+  if (actualTokensToGrant < tokensToGrant) {
+    console.warn(`⚠️  Only granted ${actualTokensToGrant} of ${tokensToGrant} tokens to prevent exceeding 7 token limit`);
   }
 
   // Update payment record with granted token IDs
@@ -232,19 +291,43 @@ paymentsRouter.post("/webhook", async (req: Request, res: Response) => {
 // Get payment packages
 paymentsRouter.get("/packages", authenticateToken, async (req: AuthRequest, res) => {
   try {
-    const userId = req.userId;
+    const userId = req.userId!;
     console.log(`📦 GET /api/payments/packages - User: ${userId}`);
     
-    const packages = Object.entries(TOKEN_PACKAGES).map(([id, pkg]) => ({
-      id: parseInt(id),
-      tokens: pkg.tokens,
-      price: pkg.price,
-      priceFormatted: `$${(pkg.price / 100).toFixed(2)}`,
-      pricePerToken: (pkg.price / pkg.tokens / 100).toFixed(2),
-    }));
+    // Get current token count to determine which packages are available
+    const tokensResult = db
+      .prepare(
+        `SELECT * FROM mulligan_tokens WHERE user_id = ? ORDER BY granted_at DESC`
+      )
+      .all([userId]);
+    
+    const allTokens = (tokensResult instanceof Promise)
+      ? await tokensResult
+      : tokensResult as any[];
 
-    console.log(`✅ Returning ${packages.length} packages to user ${userId}`);
-    res.json({ packages });
+    const availableTokens = allTokens.filter(
+      (t: any) => !t.used_at && !t.returned_at
+    ).length;
+
+    const packages = Object.entries(TOKEN_PACKAGES).map(([id, pkg]) => {
+      const tokensAfterPurchase = availableTokens + pkg.tokens;
+      const wouldExceedLimit = tokensAfterPurchase > 7;
+      const maxTokensCanBuy = 7 - availableTokens;
+      
+      return {
+        id: parseInt(id),
+        tokens: pkg.tokens,
+        price: pkg.price,
+        priceFormatted: `$${(pkg.price / 100).toFixed(2)}`,
+        pricePerToken: (pkg.price / pkg.tokens / 100).toFixed(2),
+        available: !wouldExceedLimit,
+        wouldExceedLimit,
+        maxTokensCanBuy,
+      };
+    });
+
+    console.log(`✅ Returning ${packages.length} packages to user ${userId} (current tokens: ${availableTokens})`);
+    res.json({ packages, availableTokens });
   } catch (error) {
     console.error("❌ Packages GET error:", error);
     res.status(500).json({ error: "Failed to load packages" });
