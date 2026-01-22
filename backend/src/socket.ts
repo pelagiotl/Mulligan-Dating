@@ -222,6 +222,28 @@ export function initializeSocket(server: HTTPServer) {
       // Don't mark messages as read here - they should only be marked as read
       // when the recipient actually views them (via mark_read event)
 
+      // Update Compatibility Pulse score after new message
+      try {
+        const { updateCompatibilityScore } = await import('./services/compatibilityPulse.js');
+        await updateCompatibilityScore(matchId, userId, otherUserId);
+        
+        // Get updated score and emit to both users
+        const { getCompatibilityScore } = await import('./services/compatibilityPulse.js');
+        const score = await getCompatibilityScore(matchId);
+        if (score) {
+          io.to(`match:${matchId}`).emit('compatibility_score_updated', {
+            matchId,
+            score: score.score,
+            engagementLevel: score.engagementLevel,
+            responseTimeAvg: score.responseTimeAvg,
+            messageLengthAvg: score.messageLengthAvg,
+          });
+        }
+      } catch (pulseError) {
+        // Non-critical, don't fail message sending
+        console.warn('⚠️  Failed to update compatibility pulse (non-critical):', pulseError);
+      }
+
       // Check if we should auto-advance to stage2 (both users sent at least 2 messages, alternating)
       let autoAdvanced = false;
       if (match.stage === "stage1") {

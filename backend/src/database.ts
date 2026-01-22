@@ -567,6 +567,95 @@ export async function initDatabase() {
     await execSQL(`CREATE INDEX IF NOT EXISTS idx_users_last_active_at ON users(last_active_at)`);
     
     console.log("✅ Database indexes created successfully");
+
+  // ============================================
+  // NEW FEATURES: Compatibility Pulse, Mulligan Moments, Date Blueprint
+  // ============================================
+
+  // Compatibility Pulse: Track real-time connection scores
+  await execSQL(`
+    CREATE TABLE IF NOT EXISTS compatibility_scores (
+      id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} PRIMARY KEY,
+      match_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      user1_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      user2_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      score ${usePostgres ? 'DECIMAL(5,2)' : 'REAL'} DEFAULT 50.0,
+      response_time_avg ${usePostgres ? 'INT' : 'INTEGER'},
+      message_length_avg ${usePostgres ? 'INT' : 'INTEGER'},
+      engagement_level ${usePostgres ? 'VARCHAR(50)' : 'TEXT'} DEFAULT 'neutral',
+      last_calculated_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP,
+      created_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE,
+      FOREIGN KEY (user1_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (user2_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE(match_id)
+    )
+  `);
+
+  // Compatibility score history (for tracking trends)
+  await execSQL(`
+    CREATE TABLE IF NOT EXISTS compatibility_score_history (
+      id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} PRIMARY KEY,
+      match_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      score ${usePostgres ? 'DECIMAL(5,2)' : 'REAL'} NOT NULL,
+      recorded_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Mulligan Moments: Track conversation resets
+  await execSQL(`
+    CREATE TABLE IF NOT EXISTS conversation_resets (
+      id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} PRIMARY KEY,
+      match_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      initiated_by ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      reset_reason ${usePostgres ? 'VARCHAR(255)' : 'TEXT'},
+      ai_generated_starter ${usePostgres ? 'TEXT' : 'TEXT'},
+      shared_interests_used ${usePostgres ? 'TEXT' : 'TEXT'},
+      token_used ${usePostgres ? 'INT' : 'INTEGER'} DEFAULT 1,
+      created_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE,
+      FOREIGN KEY (initiated_by) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Date Blueprint: Store AI-generated date plans
+  await execSQL(`
+    CREATE TABLE IF NOT EXISTS date_plans (
+      id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} PRIMARY KEY,
+      match_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      suggested_by ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      plan_type ${usePostgres ? 'VARCHAR(50)' : 'TEXT'} DEFAULT 'first_date',
+      title ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      description ${usePostgres ? 'TEXT' : 'TEXT'} NOT NULL,
+      venue_name ${usePostgres ? 'VARCHAR(255)' : 'TEXT'},
+      venue_address ${usePostgres ? 'VARCHAR(500)' : 'TEXT'},
+      venue_lat ${usePostgres ? 'DECIMAL(10,8)' : 'REAL'},
+      venue_lng ${usePostgres ? 'DECIMAL(11,8)' : 'REAL'},
+      suggested_date ${usePostgres ? 'DATE' : 'DATE'},
+      suggested_time ${usePostgres ? 'TIME' : 'TIME'},
+      budget_range ${usePostgres ? 'VARCHAR(50)' : 'TEXT'},
+      conversation_topics ${usePostgres ? 'TEXT' : 'TEXT'},
+      status ${usePostgres ? 'VARCHAR(50)' : 'TEXT'} DEFAULT 'pending',
+      user1_accepted ${usePostgres ? 'INT' : 'INTEGER'} DEFAULT 0,
+      user2_accepted ${usePostgres ? 'INT' : 'INTEGER'} DEFAULT 0,
+      user1_modifications ${usePostgres ? 'TEXT' : 'TEXT'},
+      user2_modifications ${usePostgres ? 'TEXT' : 'TEXT'},
+      created_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP,
+      updated_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE,
+      FOREIGN KEY (suggested_by) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Indexes for new tables
+  await execSQL(`CREATE INDEX IF NOT EXISTS idx_compatibility_scores_match_id ON compatibility_scores(match_id)`);
+  await execSQL(`CREATE INDEX IF NOT EXISTS idx_compatibility_score_history_match_id ON compatibility_score_history(match_id)`);
+  await execSQL(`CREATE INDEX IF NOT EXISTS idx_conversation_resets_match_id ON conversation_resets(match_id)`);
+  await execSQL(`CREATE INDEX IF NOT EXISTS idx_date_plans_match_id ON date_plans(match_id)`);
+  await execSQL(`CREATE INDEX IF NOT EXISTS idx_date_plans_status ON date_plans(status)`);
+
+  console.log("✅ New feature tables created: compatibility_scores, conversation_resets, date_plans");
   } catch (e) {
     console.warn("⚠️  Some indexes may already exist or failed to create:", e);
   }

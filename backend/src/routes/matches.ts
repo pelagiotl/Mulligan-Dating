@@ -846,3 +846,286 @@ matchesRouter.post("/generate", authenticateToken, async (req: AuthRequest, res)
   });
 });
 
+// ============================================
+// COMPATIBILITY PULSE
+// ============================================
+
+// Get compatibility score for a match
+matchesRouter.get("/:matchId/compatibility", authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { matchId } = req.params;
+
+    // Verify user is part of this match
+    const matchResult = db
+      .prepare('SELECT user1_id, user2_id FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?)')
+      .get([matchId, userId, userId]);
+    const match = (matchResult instanceof Promise
+      ? await matchResult
+      : matchResult) as { user1_id: string; user2_id: string } | undefined;
+
+    if (!match) {
+      return res.status(404).json({ error: "Match not found" });
+    }
+
+    const { getCompatibilityScore, updateCompatibilityScore } = await import('../services/compatibilityPulse.js');
+    
+    // Get or calculate score
+    let score = await getCompatibilityScore(matchId);
+    if (!score) {
+      // Calculate for the first time
+      score = await updateCompatibilityScore(matchId, match.user1_id, match.user2_id);
+    } else {
+      // Recalculate to get latest score
+      score = await updateCompatibilityScore(matchId, match.user1_id, match.user2_id);
+    }
+
+    res.json({ score });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Compatibility score error:", error);
+    res.status(500).json({ error: `Failed to get compatibility score: ${errorMessage}` });
+  }
+});
+
+// ============================================
+// MULLIGAN MOMENTS
+// ============================================
+
+// Check if conversation is dead
+matchesRouter.get("/:matchId/conversation-status", authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { matchId } = req.params;
+
+    // Verify user is part of this match
+    const matchResult = db
+      .prepare('SELECT user1_id, user2_id FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?)')
+      .get([matchId, userId, userId]);
+    const match = (matchResult instanceof Promise
+      ? await matchResult
+      : matchResult) as { user1_id: string; user2_id: string } | undefined;
+
+    if (!match) {
+      return res.status(404).json({ error: "Match not found" });
+    }
+
+    const { isConversationDead } = await import('../services/mulliganMoments.js');
+    const isDead = await isConversationDead(matchId);
+
+    res.json({ isDead, canReset: isDead });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Conversation status error:", error);
+    res.status(500).json({ error: `Failed to check conversation status: ${errorMessage}` });
+  }
+});
+
+// Reset conversation with Mulligan Moment
+matchesRouter.post("/:matchId/reset-conversation", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { matchId } = req.params;
+
+    // Verify user is part of this match
+    const matchResult = db
+      .prepare('SELECT user1_id, user2_id FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?)')
+      .get([matchId, userId, userId]);
+    const match = (matchResult instanceof Promise
+      ? await matchResult
+      : matchResult) as { user1_id: string; user2_id: string } | undefined;
+
+    if (!match) {
+      return res.status(404).json({ error: "Match not found" });
+    }
+
+    // Check if user has tokens available
+    const tokensResult = db
+      .prepare('SELECT id FROM mulligan_tokens WHERE user_id = ? AND used_at IS NULL')
+      .get([userId]);
+    const token = (tokensResult instanceof Promise
+      ? await tokensResult
+      : tokensResult) as { id: string } | undefined;
+
+    if (!token) {
+      return res.status(400).json({ 
+        error: "No tokens available. You need a token to reset a conversation.",
+        code: "NO_TOKENS"
+      });
+    }
+
+    // Use the token
+    await (db
+      .prepare('UPDATE mulligan_tokens SET used_at = CURRENT_TIMESTAMP, match_id = ? WHERE id = ?')
+      .run([matchId, token.id]) as Promise<any>);
+
+    // Reset conversation and generate starter
+    const { resetConversation } = await import('../services/mulliganMoments.js');
+    const { starter, explanation, resetId } = await resetConversation(matchId, userId, true);
+
+    // Notify via Socket.io
+    try {
+      const { getIO } = await import('../socket.js');
+      const io = getIO();
+      if (io) {
+        io.to(`match:${matchId}`).emit('conversation_reset', {
+          matchId,
+          resetBy: userId,
+          starter,
+          explanation,
+          resetId,
+        });
+      }
+    } catch (socketError) {
+      console.warn('⚠️  Socket.io not available for conversation reset notification');
+    }
+
+    res.json({ 
+      success: true,
+      starter,
+      explanation,
+      resetId,
+      message: "Conversation reset! A new starter has been generated."
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Reset conversation error:", error);
+    res.status(500).json({ error: `Failed to reset conversation: ${errorMessage}` });
+  }
+});
+
+// ============================================
+// DATE BLUEPRINT
+// ============================================
+
+// Generate date plan
+matchesRouter.post("/:matchId/generate-date-plan", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { matchId } = req.params;
+
+    // Verify user is part of this match
+    const matchResult = db
+      .prepare('SELECT user1_id, user2_id FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?)')
+      .get([matchId, userId, userId]);
+    const match = (matchResult instanceof Promise
+      ? await matchResult
+      : matchResult) as { user1_id: string; user2_id: string } | undefined;
+
+    if (!match) {
+      return res.status(404).json({ error: "Match not found" });
+    }
+
+    // Get shared interests
+    const { getSharedInterests } = await import('../services/mulliganMoments.js');
+    const sharedInterests = await getSharedInterests(matchId, match.user1_id, match.user2_id);
+
+    // Generate date plan
+    const { generateDatePlan } = await import('../services/dateBlueprint.js');
+    const plan = await generateDatePlan(matchId, userId, sharedInterests);
+
+    // Notify via Socket.io
+    try {
+      const { getIO } = await import('../socket.js');
+      const io = getIO();
+      if (io) {
+        io.to(`match:${matchId}`).emit('date_plan_generated', {
+          matchId,
+          plan,
+        });
+      }
+    } catch (socketError) {
+      console.warn('⚠️  Socket.io not available for date plan notification');
+    }
+
+    res.json({ plan });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Generate date plan error:", error);
+    res.status(500).json({ error: `Failed to generate date plan: ${errorMessage}` });
+  }
+});
+
+// Get date plan for a match
+matchesRouter.get("/:matchId/date-plan", authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { matchId } = req.params;
+
+    // Verify user is part of this match
+    const matchResult = db
+      .prepare('SELECT user1_id, user2_id FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?)')
+      .get([matchId, userId, userId]);
+    const match = (matchResult instanceof Promise
+      ? await matchResult
+      : matchResult) as { user1_id: string; user2_id: string } | undefined;
+
+    if (!match) {
+      return res.status(404).json({ error: "Match not found" });
+    }
+
+    const { getDatePlan } = await import('../services/dateBlueprint.js');
+    const plan = await getDatePlan(matchId);
+
+    if (!plan) {
+      return res.status(404).json({ error: "No date plan found for this match" });
+    }
+
+    res.json({ plan });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Get date plan error:", error);
+    res.status(500).json({ error: `Failed to get date plan: ${errorMessage}` });
+  }
+});
+
+// Accept, decline, or modify date plan
+matchesRouter.post("/:matchId/date-plan/:planId/action", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { matchId, planId } = req.params;
+    const { action, modifications } = req.body; // action: 'accept' | 'decline' | 'modify'
+
+    if (!['accept', 'decline', 'modify'].includes(action)) {
+      return res.status(400).json({ error: "Invalid action. Must be 'accept', 'decline', or 'modify'" });
+    }
+
+    // Verify user is part of this match
+    const matchResult = db
+      .prepare('SELECT user1_id, user2_id FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?)')
+      .get([matchId, userId, userId]);
+    const match = (matchResult instanceof Promise
+      ? await matchResult
+      : matchResult) as { user1_id: string; user2_id: string } | undefined;
+
+    if (!match) {
+      return res.status(404).json({ error: "Match not found" });
+    }
+
+    const { updateDatePlanStatus } = await import('../services/dateBlueprint.js');
+    const plan = await updateDatePlanStatus(planId, userId, action, modifications);
+
+    // Notify via Socket.io
+    try {
+      const { getIO } = await import('../socket.js');
+      const io = getIO();
+      if (io) {
+        io.to(`match:${matchId}`).emit('date_plan_updated', {
+          matchId,
+          planId,
+          action,
+          plan,
+        });
+      }
+    } catch (socketError) {
+      console.warn('⚠️  Socket.io not available for date plan update notification');
+    }
+
+    res.json({ plan, message: `Date plan ${action}ed successfully` });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Date plan action error:", error);
+    res.status(500).json({ error: `Failed to update date plan: ${errorMessage}` });
+  }
+});
+
