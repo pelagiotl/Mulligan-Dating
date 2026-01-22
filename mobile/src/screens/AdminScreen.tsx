@@ -183,13 +183,16 @@ export default function AdminScreen() {
             setCreatingUsers(true);
             try {
               const result = await api.post('/create-test-users', {});
-              const created = result.createdUsers?.length || 0;
+              console.log('📊 Create test users response:', result);
+              
+              // Backend returns: { createdUsers: string[], total: number, skipped: number, errors: number, success: boolean }
+              const created = Array.isArray(result.createdUsers) ? result.createdUsers.length : (result.created || 0);
               const skipped = result.skipped || 0;
               const errors = result.errors || 0;
               const total = result.total || 5;
               
               let message = `Results:\n`;
-              message += `✅ Created: ${created}\n`;
+              message += `✅ Created: ${created} out of ${total}\n`;
               if (skipped > 0) {
                 message += `⏭️  Skipped: ${skipped} (already exist)\n`;
               }
@@ -251,49 +254,72 @@ export default function AdminScreen() {
 
   if (!user?.isAdmin) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.errorText}>Access Denied</Text>
-        <Text style={styles.errorSubtext}>You must be an admin to access this page.</Text>
+      <View style={styles.wrapper}>
+        <LinearGradient
+          colors={['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+        <View style={styles.container}>
+          <Text style={styles.errorText}>Access Denied</Text>
+          <Text style={styles.errorSubtext}>You must be an admin to access this page.</Text>
+        </View>
       </View>
     );
   }
 
   return (
-    <ScrollView 
-      style={styles.container} 
-      contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-    >
-      <View style={styles.header}>
-        <Text style={styles.title}>Admin Panel</Text>
-        <Text style={styles.subtitle}>Manage your app</Text>
-      </View>
+    <View style={styles.wrapper}>
+      <LinearGradient
+        colors={['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
+      <ScrollView 
+        style={styles.container} 
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#fff" />}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.header}>
+          <LinearGradient
+            colors={['#667eea', '#764ba2', '#f093fb']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.headerGradient}
+          >
+            <Text style={styles.title}>👑 Admin Panel</Text>
+            <Text style={styles.subtitle}>Manage your app</Text>
+          </LinearGradient>
+        </View>
 
       {/* Stats */}
       {stats && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>📊 Statistics</Text>
           <View style={styles.statsGrid}>
-            <View style={styles.statCard}>
+            <LinearGradient colors={['#667eea', '#764ba2']} style={styles.statCardGradient}>
               <Text style={styles.statValue}>{stats.totalUsers}</Text>
-              <Text style={styles.statLabel}>Total Users</Text>
-            </View>
-            <View style={styles.statCard}>
+              <Text style={styles.statLabel} numberOfLines={1}>Users</Text>
+            </LinearGradient>
+            <LinearGradient colors={['#f093fb', '#f5576c']} style={styles.statCardGradient}>
               <Text style={styles.statValue}>{stats.totalProfiles}</Text>
-              <Text style={styles.statLabel}>Profiles</Text>
-            </View>
-            <View style={styles.statCard}>
+              <Text style={styles.statLabel} numberOfLines={1}>Profiles</Text>
+            </LinearGradient>
+            <LinearGradient colors={['#4facfe', '#00f2fe']} style={styles.statCardGradient}>
               <Text style={styles.statValue}>{stats.totalMatches}</Text>
-              <Text style={styles.statLabel}>Matches</Text>
-            </View>
-            <View style={styles.statCard}>
+              <Text style={styles.statLabel} numberOfLines={1}>Matches</Text>
+            </LinearGradient>
+            <LinearGradient colors={['#fa709a', '#fee140']} style={styles.statCardGradient}>
               <Text style={styles.statValue}>{stats.restrictedUsers}</Text>
-              <Text style={styles.statLabel}>Restricted</Text>
-            </View>
-            <View style={styles.statCard}>
+              <Text style={styles.statLabel} numberOfLines={1}>Restricted</Text>
+            </LinearGradient>
+            <LinearGradient colors={['#30cfd0', '#330867']} style={styles.statCardGradient}>
               <Text style={styles.statValue}>{stats.activeUsers}</Text>
-              <Text style={styles.statLabel}>Active (7d)</Text>
-            </View>
+              <Text style={styles.statLabel} numberOfLines={1}>Active (7d)</Text>
+            </LinearGradient>
           </View>
         </View>
       )}
@@ -325,7 +351,7 @@ export default function AdminScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.button}
+          style={[styles.button, { marginBottom: 12 }]}
           onPress={handleCreateUniqueTestUsers}
           disabled={creatingUsers}
         >
@@ -339,6 +365,64 @@ export default function AdminScreen() {
               <ActivityIndicator color="#fff" />
             ) : (
               <Text style={styles.buttonText}>Create 5 Unique Test Users</Text>
+            )}
+          </LinearGradient>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.button}
+          onPress={async () => {
+            Alert.alert(
+              '⚠️ Delete All Test Users',
+              'This will permanently delete ALL test users!\n\n' +
+              'Test users are identified by email patterns like:\n' +
+              '• test@*\n' +
+              '• newtest@*\n' +
+              '• testing@*\n' +
+              '• testboy@*\n' +
+              '• newaccount@*\n\n' +
+              'This action cannot be undone. Are you sure?',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Delete All',
+                  style: 'destructive',
+                  onPress: async () => {
+                    setActionLoading('delete-test-users');
+                    try {
+                      const data = await api.delete<{ message: string; deleted: number; deletedUsers: string[] }>('/admin/delete-test-users');
+                      Alert.alert(
+                        'Success',
+                        data.message || `Successfully deleted ${data.deleted || 0} test user(s)`
+                      );
+                      await Promise.all([fetchStats(), fetchUsers()]);
+                      if (selectedUser && data.deletedUsers?.includes(selectedUser.display_name || selectedUser.email || selectedUser.id)) {
+                        setShowUserModal(false);
+                        setSelectedUser(null);
+                      }
+                    } catch (error: any) {
+                      const errorMessage = error.message || error.response?.data?.error || 'Failed to delete test users';
+                      Alert.alert('Error', errorMessage);
+                    } finally {
+                      setActionLoading(null);
+                    }
+                  },
+                },
+              ]
+            );
+          }}
+          disabled={actionLoading === 'delete-test-users'}
+        >
+          <LinearGradient
+            colors={['#ef4444', '#dc2626']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.buttonGradient}
+          >
+            {actionLoading === 'delete-test-users' ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>🗑️ Delete All Test Users</Text>
             )}
           </LinearGradient>
         </TouchableOpacity>
@@ -369,23 +453,39 @@ export default function AdminScreen() {
               key={u.id}
               style={styles.userCard}
               onPress={() => fetchUserDetails(u.id)}
+              activeOpacity={0.7}
             >
               <View style={styles.userCardContent}>
-                <View>
+                <View style={styles.userInfo}>
                   <Text style={styles.userName}>{u.display_name || u.email || u.phoneNumber || 'N/A'}</Text>
                   <Text style={styles.userEmail}>{u.email || u.phoneNumber || 'No contact'}</Text>
                   {u.age && u.gender && (
-                    <Text style={styles.userDetails}>{u.age} • {u.gender}</Text>
+                    <Text style={styles.userDetails}>{u.age} • {u.gender} {u.location ? `• ${u.location}` : ''}</Text>
                   )}
                 </View>
                 <View style={styles.userBadges}>
-                  {u.is_admin && <Text style={[styles.badge, styles.badgeAdmin]}>Admin</Text>}
-                  {u.is_restricted && <Text style={[styles.badge, styles.badgeRestricted]}>Restricted</Text>}
-                  {!u.is_admin && !u.is_restricted && <Text style={[styles.badge, styles.badgeActive]}>Active</Text>}
+                  {u.is_admin && (
+                    <LinearGradient colors={['#667eea', '#764ba2']} style={styles.badgeGradient}>
+                      <Text style={styles.badgeText}>Admin</Text>
+                    </LinearGradient>
+                  )}
+                  {u.is_restricted && (
+                    <LinearGradient colors={['#ef4444', '#dc2626']} style={styles.badgeGradient}>
+                      <Text style={styles.badgeText}>Restricted</Text>
+                    </LinearGradient>
+                  )}
+                  {!u.is_admin && !u.is_restricted && (
+                    <LinearGradient colors={['#10b981', '#059669']} style={styles.badgeGradient}>
+                      <Text style={styles.badgeText}>Active</Text>
+                    </LinearGradient>
+                  )}
                 </View>
               </View>
               <View style={styles.userActions}>
-                <Text style={styles.tokenCount}>🎟️ {u.tokenCount}</Text>
+                <View style={styles.tokenBadge}>
+                  <Text style={styles.tokenEmoji}>🎟️</Text>
+                  <Text style={styles.tokenCount}>{u.tokenCount}</Text>
+                </View>
                 <TouchableOpacity
                   style={[styles.smallButton, styles.primaryButton]}
                   onPress={(e) => {
@@ -497,14 +597,18 @@ export default function AdminScreen() {
           </View>
         </View>
       </Modal>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    flex: 1,
+  },
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: 'transparent',
   },
   content: {
     padding: 20,
@@ -512,45 +616,79 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   header: {
-    marginBottom: 30,
+    marginBottom: 32,
+    marginHorizontal: 16,
+    borderRadius: 32,
+    overflow: 'hidden',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.35,
+    shadowRadius: 28,
+    elevation: 14,
+    borderWidth: 3,
+    borderColor: '#fff',
+  },
+  headerGradient: {
+    padding: 32,
+    paddingVertical: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#1a1a1a',
-    marginBottom: 8,
+    fontSize: 40,
+    fontWeight: '900',
+    color: '#fff',
+    marginBottom: 10,
+    letterSpacing: -1,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 3 },
+    textShadowRadius: 8,
+    textAlign: 'center',
   },
   subtitle: {
-    fontSize: 16,
-    color: '#666',
+    fontSize: 18,
+    color: 'rgba(255, 255, 255, 0.98)',
+    fontWeight: '600',
+    letterSpacing: 0.2,
+    textAlign: 'center',
   },
   section: {
     backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    borderRadius: 28,
+    padding: 28,
+    marginBottom: 24,
+    marginHorizontal: 16,
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 24,
+    elevation: 12,
+    borderWidth: 3,
+    borderColor: '#fff',
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 26,
+    fontWeight: '900',
     color: '#1a1a1a',
-    marginBottom: 8,
+    marginBottom: 16,
+    letterSpacing: -0.5,
+    textShadowColor: 'rgba(102, 126, 234, 0.2)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
   },
   sectionDescription: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#666',
-    marginBottom: 16,
-    lineHeight: 20,
+    marginBottom: 20,
+    lineHeight: 24,
+    fontWeight: '500',
+    letterSpacing: 0.2,
   },
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    justifyContent: 'space-between',
+    width: '100%',
   },
   statCard: {
     flex: 1,
@@ -560,70 +698,123 @@ const styles = StyleSheet.create({
     padding: 12,
     alignItems: 'center',
   },
+  statCardGradient: {
+    flexBasis: '48%',
+    borderRadius: 20,
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    minHeight: 120,
+    marginBottom: 12,
+    maxWidth: '48%',
+  },
   statValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#667eea',
-    marginBottom: 4,
+    fontSize: 32,
+    fontWeight: '900',
+    color: '#fff',
+    marginBottom: 8,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+    letterSpacing: -0.5,
   },
   statLabel: {
-    fontSize: 12,
-    color: '#666',
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.98)',
     textAlign: 'center',
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    width: '100%',
   },
   button: {
-    borderRadius: 12,
+    borderRadius: 28,
     overflow: 'hidden',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 10,
   },
   buttonGradient: {
-    paddingVertical: 16,
-    paddingHorizontal: 24,
+    paddingVertical: 18,
+    paddingHorizontal: 28,
     alignItems: 'center',
     justifyContent: 'center',
   },
   buttonText: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '900',
+    letterSpacing: 0.6,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   searchInput: {
-    backgroundColor: '#f8f9fa',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 14,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
+    backgroundColor: '#f8f9ff',
+    borderRadius: 24,
+    padding: 18,
+    fontSize: 16,
+    marginBottom: 20,
+    borderWidth: 3,
+    borderColor: '#667eea',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
+    fontWeight: '500',
   },
   userCard: {
-    backgroundColor: '#f8f9fa',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 16,
+    borderWidth: 2.5,
+    borderColor: '#fff',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 8,
   },
   userCardContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 12,
+  },
+  userInfo: {
+    flex: 1,
   },
   userName: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '800',
     color: '#1a1a1a',
-    marginBottom: 4,
+    marginBottom: 6,
+    letterSpacing: -0.2,
   },
   userEmail: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#666',
-    marginBottom: 2,
+    marginBottom: 6,
+    fontWeight: '500',
   },
   userDetails: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#999',
+    fontWeight: '500',
   },
   userBadges: {
     flexDirection: 'row',
     gap: 6,
+    alignItems: 'flex-start',
   },
   badge: {
     fontSize: 10,
@@ -632,6 +823,22 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 4,
     overflow: 'hidden',
+  },
+  badgeGradient: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  badgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#fff',
+    letterSpacing: 0.3,
   },
   badgeAdmin: {
     backgroundColor: '#667eea',
@@ -650,21 +857,47 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  tokenCount: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#667eea',
+  tokenBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(102, 126, 234, 0.12)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
     marginRight: 'auto',
+    borderWidth: 2,
+    borderColor: '#667eea',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  tokenEmoji: {
+    fontSize: 16,
+    marginRight: 6,
+  },
+  tokenCount: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#667eea',
+    letterSpacing: 0.2,
   },
   smallButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 5,
   },
   smallButtonText: {
     color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
   primaryButton: {
     backgroundColor: '#667eea',
@@ -690,64 +923,104 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    padding: 28,
     maxHeight: '90%',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 24,
+    elevation: 20,
+    borderWidth: 3,
+    borderColor: '#fff',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 24,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
   },
   modalTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 28,
+    fontWeight: '900',
     color: '#1a1a1a',
+    letterSpacing: -0.6,
+    textShadowColor: 'rgba(102, 126, 234, 0.2)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
   },
   modalClose: {
-    fontSize: 24,
+    fontSize: 32,
     color: '#999',
+    fontWeight: '300',
   },
   detailSection: {
     marginBottom: 24,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
   },
   detailTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 20,
+    fontWeight: '900',
     color: '#1a1a1a',
-    marginBottom: 12,
+    marginBottom: 16,
+    letterSpacing: -0.4,
+    textShadowColor: 'rgba(102, 126, 234, 0.15)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   detailItem: {
-    fontSize: 14,
+    fontSize: 15,
     color: '#666',
-    marginBottom: 8,
+    marginBottom: 12,
+    lineHeight: 22,
+    fontWeight: '500',
+    letterSpacing: 0.1,
   },
   actionButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    marginBottom: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 20,
+    marginBottom: 12,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 8,
   },
   actionButtonText: {
     color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 0.4,
   },
   errorText: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 28,
+    fontWeight: '900',
     color: '#ef4444',
     textAlign: 'center',
     marginTop: 100,
+    letterSpacing: -0.5,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   errorSubtext: {
-    fontSize: 16,
-    color: '#666',
+    fontSize: 18,
+    color: '#fff',
     textAlign: 'center',
-    marginTop: 16,
+    marginTop: 20,
     paddingHorizontal: 40,
+    fontWeight: '600',
+    letterSpacing: 0.2,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
 });

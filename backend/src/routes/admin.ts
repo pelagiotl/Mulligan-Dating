@@ -625,3 +625,128 @@ adminRouter.get('/users/:id/messages', authenticateToken, requireAdmin, async (r
     res.status(500).json({ error: 'Failed to fetch messages', details: error.message });
   }
 });
+
+// Delete all test users
+adminRouter.delete('/delete-test-users', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    // Identify test users by email patterns
+    // Common test patterns: test@, newtest@, testing@, testboy@, newaccount@
+    const testEmailPatterns = [
+      '%test%@%',
+      '%testing%@%',
+      '%newtest%@%',
+      '%testboy%@%',
+      '%newaccount%@%'
+    ];
+
+    // Find all test users
+    const testUsersQuery = `
+      SELECT u.id, u.email, p.display_name
+      FROM users u
+      LEFT JOIN profiles p ON p.user_id = u.id
+      WHERE (
+        ${testEmailPatterns.map(() => 'u.email LIKE ?').join(' OR ')}
+      )
+      AND u.is_admin = 0
+    `;
+    
+    const testUsers = await (db.prepare(testUsersQuery).all(testEmailPatterns) as Promise<Array<{
+      id: string;
+      email: string | null;
+      display_name: string | null;
+    }>>);
+
+    if (testUsers.length === 0) {
+      return res.json({
+        message: 'No test users found to delete',
+        deleted: 0
+      });
+    }
+
+    console.log(`🗑️  Deleting ${testUsers.length} test users...`);
+
+    const deletedUsers: string[] = [];
+    let deletedCount = 0;
+
+    for (const user of testUsers) {
+      try {
+        const userId = user.id;
+        
+        // Delete in order to respect foreign key constraints
+        // 1. Delete messages
+        await (db.prepare('DELETE FROM messages WHERE sender_id = ?').run([userId]) as Promise<any>);
+        
+        // 2. Delete match-related data (messages already deleted above)
+        // Get all matches involving this user
+        const matches = await (db.prepare(`
+          SELECT id FROM matches 
+          WHERE user1_id = ? OR user2_id = ?
+        `).all([userId, userId]) as Promise<Array<{ id: string }>>);
+        
+        // Delete messages for these matches
+        for (const match of matches) {
+          await (db.prepare('DELETE FROM messages WHERE match_id = ?').run([match.id]) as Promise<any>);
+        }
+        
+        // Delete matches
+        await (db.prepare('DELETE FROM matches WHERE user1_id = ? OR user2_id = ?').run([userId, userId]) as Promise<any>);
+        
+        // 3. Delete blocks
+        await (db.prepare('DELETE FROM blocks WHERE blocker_id = ? OR blocked_id = ?').run([userId, userId]) as Promise<any>);
+        
+        // 4. Delete tokens
+        await (db.prepare('DELETE FROM mulligan_tokens WHERE user_id = ?').run([userId]) as Promise<any>);
+        
+        // 5. Delete referrals
+        await (db.prepare('DELETE FROM referrals WHERE referrer_id = ? OR referred_id = ?').run([userId, userId]) as Promise<any>);
+        
+        // 6. Get profile ID for cascading deletes
+        const profile = await (db.prepare('SELECT id FROM profiles WHERE user_id = ?').get([userId]) as Promise<{ id: string } | undefined>);
+        
+        if (profile) {
+          const profileId = profile.id;
+          
+          // Delete interests
+          await (db.prepare('DELETE FROM interests WHERE profile_id = ?').run([profileId]) as Promise<any>);
+          
+          // Delete partner qualities
+          await (db.prepare('DELETE FROM partner_qualities WHERE profile_id = ?').run([profileId]) as Promise<any>);
+          
+          // Delete dealbreakers
+          await (db.prepare('DELETE FROM dealbreakers WHERE profile_id = ?').run([profileId]) as Promise<any>);
+          
+          // Delete lifestyle
+          await (db.prepare('DELETE FROM lifestyle WHERE profile_id = ?').run([profileId]) as Promise<any>);
+          
+          // Delete preferences
+          await (db.prepare('DELETE FROM preferences WHERE profile_id = ?').run([profileId]) as Promise<any>);
+          
+          // Delete photos
+          await (db.prepare('DELETE FROM photos WHERE profile_id = ?').run([profileId]) as Promise<any>);
+          
+          // Delete profile
+          await (db.prepare('DELETE FROM profiles WHERE id = ?').run([profileId]) as Promise<any>);
+        }
+        
+        // 7. Delete user
+        await (db.prepare('DELETE FROM users WHERE id = ?').run([userId]) as Promise<any>);
+        
+        deletedUsers.push(user.display_name || user.email || userId);
+        deletedCount++;
+        
+        console.log(`  ✅ Deleted: ${user.display_name || user.email || userId}`);
+      } catch (error: any) {
+        console.error(`  ❌ Error deleting user ${user.id}:`, error.message);
+      }
+    }
+
+    res.json({
+      message: `Successfully deleted ${deletedCount} test user(s)`,
+      deleted: deletedCount,
+      deletedUsers
+    });
+  } catch (error: any) {
+    console.error('Error deleting test users:', error);
+    res.status(500).json({ error: 'Failed to delete test users', details: error.message });
+  }
+});

@@ -10,6 +10,7 @@ import {
   Alert,
   Animated,
   Platform,
+  Vibration,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
@@ -1390,7 +1391,15 @@ export default function MyProfileScreen() {
       {/* Edit Profile Button */}
       <TouchableOpacity
         style={styles.editButton}
-        onPress={() => navigation.navigate('CreateProfile' as never)}
+        onPress={() => {
+          // Haptic feedback - light vibration
+          if (Platform.OS === 'ios') {
+            Vibration.vibrate(10); // Short vibration for iOS
+          } else {
+            Vibration.vibrate(50); // Slightly longer for Android
+          }
+          navigation.navigate('CreateProfile' as never);
+        }}
       >
         <LinearGradient
           colors={['#667eea', '#764ba2', '#f093fb']}

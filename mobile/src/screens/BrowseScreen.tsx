@@ -10,6 +10,8 @@ import {
   Alert,
   Dimensions,
   Animated,
+  Platform,
+  Vibration,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { G, Path, Circle, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
@@ -1058,6 +1060,13 @@ export default function BrowseScreen() {
   const handleConnect = async (profile: Profile) => {
     if (connecting) return;
 
+    // Haptic feedback - vibrate when user clicks connect
+    if (Platform.OS === 'ios') {
+      Vibration.vibrate(10); // Short vibration for iOS
+    } else {
+      Vibration.vibrate(50); // Slightly longer for Android
+    }
+
     setConnecting(true);
     setError('');
 
@@ -1088,18 +1097,39 @@ export default function BrowseScreen() {
       // Clear the current profile immediately so it doesn't show behind the celebration
       setCurrentProfile(null);
       
+      // Validate required data before setting state
+      if (!profile || !result.matchId) {
+        console.error('❌ Invalid match data:', { profile, matchId: result.matchId });
+        throw new Error('Invalid match response from server');
+      }
+      
       // Set matched profile, match ID, and explanation first, then show celebration
       // This ensures both states are set before React re-renders
-      setMatchedProfile(profile);
-      setMatchId(result.matchId);
-      setMatchExplanation(result.explanation || null);
-      
-      // Use a small delay to ensure state updates properly before showing celebration
-      // This helps ensure React has time to process the state changes
-      setTimeout(() => {
-        setShowMatchCelebration(true);
-        console.log('🎉 Celebration state set - showMatchCelebration: true, matchedProfile:', profile?.displayName, 'matchId:', result.matchId);
-      }, 50);
+      try {
+        setMatchedProfile(profile);
+        setMatchId(result.matchId);
+        setMatchExplanation(result.explanation || null);
+        
+        // Use a small delay to ensure state updates properly before showing celebration
+        // This helps ensure React has time to process the state changes
+        setTimeout(() => {
+          try {
+            setShowMatchCelebration(true);
+            console.log('🎉 Celebration state set - showMatchCelebration: true, matchedProfile:', profile?.displayName, 'matchId:', result.matchId);
+          } catch (celebrationError) {
+            console.error('❌ Error setting celebration state:', celebrationError);
+            // Fallback: show error but don't crash
+            Alert.alert('Match Created!', 'You matched with ' + (profile?.displayName || 'someone') + '! Check your matches to start chatting.');
+            setConnecting(false);
+          }
+        }, 50);
+      } catch (stateError) {
+        console.error('❌ Error setting match state:', stateError);
+        // Fallback: show success message even if state setting fails
+        Alert.alert('Match Created!', 'You matched with ' + (profile?.displayName || 'someone') + '! Check your matches to start chatting.');
+        setConnecting(false);
+        return;
+      }
       
       setConnecting(false);
     } catch (err: any) {
@@ -1242,6 +1272,10 @@ export default function BrowseScreen() {
         {/* Browse Locked State - Beautiful Landing Page */}
         {showLandingPage ? (
           <View style={styles.landingPageWrapper}>
+          {/* Token display on landing page */}
+          <View style={styles.landingTokenContainer}>
+            <TokenDisplay compact={true} premium={true} />
+          </View>
           
           <View style={styles.landingContainer}>
             {/* Main content */}
@@ -1272,15 +1306,21 @@ export default function BrowseScreen() {
               <View style={styles.landingFeatures}>
                 <View style={styles.featureItem}>
                   <AnimatedEmoji emoji="✨" delay={0} />
-                  <Text style={styles.featureText} numberOfLines={2}>Quality Matches</Text>
+                  <Text style={styles.featureText} numberOfLines={2}>
+                    Quality{'\n'}Matches
+                  </Text>
                 </View>
                 <View style={styles.featureItem}>
                   <AnimatedEmoji emoji="🎯" delay={500} />
-                  <Text style={styles.featureText} numberOfLines={2}>Shared Interests</Text>
+                  <Text style={styles.featureText} numberOfLines={2}>
+                    Shared{'\n'}Interests
+                  </Text>
                 </View>
                 <View style={styles.featureItem}>
                   <AnimatedEmoji emoji="💝" delay={1000} />
-                  <Text style={styles.featureText} numberOfLines={2} adjustsFontSizeToFit={false}>Meaningful{'\n'}Connections</Text>
+                  <Text style={styles.featureText} numberOfLines={2} adjustsFontSizeToFit={true} minimumFontScale={0.85}>
+                    Meaningful{'\n'}Connections
+                  </Text>
                 </View>
               </View>
               
@@ -1358,7 +1398,10 @@ export default function BrowseScreen() {
         <>
           {/* Header - only show when not on landing page */}
           <View style={styles.header}>
-            <TokenDisplay compact={true} />
+            <View style={styles.headerTop}>
+              <View style={{ flex: 1 }} />
+              <TokenDisplay compact={true} premium={true} />
+            </View>
             <Animated.Text
               style={[
                 styles.title,
@@ -1531,9 +1574,9 @@ export default function BrowseScreen() {
       )}
 
       {/* Match Celebration Modal */}
-      {showMatchCelebration && matchedProfile && (
+      {showMatchCelebration && matchedProfile && matchId && (
         <MatchCelebration
-          profileName={matchedProfile.displayName}
+          profileName={matchedProfile.displayName || 'Someone'}
           photoUrl={
             matchedProfile.photos?.find((p) => p.isPrimary)?.url ||
             matchedProfile.photos?.[0]?.url ||
@@ -1643,6 +1686,11 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 4,
   },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
   title: {
     fontSize: 36,
     fontWeight: '900',
@@ -1730,6 +1778,12 @@ const styles = StyleSheet.create({
     position: 'relative',
     justifyContent: 'center',
   },
+  landingTokenContainer: {
+    position: 'absolute',
+    top: 60,
+    right: 24,
+    zIndex: 10,
+  },
   landingContainer: {
     position: 'relative',
     marginHorizontal: 20,
@@ -1808,20 +1862,23 @@ const styles = StyleSheet.create({
   },
   landingFeatures: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'center',
+    alignItems: 'stretch',
     width: '100%',
     marginBottom: 48,
-    paddingHorizontal: 20,
+    paddingHorizontal: 12,
+    gap: 10, // Consistent gap between all cards
   },
   featureItem: {
     alignItems: 'center',
-    flex: 1,
-    paddingHorizontal: 10,
-    minWidth: 105,
-    paddingVertical: 18,
+    justifyContent: 'center',
+    flex: 1, // Equal flex distribution
+    maxWidth: 110, // Maximum width to prevent cards from getting too wide
+    minWidth: 90, // Minimum width for readability
+    paddingHorizontal: 6,
+    paddingVertical: 22,
     backgroundColor: 'rgba(255, 255, 255, 0.7)',
     borderRadius: 24,
-    marginHorizontal: 4,
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.9)',
     shadowColor: '#667eea',
@@ -1831,18 +1888,21 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   featureIcon: {
-    fontSize: 36,
-    marginBottom: 12,
+    fontSize: 32,
+    marginBottom: 10,
   },
   featureText: {
-    fontSize: 13,
+    fontSize: 10,
     color: '#444',
     textAlign: 'center',
     fontWeight: '700',
-    lineHeight: 18,
+    lineHeight: 15,
     width: '100%',
-    marginTop: 8,
-    letterSpacing: 0.2,
+    marginTop: 4,
+    letterSpacing: 0.05,
+    includeFontPadding: false,
+    flexWrap: 'wrap',
+    paddingHorizontal: 1,
   },
   landingButtonContainer: {
     width: '100%',

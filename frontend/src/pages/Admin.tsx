@@ -272,6 +272,66 @@ export default function Admin() {
         </div>
       )}
 
+      <div className="admin-actions-section" style={{ marginBottom: 'var(--space-4)', padding: 'var(--space-4)', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-lg)' }}>
+        <h2 style={{ marginTop: 0, marginBottom: 'var(--space-3)' }}>Bulk Actions</h2>
+        <button
+          className="btn btn-danger"
+          onClick={async () => {
+            const confirmed = window.confirm(
+              '⚠️ WARNING: This will permanently delete ALL test users!\n\n' +
+              'Test users are identified by email patterns like:\n' +
+              '- test@*\n' +
+              '- newtest@*\n' +
+              '- testing@*\n' +
+              '- testboy@*\n' +
+              '- newaccount@*\n\n' +
+              'This action cannot be undone. Are you sure?'
+            );
+            
+            if (!confirmed) {
+              return;
+            }
+
+            setActionLoading('delete-test-users');
+            try {
+              const data = await api.delete<{ message: string; deleted: number; deletedUsers: string[] }>('/admin/delete-test-users');
+              setMessage({ 
+                type: 'success', 
+                text: data.message || `Successfully deleted ${data.deleted || 0} test user(s)` 
+              });
+              // Refresh stats and users list
+              await fetchStats();
+              await fetchUsers();
+              if (selectedUser) {
+                // Check if selected user was deleted
+                if (data.deletedUsers?.includes(selectedUser.display_name || selectedUser.email || selectedUser.id)) {
+                  setSelectedUser(null);
+                } else {
+                  fetchUserDetails(selectedUser.id);
+                }
+              }
+            } catch (error: any) {
+              const errorMessage = error.message || error.response?.data?.error || 'Failed to delete test users';
+              setMessage({ type: 'error', text: errorMessage });
+              console.error('Delete test users error:', error);
+            } finally {
+              setActionLoading(null);
+            }
+          }}
+          disabled={actionLoading === 'delete-test-users'}
+          style={{ 
+            padding: 'var(--space-3) var(--space-4)',
+            fontSize: '1rem',
+            fontWeight: '600'
+          }}
+        >
+          {actionLoading === 'delete-test-users' ? 'Deleting...' : '🗑️ Delete All Test Users'}
+        </button>
+        <p style={{ marginTop: 'var(--space-2)', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
+          This will delete all users with test email patterns (test@, newtest@, testing@, etc.) and all their associated data.
+        </p>
+      </div>
+
       <div className="admin-content">
         <div className="admin-users-section">
           <div className="admin-section-header">

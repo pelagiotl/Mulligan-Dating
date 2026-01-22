@@ -611,6 +611,136 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
   }
 });
 
+// Diagnostic endpoint: Check why a specific user isn't showing in browse
+// Usage: GET /users/diagnose/:targetUserId
+usersRouter.get('/diagnose/:targetUserId', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const targetUserId = req.params.targetUserId;
+
+    // Get current user's profile and preferences
+    const userProfile = await (db.prepare('SELECT * FROM profiles WHERE user_id = ?').get([userId]) as Promise<ProfileRow | undefined>);
+    if (!userProfile) {
+      return res.status(400).json({ error: 'Please complete your profile first' });
+    }
+
+    const userPrefs = await (db.prepare('SELECT * FROM preferences WHERE profile_id = ?').get([userProfile.id]) as Promise<{
+      min_age: number;
+      max_age: number;
+      preferred_genders: string | null;
+      max_distance: number;
+    } | undefined>);
+
+    // Get target user's profile
+    const targetProfile = await (db.prepare('SELECT * FROM profiles WHERE user_id = ?').get([targetUserId]) as Promise<ProfileRow | undefined>);
+    if (!targetProfile) {
+      return res.status(404).json({ error: 'Target user profile not found' });
+    }
+
+    // Check if target user is restricted
+    const targetUser = await (db.prepare('SELECT is_restricted FROM users WHERE id = ?').get([targetUserId]) as Promise<{ is_restricted: number | null } | undefined>);
+    const isRestricted = targetUser?.is_restricted === 1;
+
+    // Check if already matched
+    const existingMatch = await (db.prepare(
+      `SELECT id FROM matches 
+       WHERE (user1_id = ? AND user2_id = ?) OR (user1_id = ? AND user2_id = ?)
+       AND stage != 'expired'`
+    ).get([userId, targetUserId, targetUserId, userId]) as Promise<{ id: string } | undefined>);
+    const isAlreadyMatched = !!existingMatch;
+
+    // Check if blocked
+    const blockedCheck = await (db.prepare(
+      `SELECT id FROM blocks 
+       WHERE (blocker_id = ? AND blocked_id = ?) OR (blocker_id = ? AND blocked_id = ?)`
+    ).get([userId, targetUserId, targetUserId, userId]) as Promise<{ id: string } | undefined>);
+    const isBlocked = !!blockedCheck;
+
+    // Check age filter
+    let ageFilterPass = true;
+    let ageFilterReason = '';
+    if (userPrefs?.min_age != null && userPrefs?.max_age != null) {
+      if (targetProfile.age < userPrefs.min_age || targetProfile.age > userPrefs.max_age) {
+        ageFilterPass = false;
+        ageFilterReason = `Target age (${targetProfile.age}) is outside your age range (${userPrefs.min_age}-${userPrefs.max_age})`;
+      }
+    }
+
+    // Check gender filter
+    let genderFilterPass = true;
+    let genderFilterReason = '';
+    if (userPrefs?.preferred_genders) {
+      try {
+        const preferredGenders = JSON.parse(userPrefs.preferred_genders) as string[];
+        if (preferredGenders.length > 0 && !preferredGenders.includes(targetProfile.gender)) {
+          genderFilterPass = false;
+          genderFilterReason = `Target gender (${targetProfile.gender}) is not in your preferred genders (${preferredGenders.join(', ')})`;
+        }
+      } catch (error) {
+        // Invalid JSON, skip
+      }
+    }
+
+    // Check distance filter
+    let distanceFilterPass = true;
+    let distanceFilterReason = '';
+    let distance: number | null = null;
+    if (userProfile.location && targetProfile.location && userPrefs?.max_distance) {
+      try {
+        const userLoc = await geocodeLocation(userProfile.location);
+        const targetLoc = await geocodeLocation(targetProfile.location);
+        if (userLoc.coordinates && targetLoc.coordinates) {
+          distance = calculateDistanceMiles(userLoc.coordinates, targetLoc.coordinates);
+          if (distance > userPrefs.max_distance) {
+            distanceFilterPass = false;
+            distanceFilterReason = `Target is ${distance.toFixed(1)} miles away, exceeding your max distance of ${userPrefs.max_distance} miles`;
+          }
+        }
+      } catch (error) {
+        distanceFilterReason = 'Could not calculate distance';
+      }
+    }
+
+    // Check dealbreakers
+    const dealbreakersPass = await checkDealbreakersUtil(userProfile.id, targetProfile.id);
+    let dealbreakersReason = '';
+    if (!dealbreakersPass) {
+      const userDealbreakers = await (db.prepare('SELECT description FROM dealbreakers WHERE profile_id = ?').all([userProfile.id]) as Promise<{ description: string }[]>);
+      dealbreakersReason = `Target matches one or more of your dealbreakers: ${userDealbreakers.map(d => d.description).join(', ')}`;
+    }
+
+    // Summary
+    const allChecksPass = !isRestricted && !isAlreadyMatched && !isBlocked && 
+                         ageFilterPass && genderFilterPass && distanceFilterPass && dealbreakersPass;
+
+    res.json({
+      targetUser: {
+        id: targetProfile.user_id,
+        displayName: targetProfile.display_name,
+        age: targetProfile.age,
+        gender: targetProfile.gender,
+        location: targetProfile.location,
+      },
+      checks: {
+        isRestricted: { pass: !isRestricted, reason: isRestricted ? 'Target user account is restricted' : null },
+        isAlreadyMatched: { pass: !isAlreadyMatched, reason: isAlreadyMatched ? 'You are already matched with this user' : null },
+        isBlocked: { pass: !isBlocked, reason: isBlocked ? 'You or the target user has blocked the other' : null },
+        ageFilter: { pass: ageFilterPass, reason: ageFilterReason || null },
+        genderFilter: { pass: genderFilterPass, reason: genderFilterReason || null },
+        distanceFilter: { pass: distanceFilterPass, reason: distanceFilterReason || null, distance },
+        dealbreakers: { pass: dealbreakersPass, reason: dealbreakersReason || null },
+      },
+      willAppearInBrowse: allChecksPass,
+      summary: allChecksPass 
+        ? '✅ This user should appear in your browse results'
+        : '❌ This user is being filtered out. See reasons above.'
+    });
+  } catch (error) {
+    console.error('Diagnose error:', error);
+    res.status(500).json({ error: 'Failed to diagnose user visibility' });
+  }
+});
+
 // Get single profile by ID
 usersRouter.get('/:profileId', authenticateToken, (req: AuthRequest, res) => {
   const { profileId } = req.params;

@@ -300,7 +300,16 @@ export default function MyProfile() {
       )}
 
       <div className="text-center mt-8">
-        <Link to="/create-profile" className="btn btn-secondary">
+        <Link 
+          to="/create-profile" 
+          className="btn btn-secondary"
+          onClick={() => {
+            // Haptic feedback - vibrate if supported
+            if ('vibrate' in navigator) {
+              navigator.vibrate(50); // 50ms vibration
+            }
+          }}
+        >
           Edit Profile
         </Link>
       </div>
