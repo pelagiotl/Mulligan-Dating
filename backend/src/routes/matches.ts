@@ -1021,8 +1021,11 @@ matchesRouter.post("/:matchId/generate-date-plan", authenticateToken, rateLimitA
     const sharedInterests = await getSharedInterests(matchId, match.user1_id, match.user2_id);
 
     // Generate date plan
+    console.log(`📅 Generating date plan for match ${matchId}, user ${userId}`);
+    console.log(`📅 Shared interests:`, sharedInterests);
     const { generateDatePlan } = await import('../services/dateBlueprint.js');
     const plan = await generateDatePlan(matchId, userId, sharedInterests);
+    console.log(`✅ Date plan generated:`, plan.id);
 
     // Notify via Socket.io
     try {
@@ -1038,10 +1041,13 @@ matchesRouter.post("/:matchId/generate-date-plan", authenticateToken, rateLimitA
       console.warn('⚠️  Socket.io not available for date plan notification');
     }
 
+    console.log(`📅 Returning plan to client:`, { planId: plan.id, title: plan.title });
     res.json({ plan });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error("Generate date plan error:", error);
+    const errorStack = error instanceof Error ? error.stack : 'No stack trace';
+    console.error("❌ Generate date plan error:", errorMessage);
+    console.error("❌ Error stack:", errorStack);
     res.status(500).json({ error: `Failed to generate date plan: ${errorMessage}` });
   }
 });

@@ -282,34 +282,40 @@ Return ONLY a JSON object with this exact format:
   };
 
   // Save to database
-  await (db
-    .prepare(
-      `INSERT INTO date_plans 
-       (id, match_id, suggested_by, plan_type, title, description, 
-        venue_name, venue_address, venue_lat, venue_lng, 
-        suggested_date, suggested_time, budget_range, conversation_topics,
-        status, user1_accepted, user2_accepted, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
-    )
-    .run([
-      planId,
-      matchId,
-      suggestedBy,
-      plan.planType,
-      plan.title,
-      plan.description,
-      plan.venueName || null,
-      plan.venueAddress || null,
-      plan.venueLat || null,
-      plan.venueLng || null,
-      plan.suggestedDate || null,
-      plan.suggestedTime || null,
-      plan.budgetRange || null,
-      JSON.stringify(plan.conversationTopics),
-      plan.status,
-      0, // user1_accepted
-      0, // user2_accepted
-    ]) as Promise<any>);
+  try {
+    await (db
+      .prepare(
+        `INSERT INTO date_plans 
+         (id, match_id, suggested_by, plan_type, title, description, 
+          venue_name, venue_address, venue_lat, venue_lng, 
+          suggested_date, suggested_time, budget_range, conversation_topics,
+          status, user1_accepted, user2_accepted, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+      )
+      .run([
+        planId,
+        matchId,
+        suggestedBy,
+        plan.planType,
+        plan.title,
+        plan.description,
+        plan.venueName || null,
+        plan.venueAddress || null,
+        plan.venueLat || null,
+        plan.venueLng || null,
+        plan.suggestedDate || null,
+        plan.suggestedTime || null,
+        plan.budgetRange || null,
+        JSON.stringify(plan.conversationTopics),
+        plan.status,
+        0, // user1_accepted
+        0, // user2_accepted
+      ]) as Promise<any>);
+    console.log(`✅ Date plan saved to database: ${planId}`);
+  } catch (dbError) {
+    console.error('❌ Failed to save date plan to database:', dbError);
+    throw new Error(`Failed to save date plan: ${dbError instanceof Error ? dbError.message : String(dbError)}`);
+  }
 
   return plan;
 }
