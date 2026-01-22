@@ -30,7 +30,7 @@ const TOKEN_PACKAGES = {
   1: { tokens: 1, price: 199 }, // $1.99 for 1 token
   3: { tokens: 3, price: 499 }, // $4.99 for 3 tokens (best value)
   5: { tokens: 5, price: 799 }, // $7.99 for 5 tokens
-  7: { tokens: 7, price: 1099 }, // $10.99 for 7 tokens (max allowed)
+  7: { tokens: 7, price: 999 }, // $9.99 for 7 tokens (max allowed)
 };
 
 // Create payment intent for token purchase
