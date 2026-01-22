@@ -666,24 +666,43 @@ export async function initDatabase() {
       if (tableResult.rows[0]?.exists) {
         // Check current column type
         const colResult = await pgPool.query(`
-          SELECT data_type 
+          SELECT data_type, udt_name
           FROM information_schema.columns 
           WHERE table_name = 'compatibility_scores' 
           AND column_name = 'score'
         `);
         
-        const dataType = colResult.rows[0]?.data_type;
-        if (dataType === 'integer' || dataType === 'int4') {
+        const colInfo = colResult.rows[0];
+        const dataType = colInfo?.data_type;
+        const udtName = colInfo?.udt_name;
+        
+        // Check if it's an integer type (int4, integer, etc.)
+        if (dataType === 'integer' || dataType === 'int4' || udtName === 'int4' || udtName === 'integer') {
           // Column is INTEGER, need to convert it
           console.log('🔄 Converting compatibility_scores.score from INTEGER to DECIMAL(5,2)...');
-          await pgPool.query(`
-            ALTER TABLE compatibility_scores 
-            ALTER COLUMN score TYPE DECIMAL(5,2) 
-            USING score::DECIMAL(5,2)
-          `);
-          console.log('✅ Updated compatibility_scores.score column type to DECIMAL(5,2)');
-        } else if (dataType === 'numeric' || dataType?.includes('decimal')) {
+          try {
+            await pgPool.query(`
+              ALTER TABLE compatibility_scores 
+              ALTER COLUMN score TYPE DECIMAL(5,2) 
+              USING score::DECIMAL(5,2)
+            `);
+            console.log('✅ Updated compatibility_scores.score column type to DECIMAL(5,2)');
+          } catch (alterErr: any) {
+            console.error('❌ Failed to alter compatibility_scores.score column:', alterErr?.message || alterErr);
+            // Try alternative approach - drop and recreate column
+            try {
+              console.log('🔄 Trying alternative: dropping and recreating column...');
+              await pgPool.query(`ALTER TABLE compatibility_scores DROP COLUMN score`);
+              await pgPool.query(`ALTER TABLE compatibility_scores ADD COLUMN score DECIMAL(5,2) DEFAULT 50.0`);
+              console.log('✅ Recreated compatibility_scores.score column as DECIMAL(5,2)');
+            } catch (dropErr: any) {
+              console.error('❌ Failed to recreate column:', dropErr?.message || dropErr);
+            }
+          }
+        } else if (dataType === 'numeric' || dataType?.includes('decimal') || udtName === 'numeric') {
           console.log('ℹ️ compatibility_scores.score column is already DECIMAL');
+        } else {
+          console.log(`ℹ️ compatibility_scores.score column type: ${dataType} (${udtName})`);
         }
       }
     } catch (err: any) {

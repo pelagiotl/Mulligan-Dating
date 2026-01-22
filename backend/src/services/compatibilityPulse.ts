@@ -163,52 +163,102 @@ export async function saveCompatibilityScore(
     ? await existingResult
     : existingResult) as { id: string } | undefined;
 
-  // Use CAST for PostgreSQL, direct value for SQLite
-  const scoreValue = usePostgres ? scoreData.score : scoreData.score;
-  
-  if (existing) {
-    // Update existing score
-    const updateSql = usePostgres
-      ? `UPDATE compatibility_scores 
-         SET score = CAST(? AS DECIMAL(5,2)), response_time_avg = ?, message_length_avg = ?, 
-             engagement_level = ?, last_calculated_at = CURRENT_TIMESTAMP
-         WHERE match_id = ?`
-      : `UPDATE compatibility_scores 
-         SET score = ?, response_time_avg = ?, message_length_avg = ?, 
-             engagement_level = ?, last_calculated_at = CURRENT_TIMESTAMP
-         WHERE match_id = ?`;
-    await (db
-      .prepare(updateSql)
-      .run([
-        scoreValue,
-        scoreData.responseTimeAvg,
-        scoreData.messageLengthAvg,
-        scoreData.engagementLevel,
-        matchId,
-      ]) as Promise<any>);
-  } else {
-    // Insert new score
-    const insertSql = usePostgres
-      ? `INSERT INTO compatibility_scores 
-         (id, match_id, user1_id, user2_id, score, response_time_avg, 
-          message_length_avg, engagement_level, last_calculated_at)
-         VALUES (?, ?, ?, ?, CAST(? AS DECIMAL(5,2)), ?, ?, ?, CURRENT_TIMESTAMP)`
-      : `INSERT INTO compatibility_scores 
-         (id, match_id, user1_id, user2_id, score, response_time_avg, 
-          message_length_avg, engagement_level, last_calculated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`;
-    await (db
-      .prepare(insertSql)
-      .run([
-        scoreId,
-        matchId,
-        user1Id,
-        user2Id,
-        scoreValue,
-        scoreData.responseTimeAvg,
-        scoreData.messageLengthAvg,
-        scoreData.engagementLevel,
-      ]) as Promise<any>);
+  // Try to save the score - handle both INTEGER and DECIMAL column types
+  try {
+    if (existing) {
+      // Update existing score - try with CAST first (for DECIMAL column)
+      try {
+        const updateSql = usePostgres
+          ? `UPDATE compatibility_scores 
+             SET score = CAST(? AS DECIMAL(5,2)), response_time_avg = ?, message_length_avg = ?, 
+                 engagement_level = ?, last_calculated_at = CURRENT_TIMESTAMP
+             WHERE match_id = ?`
+          : `UPDATE compatibility_scores 
+             SET score = ?, response_time_avg = ?, message_length_avg = ?, 
+                 engagement_level = ?, last_calculated_at = CURRENT_TIMESTAMP
+             WHERE match_id = ?`;
+        await (db
+          .prepare(updateSql)
+          .run([
+            scoreData.score,
+            scoreData.responseTimeAvg,
+            scoreData.messageLengthAvg,
+            scoreData.engagementLevel,
+            matchId,
+          ]) as Promise<any>);
+      } catch (castError: any) {
+        // If CAST fails, column might still be INTEGER - try without CAST and round the score
+        if (castError?.message?.includes('integer') || castError?.message?.includes('invalid input')) {
+          console.warn('⚠️ Score column is still INTEGER, rounding score to integer:', Math.round(scoreData.score));
+          const updateSql = `UPDATE compatibility_scores 
+             SET score = ?, response_time_avg = ?, message_length_avg = ?, 
+                 engagement_level = ?, last_calculated_at = CURRENT_TIMESTAMP
+             WHERE match_id = ?`;
+          await (db
+            .prepare(updateSql)
+            .run([
+              Math.round(scoreData.score), // Round to integer
+              scoreData.responseTimeAvg,
+              scoreData.messageLengthAvg,
+              scoreData.engagementLevel,
+              matchId,
+            ]) as Promise<any>);
+        } else {
+          throw castError;
+        }
+      }
+    } else {
+      // Insert new score - try with CAST first (for DECIMAL column)
+      try {
+        const insertSql = usePostgres
+          ? `INSERT INTO compatibility_scores 
+             (id, match_id, user1_id, user2_id, score, response_time_avg, 
+              message_length_avg, engagement_level, last_calculated_at)
+             VALUES (?, ?, ?, ?, CAST(? AS DECIMAL(5,2)), ?, ?, ?, CURRENT_TIMESTAMP)`
+          : `INSERT INTO compatibility_scores 
+             (id, match_id, user1_id, user2_id, score, response_time_avg, 
+              message_length_avg, engagement_level, last_calculated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`;
+        await (db
+          .prepare(insertSql)
+          .run([
+            scoreId,
+            matchId,
+            user1Id,
+            user2Id,
+            scoreData.score,
+            scoreData.responseTimeAvg,
+            scoreData.messageLengthAvg,
+            scoreData.engagementLevel,
+          ]) as Promise<any>);
+      } catch (castError: any) {
+        // If CAST fails, column might still be INTEGER - try without CAST and round the score
+        if (castError?.message?.includes('integer') || castError?.message?.includes('invalid input')) {
+          console.warn('⚠️ Score column is still INTEGER, rounding score to integer:', Math.round(scoreData.score));
+          const insertSql = `INSERT INTO compatibility_scores 
+             (id, match_id, user1_id, user2_id, score, response_time_avg, 
+              message_length_avg, engagement_level, last_calculated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`;
+          await (db
+            .prepare(insertSql)
+            .run([
+              scoreId,
+              matchId,
+              user1Id,
+              user2Id,
+              Math.round(scoreData.score), // Round to integer
+              scoreData.responseTimeAvg,
+              scoreData.messageLengthAvg,
+              scoreData.engagementLevel,
+            ]) as Promise<any>);
+        } else {
+          throw castError;
+        }
+      }
+    }
+  } catch (error: any) {
+    console.error('❌ Error saving compatibility score:', error);
+    throw error;
   }
 
   // Save to history
