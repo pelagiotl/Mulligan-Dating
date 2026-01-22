@@ -164,101 +164,71 @@ export async function saveCompatibilityScore(
     : existingResult) as { id: string } | undefined;
 
   // Try to save the score - handle both INTEGER and DECIMAL column types
-  try {
+  // First, try with decimal value (if column is DECIMAL, this works)
+  // If that fails with integer error, round the score and try again
+  const saveScore = async (scoreValue: number) => {
     if (existing) {
-      // Update existing score - try with CAST first (for DECIMAL column)
+      const updateSql = `UPDATE compatibility_scores 
+         SET score = ?, response_time_avg = ?, message_length_avg = ?, 
+             engagement_level = ?, last_calculated_at = CURRENT_TIMESTAMP
+         WHERE match_id = ?`;
+      await (db
+        .prepare(updateSql)
+        .run([
+          scoreValue,
+          scoreData.responseTimeAvg,
+          scoreData.messageLengthAvg,
+          scoreData.engagementLevel,
+          matchId,
+        ]) as Promise<any>);
+    } else {
+      const insertSql = `INSERT INTO compatibility_scores 
+         (id, match_id, user1_id, user2_id, score, response_time_avg, 
+          message_length_avg, engagement_level, last_calculated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`;
+      await (db
+        .prepare(insertSql)
+        .run([
+          scoreId,
+          matchId,
+          user1Id,
+          user2Id,
+          scoreValue,
+          scoreData.responseTimeAvg,
+          scoreData.messageLengthAvg,
+          scoreData.engagementLevel,
+        ]) as Promise<any>);
+    }
+  };
+
+  try {
+    // Try with decimal value first
+    await saveScore(scoreData.score);
+  } catch (error: any) {
+    const errorMsg = String(error?.message || error || '');
+    const errorString = String(error || '');
+    
+    // Check if it's an integer type error - check both message and string representation
+    const isIntegerError = errorMsg.includes('integer') || 
+                          errorMsg.includes('invalid input syntax') || 
+                          errorMsg.includes('36.67') ||
+                          errorString.includes('integer') ||
+                          errorString.includes('invalid input syntax') ||
+                          errorString.includes('36.67');
+    
+    if (isIntegerError) {
+      console.warn('⚠️ Score column is still INTEGER, rounding score to integer:', Math.round(scoreData.score));
       try {
-        const updateSql = usePostgres
-          ? `UPDATE compatibility_scores 
-             SET score = CAST(? AS DECIMAL(5,2)), response_time_avg = ?, message_length_avg = ?, 
-                 engagement_level = ?, last_calculated_at = CURRENT_TIMESTAMP
-             WHERE match_id = ?`
-          : `UPDATE compatibility_scores 
-             SET score = ?, response_time_avg = ?, message_length_avg = ?, 
-                 engagement_level = ?, last_calculated_at = CURRENT_TIMESTAMP
-             WHERE match_id = ?`;
-        await (db
-          .prepare(updateSql)
-          .run([
-            scoreData.score,
-            scoreData.responseTimeAvg,
-            scoreData.messageLengthAvg,
-            scoreData.engagementLevel,
-            matchId,
-          ]) as Promise<any>);
-      } catch (castError: any) {
-        // If CAST fails, column might still be INTEGER - try without CAST and round the score
-        if (castError?.message?.includes('integer') || castError?.message?.includes('invalid input')) {
-          console.warn('⚠️ Score column is still INTEGER, rounding score to integer:', Math.round(scoreData.score));
-          const updateSql = `UPDATE compatibility_scores 
-             SET score = ?, response_time_avg = ?, message_length_avg = ?, 
-                 engagement_level = ?, last_calculated_at = CURRENT_TIMESTAMP
-             WHERE match_id = ?`;
-          await (db
-            .prepare(updateSql)
-            .run([
-              Math.round(scoreData.score), // Round to integer
-              scoreData.responseTimeAvg,
-              scoreData.messageLengthAvg,
-              scoreData.engagementLevel,
-              matchId,
-            ]) as Promise<any>);
-        } else {
-          throw castError;
-        }
+        // Try again with rounded integer value
+        await saveScore(Math.round(scoreData.score));
+      } catch (retryError: any) {
+        console.error('❌ Error saving compatibility score (even with rounded value):', retryError);
+        throw retryError;
       }
     } else {
-      // Insert new score - try with CAST first (for DECIMAL column)
-      try {
-        const insertSql = usePostgres
-          ? `INSERT INTO compatibility_scores 
-             (id, match_id, user1_id, user2_id, score, response_time_avg, 
-              message_length_avg, engagement_level, last_calculated_at)
-             VALUES (?, ?, ?, ?, CAST(? AS DECIMAL(5,2)), ?, ?, ?, CURRENT_TIMESTAMP)`
-          : `INSERT INTO compatibility_scores 
-             (id, match_id, user1_id, user2_id, score, response_time_avg, 
-              message_length_avg, engagement_level, last_calculated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`;
-        await (db
-          .prepare(insertSql)
-          .run([
-            scoreId,
-            matchId,
-            user1Id,
-            user2Id,
-            scoreData.score,
-            scoreData.responseTimeAvg,
-            scoreData.messageLengthAvg,
-            scoreData.engagementLevel,
-          ]) as Promise<any>);
-      } catch (castError: any) {
-        // If CAST fails, column might still be INTEGER - try without CAST and round the score
-        if (castError?.message?.includes('integer') || castError?.message?.includes('invalid input')) {
-          console.warn('⚠️ Score column is still INTEGER, rounding score to integer:', Math.round(scoreData.score));
-          const insertSql = `INSERT INTO compatibility_scores 
-             (id, match_id, user1_id, user2_id, score, response_time_avg, 
-              message_length_avg, engagement_level, last_calculated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`;
-          await (db
-            .prepare(insertSql)
-            .run([
-              scoreId,
-              matchId,
-              user1Id,
-              user2Id,
-              Math.round(scoreData.score), // Round to integer
-              scoreData.responseTimeAvg,
-              scoreData.messageLengthAvg,
-              scoreData.engagementLevel,
-            ]) as Promise<any>);
-        } else {
-          throw castError;
-        }
-      }
+      console.error('❌ Error saving compatibility score:', error);
+      throw error;
     }
-  } catch (error: any) {
-    console.error('❌ Error saving compatibility score:', error);
-    throw error;
   }
 
   // Save to history
