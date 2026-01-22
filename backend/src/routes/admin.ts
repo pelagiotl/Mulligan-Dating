@@ -506,6 +506,58 @@ adminRouter.post('/users/:id/grant-tokens', authenticateToken, requireAdmin, asy
   }
 });
 
+// Grant tokens by phone number (for dev/test purposes)
+adminRouter.post('/grant-tokens-by-phone', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { phoneNumber, tokenCount } = req.body;
+
+    if (!phoneNumber) {
+      return res.status(400).json({ error: 'Phone number is required' });
+    }
+
+    const count = parseInt(tokenCount) || 10;
+    if (count < 1 || count > 100) {
+      return res.status(400).json({ error: 'Token count must be between 1 and 100' });
+    }
+
+    // Find user by phone number
+    const userStmt = db.prepare('SELECT id FROM users WHERE phone_number = ?');
+    const user = await (userStmt.get([phoneNumber]) as Promise<{ id: string } | undefined>);
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found with that phone number' });
+    }
+
+    const now = new Date().toISOString();
+    let tokensGranted = 0;
+
+    for (let i = 0; i < count; i++) {
+      const tokenId = uuidv4();
+      const tokenStmt = db.prepare('INSERT INTO mulligan_tokens (id, user_id, granted_at, source) VALUES (?, ?, ?, ?)');
+      await (tokenStmt.run([tokenId, user.id, now, 'admin_grant']) as Promise<any>);
+      tokensGranted++;
+    }
+
+    // Get total available tokens
+    const totalStmt = db.prepare(`
+      SELECT COUNT(*) as count 
+      FROM mulligan_tokens 
+      WHERE user_id = ? AND used_at IS NULL
+    `);
+    const totalResult = await (totalStmt.get([user.id]) as Promise<{ count: number } | undefined>);
+    const totalAvailableTokens = totalResult?.count || 0;
+
+    res.json({
+      message: `Granted ${tokensGranted} token(s)`,
+      tokensGranted,
+      totalAvailableTokens
+    });
+  } catch (error: any) {
+    console.error('Error granting tokens by phone:', error);
+    res.status(500).json({ error: 'Failed to grant tokens', details: error.message });
+  }
+});
+
 // Set admin status
 adminRouter.post('/users/:id/set-admin', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
   try {

@@ -214,10 +214,29 @@ export async function sendVerificationCode(phoneNumber: string, code: string): P
 
     console.log(`✅ SMS sent to ${phoneNumber}. Message SID: ${message.sid}`);
     console.log(`📊 Message status: ${message.status}`);
+    console.log(`📊 Message details:`, {
+      sid: message.sid,
+      status: message.status,
+      to: message.to,
+      from: message.from,
+      direction: message.direction,
+      errorCode: message.errorCode,
+      errorMessage: message.errorMessage,
+      price: message.price,
+      priceUnit: message.priceUnit
+    });
     
-    // Check if message was queued (might indicate trial account restrictions)
+    // Check for delivery issues
     if (message.status === 'queued' || message.status === 'sending') {
       console.log(`ℹ️  Message is ${message.status}. Check Twilio console for delivery status.`);
+      console.log(`   View message: https://console.twilio.com/us1/monitor/logs/sms/${message.sid}`);
+    }
+    
+    // Check for error codes that might indicate delivery issues
+    if (message.errorCode || message.errorMessage) {
+      console.error(`❌ Twilio returned error: Code ${message.errorCode}, Message: ${message.errorMessage}`);
+      // If there's an error code, the message didn't actually send successfully
+      return false;
     }
     
     return true;

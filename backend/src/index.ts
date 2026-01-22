@@ -16,6 +16,8 @@ import { photosRouter } from "./routes/photos.js";
 import { adminRouter } from "./routes/admin.js";
 import { smsRouter } from "./routes/sms.js";
 import { paymentsRouter } from "./routes/payments.js";
+import { connectionQualityRouter } from "./routes/connectionQuality.js";
+import { matchMemoryBankRouter } from "./routes/matchMemoryBank.js";
 import { initDatabase, db } from "./database.js";
 import { generateWeeklyMatchesForAll } from "./services/matching.js";
 import path from "path";
@@ -158,6 +160,8 @@ app.use("/api/sms", smsRouter);
 // Stripe webhook must use raw body for signature verification - register BEFORE other payment routes
 app.use("/api/payments/webhook", express.raw({ type: "application/json" }), paymentsRouter);
 app.use("/api/payments", paymentsRouter);
+app.use("/api/connection-quality", connectionQualityRouter);
+app.use("/api/memory-bank", matchMemoryBankRouter);
 
 // Public admin endpoints (no auth required) - must be BEFORE the protected admin router
 app.get("/api/admin/check-admin", async (req, res) => {

@@ -656,6 +656,74 @@ export async function initDatabase() {
   await execSQL(`CREATE INDEX IF NOT EXISTS idx_date_plans_status ON date_plans(status)`);
 
   console.log("✅ New feature tables created: compatibility_scores, conversation_resets, date_plans");
+
+  // ============================================
+  // CONNECTION QUALITY SCORE
+  // ============================================
+
+  // Connection Quality Score: Track user's overall dating success metrics
+  await execSQL(`
+    CREATE TABLE IF NOT EXISTS connection_quality_scores (
+      id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} PRIMARY KEY,
+      user_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL UNIQUE,
+      score ${usePostgres ? 'DECIMAL(5,2)' : 'REAL'} DEFAULT 50.0,
+      match_to_conversation_rate ${usePostgres ? 'DECIMAL(5,2)' : 'REAL'} DEFAULT 0,
+      conversation_depth_avg ${usePostgres ? 'DECIMAL(5,2)' : 'REAL'} DEFAULT 0,
+      response_time_consistency ${usePostgres ? 'DECIMAL(5,2)' : 'REAL'} DEFAULT 0,
+      profile_completeness ${usePostgres ? 'DECIMAL(5,2)' : 'REAL'} DEFAULT 0,
+      date_success_rate ${usePostgres ? 'DECIMAL(5,2)' : 'REAL'} DEFAULT 0,
+      second_date_rate ${usePostgres ? 'DECIMAL(5,2)' : 'REAL'} DEFAULT 0,
+      monthly_improvement ${usePostgres ? 'DECIMAL(5,2)' : 'REAL'} DEFAULT 0,
+      last_calculated_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP,
+      created_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP,
+      updated_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Connection Quality Score History (for trends)
+  await execSQL(`
+    CREATE TABLE IF NOT EXISTS connection_quality_history (
+      id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} PRIMARY KEY,
+      user_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      score ${usePostgres ? 'DECIMAL(5,2)' : 'REAL'} NOT NULL,
+      recorded_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  // ============================================
+  // MATCH MEMORY BANK
+  // ============================================
+
+  // Match Reflections: User's private journal of dating experiences
+  await execSQL(`
+    CREATE TABLE IF NOT EXISTS match_reflections (
+      id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} PRIMARY KEY,
+      user_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      match_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'},
+      reflection_type ${usePostgres ? 'VARCHAR(50)' : 'TEXT'} NOT NULL,
+      title ${usePostgres ? 'VARCHAR(255)' : 'TEXT'},
+      content ${usePostgres ? 'TEXT' : 'TEXT'} NOT NULL,
+      tags ${usePostgres ? 'TEXT' : 'TEXT'},
+      date_type ${usePostgres ? 'VARCHAR(50)' : 'TEXT'},
+      second_date_planned ${usePostgres ? 'INT' : 'INTEGER'} DEFAULT 0,
+      insights ${usePostgres ? 'TEXT' : 'TEXT'},
+      created_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE SET NULL
+    )
+  `);
+
+  // Indexes for new tables
+  await execSQL(`CREATE INDEX IF NOT EXISTS idx_connection_quality_scores_user_id ON connection_quality_scores(user_id)`);
+  await execSQL(`CREATE INDEX IF NOT EXISTS idx_connection_quality_history_user_id ON connection_quality_history(user_id)`);
+  await execSQL(`CREATE INDEX IF NOT EXISTS idx_connection_quality_history_recorded_at ON connection_quality_history(recorded_at)`);
+  await execSQL(`CREATE INDEX IF NOT EXISTS idx_match_reflections_user_id ON match_reflections(user_id)`);
+  await execSQL(`CREATE INDEX IF NOT EXISTS idx_match_reflections_match_id ON match_reflections(match_id)`);
+  await execSQL(`CREATE INDEX IF NOT EXISTS idx_match_reflections_created_at ON match_reflections(created_at)`);
+
+  console.log("✅ Connection Quality Score and Match Memory Bank tables created");
   } catch (e) {
     console.warn("⚠️  Some indexes may already exist or failed to create:", e);
   }

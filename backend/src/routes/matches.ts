@@ -1042,7 +1042,10 @@ matchesRouter.post("/:matchId/generate-date-plan", authenticateToken, rateLimitA
     }
 
     console.log(`📅 Returning plan to client:`, { planId: plan.id, title: plan.title });
-    res.json({ plan });
+    res.json({ 
+      success: true,
+      plan 
+    });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     const errorStack = error instanceof Error ? error.stack : 'No stack trace';

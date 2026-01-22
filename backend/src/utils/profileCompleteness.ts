@@ -121,3 +121,8 @@ export async function getCompletenessBoost(profileId: string): Promise<number> {
   return 1.0 + (completeness * 0.15);
 }
 
+
+
+
+
+
