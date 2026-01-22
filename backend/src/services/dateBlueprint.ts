@@ -141,6 +141,7 @@ export async function generateDatePlan(
     : 'your area';
 
   // Search for venues based on shared interests
+  // Add variation: try different interests or generic searches to get different venues
   let venues: Array<{
     name: string;
     address: string;
@@ -150,14 +151,51 @@ export async function generateDatePlan(
     priceLevel?: number;
   }> = [];
 
+  // Get existing plans to avoid suggesting the same venue
+  const existingPlansResult = db
+    .prepare('SELECT venue_name FROM date_plans WHERE match_id = ? AND venue_name IS NOT NULL ORDER BY created_at DESC LIMIT 5')
+    .all([matchId]);
+  const existingPlans = (existingPlansResult instanceof Promise
+    ? await existingPlansResult
+    : existingPlansResult) as Array<{ venue_name: string }>;
+  const existingVenueNames = new Set(existingPlans.map(p => p.venue_name.toLowerCase()));
+
+  // Try multiple interest-based searches to get variety
   if (sharedInterests.length > 0) {
-    // Try to find venues for the first shared interest
-    venues = await searchVenues(meetingLocation, sharedInterests[0]);
+    // Shuffle interests to try different ones each time
+    const shuffledInterests = [...sharedInterests].sort(() => Math.random() - 0.5);
+    for (const interest of shuffledInterests) {
+      const interestVenues = await searchVenues(meetingLocation, interest);
+      // Filter out venues we've already suggested
+      const newVenues = interestVenues.filter(v => !existingVenueNames.has(v.name.toLowerCase()));
+      if (newVenues.length > 0) {
+        venues = newVenues;
+        break;
+      }
+    }
+    
+    // If still no new venues, try generic searches with different keywords
+    if (venues.length === 0) {
+      const genericKeywords = ['restaurant', 'cafe', 'park', 'museum', 'activity', 'entertainment'];
+      for (const keyword of genericKeywords.sort(() => Math.random() - 0.5)) {
+        const keywordVenues = await searchVenues(meetingLocation, keyword);
+        const newVenues = keywordVenues.filter(v => !existingVenueNames.has(v.name.toLowerCase()));
+        if (newVenues.length > 0) {
+          venues = newVenues;
+          break;
+        }
+      }
+    }
   }
 
-  // If no venues found, try generic search
+  // If still no venues found, try generic search
   if (venues.length === 0) {
-    venues = await searchVenues(meetingLocation);
+    const genericVenues = await searchVenues(meetingLocation);
+    venues = genericVenues.filter(v => !existingVenueNames.has(v.name.toLowerCase()));
+    // If all venues were already used, just use any venue
+    if (venues.length === 0) {
+      venues = genericVenues;
+    }
   }
 
   // Generate date plan using AI
@@ -180,17 +218,32 @@ export async function generateDatePlan(
         ? `Shared interests: ${sharedInterests.join(', ')}`
         : 'No specific shared interests listed';
 
-      const prompt = `Create a first date plan for a dating app. 
+      // Add variation to the prompt to ensure different plans each time
+      const variationHints = [
+        'Make this plan unique and different from typical first dates.',
+        'Think of creative, unexpected activities that stand out.',
+        'Focus on experiences that create memorable moments.',
+        'Suggest something that allows for genuine conversation and connection.',
+        'Consider outdoor activities if weather permits, or cozy indoor spaces.',
+      ];
+      const randomVariation = variationHints[Math.floor(Math.random() * variationHints.length)];
+
+      const prompt = `Create a FIRST DATE plan for a dating app. This should be DIFFERENT and UNIQUE from other date plans.
 ${interestsText}
 Location: ${meetingLocation}
 ${venueInfo}
 
+${randomVariation}
+
 Generate a creative, engaging first date plan that:
 - Is appropriate for a first meeting (public, safe, not too intimate)
-- References shared interests if available
-- Includes 3-5 conversation topics to help break the ice
+- References shared interests if available, but be creative
+- Includes 3-5 conversation topics to help break the ice (make them unique and interesting)
 - Suggests a budget range (low/medium/high)
 - Is specific and actionable
+- Is DIFFERENT from typical coffee dates or dinner dates - be creative!
+
+IMPORTANT: Make this plan unique. If you've suggested similar plans before, think of something different this time.
 
 Return ONLY a JSON object with this exact format:
 {
@@ -205,14 +258,14 @@ Return ONLY a JSON object with this exact format:
         messages: [
           {
             role: 'system',
-            content: 'You are a helpful assistant that creates fun, safe first date plans for dating apps.',
+            content: 'You are a creative assistant that creates unique, fun, safe first date plans for dating apps. Each plan should be different and memorable.',
           },
           {
             role: 'user',
             content: prompt,
           },
         ],
-        temperature: 0.8,
+        temperature: 1.0, // Increased from 0.8 to 1.0 for more variation
         max_tokens: 500,
       });
 
@@ -251,7 +304,10 @@ Return ONLY a JSON object with this exact format:
 
   // Create date plan
   const planId = uuidv4();
-  const selectedVenue = venues.length > 0 ? venues[0] : null;
+  // Select a random venue from the available venues (not always the first one)
+  const selectedVenue = venues.length > 0 
+    ? venues[Math.floor(Math.random() * Math.min(venues.length, 5))] // Pick from first 5 venues randomly
+    : null;
 
   // Suggest date/time (7 days from now, 7 PM)
   const suggestedDate = new Date();
@@ -281,7 +337,8 @@ Return ONLY a JSON object with this exact format:
     updatedAt: new Date().toISOString(),
   };
 
-  // Save to database
+  // Save to database - always INSERT a new plan
+  // Multiple plans per match are allowed - getDatePlan will return the newest one
   try {
     await (db
       .prepare(
@@ -312,7 +369,8 @@ Return ONLY a JSON object with this exact format:
         0, // user2_accepted
       ]) as Promise<any>);
     console.log(`✅ Date plan saved to database: ${planId}`);
-  } catch (dbError) {
+    console.log(`📅 Plan details - title: "${plan.title}", venue: "${plan.venueName || 'none'}"`);
+  } catch (dbError: any) {
     console.error('❌ Failed to save date plan to database:', dbError);
     throw new Error(`Failed to save date plan: ${dbError instanceof Error ? dbError.message : String(dbError)}`);
   }

@@ -327,9 +327,9 @@ export default function DateBlueprint({ matchId, socket, currentUserId }: DateBl
       <Modal
         visible={isExpanded}
         transparent={true}
-        animationType="slide"
-        presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
-        statusBarTranslucent={Platform.OS === 'android'}
+        animationType="fade"
+        presentationStyle="overFullScreen"
+        statusBarTranslucent={true}
         onRequestClose={() => {
           console.log('📅 Modal onRequestClose called');
           setIsExpanded(false);
@@ -341,20 +341,27 @@ export default function DateBlueprint({ matchId, socket, currentUserId }: DateBl
         <TouchableOpacity
           style={styles.modalOverlay}
           activeOpacity={1}
-          onPress={() => setIsExpanded(false)}
+          onPress={() => {
+            console.log('📅 Modal overlay pressed');
+            setIsExpanded(false);
+          }}
         >
-          <TouchableOpacity
-            activeOpacity={1}
-            onPress={(e) => e.stopPropagation()}
+          <View
             style={styles.modalContent}
+            onStartShouldSetResponder={() => true}
+            onMoveShouldSetResponder={() => true}
           >
             <TouchableOpacity
-              onPress={() => setIsExpanded(false)}
+              onPress={() => {
+                console.log('📅 Close button pressed');
+                setIsExpanded(false);
+              }}
               style={styles.modalCloseButton}
             >
               <Text style={styles.modalCloseText}>✕</Text>
             </TouchableOpacity>
             <ScrollView 
+              key={plan.id} // Force re-render when plan changes
               style={styles.modalScrollView}
               showsVerticalScrollIndicator={true}
               contentContainerStyle={styles.modalScrollContent}
@@ -434,14 +441,73 @@ export default function DateBlueprint({ matchId, socket, currentUserId }: DateBl
                       </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      onPress={() => {
-                        handleAction('modify');
-                        setIsExpanded(false);
+                      onPress={async () => {
+                        // Regenerate a new date plan
+                        Alert.alert(
+                          'Regenerate Date Plan',
+                          'Create a new AI-powered date plan? This will replace the current plan.',
+                          [
+                            { text: 'Cancel', style: 'cancel' },
+                            {
+                              text: 'Regenerate',
+                              onPress: async () => {
+                                try {
+                                  setUpdating(true);
+                                  console.log('📅 Starting date plan regeneration...');
+                                  const response = await api.post(`/matches/${matchId}/generate-date-plan`);
+                                  console.log('📅 Regenerated date plan response:', JSON.stringify(response, null, 2));
+                                  
+                                  // Wait a moment for the database to be updated
+                                  await new Promise(resolve => setTimeout(resolve, 500));
+                                  
+                                  // Always fetch the latest plan from the database to ensure we get the newest one
+                                  console.log('📅 Fetching latest plan from database...');
+                                  await fetchPlan();
+                                  
+                                  // Check if the plan was updated
+                                  const latestPlan = await (async () => {
+                                    try {
+                                      const fetchResponse = await api.get(`/matches/${matchId}/date-plan`);
+                                      return fetchResponse.plan || fetchResponse;
+                                    } catch (e) {
+                                      return null;
+                                    }
+                                  })();
+                                  
+                                  if (latestPlan && typeof latestPlan === 'object' && 'id' in latestPlan) {
+                                    console.log('📅 Latest plan fetched:', latestPlan.title, latestPlan.venueName);
+                                    setPlan(latestPlan);
+                                    Alert.alert('✨ New Date Plan Created!', `Your new date plan: "${latestPlan.title}"`);
+                                  } else {
+                                    // Fallback: use the response plan if available
+                                    const planData = response.plan || response;
+                                    if (planData && typeof planData === 'object' && 'id' in planData) {
+                                      console.log('📅 Using response plan:', planData.title, planData.venueName);
+                                      setPlan(planData);
+                                      Alert.alert('✨ New Date Plan Created!', 'Your new personalized date plan is ready!');
+                                    } else {
+                                      console.error('❌ No plan in response or fetch:', response);
+                                      Alert.alert('⚠️ Plan Generated', 'A new plan was created. Please close and reopen to see it.');
+                                    }
+                                  }
+                                } catch (error: any) {
+                                  console.error('❌ Regenerate date plan error:', error);
+                                  const errorMessage = error?.response?.data?.error || error?.message || 'Failed to regenerate date plan';
+                                  Alert.alert('Error', errorMessage);
+                                } finally {
+                                  setUpdating(false);
+                                }
+                              },
+                            },
+                          ]
+                        );
                       }}
                       disabled={updating}
                       style={[styles.actionButton, styles.modifyButton]}
                     >
-                      <Text style={styles.actionButtonText}>Modify</Text>
+                      <Text style={styles.actionButtonText}>
+                        {updating ? 'Generating...' : 'Regenerate'}
+                      </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={() => {
@@ -457,7 +523,7 @@ export default function DateBlueprint({ matchId, socket, currentUserId }: DateBl
                 )}
               </LinearGradient>
             </ScrollView>
-          </TouchableOpacity>
+          </View>
         </TouchableOpacity>
       </Modal>
     </View>
@@ -573,9 +639,11 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     justifyContent: 'center',
     alignItems: 'center',
+    width: '100%',
+    height: '100%',
   },
   modalContent: {
     width: '90%',
@@ -586,9 +654,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.5,
     shadowRadius: 20,
-    elevation: 20,
+    elevation: 25,
+    minHeight: 200, // Ensure minimum height so it's visible
   },
   modalCloseButton: {
     position: 'absolute',
