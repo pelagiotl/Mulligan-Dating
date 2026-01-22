@@ -85,7 +85,6 @@ async function searchVenues(
       params: {
         query,
         key: googleApiKey,
-        type: 'establishment',
       },
     });
 
