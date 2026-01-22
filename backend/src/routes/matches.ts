@@ -766,7 +766,8 @@ matchesRouter.post("/:matchId/unmatch", authenticateToken, async (req: AuthReque
 
     // Notify via Socket.io if available
     try {
-      const { io } = await import('../index.js');
+      const { getIO } = await import('../socket.js');
+      const io = getIO();
       if (io) {
         io.to(`match:${matchId}`).emit('match_unmatched', { matchId, unmatchedBy: userId });
       }
