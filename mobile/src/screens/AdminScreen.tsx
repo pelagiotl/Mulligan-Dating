@@ -171,6 +171,49 @@ export default function AdminScreen() {
     );
   };
 
+  const handleDeleteUser = async (userId: string) => {
+    const userToDelete = users.find(u => u.id === userId) || selectedUser;
+    const userName = userToDelete?.display_name || userToDelete?.email || 'this user';
+    
+    Alert.alert(
+      '⚠️ Delete User',
+      `This will permanently delete ${userName}!\n\n` +
+      `This will delete:\n` +
+      `- User account\n` +
+      `- Profile and all profile data\n` +
+      `- All matches and messages\n` +
+      `- All tokens and referrals\n` +
+      `- All blocks\n\n` +
+      `This action CANNOT be undone. Are you absolutely sure?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setActionLoading(userId);
+            try {
+              await api.delete(`/admin/users/${userId}`);
+              Alert.alert('Success', `Successfully deleted user ${userName}`);
+              await fetchStats();
+              await fetchUsers();
+              // Close modal if deleted user was selected
+              if (selectedUser?.id === userId) {
+                setShowUserModal(false);
+                setSelectedUser(null);
+              }
+            } catch (error: any) {
+              const errorMessage = error.message || 'Failed to delete user';
+              Alert.alert('Error', errorMessage);
+            } finally {
+              setActionLoading(null);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleCreateTestUsers = async () => {
     Alert.alert(
       'Create Test Users',
@@ -506,6 +549,18 @@ export default function AdminScreen() {
                 >
                   <Text style={styles.smallButtonText}>{u.is_restricted ? 'Unrestrict' : 'Restrict'}</Text>
                 </TouchableOpacity>
+                {!u.is_admin && (
+                  <TouchableOpacity
+                    style={[styles.smallButton, styles.dangerButton]}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      handleDeleteUser(u.id);
+                    }}
+                    disabled={actionLoading === u.id}
+                  >
+                    <Text style={styles.smallButtonText}>🗑️</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </TouchableOpacity>
           ))
@@ -590,6 +645,15 @@ export default function AdminScreen() {
                         {selectedUser.is_admin ? 'Remove Admin' : 'Make Admin'}
                       </Text>
                     </TouchableOpacity>
+                    {!selectedUser.is_admin && (
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.dangerButton]}
+                        onPress={() => handleDeleteUser(selectedUser.id)}
+                        disabled={actionLoading === selectedUser.id}
+                      >
+                        <Text style={styles.actionButtonText}>🗑️ Delete User</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </>
               )}
@@ -910,6 +974,9 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     backgroundColor: '#6b7280',
+  },
+  dangerButton: {
+    backgroundColor: '#ef4444',
   },
   emptyText: {
     textAlign: 'center',

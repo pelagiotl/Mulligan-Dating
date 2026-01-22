@@ -235,6 +235,47 @@ export default function Admin() {
     }
   };
 
+  const deleteUser = async (userId: string) => {
+    // Find the user to show their name/email in the confirmation
+    const userToDelete = users.find(u => u.id === userId) || selectedUser;
+    const userName = userToDelete?.display_name || userToDelete?.email || 'this user';
+    
+    // Show confirmation dialog
+    const confirmed = window.confirm(
+      `⚠️ WARNING: This will permanently delete ${userName}!\n\n` +
+      `This will delete:\n` +
+      `- User account\n` +
+      `- Profile and all profile data\n` +
+      `- All matches and messages\n` +
+      `- All tokens and referrals\n` +
+      `- All blocks\n\n` +
+      `This action CANNOT be undone. Are you absolutely sure?`
+    );
+    
+    if (!confirmed) {
+      return; // User cancelled
+    }
+    
+    setActionLoading(userId);
+    try {
+      await api.delete(`/admin/users/${userId}`);
+      setMessage({ type: 'success', text: `Successfully deleted user ${userName}` });
+      // Refresh stats and users list
+      await fetchStats();
+      await fetchUsers();
+      // Clear selected user if it was deleted
+      if (selectedUser?.id === userId) {
+        setSelectedUser(null);
+      }
+    } catch (error: any) {
+      const errorMessage = error.message || error.response?.data?.error || 'Failed to delete user';
+      setMessage({ type: 'error', text: errorMessage });
+      console.error('Delete user error:', error);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   return (
     <div className="admin-page">
       <div className="admin-header">
@@ -410,6 +451,17 @@ export default function Admin() {
                               disabled={actionLoading === user.id}
                             >
                               {Boolean(user.is_restricted) ? 'Unrestrict' : 'Restrict'}
+                            </button>
+                            <button
+                              className="btn btn-sm btn-danger"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteUser(user.id);
+                              }}
+                              disabled={actionLoading === user.id || Boolean(user.is_admin)}
+                              title={Boolean(user.is_admin) ? 'Cannot delete admin users' : 'Delete user'}
+                            >
+                              🗑️ Delete
                             </button>
                           </div>
                         </td>
@@ -588,6 +640,15 @@ export default function Admin() {
                       disabled={actionLoading === selectedUser.id}
                     >
                       Remove Admin
+                    </button>
+                  )}
+                  {!selectedUser.is_admin && (
+                    <button
+                      className="btn btn-danger"
+                      onClick={() => deleteUser(selectedUser.id)}
+                      disabled={actionLoading === selectedUser.id}
+                    >
+                      🗑️ Delete User
                     </button>
                   )}
                 </div>

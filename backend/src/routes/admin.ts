@@ -779,3 +779,108 @@ adminRouter.delete('/delete-test-users', authenticateToken, requireAdmin, async 
     res.status(500).json({ error: 'Failed to delete test users', details: error.message });
   }
 });
+
+// Helper function to delete a single user and all associated data
+async function deleteUserData(userId: string): Promise<void> {
+  // Delete in order to respect foreign key constraints
+  // 1. Delete messages
+  await (db.prepare('DELETE FROM messages WHERE sender_id = ?').run([userId]) as Promise<any>);
+  
+  // 2. Delete match-related data
+  // Get all matches involving this user
+  const matches = await (db.prepare(`
+    SELECT id FROM matches 
+    WHERE user1_id = ? OR user2_id = ?
+  `).all([userId, userId]) as Promise<Array<{ id: string }>>);
+  
+  // Delete messages for these matches
+  for (const match of matches) {
+    await (db.prepare('DELETE FROM messages WHERE match_id = ?').run([match.id]) as Promise<any>);
+  }
+  
+  // Delete matches
+  await (db.prepare('DELETE FROM matches WHERE user1_id = ? OR user2_id = ?').run([userId, userId]) as Promise<any>);
+  
+  // 3. Delete blocks
+  await (db.prepare('DELETE FROM blocks WHERE blocker_id = ? OR blocked_id = ?').run([userId, userId]) as Promise<any>);
+  
+  // 4. Delete tokens
+  await (db.prepare('DELETE FROM mulligan_tokens WHERE user_id = ?').run([userId]) as Promise<any>);
+  
+  // 5. Delete referrals
+  await (db.prepare('DELETE FROM referrals WHERE referrer_id = ? OR referred_id = ?').run([userId, userId]) as Promise<any>);
+  
+  // 6. Get profile ID for cascading deletes
+  const profile = await (db.prepare('SELECT id FROM profiles WHERE user_id = ?').get([userId]) as Promise<{ id: string } | undefined>);
+  
+  if (profile) {
+    const profileId = profile.id;
+    
+    // Delete interests
+    await (db.prepare('DELETE FROM interests WHERE profile_id = ?').run([profileId]) as Promise<any>);
+    
+    // Delete partner qualities
+    await (db.prepare('DELETE FROM partner_qualities WHERE profile_id = ?').run([profileId]) as Promise<any>);
+    
+    // Delete dealbreakers
+    await (db.prepare('DELETE FROM dealbreakers WHERE profile_id = ?').run([profileId]) as Promise<any>);
+    
+    // Delete lifestyle
+    await (db.prepare('DELETE FROM lifestyle WHERE profile_id = ?').run([profileId]) as Promise<any>);
+    
+    // Delete preferences
+    await (db.prepare('DELETE FROM preferences WHERE profile_id = ?').run([profileId]) as Promise<any>);
+    
+    // Delete photos
+    await (db.prepare('DELETE FROM photos WHERE profile_id = ?').run([profileId]) as Promise<any>);
+    
+    // Delete profile
+    await (db.prepare('DELETE FROM profiles WHERE id = ?').run([profileId]) as Promise<any>);
+  }
+  
+  // 7. Delete user
+  await (db.prepare('DELETE FROM users WHERE id = ?').run([userId]) as Promise<any>);
+}
+
+// Delete a single user
+adminRouter.delete('/users/:userId', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { userId } = req.params;
+    
+    // Prevent deleting admin users
+    const userStmt = db.prepare('SELECT id, email, phone_number, is_admin FROM users WHERE id = ?');
+    const user = await (userStmt.get([userId]) as Promise<{
+      id: string;
+      email: string | null;
+      phone_number: string | null;
+      is_admin: number;
+    } | undefined>);
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    if (user.is_admin === 1) {
+      return res.status(400).json({ error: 'Cannot delete admin users' });
+    }
+    
+    // Get user display name for logging
+    const profileStmt = db.prepare('SELECT display_name FROM profiles WHERE user_id = ?');
+    const profile = await (profileStmt.get([userId]) as Promise<{ display_name: string } | undefined>);
+    const userName = profile?.display_name || user.email || user.phone_number || userId;
+    
+    console.log(`🗑️  Deleting user: ${userName} (${userId})`);
+    
+    await deleteUserData(userId);
+    
+    console.log(`  ✅ Deleted user: ${userName}`);
+    
+    res.json({
+      message: `Successfully deleted user ${userName}`,
+      deletedUserId: userId
+    });
+  } catch (error: any) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({ error: 'Failed to delete user', details: error.message });
+  }
+});
