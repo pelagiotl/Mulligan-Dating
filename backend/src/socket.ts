@@ -187,6 +187,34 @@ export function initializeSocket(server: HTTPServer) {
       // Emit to all users in the match room (including sender)
       io.to(`match:${matchId}`).emit('new_message', message);
 
+      // Send push notification to the other user (if they're not in the app)
+      try {
+        const { sendPushNotification } = await import('./services/pushNotifications.js');
+        
+        // Get the other user's push token
+        const otherUserPushTokenResult = db
+          .prepare("SELECT push_token FROM users WHERE id = ?")
+          .get(otherUserId) as { push_token: string | null } | undefined;
+        
+        if (otherUserPushTokenResult?.push_token) {
+          await sendPushNotification(
+            otherUserPushTokenResult.push_token,
+            profile.display_name,
+            content.trim().length > 50 ? content.trim().substring(0, 50) + '...' : content.trim(),
+            {
+              type: 'new_message',
+              matchId,
+              senderId: userId,
+              senderName: profile.display_name,
+            }
+          );
+          console.log(`✅ Sent push notification for new message to ${otherUserId}`);
+        }
+      } catch (pushError) {
+        // Push notifications are optional, don't fail message sending if push fails
+        console.warn('⚠️  Failed to send push notification for message (non-critical):', pushError);
+      }
+
       // Don't mark messages as read here - they should only be marked as read
       // when the recipient actually views them (via mark_read event)
 
