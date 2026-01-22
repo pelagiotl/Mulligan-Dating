@@ -1,6 +1,9 @@
 import { db } from '../database.js';
 import { v4 as uuidv4 } from 'uuid';
 
+// Check if we're using PostgreSQL
+const usePostgres = !!process.env.DATABASE_URL;
+
 export interface CompatibilityScore {
   score: number; // 0-100
   responseTimeAvg: number; // in minutes
@@ -160,17 +163,24 @@ export async function saveCompatibilityScore(
     ? await existingResult
     : existingResult) as { id: string } | undefined;
 
+  // Use CAST for PostgreSQL, direct value for SQLite
+  const scoreValue = usePostgres ? scoreData.score : scoreData.score;
+  
   if (existing) {
     // Update existing score
-    await (db
-      .prepare(
-        `UPDATE compatibility_scores 
-         SET score = ?, response_time_avg = ?, message_length_avg = ?, 
+    const updateSql = usePostgres
+      ? `UPDATE compatibility_scores 
+         SET score = CAST(? AS DECIMAL(5,2)), response_time_avg = ?, message_length_avg = ?, 
              engagement_level = ?, last_calculated_at = CURRENT_TIMESTAMP
          WHERE match_id = ?`
-      )
+      : `UPDATE compatibility_scores 
+         SET score = ?, response_time_avg = ?, message_length_avg = ?, 
+             engagement_level = ?, last_calculated_at = CURRENT_TIMESTAMP
+         WHERE match_id = ?`;
+    await (db
+      .prepare(updateSql)
       .run([
-        scoreData.score,
+        scoreValue,
         scoreData.responseTimeAvg,
         scoreData.messageLengthAvg,
         scoreData.engagementLevel,
@@ -178,19 +188,23 @@ export async function saveCompatibilityScore(
       ]) as Promise<any>);
   } else {
     // Insert new score
-    await (db
-      .prepare(
-        `INSERT INTO compatibility_scores 
+    const insertSql = usePostgres
+      ? `INSERT INTO compatibility_scores 
          (id, match_id, user1_id, user2_id, score, response_time_avg, 
           message_length_avg, engagement_level, last_calculated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`
-      )
+         VALUES (?, ?, ?, ?, CAST(? AS DECIMAL(5,2)), ?, ?, ?, CURRENT_TIMESTAMP)`
+      : `INSERT INTO compatibility_scores 
+         (id, match_id, user1_id, user2_id, score, response_time_avg, 
+          message_length_avg, engagement_level, last_calculated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`;
+    await (db
+      .prepare(insertSql)
       .run([
         scoreId,
         matchId,
         user1Id,
         user2Id,
-        scoreData.score,
+        scoreValue,
         scoreData.responseTimeAvg,
         scoreData.messageLengthAvg,
         scoreData.engagementLevel,
@@ -199,11 +213,13 @@ export async function saveCompatibilityScore(
 
   // Save to history
   const historyId = uuidv4();
+  const historySql = usePostgres
+    ? `INSERT INTO compatibility_score_history (id, match_id, score, recorded_at)
+       VALUES (?, ?, CAST(? AS DECIMAL(5,2)), CURRENT_TIMESTAMP)`
+    : `INSERT INTO compatibility_score_history (id, match_id, score, recorded_at)
+       VALUES (?, ?, ?, CURRENT_TIMESTAMP)`;
   await (db
-    .prepare(
-      `INSERT INTO compatibility_score_history (id, match_id, score, recorded_at)
-       VALUES (?, ?, ?, CURRENT_TIMESTAMP)`
-    )
+    .prepare(historySql)
     .run([historyId, matchId, scoreData.score]) as Promise<any>);
 }
 

@@ -650,6 +650,86 @@ export async function initDatabase() {
 
   // Indexes for new tables
   await execSQL(`CREATE INDEX IF NOT EXISTS idx_compatibility_scores_match_id ON compatibility_scores(match_id)`);
+
+  // Fix compatibility_scores.score column type if it's INTEGER (migration for existing tables)
+  if (usePostgres && pgPool) {
+    try {
+      // Check if table exists and get column type
+      const tableResult = await pgPool.query(`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = 'compatibility_scores'
+        )
+      `);
+      
+      if (tableResult.rows[0]?.exists) {
+        // Check current column type
+        const colResult = await pgPool.query(`
+          SELECT data_type 
+          FROM information_schema.columns 
+          WHERE table_name = 'compatibility_scores' 
+          AND column_name = 'score'
+        `);
+        
+        const dataType = colResult.rows[0]?.data_type;
+        if (dataType === 'integer' || dataType === 'int4') {
+          // Column is INTEGER, need to convert it
+          console.log('🔄 Converting compatibility_scores.score from INTEGER to DECIMAL(5,2)...');
+          await pgPool.query(`
+            ALTER TABLE compatibility_scores 
+            ALTER COLUMN score TYPE DECIMAL(5,2) 
+            USING score::DECIMAL(5,2)
+          `);
+          console.log('✅ Updated compatibility_scores.score column type to DECIMAL(5,2)');
+        } else if (dataType === 'numeric' || dataType?.includes('decimal')) {
+          console.log('ℹ️ compatibility_scores.score column is already DECIMAL');
+        }
+      }
+    } catch (err: any) {
+      // Table might not exist yet, or column might not exist - that's okay
+      if (!err?.message?.includes('does not exist') && !err?.message?.includes('column')) {
+        console.warn('⚠️ Could not check/alter compatibility_scores.score column:', err?.message || err);
+      }
+    }
+    
+    // Also fix compatibility_score_history.score column
+    try {
+      const tableResult = await pgPool.query(`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = 'compatibility_score_history'
+        )
+      `);
+      
+      if (tableResult.rows[0]?.exists) {
+        const colResult = await pgPool.query(`
+          SELECT data_type 
+          FROM information_schema.columns 
+          WHERE table_name = 'compatibility_score_history' 
+          AND column_name = 'score'
+        `);
+        
+        const dataType = colResult.rows[0]?.data_type;
+        if (dataType === 'integer' || dataType === 'int4') {
+          console.log('🔄 Converting compatibility_score_history.score from INTEGER to DECIMAL(5,2)...');
+          await pgPool.query(`
+            ALTER TABLE compatibility_score_history 
+            ALTER COLUMN score TYPE DECIMAL(5,2) 
+            USING score::DECIMAL(5,2)
+          `);
+          console.log('✅ Updated compatibility_score_history.score column type to DECIMAL(5,2)');
+        } else if (dataType === 'numeric' || dataType?.includes('decimal')) {
+          console.log('ℹ️ compatibility_score_history.score column is already DECIMAL');
+        }
+      }
+    } catch (err: any) {
+      if (!err?.message?.includes('does not exist') && !err?.message?.includes('column')) {
+        console.warn('⚠️ Could not check/alter compatibility_score_history.score column:', err?.message || err);
+      }
+    }
+  }
   await execSQL(`CREATE INDEX IF NOT EXISTS idx_compatibility_score_history_match_id ON compatibility_score_history(match_id)`);
   await execSQL(`CREATE INDEX IF NOT EXISTS idx_conversation_resets_match_id ON conversation_resets(match_id)`);
   await execSQL(`CREATE INDEX IF NOT EXISTS idx_date_plans_match_id ON date_plans(match_id)`);
