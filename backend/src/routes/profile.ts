@@ -41,7 +41,7 @@ const profileSchema = z.object({
 
 const preferencesSchema = z.object({
   minAge: z.number().min(18).max(120).optional(),
-  maxAge: z.union([z.number().min(18).max(50), z.null()]).optional(), // Max age can be null (no limit) or a number
+  maxAge: z.union([z.number().min(18).max(120), z.null()]).optional(), // Max age can be null (no limit) or a number up to 120
   preferredGenders: z.union([z.array(z.string()), z.null()]).optional(),
   maxDistance: z.number().min(1).max(10000).optional(),
   relationshipType: z.union([z.string(), z.null()]).optional(),

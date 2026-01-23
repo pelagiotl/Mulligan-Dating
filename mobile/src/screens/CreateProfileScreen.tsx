@@ -28,6 +28,7 @@ import { Picker } from '@react-native-picker/picker';
 import { useNavigation } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import { api } from '../utils/api';
+import ProfileCompleteCelebration from '../components/ProfileCompleteCelebration';
 import { useAuth } from '../context/AuthContext';
 
 const GENDER_OPTIONS = ['Man', 'Woman', 'Non-binary', 'Other', 'Prefer not to say'];
@@ -39,7 +40,41 @@ const INTEREST_OPTIONS = [
   'Fashion', 'Animals', 'Volunteering', 'Coffee', 'Nightlife', 'Comedy',
   'Beach', 'Camping', 'Board Games', 'Tattoos', 'Meditation', 'History', 'Science',
   'Business', 'Education'
-];
+]
+
+// Emoji mapping for interests and qualities
+const INTEREST_EMOJIS: { [key: string]: string } = {
+  'Travel': '✈️',
+  'Music': '🎵',
+  'Sports': '⚽',
+  'Cooking': '👨‍🍳',
+  'Reading': '📚',
+  'Movies': '🎬',
+  'Fitness': '💪',
+  'Art': '🎨',
+  'Photography': '📸',
+  'Dancing': '💃',
+  'Gaming': '🎮',
+  'Hiking': '🥾',
+  'Yoga': '🧘',
+  'Writing': '✍️',
+  'Technology': '💻',
+  'Fashion': '👗',
+  'Animals': '🐾',
+  'Volunteering': '🤝',
+  'Coffee': '☕',
+  'Nightlife': '🌃',
+  'Comedy': '😂',
+  'Beach': '🏖️',
+  'Camping': '⛺',
+  'Board Games': '🎲',
+  'Tattoos': '🖋️',
+  'Meditation': '🧘‍♀️',
+  'History': '📜',
+  'Science': '🔬',
+  'Business': '💼',
+  'Education': '🎓',
+};
 
 const DEALBREAKER_OPTIONS = [
   'Smokes cigarettes', 'Marijuana', 'Frequent drinking', 'Drug use',
@@ -53,10 +88,10 @@ export default function CreateProfileScreen() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showCelebration, setShowCelebration] = useState(false);
   const [step1CardIndex, setStep1CardIndex] = useState(0); // Track which card is shown in step 1
   const step1FlatListRef = useRef<FlatList>(null);
-  const [step5CardIndex, setStep5CardIndex] = useState(0); // Track which card is shown in step 5
-  const step5FlatListRef = useRef<FlatList>(null);
+  const step5ScrollViewRef = useRef<ScrollView>(null);
   const displayNameInputRef = useRef<TextInput>(null);
   const ageInputRef = useRef<TextInput>(null);
   const locationInputRef = useRef<TextInput>(null);
@@ -66,6 +101,8 @@ export default function CreateProfileScreen() {
   const displayNameTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const minAgeInputRef = useRef<TextInput>(null);
+  const maxAgeInputRef = useRef<TextInput>(null);
+  const maxAgeCardRef = useRef<View>(null);
   const preferredGendersRef = useRef<View>(null);
   const maxDistanceInputRef = useRef<TextInput>(null);
   
@@ -84,14 +121,6 @@ export default function CreateProfileScreen() {
   }, []);
   
   // Separate viewability handler for step 5
-  const onViewableItemsChangedStep5 = useCallback(({ viewableItems }: any) => {
-    if (viewableItems.length > 0) {
-      const visibleIndex = viewableItems[0].index;
-      if (visibleIndex !== null && visibleIndex !== undefined) {
-        setStep5CardIndex(visibleIndex);
-      }
-    }
-  }, []);
   
   // Refs for lifestyle cards (for scrolling)
   const smokingCardRef = useRef<View>(null);
@@ -106,6 +135,9 @@ export default function CreateProfileScreen() {
   const minAgeScale = useRef(new Animated.Value(0.95)).current;
   const minAgeOpacity = useRef(new Animated.Value(0)).current;
   const minAgeGlow = useRef(new Animated.Value(0)).current;
+  const maxAgeScale = useRef(new Animated.Value(0.95)).current;
+  const maxAgeOpacity = useRef(new Animated.Value(0)).current;
+  const maxAgeGlow = useRef(new Animated.Value(0)).current;
   const preferredGendersScale = useRef(new Animated.Value(0.95)).current;
   const preferredGendersOpacity = useRef(new Animated.Value(0)).current;
   const preferredGendersGlow = useRef(new Animated.Value(0)).current;
@@ -172,8 +204,10 @@ export default function CreateProfileScreen() {
 
   // Step 4: Dating Preferences
   const [minAge, setMinAge] = useState(18);
+  const [maxAge, setMaxAge] = useState(100);
   const [preferredGenders, setPreferredGenders] = useState<string[]>([]);
   const [maxDistance, setMaxDistance] = useState(50);
+  const [maxAgeCardY, setMaxAgeCardY] = useState<number | null>(null);
 
   // Step 5: Lifestyle
   const [smoking, setSmoking] = useState('');
@@ -457,78 +491,62 @@ export default function CreateProfileScreen() {
     }
   }, [lookingFor, displayName, age, gender, location, step]);
 
-  // Step 5 (dating preferences) - Progressive disclosure with auto-focus
+  // Step 5 (dating preferences) - Progressive disclosure with vertical scrolling (like lifestyle)
   useEffect(() => {
     if (step === 5) {
-      // Reset to first card when entering step 5
-      setStep5CardIndex(0);
-      // Animate minimum age card on mount and auto-focus - slower transition
+      // Animate first card (minimum age) on mount
       animateField(minAgeScale, minAgeOpacity, minAgeGlow);
       setTimeout(() => {
-        // Scroll to first card
-        step5FlatListRef.current?.scrollToIndex({ 
-          index: 0, 
-          animated: false 
-        });
-        setTimeout(() => {
-          minAgeInputRef.current?.focus();
-        }, 500); // Increased from 300ms to 500ms
-      }, 500); // Increased from 300ms to 500ms for slower initial transition
+        minAgeInputRef.current?.focus();
+      }, 300);
     }
   }, [step]);
 
-  // Animate preferred genders card when age is set and navigate to gender card
+  // Animate max age card when min age is valid
   useEffect(() => {
     if (step === 5 && minAge >= 18 && minAge <= 120) {
+      setTimeout(() => {
+        animateField(maxAgeScale, maxAgeOpacity, maxAgeGlow);
+        // Auto-scroll to show next card
         setTimeout(() => {
-          animateField(preferredGendersScale, preferredGendersOpacity, preferredGendersGlow);
-          // Navigate to preferred genders card (index 1) - slower transition
-          setTimeout(() => {
-            step5FlatListRef.current?.scrollToIndex({ 
-              index: 1, 
-              animated: true 
-            });
-            setStep5CardIndex(1);
-          }, 800); // Increased from 300ms to 800ms for slower transition
-        }, 600); // Increased from 300ms to 600ms
+          step5ScrollViewRef.current?.scrollToEnd({ animated: true });
+        }, 300);
+      }, 300);
     } else if (step === 5 && (minAge < 18 || minAge > 120)) {
-      // Reset if age becomes invalid
+      // Reset if min age becomes invalid
+      maxAgeScale.setValue(0.95);
+      maxAgeOpacity.setValue(0);
+      maxAgeGlow.setValue(0);
+    }
+  }, [minAge, step]);
+
+  // Animate preferred genders card when max age is valid
+  useEffect(() => {
+    if (step === 5 && minAge >= 18 && minAge <= 120 && maxAge >= minAge && maxAge <= 120) {
+      setTimeout(() => {
+        animateField(preferredGendersScale, preferredGendersOpacity, preferredGendersGlow);
+        // Auto-scroll to show next card
+        setTimeout(() => {
+          step5ScrollViewRef.current?.scrollToEnd({ animated: true });
+        }, 300);
+      }, 300);
+    } else if (step === 5 && (maxAge < minAge || maxAge > 120)) {
+      // Reset if max age becomes invalid
       preferredGendersScale.setValue(0.95);
       preferredGendersOpacity.setValue(0);
       preferredGendersGlow.setValue(0);
     }
-  }, [minAge, step]);
+  }, [minAge, maxAge, step]);
 
-  // Auto-advance to max distance card when preferred genders are selected
-  useEffect(() => {
-    if (step === 5 && preferredGenders.length > 0 && step5CardIndex === 1) {
-      // User has selected at least one gender on the gender card, auto-advance
-      setTimeout(() => {
-        step5FlatListRef.current?.scrollToIndex({ 
-          index: 2, 
-          animated: true 
-        });
-        setStep5CardIndex(2);
-      }, 1500); // Increased from 800ms to 1500ms - give user more time to see their selection
-    }
-  }, [preferredGenders.length, step, step5CardIndex]);
-
-  // Animate max distance card when gender is selected and navigate to distance card
+  // Animate max distance card when gender is selected
   useEffect(() => {
     if (step === 5 && preferredGenders.length > 0) {
       setTimeout(() => {
         animateField(maxDistanceScale, maxDistanceOpacity, maxDistanceGlow);
-        // Navigate to max distance card (index 2) and auto-focus - slower transition
+        // Auto-scroll to show next card
         setTimeout(() => {
-          step5FlatListRef.current?.scrollToIndex({ 
-            index: 2, 
-            animated: true 
-          });
-          setStep5CardIndex(2);
-          setTimeout(() => {
-            maxDistanceInputRef.current?.focus();
-          }, 500); // Increased from 300ms to 500ms
-        }, 800); // Increased from 300ms to 800ms for slower transition
+          step5ScrollViewRef.current?.scrollToEnd({ animated: true });
+        }, 300);
       }, 300);
     } else if (step === 5 && preferredGenders.length === 0) {
       // Reset if no genders selected
@@ -625,6 +643,7 @@ export default function CreateProfileScreen() {
           }
           if (data.preferences) {
             setMinAge(data.preferences.min_age);
+            setMaxAge((data.preferences as any).max_age || 100);
             setMaxDistance(data.preferences.max_distance);
             if (data.preferences.preferred_genders) {
               try {
@@ -958,9 +977,9 @@ export default function CreateProfileScreen() {
     
     // Haptic feedback - vibrate when validation passes
     if (Platform.OS === 'ios') {
-      Vibration.vibrate(10); // Short vibration for iOS
+      Vibration.vibrate(50); // Increased from 10ms to 50ms for better feel on iOS
     } else {
-      Vibration.vibrate(50); // Slightly longer for Android
+      Vibration.vibrate(50); // Same for Android
     }
     
     setError('');
@@ -993,9 +1012,9 @@ export default function CreateProfileScreen() {
     
     // Haptic feedback - vibrate when validation passes
     if (Platform.OS === 'ios') {
-      Vibration.vibrate(10); // Short vibration for iOS
+      Vibration.vibrate(50); // Increased from 10ms to 50ms for better feel on iOS
     } else {
-      Vibration.vibrate(50); // Slightly longer for Android
+      Vibration.vibrate(50); // Same for Android
     }
 
     try {
@@ -1033,7 +1052,7 @@ export default function CreateProfileScreen() {
       // Save preferences
       await api.put('/profile/preferences', {
         minAge,
-        maxAge: null,
+        maxAge: maxAge >= minAge && maxAge <= 120 ? maxAge : null,
         preferredGenders: preferredGenders.length > 0 ? preferredGenders : null,
         maxDistance,
         relationshipType: lookingFor || null
@@ -1051,10 +1070,9 @@ export default function CreateProfileScreen() {
       });
 
       await refreshProfile();
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'MainTabs' as never }],
-      });
+      
+      // Show celebration before navigating
+      setShowCelebration(true);
     } catch (err: any) {
       setError(err?.message || 'Failed to create profile');
     } finally {
@@ -1777,12 +1795,13 @@ export default function CreateProfileScreen() {
         <View style={styles.modernCheckboxGridCondensed}>
           {INTEREST_OPTIONS.map((interest, index) => {
             const isSelected = interests.includes(interest);
+            const emoji = INTEREST_EMOJIS[interest] || '✨';
             return (
               <TouchableOpacity
                 key={interest}
                 style={styles.modernInterestCardCondensed}
                 onPress={() => toggleInterest(interest)}
-                activeOpacity={0.7}
+                activeOpacity={0.8}
               >
                 {isSelected ? (
                   <LinearGradient
@@ -1791,6 +1810,7 @@ export default function CreateProfileScreen() {
                     end={{ x: 1, y: 1 }}
                     style={styles.modernInterestCardGradientCondensed}
                   >
+                    <Text style={styles.modernInterestEmojiCondensed}>{emoji}</Text>
                     <Text 
                       style={styles.modernInterestTextSelectedCondensed}
                       numberOfLines={2}
@@ -1806,6 +1826,7 @@ export default function CreateProfileScreen() {
                   </LinearGradient>
                 ) : (
                   <View style={styles.modernInterestCardUnselectedCondensed}>
+                    <Text style={styles.modernInterestEmojiUnselectedCondensed}>{emoji}</Text>
                     <Text 
                       style={styles.modernInterestTextCondensed}
                       numberOfLines={2}
@@ -1860,16 +1881,34 @@ export default function CreateProfileScreen() {
         </View>
       </LinearGradient>
 
-      <View style={styles.dealbreakersScrollContent}>
+      <ScrollView 
+        style={styles.stepContent}
+        contentContainerStyle={styles.dealbreakersScrollContent}
+        showsVerticalScrollIndicator={true}
+        scrollIndicatorInsets={{ right: 1 }}
+      >
         <View style={styles.dealbreakersGrid}>
           {DEALBREAKER_OPTIONS.map((dealbreaker, index) => {
             const isSelected = dealbreakers.includes(dealbreaker);
+            // Emoji mapping for dealbreakers
+            const dealbreakerEmojis: { [key: string]: string } = {
+              'Smokes cigarettes': '🚭',
+              'Marijuana': '🌿',
+              'Frequent drinking': '🍺',
+              'Drug use': '💊',
+              'Doesn\'t want children': '👶',
+              'Wants children': '👨‍👩‍👧',
+              'Poor communication': '💬',
+              'No ambition': '📈',
+              'Doesn\'t like pets': '🐕',
+            };
+            const emoji = dealbreakerEmojis[dealbreaker] || '⚠️';
             return (
               <TouchableOpacity
                 key={dealbreaker}
                 style={styles.dealbreakerCard}
                 onPress={() => toggleDealbreaker(dealbreaker)}
-                activeOpacity={0.7}
+                activeOpacity={0.8}
               >
                 {isSelected ? (
                   <LinearGradient
@@ -1878,6 +1917,7 @@ export default function CreateProfileScreen() {
                     end={{ x: 1, y: 1 }}
                     style={styles.dealbreakerCardGradient}
                   >
+                    <Text style={styles.dealbreakerEmoji}>{emoji}</Text>
                     <Text 
                       style={styles.dealbreakerTextSelected}
                       numberOfLines={2}
@@ -1893,6 +1933,7 @@ export default function CreateProfileScreen() {
                   </LinearGradient>
                 ) : (
                   <View style={styles.dealbreakerCardUnselected}>
+                    <Text style={styles.dealbreakerEmojiUnselected}>{emoji}</Text>
                     <Text 
                       style={styles.dealbreakerText}
                       numberOfLines={2}
@@ -1906,7 +1947,7 @@ export default function CreateProfileScreen() {
             );
           })}
         </View>
-      </View>
+      </ScrollView>
     </View>
   );
 
@@ -1945,12 +1986,13 @@ export default function CreateProfileScreen() {
         <View style={styles.modernCheckboxGridCondensed}>
           {INTEREST_OPTIONS.map((interest, index) => {
             const isSelected = qualities.includes(interest);
+            const emoji = INTEREST_EMOJIS[interest] || '✨';
             return (
               <TouchableOpacity
                 key={interest}
                 style={styles.modernInterestCardCondensed}
                 onPress={() => toggleQuality(interest)}
-                activeOpacity={0.7}
+                activeOpacity={0.8}
               >
                 {isSelected ? (
                   <LinearGradient
@@ -1959,6 +2001,7 @@ export default function CreateProfileScreen() {
                     end={{ x: 1, y: 1 }}
                     style={styles.modernInterestCardGradientCondensed}
                   >
+                    <Text style={styles.modernInterestEmojiCondensed}>{emoji}</Text>
                     <Text 
                       style={styles.modernInterestTextSelectedCondensed}
                       numberOfLines={2}
@@ -1974,6 +2017,7 @@ export default function CreateProfileScreen() {
                   </LinearGradient>
                 ) : (
                   <View style={styles.modernInterestCardUnselectedCondensed}>
+                    <Text style={styles.modernInterestEmojiUnselectedCondensed}>{emoji}</Text>
                     <Text 
                       style={styles.modernInterestTextCondensed}
                       numberOfLines={2}
@@ -2008,351 +2052,322 @@ export default function CreateProfileScreen() {
   );
 
   const renderStep5 = () => {
-    // Define the 3 cards for step 5
-    const step5Cards = [
-      {
-        id: 'minAge',
-        type: 'minAge',
+    // Define the 4 preference cards (similar to lifestyle cards structure)
+    const preferenceFields = [
+      { 
+        key: 'minAge', 
+        label: 'Minimum Age', 
+        emoji: '🎂', 
+        subtitle: 'Must be 18 or older',
+        value: minAge >= 18 && minAge <= 120 ? minAge : null,
+        scale: minAgeScale, 
+        opacity: minAgeOpacity, 
+        glow: minAgeGlow, 
+        ref: minAgeInputRef,
+        gradient: ['#667eea', '#764ba2', '#f093fb'],
         enabled: true, // Always enabled (first card)
       },
-      {
-        id: 'preferredGenders',
-        type: 'preferredGenders',
+      { 
+        key: 'maxAge', 
+        label: 'Maximum Age', 
+        emoji: '🎂', 
+        subtitle: `Must be ${minAge} or older`,
+        value: maxAge >= minAge && maxAge <= 120 ? maxAge : null,
+        scale: maxAgeScale, 
+        opacity: maxAgeOpacity, 
+        glow: maxAgeGlow, 
+        ref: maxAgeInputRef,
+        gradient: ['#f5576c', '#f093fb', '#667eea'],
         enabled: minAge >= 18 && minAge <= 120,
       },
-      {
-        id: 'maxDistance',
-        type: 'maxDistance',
-        enabled: minAge >= 18 && minAge <= 120 && preferredGenders.length > 0,
+      { 
+        key: 'preferredGenders', 
+        label: 'Preferred Genders', 
+        emoji: '⚧️', 
+        subtitle: 'Select all that apply',
+        value: preferredGenders.length > 0 ? preferredGenders : null,
+        scale: preferredGendersScale, 
+        opacity: preferredGendersOpacity, 
+        glow: preferredGendersGlow, 
+        ref: preferredGendersRef,
+        gradient: ['#4facfe', '#00f2fe', '#667eea'],
+        enabled: minAge >= 18 && minAge <= 120 && maxAge >= minAge && maxAge <= 120,
+      },
+      { 
+        key: 'maxDistance', 
+        label: 'Maximum Distance', 
+        emoji: '📍', 
+        subtitle: 'How far to search for matches',
+        value: maxDistance > 0 ? maxDistance : null,
+        scale: maxDistanceScale, 
+        opacity: maxDistanceOpacity, 
+        glow: maxDistanceGlow, 
+        ref: maxDistanceInputRef,
+        gradient: ['#4facfe', '#00f2fe', '#667eea'],
+        enabled: minAge >= 18 && minAge <= 120 && maxAge >= minAge && maxAge <= 120 && preferredGenders.length > 0,
       },
     ];
 
-    // Render individual card
-    const renderCard = ({ item, index }: { item: typeof step5Cards[0]; index: number }) => {
-      const cardStyle = {
-        width: screenWidth,
-        height: '100%',
-      };
-
-      switch (item.type) {
-        case 'minAge':
-          return (
-            <View style={[
-              styles.focusedFieldSection, 
-              cardStyle,
-              keyboardVisible && styles.focusedSectionWithKeyboard
-            ]}>
-              <Animated.View
-                style={[
-                  {
-                    transform: [{ scale: minAgeScale }],
-                    opacity: minAgeOpacity,
-                  },
-                ]}
-              >
-                <LinearGradient
-                  colors={['#667eea', '#764ba2', '#f093fb']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={[
-                    styles.focusedFieldCard,
-                    keyboardVisible && styles.focusedCardWithKeyboard
-                  ]}
-                >
-                  <Text style={[styles.focusedEmoji, keyboardVisible && styles.focusedEmojiSmall]}>🎂</Text>
-                  <Text style={[styles.focusedTitle, keyboardVisible && styles.focusedTitleSmall]}>Minimum Age</Text>
-                  <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleSmall]}>Must be 18 or older</Text>
-                  
-                  <Animated.View
-                    style={[
-                      styles.focusedInputWrapper,
-                      {
-                        shadowOpacity: minAgeGlow.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [0.2, 0.6],
-                        }),
-                        shadowRadius: minAgeGlow.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [8, 20],
-                        }),
-                      },
-                    ]}
-                  >
-                    <View style={styles.preferenceInputContainer}>
-                      <TextInput
-                        ref={minAgeInputRef}
-                        style={styles.preferenceNumberInput}
-                        value={minAge.toString()}
-                        onChangeText={(text) => {
-                          const value = parseInt(text) || 18;
-                          const newAge = Math.max(18, Math.min(120, value));
-                          setMinAge(newAge);
-                          // Auto-advance when valid age is entered (2+ digits)
-                          if (newAge >= 18 && newAge <= 120 && text.length >= 2) {
-                            setTimeout(() => {
-                              minAgeInputRef.current?.blur();
-                              // Navigate to next card
-                              setTimeout(() => {
-                                step5FlatListRef.current?.scrollToIndex({ 
-                                  index: 1, 
-                                  animated: true 
-                                });
-                                setStep5CardIndex(1);
-                              }, 300);
-                            }, 500);
-                          }
-                        }}
-                        keyboardType="number-pad"
-                        maxLength={3}
-                        returnKeyType="done"
-                        autoFocus={index === step5CardIndex && item.enabled}
-                        onSubmitEditing={() => {
-                          minAgeInputRef.current?.blur();
-                          if (minAge >= 18 && minAge <= 120) {
-                            setTimeout(() => {
-                              step5FlatListRef.current?.scrollToIndex({ 
-                                index: 1, 
-                                animated: true 
-                              });
-                              setStep5CardIndex(1);
-                            }, 300);
-                          }
-                        }}
-                        placeholder="18"
-                        placeholderTextColor="rgba(255, 255, 255, 0.7)"
-                      />
-                      <Text style={styles.preferenceInputLabel}>years old</Text>
-                    </View>
-                  </Animated.View>
-                  
-                  {minAge >= 18 && minAge <= 120 && (
-                    <Animated.View
-                      style={[
-                        styles.successIndicator,
-                        {
-                          opacity: minAgeOpacity,
-                        },
-                      ]}
-                    >
-                      <Text style={styles.successText}>✓ Age set: {minAge}</Text>
-                    </Animated.View>
-                  )}
-                </LinearGradient>
-              </Animated.View>
-            </View>
-          );
-
-        case 'preferredGenders':
-          if (!item.enabled) return <View style={cardStyle} />;
-          return (
-            <View style={[
-              styles.focusedFieldSection, 
-              cardStyle
-            ]}>
-              <Animated.View
-                ref={preferredGendersRef}
-                style={[
-                  {
-                    transform: [{ scale: preferredGendersScale }],
-                    opacity: preferredGendersOpacity,
-                  },
-                ]}
-              >
-                <LinearGradient
-                  colors={['#f5576c', '#f093fb', '#667eea']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={[
-                    styles.focusedFieldCard,
-                    keyboardVisible && styles.focusedCardWithKeyboard
-                  ]}
-                >
-                  <Text style={[styles.focusedEmoji, keyboardVisible && styles.focusedEmojiSmall]}>⚧️</Text>
-                  <Text style={[styles.focusedTitle, keyboardVisible && styles.focusedTitleSmall]}>Preferred Genders</Text>
-                  <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleSmall]}>Select all that apply</Text>
-                  
-                  <ScrollView 
-                    style={{ maxHeight: 300, width: '100%' }}
-                    contentContainerStyle={styles.preferencesGenderGrid}
-                    showsVerticalScrollIndicator={true}
-                  >
-                    {GENDER_OPTIONS.map(gender => {
-                      const isSelected = preferredGenders.includes(gender);
-                      return (
-                        <TouchableOpacity
-                          key={gender}
-                          style={styles.preferencesGenderCard}
-                          onPress={() => {
-                            togglePreferredGender(gender);
-                          }}
-                          activeOpacity={0.7}
-                        >
-                          {isSelected ? (
-                            <LinearGradient
-                              colors={['#f5576c', '#f093fb', '#667eea']}
-                              start={{ x: 0, y: 0 }}
-                              end={{ x: 1, y: 1 }}
-                              style={styles.preferencesGenderCardSelected}
-                            >
-                              <Text style={styles.preferencesGenderTextSelected}>
-                                {gender}
-                              </Text>
-                              <View style={styles.preferencesCheckmark}>
-                                <Text style={styles.preferencesCheckmarkText}>✓</Text>
-                              </View>
-                            </LinearGradient>
-                          ) : (
-                            <View style={styles.preferencesGenderCardUnselected}>
-                              <Text style={styles.preferencesGenderText}>
-                                {gender}
-                              </Text>
-                            </View>
-                          )}
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
-                  
-                  {preferredGenders.length > 0 && (
-                    <Animated.View
-                      style={[
-                        styles.successIndicator,
-                        {
-                          opacity: preferredGendersOpacity,
-                        },
-                      ]}
-                    >
-                      <Text style={styles.successText}>✓ {preferredGenders.length} selected</Text>
-                    </Animated.View>
-                  )}
-                </LinearGradient>
-              </Animated.View>
-            </View>
-          );
-
-        case 'maxDistance':
-          if (!item.enabled) return <View style={cardStyle} />;
-          return (
-            <View style={[
-              styles.focusedFieldSection, 
-              cardStyle,
-              keyboardVisible && styles.focusedSectionWithKeyboard
-            ]}>
-              <Animated.View
-                style={[
-                  {
-                    transform: [{ scale: maxDistanceScale }],
-                    opacity: maxDistanceOpacity,
-                  },
-                ]}
-              >
-                <LinearGradient
-                  colors={['#4facfe', '#00f2fe', '#667eea']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={[
-                    styles.focusedFieldCard,
-                    keyboardVisible && styles.focusedCardWithKeyboard
-                  ]}
-                >
-                  <Text style={[styles.focusedEmoji, keyboardVisible && styles.focusedEmojiSmall]}>📍</Text>
-                  <Text style={[styles.focusedTitle, keyboardVisible && styles.focusedTitleSmall]}>Maximum Distance</Text>
-                  <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleSmall]}>How far to search for matches</Text>
-                  
-                  <Animated.View
-                    style={[
-                      styles.focusedInputWrapper,
-                      {
-                        shadowOpacity: maxDistanceGlow.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [0.2, 0.6],
-                        }),
-                        shadowRadius: maxDistanceGlow.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [8, 20],
-                        }),
-                      },
-                    ]}
-                  >
-                    <View style={styles.preferenceInputContainer}>
-                      <TextInput
-                        ref={maxDistanceInputRef}
-                        style={styles.preferenceNumberInput}
-                        value={maxDistance.toString()}
-                        onChangeText={(text) => {
-                          if (text === '' || text === '0') {
-                            setMaxDistance(1);
-                          } else {
-                            const value = parseInt(text);
-                            if (!isNaN(value) && value >= 1) {
-                              setMaxDistance(value);
-                            }
-                          }
-                        }}
-                        keyboardType="number-pad"
-                        returnKeyType="done"
-                        autoFocus={index === step5CardIndex && item.enabled}
-                        onSubmitEditing={() => {
-                          maxDistanceInputRef.current?.blur();
-                        }}
-                        placeholder="50"
-                        placeholderTextColor="rgba(255, 255, 255, 0.7)"
-                      />
-                      <Text style={styles.preferenceInputLabel}>miles</Text>
-                    </View>
-                  </Animated.View>
-                  
-                  {maxDistance > 0 && (
-                    <Animated.View
-                      style={[
-                        styles.successIndicator,
-                        {
-                          opacity: maxDistanceOpacity,
-                        },
-                      ]}
-                    >
-                      <Text style={styles.successText}>✓ Distance set: {maxDistance} miles</Text>
-                    </Animated.View>
-                  )}
-                </LinearGradient>
-              </Animated.View>
-            </View>
-          );
-
-        default:
-          return <View style={cardStyle} />;
+    // Determine which cards should be shown (progressive disclosure)
+    const shouldShowCard = (index: number) => {
+      if (index === 0) return true; // First card always visible
+      // Show next card when previous is completed
+      for (let i = 0; i < index; i++) {
+        if (!preferenceFields[i].value) return false;
       }
+      return true;
     };
 
     return (
-      <View style={styles.stepContent}>
-        <FlatList
-          ref={step5FlatListRef}
-          data={step5Cards}
-          renderItem={renderCard}
-          keyExtractor={(item) => item.id}
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          scrollEnabled={true}
-          onViewableItemsChanged={onViewableItemsChangedStep5}
-          viewabilityConfig={viewabilityConfig}
-          getItemLayout={(data, index) => ({
-            length: screenWidth,
-            offset: screenWidth * index,
-            index,
+      <View style={styles.stepContainer}>
+        {/* Modern Header */}
+        <LinearGradient
+          colors={['#667eea', '#764ba2', '#f093fb']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.modernHeaderCondensed}
+        >
+          <Text style={styles.modernHeaderEmojiCondensed}>⚙️</Text>
+          <Text style={styles.modernHeaderTitleCondensed}>Your Preferences</Text>
+          <Text style={styles.modernHeaderSubtitleCondensed}>
+            Set your matching preferences
+          </Text>
+        </LinearGradient>
+
+        <ScrollView 
+          ref={step5ScrollViewRef}
+          style={styles.stepContent}
+          contentContainerStyle={styles.lifestyleScrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {preferenceFields.map((field, index) => {
+            const isVisible = shouldShowCard(index);
+            if (!isVisible) return null;
+
+            return (
+              <Animated.View
+                key={field.key}
+                style={[
+                  styles.lifestyleCard,
+                  {
+                    transform: [{ scale: field.scale }],
+                    opacity: field.opacity,
+                  },
+                ]}
+                onLayout={(event) => {
+                  // Capture the Y position of the maxAge card for scrolling
+                  if (field.key === 'maxAge') {
+                    const { y } = event.nativeEvent.layout;
+                    setMaxAgeCardY(y);
+                  }
+                  // Auto-scroll for other cards when they have values
+                  if (index > 0 && field.value && field.key !== 'maxAge') {
+                    setTimeout(() => {
+                      step5ScrollViewRef.current?.scrollToEnd({ animated: true });
+                    }, 300);
+                  }
+                }}
+              >
+                <LinearGradient
+                  colors={field.gradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.lifestyleCardGradient}
+                >
+                  <Text style={styles.lifestyleEmoji}>{field.emoji}</Text>
+                  <Text style={styles.lifestyleTitle}>{field.label}</Text>
+                  <Text style={styles.lifestyleSubtitle}>{field.subtitle}</Text>
+                  
+                  {field.key === 'minAge' && (
+                    <View style={styles.preferenceInputWrapper}>
+                      <View style={styles.preferenceInputContainer}>
+                        <TextInput
+                          ref={minAgeInputRef}
+                          style={styles.preferenceNumberInputLarge}
+                          value={minAge.toString()}
+                          onChangeText={(text) => {
+                            const value = parseInt(text) || 18;
+                            const newAge = Math.max(18, Math.min(120, value));
+                            setMinAge(newAge);
+                            // Auto-scroll to maxAge card when valid age is entered
+                            if (newAge >= 18 && newAge <= 120 && text.length >= 2) {
+                              setTimeout(() => {
+                                minAgeInputRef.current?.blur();
+                                setTimeout(() => {
+                                  // Scroll to maxAge card position if we have it, otherwise scroll a fixed amount
+                                  if (maxAgeCardY !== null) {
+                                    step5ScrollViewRef.current?.scrollTo({ y: maxAgeCardY - 20, animated: true });
+                                  } else {
+                                    // Estimate: each card is roughly 200-250px tall, scroll to second card
+                                    step5ScrollViewRef.current?.scrollTo({ y: 250, animated: true });
+                                  }
+                                }, 300);
+                              }, 300);
+                            }
+                          }}
+                          keyboardType="number-pad"
+                          maxLength={3}
+                          returnKeyType="done"
+                          onSubmitEditing={() => {
+                            minAgeInputRef.current?.blur();
+                            if (minAge >= 18 && minAge <= 120) {
+                              setTimeout(() => {
+                                // Scroll to maxAge card position if we have it, otherwise scroll a fixed amount
+                                if (maxAgeCardY !== null) {
+                                  step5ScrollViewRef.current?.scrollTo({ y: maxAgeCardY - 20, animated: true });
+                                } else {
+                                  // Estimate: each card is roughly 200-250px tall, scroll to second card
+                                  step5ScrollViewRef.current?.scrollTo({ y: 250, animated: true });
+                                }
+                              }, 300);
+                            }
+                          }}
+                          placeholder="18"
+                          placeholderTextColor="rgba(255, 255, 255, 0.7)"
+                        />
+                        <Text style={styles.preferenceInputLabelLarge}>years old</Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {field.key === 'maxAge' && (
+                    <View style={styles.preferenceInputWrapper}>
+                      <View style={styles.preferenceInputContainer}>
+                        <TextInput
+                          ref={maxAgeInputRef}
+                          style={styles.preferenceNumberInputLarge}
+                          value={maxAge.toString()}
+                          onChangeText={(text) => {
+                            const value = parseInt(text) || minAge;
+                            const newAge = Math.max(minAge, Math.min(120, value));
+                            setMaxAge(newAge);
+                            // Auto-scroll to next card when valid age is entered
+                            if (newAge >= minAge && newAge <= 120 && text.length >= 2) {
+                              setTimeout(() => {
+                                maxAgeInputRef.current?.blur();
+                                setTimeout(() => {
+                                  step5ScrollViewRef.current?.scrollToEnd({ animated: true });
+                                }, 300);
+                              }, 300);
+                            }
+                          }}
+                          keyboardType="number-pad"
+                          maxLength={3}
+                          returnKeyType="done"
+                          onSubmitEditing={() => {
+                            maxAgeInputRef.current?.blur();
+                            if (maxAge >= minAge && maxAge <= 120) {
+                              setTimeout(() => {
+                                step5ScrollViewRef.current?.scrollToEnd({ animated: true });
+                              }, 300);
+                            }
+                          }}
+                          placeholder={minAge.toString()}
+                          placeholderTextColor="rgba(255, 255, 255, 0.7)"
+                        />
+                        <Text style={styles.preferenceInputLabelLarge}>years old</Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {field.key === 'preferredGenders' && (
+                    <ScrollView 
+                      style={{ maxHeight: 300, width: '100%' }}
+                      contentContainerStyle={styles.preferencesGenderGrid}
+                      showsVerticalScrollIndicator={true}
+                    >
+                      {GENDER_OPTIONS.map(gender => {
+                        const isSelected = preferredGenders.includes(gender);
+                        return (
+                          <TouchableOpacity
+                            key={gender}
+                            style={styles.preferencesGenderCard}
+                            onPress={() => {
+                              togglePreferredGender(gender);
+                              // Auto-scroll to next card after selection
+                              if (preferredGenders.length === 0 && !isSelected) {
+                                // First selection
+                                setTimeout(() => {
+                                  step5ScrollViewRef.current?.scrollToEnd({ animated: true });
+                                }, 300);
+                              }
+                            }}
+                            activeOpacity={0.7}
+                          >
+                            {isSelected ? (
+                              <LinearGradient
+                                colors={['#f5576c', '#f093fb', '#667eea']}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 1 }}
+                                style={styles.preferencesGenderCardSelected}
+                              >
+                                <Text style={styles.preferencesGenderTextSelected}>
+                                  {gender}
+                                </Text>
+                                <View style={styles.preferencesCheckmark}>
+                                  <Text style={styles.preferencesCheckmarkText}>✓</Text>
+                                </View>
+                              </LinearGradient>
+                            ) : (
+                              <View style={styles.preferencesGenderCardUnselected}>
+                                <Text style={styles.preferencesGenderText}>
+                                  {gender}
+                                </Text>
+                              </View>
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+                  )}
+
+                  {field.key === 'maxDistance' && (
+                    <View style={styles.preferenceInputWrapper}>
+                      <View style={styles.preferenceInputContainer}>
+                        <TextInput
+                          ref={maxDistanceInputRef}
+                          style={styles.preferenceNumberInputLarge}
+                          value={maxDistance.toString()}
+                          onChangeText={(text) => {
+                            if (text === '' || text === '0') {
+                              setMaxDistance(1);
+                            } else {
+                              const value = parseInt(text);
+                              if (!isNaN(value) && value >= 1) {
+                                setMaxDistance(value);
+                              }
+                            }
+                          }}
+                          keyboardType="number-pad"
+                          returnKeyType="done"
+                          onSubmitEditing={() => {
+                            maxDistanceInputRef.current?.blur();
+                          }}
+                          placeholder="50"
+                          placeholderTextColor="rgba(255, 255, 255, 0.7)"
+                        />
+                        <Text style={styles.preferenceInputLabelLarge}>miles</Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {field.value && (
+                    <View style={styles.lifestyleSelectedIndicator}>
+                      <Text style={styles.lifestyleSelectedText}>
+                        ✓ {
+                          field.key === 'minAge' ? `${field.value} years old` :
+                          field.key === 'maxAge' ? `${field.value} years old` :
+                          field.key === 'preferredGenders' ? `${preferredGenders.length} selected` :
+                          `${field.value} miles`
+                        }
+                      </Text>
+                    </View>
+                  )}
+                </LinearGradient>
+              </Animated.View>
+            );
           })}
-          initialScrollIndex={step5CardIndex}
-          onScrollToIndexFailed={(info) => {
-            // Wait a bit and try again if scroll fails
-            setTimeout(() => {
-              step5FlatListRef.current?.scrollToIndex({ 
-                index: info.index, 
-                animated: false 
-              });
-            }, 100);
-          }}
-        />
+        </ScrollView>
       </View>
     );
   };
@@ -2557,6 +2572,19 @@ export default function CreateProfileScreen() {
           )}
         </View>
       )}
+      
+      {/* Profile Complete Celebration */}
+      <ProfileCompleteCelebration
+        visible={showCelebration}
+        onClose={() => {
+          setShowCelebration(false);
+          // Navigate to MainTabs (Connect/Browse page)
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'MainTabs' as never }],
+          });
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -3453,65 +3481,91 @@ const styles = StyleSheet.create({
   modernCheckboxGridCondensed: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 10,
     justifyContent: 'flex-start',
     paddingBottom: 12,
   },
   modernInterestCardCondensed: {
-    borderRadius: 12,
+    borderRadius: 16,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
     width: '31%', // Fixed width for 3 columns
-    marginBottom: 4,
+    marginBottom: 10,
   },
   modernInterestCardGradientCondensed: {
-    paddingVertical: 8,
+    paddingVertical: 12,
     paddingHorizontal: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 38,
+    minHeight: 70,
     position: 'relative',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   modernInterestCardUnselectedCondensed: {
-    paddingVertical: 8,
+    paddingVertical: 12,
     paddingHorizontal: 8,
     backgroundColor: '#fff',
-    borderWidth: 2,
+    borderWidth: 2.5,
     borderColor: '#e2e8f0',
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 38,
+    minHeight: 70,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  modernInterestEmojiCondensed: {
+    fontSize: 24,
+    marginBottom: 4,
+  },
+  modernInterestEmojiUnselectedCondensed: {
+    fontSize: 22,
+    marginBottom: 4,
+    opacity: 0.7,
   },
   modernInterestTextCondensed: {
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 12,
+    fontWeight: '700',
     color: '#2d3748',
-    letterSpacing: 0.1,
+    letterSpacing: 0.2,
     textAlign: 'center',
-    lineHeight: 14,
+    lineHeight: 16,
   },
   modernInterestTextSelectedCondensed: {
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: 12,
+    fontWeight: '800',
     color: '#fff',
-    letterSpacing: 0.1,
+    letterSpacing: 0.2,
     textAlign: 'center',
-    lineHeight: 14,
+    lineHeight: 16,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   modernCheckmarkContainerCondensed: {
     position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    top: 6,
+    right: 6,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.6)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
   },
   modernCheckmarkCondensed: {
     fontSize: 12,
@@ -3537,51 +3591,65 @@ const styles = StyleSheet.create({
   },
   // Dealbreakers-specific styles
   dealbreakersScrollContent: {
-    flex: 1,
     padding: 16,
     paddingTop: 12,
-    paddingBottom: 8,
-    justifyContent: 'flex-start',
+    paddingBottom: 100, // Increased padding to ensure last item is visible
   },
   dealbreakersGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: 12,
     justifyContent: 'center',
     alignItems: 'flex-start',
   },
   dealbreakerCard: {
-    borderRadius: 14,
+    borderRadius: 18,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
+    shadowColor: '#f5576c',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
     width: '47%', // 2 columns with gap
-    marginBottom: 3,
+    marginBottom: 10,
   },
   dealbreakerCardGradient: {
-    paddingVertical: 14,
+    paddingVertical: 16,
     paddingHorizontal: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 56,
+    minHeight: 90,
     position: 'relative',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   dealbreakerCardUnselected: {
-    paddingVertical: 14,
+    paddingVertical: 16,
     paddingHorizontal: 12,
     backgroundColor: '#fff',
-    borderWidth: 2,
+    borderWidth: 2.5,
     borderColor: '#e2e8f0',
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 56,
+    minHeight: 90,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  dealbreakerEmoji: {
+    fontSize: 28,
+    marginBottom: 6,
+  },
+  dealbreakerEmojiUnselected: {
+    fontSize: 26,
+    marginBottom: 6,
+    opacity: 0.6,
   },
   dealbreakerText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#2d3748',
     letterSpacing: 0.2,
     textAlign: 'center',
@@ -3589,25 +3657,35 @@ const styles = StyleSheet.create({
   },
   dealbreakerTextSelected: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#fff',
     letterSpacing: 0.2,
     textAlign: 'center',
     lineHeight: 18,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   dealbreakerCheckmarkContainer: {
     position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    top: 8,
+    right: 8,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.6)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 4,
   },
   dealbreakerCheckmark: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#fff',
     fontWeight: 'bold',
   },
@@ -3671,6 +3749,25 @@ const styles = StyleSheet.create({
     color: '#718096',
     fontWeight: '600',
     marginLeft: 8,
+  },
+  preferenceInputWrapper: {
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  preferenceNumberInputLarge: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#667eea',
+    textAlign: 'center',
+    minWidth: 80,
+    paddingVertical: 4,
+  },
+  preferenceInputLabelLarge: {
+    fontSize: 16,
+    color: '#718096',
+    fontWeight: '600',
+    marginLeft: 10,
   },
   preferencesGenderGrid: {
     flexDirection: 'row',
@@ -3764,9 +3861,16 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '800',
     color: '#fff',
-    marginBottom: 20,
+    marginBottom: 8,
     textAlign: 'center',
     letterSpacing: 0.3,
+  },
+  lifestyleSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
+    textAlign: 'center',
+    marginBottom: 20,
+    fontWeight: '500',
   },
   lifestylePickerWrapper: {
     width: '100%',
