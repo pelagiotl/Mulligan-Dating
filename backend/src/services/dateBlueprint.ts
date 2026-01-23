@@ -514,3 +514,66 @@ export async function updateDatePlanStatus(
   return updatedPlan;
 }
 
+/**
+ * Update the suggested date and/or time for a date plan
+ */
+export async function updateDatePlanDateTime(
+  planId: string,
+  userId: string,
+  suggestedDate?: string,
+  suggestedTime?: string
+): Promise<DatePlan> {
+  // Get plan and match info to verify user is part of the match
+  const planResult = db
+    .prepare('SELECT match_id, user1_id, user2_id FROM date_plans d JOIN matches m ON d.match_id = m.id WHERE d.id = ?')
+    .get([planId]);
+  const planMatch = (planResult instanceof Promise
+    ? await planResult
+    : planResult) as {
+    match_id: string;
+    user1_id: string;
+    user2_id: string;
+  } | undefined;
+
+  if (!planMatch) {
+    throw new Error('Date plan not found');
+  }
+
+  // Verify user is part of this match
+  if (planMatch.user1_id !== userId && planMatch.user2_id !== userId) {
+    throw new Error('Unauthorized: User is not part of this match');
+  }
+
+  // Build update query dynamically based on what's provided
+  const updates: string[] = [];
+  const values: any[] = [];
+
+  if (suggestedDate !== undefined) {
+    updates.push('suggested_date = ?');
+    values.push(suggestedDate);
+  }
+
+  if (suggestedTime !== undefined) {
+    updates.push('suggested_time = ?');
+    values.push(suggestedTime);
+  }
+
+  if (updates.length === 0) {
+    throw new Error('No date or time provided to update');
+  }
+
+  updates.push('updated_at = CURRENT_TIMESTAMP');
+  values.push(planId);
+
+  await (db
+    .prepare(`UPDATE date_plans SET ${updates.join(', ')} WHERE id = ?`)
+    .run(values) as Promise<any>);
+
+  const updatedPlan = await getDatePlan(planMatch.match_id);
+  if (!updatedPlan) {
+    throw new Error('Failed to retrieve updated plan');
+  }
+
+  return updatedPlan;
+}
+

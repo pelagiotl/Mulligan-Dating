@@ -1218,6 +1218,51 @@ matchesRouter.post("/:matchId/date-plan/:planId/action", authenticateToken, rate
     const { updateDatePlanStatus } = await import('../services/dateBlueprint.js');
     const plan = await updateDatePlanStatus(planId, userId, action, modifications);
 
+    // Determine the other user (the one who should be notified)
+    const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
+
+    // Get current user's display name for the notification
+    const currentUserProfileResult = db
+      .prepare('SELECT display_name FROM profiles WHERE user_id = ?')
+      .get([userId]);
+    const currentUserProfile = (currentUserProfileResult instanceof Promise
+      ? await currentUserProfileResult
+      : currentUserProfileResult) as { display_name: string | null } | undefined;
+    const currentUserName = currentUserProfile?.display_name || 'Someone';
+
+    // Send push notification when date plan is accepted
+    if (action === 'accept') {
+      try {
+        const { sendMessagePushNotification, isPushNotificationConfigured, isExpoPushToken } = await import('../services/pushNotifications.js');
+        
+        if (isPushNotificationConfigured()) {
+          // Get the other user's push token
+          const otherUserPushTokenResult = db
+            .prepare('SELECT push_token FROM users WHERE id = ?')
+            .get([otherUserId]);
+          const otherUserPushToken = (otherUserPushTokenResult instanceof Promise
+            ? await otherUserPushTokenResult
+            : otherUserPushTokenResult) as { push_token: string | null } | undefined;
+
+          if (otherUserPushToken?.push_token && isExpoPushToken(otherUserPushToken.push_token)) {
+            await sendMessagePushNotification(
+              otherUserPushToken.push_token,
+              currentUserName,
+              `accepted your date plan: "${plan.title}"`,
+              matchId,
+              userId
+            );
+            console.log(`✅ Sent push notification for date plan acceptance to user ${otherUserId}`);
+          } else {
+            console.log(`ℹ️  No valid push token for user ${otherUserId}, skipping push notification`);
+          }
+        }
+      } catch (pushError) {
+        // Push notifications are optional, don't fail date plan action if push fails
+        console.warn('⚠️  Failed to send push notification for date plan acceptance (non-critical):', pushError);
+      }
+    }
+
     // Notify via Socket.io
     try {
       const { getIO } = await import('../socket.js');
@@ -1239,6 +1284,52 @@ matchesRouter.post("/:matchId/date-plan/:planId/action", authenticateToken, rate
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error("Date plan action error:", error);
     res.status(500).json({ error: `Failed to update date plan: ${errorMessage}` });
+  }
+});
+
+// Update date plan suggested date/time
+matchesRouter.put("/:matchId/date-plan/:planId/date-time", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { matchId, planId } = req.params;
+    const { suggestedDate, suggestedTime } = req.body;
+
+    // Verify user is part of this match
+    const matchResult = db
+      .prepare('SELECT user1_id, user2_id FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?)')
+      .get([matchId, userId, userId]);
+    const match = (matchResult instanceof Promise
+      ? await matchResult
+      : matchResult) as { user1_id: string; user2_id: string } | undefined;
+
+    if (!match) {
+      return res.status(404).json({ error: "Match not found" });
+    }
+
+    const { updateDatePlanDateTime } = await import('../services/dateBlueprint.js');
+    const plan = await updateDatePlanDateTime(planId, userId, suggestedDate, suggestedTime);
+
+    // Notify via Socket.io
+    try {
+      const { getIO } = await import('../socket.js');
+      const io = getIO();
+      if (io) {
+        io.to(`match:${matchId}`).emit('date_plan_updated', {
+          matchId,
+          planId,
+          action: 'date_updated',
+          plan,
+        });
+      }
+    } catch (socketError) {
+      console.warn('⚠️  Socket.io not available for date plan update notification');
+    }
+
+    res.json({ plan, message: 'Date plan date/time updated successfully' });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Date plan date/time update error:", error);
+    res.status(500).json({ error: `Failed to update date plan date/time: ${errorMessage}` });
   }
 });
 
