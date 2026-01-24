@@ -146,6 +146,21 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
         }
       }
 
+      // Get unread message count for this match
+      const unreadCountResult = db
+        .prepare(
+          `SELECT COUNT(*) as count 
+           FROM messages 
+           WHERE match_id = ? 
+           AND sender_id != ? 
+           AND read_at IS NULL`
+        )
+        .get([m.id, userId]);
+      const unreadCount = (unreadCountResult instanceof Promise
+        ? await unreadCountResult
+        : unreadCountResult) as { count: number } | undefined;
+      const unreadMessageCount = unreadCount?.count || 0;
+
       return {
         id: m.id,
         stage: m.stage,
@@ -157,6 +172,7 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
         isInitiator: isUser1,
         userWantsReveal: m.userWantsReveal === 1,
         otherWantsReveal: m.otherWantsReveal === 1,
+        unreadCount: unreadMessageCount,
         otherUser: {
           ...otherUser,
           profileId: otherProfileId?.id,
@@ -1124,12 +1140,55 @@ matchesRouter.post("/:matchId/generate-date-plan", authenticateToken, rateLimitA
     const { getSharedInterests } = await import('../services/mulliganMoments.js');
     const sharedInterests = await getSharedInterests(matchId, match.user1_id, match.user2_id);
 
+    // Determine the other user (the one who should be notified)
+    const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
+
+    // Get current user's display name for the notification
+    const currentUserProfileResult = db
+      .prepare('SELECT display_name FROM profiles WHERE user_id = ?')
+      .get([userId]);
+    const currentUserProfile = (currentUserProfileResult instanceof Promise
+      ? await currentUserProfileResult
+      : currentUserProfileResult) as { display_name: string | null } | undefined;
+    const currentUserName = currentUserProfile?.display_name || 'Someone';
+
     // Generate date plan
     console.log(`📅 Generating date plan for match ${matchId}, user ${userId}`);
     console.log(`📅 Shared interests:`, sharedInterests);
     const { generateDatePlan } = await import('../services/dateBlueprint.js');
     const plan = await generateDatePlan(matchId, userId, sharedInterests);
     console.log(`✅ Date plan generated:`, plan.id);
+
+    // Send push notification to the other user
+    try {
+      const { sendMessagePushNotification, isPushNotificationConfigured, isExpoPushToken } = await import('../services/pushNotifications.js');
+      
+      if (isPushNotificationConfigured()) {
+        // Get the other user's push token
+        const otherUserPushTokenResult = db
+          .prepare('SELECT push_token FROM users WHERE id = ?')
+          .get([otherUserId]);
+        const otherUserPushToken = (otherUserPushTokenResult instanceof Promise
+          ? await otherUserPushTokenResult
+          : otherUserPushTokenResult) as { push_token: string | null } | undefined;
+
+        if (otherUserPushToken?.push_token && isExpoPushToken(otherUserPushToken.push_token)) {
+          await sendMessagePushNotification(
+            otherUserPushToken.push_token,
+            currentUserName,
+            `created a date plan: "${plan.title}"`,
+            matchId,
+            userId
+          );
+          console.log(`✅ Sent push notification for date plan generation to user ${otherUserId}`);
+        } else {
+          console.log(`ℹ️  No valid push token for user ${otherUserId}, skipping push notification`);
+        }
+      }
+    } catch (pushError) {
+      // Push notifications are optional, don't fail date plan generation if push fails
+      console.warn('⚠️  Failed to send push notification for date plan generation (non-critical):', pushError);
+    }
 
     // Notify via Socket.io
     try {
@@ -1248,7 +1307,7 @@ matchesRouter.post("/:matchId/date-plan/:planId/action", authenticateToken, rate
             await sendMessagePushNotification(
               otherUserPushToken.push_token,
               currentUserName,
-              `accepted your date plan: "${plan.title}"`,
+              `wants to confirm the date plan: "${plan.title}"`,
               matchId,
               userId
             );

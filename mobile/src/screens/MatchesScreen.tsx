@@ -15,15 +15,18 @@ import {
   Dimensions,
   Modal,
   Vibration,
+  KeyboardAvoidingView,
+  Keyboard,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { io, Socket } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { getPhotoUrl } from '../utils/photoUrl';
-import { playMatchSound } from '../utils/sounds';
+import { playMatchSound, playMessageSound } from '../utils/sounds';
 import LegalFooter from '../components/LegalFooter';
 import CompatibilityPulse from '../components/CompatibilityPulse';
 import MulliganMoments from '../components/MulliganMoments';
@@ -47,6 +50,7 @@ interface Match {
   isInitiator: boolean;
   userWantsReveal?: boolean;
   otherWantsReveal?: boolean;
+  unreadCount?: number;
   otherUser: {
     userId: string;
     displayName: string;
@@ -73,6 +77,78 @@ interface Message {
   isOwn: boolean;
 }
 
+// Animated Heart Emoji Component
+function AnimatedHeartEmoji() {
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Continuous pulse animation
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.2,
+          duration: 1200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1200,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Subtle rotation animation
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(rotateAnim, {
+          toValue: 1,
+          duration: 3000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(rotateAnim, {
+          toValue: 0,
+          duration: 3000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
+
+  const rotate = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['-8deg', '8deg'],
+  });
+
+  return (
+    <Animated.View
+      style={{
+        transform: [
+          { scale: pulseAnim },
+          { rotate: rotate },
+        ],
+      }}
+    >
+      <Text style={styles.animatedHeartEmoji}>💕</Text>
+    </Animated.View>
+  );
+}
+
+// Animated Header Gradient Component
+function AnimatedHeaderGradient({ children, matchesCount }: { children: React.ReactNode; matchesCount: number }) {
+  return (
+    <LinearGradient
+      colors={['#667eea', '#764ba2', '#f093fb', '#f5576c']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.headerGradient}
+    >
+      {children}
+    </LinearGradient>
+  );
+}
+
 // Animated Match Card Component
 function MatchCardAnimated({ 
   item, 
@@ -97,6 +173,8 @@ function MatchCardAnimated({
   const scaleAnim = useRef(new Animated.Value(0.92)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const photoScaleAnim = useRef(new Animated.Value(0.95)).current;
+  const shimmerAnim = useRef(new Animated.Value(0)).current;
+  const glowAnim = useRef(new Animated.Value(0.3)).current;
   
   useEffect(() => {
     Animated.parallel([
@@ -122,6 +200,38 @@ function MatchCardAnimated({
       }),
     ]).start();
     
+    // Subtle shimmer effect
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmerAnim, {
+          toValue: 1,
+          duration: 3000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(shimmerAnim, {
+          toValue: 0,
+          duration: 3000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+    
+    // Subtle glow pulse
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(glowAnim, {
+          toValue: 0.5,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(glowAnim, {
+          toValue: 0.3,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+    
     // Pulse animation for stage2 badge
     if (item.stage === 'stage2') {
       Animated.loop(
@@ -141,6 +251,11 @@ function MatchCardAnimated({
     }
   }, []);
   
+  const shimmerTranslate = shimmerAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-100, 100],
+  });
+
   return (
     <Animated.View
       style={[
@@ -154,8 +269,22 @@ function MatchCardAnimated({
       <TouchableOpacity
         style={styles.matchCard}
         onPress={onPress}
-        activeOpacity={0.9}
+        activeOpacity={0.85}
       >
+        {/* Subtle shimmer overlay */}
+        <Animated.View
+          style={[
+            styles.shimmerOverlay,
+            {
+              opacity: shimmerAnim.interpolate({
+                inputRange: [0, 0.5, 1],
+                outputRange: [0, 0.15, 0],
+              }),
+              transform: [{ translateX: shimmerTranslate }],
+            },
+          ]}
+          pointerEvents="none"
+        />
         <View style={styles.matchCardContent}>
           <View style={styles.photoWrapper}>
             {photoUrl ? (
@@ -165,6 +294,16 @@ function MatchCardAnimated({
                   <LinearGradient
                     colors={['transparent', 'rgba(0,0,0,0.1)']}
                     style={styles.photoGradientOverlay}
+                  />
+                  {/* Subtle glow around photo */}
+                  <Animated.View
+                    style={[
+                      styles.photoGlow,
+                      {
+                        opacity: glowAnim,
+                      },
+                    ]}
+                    pointerEvents="none"
                   />
                 </View>
               </Animated.View>
@@ -178,6 +317,16 @@ function MatchCardAnimated({
                     {item.otherUser.displayName.charAt(0).toUpperCase()}
                   </Text>
                 </LinearGradient>
+                {/* Subtle glow around placeholder */}
+                <Animated.View
+                  style={[
+                    styles.photoGlow,
+                    {
+                      opacity: glowAnim,
+                    },
+                  ]}
+                  pointerEvents="none"
+                />
               </Animated.View>
             )}
             {item.stage === 'stage2' && (
@@ -190,10 +339,20 @@ function MatchCardAnimated({
                 <Text style={styles.stage2IndicatorText}>💕</Text>
               </Animated.View>
             )}
+            {/* Unread message badge */}
+            {item.unreadCount && item.unreadCount > 0 && (
+              <View style={styles.unreadBadge}>
+                <Text style={styles.unreadBadgeText}>
+                  {item.unreadCount > 99 ? '99+' : item.unreadCount}
+                </Text>
+              </View>
+            )}
           </View>
           <View style={styles.matchInfo}>
             <View style={styles.matchHeader}>
-              <Text style={styles.matchName}>{item.otherUser.displayName}</Text>
+              <Text style={[styles.matchName, item.unreadCount && item.unreadCount > 0 && styles.matchNameUnread]}>
+                {item.otherUser.displayName}
+              </Text>
               <Text style={styles.matchAge}>, {item.otherUser.age}</Text>
             </View>
             {renderMatchLocation(item.otherUser.location)}
@@ -1186,6 +1345,7 @@ export default function MatchesScreen() {
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const navigation = useNavigation();
   const route = useRoute();
+  const insets = useSafeAreaInsets();
   const [matches, setMatches] = useState<Match[]>([]);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -1198,6 +1358,7 @@ export default function MatchesScreen() {
   const selectedMatchRef = useRef<Match | null>(null);
   const textInputRef = useRef<TextInput>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   // Update current time for timer display
   // Update every second if any match is close to expiring (< 1 hour), otherwise every minute
@@ -1221,6 +1382,31 @@ export default function MatchesScreen() {
 
     return () => clearInterval(interval);
   }, [matches]);
+
+  // Handle keyboard show/hide events
+  useEffect(() => {
+    const keyboardWillShowListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardHeight(e.endCoordinates.height);
+        // Scroll to end when keyboard appears
+        setTimeout(() => {
+          messagesEndRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+      }
+    );
+    const keyboardWillHideListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardHeight(0);
+      }
+    );
+
+    return () => {
+      keyboardWillShowListener.remove();
+      keyboardWillHideListener.remove();
+    };
+  }, []);
 
   // Calculate time remaining until expiration
   const getTimeRemaining = (expiresAt: string | null): string | null => {
@@ -1314,6 +1500,25 @@ export default function MatchesScreen() {
             }
             return [...prev, { ...message, isOwn: message.senderId === user?.id }];
           });
+        } else {
+          // Message is for a different match - refresh matches list to show unread indicator
+          // Play message sound to notify user (only if message is from another user)
+          if (message.senderId !== user?.id) {
+            playMessageSound().catch(() => {
+              // Non-critical - app works without sound
+              console.log('Message sound not available');
+            });
+          }
+          console.log('💬 New message received for different match, refreshing matches list');
+          fetchMatches();
+        }
+        
+        // Play message sound if message is from another user and we're viewing this match
+        if (isForCurrentMatch && message.senderId !== user?.id) {
+          playMessageSound().catch(() => {
+            // Non-critical - app works without sound
+            console.log('Message sound not available');
+          });
         }
       });
 
@@ -1381,6 +1586,10 @@ export default function MatchesScreen() {
       socketRef.current.emit('join_match', selectedMatch.id);
       fetchMessages(selectedMatch.id);
       socketRef.current.emit('mark_read', { matchId: selectedMatch.id });
+      // Refresh matches list to update unread counts after marking as read
+      setTimeout(() => {
+        fetchMatches();
+      }, 500);
     }
 
     return () => {
@@ -1506,13 +1715,15 @@ export default function MatchesScreen() {
   const handleBack = useCallback(() => {
     console.log('🔙 handleBack called - clearing selected match');
     console.log('   Current selectedMatch:', selectedMatch?.id);
+    // Refresh matches to update unread counts after viewing messages
+    fetchMatches();
     // Clear messages first
     setMessages([]);
     // Clear selectedMatch - use direct setter instead of functional update
     console.log('   Setting selectedMatch to null...');
     setSelectedMatch(null);
     console.log('   selectedMatch state updated to null');
-  }, [selectedMatch]);
+  }, [selectedMatch, fetchMatches]);
 
   const handleSendMessage = async (messageToSend?: string) => {
     const messageContent = (messageToSend || newMessage).trim();
@@ -1523,6 +1734,14 @@ export default function MatchesScreen() {
     if (textInputRef.current) {
       textInputRef.current.setNativeProps({ text: '' });
     }
+    
+    // Dismiss keyboard after sending message and reset keyboard height
+    Keyboard.dismiss();
+    // Small delay to ensure keyboard dismisses before resetting height
+    setTimeout(() => {
+      setKeyboardHeight(0);
+    }, 100);
+    
     setSendingMessage(true);
 
     // Optimistically add message to UI immediately
@@ -1629,7 +1848,10 @@ export default function MatchesScreen() {
           style={styles.headerGradient}
         >
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>💕 Your Matches</Text>
+            <View style={styles.headerTitleContainer}>
+              <AnimatedHeartEmoji />
+              <Text style={styles.headerTitle}> Your Matches</Text>
+            </View>
           </View>
         </LinearGradient>
         <View style={styles.emptyContainer}>
@@ -1668,17 +1890,15 @@ export default function MatchesScreen() {
     console.log('📋 Rendering matches list view');
     return (
       <View style={styles.container}>
-        <LinearGradient
-          colors={['#667eea', '#764ba2', '#f093fb', '#f5576c']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.headerGradient}
-        >
+        <AnimatedHeaderGradient matchesCount={matches.length}>
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>💕 Your Matches</Text>
+            <View style={styles.headerTitleContainer}>
+              <AnimatedHeartEmoji />
+              <Text style={styles.headerTitle}> Your Matches</Text>
+            </View>
             <Text style={styles.headerSubtitle}>{matches.length} {matches.length === 1 ? 'match' : 'matches'}</Text>
           </View>
-        </LinearGradient>
+        </AnimatedHeaderGradient>
         {matches.length === 0 ? (
           <EmptyStateAnimated navigation={navigation} />
         ) : (
@@ -1701,9 +1921,9 @@ export default function MatchesScreen() {
                   onPress={() => {
                     // Haptic feedback - vibrate when user clicks a match
                     if (Platform.OS === 'ios') {
-                      Vibration.vibrate(10); // Short vibration for iOS
+                      Vibration.vibrate(50); // Increased from 10ms to 50ms for better feel on iOS
                     } else {
-                      Vibration.vibrate(50); // Slightly longer for Android
+                      Vibration.vibrate(50); // Same for Android
                     }
                     setSelectedMatch(item);
                   }} 
@@ -1822,88 +2042,128 @@ export default function MatchesScreen() {
         </ScrollView>
       )}
 
-      <FlatList
-        ref={messagesEndRef}
-        data={messages}
-        keyExtractor={(item) => item.id}
-        style={styles.messagesList}
-        contentContainerStyle={styles.messagesContent}
-        onContentSizeChange={() => {
-          messagesEndRef.current?.scrollToEnd({ animated: true });
-        }}
-        onLayout={() => {
-          messagesEndRef.current?.scrollToEnd({ animated: false });
-        }}
-        renderItem={({ item }) => (
-          item.isOwn ? (
-            <View style={styles.messageContainerOwn}>
-              <LinearGradient
-                colors={['#667eea', '#764ba2', '#f093fb']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.messageBubbleOwn}
-              >
-                <Text style={styles.messageTextOwn}>
-                  {item.content}
-                </Text>
-                <Text style={styles.messageTimeOwn}>
-                  {new Date(item.sentAt).toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </Text>
-              </LinearGradient>
-            </View>
-          ) : (
-            <View style={styles.messageContainerOther}>
-              <View style={styles.messageBubbleOther}>
-                <Text style={styles.messageTextOther}>
-                  {item.content}
-                </Text>
-                <Text style={styles.messageTimeOther}>
-                  {new Date(item.sentAt).toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </Text>
+      <View style={{ flex: 1 }}>
+        <FlatList
+          ref={messagesEndRef}
+          data={messages}
+          keyExtractor={(item) => item.id}
+          style={styles.messagesList}
+          contentContainerStyle={[
+            styles.messagesContent,
+            { 
+              paddingBottom: keyboardHeight > 0 
+                ? keyboardHeight + 100 
+                : 95 + (Platform.OS === 'ios' ? 70 : 68)
+            }
+          ]}
+          keyboardShouldPersistTaps="always"
+          keyboardDismissMode="interactive"
+          scrollEnabled={true}
+          onContentSizeChange={() => {
+            messagesEndRef.current?.scrollToEnd({ animated: true });
+          }}
+          onLayout={() => {
+            messagesEndRef.current?.scrollToEnd({ animated: false });
+          }}
+          renderItem={({ item }) => (
+            item.isOwn ? (
+              <View style={styles.messageContainerOwn}>
+                <LinearGradient
+                  colors={['#667eea', '#764ba2', '#f093fb']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.messageBubbleOwn}
+                >
+                  <Text style={styles.messageTextOwn}>
+                    {item.content}
+                  </Text>
+                  <Text style={styles.messageTimeOwn}>
+                    {new Date(item.sentAt).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </Text>
+                </LinearGradient>
               </View>
-            </View>
-          )
-        )}
-      />
-
-      <View style={styles.inputContainer}>
-        <TextInput
-          ref={textInputRef}
-          style={styles.input}
-          value={newMessage}
-          onChangeText={handleTextChange}
-          placeholder="Type a message..."
-          placeholderTextColor="#999"
-          multiline
-          maxLength={500}
-          onKeyPress={handleKeyPress}
-          returnKeyType="send"
-          blurOnSubmit={false}
-        />
-        <TouchableOpacity
-          onPress={handleSendMessage}
-          disabled={sendingMessage || !newMessage.trim()}
-          style={styles.sendButtonContainer}
-        >
-          <LinearGradient
-            colors={sendingMessage || !newMessage.trim() ? ['#a0aec0', '#718096'] : ['#667eea', '#764ba2', '#f093fb']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.sendButton}
-          >
-            {sendingMessage ? (
-              <ActivityIndicator color="#fff" size="small" />
             ) : (
-              <Text style={styles.sendButtonText}>Send</Text>
-            )}
-          </LinearGradient>
-        </TouchableOpacity>
+              <View style={styles.messageContainerOther}>
+                <View style={styles.messageBubbleOther}>
+                  <Text style={styles.messageTextOther}>
+                    {item.content}
+                  </Text>
+                  <Text style={styles.messageTimeOther}>
+                    {new Date(item.sentAt).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </Text>
+                </View>
+              </View>
+            )
+          )}
+        />
+
+        <View 
+          style={[
+            styles.inputContainer,
+            {
+              position: 'absolute',
+              bottom: keyboardHeight > 0 
+                ? keyboardHeight 
+                : Platform.OS === 'ios' ? 70 : 68,
+              left: 0,
+              right: 0,
+              zIndex: 1000,
+              elevation: 10,
+            }
+          ]}
+        >
+          <TextInput
+            ref={textInputRef}
+            style={styles.input}
+            value={newMessage}
+            onChangeText={handleTextChange}
+            placeholder="Type a message..."
+            placeholderTextColor="#999"
+            multiline
+            maxLength={500}
+            onKeyPress={handleKeyPress}
+            returnKeyType="send"
+            blurOnSubmit={false}
+            onFocus={() => {
+              // Scroll to end when input is focused to ensure latest messages are visible
+              setTimeout(() => {
+                messagesEndRef.current?.scrollToEnd({ animated: true });
+              }, 300);
+            }}
+          />
+          <TouchableOpacity
+            onPress={() => {
+              console.log('📤 Send button pressed!');
+              handleSendMessage();
+            }}
+            disabled={sendingMessage || !newMessage.trim()}
+            style={styles.sendButtonContainer}
+            activeOpacity={0.7}
+            hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+            onPressIn={() => console.log('📤 Send button press in')}
+            onPressOut={() => console.log('📤 Send button press out')}
+          >
+            <LinearGradient
+              colors={sendingMessage || !newMessage.trim() ? ['#a0aec0', '#718096'] : ['#667eea', '#764ba2', '#f093fb']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.sendButton}
+              pointerEvents="none"
+            >
+              {sendingMessage ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.sendButtonText}>Send</Text>
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -1928,21 +2188,30 @@ const styles = StyleSheet.create({
   headerGradient: {
     paddingTop: Platform.OS === 'ios' ? 50 : 20,
     borderBottomWidth: 0,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 10,
+    overflow: 'hidden',
   },
   header: {
     padding: 24,
     paddingBottom: 24,
   },
+  headerTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  animatedHeartEmoji: {
+    fontSize: 36,
+    lineHeight: 36,
+  },
   headerTitle: {
     fontSize: 36,
     fontWeight: '800',
     color: '#fff',
-    marginBottom: 6,
     letterSpacing: -0.5,
     textShadowColor: 'rgba(0, 0, 0, 0.2)',
     textShadowOffset: { width: 0, height: 2 },
@@ -2028,50 +2297,50 @@ const styles = StyleSheet.create({
     paddingTop: 20,
   },
   matchCardWrapper: {
-    marginBottom: 20,
+    marginBottom: 12,
     marginHorizontal: 4,
   },
   matchCard: {
-    borderRadius: 28,
+    borderRadius: 20,
     backgroundColor: '#fff',
     shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 28,
-    elevation: 14,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 8,
     overflow: 'hidden',
-    borderWidth: 3,
-    borderColor: '#fff',
+    borderWidth: 1.5,
+    borderColor: 'rgba(102, 126, 234, 0.1)',
   },
   matchCardContent: {
     flexDirection: 'row',
-    padding: 24,
+    padding: 14,
     alignItems: 'center',
     backgroundColor: '#fff',
     position: 'relative',
   },
   photoWrapper: {
     position: 'relative',
-    marginRight: 20,
+    marginRight: 14,
   },
   photoContainer: {
     position: 'relative',
-    borderRadius: 50,
+    borderRadius: 35,
     overflow: 'hidden',
   },
   matchPhoto: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 5,
+    borderWidth: 3,
     borderColor: '#fff',
     shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 12,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
   },
   photoGradientOverlay: {
     position: 'absolute',
@@ -2079,64 +2348,115 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: '40%',
-    borderRadius: 50,
+    borderRadius: 35,
+  },
+  photoGlow: {
+    position: 'absolute',
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: '#667eea',
+    top: -3,
+    left: -3,
+    opacity: 0.3,
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  shimmerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '200%',
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    transform: [{ rotate: '15deg' }],
   },
   stage2Indicator: {
     position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    bottom: -2,
+    right: -2,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: '#fff',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 4,
+    borderWidth: 3,
     borderColor: '#ff6b9d',
     shadowColor: '#ff6b9d',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
   },
   stage2IndicatorText: {
-    fontSize: 16,
+    fontSize: 14,
+  },
+  unreadBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#FF3B30',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    borderWidth: 2,
+    borderColor: '#fff',
+    shadowColor: '#FF3B30',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 4,
+    elevation: 6,
+    zIndex: 10,
+  },
+  unreadBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.2,
   },
   matchPhotoPlaceholderText: {
-    fontSize: 28,
+    fontSize: 24,
     color: '#fff',
     fontWeight: 'bold',
   },
   matchInfo: {
     flex: 1,
-    paddingRight: 12,
+    paddingRight: 8,
   },
   matchHeader: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   matchName: {
-    fontSize: 26,
-    fontWeight: '900',
+    fontSize: 20,
+    fontWeight: '800',
     color: '#1a1a1a',
-    letterSpacing: -0.5,
-    textShadowColor: 'rgba(0, 0, 0, 0.03)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    letterSpacing: -0.3,
+  },
+  matchNameUnread: {
+    fontWeight: '900',
   },
   matchAge: {
-    fontSize: 21,
+    fontSize: 17,
     color: '#666',
-    fontWeight: '700',
-    letterSpacing: -0.2,
+    fontWeight: '600',
+    letterSpacing: -0.1,
   },
   badgesRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
-    marginTop: 8,
-    gap: 8,
+    marginTop: 6,
+    gap: 6,
   },
   matchLocationContainer: {
     flexDirection: 'row',
@@ -2178,15 +2498,15 @@ const styles = StyleSheet.create({
   stageBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 22,
-    borderWidth: 2.5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 2,
     shadowColor: '#ff6b9d',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4,
   },
   stageBadgePending: {
     borderColor: '#ffb3d1',
@@ -2198,61 +2518,61 @@ const styles = StyleSheet.create({
     borderColor: '#ff1493',
   },
   stageEmoji: {
-    fontSize: 16,
-    marginRight: 8,
+    fontSize: 14,
+    marginRight: 6,
   },
   stageText: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#ff6b9d',
     fontWeight: '700',
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
   },
   timerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
     backgroundColor: '#fff8f0',
-    borderWidth: 2.5,
+    borderWidth: 2,
     borderColor: '#ffb84d',
     shadowColor: '#ffb84d',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   timerEmoji: {
-    fontSize: 14,
-    marginRight: 6,
+    fontSize: 12,
+    marginRight: 4,
   },
   timerText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#d97706',
     fontWeight: '700',
-    letterSpacing: 0.2,
+    letterSpacing: 0.1,
   },
   unmatchButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: '#fff',
-    borderWidth: 2.5,
+    borderWidth: 2,
     borderColor: '#fee2e2',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#dc2626',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   unmatchButtonText: {
-    fontSize: 20,
+    fontSize: 16,
     color: '#dc2626',
-    fontWeight: '900',
-    lineHeight: 20,
+    fontWeight: '800',
+    lineHeight: 16,
   },
   chatHeaderGradient: {
     paddingTop: Platform.OS === 'ios' ? 50 : 20,
@@ -2344,127 +2664,134 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.9)',
   },
   featuresContainer: {
-    maxHeight: 300,
+    maxHeight: 90,
     backgroundColor: '#f5f7fa',
+    paddingVertical: 2,
   },
   messagesList: {
     flex: 1,
   },
   messagesContent: {
-    padding: 16,
-    paddingBottom: 20,
+    paddingHorizontal: 10,
+    paddingTop: 4,
+    paddingBottom: 16,
+    flexGrow: 1,
   },
   messageContainerOwn: {
     alignSelf: 'flex-end',
-    marginBottom: 12,
-    maxWidth: '75%',
+    marginBottom: 2,
+    maxWidth: '65%',
   },
   messageContainerOther: {
     alignSelf: 'flex-start',
-    marginBottom: 12,
-    maxWidth: '75%',
+    marginBottom: 2,
+    maxWidth: '65%',
   },
   messageBubbleOwn: {
-    padding: 16,
-    borderRadius: 24,
-    borderBottomRightRadius: 6,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 14,
+    borderBottomRightRadius: 3,
     shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  messageBubbleOther: {
-    padding: 16,
-    borderRadius: 24,
-    borderBottomLeftRadius: 6,
-    backgroundColor: '#fff',
-    borderWidth: 2,
-    borderColor: '#e5e7eb',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 4,
   },
+  messageBubbleOther: {
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 14,
+    borderBottomLeftRadius: 3,
+    backgroundColor: '#fff',
+    borderWidth: 1.5,
+    borderColor: '#e5e7eb',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
   messageTextOwn: {
-    fontSize: 16,
-    lineHeight: 23,
+    fontSize: 14,
+    lineHeight: 17,
     color: '#fff',
     fontWeight: '500',
-    letterSpacing: 0.1,
+    letterSpacing: 0,
   },
   messageTextOther: {
-    fontSize: 16,
-    lineHeight: 23,
+    fontSize: 14,
+    lineHeight: 17,
     color: '#2d3748',
     fontWeight: '500',
-    letterSpacing: 0.1,
+    letterSpacing: 0,
   },
   messageTimeOwn: {
-    fontSize: 11,
-    marginTop: 6,
+    fontSize: 9,
+    marginTop: 2,
     color: 'rgba(255, 255, 255, 0.75)',
     alignSelf: 'flex-end',
     fontWeight: '500',
   },
   messageTimeOther: {
-    fontSize: 11,
-    marginTop: 6,
+    fontSize: 9,
+    marginTop: 2,
     color: '#718096',
     alignSelf: 'flex-start',
     fontWeight: '500',
   },
   inputContainer: {
     flexDirection: 'row',
-    padding: 16,
-    borderTopWidth: 2,
+    padding: 10,
+    paddingBottom: Platform.OS === 'ios' ? 10 : 12,
+    borderTopWidth: 1.5,
     borderTopColor: '#f0f0f0',
     backgroundColor: '#fff',
     alignItems: 'flex-end',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
     elevation: 8,
   },
   input: {
     flex: 1,
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: '#e5e7eb',
-    borderRadius: 26,
-    paddingHorizontal: 20,
-    paddingVertical: 13,
-    marginRight: 12,
-    maxHeight: 100,
-    fontSize: 16,
-    backgroundColor: '#fff',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    marginRight: 8,
+    maxHeight: 80,
+    fontSize: 14,
+    backgroundColor: '#f9fafb',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.08,
     shadowRadius: 4,
-    elevation: 2,
+    elevation: 1,
   },
   sendButtonContainer: {
-    borderRadius: 26,
+    borderRadius: 20,
     overflow: 'hidden',
     shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.35,
-    shadowRadius: 6,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+    zIndex: 1001,
   },
   sendButton: {
-    paddingHorizontal: 28,
-    paddingVertical: 13,
-    borderRadius: 26,
+    paddingHorizontal: 20,
+    paddingVertical: 9,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    minWidth: 75,
+    minWidth: 60,
   },
   sendButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
   },
   profileButton: {
