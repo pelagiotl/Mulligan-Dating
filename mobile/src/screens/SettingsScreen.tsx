@@ -9,6 +9,7 @@ import {
   Alert,
   Linking,
   Modal,
+  TextInput,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
@@ -23,6 +24,26 @@ interface SettingsData {
   lastActiveAt: string | null;
 }
 
+interface ProfileData {
+  profile: {
+    id: string;
+    display_name: string;
+    age: number;
+    gender: string;
+    location: string | null;
+    bio: string | null;
+    photo_url: string | null;
+    looking_for: string | null;
+  };
+  preferences: {
+    min_age: number;
+    max_age: number | null;
+    preferred_genders: string | null;
+    max_distance: number;
+    relationship_type: string | null;
+  } | null;
+}
+
 export default function SettingsScreen() {
   const { logout, refreshProfile } = useAuth();
   const navigation = useNavigation();
@@ -30,6 +51,13 @@ export default function SettingsScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  
+  // Location preferences
+  const [maxDistance, setMaxDistance] = useState<number | null>(50);
+  const [customDistance, setCustomDistance] = useState('');
+  const [showCustomInput, setShowCustomInput] = useState(false);
+  const [loadingPreferences, setLoadingPreferences] = useState(false);
+  const [updatingDistance, setUpdatingDistance] = useState(false);
 
   // Delete account
   const [deleting, setDeleting] = useState(false);
@@ -52,6 +80,7 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     fetchSettings();
+    fetchPreferences();
   }, []);
 
   const fetchSettings = async () => {
@@ -63,6 +92,58 @@ export default function SettingsScreen() {
       setError(err?.message || 'Failed to load settings');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchPreferences = async () => {
+    try {
+      setLoadingPreferences(true);
+      const profileData = await api.get<ProfileData>('/profile');
+      if (profileData?.preferences?.max_distance !== undefined) {
+        // Handle null (unlimited) or number
+        setMaxDistance(profileData.preferences.max_distance);
+      }
+    } catch (err: any) {
+      console.error('Failed to fetch preferences:', err);
+      // Don't show error, just use default
+    } finally {
+      setLoadingPreferences(false);
+    }
+  };
+
+  const handleDistanceChange = async (value: number | null) => {
+    setMaxDistance(value);
+    setShowCustomInput(false);
+    setCustomDistance('');
+    
+    // Update preferences on backend
+    try {
+      setUpdatingDistance(true);
+      await api.put('/profile/preferences', {
+        maxDistance: value,
+      });
+      const successMessage = value === null 
+        ? 'Distance preference updated to unlimited'
+        : `Distance preference updated to ${value} miles`;
+      setSuccess(successMessage);
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err: any) {
+      console.error('Failed to update distance preference:', err);
+      setError('Failed to update distance preference. Please try again.');
+      setTimeout(() => setError(''), 3000);
+      // Revert to previous value on error
+      fetchPreferences();
+    } finally {
+      setUpdatingDistance(false);
+    }
+  };
+
+  const handleCustomDistanceSubmit = () => {
+    const value = parseInt(customDistance, 10);
+    if (!isNaN(value) && value >= 1 && value <= 10000) {
+      handleDistanceChange(value);
+    } else {
+      Alert.alert('Invalid Distance', 'Please enter a number between 1 and 10,000 miles.');
     }
   };
 
@@ -291,6 +372,125 @@ export default function SettingsScreen() {
             </Text>
           </LinearGradient>
         </View>
+      </View>
+
+      {/* Location Preferences */}
+      <View style={styles.section}>
+        <View style={styles.sectionTitleContainer}>
+          <Text style={styles.sectionEmoji}>📍</Text>
+          <Text style={styles.sectionTitle}>Location Preferences</Text>
+        </View>
+        <LinearGradient
+          colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.05)']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.preferencesCard}
+        >
+          <Text style={styles.preferencesCardTitle}>Maximum Distance</Text>
+          <Text style={styles.preferencesCardDescription}>
+            {maxDistance === null 
+              ? 'Show me people from anywhere (unlimited distance)'
+              : `Show me people within ${maxDistance} mile${maxDistance !== 1 ? 's' : ''}`
+            }
+          </Text>
+          {loadingPreferences ? (
+            <ActivityIndicator size="small" color="#fff" style={styles.sliderLoading} />
+          ) : (
+            <View style={styles.sliderContainer}>
+              <View style={styles.distanceButtons}>
+                {/* Unlimited option */}
+                <TouchableOpacity
+                  style={[
+                    styles.distanceButton,
+                    maxDistance === null && styles.distanceButtonActive
+                  ]}
+                  onPress={() => {
+                    if (!updatingDistance) {
+                      handleDistanceChange(null);
+                    }
+                  }}
+                  disabled={updatingDistance}
+                >
+                  <Text style={[
+                    styles.distanceButtonText,
+                    maxDistance === null && styles.distanceButtonTextActive
+                  ]}>
+                    ∞ Unlimited
+                  </Text>
+                </TouchableOpacity>
+                {[10, 25, 50, 75, 100].map((value) => (
+                  <TouchableOpacity
+                    key={value}
+                    style={[
+                      styles.distanceButton,
+                      maxDistance === value && styles.distanceButtonActive
+                    ]}
+                    onPress={() => {
+                      if (!updatingDistance) {
+                        handleDistanceChange(value);
+                      }
+                    }}
+                    disabled={updatingDistance}
+                  >
+                    <Text style={[
+                      styles.distanceButtonText,
+                      maxDistance === value && styles.distanceButtonTextActive
+                    ]}>
+                      {value} mi
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              {!showCustomInput ? (
+                <TouchableOpacity
+                  style={styles.customDistanceButton}
+                  onPress={() => setShowCustomInput(true)}
+                  disabled={updatingDistance}
+                >
+                  <Text style={styles.customDistanceButtonText}>
+                    Custom {maxDistance === null ? '(Unlimited)' : `(${maxDistance} mi)`} ✏️
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.customInputContainer}>
+                  <TextInput
+                    style={styles.customInput}
+                    value={customDistance}
+                    onChangeText={setCustomDistance}
+                    placeholder={maxDistance === null ? 'Current: Unlimited' : `Current: ${maxDistance} mi`}
+                    placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                    keyboardType="number-pad"
+                    maxLength={5}
+                    autoFocus
+                  />
+                  <View style={styles.customInputActions}>
+                    <TouchableOpacity
+                      style={[styles.customInputButton, styles.customInputButtonCancel]}
+                      onPress={() => {
+                        setShowCustomInput(false);
+                        setCustomDistance('');
+                      }}
+                    >
+                      <Text style={styles.customInputButtonText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.customInputButton, styles.customInputButtonSave]}
+                      onPress={handleCustomDistanceSubmit}
+                      disabled={updatingDistance}
+                    >
+                      <Text style={[styles.customInputButtonText, styles.customInputButtonTextSave]}>
+                        Save
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+              {updatingDistance && (
+                <ActivityIndicator size="small" color="#fff" style={styles.updatingIndicator} />
+              )}
+            </View>
+          )}
+        </LinearGradient>
       </View>
 
       {/* Buy Tokens */}
@@ -1138,5 +1338,137 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     fontSize: 16,
     letterSpacing: 0.3,
+  },
+  preferencesCard: {
+    borderRadius: 24,
+    padding: 24,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  preferencesCardTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#fff',
+    marginBottom: 8,
+    letterSpacing: -0.3,
+  },
+  preferencesCardDescription: {
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginBottom: 20,
+    lineHeight: 22,
+    fontWeight: '500',
+  },
+  sliderContainer: {
+    marginTop: 8,
+  },
+  distanceButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    gap: 8,
+  },
+  distanceButton: {
+    flex: 1,
+    minWidth: '18%',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  distanceButtonActive: {
+    backgroundColor: '#667eea',
+    borderColor: '#fff',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  distanceButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  distanceButtonTextActive: {
+    color: '#fff',
+  },
+  customDistanceButton: {
+    marginTop: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    alignItems: 'center',
+  },
+  customDistanceButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.9)',
+  },
+  customInputContainer: {
+    marginTop: 12,
+  },
+  customInput: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: '#fff',
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  customInputActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  customInputButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 2,
+  },
+  customInputButtonCancel: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  customInputButtonSave: {
+    backgroundColor: '#667eea',
+    borderColor: '#fff',
+  },
+  customInputButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: 'rgba(255, 255, 255, 0.9)',
+  },
+  customInputButtonTextSave: {
+    color: '#fff',
+  },
+  sliderLoading: {
+    marginTop: 20,
+  },
+  updatingIndicator: {
+    marginTop: 12,
+    alignSelf: 'center',
   },
 });

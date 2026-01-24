@@ -704,7 +704,10 @@ export async function generateWeeklyMatches(userId: string): Promise<{
       }
     }
     
-    if (distance > userPrefs.max_distance || distance > candidate.max_distance) {
+    // Check distance filters - null means unlimited
+    const userMaxDistance = userPrefs.max_distance === null ? Infinity : userPrefs.max_distance;
+    const candidateMaxDistance = candidate.max_distance === null ? Infinity : candidate.max_distance;
+    if (distance > userMaxDistance || distance > candidateMaxDistance) {
       continue; // Too far
     }
 

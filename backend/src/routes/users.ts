@@ -279,7 +279,11 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
 
         // Filter by max_distance and sort by distance
         filteredProfiles = profilesWithDistance
-          .filter(({ distance }) => distance === null || distance <= userPrefs.max_distance)
+          .filter(({ distance }) => {
+            // If max_distance is null, it means unlimited - allow all distances
+            if (userPrefs.max_distance === null) return true;
+            return distance === null || distance <= userPrefs.max_distance;
+          })
           .sort((a, b) => {
             if (a.distance === null) return 1;
             if (b.distance === null) return -1;
@@ -691,7 +695,8 @@ usersRouter.get('/diagnose/:targetUserId', authenticateToken, async (req: AuthRe
         const targetLoc = await geocodeLocation(targetProfile.location);
         if (userLoc.coordinates && targetLoc.coordinates) {
           distance = calculateDistanceMiles(userLoc.coordinates, targetLoc.coordinates);
-          if (distance > userPrefs.max_distance) {
+          // Only filter by distance if max_distance is set (not null/unlimited)
+          if (userPrefs.max_distance !== null && distance > userPrefs.max_distance) {
             distanceFilterPass = false;
             distanceFilterReason = `Target is ${distance.toFixed(1)} miles away, exceeding your max distance of ${userPrefs.max_distance} miles`;
           }
