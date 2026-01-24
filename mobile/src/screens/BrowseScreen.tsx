@@ -498,6 +498,41 @@ export default function BrowseScreen() {
   const navigation = useNavigation();
   const { profile: userProfile, user, isAuthenticated } = useAuth();
   const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
+  
+  // Profile card animations
+  const profileCardScale = useRef(new Animated.Value(0.9)).current;
+  const profileCardOpacity = useRef(new Animated.Value(0)).current;
+  const profileCardTranslateY = useRef(new Animated.Value(30)).current;
+  const profileCardGlow = useRef(new Animated.Value(1)).current;
+  const profileCardRotate = useRef(new Animated.Value(0)).current;
+  const profileCardTiltX = useRef(new Animated.Value(0)).current;
+  const profileCardTiltY = useRef(new Animated.Value(0)).current;
+  const profileCardShadow = useRef(new Animated.Value(0)).current;
+  
+  // Connect button animations
+  const connectButtonPulse = useRef(new Animated.Value(1)).current;
+  const connectButtonGlow = useRef(new Animated.Value(0.5)).current;
+  const connectButtonShimmer = useRef(new Animated.Value(0)).current;
+  const connectButtonScale = useRef(new Animated.Value(1)).current;
+  
+  // Header gradient animation
+  const headerGradientPos = useRef(new Animated.Value(0)).current;
+  
+  // Interest tags animations
+  const interestTagScales = useRef<{ [key: number]: Animated.Value }>({}).current;
+  const interestTagOpacities = useRef<{ [key: number]: Animated.Value }>({}).current;
+  
+  // Floating particles for background
+  const particleAnimations = useRef<Array<{
+    translateY: Animated.Value;
+    translateX: Animated.Value;
+    opacity: Animated.Value;
+    scale: Animated.Value;
+  }>>([]).current;
+  
+  // Photo gallery animations
+  const photoScale = useRef(new Animated.Value(1)).current;
+  const photoOpacity = useRef(new Animated.Value(1)).current;
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -518,6 +553,7 @@ export default function BrowseScreen() {
   const [browseUnlocked, setBrowseUnlocked] = useState<boolean>(false); // Start as locked (false)
   const [unlocking, setUnlocking] = useState(false);
   const [isAutoMatching, setIsAutoMatching] = useState(false); // Track when auto-matching to prevent UI flash
+  const [canClaimTokens, setCanClaimTokens] = useState<boolean>(false); // Track if user can claim tokens
   const socketRef = useRef<Socket | null>(null);
   
   // Button animations
@@ -532,6 +568,16 @@ export default function BrowseScreen() {
   const titleScale = useRef(new Animated.Value(0.9)).current;
   const titleOpacity = useRef(new Animated.Value(0)).current;
   const titleTranslateY = useRef(new Animated.Value(20)).current;
+
+  const checkCanClaimTokens = async () => {
+    try {
+      const tokenData = await api.get<{ availableTokens: number; canClaimWeeklyToken: boolean }>('/tokens');
+      setCanClaimTokens(tokenData.canClaimWeeklyToken || false);
+    } catch (err) {
+      // Silently fail - non-critical
+      setCanClaimTokens(false);
+    }
+  };
 
   const checkBrowseUnlocked = async () => {
     try {
@@ -847,6 +893,178 @@ export default function BrowseScreen() {
 
       setCurrentProfile(data.profile);
       setHasMore(data.hasMore);
+      
+      // Animate profile card entrance when new profile loads
+      if (data.profile) {
+        // Reset animation values
+        profileCardScale.setValue(0.9);
+        profileCardOpacity.setValue(0);
+        profileCardTranslateY.setValue(30);
+        profileCardGlow.setValue(1);
+        
+        // Initialize interest tag scales and opacities with staggered entrance
+        data.profile.interests.slice(0, 6).forEach((_, idx) => {
+          if (!interestTagScales[idx]) {
+            interestTagScales[idx] = new Animated.Value(0.8);
+          }
+          if (!interestTagOpacities[idx]) {
+            interestTagOpacities[idx] = new Animated.Value(0);
+          }
+          // Staggered entrance animation for interest tags
+          Animated.sequence([
+            Animated.delay(idx * 100),
+            Animated.parallel([
+              Animated.spring(interestTagScales[idx], {
+                toValue: 1,
+                tension: 50,
+                friction: 7,
+                useNativeDriver: true,
+              }),
+              Animated.timing(interestTagOpacities[idx], {
+                toValue: 1,
+                duration: 400,
+                useNativeDriver: true,
+              }),
+            ]),
+          ]).start();
+        });
+        
+        // Animate profile card entrance
+        Animated.parallel([
+          Animated.spring(profileCardScale, {
+            toValue: 1,
+            tension: 50,
+            friction: 8,
+            useNativeDriver: true,
+          }),
+          Animated.timing(profileCardOpacity, {
+            toValue: 1,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+          Animated.spring(profileCardTranslateY, {
+            toValue: 0,
+            tension: 50,
+            friction: 8,
+            useNativeDriver: true,
+          }),
+        ]).start();
+        
+        // Continuous glow pulse
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(profileCardGlow, {
+              toValue: 1.15,
+              duration: 2000,
+              useNativeDriver: false,
+            }),
+            Animated.timing(profileCardGlow, {
+              toValue: 1,
+              duration: 2000,
+              useNativeDriver: false,
+            }),
+          ])
+        ).start();
+        
+        // Subtle rotation animation
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(profileCardRotate, {
+              toValue: 0.5,
+              duration: 4000,
+              useNativeDriver: true,
+            }),
+            Animated.timing(profileCardRotate, {
+              toValue: 0,
+              duration: 4000,
+              useNativeDriver: true,
+            }),
+          ])
+        ).start();
+        
+        // Connect button continuous pulse
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(connectButtonPulse, {
+              toValue: 1.05,
+              duration: 1500,
+              useNativeDriver: true,
+            }),
+            Animated.timing(connectButtonPulse, {
+              toValue: 1,
+              duration: 1500,
+              useNativeDriver: true,
+            }),
+          ])
+        ).start();
+        
+        // Connect button glow
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(connectButtonGlow, {
+              toValue: 0.8,
+              duration: 2000,
+              useNativeDriver: false,
+            }),
+            Animated.timing(connectButtonGlow, {
+              toValue: 0.5,
+              duration: 2000,
+              useNativeDriver: false,
+            }),
+          ])
+        ).start();
+        
+        // Connect button shimmer
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(connectButtonShimmer, {
+              toValue: 1,
+              duration: 3000,
+              useNativeDriver: true,
+            }),
+            Animated.timing(connectButtonShimmer, {
+              toValue: 0,
+              duration: 0,
+              useNativeDriver: true,
+            }),
+          ])
+        ).start();
+        
+        // Removed rotation effect - keeping pulse, shimmer, and glow effects instead
+        
+        // Photo entrance animation
+        photoScale.setValue(0.95);
+        photoOpacity.setValue(0);
+        Animated.parallel([
+          Animated.spring(photoScale, {
+            toValue: 1,
+            tension: 50,
+            friction: 8,
+            useNativeDriver: true,
+          }),
+          Animated.timing(photoOpacity, {
+            toValue: 1,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+        ]).start();
+        
+        // Header gradient animation
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(headerGradientPos, {
+              toValue: 1,
+              duration: 8000,
+              useNativeDriver: false,
+            }),
+            Animated.timing(headerGradientPos, {
+              toValue: 0,
+              duration: 8000,
+              useNativeDriver: false,
+            }),
+          ])
+        ).start();
+      }
     } catch (err: any) {
       const errorMessage =
         err?.response?.data?.error ||
@@ -908,6 +1126,8 @@ export default function BrowseScreen() {
       setOffset(0);
       setError('');
       setLoading(false);
+      // Check if user can claim tokens when screen focuses
+      checkCanClaimTokens();
     }, [])
   );
 
@@ -1058,14 +1278,20 @@ export default function BrowseScreen() {
   }, [showLandingPage, unlocking]);
 
   const handleConnect = async (profile: Profile) => {
-    if (connecting) return;
-
-    // Haptic feedback - vibrate when user clicks connect
-    if (Platform.OS === 'ios') {
-      Vibration.vibrate(10); // Short vibration for iOS
-    } else {
-      Vibration.vibrate(50); // Slightly longer for Android
+    // Haptic feedback - vibrate IMMEDIATELY when user clicks connect (before any checks)
+    // This ensures vibration works even if the function returns early
+    try {
+      if (Platform.OS === 'ios') {
+        Vibration.vibrate([0, 100]); // iOS pattern: [delay, duration] for more reliable vibration
+      } else {
+        Vibration.vibrate(100); // Android: Duration in milliseconds
+      }
+    } catch (error) {
+      // Silently fail - vibration is non-critical
+      console.warn('Vibration error (non-critical):', error);
     }
+
+    if (connecting) return;
 
     setConnecting(true);
     setError('');
@@ -1274,6 +1500,11 @@ export default function BrowseScreen() {
           <View style={styles.landingPageWrapper}>
           {/* Token display on landing page */}
           <View style={styles.landingTokenContainer}>
+            {canClaimTokens && (
+              <View style={styles.claimTokenBannerLanding}>
+                <Text style={styles.claimTokenTextLanding}>✨ Claim your 7 tokens!</Text>
+              </View>
+            )}
             <TokenDisplay compact={true} premium={true} />
           </View>
           
@@ -1397,10 +1628,28 @@ export default function BrowseScreen() {
       ) : (
         <>
           {/* Header - only show when not on landing page */}
-          <View style={styles.header}>
+          <Animated.View style={styles.header}>
+            <Animated.View 
+              style={[
+                styles.headerGradientOverlay,
+                {
+                  opacity: headerGradientPos.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.15, 0.25],
+                  }),
+                },
+              ]}
+            />
             <View style={styles.headerTop}>
               <View style={{ flex: 1 }} />
-              <TokenDisplay compact={true} premium={true} />
+              <View style={styles.tokenContainer}>
+                {canClaimTokens && (
+                  <View style={styles.claimTokenBanner}>
+                    <Text style={styles.claimTokenText}>✨ Claim your 7 tokens!</Text>
+                  </View>
+                )}
+                <TokenDisplay compact={true} premium={true} />
+              </View>
             </View>
             <Animated.Text
               style={[
@@ -1417,7 +1666,7 @@ export default function BrowseScreen() {
               Discover People
             </Animated.Text>
             <Text style={styles.subtitle}>Find someone who shares your interests and values</Text>
-          </View>
+          </Animated.View>
 
           {/* Error Message */}
           {error ? (
@@ -1453,31 +1702,89 @@ export default function BrowseScreen() {
           </Text>
         </View>
       ) : currentProfile ? (
-        <View style={styles.profileCard}>
+        <Animated.View 
+          style={[
+            styles.profileCard,
+            {
+              opacity: profileCardOpacity,
+              transform: [
+                { scale: profileCardScale },
+                { translateY: profileCardTranslateY },
+                {
+                  rotate: profileCardRotate.interpolate({
+                    inputRange: [0, 0.5],
+                    outputRange: ['0deg', '1deg'],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          {/* Pulsating glow effect around profile card */}
+          <Animated.View
+            style={[
+              styles.profileCardGlow,
+              {
+                opacity: profileCardGlow.interpolate({
+                  inputRange: [1, 1.15],
+                  outputRange: [0.3, 0.6],
+                }),
+                transform: [
+                  {
+                    scale: profileCardGlow,
+                  },
+                ],
+              },
+            ]}
+          />
+          <View style={styles.profileCardContent}>
           {/* Photo Gallery */}
           {photos.length > 0 ? (
             <View style={styles.photoGallery}>
-              <ScrollView
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                onMomentumScrollEnd={(event) => {
-                  const index = Math.round(
-                    event.nativeEvent.contentOffset.x / SCREEN_WIDTH
-                  );
-                  setCurrentPhotoIndex(index);
+              <Animated.View
+                style={{
+                  transform: [{ scale: photoScale }],
+                  opacity: photoOpacity,
                 }}
-                style={styles.photoScrollView}
               >
-                {photos.map((photo) => (
-                  <Image
-                    key={photo.id}
-                    source={{ uri: getPhotoUrl(photo.url) }}
-                    style={[styles.profilePhoto, { width: SCREEN_WIDTH - 40 }]}
-                    resizeMode="cover"
-                  />
-                ))}
-              </ScrollView>
+                <ScrollView
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={false}
+                  onMomentumScrollEnd={(event) => {
+                    const index = Math.round(
+                      event.nativeEvent.contentOffset.x / SCREEN_WIDTH
+                    );
+                    setCurrentPhotoIndex(index);
+                    // Animate photo change
+                    photoScale.setValue(0.98);
+                    photoOpacity.setValue(0.9);
+                    Animated.parallel([
+                      Animated.spring(photoScale, {
+                        toValue: 1,
+                        tension: 50,
+                        friction: 8,
+                        useNativeDriver: true,
+                      }),
+                      Animated.timing(photoOpacity, {
+                        toValue: 1,
+                        duration: 300,
+                        useNativeDriver: true,
+                      }),
+                    ]).start();
+                  }}
+                  style={styles.photoScrollView}
+                >
+                  {photos.map((photo) => (
+                    <Image
+                      key={photo.id}
+                      source={{ uri: getPhotoUrl(photo.url) }}
+                      style={[styles.profilePhoto, { width: SCREEN_WIDTH - 40 }]}
+                      resizeMode="cover"
+                    />
+                  ))}
+                </ScrollView>
+              </Animated.View>
               {photos.length > 1 && (
                 <View style={styles.photoIndicators}>
                   {photos.map((_, index) => (
@@ -1536,11 +1843,30 @@ export default function BrowseScreen() {
               <View style={styles.interestsContainer}>
                 <Text style={styles.interestsLabel}>Interests:</Text>
                 <View style={styles.interestsList}>
-                  {currentProfile.interests.slice(0, 6).map((interest, idx) => (
-                    <View key={idx} style={styles.interestTag}>
-                      <Text style={styles.interestText}>{interest}</Text>
-                    </View>
-                  ))}
+                  {currentProfile.interests.slice(0, 6).map((interest, idx) => {
+                    const scaleAnim = interestTagScales[idx] || new Animated.Value(0.8);
+                    const opacityAnim = interestTagOpacities[idx] || new Animated.Value(0);
+                    if (!interestTagScales[idx]) {
+                      interestTagScales[idx] = scaleAnim;
+                    }
+                    if (!interestTagOpacities[idx]) {
+                      interestTagOpacities[idx] = opacityAnim;
+                    }
+                    return (
+                      <Animated.View
+                        key={idx}
+                        style={[
+                          styles.interestTag,
+                          {
+                            transform: [{ scale: scaleAnim }],
+                            opacity: opacityAnim,
+                          },
+                        ]}
+                      >
+                        <Text style={styles.interestText}>{interest}</Text>
+                      </Animated.View>
+                    );
+                  })}
                 </View>
               </View>
             )}
@@ -1553,22 +1879,68 @@ export default function BrowseScreen() {
             disabled={connecting}
             activeOpacity={0.9}
           >
-            <LinearGradient
-              colors={['#667eea', '#764ba2', '#f093fb']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={[styles.connectButtonGradient, connecting && styles.connectButtonDisabled]}
+            <Animated.View
+              style={[
+                {
+                  transform: [
+                    { scale: Animated.multiply(connectButtonPulse, connectButtonScale) },
+                  ],
+                },
+              ]}
             >
-              {connecting ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.connectButtonText} numberOfLines={1}>
-                  Connect & Match 🎟️
-                </Text>
-              )}
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
+              <LinearGradient
+                  colors={['#667eea', '#764ba2', '#f093fb', '#f5576c']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={[
+                    styles.connectButtonGradient,
+                    connecting && styles.connectButtonDisabled,
+                    {
+                      shadowOpacity: connectButtonGlow.interpolate({
+                        inputRange: [0.5, 0.8],
+                        outputRange: [0.45, 0.7],
+                      }),
+                      shadowRadius: connectButtonGlow.interpolate({
+                        inputRange: [0.5, 0.8],
+                        outputRange: [20, 30],
+                      }),
+                    },
+                  ]}
+                >
+                {/* Enhanced shimmer effect */}
+                <Animated.View
+                  style={[
+                    styles.connectButtonShimmer,
+                    {
+                      transform: [
+                        {
+                          translateX: connectButtonShimmer.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [-200, 400],
+                          }),
+                        },
+                        {
+                          rotate: connectButtonShimmer.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: ['-20deg', '-20deg'],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                />
+                {connecting ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.connectButtonText} numberOfLines={1}>
+                    Connect & Match 🎟️
+                  </Text>
+                )}
+              </LinearGradient>
+            </Animated.View>
+        </TouchableOpacity>
+          </View>
+        </Animated.View>
       ) : null}
         </>
       )}
@@ -1685,6 +2057,16 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 12,
     elevation: 4,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  headerGradientOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#667eea',
   },
   headerTop: {
     flexDirection: 'row',
@@ -2010,16 +2392,31 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     margin: 20,
     borderRadius: 32,
-    overflow: 'hidden',
+    overflow: 'visible',
     shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 32,
-    elevation: 16,
+    shadowOffset: { width: 0, height: 15 },
+    shadowRadius: 40,
+    elevation: 20,
     borderWidth: 3,
     borderColor: '#fff',
     width: SCREEN_WIDTH - 40,
     alignSelf: 'center',
+    position: 'relative',
+  },
+  profileCardGlow: {
+    position: 'absolute',
+    top: -20,
+    left: -20,
+    right: -20,
+    bottom: -20,
+    borderRadius: 52,
+    backgroundColor: '#667eea',
+    zIndex: -1,
+  },
+  profileCardContent: {
+    backgroundColor: '#fff',
+    borderRadius: 32,
+    overflow: 'hidden',
   },
   photoGallery: {
     position: 'relative',
@@ -2172,10 +2569,10 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#e0e7ff',
     shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 3,
   },
   interestText: {
     fontSize: 14,
@@ -2203,6 +2600,18 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.3)',
     minHeight: 60,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  connectButtonShimmer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: 50,
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    transform: [{ skewX: '-20deg' }],
   },
   connectButtonDisabled: {
     opacity: 0.6,
@@ -2218,5 +2627,48 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     includeFontPadding: false,
     flexWrap: 'nowrap',
+  },
+  tokenContainer: {
+    alignItems: 'flex-end',
+  },
+  claimTokenBanner: {
+    backgroundColor: '#f5576c',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginBottom: 8,
+    shadowColor: '#f5576c',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  claimTokenText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  claimTokenBannerLanding: {
+    backgroundColor: '#f5576c',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginBottom: 8,
+    shadowColor: '#f5576c',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  claimTokenTextLanding: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
 });

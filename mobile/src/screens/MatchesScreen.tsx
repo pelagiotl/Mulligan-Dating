@@ -136,16 +136,25 @@ function AnimatedHeartEmoji() {
 }
 
 // Animated Header Gradient Component
-function AnimatedHeaderGradient({ children, matchesCount }: { children: React.ReactNode; matchesCount: number }) {
+function AnimatedHeaderGradient({ 
+  children, 
+  matchesCount,
+  gradientPos 
+}: { 
+  children: React.ReactNode; 
+  matchesCount: number;
+  gradientPos?: Animated.Value;
+}) {
   return (
-    <LinearGradient
-      colors={['#667eea', '#764ba2', '#f093fb', '#f5576c']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.headerGradient}
-    >
+    <Animated.View style={styles.headerGradient}>
+      <LinearGradient
+        colors={['#667eea', '#764ba2', '#f093fb', '#f5576c']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
       {children}
-    </LinearGradient>
+    </Animated.View>
   );
 }
 
@@ -1359,6 +1368,17 @@ export default function MatchesScreen() {
   const textInputRef = useRef<TextInput>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  
+  // Header animations
+  const headerGradientPos = useRef(new Animated.Value(0)).current;
+  const headerScale = useRef(new Animated.Value(1)).current;
+  
+  // Message animations
+  const messageAnimations = useRef<{ [key: string]: Animated.Value }>({}).current;
+  
+  // Chat transition animations
+  const chatSlideAnim = useRef(new Animated.Value(0)).current;
+  const chatFadeAnim = useRef(new Animated.Value(0)).current;
 
   // Update current time for timer display
   // Update every second if any match is close to expiring (< 1 hour), otherwise every minute
@@ -1580,6 +1600,28 @@ export default function MatchesScreen() {
   useEffect(() => {
     selectedMatchRef.current = selectedMatch;
     
+    // Animate chat transition
+    if (selectedMatch) {
+      chatSlideAnim.setValue(300);
+      chatFadeAnim.setValue(0);
+      Animated.parallel([
+        Animated.spring(chatSlideAnim, {
+          toValue: 0,
+          tension: 50,
+          friction: 8,
+          useNativeDriver: true,
+        }),
+        Animated.timing(chatFadeAnim, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      chatSlideAnim.setValue(0);
+      chatFadeAnim.setValue(1);
+    }
+    
     if (!socketRef.current || !selectedMatch) return;
 
     if (selectedMatch.stage !== 'pending') {
@@ -1753,6 +1795,15 @@ export default function MatchesScreen() {
       sentAt: new Date().toISOString(),
       isOwn: true,
     };
+    // Create animation for temp message
+    const tempAnim = new Animated.Value(0);
+    messageAnimations[tempMessage.id] = tempAnim;
+    Animated.spring(tempAnim, {
+      toValue: 1,
+      tension: 50,
+      friction: 7,
+      useNativeDriver: true,
+    }).start();
     setMessages((prev) => [...prev, tempMessage]);
 
     try {
@@ -1890,7 +1941,7 @@ export default function MatchesScreen() {
     console.log('📋 Rendering matches list view');
     return (
       <View style={styles.container}>
-        <AnimatedHeaderGradient matchesCount={matches.length}>
+        <AnimatedHeaderGradient matchesCount={matches.length} gradientPos={headerGradientPos}>
           <View style={styles.header}>
             <View style={styles.headerTitleContainer}>
               <AnimatedHeartEmoji />
@@ -2042,7 +2093,15 @@ export default function MatchesScreen() {
         </ScrollView>
       )}
 
-      <View style={{ flex: 1 }}>
+      <Animated.View 
+        style={[
+          { flex: 1 },
+          {
+            opacity: chatFadeAnim,
+            transform: [{ translateX: chatSlideAnim }],
+          },
+        ]}
+      >
         <FlatList
           ref={messagesEndRef}
           data={messages}
@@ -2065,9 +2124,47 @@ export default function MatchesScreen() {
           onLayout={() => {
             messagesEndRef.current?.scrollToEnd({ animated: false });
           }}
-          renderItem={({ item }) => (
-            item.isOwn ? (
-              <View style={styles.messageContainerOwn}>
+          renderItem={({ item, index }) => {
+            // Get or create animation for this message
+            if (!messageAnimations[item.id]) {
+              messageAnimations[item.id] = new Animated.Value(0);
+              // Animate message entrance
+              Animated.parallel([
+                Animated.spring(messageAnimations[item.id], {
+                  toValue: 1,
+                  tension: 50,
+                  friction: 7,
+                  delay: index * 30,
+                  useNativeDriver: true,
+                }),
+              ]).start();
+            }
+            
+            const messageAnim = messageAnimations[item.id];
+            
+            return item.isOwn ? (
+              <Animated.View 
+                style={[
+                  styles.messageContainerOwn,
+                  {
+                    opacity: messageAnim,
+                    transform: [
+                      { 
+                        translateX: messageAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [50, 0],
+                        })
+                      },
+                      {
+                        scale: messageAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0.9, 1],
+                        })
+                      }
+                    ],
+                  },
+                ]}
+              >
                 <LinearGradient
                   colors={['#667eea', '#764ba2', '#f093fb']}
                   start={{ x: 0, y: 0 }}
@@ -2084,9 +2181,30 @@ export default function MatchesScreen() {
                     })}
                   </Text>
                 </LinearGradient>
-              </View>
+              </Animated.View>
             ) : (
-              <View style={styles.messageContainerOther}>
+              <Animated.View 
+                style={[
+                  styles.messageContainerOther,
+                  {
+                    opacity: messageAnim,
+                    transform: [
+                      { 
+                        translateX: messageAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [-50, 0],
+                        })
+                      },
+                      {
+                        scale: messageAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0.9, 1],
+                        })
+                      }
+                    ],
+                  },
+                ]}
+              >
                 <View style={styles.messageBubbleOther}>
                   <Text style={styles.messageTextOther}>
                     {item.content}
@@ -2098,12 +2216,13 @@ export default function MatchesScreen() {
                     })}
                   </Text>
                 </View>
-              </View>
-            )
-          )}
+              </Animated.View>
+            );
+          }}
         />
+      </Animated.View>
 
-        <View 
+        <Animated.View 
           style={[
             styles.inputContainer,
             {
@@ -2115,6 +2234,8 @@ export default function MatchesScreen() {
               right: 0,
               zIndex: 1000,
               elevation: 10,
+              opacity: chatFadeAnim,
+              transform: [{ translateX: chatSlideAnim }],
             }
           ]}
         >
@@ -2163,8 +2284,7 @@ export default function MatchesScreen() {
               )}
             </LinearGradient>
           </TouchableOpacity>
-        </View>
-      </View>
+        </Animated.View>
     </View>
   );
 }
@@ -2173,6 +2293,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f7fa',
+  },
+  chatHeaderGradient: {
+    paddingTop: Platform.OS === 'ios' ? 50 : 20,
+    borderBottomWidth: 0,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+    overflow: 'hidden',
   },
   loadingContainer: {
     flex: 1,
@@ -2713,18 +2843,18 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   messageTextOwn: {
-    fontSize: 14,
-    lineHeight: 17,
+    fontSize: 15,
+    lineHeight: 20,
     color: '#fff',
-    fontWeight: '500',
-    letterSpacing: 0,
+    fontWeight: '600',
+    letterSpacing: 0.1,
   },
   messageTextOther: {
-    fontSize: 14,
-    lineHeight: 17,
+    fontSize: 15,
+    lineHeight: 20,
     color: '#2d3748',
-    fontWeight: '500',
-    letterSpacing: 0,
+    fontWeight: '600',
+    letterSpacing: 0.1,
   },
   messageTimeOwn: {
     fontSize: 9,
@@ -2772,27 +2902,33 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   sendButtonContainer: {
-    borderRadius: 20,
+    borderRadius: 24,
     overflow: 'hidden',
     shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
     zIndex: 1001,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   sendButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 9,
-    borderRadius: 20,
+    paddingHorizontal: 24,
+    paddingVertical: 11,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    minWidth: 60,
+    minWidth: 70,
   },
   sendButtonText: {
     color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   profileButton: {
     width: 44,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,8 @@ import {
   Linking,
   Modal,
   TextInput,
+  Animated,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
@@ -78,9 +80,87 @@ export default function SettingsScreen() {
   const [loadingPackages, setLoadingPackages] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
 
+  // Animations
+  const headerScale = useRef(new Animated.Value(0.9)).current;
+  const headerOpacity = useRef(new Animated.Value(0)).current;
+  const headerIconRotate = useRef(new Animated.Value(0)).current;
+  const sectionAnimations = useRef<Animated.Value[]>([]).current;
+  const statCardAnimations = useRef<Animated.Value[]>([]).current;
+  const gradientPos = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
     fetchSettings();
     fetchPreferences();
+    
+    // Header entrance animation
+    Animated.parallel([
+      Animated.spring(headerScale, {
+        toValue: 1,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+      Animated.timing(headerOpacity, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    
+    // Continuous icon rotation
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(headerIconRotate, {
+          toValue: 1,
+          duration: 3000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(headerIconRotate, {
+          toValue: 0,
+          duration: 3000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+    
+    // Animated gradient background
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(gradientPos, {
+          toValue: 1,
+          duration: 10000,
+          useNativeDriver: false,
+        }),
+        Animated.timing(gradientPos, {
+          toValue: 0,
+          duration: 10000,
+          useNativeDriver: false,
+        }),
+      ])
+    ).start();
+    
+    // Initialize section animations
+    for (let i = 0; i < 10; i++) {
+      sectionAnimations[i] = new Animated.Value(0);
+      Animated.timing(sectionAnimations[i], {
+        toValue: 1,
+        duration: 500,
+        delay: i * 80,
+        useNativeDriver: true,
+      }).start();
+    }
+    
+    // Initialize stat card animations
+    for (let i = 0; i < 2; i++) {
+      statCardAnimations[i] = new Animated.Value(0);
+      Animated.spring(statCardAnimations[i], {
+        toValue: 1,
+        tension: 50,
+        friction: 7,
+        delay: 200 + i * 100,
+        useNativeDriver: true,
+      }).start();
+    }
   }, []);
 
   const fetchSettings = async () => {
@@ -297,23 +377,47 @@ export default function SettingsScreen() {
         style={StyleSheet.absoluteFill}
       />
       <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <LinearGradient
-          colors={['#667eea', '#764ba2', '#f093fb']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.headerGradient}
+        <Animated.View
+          style={[
+            styles.headerGradient,
+            {
+              opacity: headerOpacity,
+              transform: [{ scale: headerScale }],
+            },
+          ]}
         >
+          <LinearGradient
+            colors={['#667eea', '#764ba2', '#f093fb']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
           <View style={styles.header}>
-            <LinearGradient
-              colors={['#fff', '#f8f9ff']}
-              style={styles.headerIconContainer}
+            <Animated.View
+              style={[
+                styles.headerIconContainer,
+                {
+                  transform: [
+                    {
+                      rotate: headerIconRotate.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: ['-5deg', '5deg'],
+                      }),
+                    },
+                  ],
+                },
+              ]}
             >
+              <LinearGradient
+                colors={['#fff', '#f8f9ff']}
+                style={StyleSheet.absoluteFill}
+              />
               <Text style={styles.headerIcon}>⚙️</Text>
-            </LinearGradient>
+            </Animated.View>
             <Text style={styles.headerTitle}>Settings</Text>
             <Text style={styles.headerSubtitle}>Manage your account preferences</Text>
           </View>
-        </LinearGradient>
+        </Animated.View>
 
       {error ? (
         <View style={styles.errorContainer}>
@@ -328,7 +432,22 @@ export default function SettingsScreen() {
       ) : null}
 
       {/* Account Info */}
-      <View style={styles.section}>
+      <Animated.View
+        style={[
+          styles.section,
+          {
+            opacity: sectionAnimations[0],
+            transform: [
+              {
+                translateY: sectionAnimations[0].interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [30, 0],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
         <View style={styles.sectionTitleContainer}>
           <Text style={styles.sectionEmoji}>👤</Text>
           <Text style={styles.sectionTitle}>Account</Text>
@@ -336,46 +455,87 @@ export default function SettingsScreen() {
 
         {/* Account Stats Cards */}
         <View style={styles.statsRow}>
-          <LinearGradient
-            colors={['#667eea', '#764ba2']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.statCard}
+          <Animated.View
+            style={[
+              {
+                flex: 1,
+                transform: [
+                  {
+                    scale: statCardAnimations[0] || new Animated.Value(1),
+                  },
+                ],
+              },
+            ]}
           >
-            <Text style={styles.statEmoji}>🎉</Text>
-            <Text style={styles.statLabel}>Member Since</Text>
-            <Text style={styles.statValue}>
-              {settings?.createdAt
-                ? new Date(settings.createdAt).toLocaleDateString('en-US', {
-                    month: 'short',
-                    year: 'numeric',
-                  })
-                : 'N/A'}
-            </Text>
-          </LinearGradient>
+            <LinearGradient
+              colors={['#667eea', '#764ba2']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.statCard}
+            >
+              <Text style={styles.statEmoji}>🎉</Text>
+              <Text style={styles.statLabel}>Member Since</Text>
+              <Text style={styles.statValue}>
+                {settings?.createdAt
+                  ? new Date(settings.createdAt).toLocaleDateString('en-US', {
+                      month: 'short',
+                      year: 'numeric',
+                    })
+                  : 'N/A'}
+              </Text>
+            </LinearGradient>
+          </Animated.View>
 
-          <LinearGradient
-            colors={['#f093fb', '#f5576c']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.statCard}
+          <Animated.View
+            style={[
+              {
+                flex: 1,
+                transform: [
+                  {
+                    scale: statCardAnimations[1] || new Animated.Value(1),
+                  },
+                ],
+              },
+            ]}
           >
-            <Text style={styles.statEmoji}>🟢</Text>
-            <Text style={styles.statLabel}>Last Active</Text>
-            <Text style={styles.statValue}>
-              {settings?.lastActiveAt
-                ? new Date(settings.lastActiveAt).toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                  })
-                : 'Just now'}
-            </Text>
-          </LinearGradient>
+            <LinearGradient
+              colors={['#f093fb', '#f5576c']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.statCard}
+            >
+              <Text style={styles.statEmoji}>🟢</Text>
+              <Text style={styles.statLabel}>Last Active</Text>
+              <Text style={styles.statValue}>
+                {settings?.lastActiveAt
+                  ? new Date(settings.lastActiveAt).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                    })
+                  : 'Just now'}
+              </Text>
+            </LinearGradient>
+          </Animated.View>
         </View>
-      </View>
+      </Animated.View>
 
       {/* Location Preferences */}
-      <View style={styles.section}>
+      <Animated.View
+        style={[
+          styles.section,
+          {
+            opacity: sectionAnimations[1] || new Animated.Value(1),
+            transform: [
+              {
+                translateY: (sectionAnimations[1] || new Animated.Value(1)).interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [30, 0],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
         <View style={styles.sectionTitleContainer}>
           <Text style={styles.sectionEmoji}>📍</Text>
           <Text style={styles.sectionTitle}>Location Preferences</Text>
@@ -491,10 +651,25 @@ export default function SettingsScreen() {
             </View>
           )}
         </LinearGradient>
-      </View>
+      </Animated.View>
 
       {/* Buy Tokens */}
-      <View style={styles.section}>
+      <Animated.View
+        style={[
+          styles.section,
+          {
+            opacity: sectionAnimations[2] || new Animated.Value(1),
+            transform: [
+              {
+                translateY: (sectionAnimations[2] || new Animated.Value(1)).interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [30, 0],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
         <View style={styles.sectionTitleContainer}>
           <Text style={styles.sectionEmoji}>💳</Text>
           <Text style={styles.sectionTitle}>Tokens</Text>
@@ -526,10 +701,26 @@ export default function SettingsScreen() {
             </LinearGradient>
           </TouchableOpacity>
         </LinearGradient>
-      </View>
+      </Animated.View>
 
       {/* Test: Match Sound */}
-      <View style={[styles.section, styles.testSection]}>
+      <Animated.View
+        style={[
+          styles.section,
+          styles.testSection,
+          {
+            opacity: sectionAnimations[3] || new Animated.Value(1),
+            transform: [
+              {
+                translateY: (sectionAnimations[3] || new Animated.Value(1)).interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [30, 0],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
         <View style={styles.sectionTitleContainer}>
           <Text style={styles.sectionEmoji}>🔊</Text>
           <Text style={styles.sectionTitle}>Test: Match Sound</Text>
@@ -560,10 +751,26 @@ export default function SettingsScreen() {
         >
           <Text style={[styles.buttonText, styles.testButtonText]}>🔊 Test Match Sound</Text>
         </TouchableOpacity>
-      </View>
+      </Animated.View>
 
       {/* Test: Delete Profile (Temporary) */}
-      <View style={[styles.section, styles.testSection]}>
+      <Animated.View
+        style={[
+          styles.section,
+          styles.testSection,
+          {
+            opacity: sectionAnimations[4] || new Animated.Value(1),
+            transform: [
+              {
+                translateY: (sectionAnimations[4] || new Animated.Value(1)).interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [30, 0],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
         <View style={styles.sectionTitleContainer}>
           <Text style={styles.sectionEmoji}>🧪</Text>
           <Text style={styles.sectionTitle}>Test: Delete Profile</Text>
@@ -616,10 +823,26 @@ export default function SettingsScreen() {
         >
           <Text style={[styles.buttonText, styles.testButtonText]}>🧪 Delete My Profile (Test)</Text>
         </TouchableOpacity>
-      </View>
+      </Animated.View>
 
       {/* Delete Account */}
-      <View style={[styles.section, styles.dangerSection]}>
+      <Animated.View
+        style={[
+          styles.section,
+          styles.dangerSection,
+          {
+            opacity: sectionAnimations[5] || new Animated.Value(1),
+            transform: [
+              {
+                translateY: (sectionAnimations[5] || new Animated.Value(1)).interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [30, 0],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
         <View style={styles.sectionTitleContainer}>
           <Text style={styles.sectionEmoji}>⚠️</Text>
           <Text style={styles.sectionTitle}>Danger Zone</Text>
@@ -664,10 +887,25 @@ export default function SettingsScreen() {
             </View>
           </View>
         )}
-      </View>
+      </Animated.View>
 
       {/* Logout */}
-      <View style={styles.section}>
+      <Animated.View
+        style={[
+          styles.section,
+          {
+            opacity: sectionAnimations[6] || new Animated.Value(1),
+            transform: [
+              {
+                translateY: (sectionAnimations[6] || new Animated.Value(1)).interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [30, 0],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
         <TouchableOpacity
           style={[styles.button, styles.logoutButton]}
           onPress={() => {
@@ -689,7 +927,7 @@ export default function SettingsScreen() {
         >
           <Text style={[styles.buttonText, styles.logoutButtonText]}>🚪 Logout</Text>
         </TouchableOpacity>
-      </View>
+      </Animated.View>
 
       {/* Legal Footer */}
       <LegalFooter />
@@ -826,13 +1064,14 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 28,
     marginBottom: 24,
     shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 24,
-    elevation: 12,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.4,
+    shadowRadius: 30,
+    elevation: 16,
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
     marginHorizontal: 20,
+    overflow: 'hidden',
   },
   header: {
     alignItems: 'center',
@@ -847,10 +1086,11 @@ const styles = StyleSheet.create({
     borderWidth: 4,
     borderColor: 'rgba(255, 255, 255, 0.9)',
     shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.45,
+    shadowRadius: 20,
+    elevation: 12,
+    overflow: 'hidden',
   },
   headerIcon: {
     fontSize: 40,
@@ -967,14 +1207,16 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    borderRadius: 20,
-    padding: 20,
+    borderRadius: 24,
+    padding: 24,
     alignItems: 'center',
     shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    elevation: 12,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   statEmoji: {
     fontSize: 32,
@@ -1377,27 +1619,28 @@ const styles = StyleSheet.create({
   distanceButton: {
     flex: 1,
     minWidth: '18%',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    paddingVertical: 14,
+    paddingHorizontal: 10,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderWidth: 2.5,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
     alignItems: 'center',
     shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
   },
   distanceButtonActive: {
     backgroundColor: '#667eea',
     borderColor: '#fff',
     shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    elevation: 8,
+    transform: [{ scale: 1.05 }],
   },
   distanceButtonText: {
     fontSize: 13,
