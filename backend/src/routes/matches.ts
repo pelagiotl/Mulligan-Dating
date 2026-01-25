@@ -63,33 +63,156 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
 
     console.log(`📊 Matches query returned ${matches.length} matches for user ${userId}`);
 
-    // Format matches with appropriate info based on stage
-    const formattedMatches = await Promise.all(matches.map(async (m) => {
+    if (matches.length === 0) {
+      return res.json({ matches: [] });
+    }
+
+    // OPTIMIZATION: Batch fetch all data instead of per-match queries
+    // Collect all unique user IDs and match IDs
+    const allOtherUserIds = new Set<string>();
+    const allMatchIds = matches.map(m => m.id);
+    
+    matches.forEach(m => {
       const isUser1 = m.user1_id === userId;
       const otherUserId = isUser1 ? m.user2_id : m.user1_id;
-      
-      // Get profile ID first (needed for photos and interests)
-      const otherProfileIdResult = db
-        .prepare("SELECT id FROM profiles WHERE user_id = ?")
-        .get([otherUserId]);
-      const otherProfileId = (otherProfileIdResult instanceof Promise
-        ? await otherProfileIdResult
-        : otherProfileIdResult) as { id: string } | undefined;
+      allOtherUserIds.add(otherUserId);
+    });
 
-      // Get primary photo for the other user (from photos table or fallback to photo_url)
+    const otherUserIdsArray = Array.from(allOtherUserIds);
+
+    // Batch fetch all profile IDs for other users
+    const profileIdsMap = new Map<string, string>(); // userId -> profileId
+    if (otherUserIdsArray.length > 0) {
+      const placeholders = otherUserIdsArray.map(() => '?').join(',');
+      const profilesResult = db
+        .prepare(`SELECT id, user_id FROM profiles WHERE user_id IN (${placeholders})`)
+        .all(otherUserIdsArray);
+      const profiles = (profilesResult instanceof Promise
+        ? await profilesResult
+        : profilesResult) as { id: string; user_id: string }[];
+      
+      profiles.forEach(p => {
+        profileIdsMap.set(p.user_id, p.id);
+      });
+    }
+
+    // Batch fetch all primary photos
+    const primaryPhotosMap = new Map<string, string>(); // profileId -> photoUrl
+    const profileIdsArray = Array.from(profileIdsMap.values());
+    if (profileIdsArray.length > 0) {
+      const placeholders = profileIdsArray.map(() => '?').join(',');
+      const photosResult = db
+        .prepare(`SELECT profile_id, url FROM photos WHERE profile_id IN (${placeholders}) AND is_primary = 1`)
+        .all(profileIdsArray);
+      const photos = (photosResult instanceof Promise
+        ? await photosResult
+        : photosResult) as { profile_id: string; url: string }[];
+      
+      photos.forEach(photo => {
+        primaryPhotosMap.set(photo.profile_id, photo.url);
+      });
+    }
+
+    // Batch fetch all interests
+    const interestsMap = new Map<string, string[]>(); // profileId -> interests[]
+    if (profileIdsArray.length > 0) {
+      const placeholders = profileIdsArray.map(() => '?').join(',');
+      const interestsResult = db
+        .prepare(`SELECT profile_id, name FROM interests WHERE profile_id IN (${placeholders})`)
+        .all(profileIdsArray);
+      const interests = (interestsResult instanceof Promise
+        ? await interestsResult
+        : interestsResult) as { profile_id: string; name: string }[];
+      
+      interests.forEach(interest => {
+        if (!interestsMap.has(interest.profile_id)) {
+          interestsMap.set(interest.profile_id, []);
+        }
+        interestsMap.get(interest.profile_id)!.push(interest.name);
+      });
+    }
+
+    // Batch fetch all preferences (values)
+    const preferencesMap = new Map<string, string[]>(); // profileId -> values[]
+    if (profileIdsArray.length > 0) {
+      const placeholders = profileIdsArray.map(() => '?').join(',');
+      const preferencesResult = db
+        .prepare(`SELECT profile_id, "values" FROM preferences WHERE profile_id IN (${placeholders})`)
+        .all(profileIdsArray);
+      const preferences = (preferencesResult instanceof Promise
+        ? await preferencesResult
+        : preferencesResult) as { profile_id: string; values: string | null }[];
+      
+      preferences.forEach(pref => {
+        if (pref.values) {
+          try {
+            const values = JSON.parse(pref.values);
+            preferencesMap.set(pref.profile_id, values);
+          } catch {
+            preferencesMap.set(pref.profile_id, []);
+          }
+        } else {
+          preferencesMap.set(pref.profile_id, []);
+        }
+      });
+    }
+
+    // Batch fetch all partner qualities
+    const partnerQualitiesMap = new Map<string, Array<{ quality: string; importance: number }>>(); // profileId -> qualities[]
+    if (profileIdsArray.length > 0) {
+      const placeholders = profileIdsArray.map(() => '?').join(',');
+      const qualitiesResult = db
+        .prepare(`SELECT profile_id, quality, importance FROM partner_qualities WHERE profile_id IN (${placeholders})`)
+        .all(profileIdsArray);
+      const qualities = (qualitiesResult instanceof Promise
+        ? await qualitiesResult
+        : qualitiesResult) as { profile_id: string; quality: string; importance: number }[];
+      
+      qualities.forEach(quality => {
+        if (!partnerQualitiesMap.has(quality.profile_id)) {
+          partnerQualitiesMap.set(quality.profile_id, []);
+        }
+        partnerQualitiesMap.get(quality.profile_id)!.push({
+          quality: quality.quality,
+          importance: quality.importance,
+        });
+      });
+    }
+
+    // Batch fetch all unread message counts
+    const unreadCountsMap = new Map<string, number>(); // matchId -> unreadCount
+    if (allMatchIds.length > 0) {
+      const placeholders = allMatchIds.map(() => '?').join(',');
+      const unreadCountsResult = db
+        .prepare(
+          `SELECT match_id, COUNT(*) as count 
+           FROM messages 
+           WHERE match_id IN (${placeholders}) 
+           AND sender_id != ? 
+           AND read_at IS NULL
+           GROUP BY match_id`
+        )
+        .all([...allMatchIds, userId]);
+      const unreadCounts = (unreadCountsResult instanceof Promise
+        ? await unreadCountsResult
+        : unreadCountsResult) as { match_id: string; count: number }[];
+      
+      unreadCounts.forEach(uc => {
+        unreadCountsMap.set(uc.match_id, uc.count);
+      });
+    }
+
+    // Now format matches using the batch-fetched data
+    const formattedMatches = matches.map((m) => {
+      const isUser1 = m.user1_id === userId;
+      const otherUserId = isUser1 ? m.user2_id : m.user1_id;
+      const otherProfileId = profileIdsMap.get(otherUserId);
+
+      // Get primary photo
       let primaryPhotoUrl: string | null = null;
       if (otherProfileId) {
-        // First try to get primary photo from photos table
-        const primaryPhotoResult = db
-          .prepare("SELECT url FROM photos WHERE profile_id = ? AND is_primary = 1 LIMIT 1")
-          .get([otherProfileId.id]);
-        const primaryPhoto = (primaryPhotoResult instanceof Promise
-          ? await primaryPhotoResult
-          : primaryPhotoResult) as { url: string } | undefined;
-        
-        if (primaryPhoto) {
-          primaryPhotoUrl = primaryPhoto.url;
-        } else {
+        primaryPhotoUrl = primaryPhotosMap.get(otherProfileId) || null;
+        if (!primaryPhotoUrl) {
           // Fallback to photo_url from profiles table
           primaryPhotoUrl = isUser1 ? m.user2_photo : m.user1_photo;
         }
@@ -107,59 +230,10 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
         last_active_at: isUser1 ? m.user2_last_active : m.user1_last_active,
       };
 
-      const interestsResult = otherProfileId
-        ? db
-            .prepare("SELECT name FROM interests WHERE profile_id = ?")
-            .all([otherProfileId.id])
-        : [];
-      const interests = (interestsResult instanceof Promise
-        ? await interestsResult
-        : interestsResult) as { name: string }[];
-
-      // Get values and partner qualities for the other user
-      const preferencesResult = otherProfileId
-        ? db
-            .prepare('SELECT "values" FROM preferences WHERE profile_id = ?')
-            .get([otherProfileId.id])
-        : undefined;
-      const preferences = (preferencesResult instanceof Promise
-        ? await preferencesResult
-        : preferencesResult) as { values: string | null } | undefined;
-
-      const partnerQualitiesResult = otherProfileId
-        ? db
-            .prepare(
-              "SELECT quality, importance FROM partner_qualities WHERE profile_id = ?"
-            )
-            .all([otherProfileId.id])
-        : [];
-      const partnerQualities = (partnerQualitiesResult instanceof Promise
-        ? await partnerQualitiesResult
-        : partnerQualitiesResult) as { quality: string; importance: number }[];
-
-      let values: string[] = [];
-      if (preferences?.values) {
-        try {
-          values = JSON.parse(preferences.values);
-        } catch {
-          values = [];
-        }
-      }
-
-      // Get unread message count for this match
-      const unreadCountResult = db
-        .prepare(
-          `SELECT COUNT(*) as count 
-           FROM messages 
-           WHERE match_id = ? 
-           AND sender_id != ? 
-           AND read_at IS NULL`
-        )
-        .get([m.id, userId]);
-      const unreadCount = (unreadCountResult instanceof Promise
-        ? await unreadCountResult
-        : unreadCountResult) as { count: number } | undefined;
-      const unreadMessageCount = unreadCount?.count || 0;
+      const interests = otherProfileId ? (interestsMap.get(otherProfileId) || []) : [];
+      const values = otherProfileId ? (preferencesMap.get(otherProfileId) || []) : [];
+      const partnerQualities = otherProfileId ? (partnerQualitiesMap.get(otherProfileId) || []) : [];
+      const unreadMessageCount = unreadCountsMap.get(m.id) || 0;
 
       return {
         id: m.id,
@@ -175,17 +249,14 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
         unreadCount: unreadMessageCount,
         otherUser: {
           ...otherUser,
-          profileId: otherProfileId?.id,
-          interests: interests.map((i) => i.name),
+          profileId: otherProfileId,
+          interests,
           values,
-          partnerQualities: partnerQualities.map((q) => ({
-            quality: q.quality,
-            importance: q.importance,
-          })),
+          partnerQualities,
           lastActiveAt: otherUser.last_active_at || null,
         },
       };
-    }));
+    });
 
     console.log(`✅ Returning ${formattedMatches.length} formatted matches to user ${userId}`);
     res.json({ matches: formattedMatches });
@@ -362,16 +433,37 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
 
     // Track success signal: match created (both users connected)
     // These are saved to PostgreSQL and persist forever
-    await recordSuccessSignal(userId, targetUserId, matchId, "match_created");
-    await recordSuccessSignal(targetUserId, userId, matchId, "match_created");
+    // Make non-blocking - don't wait for these
+    recordSuccessSignal(userId, targetUserId, matchId, "match_created").catch(err => 
+      console.warn('Failed to record success signal (non-critical):', err)
+    );
+    recordSuccessSignal(targetUserId, userId, matchId, "match_created").catch(err => 
+      console.warn('Failed to record success signal (non-critical):', err)
+    );
 
-    // Generate match explanation
+    // Generate match explanation (non-blocking - return null initially, generate in background)
+    // This allows the match to appear immediately while explanation generates
     let matchExplanation = null;
+    const explanationPromise = generateMatchExplanation(userProfile.id, targetProfile.id)
+      .then(explanation => {
+        // Explanation generated - could emit via socket if needed
+        return explanation;
+      })
+      .catch(err => {
+        console.warn('Failed to generate match explanation:', err);
+        return null;
+      });
+    
+    // Try to get explanation quickly, but don't block if it takes too long
     try {
-      matchExplanation = await generateMatchExplanation(userProfile.id, targetProfile.id);
+      // Wait max 2 seconds for explanation
+      matchExplanation = await Promise.race([
+        explanationPromise,
+        new Promise<null>(resolve => setTimeout(() => resolve(null), 2000))
+      ]);
     } catch (err) {
-      console.warn('Failed to generate match explanation:', err);
-      // Continue without explanation - not critical
+      // If it fails, continue without explanation
+      matchExplanation = null;
     }
 
     // Get user display names for notifications
@@ -419,47 +511,50 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
     // Send push notifications to both users (primary notification method)
     // Push notifications are the standard for match notifications in modern dating apps
     // SMS is reserved for verification codes only
-    try {
-      const { sendMatchPushNotification } = await import('../services/pushNotifications.js');
-      
-      // Get push tokens for both users
-      const userPushTokenResult = db
-        .prepare("SELECT push_token FROM users WHERE id = ?")
-        .get([userId]);
-      const userPushToken = (userPushTokenResult instanceof Promise
-        ? await userPushTokenResult
-        : userPushTokenResult) as { push_token: string | null } | undefined;
+    // Make non-blocking - send in background
+    (async () => {
+      try {
+        const { sendMatchPushNotification } = await import('../services/pushNotifications.js');
+        
+        // Get push tokens for both users
+        const userPushTokenResult = db
+          .prepare("SELECT push_token FROM users WHERE id = ?")
+          .get([userId]);
+        const userPushToken = (userPushTokenResult instanceof Promise
+          ? await userPushTokenResult
+          : userPushTokenResult) as { push_token: string | null } | undefined;
 
-      const targetPushTokenResult = db
-        .prepare("SELECT push_token FROM users WHERE id = ?")
-        .get([targetUserId]);
-      const targetPushToken = (targetPushTokenResult instanceof Promise
-        ? await targetPushTokenResult
-        : targetPushTokenResult) as { push_token: string | null } | undefined;
+        const targetPushTokenResult = db
+          .prepare("SELECT push_token FROM users WHERE id = ?")
+          .get([targetUserId]);
+        const targetPushToken = (targetPushTokenResult instanceof Promise
+          ? await targetPushTokenResult
+          : targetPushTokenResult) as { push_token: string | null } | undefined;
 
-      // Send push notification to target user (User B - the one who was matched with)
-      if (targetPushToken?.push_token) {
-        await sendMatchPushNotification(
-          targetPushToken.push_token,
-          userDisplayName?.display_name || 'Someone',
-          matchId
-        );
-        console.log(`✅ Sent push notification to ${targetUserId} (User B)`);
+        // Send push notification to target user (User B - the one who was matched with)
+        if (targetPushToken?.push_token) {
+          await sendMatchPushNotification(
+            targetPushToken.push_token,
+            userDisplayName?.display_name || 'Someone',
+            matchId
+          );
+          console.log(`✅ Sent push notification to ${targetUserId} (User B)`);
+        }
+
+        // Send push notification to initiator (User A - the one who initiated the match)
+        if (userPushToken?.push_token) {
+          await sendMatchPushNotification(
+            userPushToken.push_token,
+            targetDisplayName?.display_name || 'Someone',
+            matchId
+          );
+          console.log(`✅ Sent push notification to ${userId} (User A)`);
+        }
+      } catch (pushError) {
+        // Push notifications are optional, don't fail the match creation if push fails
+        console.warn('⚠️  Failed to send push notification (non-critical):', pushError);
       }
-
-      // Send push notification to initiator (User A - the one who initiated the match)
-      if (userPushToken?.push_token) {
-        await sendMatchPushNotification(
-          userPushToken.push_token,
-          targetDisplayName?.display_name || 'Someone',
-          matchId
-        );
-        console.log(`✅ Sent push notification to ${userId} (User A)`);
-      }
-    } catch (pushError) {
-      // Push notifications are optional, don't fail the match creation if push fails
-      console.warn('⚠️  Failed to send push notification (non-critical):', pushError);
-    }
+    })();
 
     res.json({
       message: "It's a match! You can now chat.",

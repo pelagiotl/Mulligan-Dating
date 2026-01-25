@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -218,14 +218,14 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleCustomDistanceSubmit = () => {
+  const handleCustomDistanceSubmit = useCallback(() => {
     const value = parseInt(customDistance, 10);
     if (!isNaN(value) && value >= 1 && value <= 10000) {
       handleDistanceChange(value);
     } else {
       Alert.alert('Invalid Distance', 'Please enter a number between 1 and 10,000 miles.');
     }
-  };
+  }, [customDistance, handleDistanceChange]);
 
   const fetchPackages = async () => {
     try {
@@ -271,7 +271,7 @@ export default function SettingsScreen() {
     }
   };
 
-  const handlePurchase = async (packageId: number) => {
+  const handlePurchase = useCallback(async (packageId: number) => {
     try {
       setPurchasing(true);
       setError('');
@@ -321,9 +321,9 @@ export default function SettingsScreen() {
     } finally {
       setPurchasing(false);
     }
-  };
+  }, []);
 
-  const handleDeleteAccount = async () => {
+  const handleDeleteAccount = useCallback(async () => {
     setError('');
 
     Alert.alert(
@@ -351,7 +351,7 @@ export default function SettingsScreen() {
         },
       ]
     );
-  };
+  }, [logout, navigation]);
 
   if (loading) {
     return (

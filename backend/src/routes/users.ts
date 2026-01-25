@@ -254,9 +254,10 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
       console.warn('   User preferences:', userPrefs);
     }
 
-    // Filter by distance if user has location and max_distance preference
+    // Filter by distance if user has location
+    // Note: max_distance can be null (unlimited) or a number
     let filteredProfiles = allProfiles;
-    if (userProfile.location && userPrefs?.max_distance) {
+    if (userProfile.location && userPrefs && userPrefs.max_distance !== undefined) {
       // Geocode user's location once
       const userLocationResult = await geocodeLocation(userProfile.location);
       
@@ -282,7 +283,12 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
           .filter(({ distance }) => {
             // If max_distance is null, it means unlimited - allow all distances
             if (userPrefs.max_distance === null) return true;
-            return distance === null || distance <= userPrefs.max_distance;
+            // If max_distance is a number, filter by it
+            if (typeof userPrefs.max_distance === 'number') {
+              return distance === null || distance <= userPrefs.max_distance;
+            }
+            // If max_distance is undefined, allow all (shouldn't happen, but safe fallback)
+            return true;
           })
           .sort((a, b) => {
             if (a.distance === null) return 1;

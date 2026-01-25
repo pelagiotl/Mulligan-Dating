@@ -11,13 +11,18 @@ import {
   Animated,
   Platform,
   Vibration,
+  Modal,
+  Dimensions,
+  FlatList,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { GestureHandlerRootView, PanGestureHandler, State } from 'react-native-gesture-handler';
 import { api } from '../utils/api';
 import { getPhotoUrl } from '../utils/photoUrl';
+import OptimizedImage from '../components/OptimizedImage';
 import { useAuth } from '../context/AuthContext';
 import LegalFooter from '../components/LegalFooter';
 import ConnectionQualityScore from '../components/ConnectionQualityScore';
@@ -119,19 +124,42 @@ interface Photo {
   isPrimary: boolean;
 }
 
+interface SettingsData {
+  email: string;
+  createdAt: string;
+  lastActiveAt: string | null;
+}
+
 export default function MyProfileScreen() {
   const navigation = useNavigation();
   const { refreshProfile, user } = useAuth();
   const [data, setData] = useState<ProfileData | null>(null);
   const [photos, setPhotos] = useState<Photo[]>([]);
+  const [settings, setSettings] = useState<SettingsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [showPhotoGallery, setShowPhotoGallery] = useState(false);
+  const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
+  const photoGalleryScrollRef = useRef<FlatList<Photo>>(null);
+  const [draggingPhotoId, setDraggingPhotoId] = useState<string | null>(null);
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
+  const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
+  const dragAnimatedValue = useRef(new Animated.ValueXY()).current;
+  const [reordering, setReordering] = useState(false);
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   
   // Animation for header elements
   const headerFade = useRef(new Animated.Value(0)).current;
   const headerScale = useRef(new Animated.Value(0.95)).current;
   const avatarScale = useRef(new Animated.Value(0)).current;
+  
+  // Animations for stat cards
+  const statCard1Anim = useRef(new Animated.Value(0)).current;
+  const statCard2Anim = useRef(new Animated.Value(0)).current;
+  
+  // Animations for sections (scroll-based)
+  const sectionAnims = useRef<Animated.Value[]>([]).current;
   
   // Animations for avatar ring - make it alive and immersive
   const ring1Scale = useRef(new Animated.Value(1)).current;
@@ -404,10 +432,59 @@ export default function MyProfileScreen() {
     if (user) {
       fetchProfile();
       fetchPhotos();
+      fetchSettings();
     } else {
       setLoading(false);
     }
   }, [user]);
+  
+  // Initialize and animate sections
+  useEffect(() => {
+    if (!data) return;
+    
+    // Create animations for each section (photos, interests, dealbreakers, partner qualities, lifestyle)
+    const sectionCount = 5;
+    for (let i = 0; i < sectionCount; i++) {
+      if (!sectionAnims[i]) {
+        sectionAnims[i] = new Animated.Value(0);
+      }
+    }
+    
+    // Staggered animation for all sections
+    Animated.stagger(
+      120,
+      sectionAnims.map((anim) =>
+        Animated.spring(anim, {
+          toValue: 1,
+          tension: 60,
+          friction: 10,
+          useNativeDriver: true,
+        })
+      )
+    ).start();
+  }, [data]);
+  
+  // Animate stat cards on mount
+  useEffect(() => {
+    if (settings) {
+      Animated.parallel([
+        Animated.spring(statCard1Anim, {
+          toValue: 1,
+          tension: 80,
+          friction: 12,
+          delay: 200,
+          useNativeDriver: true,
+        }),
+        Animated.spring(statCard2Anim, {
+          toValue: 1,
+          tension: 80,
+          friction: 12,
+          delay: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [settings]);
 
   const fetchPhotos = async () => {
     if (!user) return;
@@ -447,6 +524,17 @@ export default function MyProfileScreen() {
       }
     } finally {
       setLoading(false);
+    }
+  };
+  
+  const fetchSettings = async () => {
+    if (!user) return;
+    try {
+      const settingsData = await api.get<SettingsData>('/settings');
+      setSettings(settingsData);
+    } catch (err: any) {
+      // Silently fail - settings are optional
+      console.log('Could not fetch settings:', err?.message);
     }
   };
 
@@ -594,6 +682,101 @@ export default function MyProfileScreen() {
     }
   };
 
+  // Scroll to the correct photo when gallery opens
+  useEffect(() => {
+    if (showPhotoGallery && photos.length > 0 && photoGalleryScrollRef.current) {
+      const scrollToIndex = () => {
+        try {
+          const index = Math.min(currentPhotoIndex, photos.length - 1);
+          photoGalleryScrollRef.current?.scrollToIndex({ 
+            index, 
+            animated: false 
+          });
+        } catch (error) {
+          // Fallback to scrollToOffset if scrollToIndex fails
+          const index = Math.min(currentPhotoIndex, photos.length - 1);
+          photoGalleryScrollRef.current?.scrollToOffset({ 
+            offset: Dimensions.get('window').width * index, 
+            animated: false 
+          });
+        }
+      };
+      setTimeout(scrollToIndex, 100);
+    }
+  }, [showPhotoGallery, currentPhotoIndex, photos.length]);
+
+  const handleReorderPhotos = async (newOrder: string[]) => {
+    try {
+      setReordering(true);
+      await api.put('/photos/reorder', { photoIds: newOrder });
+      await fetchPhotos();
+      // Haptic feedback
+      if (Platform.OS === 'ios') {
+        Vibration.vibrate([0, 50]);
+      } else {
+        Vibration.vibrate(50);
+      }
+    } catch (err: any) {
+      console.error('Failed to reorder photos:', err);
+      Alert.alert('Error', err?.message || 'Failed to reorder photos');
+    } finally {
+      setReordering(false);
+    }
+  };
+
+  const onLongPress = (photoId: string, index: number) => {
+    setDraggingPhotoId(photoId);
+    setDraggingIndex(index);
+    // Haptic feedback
+    if (Platform.OS === 'ios') {
+      Vibration.vibrate([0, 100]);
+    } else {
+      Vibration.vibrate(100);
+    }
+  };
+
+  const onDragEnd = (event: any) => {
+    if (draggingPhotoId === null || draggingIndex === null) {
+      setDraggingPhotoId(null);
+      setDraggingIndex(null);
+      dragAnimatedValue.setValue({ x: 0, y: 0 });
+      return;
+    }
+
+    const { translationX, translationY } = event.nativeEvent;
+    
+    // Calculate drop position based on translation
+    const gridWidth = Dimensions.get('window').width - 40; // Account for margins
+    const photosPerRow = 3;
+    const photoWidth = (gridWidth - 16) / photosPerRow; // Account for gaps
+    const photoHeight = photoWidth;
+    
+    // Calculate which grid position based on translation
+    const colOffset = Math.round(translationX / photoWidth);
+    const rowOffset = Math.round(translationY / photoHeight);
+    const currentCol = draggingIndex % photosPerRow;
+    const currentRow = Math.floor(draggingIndex / photosPerRow);
+    const newCol = Math.max(0, Math.min(photosPerRow - 1, currentCol + colOffset));
+    const newRow = Math.max(0, Math.min(Math.ceil(photos.length / photosPerRow) - 1, currentRow + rowOffset));
+    const newIndex = Math.min(Math.max(0, newRow * photosPerRow + newCol), photos.length - 1);
+
+    if (newIndex !== draggingIndex && newIndex >= 0 && newIndex < photos.length) {
+      // Reorder photos
+      const newOrder = [...photos];
+      const [draggedPhoto] = newOrder.splice(draggingIndex, 1);
+      newOrder.splice(newIndex, 0, draggedPhoto);
+      
+      // Update display order
+      const photoIds = newOrder.map(p => p.id);
+      handleReorderPhotos(photoIds);
+    }
+
+    // Reset drag state
+    setDraggingPhotoId(null);
+    setDraggingIndex(null);
+    dragAnimatedValue.setValue({ x: 0, y: 0 });
+  };
+
   const handleDeletePhoto = async (photoId: string) => {
     try {
       await api.delete(`/photos/${photoId}`);
@@ -657,7 +840,7 @@ export default function MyProfileScreen() {
   const profilePhotoUrl = primaryPhoto ? getPhotoUrl(primaryPhoto.url) : null;
 
   return (
-    <View style={styles.wrapper}>
+    <GestureHandlerRootView style={styles.wrapper}>
       {/* Beautiful gradient background */}
       <LinearGradient
         colors={['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe']}
@@ -681,13 +864,29 @@ export default function MyProfileScreen() {
         ]}
       >
         <LinearGradient
-          colors={['#fff', '#fff5f8', '#fff', '#fff5f8']}
+          colors={['rgba(255, 255, 255, 0.98)', 'rgba(255, 245, 248, 0.95)', 'rgba(255, 255, 255, 0.98)', 'rgba(250, 250, 255, 0.95)']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.headerGradientInner}
         >
           <View style={styles.header}>
             {profilePhotoUrl ? (
+              <TouchableOpacity
+                activeOpacity={0.9}
+                onPress={() => {
+                  if (photos.length > 0) {
+                    const primaryIndex = photos.findIndex(p => p.isPrimary);
+                    setCurrentPhotoIndex(primaryIndex >= 0 ? primaryIndex : 0);
+                    setShowPhotoGallery(true);
+                    // Haptic feedback
+                    if (Platform.OS === 'ios') {
+                      Vibration.vibrate([0, 50]);
+                    } else {
+                      Vibration.vibrate(50);
+                    }
+                  }
+                }}
+              >
               <Animated.View
                 style={[
                   styles.avatarWrapper,
@@ -921,6 +1120,7 @@ export default function MyProfileScreen() {
                   ✨
                 </Animated.Text>
               </Animated.View>
+              </TouchableOpacity>
             ) : (
               <Animated.View
                 style={[
@@ -1165,6 +1365,65 @@ export default function MyProfileScreen() {
             <View style={styles.info}>
               <Text style={styles.name}>{profile.display_name}</Text>
               
+              {/* Animated Profile Stats Cards */}
+              {settings && (
+                <View style={styles.statsRow}>
+                  <Animated.View
+                    style={[
+                      {
+                        opacity: statCard1Anim,
+                        transform: [{ scale: statCard1Anim.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) }],
+                      },
+                    ]}
+                  >
+                    <LinearGradient
+                    colors={['#667eea', '#764ba2']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.statCard}
+                  >
+                    <Text style={styles.statEmoji}>🎉</Text>
+                    <Text style={styles.statLabel}>Member Since</Text>
+                    <Text style={styles.statValue}>
+                      {settings.createdAt
+                        ? new Date(settings.createdAt).toLocaleDateString('en-US', {
+                            month: 'short',
+                            year: 'numeric',
+                          })
+                        : 'N/A'}
+                    </Text>
+                  </LinearGradient>
+                  </Animated.View>
+
+                  <Animated.View
+                    style={[
+                      {
+                        opacity: statCard2Anim,
+                        transform: [{ scale: statCard2Anim.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) }],
+                      },
+                    ]}
+                  >
+                    <LinearGradient
+                    colors={['#f093fb', '#f5576c']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.statCard}
+                  >
+                    <Text style={styles.statEmoji}>🟢</Text>
+                    <Text style={styles.statLabel}>Last Active</Text>
+                    <Text style={styles.statValue}>
+                      {settings.lastActiveAt
+                        ? new Date(settings.lastActiveAt).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                          })
+                        : 'Just now'}
+                    </Text>
+                  </LinearGradient>
+                  </Animated.View>
+                </View>
+              )}
+              
               {/* Modern Info Cards Grid */}
               <View style={styles.infoGrid}>
                 <LinearGradient
@@ -1238,32 +1497,143 @@ export default function MyProfileScreen() {
       </Animated.View>
 
       {/* Photos Section */}
-      <View style={styles.section}>
+      <Animated.View 
+        style={[
+          styles.section,
+          {
+            opacity: sectionAnims[0] || 1,
+            transform: [
+              { 
+                translateY: (sectionAnims[0] || new Animated.Value(1)).interpolate({ 
+                  inputRange: [0, 1], 
+                  outputRange: [40, 0] 
+                }) 
+              },
+              { 
+                scale: (sectionAnims[0] || new Animated.Value(1)).interpolate({ 
+                  inputRange: [0, 1], 
+                  outputRange: [0.92, 1] 
+                }) 
+              },
+            ],
+          },
+        ]}
+      >
         <View style={styles.sectionTitleContainer}>
           <AnimatedEmoji emoji="📸" delay={0} />
           <Text style={styles.sectionTitle}> My Photos</Text>
         </View>
+        
+        {/* View Photos Button */}
+        {photos.length > 0 && (
+          <TouchableOpacity
+            style={styles.viewPhotosButton}
+            onPress={() => {
+              const primaryIndex = photos.findIndex(p => p.isPrimary);
+              const index = primaryIndex >= 0 ? primaryIndex : 0;
+              setCurrentPhotoIndex(index);
+              setShowPhotoGallery(true);
+              // Haptic feedback
+              if (Platform.OS === 'ios') {
+                Vibration.vibrate([0, 50]);
+              } else {
+                Vibration.vibrate(50);
+              }
+            }}
+            activeOpacity={0.8}
+          >
+            <LinearGradient
+              colors={['#667eea', '#764ba2', '#f093fb']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.viewPhotosButtonGradient}
+            >
+              <Text style={styles.viewPhotosButtonIcon}>📷</Text>
+              <Text style={styles.viewPhotosButtonText}>
+                View All Photos ({photos.length})
+              </Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
+        
         <View style={styles.photosGrid}>
-          {photos.map((photo) => (
-            <View key={photo.id} style={styles.photoContainer}>
-              <Image
-                source={{ uri: getPhotoUrl(photo.url) }}
-                style={styles.photo}
-                resizeMode="cover"
-              />
-              {photo.isPrimary && (
-                <View style={styles.primaryBadge}>
-                  <Text style={styles.primaryBadgeText}>Primary</Text>
-                </View>
-              )}
-              <TouchableOpacity
-                style={styles.deleteButton}
-                onPress={() => handleDeletePhoto(photo.id)}
+          {photos.map((photo, index) => {
+            const isDragging = draggingPhotoId === photo.id;
+            const dragStyle = isDragging ? {
+              opacity: 0.5,
+              zIndex: 1000,
+              transform: [
+                { translateX: dragAnimatedValue.x },
+                { translateY: dragAnimatedValue.y },
+                { scale: 1.1 },
+              ],
+            } : {};
+            
+            return (
+              <PanGestureHandler
+                key={photo.id}
+                onGestureEvent={Animated.event(
+                  [{ nativeEvent: { translationX: dragAnimatedValue.x, translationY: dragAnimatedValue.y } }],
+                  { useNativeDriver: false }
+                )}
+                onHandlerStateChange={(event) => {
+                  const { state } = event.nativeEvent;
+                  if (state === State.BEGAN && !isDragging) {
+                    // Start long press timer
+                    longPressTimerRef.current = setTimeout(() => {
+                      onLongPress(photo.id, index);
+                    }, 300);
+                  } else if (state === State.ACTIVE && isDragging && draggingPhotoId === photo.id) {
+                    // Update position while dragging
+                    const { translationX, translationY } = event.nativeEvent;
+                    dragAnimatedValue.setValue({ x: translationX, y: translationY });
+                  } else if (state === State.END || state === State.CANCELLED || state === State.FAILED) {
+                    // Clear timer
+                    if (longPressTimerRef.current) {
+                      clearTimeout(longPressTimerRef.current);
+                      longPressTimerRef.current = null;
+                    }
+                    if (isDragging && draggingPhotoId === photo.id) {
+                      onDragEnd(event);
+                    }
+                  }
+                }}
+                minPointers={1}
+                maxPointers={1}
+                enabled={!isDragging || draggingPhotoId === photo.id}
               >
-                <Text style={styles.deleteButtonText}>×</Text>
-              </TouchableOpacity>
-            </View>
-          ))}
+                <Animated.View
+                  style={[
+                    styles.photoContainer,
+                    dragStyle,
+                    isDragging && styles.photoContainerDragging,
+                  ]}
+                >
+                  <OptimizedImage
+                    source={photo.url}
+                    style={styles.photo}
+                    resizeMode="cover"
+                  />
+                  {photo.isPrimary && (
+                    <View style={styles.primaryBadge}>
+                      <Text style={styles.primaryBadgeText}>Primary</Text>
+                    </View>
+                  )}
+                  <TouchableOpacity
+                    style={styles.deleteButton}
+                    onPress={() => handleDeletePhoto(photo.id)}
+                  >
+                    <Text style={styles.deleteButtonText}>×</Text>
+                  </TouchableOpacity>
+                  {isDragging && (
+                    <View style={styles.dragIndicator}>
+                      <Text style={styles.dragIndicatorText}>📱</Text>
+                    </View>
+                  )}
+                </Animated.View>
+              </PanGestureHandler>
+            );
+          })}
           {photos.length < 6 && (
             <TouchableOpacity
               style={styles.addPhotoButton}
@@ -1281,11 +1651,32 @@ export default function MyProfileScreen() {
         <Text style={styles.photoHint}>
           {photos.length}/6 photos {photos.length < 6 && '(tap + to add)'}
         </Text>
-      </View>
+      </Animated.View>
 
       {/* Interests */}
       {interests.length > 0 && (
-        <View style={styles.section}>
+        <Animated.View 
+          style={[
+            styles.section,
+            {
+              opacity: sectionAnims[1] || 1,
+              transform: [
+                { 
+                  translateY: (sectionAnims[1] || new Animated.Value(1)).interpolate({ 
+                    inputRange: [0, 1], 
+                    outputRange: [40, 0] 
+                  }) 
+                },
+                { 
+                  scale: (sectionAnims[1] || new Animated.Value(1)).interpolate({ 
+                    inputRange: [0, 1], 
+                    outputRange: [0.92, 1] 
+                  }) 
+                },
+              ],
+            },
+          ]}
+        >
           <View style={styles.sectionTitleContainer}>
             <AnimatedEmoji emoji="🎯" delay={200} />
             <Text style={styles.sectionTitle}> My Interests</Text>
@@ -1297,12 +1688,33 @@ export default function MyProfileScreen() {
               </View>
             ))}
           </View>
-        </View>
+        </Animated.View>
       )}
 
       {/* Dealbreakers */}
       {dealbreakers.length > 0 && (
-        <View style={styles.section}>
+        <Animated.View 
+          style={[
+            styles.section,
+            {
+              opacity: sectionAnims[2] || 1,
+              transform: [
+                { 
+                  translateY: (sectionAnims[2] || new Animated.Value(1)).interpolate({ 
+                    inputRange: [0, 1], 
+                    outputRange: [40, 0] 
+                  }) 
+                },
+                { 
+                  scale: (sectionAnims[2] || new Animated.Value(1)).interpolate({ 
+                    inputRange: [0, 1], 
+                    outputRange: [0.92, 1] 
+                  }) 
+                },
+              ],
+            },
+          ]}
+        >
           <View style={styles.sectionTitleContainer}>
             <AnimatedEmoji emoji="🚫" delay={400} />
             <Text style={styles.sectionTitle}> My Dealbreakers</Text>
@@ -1314,12 +1726,33 @@ export default function MyProfileScreen() {
               </View>
             ))}
           </View>
-        </View>
+        </Animated.View>
       )}
 
       {/* Partner Qualities */}
       {partnerQualities.length > 0 && (
-        <View style={styles.section}>
+        <Animated.View 
+          style={[
+            styles.section,
+            {
+              opacity: sectionAnims[3] || 1,
+              transform: [
+                { 
+                  translateY: (sectionAnims[3] || new Animated.Value(1)).interpolate({ 
+                    inputRange: [0, 1], 
+                    outputRange: [40, 0] 
+                  }) 
+                },
+                { 
+                  scale: (sectionAnims[3] || new Animated.Value(1)).interpolate({ 
+                    inputRange: [0, 1], 
+                    outputRange: [0.92, 1] 
+                  }) 
+                },
+              ],
+            },
+          ]}
+        >
           <View style={styles.sectionTitleContainer}>
             <AnimatedEmoji emoji="💕" delay={600} />
             <Text style={styles.sectionTitle}> What I'm Looking For</Text>
@@ -1331,12 +1764,33 @@ export default function MyProfileScreen() {
               </View>
             ))}
           </View>
-        </View>
+        </Animated.View>
       )}
 
       {/* Lifestyle */}
       {lifestyle && (
-        <View style={styles.section}>
+        <Animated.View 
+          style={[
+            styles.section,
+            {
+              opacity: sectionAnims[4] || 1,
+              transform: [
+                { 
+                  translateY: (sectionAnims[4] || new Animated.Value(1)).interpolate({ 
+                    inputRange: [0, 1], 
+                    outputRange: [40, 0] 
+                  }) 
+                },
+                { 
+                  scale: (sectionAnims[4] || new Animated.Value(1)).interpolate({ 
+                    inputRange: [0, 1], 
+                    outputRange: [0.92, 1] 
+                  }) 
+                },
+              ],
+            },
+          ]}
+        >
           <View style={styles.sectionTitleContainer}>
             <AnimatedEmoji emoji="🌱" delay={800} />
             <Text style={styles.sectionTitle}> Lifestyle</Text>
@@ -1385,7 +1839,7 @@ export default function MyProfileScreen() {
               </View>
             )}
           </View>
-        </View>
+        </Animated.View>
       )}
 
       {/* Edit Profile Button */}
@@ -1394,18 +1848,18 @@ export default function MyProfileScreen() {
         onPress={() => {
           // Haptic feedback - light vibration
           if (Platform.OS === 'ios') {
-            Vibration.vibrate(10); // Short vibration for iOS
+            Vibration.vibrate(50); // Increased from 10ms to 50ms for better feel on iOS
           } else {
-            Vibration.vibrate(50); // Slightly longer for Android
+            Vibration.vibrate(50); // Same for Android
           }
           navigation.navigate('CreateProfile' as never);
         }}
       >
         <LinearGradient
-          colors={['#667eea', '#764ba2', '#f093fb']}
+          colors={['#667eea', '#764ba2', '#f093fb', '#f5576c']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={{ paddingVertical: 20, alignItems: 'center', justifyContent: 'center' }}
+          style={{ paddingVertical: 22, alignItems: 'center', justifyContent: 'center' }}
         >
           <Text style={styles.editButtonText}>✨ Edit Profile</Text>
         </LinearGradient>
@@ -1416,7 +1870,152 @@ export default function MyProfileScreen() {
         <LegalFooter />
       </View>
       </ScrollView>
-    </View>
+
+      {/* Photo Gallery Modal */}
+      <Modal
+        visible={showPhotoGallery}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowPhotoGallery(false)}
+      >
+        <View style={styles.photoGalleryModal}>
+          {/* Top Bar with Close, Delete, and Add buttons */}
+          <View style={styles.photoGalleryTopBar}>
+            <TouchableOpacity
+              style={styles.photoGalleryCloseButton}
+              onPress={() => setShowPhotoGallery(false)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.photoGalleryCloseText}>✕</Text>
+            </TouchableOpacity>
+            
+            <View style={styles.photoGalleryActions}>
+              {/* Delete Button */}
+              {photos.length > 0 && photos[currentPhotoIndex] && (
+                <TouchableOpacity
+                  style={styles.photoGalleryDeleteButton}
+                  onPress={async () => {
+                    const photoToDelete = photos[currentPhotoIndex];
+                    if (photoToDelete) {
+                      Alert.alert(
+                        'Delete Photo',
+                        'Are you sure you want to delete this photo?',
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          {
+                            text: 'Delete',
+                            style: 'destructive',
+                            onPress: async () => {
+                              try {
+                                await handleDeletePhoto(photoToDelete.id);
+                                // If we deleted the last photo, close gallery
+                                if (photos.length === 1) {
+                                  setShowPhotoGallery(false);
+                                } else {
+                                  // Adjust index if needed
+                                  const newIndex = Math.min(currentPhotoIndex, photos.length - 2);
+                                  setCurrentPhotoIndex(newIndex >= 0 ? newIndex : 0);
+                                }
+                                // Haptic feedback
+                                if (Platform.OS === 'ios') {
+                                  Vibration.vibrate([0, 50]);
+                                } else {
+                                  Vibration.vibrate(50);
+                                }
+                              } catch (error) {
+                                console.error('Failed to delete photo:', error);
+                              }
+                            },
+                          },
+                        ]
+                      );
+                    }
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.photoGalleryDeleteText}>🗑️</Text>
+                </TouchableOpacity>
+              )}
+              
+              {/* Add Photo Button */}
+              {photos.length < 6 && (
+                <TouchableOpacity
+                  style={styles.photoGalleryAddButton}
+                  onPress={async () => {
+                    try {
+                      await handlePickImage();
+                      // Haptic feedback
+                      if (Platform.OS === 'ios') {
+                        Vibration.vibrate([0, 50]);
+                      } else {
+                        Vibration.vibrate(50);
+                      }
+                    } catch (error) {
+                      console.error('Failed to upload photo:', error);
+                    }
+                  }}
+                  disabled={uploading}
+                  activeOpacity={0.8}
+                >
+                  {uploading ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.photoGalleryAddText}>➕</Text>
+                  )}
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+          
+          {photos.length > 0 && (
+            <FlatList
+              ref={photoGalleryScrollRef}
+              data={photos}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(item) => item.id}
+              // Performance optimizations
+              removeClippedSubviews={true}
+              maxToRenderPerBatch={3}
+              updateCellsBatchingPeriod={50}
+              initialNumToRender={2}
+              windowSize={3}
+              getItemLayout={(_, index) => ({
+                length: Dimensions.get('window').width,
+                offset: Dimensions.get('window').width * index,
+                index,
+              })}
+              onMomentumScrollEnd={(event) => {
+                const index = Math.round(
+                  event.nativeEvent.contentOffset.x / Dimensions.get('window').width
+                );
+                if (index >= 0 && index < photos.length) {
+                  setCurrentPhotoIndex(index);
+                }
+              }}
+              renderItem={({ item }) => (
+                <View style={styles.photoGalleryItem}>
+                  <OptimizedImage
+                    source={item.url}
+                    style={styles.photoGalleryImage}
+                    resizeMode="contain"
+                  />
+                </View>
+              )}
+            />
+          )}
+          
+          {photos.length > 1 && (
+            <View style={styles.photoGalleryIndicators}>
+              <Text style={styles.photoGalleryCounter}>
+                {currentPhotoIndex + 1} / {photos.length}
+              </Text>
+            </View>
+          )}
+        </View>
+      </Modal>
+    </GestureHandlerRootView>
   );
 }
 
@@ -1499,24 +2098,25 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   headerGradient: {
-    marginBottom: 24,
+    marginBottom: 28,
     marginHorizontal: 16,
-    borderRadius: 32,
+    borderRadius: 36,
     overflow: 'hidden',
     shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.3,
-    shadowRadius: 32,
-    elevation: 14,
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.4,
+    shadowRadius: 40,
+    elevation: 18,
   },
   headerGradientInner: {
-    borderRadius: 32,
-    borderWidth: 3,
-    borderColor: '#fff',
+    borderRadius: 36,
+    borderWidth: 2.5,
+    borderColor: 'rgba(255, 255, 255, 0.9)',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
   },
   header: {
-    padding: 40,
-    paddingTop: 48,
+    padding: 44,
+    paddingTop: 52,
     borderBottomWidth: 0,
   },
   avatarWrapper: {
@@ -1533,6 +2133,11 @@ const styles = StyleSheet.create({
     overflow: 'visible',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  ringGradient: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 100,
   },
   ringGradientOuter: {
     width: '100%',
@@ -1552,6 +2157,14 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 100,
     backgroundColor: 'transparent',
+  },
+  shimmerOverlay: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    borderRadius: 100,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    zIndex: 2,
   },
   avatarRing1: {
     width: 200,
@@ -1660,23 +2273,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   name: {
-    fontSize: 44,
+    fontSize: 48,
     fontWeight: '900',
     color: '#1a1a1a',
-    marginBottom: 28,
-    letterSpacing: -1.2,
+    marginBottom: 24,
+    letterSpacing: -1.5,
     textAlign: 'center',
-    textShadowColor: 'rgba(102, 126, 234, 0.3)',
-    textShadowOffset: { width: 0, height: 4 },
-    textShadowRadius: 16,
+    textShadowColor: 'rgba(102, 126, 234, 0.25)',
+    textShadowOffset: { width: 0, height: 6 },
+    textShadowRadius: 20,
   },
-  infoGrid: {
+  statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 20,
     gap: 12,
+    width: '100%',
   },
-  infoCardGradient: {
+  statCard: {
     flex: 1,
     paddingVertical: 20,
     paddingHorizontal: 16,
@@ -1686,49 +2300,92 @@ const styles = StyleSheet.create({
     minHeight: 120,
     shadowColor: '#667eea',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.4,
     shadowRadius: 20,
     elevation: 12,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderWidth: 2.5,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
   },
-  infoCardFull: {
-    width: '100%',
-    paddingVertical: 24,
-    paddingHorizontal: 20,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-    minHeight: 100,
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 20,
-    elevation: 12,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  infoCardEmoji: {
+  statEmoji: {
     fontSize: 32,
     marginBottom: 8,
   },
-  infoCardLabel: {
+  statLabel: {
     fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: 'rgba(255, 255, 255, 0.95)',
     marginBottom: 6,
     fontWeight: '800',
     textTransform: 'uppercase',
     letterSpacing: 1.5,
   },
-  infoCardValue: {
-    fontSize: 28,
+  statValue: {
+    fontSize: 16,
     color: '#fff',
-    fontWeight: '900',
-    letterSpacing: -0.5,
+    fontWeight: '800',
+    textAlign: 'center',
     textShadowColor: 'rgba(0, 0, 0, 0.2)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
+  },
+  infoGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    gap: 12,
+  },
+  infoCardGradient: {
+    flex: 1,
+    paddingVertical: 24,
+    paddingHorizontal: 18,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 130,
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.4,
+    shadowRadius: 24,
+    elevation: 14,
+    borderWidth: 2.5,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+  },
+  infoCardFull: {
+    width: '100%',
+    paddingVertical: 26,
+    paddingHorizontal: 22,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 18,
+    minHeight: 110,
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.4,
+    shadowRadius: 24,
+    elevation: 14,
+    borderWidth: 2.5,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+  },
+  infoCardEmoji: {
+    fontSize: 36,
+    marginBottom: 10,
+  },
+  infoCardLabel: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.95)',
+    marginBottom: 8,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 2,
+  },
+  infoCardValue: {
+    fontSize: 32,
+    color: '#fff',
+    fontWeight: '900',
+    letterSpacing: -0.8,
+    textShadowColor: 'rgba(0, 0, 0, 0.25)',
+    textShadowOffset: { width: 0, height: 3 },
+    textShadowRadius: 6,
   },
   infoCardValueFull: {
     fontSize: 20,
@@ -1742,20 +2399,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   bioContainer: {
-    marginTop: 24,
+    marginTop: 28,
     width: '100%',
   },
   bioGradient: {
-    paddingHorizontal: 24,
-    paddingVertical: 24,
-    borderRadius: 24,
-    borderWidth: 2.5,
-    borderColor: 'rgba(102, 126, 234, 0.3)',
+    paddingHorizontal: 28,
+    paddingVertical: 28,
+    borderRadius: 28,
+    borderWidth: 3,
+    borderColor: 'rgba(102, 126, 234, 0.35)',
     shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.6)',
   },
   bioHeader: {
     flexDirection: 'row',
@@ -1784,10 +2442,10 @@ const styles = StyleSheet.create({
   },
   section: {
     backgroundColor: 'rgba(255, 255, 255, 0.98)',
-    padding: 28,
-    marginTop: 20,
+    padding: 32,
+    marginTop: 24,
     marginHorizontal: 16,
-    borderRadius: 28,
+    borderRadius: 32,
     borderTopWidth: 0,
     borderBottomWidth: 0,
     shadowColor: '#667eea',
@@ -1804,14 +2462,14 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: '900',
     color: '#1a1a1a',
     marginLeft: 12,
-    letterSpacing: -0.5,
-    textShadowColor: 'rgba(102, 126, 234, 0.2)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 8,
+    letterSpacing: -0.8,
+    textShadowColor: 'rgba(102, 126, 234, 0.25)',
+    textShadowOffset: { width: 0, height: 3 },
+    textShadowRadius: 10,
   },
   photosGrid: {
     flexDirection: 'row',
@@ -1832,6 +2490,25 @@ const styles = StyleSheet.create({
     elevation: 8,
     borderWidth: 3,
     borderColor: '#fff',
+  },
+  photoContainerDragging: {
+    elevation: 20,
+    shadowOpacity: 0.5,
+    shadowRadius: 24,
+    borderColor: '#667eea',
+    borderWidth: 4,
+  },
+  dragIndicator: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: 'rgba(102, 126, 234, 0.9)',
+    borderRadius: 12,
+    padding: 4,
+    zIndex: 10,
+  },
+  dragIndicatorText: {
+    fontSize: 16,
   },
   photo: {
     width: '100%',
@@ -1971,22 +2648,148 @@ const styles = StyleSheet.create({
   },
   editButton: {
     marginHorizontal: 20,
-    marginTop: 28,
-    borderRadius: 24,
+    marginTop: 32,
+    borderRadius: 28,
     overflow: 'hidden',
     shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 20,
-    elevation: 12,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.45,
+    shadowRadius: 28,
+    elevation: 16,
+    borderWidth: 2.5,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   editButtonText: {
     color: '#fff',
+    fontSize: 22,
+    fontWeight: '900',
+    letterSpacing: 1,
+    textShadowColor: 'rgba(0, 0, 0, 0.25)',
+    textShadowOffset: { width: 0, height: 3 },
+    textShadowRadius: 6,
+  },
+  photoGalleryModal: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  photoGalleryTopBar: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 60 : 40,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    zIndex: 1000,
+  },
+  photoGalleryCloseButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  photoGalleryActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  photoGalleryDeleteButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(239, 68, 68, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(239, 68, 68, 0.5)',
+  },
+  photoGalleryDeleteText: {
     fontSize: 20,
-    fontWeight: '800',
-    letterSpacing: 0.8,
+  },
+  photoGalleryAddButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(16, 185, 129, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(16, 185, 129, 0.5)',
+  },
+  photoGalleryAddText: {
+    fontSize: 24,
+    color: '#fff',
+    fontWeight: '600',
+  },
+  photoGalleryCloseText: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: '600',
+  },
+  photoGalleryItem: {
+    width: Dimensions.get('window').width,
+    height: Dimensions.get('window').height,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  photoGalleryImage: {
+    width: Dimensions.get('window').width,
+    height: Dimensions.get('window').height,
+  },
+  photoGalleryIndicators: {
+    position: 'absolute',
+    bottom: Platform.OS === 'ios' ? 100 : 80,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  photoGalleryCounter: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '600',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  viewPhotosButton: {
+    marginTop: 16,
+    marginBottom: 20,
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  viewPhotosButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  viewPhotosButtonIcon: {
+    fontSize: 20,
+    marginRight: 10,
+  },
+  viewPhotosButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.3,
     textShadowColor: 'rgba(0, 0, 0, 0.2)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
 });

@@ -4,6 +4,7 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { apiCache, APICache } from './apiCache';
 
 // API URL - use EXPO_PUBLIC_ for production builds, fallback to hardcoded production URL
 export const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://mulligan-backend.onrender.com';
@@ -18,7 +19,18 @@ class ApiError extends Error {
   }
 }
 
-async function request<T = any>(endpoint: string, options: RequestInit & { body?: any } = {}): Promise<T> {
+async function request<T = any>(endpoint: string, options: RequestInit & { body?: any } = {}, useCache: boolean = true): Promise<T> {
+  // Check cache for GET requests
+  const isGetRequest = !options.method || options.method === 'GET';
+  if (isGetRequest && useCache) {
+    const cacheKey = APICache.getCacheKey(endpoint);
+    const cached = apiCache.get<T>(cacheKey);
+    if (cached !== null) {
+      console.log('💾 Cache hit for:', endpoint);
+      return cached;
+    }
+  }
+
   // Get token from AsyncStorage (async, unlike localStorage)
   const token = await AsyncStorage.getItem('token');
   
@@ -114,6 +126,11 @@ async function request<T = any>(endpoint: string, options: RequestInit & { body?
     }
 
     if (!response.ok) {
+      // Clear cache on error
+      if (isGetRequest && useCache) {
+        const cacheKey = APICache.getCacheKey(endpoint);
+        apiCache.clear(cacheKey);
+      }
       const errorMsg = data.error || `Request failed with status ${response.status}`;
       const errorMsgLower = errorMsg.toLowerCase();
       
@@ -124,7 +141,10 @@ async function request<T = any>(endpoint: string, options: RequestInit & { body?
       // Suppress 404 errors for push-token endpoint (backend may not have it deployed yet)
       const isPushToken404 = response.status === 404 && endpoint === '/auth/push-token';
       
-      if (!isInformational && !isPushToken404) {
+      // Suppress 404 errors for date-plan endpoint (expected when no plan exists yet)
+      const isDatePlan404 = response.status === 404 && endpoint.includes('/date-plan');
+      
+      if (!isInformational && !isPushToken404 && !isDatePlan404) {
         console.error('❌ API request failed:', {
           endpoint,
           status: response.status,
@@ -141,6 +161,22 @@ async function request<T = any>(endpoint: string, options: RequestInit & { body?
         (apiError as any).canClaimWeeklyToken = data.canClaimWeeklyToken;
       }
       throw apiError;
+    }
+
+    // Cache successful GET responses
+    if (isGetRequest && useCache) {
+      const cacheKey = APICache.getCacheKey(endpoint);
+      // Cache for different durations based on endpoint
+      let ttl = 5 * 60 * 1000; // 5 minutes default
+      if (endpoint.includes('/matches')) {
+        ttl = 30 * 1000; // 30 seconds for matches (frequently updated)
+      } else if (endpoint.includes('/profile')) {
+        ttl = 2 * 60 * 1000; // 2 minutes for profile
+      } else if (endpoint.includes('/users/browse')) {
+        ttl = 10 * 1000; // 10 seconds for browse (very dynamic)
+      }
+      apiCache.set(cacheKey, data, ttl);
+      console.log('💾 Cached response for:', endpoint, `(TTL: ${ttl}ms)`);
     }
 
     return data as T;
@@ -182,17 +218,43 @@ async function request<T = any>(endpoint: string, options: RequestInit & { body?
 }
 
 export const api = {
-  get: <T>(endpoint: string) => request<T>(endpoint),
-  post: <T>(endpoint: string, body: unknown) => request<T>(endpoint, {
-    method: 'POST',
-    body
-  }),
-  put: <T>(endpoint: string, body: unknown) => request<T>(endpoint, {
-    method: 'PUT',
-    body
-  }),
-  delete: <T>(endpoint: string) => request<T>(endpoint, {
-    method: 'DELETE'
-  })
+  get: <T>(endpoint: string, useCache: boolean = true) => request<T>(endpoint, {}, useCache),
+  post: <T>(endpoint: string, body: unknown) => {
+    // Clear related cache entries on POST
+    if (endpoint.includes('/matches/connect')) {
+      apiCache.clear(APICache.getCacheKey('/matches'));
+    }
+    return request<T>(endpoint, {
+      method: 'POST',
+      body
+    }, false);
+  },
+  put: <T>(endpoint: string, body: unknown) => {
+    // Clear related cache entries on PUT
+    if (endpoint.includes('/profile') || endpoint.includes('/preferences')) {
+      apiCache.clear(APICache.getCacheKey('/profile'));
+    }
+    return request<T>(endpoint, {
+      method: 'PUT',
+      body
+    }, false);
+  },
+  delete: <T>(endpoint: string) => {
+    // Clear related cache entries on DELETE
+    if (endpoint.includes('/matches')) {
+      apiCache.clear(APICache.getCacheKey('/matches'));
+    }
+    return request<T>(endpoint, {
+      method: 'DELETE'
+    }, false);
+  },
+  // Utility to clear cache
+  clearCache: (endpoint?: string) => {
+    if (endpoint) {
+      apiCache.clear(APICache.getCacheKey(endpoint));
+    } else {
+      apiCache.clearAll();
+    }
+  }
 };
 

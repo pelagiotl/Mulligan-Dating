@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, memo, useMemo } from 'react';
 import {
   View,
   Text,
@@ -25,6 +25,7 @@ import TokenDisplay from '../components/TokenDisplay';
 import MatchCelebration from '../components/MatchCelebration';
 import LegalFooter from '../components/LegalFooter';
 import NoTokensModal from '../components/NoTokensModal';
+import OptimizedImage from '../components/OptimizedImage';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -57,10 +58,20 @@ function renderLocation(location: string | null | undefined) {
 const AnimatedLogo = memo(function AnimatedLogo() {
   const rotateAnim = useRef(new Animated.Value(0)).current;
   const heartScale = useRef(new Animated.Value(1)).current;
+  const glowAnim = useRef(new Animated.Value(0.5)).current;
+  const glowScale = useRef(new Animated.Value(1)).current;
+  const shineAnim = useRef(new Animated.Value(0)).current;
+  const borderGlowAnim = useRef(new Animated.Value(0.6)).current;
   const arrowTopScale = useRef(new Animated.Value(1)).current;
   const arrowTopOpacity = useRef(new Animated.Value(0.9)).current;
+  const arrowTopGlowOpacityAnim = useRef(new Animated.Value(0.8)).current;
   const arrowBottomScale = useRef(new Animated.Value(1)).current;
   const arrowBottomOpacity = useRef(new Animated.Value(0.9)).current;
+  const arrowBottomGlowOpacityAnim = useRef(new Animated.Value(0.8)).current;
+  const sparkle1GlowOpacityAnim = useRef(new Animated.Value(0.8)).current;
+  const sparkle2GlowOpacityAnim = useRef(new Animated.Value(0.8)).current;
+  const sparkle3GlowOpacityAnim = useRef(new Animated.Value(0.8)).current;
+  const sparkle4GlowOpacityAnim = useRef(new Animated.Value(0.8)).current;
   const sparkle1Opacity = useRef(new Animated.Value(0.6)).current;
   const sparkle1Scale = useRef(new Animated.Value(1)).current;
   const sparkle1TranslateY = useRef(new Animated.Value(0)).current;
@@ -111,6 +122,14 @@ const AnimatedLogo = memo(function AnimatedLogo() {
   const [sparkle4TranslateXValue, setSparkle4TranslateXValue] = useState(0);
   const [arrowTopOpacityValue, setArrowTopOpacityValue] = useState(0.9);
   const [arrowBottomOpacityValue, setArrowBottomOpacityValue] = useState(0.9);
+  const [arrowTopGlowOpacity, setArrowTopGlowOpacity] = useState(0.8);
+  const [arrowBottomGlowOpacity, setArrowBottomGlowOpacity] = useState(0.8);
+  const [sparkle1GlowOpacity, setSparkle1GlowOpacity] = useState(0.8);
+  const [sparkle2GlowOpacity, setSparkle2GlowOpacity] = useState(0.8);
+  const [sparkle3GlowOpacity, setSparkle3GlowOpacity] = useState(0.8);
+  const [sparkle4GlowOpacity, setSparkle4GlowOpacity] = useState(0.8);
+  const [shineTranslateXValue, setShineTranslateXValue] = useState(-100);
+  const [shineOpacityValue, setShineOpacityValue] = useState(0);
 
   useEffect(() => {
     // Continuous rotation (4s linear infinite - matching frontend)
@@ -139,6 +158,80 @@ const AnimatedLogo = memo(function AnimatedLogo() {
         Animated.timing(heartScale, {
           toValue: 1,
           duration: 1400, // 70% of 2000ms (30% to 100%)
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Glow pulse animation - smooth and premium
+    Animated.loop(
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(glowAnim, {
+            toValue: 0.75,
+            duration: 2500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(glowScale, {
+            toValue: 1.08,
+            duration: 2500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(borderGlowAnim, {
+            toValue: 0.9,
+            duration: 2500,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.timing(glowAnim, {
+            toValue: 0.5,
+            duration: 2500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(glowScale, {
+            toValue: 1,
+            duration: 2500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(borderGlowAnim, {
+            toValue: 0.6,
+            duration: 2500,
+            useNativeDriver: true,
+          }),
+        ]),
+      ])
+    ).start();
+
+    // Shine/shimmer effect - premium touch
+    const shineTranslateXListenerId = shineAnim.addListener(({ value }) => {
+      const translateX = (value - 0.5) * 200; // -100 to 100
+      throttledSetState(setShineTranslateXValue, translateX, 'shineTranslateX');
+    });
+    
+    const shineOpacityListenerId = shineAnim.addListener(({ value }) => {
+      let opacity = 0;
+      if (value >= 0.3 && value <= 0.7) {
+        opacity = 0.4;
+      } else if (value < 0.3) {
+        opacity = (value / 0.3) * 0.4;
+      } else if (value > 0.7) {
+        opacity = ((1 - value) / 0.3) * 0.4;
+      }
+      throttledSetState(setShineOpacityValue, opacity, 'shineOpacity');
+    });
+    
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(shineAnim, {
+          toValue: 1,
+          duration: 3000,
+          useNativeDriver: true,
+        }),
+        Animated.delay(1000),
+        Animated.timing(shineAnim, {
+          toValue: 0,
+          duration: 0,
           useNativeDriver: true,
         }),
       ])
@@ -295,6 +388,63 @@ const AnimatedLogo = memo(function AnimatedLogo() {
       throttledSetState(setArrowBottomOpacityValue, value, 'arrowBottom');
     });
     
+    // Arrow glow pulse animations
+    const arrowGlowPulse = (opacity: Animated.Value, setter: (val: number) => void, key: string) => {
+      const listenerId = opacity.addListener(({ value }) => {
+        throttledSetState(setter, value, key);
+      });
+      
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(opacity, {
+            toValue: 1,
+            duration: 1500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(opacity, {
+            toValue: 0.6,
+            duration: 1500,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+      
+      return listenerId;
+    };
+    
+    const arrowTopGlowListenerId = arrowGlowPulse(arrowTopGlowOpacityAnim, setArrowTopGlowOpacity, 'arrowTopGlow');
+    const arrowBottomGlowListenerId = arrowGlowPulse(arrowBottomGlowOpacityAnim, setArrowBottomGlowOpacity, 'arrowBottomGlow');
+    
+    // Sparkle glow pulse animations
+    const sparkleGlowPulse = (opacity: Animated.Value, setter: (val: number) => void, key: string, delay: number) => {
+      const listenerId = opacity.addListener(({ value }) => {
+        throttledSetState(setter, value, key);
+      });
+      
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(opacity, {
+            toValue: 1,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(opacity, {
+            toValue: 0.7,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+      
+      return listenerId;
+    };
+    
+    const sparkle1GlowListenerId = sparkleGlowPulse(sparkle1GlowOpacityAnim, setSparkle1GlowOpacity, 'sparkle1Glow', 0);
+    const sparkle2GlowListenerId = sparkleGlowPulse(sparkle2GlowOpacityAnim, setSparkle2GlowOpacity, 'sparkle2Glow', 250);
+    const sparkle3GlowListenerId = sparkleGlowPulse(sparkle3GlowOpacityAnim, setSparkle3GlowOpacity, 'sparkle3Glow', 500);
+    const sparkle4GlowListenerId = sparkleGlowPulse(sparkle4GlowOpacityAnim, setSparkle4GlowOpacity, 'sparkle4Glow', 750);
+    
     return () => {
       sparkle1Opacity.removeListener(listener1.opacity);
       sparkle1Scale.removeListener(listener1.scale);
@@ -314,12 +464,30 @@ const AnimatedLogo = memo(function AnimatedLogo() {
       sparkle4TranslateX.removeListener(listener4.translateX);
       arrowTopOpacity.removeListener(arrowTopListenerId);
       arrowBottomOpacity.removeListener(arrowBottomListenerId);
+      arrowTopGlowOpacityAnim.removeListener(arrowTopGlowListenerId);
+      arrowBottomGlowOpacityAnim.removeListener(arrowBottomGlowListenerId);
+      sparkle1GlowOpacityAnim.removeListener(sparkle1GlowListenerId);
+      sparkle2GlowOpacityAnim.removeListener(sparkle2GlowListenerId);
+      sparkle3GlowOpacityAnim.removeListener(sparkle3GlowListenerId);
+      sparkle4GlowOpacityAnim.removeListener(sparkle4GlowListenerId);
+      shineAnim.removeListener(shineTranslateXListenerId);
+      shineAnim.removeListener(shineOpacityListenerId);
     };
   }, [throttledSetState]);
 
   const rotate = rotateAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ['0deg', '360deg'],
+  });
+
+  const glowOpacity = glowAnim.interpolate({
+    inputRange: [0.5, 0.75],
+    outputRange: [0.35, 0.55],
+  });
+
+  const borderGlowOpacity = borderGlowAnim.interpolate({
+    inputRange: [0.6, 0.9],
+    outputRange: [0.5, 0.7],
   });
 
   return (
@@ -339,27 +507,109 @@ const AnimatedLogo = memo(function AnimatedLogo() {
         >
           <Svg width={90} height={90} viewBox="0 0 48 48">
             <Defs>
+              {/* Premium gradient with smooth color stops */}
               <SvgLinearGradient id="heartGradientBrowse" x1="0%" y1="0%" x2="100%" y2="100%">
+                <Stop offset="0%" stopColor="#ffc0d9" stopOpacity="1" />
+                <Stop offset="20%" stopColor="#ffb3d1" stopOpacity="1" />
+                <Stop offset="40%" stopColor="#ff9ec4" stopOpacity="1" />
+                <Stop offset="60%" stopColor="#ff6b9d" stopOpacity="1" />
+                <Stop offset="80%" stopColor="#ff85b3" stopOpacity="1" />
+                <Stop offset="100%" stopColor="#ff6b9d" stopOpacity="1" />
+              </SvgLinearGradient>
+              {/* Enhanced glow gradient for depth */}
+              <SvgLinearGradient id="heartGlowBrowse" x1="0%" y1="0%" x2="100%" y2="100%">
+                <Stop offset="0%" stopColor="#ff6b9d" stopOpacity="0.3" />
+                <Stop offset="50%" stopColor="#ff9ec4" stopOpacity="0.25" />
+                <Stop offset="100%" stopColor="#ffb3d1" stopOpacity="0.3" />
+              </SvgLinearGradient>
+              {/* Shine gradient for premium effect */}
+              <SvgLinearGradient id="heartShineBrowse" x1="0%" y1="0%" x2="100%" y2="0%">
+                <Stop offset="0%" stopColor="rgba(255, 255, 255, 0)" stopOpacity="0" />
+                <Stop offset="50%" stopColor="rgba(255, 255, 255, 0.6)" stopOpacity="0.6" />
+                <Stop offset="100%" stopColor="rgba(255, 255, 255, 0)" stopOpacity="0" />
+              </SvgLinearGradient>
+              {/* Glow gradient for arrows and sparkles */}
+              <SvgLinearGradient id="arrowGlowBrowse" x1="0%" y1="0%" x2="100%" y2="100%">
+                <Stop offset="0%" stopColor="#ff6b9d" stopOpacity="0.8" />
+                <Stop offset="100%" stopColor="#ffb3d1" stopOpacity="0.8" />
+              </SvgLinearGradient>
+              <SvgLinearGradient id="sparkleGlowBrowse" x1="0%" y1="0%" x2="100%" y2="100%">
                 <Stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
-                <Stop offset="50%" stopColor="#ffe4e6" stopOpacity="1" />
+                <Stop offset="50%" stopColor="#ffb3d1" stopOpacity="1" />
                 <Stop offset="100%" stopColor="#ffffff" stopOpacity="1" />
               </SvgLinearGradient>
             </Defs>
             <G>
-              {/* Heart */}
+              {/* Subtle glow layer for depth */}
+              <Path
+                d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z"
+                fill="url(#heartGlowBrowse)"
+                opacity="0.2"
+                transform="scale(1.08) translate(-1.92, -1.92)"
+              />
+              {/* White outer border layer - thin and elegant */}
+              <Path
+                d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z"
+                fill="none"
+                stroke="#ffffff"
+                strokeWidth="1.2"
+                strokeLinejoin="round"
+                opacity="0.95"
+                transform="scale(1.04) translate(-0.96, -0.96)"
+              />
+              {/* Main heart with premium gradient */}
               <Path
                 d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z"
                 fill="url(#heartGradientBrowse)"
+                stroke="rgba(255, 255, 255, 0.6)"
+                strokeWidth="0.4"
               />
-              {/* Top arrow - smaller */}
+              {/* Inner white highlight for depth */}
+              <Path
+                d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z"
+                fill="none"
+                stroke="rgba(255, 255, 255, 0.3)"
+                strokeWidth="0.3"
+                opacity="0.8"
+                transform="scale(0.96) translate(0.96, 0.96)"
+              />
+              {/* Premium shine effect */}
+              <G
+                opacity={shineOpacityValue}
+                transform={`translate(${shineTranslateXValue}, 0)`}
+              >
+                <Path
+                  d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z"
+                  fill="url(#heartShineBrowse)"
+                  clipPath="url(#heartClipBrowse)"
+                />
+              </G>
+              {/* Top arrow - with glow effects */}
               <G>
-                <Circle cx="36" cy="10" r="2.5" fill="#ffffff" opacity={arrowTopOpacityValue} />
+                {/* Arrow line with glow */}
+                <Path 
+                  d="M30 10L36 10" 
+                  stroke="url(#arrowGlowBrowse)" 
+                  strokeWidth="3.5" 
+                  strokeLinecap="round" 
+                  opacity={arrowTopOpacityValue * 0.5}
+                />
                 <Path 
                   d="M30 10L36 10" 
                   stroke="#ffffff" 
                   strokeWidth="2.5" 
                   strokeLinecap="round" 
                   opacity={arrowTopOpacityValue}
+                />
+                {/* Arrow head with glow */}
+                <Path 
+                  d="M33 7L36 10L33 13" 
+                  stroke="url(#arrowGlowBrowse)" 
+                  strokeWidth="3.5" 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  fill="none" 
+                  opacity={arrowTopOpacityValue * 0.5}
                 />
                 <Path 
                   d="M33 7L36 10L33 13" 
@@ -370,16 +620,39 @@ const AnimatedLogo = memo(function AnimatedLogo() {
                   fill="none" 
                   opacity={arrowTopOpacityValue}
                 />
+                {/* Glow behind arrow circle - positioned away from arrow */}
+                <Circle cx="40" cy="10" r="4.5" fill="url(#arrowGlowBrowse)" opacity={arrowTopGlowOpacity} />
+                <Circle cx="40" cy="10" r="3.5" fill="url(#arrowGlowBrowse)" opacity={arrowTopGlowOpacity * 0.7} />
+                {/* Arrow circle - positioned away from arrow endpoint */}
+                <Circle cx="40" cy="10" r="2.8" fill="url(#arrowGlowGradient)" opacity={arrowTopGlowOpacity} />
+                <Circle cx="40" cy="10" r="2.5" fill="#ffffff" opacity={arrowTopOpacityValue} />
               </G>
-              {/* Bottom arrow - smaller */}
+              {/* Bottom arrow - with glow effects */}
               <G>
-                <Circle cx="12" cy="38" r="2.5" fill="#ffffff" opacity={arrowBottomOpacityValue} />
+                {/* Arrow line with glow */}
+                <Path 
+                  d="M18 38L12 38" 
+                  stroke="url(#arrowGlowBrowse)" 
+                  strokeWidth="3.5" 
+                  strokeLinecap="round" 
+                  opacity={arrowBottomOpacityValue * 0.5}
+                />
                 <Path 
                   d="M18 38L12 38" 
                   stroke="#ffffff" 
                   strokeWidth="2.5" 
                   strokeLinecap="round" 
                   opacity={arrowBottomOpacityValue}
+                />
+                {/* Arrow head with glow */}
+                <Path 
+                  d="M15 35L12 38L15 41" 
+                  stroke="url(#arrowGlowBrowse)" 
+                  strokeWidth="3.5" 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  fill="none" 
+                  opacity={arrowBottomOpacityValue * 0.5}
                 />
                 <Path 
                   d="M15 35L12 38L15 41" 
@@ -390,19 +663,41 @@ const AnimatedLogo = memo(function AnimatedLogo() {
                   fill="none" 
                   opacity={arrowBottomOpacityValue}
                 />
+                {/* Glow behind arrow circle - positioned away from arrow */}
+                <Circle cx="8" cy="38" r="4.5" fill="url(#arrowGlowBrowse)" opacity={arrowBottomGlowOpacity} />
+                <Circle cx="8" cy="38" r="3.5" fill="url(#arrowGlowBrowse)" opacity={arrowBottomGlowOpacity * 0.7} />
+                {/* Arrow circle - positioned away from arrow endpoint */}
+                <Circle cx="8" cy="38" r="2.8" fill="url(#arrowGlowGradient)" opacity={arrowBottomGlowOpacity} />
+                <Circle cx="8" cy="38" r="2.5" fill="#ffffff" opacity={arrowBottomOpacityValue} />
               </G>
-              {/* Sparkles with dynamic animations - scale, opacity, and multi-directional movement */}
+              {/* Sparkles with dynamic animations and glow effects */}
               <G transform={`translate(${sparkle1TranslateXValue}, ${sparkle1TranslateYValue}) scale(${sparkle1ScaleValue})`}>
-                <Circle cx="24" cy="8" r="1.5" fill="#ffffff" opacity={sparkle1OpacityValue} />
+                {/* Glow layers with pulse */}
+                <Circle cx="24" cy="8" r="3.5" fill="url(#sparkleGlowBrowse)" opacity={sparkle1GlowOpacity * 0.4} />
+                <Circle cx="24" cy="8" r="2.5" fill="url(#sparkleGlowBrowse)" opacity={sparkle1GlowOpacity * 0.6} />
+                {/* Main sparkle */}
+                <Circle cx="24" cy="8" r="2" fill="#ffffff" opacity={sparkle1OpacityValue} />
               </G>
               <G transform={`translate(${sparkle2TranslateXValue}, ${sparkle2TranslateYValue}) scale(${sparkle2ScaleValue})`}>
-                <Circle cx="40" cy="24" r="1.5" fill="#ffffff" opacity={sparkle2OpacityValue} />
+                {/* Glow layers with pulse */}
+                <Circle cx="40" cy="24" r="3.5" fill="url(#sparkleGlowBrowse)" opacity={sparkle2GlowOpacity * 0.4} />
+                <Circle cx="40" cy="24" r="2.5" fill="url(#sparkleGlowBrowse)" opacity={sparkle2GlowOpacity * 0.6} />
+                {/* Main sparkle */}
+                <Circle cx="40" cy="24" r="2" fill="#ffffff" opacity={sparkle2OpacityValue} />
               </G>
               <G transform={`translate(${sparkle3TranslateXValue}, ${sparkle3TranslateYValue}) scale(${sparkle3ScaleValue})`}>
-                <Circle cx="24" cy="40" r="1.5" fill="#ffffff" opacity={sparkle3OpacityValue} />
+                {/* Glow layers with pulse */}
+                <Circle cx="24" cy="40" r="3.5" fill="url(#sparkleGlowBrowse)" opacity={sparkle3GlowOpacity * 0.4} />
+                <Circle cx="24" cy="40" r="2.5" fill="url(#sparkleGlowBrowse)" opacity={sparkle3GlowOpacity * 0.6} />
+                {/* Main sparkle */}
+                <Circle cx="24" cy="40" r="2" fill="#ffffff" opacity={sparkle3OpacityValue} />
               </G>
               <G transform={`translate(${sparkle4TranslateXValue}, ${sparkle4TranslateYValue}) scale(${sparkle4ScaleValue})`}>
-                <Circle cx="8" cy="24" r="1.5" fill="#ffffff" opacity={sparkle4OpacityValue} />
+                {/* Glow layers with pulse */}
+                <Circle cx="8" cy="24" r="3.5" fill="url(#sparkleGlowBrowse)" opacity={sparkle4GlowOpacity * 0.4} />
+                <Circle cx="8" cy="24" r="2.5" fill="url(#sparkleGlowBrowse)" opacity={sparkle4GlowOpacity * 0.6} />
+                {/* Main sparkle */}
+                <Circle cx="8" cy="24" r="2" fill="#ffffff" opacity={sparkle4OpacityValue} />
               </G>
             </G>
           </Svg>
@@ -637,7 +932,7 @@ export default function BrowseScreen() {
     }
   };
 
-  const handleUnlockBrowse = async () => {
+  const handleUnlockBrowse = useCallback(async () => {
     if (unlocking) return;
     
     // Check if user is authenticated
@@ -853,7 +1148,7 @@ export default function BrowseScreen() {
         setBrowseUnlocked(true);
       }
     }
-  };
+  }, [unlocking, isAuthenticated, user, handleConnect]);
 
   const fetchProfile = useCallback(async () => {
     try {
@@ -1126,8 +1421,11 @@ export default function BrowseScreen() {
       setOffset(0);
       setError('');
       setLoading(false);
-      // Check if user can claim tokens when screen focuses
-      checkCanClaimTokens();
+      // Check if user can claim tokens when screen focuses (non-blocking)
+      // Use setTimeout to avoid blocking navigation
+      setTimeout(() => {
+        checkCanClaimTokens();
+      }, 0);
     }, [])
   );
 
@@ -1277,7 +1575,7 @@ export default function BrowseScreen() {
     }
   }, [showLandingPage, unlocking]);
 
-  const handleConnect = async (profile: Profile) => {
+  const handleConnect = useCallback(async (profile: Profile) => {
     // Haptic feedback - vibrate IMMEDIATELY when user clicks connect (before any checks)
     // This ensures vibration works even if the function returns early
     try {
@@ -1336,19 +1634,17 @@ export default function BrowseScreen() {
         setMatchId(result.matchId);
         setMatchExplanation(result.explanation || null);
         
-        // Use a small delay to ensure state updates properly before showing celebration
-        // This helps ensure React has time to process the state changes
-        setTimeout(() => {
-          try {
-            setShowMatchCelebration(true);
-            console.log('🎉 Celebration state set - showMatchCelebration: true, matchedProfile:', profile?.displayName, 'matchId:', result.matchId);
-          } catch (celebrationError) {
-            console.error('❌ Error setting celebration state:', celebrationError);
-            // Fallback: show error but don't crash
-            Alert.alert('Match Created!', 'You matched with ' + (profile?.displayName || 'someone') + '! Check your matches to start chatting.');
-            setConnecting(false);
-          }
-        }, 50);
+        // Show celebration immediately - no delay needed
+        // React will batch the state updates efficiently
+        try {
+          setShowMatchCelebration(true);
+          console.log('🎉 Celebration state set - showMatchCelebration: true, matchedProfile:', profile?.displayName, 'matchId:', result.matchId);
+        } catch (celebrationError) {
+          console.error('❌ Error setting celebration state:', celebrationError);
+          // Fallback: show error but don't crash
+          Alert.alert('Match Created!', 'You matched with ' + (profile?.displayName || 'someone') + '! Check your matches to start chatting.');
+          setConnecting(false);
+        }
       } catch (stateError) {
         console.error('❌ Error setting match state:', stateError);
         // Fallback: show success message even if state setting fails
@@ -1418,9 +1714,9 @@ export default function BrowseScreen() {
         setBrowseUnlocked(true);
       }
     }
-  };
+  }, [isAutoMatching]);
 
-  const handleCelebrationClose = () => {
+  const handleCelebrationClose = useCallback(() => {
     setShowMatchCelebration(false);
     setMatchedProfile(null);
     setMatchId(null);
@@ -1430,7 +1726,8 @@ export default function BrowseScreen() {
     setIsAutoMatching(false);
     // Move to next profile after celebration
     setOffset((prev) => prev + 1);
-  };
+    fetchProfile();
+  }, [fetchProfile]);
 
   const needsProfile = !userProfile && !loading;
 
@@ -1800,8 +2097,8 @@ export default function BrowseScreen() {
               )}
             </View>
           ) : profilePhotoUrl ? (
-            <Image
-              source={{ uri: profilePhotoUrl }}
+            <OptimizedImage
+              source={currentProfile.photoUrl}
               style={styles.profilePhoto}
               resizeMode="cover"
             />
@@ -2202,11 +2499,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
-    shadowColor: '#ffffff',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 15,
-    elevation: 10,
+    position: 'relative',
   },
   logoRotateGroup: {
     width: 90,

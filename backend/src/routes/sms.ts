@@ -124,41 +124,39 @@ smsRouter.post('/send-code', rateLimitAuth, async (req, res) => {
       userId: existingUser?.id // Store userId if user exists (for login)
     });
 
-    // Send SMS (use AWS SNS if configured, otherwise Twilio Messages)
-    const sent = useSNS
-      ? await sendVerificationCodeSNS(formattedPhone, code)
-      : await sendVerificationCode(formattedPhone, code);
-    
-    // Always return the code for testing (even in production, for now)
-    // This helps with debugging and allows users to proceed if SMS fails
+    // Log code for debugging (always)
     console.log(`🔐 Verification code for ${formattedPhone}: ${code}`);
     
-    if (process.env.NODE_ENV !== 'production') {
-      return res.json({
-        message: sent ? 'Verification code sent via SMS' : 'Code sent (dev mode - SMS failed, check console)',
-        code: code, // Always return in dev for testing
-        phoneNumber: formattedPhone,
-        smsSent: sent
-      });
-    }
-    
-    // In production, still return code if SMS failed (for debugging)
-    // But log a warning
-    if (!sent) {
-      console.warn(`⚠️ SMS failed for ${formattedPhone}, but returning code for debugging`);
-      return res.json({
-        message: 'Verification code generated (SMS may have failed - check backend logs)',
-        code: code, // Return code even if SMS failed
-        phoneNumber: formattedPhone,
-        smsSent: false
-      });
-    }
-
-    res.json({ 
+    // Return response immediately (don't wait for SMS to send)
+    // This makes the login flow feel instant
+    const response = {
       message: 'Verification code sent',
       phoneNumber: formattedPhone,
-      smsSent: true
-    });
+      smsSent: true, // Optimistically assume it will send
+      code: process.env.NODE_ENV !== 'production' ? code : undefined // Only return code in dev
+    };
+    
+    // Send SMS in background (non-blocking)
+    // This allows the user to see the code input screen immediately
+    (async () => {
+      try {
+        const sent = useSNS
+          ? await sendVerificationCodeSNS(formattedPhone, code)
+          : await sendVerificationCode(formattedPhone, code);
+        
+        if (!sent) {
+          console.warn(`⚠️ SMS failed for ${formattedPhone}, but code is still valid`);
+        } else {
+          console.log(`✅ SMS sent successfully to ${formattedPhone}`);
+        }
+      } catch (smsError) {
+        console.error('❌ Error sending SMS (non-critical):', smsError);
+        // Don't fail the request - code is still valid and user can proceed
+      }
+    })();
+    
+    // Return immediately - don't wait for SMS
+    res.json(response);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors[0].message });

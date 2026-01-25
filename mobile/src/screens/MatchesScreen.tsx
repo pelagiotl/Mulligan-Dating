@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { debounce } from '../utils/debounce';
 import {
   View,
   Text,
@@ -31,6 +32,7 @@ import LegalFooter from '../components/LegalFooter';
 import CompatibilityPulse from '../components/CompatibilityPulse';
 import MulliganMoments from '../components/MulliganMoments';
 import DateBlueprint from '../components/DateBlueprint';
+import OptimizedImage from '../components/OptimizedImage';
 
 interface Photo {
   id: string;
@@ -77,17 +79,72 @@ interface Message {
   isOwn: boolean;
 }
 
+// Typing Indicator Component with Animated Dots
+function TypingIndicator() {
+  const dot1Anim = useRef(new Animated.Value(0.3)).current;
+  const dot2Anim = useRef(new Animated.Value(0.3)).current;
+  const dot3Anim = useRef(new Animated.Value(0.3)).current;
+  
+  useEffect(() => {
+    const animateDot = (anim: Animated.Value, delay: number) => {
+      return Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(anim, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+          Animated.timing(anim, {
+            toValue: 0.3,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+    };
+    
+    const anim1 = animateDot(dot1Anim, 0);
+    const anim2 = animateDot(dot2Anim, 200);
+    const anim3 = animateDot(dot3Anim, 400);
+    
+    anim1.start();
+    anim2.start();
+    anim3.start();
+    
+    return () => {
+      anim1.stop();
+      anim2.stop();
+      anim3.stop();
+    };
+  }, []);
+  
+  return (
+    <View style={styles.typingIndicatorContainer}>
+      <View style={styles.typingBubble}>
+        <View style={styles.typingDots}>
+          <Animated.View style={[styles.typingDot, { opacity: dot1Anim }]} />
+          <Animated.View style={[styles.typingDot, { opacity: dot2Anim }]} />
+          <Animated.View style={[styles.typingDot, { opacity: dot3Anim }]} />
+        </View>
+      </View>
+    </View>
+  );
+}
+
 // Animated Heart Emoji Component
 function AnimatedHeartEmoji() {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
+  const glowAnim = useRef(new Animated.Value(0.5)).current;
+  const shimmerAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     // Continuous pulse animation
     Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
-          toValue: 1.2,
+          toValue: 1.25,
           duration: 1200,
           useNativeDriver: true,
         }),
@@ -114,23 +171,102 @@ function AnimatedHeartEmoji() {
         }),
       ])
     ).start();
+
+    // Glow pulse animation
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(glowAnim, {
+          toValue: 1,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(glowAnim, {
+          toValue: 0.5,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+
+    // Shimmer effect
+    Animated.loop(
+      Animated.timing(shimmerAnim, {
+        toValue: 1,
+        duration: 2000,
+        useNativeDriver: true,
+      })
+    ).start();
   }, []);
 
   const rotate = rotateAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: ['-8deg', '8deg'],
+    outputRange: ['-10deg', '10deg'],
+  });
+
+  const glowOpacity = glowAnim.interpolate({
+    inputRange: [0.5, 1],
+    outputRange: [0.6, 1],
+  });
+
+  const glowScale = glowAnim.interpolate({
+    inputRange: [0.5, 1],
+    outputRange: [1, 1.15],
   });
 
   return (
     <Animated.View
-      style={{
-        transform: [
-          { scale: pulseAnim },
-          { rotate: rotate },
-        ],
-      }}
+      style={[
+        styles.animatedHeartContainer,
+        {
+          transform: [
+            { scale: pulseAnim },
+            { rotate: rotate },
+          ],
+        },
+      ]}
     >
-      <Text style={styles.animatedHeartEmoji}>💕</Text>
+      {/* Glow effect behind heart */}
+      <Animated.View
+        style={[
+          styles.animatedHeartGlow,
+          {
+            opacity: glowOpacity,
+            transform: [{ scale: glowScale }],
+          },
+        ]}
+        pointerEvents="none"
+      />
+      
+      {/* Gradient background */}
+      <LinearGradient
+        colors={['#ff6b9d', '#ff1493', '#ff69b4', '#ff1493']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.animatedHeartGradient}
+      >
+        {/* Shimmer overlay */}
+        <Animated.View
+          style={[
+            styles.animatedHeartShimmer,
+            {
+              opacity: shimmerAnim.interpolate({
+                inputRange: [0, 0.5, 1],
+                outputRange: [0, 0.3, 0],
+              }),
+              transform: [
+                {
+                  translateX: shimmerAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-50, 50],
+                  }),
+                },
+              ],
+            },
+          ]}
+          pointerEvents="none"
+        />
+        <Text style={styles.animatedHeartEmoji}>💕</Text>
+      </LinearGradient>
     </Animated.View>
   );
 }
@@ -159,7 +295,8 @@ function AnimatedHeaderGradient({
 }
 
 // Animated Match Card Component
-function MatchCardAnimated({ 
+// Memoized to prevent unnecessary re-renders when parent updates
+const MatchCardAnimated = React.memo(function MatchCardAnimated({ 
   item, 
   index, 
   photoUrl, 
@@ -299,7 +436,7 @@ function MatchCardAnimated({
             {photoUrl ? (
               <Animated.View style={{ transform: [{ scale: photoScaleAnim }] }}>
                 <View style={styles.photoContainer}>
-                  <Image source={{ uri: photoUrl }} style={styles.matchPhoto} />
+                  <OptimizedImage source={photoUrl} style={styles.matchPhoto} />
                   <LinearGradient
                     colors={['transparent', 'rgba(0,0,0,0.1)']}
                     style={styles.photoGradientOverlay}
@@ -404,7 +541,124 @@ function MatchCardAnimated({
       </TouchableOpacity>
     </Animated.View>
   );
-}
+}, (prevProps, nextProps) => {
+  // Custom comparison function for memoization
+  // Only re-render if these props change
+  return (
+    prevProps.item.id === nextProps.item.id &&
+    prevProps.item.unreadCount === nextProps.item.unreadCount &&
+    prevProps.item.stage === nextProps.item.stage &&
+    prevProps.item.expiresAt === nextProps.item.expiresAt &&
+    prevProps.photoUrl === nextProps.photoUrl
+  );
+});
+
+// Memoized Message Bubble Component
+const MessageBubble = React.memo(function MessageBubble({ 
+  message, 
+  isOwn, 
+  animation 
+}: { 
+  message: Message; 
+  isOwn: boolean; 
+  animation: Animated.Value;
+}) {
+  const messageAnim = animation || new Animated.Value(1);
+
+  if (isOwn) {
+    return (
+      <Animated.View 
+        style={[
+          styles.messageContainerOwn,
+          {
+            opacity: messageAnim,
+            transform: [
+              { 
+                translateX: messageAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [50, 0],
+                })
+              },
+              {
+                scale: messageAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.9, 1],
+                })
+              }
+            ],
+          },
+        ]}
+      >
+        <LinearGradient
+          colors={['#667eea', '#764ba2', '#f093fb']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.messageBubbleOwn}
+        >
+          <Text style={styles.messageTextOwn}>
+            {message.content}
+          </Text>
+          <View style={styles.messageFooterOwn}>
+            <Text style={styles.messageTimeOwn}>
+              {new Date(message.sentAt).toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </Text>
+            {message.readAt ? (
+              <Text style={styles.messageStatusRead}>✓✓</Text>
+            ) : (
+              <Text style={styles.messageStatusSent}>✓</Text>
+            )}
+          </View>
+        </LinearGradient>
+      </Animated.View>
+    );
+  } else {
+    return (
+      <Animated.View 
+        style={[
+          styles.messageContainerOther,
+          {
+            opacity: messageAnim,
+            transform: [
+              { 
+                translateX: messageAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [-50, 0],
+                })
+              },
+              {
+                scale: messageAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.9, 1],
+                })
+              }
+            ],
+          },
+        ]}
+      >
+        <View style={styles.messageBubbleOther}>
+          <Text style={styles.messageTextOther}>
+            {message.content}
+          </Text>
+          <Text style={styles.messageTimeOther}>
+            {new Date(message.sentAt).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </Text>
+        </View>
+      </Animated.View>
+    );
+  }
+}, (prevProps, nextProps) => {
+  return (
+    prevProps.message.id === nextProps.message.id &&
+    prevProps.message.readAt === nextProps.message.readAt &&
+    prevProps.isOwn === nextProps.isOwn
+  );
+});
 
 // Empty State Component with Animation
 function EmptyStateAnimated({ navigation }: { navigation: any }) {
@@ -1231,8 +1485,8 @@ function MatchProfileModal({
                         }],
                       }}
                     >
-                      <Image
-                        source={{ uri: getPhotoUrl(photo.url) }}
+                      <OptimizedImage
+                        source={photo.url}
                         style={styles.modalPhotoThumbnail}
                         resizeMode="cover"
                       />
@@ -1368,6 +1622,9 @@ export default function MatchesScreen() {
   const textInputRef = useRef<TextInput>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
+  const [isTyping, setIsTyping] = useState(false);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Header animations
   const headerGradientPos = useRef(new Animated.Value(0)).current;
@@ -1429,7 +1686,7 @@ export default function MatchesScreen() {
   }, []);
 
   // Calculate time remaining until expiration
-  const getTimeRemaining = (expiresAt: string | null): string | null => {
+  const getTimeRemaining = useCallback((expiresAt: string | null): string | null => {
     if (!expiresAt) return null;
     
     const expirationDate = new Date(expiresAt);
@@ -1449,7 +1706,7 @@ export default function MatchesScreen() {
     } else {
       return `${minutes}m`;
     }
-  };
+  }, [currentTime]);
 
   const handleKeyPress = (e: any) => {
     // On mobile/web, detect Enter key press
@@ -1466,12 +1723,55 @@ export default function MatchesScreen() {
     }
   };
 
-  const handleTextChange = (text: string) => {
+  // Debounced typing indicator emission (reduces socket events)
+  const emitTypingDebounced = useRef(
+    debounce(() => {
+      if (socketRef.current && selectedMatch && selectedMatch.stage !== 'pending') {
+        socketRef.current.emit('typing', { matchId: selectedMatch.id });
+      }
+    }, 500)
+  ).current;
+
+  const handleTextChange = useCallback((text: string) => {
     // If we're in the process of sending, don't update (prevents newline from being added)
     if (!sendingMessage) {
       setNewMessage(text);
+      
+      // Emit typing indicator (debounced to reduce socket events)
+      if (text.trim().length > 0 && selectedMatch?.id && selectedMatch.stage !== 'pending') {
+        if (!isTyping) {
+          setIsTyping(true);
+          // Emit immediately on first character
+          socketRef.current?.emit('typing', { matchId: selectedMatch.id });
+        } else {
+          // Use debounced emission for subsequent characters
+          emitTypingDebounced();
+        }
+        
+        // Clear existing timeout
+        if (typingTimeoutRef.current) {
+          clearTimeout(typingTimeoutRef.current);
+        }
+        
+        // Set timeout to stop typing indicator after 2 seconds of no typing
+        typingTimeoutRef.current = setTimeout(() => {
+          if (selectedMatch?.id) {
+            setIsTyping(false);
+            socketRef.current?.emit('stop_typing', { matchId: selectedMatch.id });
+          }
+        }, 2000);
+      } else {
+        // If text is empty, stop typing immediately
+        if (isTyping && selectedMatch?.id) {
+          setIsTyping(false);
+          socketRef.current?.emit('stop_typing', { matchId: selectedMatch.id });
+        }
+        if (typingTimeoutRef.current) {
+          clearTimeout(typingTimeoutRef.current);
+        }
+      }
     }
-  };
+  }, [sendingMessage, selectedMatch, isTyping, emitTypingDebounced]);
 
   // Initialize WebSocket connection
   useEffect(() => {
@@ -1495,6 +1795,44 @@ export default function MatchesScreen() {
         console.log('❌ Matches: Disconnected from WebSocket server');
       });
 
+      // Handle typing indicators
+      socket.on('user_typing', (data: { matchId: string; userId: string; displayName?: string }) => {
+        const currentMatchId = selectedMatchRef.current?.id;
+        if (data.matchId === currentMatchId && data.userId !== user?.id) {
+          setTypingUsers((prev) => {
+            const newSet = new Set(prev);
+            newSet.add(data.userId);
+            return newSet;
+          });
+        }
+      });
+      
+      // Handle typing stopped
+      socket.on('typing_stopped', (data: { matchId: string; userId: string }) => {
+        const currentMatchId = selectedMatchRef.current?.id;
+        if (data.matchId === currentMatchId && data.userId !== user?.id) {
+          setTypingUsers((prev) => {
+            const newSet = new Set(prev);
+            newSet.delete(data.userId);
+            return newSet;
+          });
+        }
+      });
+      
+      // Handle message read receipts (backend marks all messages in match as read)
+      socket.on('messages_read', (data: { matchId: string }) => {
+        const currentMatchId = selectedMatchRef.current?.id;
+        if (data.matchId === currentMatchId) {
+          // Mark all unread messages from the other user as read
+          const now = new Date().toISOString();
+          setMessages((prev) =>
+            prev.map((msg) =>
+              !msg.isOwn && !msg.readAt ? { ...msg, readAt: now } : msg
+            )
+          );
+        }
+      });
+
       socket.on('new_message', (message: Message & { matchId?: string }) => {
         // Only add message if we're viewing this match's chat
         const currentMatchId = selectedMatchRef.current?.id;
@@ -1507,6 +1845,13 @@ export default function MatchesScreen() {
         );
         
         if (isForCurrentMatch) {
+          // Stop typing indicator when message is received
+          setTypingUsers((prev) => {
+            const newSet = new Set(prev);
+            newSet.delete(message.senderId);
+            return newSet;
+          });
+          
           setMessages((prev) => {
             // Check if message already exists (avoid duplicates)
             if (prev.some((m) => m.id === message.id || (m.id.startsWith('temp-') && m.content === message.content && m.senderId === message.senderId))) {
@@ -1562,11 +1907,17 @@ export default function MatchesScreen() {
 
     initSocket();
 
-    return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-      }
-    };
+      return () => {
+        if (socketRef.current) {
+          socketRef.current.off('user_typing');
+          socketRef.current.off('typing_stopped');
+          socketRef.current.off('messages_read');
+          socketRef.current.disconnect();
+        }
+        if (typingTimeoutRef.current) {
+          clearTimeout(typingTimeoutRef.current);
+        }
+      };
   }, [user]);
 
   useEffect(() => {
@@ -1771,6 +2122,16 @@ export default function MatchesScreen() {
     const messageContent = (messageToSend || newMessage).trim();
     if (!messageContent || !selectedMatch || sendingMessage || !user) return;
 
+    // Stop typing indicator
+    if (isTyping && selectedMatch.id) {
+      setIsTyping(false);
+      socketRef.current?.emit('stop_typing', { matchId: selectedMatch.id });
+    }
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+
     // Clear input immediately - use both state and ref
     setNewMessage('');
     if (textInputRef.current) {
@@ -1831,7 +2192,7 @@ export default function MatchesScreen() {
     }
   };
 
-  const handleUnmatch = async (matchId: string) => {
+  const handleUnmatch = useCallback(async (matchId: string) => {
     Alert.alert(
       'Unmatch',
       'Are you sure you want to unmatch? This cannot be undone.',
@@ -1866,15 +2227,16 @@ export default function MatchesScreen() {
         },
       ]
     );
-  };
+  }, [selectedMatch]);
 
-  const getMatchPhoto = (match: Match) => {
+  // Memoize getMatchPhoto to avoid recalculating
+  const getMatchPhoto = useCallback((match: Match) => {
     if (match.stage === 'stage2' && match.otherUser.photos?.length) {
       const primaryPhoto = match.otherUser.photos.find((p) => p.isPrimary) || match.otherUser.photos[0];
-      return getPhotoUrl(primaryPhoto.url);
+      return primaryPhoto?.url || null;
     }
-    return match.otherUser.photoUrl ? getPhotoUrl(match.otherUser.photoUrl) : null;
-  };
+    return match.otherUser.photoUrl || null;
+  }, []);
 
   // Show loading while auth is initializing or matches are loading
   if (authLoading || loading) {
@@ -1915,7 +2277,7 @@ export default function MatchesScreen() {
     );
   }
 
-  const getStageBadgeStyle = (stage: string) => {
+  const getStageBadgeStyle = useCallback((stage: string) => {
     switch (stage) {
       case 'stage2':
         return styles.stageBadgeStage2;
@@ -1924,9 +2286,9 @@ export default function MatchesScreen() {
       default:
         return styles.stageBadgePending;
     }
-  };
+  }, []);
 
-  const getStageEmoji = (stage: string) => {
+  const getStageEmoji = useCallback((stage: string) => {
     switch (stage) {
       case 'stage2':
         return '💕';
@@ -1935,7 +2297,7 @@ export default function MatchesScreen() {
       default:
         return '💌';
     }
-  };
+  }, []);
 
   if (!selectedMatch) {
     console.log('📋 Rendering matches list view');
@@ -1958,6 +2320,17 @@ export default function MatchesScreen() {
             keyExtractor={(item) => item.id}
             contentContainerStyle={[styles.matchesList, { paddingBottom: 100 }]}
             ListFooterComponent={<LegalFooter />}
+            // Performance optimizations
+            removeClippedSubviews={true}
+            maxToRenderPerBatch={10}
+            updateCellsBatchingPeriod={50}
+            initialNumToRender={10}
+            windowSize={10}
+            getItemLayout={(data, index) => ({
+              length: 120, // Approximate height of match card
+              offset: 120 * index,
+              index,
+            })}
             renderItem={({ item, index }) => {
               const photoUrl = getMatchPhoto(item);
               
@@ -2118,6 +2491,12 @@ export default function MatchesScreen() {
           keyboardShouldPersistTaps="always"
           keyboardDismissMode="interactive"
           scrollEnabled={true}
+          // Performance optimizations
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={15}
+          updateCellsBatchingPeriod={50}
+          initialNumToRender={15}
+          windowSize={10}
           onContentSizeChange={() => {
             messagesEndRef.current?.scrollToEnd({ animated: true });
           }}
@@ -2174,12 +2553,20 @@ export default function MatchesScreen() {
                   <Text style={styles.messageTextOwn}>
                     {item.content}
                   </Text>
-                  <Text style={styles.messageTimeOwn}>
-                    {new Date(item.sentAt).toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </Text>
+                  <View style={styles.messageFooterOwn}>
+                    <Text style={styles.messageTimeOwn}>
+                      {new Date(item.sentAt).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </Text>
+                    {/* Message status indicator */}
+                    {item.readAt ? (
+                      <Text style={styles.messageStatusRead}>✓✓</Text>
+                    ) : (
+                      <Text style={styles.messageStatusSent}>✓</Text>
+                    )}
+                  </View>
                 </LinearGradient>
               </Animated.View>
             ) : (
@@ -2219,6 +2606,9 @@ export default function MatchesScreen() {
               </Animated.View>
             );
           }}
+          ListFooterComponent={
+            typingUsers.size > 0 ? <TypingIndicator /> : null
+          }
         />
       </Animated.View>
 
@@ -2334,9 +2724,54 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 6,
   },
+  animatedHeartContainer: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  animatedHeartGlow: {
+    position: 'absolute',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#ff1493',
+    shadowColor: '#ff1493',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 20,
+    elevation: 10,
+    zIndex: 0,
+  },
+  animatedHeartGradient: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: '#fff',
+    shadowColor: '#ff1493',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.6,
+    shadowRadius: 12,
+    elevation: 12,
+    zIndex: 1,
+    overflow: 'hidden',
+  },
+  animatedHeartShimmer: {
+    position: 'absolute',
+    width: '200%',
+    height: '100%',
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    transform: [{ rotate: '15deg' }],
+  },
   animatedHeartEmoji: {
-    fontSize: 36,
-    lineHeight: 36,
+    fontSize: 28,
+    lineHeight: 28,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+    zIndex: 2,
   },
   headerTitle: {
     fontSize: 36,
@@ -2869,6 +3304,51 @@ const styles = StyleSheet.create({
     color: '#718096',
     alignSelf: 'flex-start',
     fontWeight: '500',
+  },
+  messageFooterOwn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    marginTop: 4,
+    gap: 4,
+  },
+  messageStatusSent: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontWeight: '600',
+  },
+  messageStatusRead: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '600',
+  },
+  typingIndicatorContainer: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    alignItems: 'flex-start',
+  },
+  typingBubble: {
+    backgroundColor: '#e5e7eb',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 18,
+    maxWidth: '75%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  typingDots: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  typingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#667eea',
   },
   inputContainer: {
     flexDirection: 'row',

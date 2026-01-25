@@ -1057,18 +1057,27 @@ export async function generateMatchExplanation(
     reasons.push(`Similar lifestyle preferences`);
   }
 
-  // Distance (if close)
+  // Distance (if close) - skip geocoding to avoid delay, use simple string comparison
+  // This avoids the slow geocoding API call that was causing 10-20 second delays
   if (userProfile.location && candidateProfile.location) {
-    try {
-      const distance = await calculateDistance(userProfile.location, candidateProfile.location);
-      if (distance < 25) {
-        reasons.push(`Just ${Math.round(distance)} miles away`);
-      } else if (distance < 50) {
-        reasons.push(`${Math.round(distance)} miles away`);
+    // Simple check: if locations are similar strings, they're likely close
+    // Full geocoding can be done later if needed, but don't block match creation
+    const userLoc = userProfile.location.toLowerCase().trim();
+    const candidateLoc = candidateProfile.location.toLowerCase().trim();
+    
+    // If same city/state, assume close (don't block on geocoding)
+    if (userLoc === candidateLoc) {
+      reasons.push(`Same location`);
+    } else {
+      // Extract city names (first part before comma)
+      const userCity = userLoc.split(',')[0].trim();
+      const candidateCity = candidateLoc.split(',')[0].trim();
+      if (userCity === candidateCity && userCity.length > 0) {
+        reasons.push(`Same city`);
       }
-    } catch {
-      // Ignore distance errors
     }
+    // Note: Full distance calculation removed to avoid blocking match creation
+    // Distance can be calculated later when viewing match details if needed
   }
 
   // Looking for compatibility
