@@ -20,13 +20,30 @@ export async function uploadToCloudinary(
   folder: string = 'mulligan-photos',
   publicId?: string
 ): Promise<string> {
+  // Validate Cloudinary configuration before attempting upload
+  if (!isCloudinaryConfigured()) {
+    throw new Error('Cloudinary is not properly configured. Missing environment variables.');
+  }
+
   return new Promise((resolve, reject) => {
+    // Validate buffer
+    if (!buffer || buffer.length === 0) {
+      reject(new Error('Invalid buffer: buffer is empty or undefined'));
+      return;
+    }
+
+    if (buffer.length > 10 * 1024 * 1024) { // 10MB - warn for large files
+      console.warn('⚠️  Large file detected:', (buffer.length / (1024 * 1024)).toFixed(2), 'MB');
+    }
+
     const uploadOptions: any = {
       folder,
       resource_type: 'image',
       // Don't set format on upload - Cloudinary will detect it automatically
       // Use fetch_format: 'auto' for delivery transformations (applied when serving)
       quality: 'auto', // Auto-optimize quality
+      timeout: 300000, // 5 minute timeout for large files
+      chunk_size: 6000000, // 6MB chunks for large file uploads
     };
 
     if (publicId) {
@@ -37,16 +54,72 @@ export async function uploadToCloudinary(
       uploadOptions,
       (error: any, result: any) => {
         if (error) {
-          console.error('❌ Cloudinary upload error:', error);
-          reject(error);
+          console.error('❌ Cloudinary upload error:', {
+            message: error.message,
+            http_code: error.http_code,
+            name: error.name,
+            error: error,
+            // Include more details for debugging
+            request_id: error.request_id,
+            rate_limit_allowed: error.rate_limit_allowed,
+            rate_limit_reset_at: error.rate_limit_reset_at
+          });
+          
+          // Extract error message as string (handle objects)
+          let errorMsg = 'Cloudinary upload failed';
+          if (error.message) {
+            if (typeof error.message === 'string') {
+              errorMsg = error.message;
+            } else {
+              // If message is an object, try to extract useful info
+              try {
+                errorMsg = JSON.stringify(error.message);
+              } catch {
+                errorMsg = String(error.message);
+              }
+            }
+          }
+          
+          // Preserve the original error object with all details
+          const enhancedError: any = new Error(errorMsg);
+          enhancedError.http_code = error.http_code;
+          enhancedError.request_id = error.request_id;
+          enhancedError.rate_limit_allowed = error.rate_limit_allowed;
+          enhancedError.rate_limit_reset_at = error.rate_limit_reset_at;
+          enhancedError.originalError = error; // Keep original for debugging
+          
+          // Provide more helpful error messages
+          if (error.http_code === 401) {
+            enhancedError.message = 'Cloudinary authentication failed. Please check your API credentials.';
+          } else if (error.http_code === 400) {
+            enhancedError.message = `Cloudinary upload rejected: ${errorMsg}`;
+          } else if (error.http_code === 403) {
+            enhancedError.message = 'Cloudinary access forbidden. Please check your account permissions.';
+          } else if (error.http_code === 429) {
+            enhancedError.message = 'Cloudinary rate limit exceeded. Please try again later.';
+          } else if (errorMsg.includes('timeout') || errorMsg.includes('ETIMEDOUT')) {
+            enhancedError.message = 'Cloudinary upload timed out. Please try again.';
+          } else if (errorMsg.includes('ENOTFOUND') || errorMsg.includes('ECONNREFUSED')) {
+            enhancedError.message = 'Cannot connect to Cloudinary. Please check your network connection.';
+          } else {
+            enhancedError.message = `Cloudinary upload failed: ${errorMsg}`;
+          }
+          
+          reject(enhancedError);
         } else if (result) {
           console.log('✅ Cloudinary upload successful:', result.secure_url);
           resolve(result.secure_url);
         } else {
-          reject(new Error('Upload failed: No result returned'));
+          reject(new Error('Upload failed: No result returned from Cloudinary'));
         }
       }
     );
+
+    // Handle stream errors
+    uploadStream.on('error', (streamError: any) => {
+      console.error('❌ Cloudinary stream error:', streamError);
+      reject(new Error(`Stream error: ${streamError.message || 'Unknown stream error'}`));
+    });
 
     // Convert buffer to stream
     const readableStream = new Readable();
@@ -112,10 +185,19 @@ export async function deleteFromCloudinary(url: string): Promise<boolean> {
  * Check if Cloudinary is configured
  */
 export function isCloudinaryConfigured(): boolean {
-  return !!(
-    process.env.CLOUDINARY_CLOUD_NAME &&
-    process.env.CLOUDINARY_API_KEY &&
-    process.env.CLOUDINARY_API_SECRET
-  );
+  const hasCloudName = !!process.env.CLOUDINARY_CLOUD_NAME;
+  const hasApiKey = !!process.env.CLOUDINARY_API_KEY;
+  const hasApiSecret = !!process.env.CLOUDINARY_API_SECRET;
+  
+  if (!hasCloudName || !hasApiKey || !hasApiSecret) {
+    console.warn('⚠️  Cloudinary not fully configured. Missing:', {
+      cloudName: !hasCloudName,
+      apiKey: !hasApiKey,
+      apiSecret: !hasApiSecret
+    });
+    return false;
+  }
+  
+  return true;
 }
 

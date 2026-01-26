@@ -4,6 +4,7 @@ import { db } from "../database.js";
 import { authenticateToken, AuthRequest } from "../middleware/auth.js";
 import { uploadMultiple, uploadSingle } from "../middleware/upload.js";
 import { uploadToCloudinary, deleteFromCloudinary, isCloudinaryConfigured } from "../services/cloudinary.js";
+import { compressImageForCloudinary } from "../services/imageCompression.js";
 import fs from "fs";
 import path from "path";
 
@@ -185,23 +186,227 @@ photosRouter.post("/", authenticateToken, (req: AuthRequest, res, next) => {
       const photoId = uuidv4();
       let photoUrl: string;
 
+      // Validate file
+      if (!file) {
+        console.error('Photo upload: File is undefined');
+        return res.status(400).json({ error: 'Invalid file upload' });
+      }
+
+      console.log('📸 Processing file:', {
+        originalname: file.originalname,
+        mimetype: file.mimetype,
+        size: file.size,
+        hasBuffer: !!file.buffer,
+        bufferLength: file.buffer?.length,
+        filename: file.filename
+      });
+
       if (useCloudinary) {
         // Upload to Cloudinary
         if (!file.buffer) {
           console.error('Photo upload: No buffer available for Cloudinary upload');
-          return res.status(500).json({ error: 'File buffer not available' });
+          return res.status(500).json({ 
+            error: 'File buffer not available. This may be a server configuration issue.',
+            suggestion: 'Please try uploading the photo again.'
+          });
+        }
+
+        // Validate buffer
+        if (file.buffer.length === 0) {
+          console.error('Photo upload: Buffer is empty');
+          return res.status(400).json({ error: 'File is empty' });
         }
 
         try {
-          console.log('☁️  Uploading to Cloudinary:', { photoId, size: file.buffer.length });
-          photoUrl = await uploadToCloudinary(file.buffer, 'mulligan-photos', photoId);
-          console.log('✅ Cloudinary upload successful:', photoUrl);
-        } catch (error) {
-          console.error('❌ Cloudinary upload failed:', error);
-          return res.status(500).json({ 
-            error: 'Failed to upload photo to cloud storage',
-            details: error instanceof Error ? error.message : String(error)
+          const originalSize = file.buffer.length;
+          const originalSizeMB = (originalSize / (1024 * 1024)).toFixed(2);
+          
+          console.log('☁️  Preparing image for Cloudinary:', { 
+            photoId, 
+            size: originalSize, 
+            sizeMB: originalSizeMB,
+            mimetype: file.mimetype,
+            originalname: file.originalname
           });
+
+          // Compress image if needed (Cloudinary free tier has 10MB limit)
+          let imageBuffer = file.buffer;
+          if (originalSize > 10 * 1024 * 1024) {
+            console.log('📦 Image exceeds 10MB, compressing...');
+            imageBuffer = await compressImageForCloudinary(file.buffer, 10 * 1024 * 1024);
+            const compressedSizeMB = (imageBuffer.length / (1024 * 1024)).toFixed(2);
+            console.log(`✅ Compression complete: ${originalSizeMB} MB → ${compressedSizeMB} MB`);
+          }
+
+          console.log('☁️  Uploading to Cloudinary...');
+          photoUrl = await uploadToCloudinary(imageBuffer, 'mulligan-photos', photoId);
+          console.log('✅ Cloudinary upload successful:', photoUrl);
+        } catch (error: any) {
+            // Log the raw error first
+            console.error('❌ Cloudinary upload failed - RAW ERROR:', error);
+            console.error('❌ Error type:', typeof error);
+            console.error('❌ Error constructor:', error?.constructor?.name);
+            console.error('❌ Error keys:', Object.keys(error || {}));
+            
+            // Try to extract all possible error information
+            const errorInfo: any = {
+              message: error?.message,
+              http_code: error?.http_code,
+              name: error?.name,
+              code: error?.code,
+              request_id: error?.request_id,
+              rate_limit_allowed: error?.rate_limit_allowed,
+              rate_limit_reset_at: error?.rate_limit_reset_at,
+            };
+            
+            // Log all properties
+            if (error) {
+              for (const key in error) {
+                if (error.hasOwnProperty(key)) {
+                  const value = error[key];
+                  errorInfo[key] = typeof value === 'object' ? JSON.stringify(value) : value;
+                }
+              }
+            }
+            
+            console.error('❌ Cloudinary error details:', JSON.stringify(errorInfo, null, 2));
+            
+            // Extract error message properly (handle nested objects and Error instances)
+            let errorMessage = 'Unknown error';
+            let httpCode = null;
+            
+            try {
+              // First, try to get http_code
+              httpCode = error?.http_code || null;
+              
+              // Extract message - try multiple strategies
+              if (typeof error === 'string') {
+                errorMessage = error;
+              } else if (error instanceof Error) {
+                errorMessage = error.message || 'Unknown error';
+                // If message is still an object somehow, try to extract more
+                if (errorMessage === '[object Object]') {
+                  errorMessage = 'Cloudinary upload failed - check server logs';
+                }
+              } else if (error?.message) {
+                // Handle case where error.message might be an object
+                if (typeof error.message === 'string') {
+                  errorMessage = error.message;
+                } else if (error.message instanceof Error) {
+                  errorMessage = error.message.message || 'Unknown error';
+                } else {
+                  // Try to extract useful info from the message object
+                  try {
+                    // If message has a message property
+                    if (error.message.message && typeof error.message.message === 'string') {
+                      errorMessage = error.message.message;
+                    } else {
+                      // Try to stringify with replacer to avoid circular refs
+                      errorMessage = JSON.stringify(error.message, (key, value) => {
+                        if (key === 'stack' || key === 'originalError') return undefined;
+                        if (typeof value === 'object' && value !== null) {
+                          // For objects, try to get string properties
+                          const stringProps: any = {};
+                          for (const k in value) {
+                            if (typeof value[k] === 'string') {
+                              stringProps[k] = value[k];
+                            }
+                          }
+                          return Object.keys(stringProps).length > 0 ? stringProps : value;
+                        }
+                        return value;
+                      }, 2);
+                    }
+                  } catch {
+                    // If stringify fails, try to get any string property
+                    const msgKeys = Object.keys(error.message || {});
+                    const stringVals = msgKeys
+                      .filter(k => typeof error.message[k] === 'string')
+                      .map(k => `${k}: ${error.message[k]}`)
+                      .join(', ');
+                    errorMessage = stringVals || 'Cloudinary upload failed';
+                  }
+                }
+              } else {
+                // Last resort - try to extract any useful string information
+                const errorKeys = Object.keys(error || {});
+                const stringProps = errorKeys
+                  .filter(key => {
+                    const val = error[key];
+                    return typeof val === 'string' && val.length > 0 && val !== '[object Object]';
+                  })
+                  .map(key => `${key}: ${error[key]}`)
+                  .join(', ');
+                
+                if (stringProps) {
+                  errorMessage = stringProps;
+                } else {
+                  // Try to stringify with safe replacer
+                  try {
+                    errorMessage = JSON.stringify(error, (key, value) => {
+                      if (key === 'stack' || key === 'originalError') return undefined;
+                      if (typeof value === 'function') return '[Function]';
+                      return value;
+                    }, 2);
+                  } catch {
+                    errorMessage = 'Cloudinary upload failed - check server logs for details';
+                  }
+                }
+              }
+              
+              // Final check - if we still have "[object Object]", use a generic message
+              if (errorMessage === '[object Object]' || errorMessage.includes('[object Object]')) {
+                errorMessage = httpCode 
+                  ? `Cloudinary upload failed (HTTP ${httpCode}) - check server logs for details`
+                  : 'Cloudinary upload failed - check server logs for details';
+              }
+            } catch (stringifyError) {
+              // If even stringifying fails, use a fallback
+              console.error('Error extracting error message:', stringifyError);
+              errorMessage = httpCode 
+                ? `Cloudinary upload failed (HTTP ${httpCode})`
+                : 'Cloudinary upload failed';
+            }
+            
+            // Check if this is a Render-specific issue (no local storage on Render)
+            const isRender = process.env.RENDER || process.env.NODE_ENV === 'production';
+            
+            if (isRender) {
+              // On Render, we can't use local storage fallback
+              // Return detailed error to help debug
+              return res.status(500).json({ 
+                error: 'Failed to upload photo to cloud storage',
+                details: errorMessage,
+                http_code: httpCode,
+                suggestion: 'Please check Cloudinary configuration and network connectivity. If the file is very large, try compressing it first.'
+              });
+            } else {
+              // Fallback to local storage if Cloudinary fails (only in development)
+              console.log('⚠️  Cloudinary upload failed, falling back to local storage');
+              try {
+                // Save file to local storage as fallback
+                const uploadsDir = path.join(process.cwd(), 'uploads');
+                if (!fs.existsSync(uploadsDir)) {
+                  fs.mkdirSync(uploadsDir, { recursive: true });
+                }
+                
+                const localFilename = `${photoId}${path.extname(file.originalname || '.jpg')}`;
+                const localPath = path.join(uploadsDir, localFilename);
+                
+                // Write buffer to file
+                fs.writeFileSync(localPath, file.buffer);
+                photoUrl = `/uploads/${localFilename}`;
+                console.log('✅ Fallback to local storage successful:', photoUrl);
+              } catch (fallbackError) {
+                console.error('❌ Fallback to local storage also failed:', fallbackError);
+                return res.status(500).json({ 
+                  error: 'Failed to upload photo. Please try again.',
+                  details: error?.message || String(error),
+                  http_code: error?.http_code
+                });
+              }
+            }
+          }
         }
       } else {
         // Use local filesystem

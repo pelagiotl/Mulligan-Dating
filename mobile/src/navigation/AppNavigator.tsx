@@ -7,7 +7,7 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Platform, Text, View, StyleSheet, Alert, Vibration } from 'react-native';
+import { Platform, Text, View, StyleSheet, Alert, Vibration, Animated, Easing } from 'react-native';
 import { useNavigation, useFocusEffect, NavigationContainerRef } from '@react-navigation/native';
 
 // Screens (we'll create these)
@@ -21,19 +21,14 @@ import AdminScreen from '../screens/AdminScreen';
 import TermsScreen from '../screens/TermsScreen';
 import PrivacyScreen from '../screens/PrivacyScreen';
 import { useAuth } from '../context/AuthContext';
+// Import navigation ref from separate file to avoid circular dependencies
+import { navigationRef, RootStackParamList } from './navigationRef';
 
 // Types
-export type RootStackParamList = {
-  PhoneLogin: undefined;
-  CreateProfile: undefined;
-  MainTabs: undefined;
-  Terms: undefined;
-  Privacy: undefined;
-};
-
+export type { RootStackParamList };
 export type MainTabParamList = {
   Browse: undefined;
-  Matches: undefined;
+  Matches: { matchId?: string } | undefined;
   MyProfile: undefined;
   Settings: undefined;
   Admin: undefined;
@@ -41,6 +36,126 @@ export type MainTabParamList = {
 
 const Stack = createStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
+
+// Animated Icon Component for better visual feedback
+function AnimatedTabIcon({ 
+  children, 
+  focused, 
+  emoji = false,
+  triggerRotation = 0
+}: { 
+  children: React.ReactNode; 
+  focused: boolean; 
+  emoji?: boolean;
+  triggerRotation?: number;
+}) {
+  const scaleAnim = React.useRef(new Animated.Value(focused ? 1.1 : 1)).current;
+  const opacityAnim = React.useRef(new Animated.Value(focused ? 1 : 0.5)).current;
+  const glowOpacityAnim = React.useRef(new Animated.Value(focused ? 0.3 : 0)).current;
+  const rotateAnim = React.useRef(new Animated.Value(0)).current;
+  const prevFocusedRef = React.useRef(focused);
+
+  React.useEffect(() => {
+    // Use requestAnimationFrame to ensure animations don't block navigation
+    requestAnimationFrame(() => {
+      Animated.parallel([
+        Animated.spring(scaleAnim, {
+          toValue: focused ? 1.1 : 1,
+          useNativeDriver: true,
+          tension: 300, // Higher tension = faster animation
+          friction: 8, // Higher friction = less bouncy
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: focused ? 1 : 0.5,
+          duration: 150, // Faster transition
+          useNativeDriver: true,
+        }),
+        Animated.timing(glowOpacityAnim, {
+          toValue: focused ? 0.4 : 0,
+          duration: 150, // Faster transition
+          useNativeDriver: true,
+        }),
+      ]).start();
+
+      // Trigger rotation when tab becomes focused (simplified, non-blocking)
+      if (focused && !prevFocusedRef.current) {
+        prevFocusedRef.current = focused;
+        // Simplified rotation - single animation instead of sequence
+        rotateAnim.setValue(0);
+        Animated.timing(rotateAnim, {
+          toValue: 1,
+          duration: 200, // Faster
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }).start(() => {
+          // Reset after animation completes
+          rotateAnim.setValue(0);
+        });
+      } else if (!focused) {
+        prevFocusedRef.current = focused;
+        rotateAnim.setValue(0);
+      }
+    });
+  }, [focused]);
+
+  // Also trigger on explicit press (simplified, non-blocking)
+  React.useEffect(() => {
+    if (triggerRotation > 0) {
+      requestAnimationFrame(() => {
+        rotateAnim.setValue(0);
+        Animated.timing(rotateAnim, {
+          toValue: 1,
+          duration: 200, // Faster
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }).start(() => {
+          rotateAnim.setValue(0);
+        });
+      });
+    }
+  }, [triggerRotation]);
+
+  const rotate = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '10deg'],
+  });
+
+  return (
+    <Animated.View
+      style={{
+        transform: [
+          { rotate: rotate },
+          { scale: scaleAnim },
+        ],
+        opacity: opacityAnim,
+        justifyContent: 'center',
+        alignItems: 'center',
+      }}
+    >
+      {children}
+      {/* Glow effect around active icon */}
+      {focused && (
+        <Animated.View
+          style={[
+            {
+              position: 'absolute',
+              width: 52,
+              height: 52,
+              borderRadius: 26,
+              backgroundColor: '#8B1538',
+              opacity: glowOpacityAnim,
+              shadowColor: '#8B1538',
+              shadowOffset: { width: 0, height: 0 },
+              shadowOpacity: 1,
+              shadowRadius: 15,
+              elevation: 8,
+            },
+          ]}
+        />
+      )}
+    </Animated.View>
+  );
+}
 
 // Main Tab Navigator (shown after login)
 function MainTabs() {
@@ -61,6 +176,7 @@ function MainTabs() {
   const { user, profile, loading } = authContext;
   const navigation = useNavigation();
   const isAdmin = user?.isAdmin || false;
+  const [tabPressTrigger, setTabPressTrigger] = React.useState<{ [key: string]: number }>({});
 
   // Check if user has profile when trying to access tabs that require it
   useFocusEffect(
@@ -94,7 +210,7 @@ function MainTabs() {
       return;
     }
     
-    // Tabs that require a profile
+    // Tabs that require a profile - check first before any animations
     const requiresProfile = ['Browse', 'Matches'];
     
     if (requiresProfile.includes(route.name) && !profile && !loading) {
@@ -119,14 +235,33 @@ function MainTabs() {
           { text: 'Cancel', style: 'cancel' },
         ]
       );
-    } else {
-      // Haptic feedback - vibrate when tab navigation is allowed
-      if (Platform.OS === 'ios') {
-        Vibration.vibrate(10); // Short vibration for iOS
-      } else {
-        Vibration.vibrate(50); // Slightly longer for Android
-      }
+      return; // Don't proceed with animations if navigation is blocked
     }
+    
+    // Trigger rotation animation for this tab (non-blocking)
+    requestAnimationFrame(() => {
+      setTabPressTrigger(prev => ({
+        ...prev,
+        [route.name]: (prev[route.name] || 0) + 1,
+      }));
+    });
+    
+    // Haptic feedback - vibrate asynchronously (non-blocking)
+    // This ensures vibration doesn't delay navigation
+    setTimeout(() => {
+      try {
+        if (Platform.OS === 'ios') {
+          // iOS: Use pattern [delay, duration] for more reliable vibration
+          Vibration.vibrate([0, 50]); // Shorter vibration
+        } else {
+          // Android: Duration in milliseconds
+          Vibration.vibrate(50); // Shorter vibration
+        }
+      } catch (error) {
+        // Silently fail - vibration is non-critical
+        console.warn('Vibration error (non-critical):', error);
+      }
+    }, 0);
   };
 
   return (
@@ -134,29 +269,39 @@ function MainTabs() {
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: '#8B1538',
-        tabBarInactiveTintColor: '#999',
+        tabBarInactiveTintColor: '#9CA3AF',
         tabBarStyle: {
           backgroundColor: '#fff',
-          borderTopWidth: 1,
-          borderTopColor: '#e0e0e0',
-          height: Platform.OS === 'ios' ? 85 : 65,
-          paddingBottom: Platform.OS === 'ios' ? 25 : 10,
-          paddingTop: 10,
-          elevation: 8,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 8,
+          borderTopWidth: 0,
+          height: Platform.OS === 'ios' ? 70 : 68,
+          paddingBottom: Platform.OS === 'ios' ? 12 : 10,
+          paddingTop: 8,
+          paddingHorizontal: 4,
+          elevation: 16,
+          shadowColor: '#8B1538',
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: 0.12,
+          shadowRadius: 16,
+          borderTopLeftRadius: 24,
+          borderTopRightRadius: 24,
+          position: 'absolute',
+        },
+        tabBarItemStyle: {
+          paddingHorizontal: 4,
         },
         tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: '600',
+          fontSize: 11,
+          fontWeight: '700',
           marginTop: 4,
+          letterSpacing: 0.4,
+          marginBottom: 4,
+          paddingHorizontal: 2,
+          textAlign: 'center',
         },
         tabBarIconStyle: {
-          marginTop: 4,
-          width: 30,
-          height: 30,
+          marginTop: 0,
+          width: 28,
+          height: 28,
           justifyContent: 'center',
           alignItems: 'center',
         },
@@ -172,9 +317,18 @@ function MainTabs() {
         component={BrowseScreen}
         options={{
           tabBarIcon: ({ focused, color }) => (
-            <View style={styles.emojiContainer}>
-              <Text style={[styles.emojiIcon, { opacity: focused ? 1 : 0.6 }]}>😍</Text>
-            </View>
+            <AnimatedTabIcon 
+              focused={focused} 
+              emoji={true}
+              triggerRotation={tabPressTrigger['Browse'] || 0}
+            >
+              <View style={[
+                styles.iconContainer,
+                focused && styles.iconContainerActive,
+              ]}>
+                <Text style={styles.emojiIcon}>😍</Text>
+              </View>
+            </AnimatedTabIcon>
           ),
           tabBarLabel: 'Connect',
         }}
@@ -184,7 +338,18 @@ function MainTabs() {
         component={MatchesScreen}
         options={{
           tabBarIcon: ({ focused, color }) => (
-            <Text style={[styles.tabIcon, styles.sleekIcon, { opacity: focused ? 1 : 0.6, color: focused ? '#8B1538' : '#999' }]}>❤️</Text>
+            <AnimatedTabIcon 
+              focused={focused} 
+              emoji={true}
+              triggerRotation={tabPressTrigger['Matches'] || 0}
+            >
+              <View style={[
+                styles.iconContainer,
+                focused && styles.iconContainerActive,
+              ]}>
+                <Text style={styles.emojiIcon}>❤️</Text>
+              </View>
+            </AnimatedTabIcon>
           ),
           tabBarLabel: 'Matches',
         }}
@@ -194,7 +359,18 @@ function MainTabs() {
         component={MyProfileScreen}
         options={{
           tabBarIcon: ({ focused, color }) => (
-            <Text style={[styles.tabIcon, styles.sleekIcon, { opacity: focused ? 1 : 0.6, color: focused ? '#8B1538' : '#999' }]}>👤</Text>
+            <AnimatedTabIcon 
+              focused={focused} 
+              emoji={true}
+              triggerRotation={tabPressTrigger['MyProfile'] || 0}
+            >
+              <View style={[
+                styles.iconContainer,
+                focused && styles.iconContainerActive,
+              ]}>
+                <Text style={styles.emojiIcon}>👤</Text>
+              </View>
+            </AnimatedTabIcon>
           ),
           tabBarLabel: 'Profile',
         }}
@@ -204,7 +380,18 @@ function MainTabs() {
         component={SettingsScreen}
         options={{
           tabBarIcon: ({ focused, color }) => (
-            <Text style={[styles.tabIcon, styles.sleekIcon, { opacity: focused ? 1 : 0.6, color: focused ? '#8B1538' : '#999' }]}>⚙️</Text>
+            <AnimatedTabIcon 
+              focused={focused} 
+              emoji={true}
+              triggerRotation={tabPressTrigger['Settings'] || 0}
+            >
+              <View style={[
+                styles.iconContainer,
+                focused && styles.iconContainerActive,
+              ]}>
+                <Text style={styles.emojiIcon}>⚙️</Text>
+              </View>
+            </AnimatedTabIcon>
           ),
           tabBarLabel: 'Settings',
         }}
@@ -215,7 +402,18 @@ function MainTabs() {
           component={AdminScreen}
           options={{
             tabBarIcon: ({ focused, color }) => (
-              <Text style={[styles.tabIcon, styles.sleekIcon, { opacity: focused ? 1 : 0.6, color: focused ? '#8B1538' : '#999' }]}>👑</Text>
+              <AnimatedTabIcon 
+                focused={focused} 
+                emoji={true}
+                triggerRotation={tabPressTrigger['Admin'] || 0}
+              >
+                <View style={[
+                  styles.iconContainer,
+                  focused && styles.iconContainerActive,
+                ]}>
+                  <Text style={styles.emojiIcon}>👑</Text>
+                </View>
+              </AnimatedTabIcon>
             ),
             tabBarLabel: 'Admin',
           }}
@@ -243,7 +441,6 @@ export default function AppNavigator() {
   }
 
   const { user, profile, loading } = authContext;
-  const navigationRef = React.useRef<NavigationContainerRef<RootStackParamList>>(null);
   const [isNavigationReady, setIsNavigationReady] = React.useState(false);
 
   // Track when navigation container is ready
@@ -354,23 +551,40 @@ export default function AppNavigator() {
 
 const styles = StyleSheet.create({
   tabIcon: {
-    fontSize: 24,
+    fontSize: 20,
     textAlign: 'center',
   },
   sleekIcon: {
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: '300',
-    transform: [{ scale: 1.05 }],
+  },
+  iconContainer: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 20,
+    position: 'relative',
+    marginBottom: 2,
+    zIndex: 1,
+  },
+  iconContainerActive: {
+    backgroundColor: 'rgba(139, 21, 56, 0.12)',
+    shadowColor: '#8B1538',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   emojiContainer: {
-    width: 32,
-    height: 32,
+    width: 24,
+    height: 24,
     justifyContent: 'center',
     alignItems: 'center',
   },
   emojiIcon: {
-    fontSize: 28,
-    lineHeight: 32,
+    fontSize: 24,
+    lineHeight: 28,
     textAlign: 'center',
     includeFontPadding: false,
   },

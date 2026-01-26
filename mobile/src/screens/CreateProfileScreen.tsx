@@ -27,9 +27,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Picker } from '@react-native-picker/picker';
 import { useNavigation } from '@react-navigation/native';
 import * as Location from 'expo-location';
+import * as ImagePicker from 'expo-image-picker';
 import { api } from '../utils/api';
 import ProfileCompleteCelebration from '../components/ProfileCompleteCelebration';
 import { useAuth } from '../context/AuthContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import OptimizedImage from '../components/OptimizedImage';
 
 const GENDER_OPTIONS = ['Man', 'Woman', 'Non-binary', 'Other', 'Prefer not to say'];
 const LOOKING_FOR_OPTIONS = ['Relationship', 'Something casual', 'Friendship', 'Not sure yet'];
@@ -89,9 +92,24 @@ export default function CreateProfileScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showCelebration, setShowCelebration] = useState(false);
-  const [step1CardIndex, setStep1CardIndex] = useState(0); // Track which card is shown in step 1
-  const step1FlatListRef = useRef<FlatList>(null);
+  const step1ScrollViewRef = useRef<ScrollView>(null);
   const step5ScrollViewRef = useRef<ScrollView>(null);
+  
+  // Refs for step 1 cards (for vertical scrolling)
+  const displayNameCardRef = useRef<View>(null);
+  const ageCardRef = useRef<View>(null);
+  const genderCardRef = useRef<View>(null);
+  const locationCardRef = useRef<View>(null);
+  const lookingForCardRef = useRef<View>(null);
+  const bioCardRef = useRef<View>(null);
+  
+  // Y positions for step 1 cards
+  const [displayNameCardY, setDisplayNameCardY] = useState<number | null>(null);
+  const [ageCardY, setAgeCardY] = useState<number | null>(null);
+  const [genderCardY, setGenderCardY] = useState<number | null>(null);
+  const [locationCardY, setLocationCardY] = useState<number | null>(null);
+  const [lookingForCardY, setLookingForCardY] = useState<number | null>(null);
+  const [bioCardY, setBioCardY] = useState<number | null>(null);
   const displayNameInputRef = useRef<TextInput>(null);
   const ageInputRef = useRef<TextInput>(null);
   const locationInputRef = useRef<TextInput>(null);
@@ -106,19 +124,15 @@ export default function CreateProfileScreen() {
   const preferredGendersRef = useRef<View>(null);
   const maxDistanceInputRef = useRef<TextInput>(null);
   
-  // FlatList viewability config and handlers (must be at top level)
-  const viewabilityConfig = {
-    itemVisiblePercentThreshold: 50,
-  };
-  
-  const onViewableItemsChanged = useCallback(({ viewableItems }: any) => {
-    if (viewableItems.length > 0) {
-      const visibleIndex = viewableItems[0].index;
-      if (visibleIndex !== null && visibleIndex !== undefined) {
-        setStep1CardIndex(visibleIndex);
-      }
+  // Helper function to scroll to a card in step 1
+  const scrollToStep1Card = (cardY: number | null, offset: number = 0) => {
+    if (cardY !== null && step1ScrollViewRef.current) {
+      step1ScrollViewRef.current.scrollTo({
+        y: cardY + offset,
+        animated: true,
+      });
     }
-  }, []);
+  };
   
   // Separate viewability handler for step 5
   
@@ -206,7 +220,7 @@ export default function CreateProfileScreen() {
   const [minAge, setMinAge] = useState(18);
   const [maxAge, setMaxAge] = useState(100);
   const [preferredGenders, setPreferredGenders] = useState<string[]>([]);
-  const [maxDistance, setMaxDistance] = useState(50);
+  const [maxDistance, setMaxDistance] = useState<number | null>(50);
   const [maxAgeCardY, setMaxAgeCardY] = useState<number | null>(null);
 
   // Step 5: Lifestyle
@@ -217,6 +231,10 @@ export default function CreateProfileScreen() {
   const [religion, setReligion] = useState('');
   const [workLifeBalance, setWorkLifeBalance] = useState('');
   const [worksOut, setWorksOut] = useState('');
+
+  // Step 7: Photos
+  const [photos, setPhotos] = useState<Array<{ id?: string; url: string; uri?: string }>>([]);
+  const [uploading, setUploading] = useState(false);
 
   // Track keyboard visibility
   useEffect(() => {
@@ -334,15 +352,15 @@ export default function CreateProfileScreen() {
   // Function to manually trigger next field animation and navigate to next card
   const triggerNextField = (fieldName: 'gender' | 'location' | 'lookingFor' | 'bio') => {
     console.log('🎯 Triggering next field:', fieldName);
-    const fieldToIndex: Record<string, number> = {
-      'gender': 2,
-      'location': 3,
-      'lookingFor': 4,
-      'bio': 5,
+    const fieldToCardY: Record<string, number | null> = {
+      'gender': genderCardY,
+      'location': locationCardY,
+      'lookingFor': lookingForCardY,
+      'bio': bioCardY,
     };
-    const nextIndex = fieldToIndex[fieldName];
+    const nextCardY = fieldToCardY[fieldName];
     
-    if (nextIndex !== undefined) {
+    if (nextCardY !== null) {
       // Animate the field
       if (fieldName === 'gender') {
         animateField(genderScale, genderOpacity, genderGlow);
@@ -354,26 +372,10 @@ export default function CreateProfileScreen() {
         animateField(bioScale, bioOpacity, bioGlow);
       }
       
-      // Navigate to next card in FlatList
+      // Navigate to next card with vertical scroll
       setTimeout(() => {
-        step1FlatListRef.current?.scrollToIndex({ 
-          index: nextIndex, 
-          animated: true 
-        });
-        setStep1CardIndex(nextIndex);
+        scrollToStep1Card(nextCardY, -20);
       }, 300);
-    }
-  };
-
-  // Function to navigate to next card in step 1
-  const goToNextCard = () => {
-    const nextIndex = step1CardIndex + 1;
-    if (nextIndex < 6) { // 6 cards total (0-5)
-      step1FlatListRef.current?.scrollToIndex({ 
-        index: nextIndex, 
-        animated: true 
-      });
-      setStep1CardIndex(nextIndex);
     }
   };
 
@@ -412,13 +414,9 @@ export default function CreateProfileScreen() {
       // Start animation immediately - no delay
       animateField(genderScale, genderOpacity, genderGlow);
       
-      // Navigate to gender card (index 2)
+      // Navigate to gender card with vertical scroll
       setTimeout(() => {
-        step1FlatListRef.current?.scrollToIndex({ 
-          index: 2, 
-          animated: true 
-        });
-        setStep1CardIndex(2);
+        scrollToStep1Card(genderCardY, -20);
       }, 300);
     } else if (step === 1 && age.trim().length > 0 && !isValidAge) {
       console.log('❌ Invalid age, resetting gender animation');
@@ -426,20 +424,16 @@ export default function CreateProfileScreen() {
       genderOpacity.setValue(0);
       genderGlow.setValue(0);
     }
-  }, [age, displayName, step]);
+  }, [age, displayName, step, genderCardY]);
 
   // Animate location field when gender is selected and navigate to location card
   useEffect(() => {
     if (step === 1 && displayName.trim().length >= 2 && age.trim().length > 0 && gender.trim().length > 0) {
       setTimeout(() => {
         animateField(locationScale, locationOpacity, locationGlow);
-        // Navigate to location card (index 3)
+        // Navigate to location card with vertical scroll
         setTimeout(() => {
-          step1FlatListRef.current?.scrollToIndex({ 
-            index: 3, 
-            animated: true 
-          });
-          setStep1CardIndex(3);
+          scrollToStep1Card(locationCardY, -20);
         }, 300);
       }, 100); // Faster transition
     } else if (step === 1 && !gender.trim()) {
@@ -447,20 +441,16 @@ export default function CreateProfileScreen() {
       locationOpacity.setValue(0);
       locationGlow.setValue(0);
     }
-  }, [gender, displayName, age, step]);
+  }, [gender, displayName, age, step, locationCardY]);
 
   // Animate "looking for" field when location is entered and navigate to lookingFor card
   useEffect(() => {
     if (step === 1 && displayName.trim().length >= 2 && age.trim().length > 0 && gender.trim().length > 0 && location.trim().length > 0) {
       setTimeout(() => {
         animateField(lookingForScale, lookingForOpacity, lookingForGlow);
-        // Navigate to lookingFor card (index 4)
+        // Navigate to lookingFor card with vertical scroll
         setTimeout(() => {
-          step1FlatListRef.current?.scrollToIndex({ 
-            index: 4, 
-            animated: true 
-          });
-          setStep1CardIndex(4);
+          scrollToStep1Card(lookingForCardY, -20);
         }, 300);
       }, 100); // Faster transition
     } else if (step === 1 && !location.trim()) {
@@ -468,20 +458,16 @@ export default function CreateProfileScreen() {
       lookingForOpacity.setValue(0);
       lookingForGlow.setValue(0);
     }
-  }, [location, displayName, age, gender, step]);
+  }, [location, displayName, age, gender, step, lookingForCardY]);
 
   // Animate bio field when "looking for" is selected and navigate to bio card
   useEffect(() => {
     if (step === 1 && displayName.trim().length >= 2 && age.trim().length > 0 && gender.trim().length > 0 && location.trim().length > 0 && lookingFor.trim().length > 0) {
       setTimeout(() => {
         animateField(bioScale, bioOpacity, bioGlow);
-        // Navigate to bio card (index 5)
+        // Navigate to bio card with vertical scroll
         setTimeout(() => {
-          step1FlatListRef.current?.scrollToIndex({ 
-            index: 5, 
-            animated: true 
-          });
-          setStep1CardIndex(5);
+          scrollToStep1Card(bioCardY, -20);
         }, 300);
       }, 100); // Faster transition
     } else if (step === 1 && !lookingFor.trim()) {
@@ -489,7 +475,7 @@ export default function CreateProfileScreen() {
       bioOpacity.setValue(0);
       bioGlow.setValue(0);
     }
-  }, [lookingFor, displayName, age, gender, location, step]);
+  }, [lookingFor, displayName, age, gender, location, step, bioCardY]);
 
   // Step 5 (dating preferences) - Progressive disclosure with vertical scrolling (like lifestyle)
   useEffect(() => {
@@ -642,9 +628,9 @@ export default function CreateProfileScreen() {
             setQualities(data.partnerQualities.map((q: any) => q.quality));
           }
           if (data.preferences) {
-            setMinAge(data.preferences.min_age);
-            setMaxAge((data.preferences as any).max_age || 100);
-            setMaxDistance(data.preferences.max_distance);
+            setMinAge(data.preferences.min_age ?? 18);
+            setMaxAge((data.preferences as any).max_age ?? 100);
+            setMaxDistance(data.preferences.max_distance ?? 50);
             if (data.preferences.preferred_genders) {
               try {
                 const genders = JSON.parse(data.preferences.preferred_genders);
@@ -670,6 +656,140 @@ export default function CreateProfileScreen() {
     };
     loadProfile();
   }, []);
+
+  // Save profile data and load existing photos when entering step 7
+  const profileSavedRef = useRef(false);
+  
+  useEffect(() => {
+    const saveProfileAndLoadPhotos = async () => {
+      if (step === 7 && !profileSavedRef.current) {
+        // Mark as saving to prevent duplicate calls
+        profileSavedRef.current = true;
+        
+        // Run all saves sequentially to ensure profile exists before other operations
+        setTimeout(async () => {
+          try {
+            console.log('💾 Saving profile data before photo upload...');
+            
+            // First, save basic profile (required for photos endpoint and other operations)
+            try {
+              await api.post('/profile', {
+                displayName,
+                age: parseInt(age),
+                gender,
+                location,
+                bio,
+                lookingFor
+              });
+              console.log('✅ Basic profile saved');
+              
+              // Small delay to ensure profile is fully committed to database
+              await new Promise(resolve => setTimeout(resolve, 200));
+            } catch (err: any) {
+              console.error('❌ Failed to save basic profile:', err?.message || err);
+              setError(`Failed to save profile: ${err?.message || 'Please try again'}`);
+              profileSavedRef.current = false; // Allow retry
+              return;
+            }
+
+            // Now save other data sequentially (profile must exist first)
+            try {
+              // Add interests
+              if (interests.length > 0) {
+                await api.put('/profile/interests', {
+                  interests: interests.map(name => ({ name }))
+                });
+                console.log('✅ Interests saved');
+              }
+            } catch (err: any) {
+              console.error('⚠️ Failed to save interests:', err?.message || err);
+              // Continue - non-critical
+            }
+
+            try {
+              // Add dealbreakers
+              if (dealbreakers.length > 0) {
+                await api.put('/profile/dealbreakers', {
+                  dealbreakers: dealbreakers.map(description => ({ description }))
+                });
+                console.log('✅ Dealbreakers saved');
+              }
+            } catch (err: any) {
+              console.error('⚠️ Failed to save dealbreakers:', err?.message || err);
+              // Continue - non-critical
+            }
+
+            try {
+              // Add partner qualities
+              if (qualities.length > 0) {
+                await api.put('/profile/partner-qualities', {
+                  qualities: qualities.map(quality => ({ quality }))
+                });
+                console.log('✅ Partner qualities saved');
+              }
+            } catch (err: any) {
+              console.error('⚠️ Failed to save partner qualities:', err?.message || err);
+              // Continue - non-critical
+            }
+
+            try {
+              // Save preferences
+              await api.put('/profile/preferences', {
+                minAge,
+                maxAge: maxAge >= minAge && maxAge <= 120 ? maxAge : null,
+                preferredGenders: preferredGenders.length > 0 ? preferredGenders : null,
+                maxDistance,
+                relationshipType: lookingFor || null
+              });
+              console.log('✅ Preferences saved');
+            } catch (err: any) {
+              console.error('⚠️ Failed to save preferences:', err?.message || err);
+              // Continue - non-critical
+            }
+
+            try {
+              // Save lifestyle
+              await api.put('/profile/lifestyle', {
+                smoking,
+                drinking,
+                children,
+                pets,
+                religion,
+                workLifeBalance,
+                worksOut
+              });
+              console.log('✅ Lifestyle saved');
+            } catch (err: any) {
+              console.error('⚠️ Failed to save lifestyle:', err?.message || err);
+              // Continue - non-critical
+            }
+
+            console.log('✅ All profile data saved successfully');
+
+            // Load existing photos in parallel (non-blocking)
+            if (photos.length === 0) {
+              api.get('/photos/me').then((data) => {
+                if (data.photos && Array.isArray(data.photos)) {
+                  setPhotos(data.photos.map((photo: any) => ({
+                    id: photo.id,
+                    url: photo.url,
+                  })));
+                }
+              }).catch((err) => {
+                console.log('No existing photos found');
+              });
+            }
+          } catch (err: any) {
+            console.error('❌ Error saving profile data:', err);
+            // Reset flag so user can try again
+            profileSavedRef.current = false;
+            setError(`Failed to save profile: ${err?.message || 'Please try again'}`);
+          }
+        }, 0); // Run asynchronously
+      }
+    };
+    saveProfileAndLoadPhotos();
+  }, [step]);
 
   const detectLocation = async () => {
     setDetectingLocation(true);
@@ -956,6 +1076,7 @@ export default function CreateProfileScreen() {
       }
     }
     // Step 3 (dealbreakers) - optional, no validation needed
+    // Step 4 (what you want in a partner) - requires at least 3 qualities
     if (step === 4) {
       if (qualities.length < 3) {
         setError('Please select at least 3 qualities you want in a partner');
@@ -983,31 +1104,311 @@ export default function CreateProfileScreen() {
     }
     
     setError('');
-    setStep(step + 1);
+    
+    // Ensure step doesn't exceed maximum
+    const nextStep = step + 1;
+    if (nextStep > 7) {
+      console.error('Attempted to go beyond step 7');
+      setError('Invalid step number');
+      return;
+    }
+    
+    try {
+      setStep(nextStep);
+    } catch (error: any) {
+      console.error('Error advancing to next step:', error);
+      console.error('Current step:', step, 'Next step:', nextStep);
+      setError('An error occurred. Please try again.');
+    }
   };
 
   const handleBack = () => {
     setStep(step - 1);
   };
 
+  const uploadPhoto = async (uri: string) => {
+    try {
+      setUploading(true);
+      setError(''); // Clear any previous errors
+
+      // Extract filename and determine MIME type
+      const filename = uri.split('/').pop() || 'photo.jpg';
+      const match = /\.(\w+)$/.exec(filename.toLowerCase());
+      let mimeType = 'image/jpeg'; // default
+      
+      if (match) {
+        const ext = match[1].toLowerCase();
+        const mimeTypes: { [key: string]: string } = {
+          'jpg': 'image/jpeg',
+          'jpeg': 'image/jpeg',
+          'png': 'image/png',
+          'gif': 'image/gif',
+          'webp': 'image/webp',
+        };
+        mimeType = mimeTypes[ext] || 'image/jpeg';
+      }
+
+      // Get token first
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found. Please log in again.');
+      }
+
+      const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://mulligan-backend.onrender.com';
+      
+      // Create FormData for React Native
+      const formData = new FormData();
+      formData.append('photos', {
+        uri: uri,
+        type: mimeType,
+        name: filename,
+      } as any);
+
+      console.log('📤 Uploading photo:', { uri, filename, mimeType, apiUrl: `${API_URL}/api/photos` });
+      
+      // Retry logic for network failures
+      const maxRetries = 3;
+      let lastError: any = null;
+      
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          // Create AbortController for timeout (5 minutes for large files)
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minutes for large files
+          
+          console.log(`📤 Upload attempt ${attempt}/${maxRetries}...`);
+          
+          const response = await fetch(`${API_URL}/api/photos`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              // Don't set Content-Type - let fetch set it with boundary for multipart/form-data
+            },
+            body: formData,
+            signal: controller.signal, // Add abort signal for timeout
+          });
+          
+          clearTimeout(timeoutId); // Clear timeout if request succeeds
+          
+          // If we get here, the request succeeded
+          console.log('📥 Upload response status:', response.status);
+          
+          if (!response.ok) {
+            const errorText = await response.text().catch(() => 'Unknown error');
+            console.error('❌ Upload error response:', errorText);
+            let errorData;
+            try {
+              errorData = JSON.parse(errorText);
+            } catch {
+              errorData = { error: errorText || `Upload failed with status ${response.status}` };
+            }
+            
+            // Log detailed error information
+            console.error('❌ Upload error details:', {
+              status: response.status,
+              error: errorData.error,
+              details: errorData.details,
+              http_code: errorData.http_code,
+              suggestion: errorData.suggestion,
+              fullErrorData: errorData
+            });
+            
+            // Create a more detailed error message
+            let errorMessage = errorData.error || `Upload failed with status ${response.status}`;
+            if (errorData.details) {
+              errorMessage += `\n\nDetails: ${errorData.details}`;
+            }
+            if (errorData.http_code) {
+              errorMessage += `\nHTTP Code: ${errorData.http_code}`;
+            }
+            if (errorData.suggestion) {
+              errorMessage += `\n\n${errorData.suggestion}`;
+            }
+            
+            // Create error with all details
+            const detailedError = new Error(errorMessage);
+            (detailedError as any).http_code = errorData.http_code;
+            (detailedError as any).details = errorData.details;
+            throw detailedError;
+          }
+
+          const result = await response.json().catch((parseError) => {
+            console.error('❌ JSON parse error:', parseError);
+            throw new Error('Invalid response from server');
+          });
+          
+          console.log('✅ Upload successful:', result);
+          
+          // Add the uploaded photo to the photos array
+          if (result.photos && result.photos.length > 0) {
+            const newPhoto = result.photos[0];
+            setPhotos(prev => [...prev, { id: newPhoto.id, url: newPhoto.url, uri: uri }]);
+          }
+
+          // Success! Exit retry loop
+          return;
+          
+        } catch (fetchError: any) {
+          lastError = fetchError;
+          console.error(`❌ Upload attempt ${attempt} failed:`, fetchError);
+          
+          // Check if it's a timeout/abort
+          if (fetchError.name === 'AbortError') {
+            if (attempt < maxRetries) {
+              console.log(`⏳ Upload timed out, retrying... (${attempt}/${maxRetries})`);
+              // Wait before retry (exponential backoff)
+              await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+              continue;
+            }
+            throw new Error('Upload timed out after multiple attempts. The file may be too large. Please try a smaller image.');
+          }
+          
+          // Check for network errors
+          if (fetchError.message?.includes('Network request failed') || fetchError.message?.includes('Failed to fetch')) {
+            if (attempt < maxRetries) {
+              console.log(`🔄 Network error, retrying... (${attempt}/${maxRetries})`);
+              // Wait before retry (exponential backoff)
+              await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+              continue;
+            }
+            throw new Error('Network error: Unable to connect to server after multiple attempts. Please check your internet connection and try again.');
+          }
+          
+          // For other errors, don't retry
+          throw fetchError;
+        }
+      }
+      
+      // If we get here, all retries failed
+      throw lastError || new Error('Upload failed after multiple attempts');
+    } catch (err: any) {
+      console.error('Upload error:', err);
+      console.error('Upload error details:', {
+        message: err?.message,
+        name: err?.name,
+        stack: err?.stack,
+        error: err
+      });
+      const errorMessage = err?.message || 'Failed to upload photo';
+      // Show error to user with more details
+      Alert.alert(
+        'Upload Failed', 
+        errorMessage,
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handlePickPhoto = async () => {
+    try {
+      // Check if we can upload more photos
+      if (photos.length >= 6) {
+        Alert.alert('Limit reached', 'You can only upload up to 6 photos');
+        return;
+      }
+
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission Denied',
+          'Please grant photo library access to upload photos. You can enable this in Settings > Privacy & Security > Photos.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.6, // Reduced quality for smaller file size and faster uploads
+        maxWidth: 1920, // Limit width to reduce file size
+        maxHeight: 1920, // Limit height to reduce file size
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        // Log file size for debugging
+        if (asset.fileSize) {
+          const sizeMB = (asset.fileSize / (1024 * 1024)).toFixed(2);
+          console.log(`📸 Selected image size: ${sizeMB} MB`);
+          if (asset.fileSize > 50 * 1024 * 1024) { // 50MB
+            Alert.alert(
+              'Image Too Large',
+              `This image is ${sizeMB} MB. Maximum size is 50 MB. Please select a smaller image.`,
+              [{ text: 'OK' }]
+            );
+            return;
+          }
+        }
+        // Upload immediately without confirmation - seamless experience
+        await uploadPhoto(asset.uri);
+      }
+    } catch (error: any) {
+      console.error('Error picking photo:', error);
+      Alert.alert('Error', 'Failed to pick photo. Please try again.');
+    }
+  };
+
+  const handleRemovePhoto = async (index: number) => {
+    const photo = photos[index];
+    if (!photo) return;
+
+    Alert.alert(
+      'Remove Photo',
+      'Are you sure you want to remove this photo?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // If photo has an ID, delete it from the backend
+              if (photo.id) {
+                await api.delete(`/photos/${photo.id}`);
+              }
+              // Remove from local state
+              setPhotos(prev => prev.filter((_, i) => i !== index));
+            } catch (error: any) {
+              console.error('Error removing photo:', error);
+              Alert.alert('Error', 'Failed to remove photo. Please try again.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleSubmit = async () => {
     setLoading(true);
     setError('');
 
-    if (interests.length < 3) {
-      setError('Please select at least 3 interests');
-      setLoading(false);
-      return;
-    }
-    if (qualities.length < 3) {
-      setError('Please select at least 3 interests you want in a partner');
-      setLoading(false);
-      return;
-    }
-    if (!smoking || !drinking || !children || !pets || !religion || !workLifeBalance || !worksOut) {
-      setError('Please fill in all lifestyle fields');
-      setLoading(false);
-      return;
+    // Validate step 7 (photos) - minimum 5 photos required
+    if (step === 7) {
+      if (photos.length < 5) {
+        setError('Please upload at least 5 photos to complete your profile');
+        setLoading(false);
+        return;
+      }
+    } else {
+      // Original validation for step 6
+      if (interests.length < 3) {
+        setError('Please select at least 3 interests');
+        setLoading(false);
+        return;
+      }
+      if (qualities.length < 3) {
+        setError('Please select at least 3 interests you want in a partner');
+        setLoading(false);
+        return;
+      }
+      if (!smoking || !drinking || !children || !pets || !religion || !workLifeBalance || !worksOut) {
+        setError('Please fill in all lifestyle fields');
+        setLoading(false);
+        return;
+      }
     }
     
     // Haptic feedback - vibrate when validation passes
@@ -1058,7 +1459,7 @@ export default function CreateProfileScreen() {
         relationshipType: lookingFor || null
       });
 
-      // Save lifestyle
+      // Save lifestyle (always save, whether on step 6 or 7)
       await api.put('/profile/lifestyle', {
         smoking,
         drinking,
@@ -1069,6 +1470,7 @@ export default function CreateProfileScreen() {
         worksOut
       });
 
+      // Photos are already uploaded during step 7, just refresh profile
       await refreshProfile();
       
       // Show celebration before navigating
@@ -1166,17 +1568,12 @@ export default function CreateProfileScreen() {
 
     // Render individual card
     const renderCard = ({ item, index }: { item: typeof step1Cards[0]; index: number }) => {
-      const cardStyle = {
-        width: screenWidth,
-        height: '100%',
-      };
 
       switch (item.type) {
         case 'firstName':
           return (
             <View style={[
               styles.focusedFirstNameSection, 
-              cardStyle,
               keyboardVisible && styles.focusedSectionWithKeyboard
             ]}>
               <Animated.View
@@ -1240,11 +1637,7 @@ export default function CreateProfileScreen() {
                             displayNameInputRef.current?.blur();
                             // Then navigate to age card after a small delay
                             setTimeout(() => {
-                              step1FlatListRef.current?.scrollToIndex({ 
-                                index: 1, 
-                                animated: true 
-                              });
-                              setStep1CardIndex(1);
+                              scrollToStep1Card(ageCardY, -20);
                               // Focus the age input after navigation
                               setTimeout(() => {
                                 ageInputRef.current?.focus();
@@ -1255,7 +1648,6 @@ export default function CreateProfileScreen() {
                       }}
                       placeholder="Your first name"
                       placeholderTextColor="rgba(255, 255, 255, 0.6)"
-                      autoFocus={index === step1CardIndex}
                       autoCapitalize="words"
                       returnKeyType="next"
                       onSubmitEditing={() => {
@@ -1291,11 +1683,10 @@ export default function CreateProfileScreen() {
           );
 
         case 'age':
-          if (!item.enabled) return <View style={cardStyle} />;
+          if (!item.enabled) return null;
           return (
             <View style={[
               styles.focusedAgeSection, 
-              cardStyle,
               keyboardVisible && styles.focusedSectionWithKeyboard
             ]}>
               <Animated.View
@@ -1354,7 +1745,6 @@ export default function CreateProfileScreen() {
                       }}
                       placeholder="Your age"
                       placeholderTextColor="rgba(255, 255, 255, 0.6)"
-                      autoFocus={index === step1CardIndex && item.enabled}
                       keyboardType="number-pad"
                       returnKeyType="done"
                       onSubmitEditing={() => {
@@ -1397,9 +1787,9 @@ export default function CreateProfileScreen() {
           );
 
         case 'gender':
-          if (!item.enabled) return <View style={cardStyle} />;
+          if (!item.enabled) return null;
           return (
-            <View style={[styles.focusedFieldSection, cardStyle]}>
+            <View style={styles.focusedFieldSection}>
               <Animated.View
                 ref={genderFieldRef}
                 style={[
@@ -1459,11 +1849,10 @@ export default function CreateProfileScreen() {
           );
 
         case 'location':
-          if (!item.enabled) return <View style={cardStyle} />;
+          if (!item.enabled) return null;
           return (
             <View style={[
               styles.focusedFieldSection, 
-              cardStyle,
               keyboardVisible && styles.focusedSectionWithKeyboard
             ]}>
               <Animated.View
@@ -1517,7 +1906,6 @@ export default function CreateProfileScreen() {
                       placeholder="City, State"
                       placeholderTextColor="rgba(255, 255, 255, 0.6)"
                       editable={!detectingLocation}
-                      autoFocus={index === step1CardIndex && item.enabled}
                       returnKeyType="next"
                       onSubmitEditing={() => {
                         if (location.trim().length > 0) {
@@ -1558,9 +1946,9 @@ export default function CreateProfileScreen() {
           );
 
         case 'lookingFor':
-          if (!item.enabled) return <View style={cardStyle} />;
+          if (!item.enabled) return null;
           return (
-            <View style={[styles.focusedFieldSection, cardStyle]}>
+            <View style={styles.focusedFieldSection}>
               <Animated.View
                 style={[
                   {
@@ -1618,11 +2006,10 @@ export default function CreateProfileScreen() {
           );
 
         case 'bio':
-          if (!item.enabled) return <View style={cardStyle} />;
+          if (!item.enabled) return null;
           return (
             <View style={[
               styles.focusedFieldSection, 
-              cardStyle,
               keyboardVisible && styles.focusedSectionWithKeyboard
             ]}>
               <Animated.View
@@ -1673,7 +2060,6 @@ export default function CreateProfileScreen() {
                       textAlignVertical="top"
                       returnKeyType="done"
                       blurOnSubmit={true}
-                      autoFocus={index === step1CardIndex && item.enabled}
                     />
                   </Animated.View>
                   
@@ -1718,8 +2104,18 @@ export default function CreateProfileScreen() {
           );
 
         default:
-          return <View style={cardStyle} />;
+          return null;
       }
+    };
+
+    // Determine which cards should be shown (progressive disclosure)
+    const shouldShowCard = (index: number) => {
+      if (index === 0) return true; // First card always visible
+      // Show next card when previous is completed
+      for (let i = 0; i < index; i++) {
+        if (!step1Cards[i].enabled) return false;
+      }
+      return true;
     };
 
     return (
@@ -1727,35 +2123,44 @@ export default function CreateProfileScreen() {
         styles.stepContent,
         keyboardVisible && styles.stepContentWithKeyboard
       ]}>
-        <FlatList
-          ref={step1FlatListRef}
-          data={step1Cards}
-          renderItem={renderCard}
-          keyExtractor={(item) => item.id}
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          scrollEnabled={true}
+        <ScrollView 
+          ref={step1ScrollViewRef}
+          style={styles.stepContent}
+          contentContainerStyle={styles.lifestyleScrollContent}
+          showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
-          onViewableItemsChanged={onViewableItemsChanged}
-          viewabilityConfig={viewabilityConfig}
-          getItemLayout={(data, index) => ({
-            length: screenWidth,
-            offset: screenWidth * index,
-            index,
+        >
+          {step1Cards.map((item, index) => {
+            const isVisible = shouldShowCard(index);
+            if (!isVisible) return null;
+
+            return (
+              <View
+                key={item.id}
+                ref={
+                  item.type === 'firstName' ? displayNameCardRef :
+                  item.type === 'age' ? ageCardRef :
+                  item.type === 'gender' ? genderCardRef :
+                  item.type === 'location' ? locationCardRef :
+                  item.type === 'lookingFor' ? lookingForCardRef :
+                  item.type === 'bio' ? bioCardRef : null
+                }
+                onLayout={(event) => {
+                  const { y } = event.nativeEvent.layout;
+                  if (item.type === 'firstName') setDisplayNameCardY(y);
+                  else if (item.type === 'age') setAgeCardY(y);
+                  else if (item.type === 'gender') setGenderCardY(y);
+                  else if (item.type === 'location') setLocationCardY(y);
+                  else if (item.type === 'lookingFor') setLookingForCardY(y);
+                  else if (item.type === 'bio') setBioCardY(y);
+                }}
+              >
+                {renderCard({ item, index })}
+              </View>
+            );
           })}
-          initialScrollIndex={step1CardIndex}
-          onScrollToIndexFailed={(info) => {
-            // Wait a bit and try again if scroll fails
-            setTimeout(() => {
-              step1FlatListRef.current?.scrollToIndex({ 
-                index: info.index, 
-                animated: false 
-              });
-            }, 100);
-          }}
-        />
+        </ScrollView>
       </View>
     );
   };
@@ -2059,7 +2464,7 @@ export default function CreateProfileScreen() {
         label: 'Minimum Age', 
         emoji: '🎂', 
         subtitle: 'Must be 18 or older',
-        value: minAge >= 18 && minAge <= 120 ? minAge : null,
+        value: minAge !== null && minAge >= 18 && minAge <= 120 ? minAge : null,
         scale: minAgeScale, 
         opacity: minAgeOpacity, 
         glow: minAgeGlow, 
@@ -2071,14 +2476,14 @@ export default function CreateProfileScreen() {
         key: 'maxAge', 
         label: 'Maximum Age', 
         emoji: '🎂', 
-        subtitle: `Must be ${minAge} or older`,
-        value: maxAge >= minAge && maxAge <= 120 ? maxAge : null,
+        subtitle: `Must be ${minAge ?? 18} or older`,
+        value: maxAge !== null && minAge !== null && maxAge >= minAge && maxAge <= 120 ? maxAge : null,
         scale: maxAgeScale, 
         opacity: maxAgeOpacity, 
         glow: maxAgeGlow, 
         ref: maxAgeInputRef,
         gradient: ['#f5576c', '#f093fb', '#667eea'],
-        enabled: minAge >= 18 && minAge <= 120,
+        enabled: minAge !== null && minAge >= 18 && minAge <= 120,
       },
       { 
         key: 'preferredGenders', 
@@ -2091,20 +2496,20 @@ export default function CreateProfileScreen() {
         glow: preferredGendersGlow, 
         ref: preferredGendersRef,
         gradient: ['#4facfe', '#00f2fe', '#667eea'],
-        enabled: minAge >= 18 && minAge <= 120 && maxAge >= minAge && maxAge <= 120,
+        enabled: minAge !== null && minAge >= 18 && minAge <= 120 && maxAge !== null && maxAge >= minAge && maxAge <= 120,
       },
       { 
         key: 'maxDistance', 
         label: 'Maximum Distance', 
         emoji: '📍', 
         subtitle: 'How far to search for matches',
-        value: maxDistance > 0 ? maxDistance : null,
+        value: maxDistance !== null && maxDistance > 0 ? maxDistance : null,
         scale: maxDistanceScale, 
         opacity: maxDistanceOpacity, 
         glow: maxDistanceGlow, 
         ref: maxDistanceInputRef,
         gradient: ['#4facfe', '#00f2fe', '#667eea'],
-        enabled: minAge >= 18 && minAge <= 120 && maxAge >= minAge && maxAge <= 120 && preferredGenders.length > 0,
+        enabled: minAge !== null && minAge >= 18 && minAge <= 120 && maxAge !== null && maxAge >= minAge && maxAge <= 120 && preferredGenders.length > 0,
       },
     ];
 
@@ -2184,7 +2589,7 @@ export default function CreateProfileScreen() {
                         <TextInput
                           ref={minAgeInputRef}
                           style={styles.preferenceNumberInputLarge}
-                          value={minAge.toString()}
+                          value={minAge === null ? '18' : minAge.toString()}
                           onChangeText={(text) => {
                             const value = parseInt(text) || 18;
                             const newAge = Math.max(18, Math.min(120, value));
@@ -2236,13 +2641,14 @@ export default function CreateProfileScreen() {
                         <TextInput
                           ref={maxAgeInputRef}
                           style={styles.preferenceNumberInputLarge}
-                          value={maxAge.toString()}
+                          value={maxAge === null ? '' : maxAge.toString()}
                           onChangeText={(text) => {
-                            const value = parseInt(text) || minAge;
-                            const newAge = Math.max(minAge, Math.min(120, value));
+                            const baseAge = minAge ?? 18;
+                            const value = parseInt(text) || baseAge;
+                            const newAge = Math.max(baseAge, Math.min(120, value));
                             setMaxAge(newAge);
                             // Auto-scroll to next card when valid age is entered
-                            if (newAge >= minAge && newAge <= 120 && text.length >= 2) {
+                            if (newAge >= baseAge && newAge <= 120 && text.length >= 2) {
                               setTimeout(() => {
                                 maxAgeInputRef.current?.blur();
                                 setTimeout(() => {
@@ -2327,7 +2733,7 @@ export default function CreateProfileScreen() {
                         <TextInput
                           ref={maxDistanceInputRef}
                           style={styles.preferenceNumberInputLarge}
-                          value={maxDistance.toString()}
+                          value={maxDistance === null ? '' : maxDistance.toString()}
                           onChangeText={(text) => {
                             if (text === '' || text === '0') {
                               setMaxDistance(1);
@@ -2358,7 +2764,8 @@ export default function CreateProfileScreen() {
                           field.key === 'minAge' ? `${field.value} years old` :
                           field.key === 'maxAge' ? `${field.value} years old` :
                           field.key === 'preferredGenders' ? `${preferredGenders.length} selected` :
-                          `${field.value} miles`
+                          field.key === 'maxDistance' && field.value !== null ? `${field.value} miles` :
+                          field.value !== null ? `${field.value} miles` : ''
                         }
                       </Text>
                     </View>
@@ -2483,6 +2890,112 @@ export default function CreateProfileScreen() {
     );
   };
 
+  const renderStep7 = () => {
+    const photoSlots = Array.from({ length: 6 }, (_, i) => i);
+    const canAddMore = photos.length < 6;
+
+    return (
+      <View style={styles.stepContainer}>
+        {/* Modern Header */}
+        <LinearGradient
+          colors={['#667eea', '#764ba2', '#f093fb']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.modernHeaderCondensed}
+        >
+          <Text style={styles.modernHeaderEmojiCondensed}>📸</Text>
+          <Text style={styles.modernHeaderTitleCondensed}>Add Your Photos</Text>
+          <Text style={styles.modernHeaderSubtitleCondensed}>
+            Upload at least 5 photos (up to 6 total)
+          </Text>
+          <Text style={[styles.modernHeaderSubtitleCondensed, { marginTop: 8, fontSize: 14, opacity: 0.9 }]}>
+            {photos.length} / 5 minimum ({photos.length >= 5 ? '✓ Ready' : 'Need more'})
+          </Text>
+        </LinearGradient>
+
+        <ScrollView 
+          style={styles.stepContent}
+          contentContainerStyle={styles.photosScrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.photosGrid}>
+            {photoSlots.map((slotIndex) => {
+              const photo = photos[slotIndex];
+              const isEmpty = !photo;
+              const isRequired = slotIndex < 5;
+
+              return (
+                <View key={slotIndex} style={styles.photoSlot}>
+                  {photo ? (
+                    <View style={styles.photoContainer}>
+                      <OptimizedImage
+                        source={photo.uri || photo.url}
+                        style={styles.photoImage}
+                        resizeMode="cover"
+                      />
+                      <TouchableOpacity
+                        style={styles.removePhotoButton}
+                        onPress={() => handleRemovePhoto(slotIndex)}
+                      >
+                        <Text style={styles.removePhotoText}>×</Text>
+                      </TouchableOpacity>
+                      {slotIndex === 0 && (
+                        <View style={styles.primaryBadge}>
+                          <Text style={styles.primaryBadgeText}>Primary</Text>
+                        </View>
+                      )}
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      style={[
+                        styles.addPhotoButton,
+                        isRequired && photos.length < 5 && styles.addPhotoButtonRequired
+                      ]}
+                      onPress={canAddMore ? handlePickPhoto : undefined}
+                      disabled={!canAddMore || uploading}
+                    >
+                      <LinearGradient
+                        colors={
+                          isRequired && photos.length < 5
+                            ? ['#f5576c', '#f093fb']
+                            : ['rgba(102, 126, 234, 0.3)', 'rgba(118, 75, 162, 0.3)']
+                        }
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.addPhotoButtonGradient}
+                      >
+                        {uploading ? (
+                          <ActivityIndicator color="#fff" size="small" />
+                        ) : (
+                          <>
+                            <Text style={styles.addPhotoIcon}>📷</Text>
+                            <Text style={styles.addPhotoText}>
+                              {isRequired ? 'Required' : 'Optional'}
+                            </Text>
+                          </>
+                        )}
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+
+          <View style={styles.photosInfoCard}>
+            <Text style={styles.photosInfoTitle}>💡 Photo Tips</Text>
+            <Text style={styles.photosInfoText}>
+              • Use clear, recent photos{'\n'}
+              • Include a mix of close-ups and full-body shots{'\n'}
+              • Show your personality and interests{'\n'}
+              • Make sure your face is clearly visible in at least one photo
+            </Text>
+          </View>
+        </ScrollView>
+      </View>
+    );
+  };
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -2497,7 +3010,7 @@ export default function CreateProfileScreen() {
         style={styles.header}
       >
         <Text style={styles.title}>Create Your Profile</Text>
-        <Text style={styles.subtitle}>Step {step} of 6</Text>
+        <Text style={styles.subtitle}>Step {step} of 7</Text>
       </LinearGradient>
 
       {renderStepIndicator()}
@@ -2510,6 +3023,7 @@ export default function CreateProfileScreen() {
       {step === 4 && renderStep4()}
       {step === 5 && renderStep5()}
       {step === 6 && renderStep6()}
+      {step === 7 && renderStep7()}
 
       {step === 1 ? null : (
         <View style={styles.actions}>
@@ -2532,7 +3046,7 @@ export default function CreateProfileScreen() {
             <View style={styles.modernBackButton} />
           )}
           
-          {step < 6 ? (
+          {step < 7 ? (
             <TouchableOpacity
               style={styles.modernNextButton}
               onPress={handleNext}
@@ -2551,11 +3065,11 @@ export default function CreateProfileScreen() {
             <TouchableOpacity
               style={styles.modernNextButton}
               onPress={handleSubmit}
-              disabled={loading || interests.length < 3 || qualities.length < 3}
+              disabled={loading || photos.length < 5}
               activeOpacity={0.8}
             >
               <LinearGradient
-                colors={loading || interests.length < 3 || qualities.length < 3 
+                colors={loading || photos.length < 5 
                   ? ['#ccc', '#bbb'] 
                   : ['#667eea', '#764ba2', '#f093fb']}
                 start={{ x: 0, y: 0 }}
@@ -2726,10 +3240,11 @@ const styles = StyleSheet.create({
   },
   focusedFirstNameSection: {
     width: '100%',
-    height: '100%', // Take full screen height
+    minHeight: Dimensions.get('window').height * 0.7, // Minimum height for vertical scrolling
     justifyContent: 'center',
     paddingHorizontal: 20,
     paddingVertical: 40,
+    marginBottom: 20,
   },
   focusedSectionWithKeyboard: {
     paddingVertical: 10,
@@ -2740,17 +3255,19 @@ const styles = StyleSheet.create({
   },
   focusedAgeSection: {
     width: '100%',
-    height: '100%', // Take full screen height
+    minHeight: Dimensions.get('window').height * 0.7, // Minimum height for vertical scrolling
     justifyContent: 'center',
     paddingHorizontal: 20,
     paddingVertical: 40,
+    marginBottom: 20,
   },
   focusedFieldSection: {
     width: '100%',
-    height: '100%', // Take full screen height
+    minHeight: Dimensions.get('window').height * 0.7, // Minimum height for vertical scrolling
     justifyContent: 'center',
     paddingHorizontal: 20,
     paddingVertical: 40,
+    marginBottom: 20,
   },
   focusedFieldCard: {
     padding: 40,
@@ -4012,5 +4529,115 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.5,
+  },
+  // Photo upload styles
+  photosScrollContent: {
+    padding: 16,
+    paddingBottom: 50,
+  },
+  photosGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  photoSlot: {
+    width: '48%',
+    aspectRatio: 0.75,
+    marginBottom: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  photoContainer: {
+    width: '100%',
+    height: '100%',
+    position: 'relative',
+  },
+  photoImage: {
+    width: '100%',
+    height: '100%',
+  },
+  removePhotoButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  removePhotoText: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: 'bold',
+    lineHeight: 24,
+  },
+  primaryBadge: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    backgroundColor: 'rgba(102, 126, 234, 0.9)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  primaryBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  addPhotoButton: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  addPhotoButtonGradient: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(102, 126, 234, 0.5)',
+    borderRadius: 16,
+  },
+  addPhotoButtonRequired: {
+    borderColor: 'rgba(245, 87, 108, 0.7)',
+    borderWidth: 2,
+  },
+  addPhotoIcon: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  addPhotoText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  photosInfoCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    marginTop: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  photosInfoTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#2d3748',
+    marginBottom: 12,
+  },
+  photosInfoText: {
+    fontSize: 14,
+    color: '#718096',
+    lineHeight: 22,
   },
 });
