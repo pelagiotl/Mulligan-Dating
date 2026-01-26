@@ -9,18 +9,15 @@ const LOOKING_FOR_OPTIONS = ['Relationship', 'Something casual', 'Friendship', '
 const INTEREST_OPTIONS = [
   'Travel', 'Music', 'Sports', 'Cooking', 'Reading', 'Movies', 'Fitness', 'Art',
   'Photography', 'Dancing', 'Gaming', 'Hiking', 'Yoga', 'Writing', 'Technology',
-  'Fashion', 'Animals', 'Volunteering', 'Food', 'Coffee', 'Nightlife', 'Comedy',
-  'Concerts', 'Beach', 'Camping', 'Cycling', 'Running', 'Swimming', 'Tennis',
-  'Board Games', 'Video Games', 'Crafts', 'Painting', 'Singing', 
-  'Playing Instruments', 'Podcasts', 'Meditation', 'History', 'Science',
+  'Fashion', 'Animals', 'Volunteering', 'Coffee', 'Nightlife', 'Comedy',
+  'Beach', 'Camping', 'Board Games', 'Tattoos', 'Meditation', 'History', 'Science',
   'Business', 'Education'
 ]
 
 const DEALBREAKER_OPTIONS = [
-  'Smokes cigarettes', 'Marijuana', 'Frequent drinking', 'Drinks alcohol', 'Drug use', 
+  'Smokes cigarettes', 'Marijuana', 'Frequent drinking', 'Drug use', 
   'Doesn\'t want children', 'Wants children',
   'Poor communication', 'No ambition',
-  'Bad hygiene', 'Workaholic', 
   'Doesn\'t like pets'
 ]
 

@@ -1,0 +1,39 @@
+<svg width="600" height="350" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <defs>
+    <style>
+      .logo-text {
+        font-family: Georgia, 'Times New Roman', serif;
+        font-weight: 600;
+      }
+    </style>
+  </defs>
+  
+  <!-- Transparent background (for printing on any shirt color) -->
+  
+  <!-- Heart icon centered above text -->
+  <g transform="translate(230, 60)">
+    <path
+      d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z"
+      fill="#ffffff"
+      transform="scale(3)"
+    />
+  </g>
+  
+  <!-- Text: Mulligan centered below heart -->
+  <text x="300" y="250" 
+        class="logo-text"
+        font-size="80" 
+        fill="#ffffff" 
+        letter-spacing="3"
+        text-anchor="middle">
+    Mulligan
+  </text>
+</svg>
+
+
+
+
+
+
+
+

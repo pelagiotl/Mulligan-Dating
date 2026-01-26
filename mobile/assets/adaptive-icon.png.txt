@@ -1,0 +1,5 @@
+Android adaptive icon
+Size: 1024x1024
+
+This is a placeholder. Replace with actual image.
+For now, Expo will use defaults.

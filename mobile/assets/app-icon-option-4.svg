@@ -1,0 +1,49 @@
+<svg width="1024" height="1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Purple to pink gradient background (matching app theme) -->
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#667eea" stop-opacity="1" />
+      <stop offset="33%" stop-color="#764ba2" stop-opacity="1" />
+      <stop offset="66%" stop-color="#f093fb" stop-opacity="1" />
+      <stop offset="100%" stop-color="#f5576c" stop-opacity="1" />
+    </linearGradient>
+    
+    <!-- Heart gradient (white to light pink, matching app) -->
+    <linearGradient id="heartGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="1" />
+      <stop offset="50%" stop-color="#ffe4e6" stop-opacity="1" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="1" />
+    </linearGradient>
+    
+    <!-- M letter gradient (white to light pink) -->
+    <linearGradient id="letterGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="1" />
+      <stop offset="100%" stop-color="#fce7f3" stop-opacity="1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Purple-to-pink gradient background (matching app headers) -->
+  <rect width="1024" height="1024" fill="url(#bgGradient)" rx="180" />
+  
+  <!-- Large heart icon - white/pink gradient -->
+  <path
+    transform="translate(512, 520) scale(16)"
+    d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z"
+    fill="url(#heartGradient)"
+    opacity="0.95"
+  />
+  
+  <!-- "M" letter inside the heart - white gradient for visibility -->
+  <text 
+    x="512" 
+    y="560" 
+    font-size="420" 
+    fill="url(#letterGradient)" 
+    text-anchor="middle"
+    dominant-baseline="middle"
+    font-weight="900"
+    font-family="Georgia, 'Times New Roman', serif"
+    style="font-weight: 900; letter-spacing: -8px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));">
+    M
+  </text>
+</svg>

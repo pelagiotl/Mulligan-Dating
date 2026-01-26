@@ -7,6 +7,7 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { api } from './api';
+import { safeNativeModuleCall } from './nativeModuleGuard';
 
 // Flag to track if notification handler has been initialized
 let notificationHandlerInitialized = false;
@@ -20,18 +21,41 @@ function initializeNotificationHandler() {
     return;
   }
   
-  try {
-    Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: true,
-      }),
+  // Only initialize if app is ready
+  safeNativeModuleCall(
+    async () => {
+      try {
+        Notifications.setNotificationHandler({
+      handleNotification: async () => {
+        try {
+          return {
+            shouldShowAlert: true,
+            shouldPlaySound: true,
+            shouldSetBadge: true,
+          };
+        } catch (error) {
+          // Prevent errors in notification handler from crashing the app
+          console.error('⚠️  Error in notification handler (non-critical):', error);
+          // Return safe defaults
+          return {
+            shouldShowAlert: true,
+            shouldPlaySound: false, // Disable sound if there's an error
+            shouldSetBadge: true,
+          };
+        }
+      },
     });
-    notificationHandlerInitialized = true;
-  } catch (error) {
-    console.warn('⚠️  Failed to set notification handler (non-critical):', error);
-  }
+        notificationHandlerInitialized = true;
+      } catch (error) {
+        console.warn('⚠️  Failed to set notification handler (non-critical):', error);
+        throw error; // Re-throw so safeNativeModuleCall can handle it
+      }
+    },
+    'Notifications.setNotificationHandler',
+    { required: false }
+  ).catch(() => {
+    // Silently fail - handler initialization is non-critical
+  });
 }
 
 /**
@@ -40,26 +64,47 @@ function initializeNotificationHandler() {
  * @returns Promise<string | null> - Push token if successful, null otherwise
  */
 export async function registerForPushNotificationsAsync(): Promise<string | null> {
-  try {
+  // Use the native module guard to ensure app is initialized
+  const result = await safeNativeModuleCall(async () => {
     // Initialize notification handler (lazy initialization)
-    initializeNotificationHandler();
+    // Wrap in try-catch to prevent any initialization errors from crashing
+    try {
+      initializeNotificationHandler();
+    } catch (initError) {
+      console.warn('⚠️  Failed to initialize notification handler (non-critical):', initError);
+      // Continue anyway - handler initialization failure shouldn't block registration
+    }
     
-    // Request permissions
+    // Request permissions - wrap each step in try-catch
     if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('default', {
-        name: 'default',
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#FF231F7C',
-      });
+      try {
+        await Notifications.setNotificationChannelAsync('default', {
+          name: 'default',
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: '#FF231F7C',
+          sound: 'default', // Enable sound for Android notifications
+          enableVibrate: true,
+          enableLights: true,
+        });
+      } catch (channelError) {
+        console.warn('⚠️  Failed to set notification channel (non-critical):', channelError);
+        // Continue anyway
+      }
     }
 
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
-    
-    if (existingStatus !== 'granted') {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
+    let finalStatus: string;
+    try {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      finalStatus = existingStatus;
+      
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+    } catch (permissionError) {
+      console.warn('⚠️  Failed to check/request permissions (non-critical):', permissionError);
+      return null; // Can't proceed without permissions
     }
     
     if (finalStatus !== 'granted') {
@@ -72,17 +117,22 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
     let projectId: string | undefined;
     try {
       // Safely access Constants - it might not be available in all environments
-      if (Constants && typeof Constants === 'object') {
-        const expoConfig = (Constants as any).expoConfig;
-        if (expoConfig && typeof expoConfig === 'object') {
-          const extra = expoConfig.extra;
-          if (extra && typeof extra === 'object') {
-            projectId = extra.eas?.projectId || extra.easProjectId;
+      // Add multiple layers of defensive checks
+      if (typeof Constants !== 'undefined' && Constants && typeof Constants === 'object') {
+        try {
+          const expoConfig = (Constants as any).expoConfig;
+          if (expoConfig && typeof expoConfig === 'object') {
+            const extra = expoConfig.extra;
+            if (extra && typeof extra === 'object') {
+              projectId = extra.eas?.projectId || extra.easProjectId;
+            }
           }
+        } catch (configError) {
+          console.warn('⚠️  Error accessing Constants.expoConfig:', configError);
         }
       }
-    } catch (error) {
-      console.warn('⚠️  Error accessing Constants.expoConfig:', error);
+    } catch (constantsError) {
+      console.warn('⚠️  Error accessing Constants (non-critical):', constantsError);
     }
     
     if (!projectId) {
@@ -94,14 +144,31 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
       return null;
     }
     
-    const tokenData = await Notifications.getExpoPushTokenAsync({
-      projectId,
-    });
-    
-    const pushToken = tokenData.data;
-    console.log('✅ Expo push token obtained:', pushToken.substring(0, 30) + '...');
+    // Get push token - wrap in try-catch as this is a native module call
+    let pushToken: string;
+    try {
+      const tokenData = await Notifications.getExpoPushTokenAsync({
+        projectId,
+      });
+      
+      if (!tokenData || !tokenData.data) {
+        console.warn('⚠️  Invalid token data received from Expo');
+        return null;
+      }
+      
+      pushToken = tokenData.data;
+      console.log('✅ Expo push token obtained:', pushToken.substring(0, 30) + '...');
+    } catch (tokenError: any) {
+      // This is a native module call that can fail - prevent crash
+      console.error('❌ Failed to get Expo push token (non-critical):', tokenError?.message || tokenError);
+      // Check if it's a known error we can handle
+      if (tokenError?.message?.includes('projectId') || tokenError?.message?.includes('project')) {
+        console.warn('⚠️  Project ID issue - token generation skipped');
+      }
+      return null; // Don't crash - just return null
+    }
 
-    // Send token to backend
+    // Send token to backend - this is network-only, won't crash from native modules
     try {
       await api.post('/auth/push-token', { pushToken });
       console.log('✅ Push token sent to backend successfully');
@@ -115,10 +182,13 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
       }
       return pushToken; // Still return token even if backend update fails
     }
-  } catch (error) {
-    console.error('❌ Error registering for push notifications:', error);
-    return null;
-  }
+  }, 'PushNotifications', {
+    maxWaitMs: 10000, // Wait up to 10 seconds for app initialization
+    fallbackValue: null,
+    required: false, // Non-critical - app can work without push notifications
+  });
+
+  return result || null;
 }
 
 /**

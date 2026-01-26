@@ -5,6 +5,7 @@
 
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { captureException } from '../utils/sentry';
 
 interface Props {
   children: ReactNode;
@@ -36,10 +37,33 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('ErrorBoundary caught an error:', error, errorInfo);
+    const errorDetails = {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      componentStack: errorInfo.componentStack,
+    };
+    console.error('Error details:', errorDetails);
+    
+    // Capture in Sentry for better diagnostics
+    try {
+      captureException(error, {
+        errorInfo,
+        componentStack: errorInfo.componentStack,
+      });
+    } catch (sentryError) {
+      console.error('Failed to capture error in Sentry:', sentryError);
+    }
+    
     this.setState({
       error,
       errorInfo,
     });
+    
+    // Log to console for debugging in production
+    if (__DEV__) {
+      console.error('Full error info:', { error, errorInfo });
+    }
   }
 
   handleReload = () => {
@@ -166,4 +190,5 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
   },
 });
+
 

@@ -1,0 +1,68 @@
+<svg width="1000" height="600" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .logo-text {
+        font-family: Georgia, 'Times New Roman', serif;
+        font-weight: 600;
+      }
+      .variant-label {
+        font-family: Arial, sans-serif;
+        font-size: 14;
+        fill: #666;
+      }
+    </style>
+  </defs>
+  
+  <!-- Variant 1: Heart on Left (Current) -->
+  <g>
+    <text x="20" y="30" class="variant-label">Variant 1: Heart Left</text>
+    <g transform="translate(80, 60)">
+      <path
+        d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z"
+        fill="#ffffff"
+        transform="scale(2)"
+      />
+    </g>
+    <text x="220" y="155" class="logo-text" font-size="72" fill="#ffffff" letter-spacing="2">
+      Mulligan
+    </text>
+  </g>
+  
+  <!-- Variant 2: Heart on Right -->
+  <g transform="translate(0, 200)">
+    <text x="20" y="30" class="variant-label">Variant 2: Heart Right</text>
+    <text x="80" y="155" class="logo-text" font-size="72" fill="#ffffff" letter-spacing="2">
+      Mulligan
+    </text>
+    <g transform="translate(420, 60)">
+      <path
+        d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z"
+        fill="#ffffff"
+        transform="scale(2)"
+      />
+    </g>
+  </g>
+  
+  <!-- Variant 3: Heart Above -->
+  <g transform="translate(0, 400)">
+    <text x="20" y="30" class="variant-label">Variant 3: Heart Above</text>
+    <g transform="translate(260, 60)">
+      <path
+        d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z"
+        fill="#ffffff"
+        transform="scale(2)"
+      />
+    </g>
+    <text x="200" y="200" class="logo-text" font-size="72" fill="#ffffff" letter-spacing="2" text-anchor="middle">
+      Mulligan
+    </text>
+  </g>
+</svg>
+
+
+
+
+
+
+
+

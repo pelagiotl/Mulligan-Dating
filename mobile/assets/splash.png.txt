@@ -1,0 +1,5 @@
+Splash screen
+Size: 1284x2778
+
+This is a placeholder. Replace with actual image.
+For now, Expo will use defaults.

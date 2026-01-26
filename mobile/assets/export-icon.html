@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Mulligan App Icon Exporter</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            padding: 40px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            background: linear-gradient(135deg, #667eea, #764ba2, #f093fb, #f5576c);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+        }
+        .instructions {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            line-height: 1.6;
+        }
+        .icon-preview {
+            text-align: center;
+            margin: 30px 0;
+            padding: 20px;
+            background: #fff;
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea, #764ba2, #f093fb, #f5576c);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 10px 5px;
+            font-weight: 600;
+        }
+        button:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+        .note {
+            color: #666;
+            font-size: 14px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📱 Mulligan App Icon Exporter</h1>
+        <p>Export your app icon as a 1024x1024 PNG file</p>
+        
+        <div class="instructions">
+            <strong>Instructions:</strong><br>
+            1. Click the "Download Icon" button below<br>
+            2. Or right-click on the icon preview and select "Save Image As..."<br>
+            3. Save as <code>icon.png</code> in the <code>mobile/assets/</code> folder<br>
+            4. The icon is already 1024x1024 pixels and matches your app's purple-to-pink gradient theme
+        </div>
+        
+        <div class="icon-preview" id="preview">
+            <!-- SVG will be inserted here -->
+        </div>
+        
+        <div style="text-align: center;">
+            <button onclick="downloadIcon()">Download Icon (1024x1024)</button>
+        </div>
+        
+        <div class="note">
+            <strong>Icon Design:</strong> Purple-to-pink gradient background (#667eea → #764ba2 → #f093fb → #f5576c) matching your app's aesthetic, with a white/pink gradient heart and white "M" letter.
+        </div>
+    </div>
+
+    <script>
+        // Updated SVG with purple-to-pink gradient matching app theme
+        const svgContent = `<svg width="1024" height="1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#667eea" stop-opacity="1" />
+      <stop offset="33%" stop-color="#764ba2" stop-opacity="1" />
+      <stop offset="66%" stop-color="#f093fb" stop-opacity="1" />
+      <stop offset="100%" stop-color="#f5576c" stop-opacity="1" />
+    </linearGradient>
+    <linearGradient id="heartGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="1" />
+      <stop offset="50%" stop-color="#ffe4e6" stop-opacity="1" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="1" />
+    </linearGradient>
+    <linearGradient id="letterGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="1" />
+      <stop offset="100%" stop-color="#fce7f3" stop-opacity="1" />
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bgGradient)" rx="180" />
+  <path
+    transform="translate(512, 520) scale(16)"
+    d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z"
+    fill="url(#heartGradient)"
+    opacity="0.95"
+  />
+  <text 
+    x="512" 
+    y="560" 
+    font-size="420" 
+    fill="url(#letterGradient)" 
+    text-anchor="middle"
+    dominant-baseline="middle"
+    font-weight="900"
+    font-family="Georgia, 'Times New Roman', serif"
+    style="font-weight: 900; letter-spacing: -8px;">
+    M
+  </text>
+</svg>`;
+
+        // Insert SVG into preview
+        document.getElementById('preview').innerHTML = svgContent;
+
+        function downloadIcon() {
+            // Create canvas to convert SVG to PNG
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024;
+            canvas.height = 1024;
+            const ctx = canvas.getContext('2d');
+            
+            // Create image from SVG
+            const img = new Image();
+            const svgBlob = new Blob([svgContent], {type: 'image/svg+xml;charset=utf-8'});
+            const url = URL.createObjectURL(svgBlob);
+            
+            img.onload = function() {
+                ctx.drawImage(img, 0, 0);
+                URL.revokeObjectURL(url);
+                
+                // Convert to PNG and download
+                canvas.toBlob(function(blob) {
+                    const link = document.createElement('a');
+                    link.download = 'icon.png';
+                    link.href = URL.createObjectURL(blob);
+                    link.click();
+                    URL.revokeObjectURL(link.href);
+                }, 'image/png');
+            };
+            
+            img.src = url;
+        }
+    </script>
+</body>
+</html>

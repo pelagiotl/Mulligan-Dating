@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Mulligan Splash Screen Preview</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #1a1a1a;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .preview-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 30px;
+    }
+    h1 {
+      color: white;
+      text-align: center;
+    }
+    .phone-mockup {
+      width: 375px;
+      height: 812px;
+      background: #000;
+      border-radius: 40px;
+      padding: 8px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    }
+    .screen {
+      width: 100%;
+      height: 100%;
+      background: #ffffff;
+      border-radius: 32px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .icon-preview {
+      width: 200px;
+      height: 200px;
+      background-image: url('icon.png');
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+    }
+    .info {
+      background: rgba(255,255,255,0.1);
+      backdrop-filter: blur(10px);
+      padding: 20px;
+      border-radius: 12px;
+      color: white;
+      max-width: 400px;
+      text-align: center;
+    }
+    .info h2 {
+      margin-bottom: 10px;
+      font-size: 18px;
+    }
+    .info p {
+      font-size: 14px;
+      line-height: 1.6;
+      opacity: 0.9;
+    }
+    .color-swatch {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      background: #ffffff;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      vertical-align: middle;
+      margin: 0 5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="preview-container">
+    <h1>Mulligan Splash Screen Preview</h1>
+    
+    <div class="phone-mockup">
+      <div class="screen">
+        <div class="icon-preview"></div>
+      </div>
+    </div>
+    
+    <div class="info">
+      <h2>Configuration</h2>
+      <p>
+        <strong>Background Color:</strong> <span class="color-swatch"></span> #ffffff (White)<br>
+        <strong>Icon:</strong> Centered, contained<br>
+        <strong>Resize Mode:</strong> contain<br><br>
+        This is what users will see when the app launches.
+      </p>
+    </div>
+  </div>
+</body>
+</html>
+

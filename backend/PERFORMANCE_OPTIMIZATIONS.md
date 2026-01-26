@@ -84,3 +84,4 @@ After adding indexes, monitor:
 - Database size (indexes use additional storage)
 - Write performance (indexes slightly slow down INSERT/UPDATE operations)
 
+

@@ -350,9 +350,16 @@ export default function Settings() {
                 id="newEmail"
                 className="form-input"
                 value={newEmail}
-                onChange={(e) => setNewEmail(e.target.value)}
+                onChange={(e) => {
+                  console.log('Email input onChange:', e.target.value);
+                  setNewEmail(e.target.value);
+                }}
+                onFocus={(e) => console.log('Email input focused')}
+                onClick={(e) => console.log('Email input clicked')}
                 placeholder="you@example.com"
                 required
+                autoComplete="email"
+                style={{ pointerEvents: 'auto', zIndex: 1, position: 'relative' }}
               />
             </div>
             <div className="form-group">

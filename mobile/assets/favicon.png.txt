@@ -1,0 +1,5 @@
+Web favicon
+Size: 48x48
+
+This is a placeholder. Replace with actual image.
+For now, Expo will use defaults.

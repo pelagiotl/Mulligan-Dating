@@ -14,6 +14,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.lukepelagiotomerlin.mulligan",
+      "buildNumber": "22",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Mulligan uses your location to find matches near you.",
         "NSPhotoLibraryUsageDescription": "Mulligan needs access to your photos to upload profile pictures.",
@@ -36,6 +37,12 @@
         "android.permission.RECORD_AUDIO"
       ]
     },
+    "assetBundlePatterns": [
+      "**/*",
+      "assets/**/*.mp3",
+      "assets/**/*.wav",
+      "assets/**/*.m4a"
+    ],
     "web": {
       "favicon": "./assets/favicon.png"
     },

@@ -1,0 +1,36 @@
+MULLIGAN APP ICON - DESIGN GUIDE
+=================================
+
+SIZE: 1024x1024 pixels
+FORMAT: PNG (no transparency)
+
+DESIGN OPTION 1: Simple Heart
+- Background: #8B1538 (burgundy)
+- White heart icon in center
+- Clean, minimalist
+
+DESIGN OPTION 2: Card/Heart Combo  
+- White background
+- Burgundy heart (#8B1538) with playing card suit element
+- Represents "second chance" concept
+
+DESIGN OPTION 3: Letter "M"
+- Burgundy background (#8B1538)
+- White "M" letterform styled as a heart shape
+- Modern, brandable
+
+RECOMMENDED:
+Option 1 or 3 for simplicity and recognizability
+
+TOOLS:
+- Use Figma (free) - create 1024x1024 artboard
+- Or Canva - use App Icon template
+- Export as PNG, save to: mobile/assets/icon.png
+
+
+
+
+
+
+
+

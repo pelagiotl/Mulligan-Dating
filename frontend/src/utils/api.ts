@@ -1,6 +1,6 @@
-// Use API URL from environment variable (for production) or ngrok (for testing), otherwise use Render backend
-// Default to Render backend for local development if no env var is set
-const API_URL: string = (import.meta.env as any).VITE_API_URL || (import.meta.env as any).VITE_NGROK_URL || 'https://mulligan-backend.onrender.com';
+// Use API URL from environment variable (for production) or ngrok (for testing)
+// Default to local proxy ('/api') for local development - Vite will proxy to localhost:3001
+const API_URL: string = (import.meta.env as any).VITE_API_URL || (import.meta.env as any).VITE_NGROK_URL || '';
 const BASE_URL = API_URL ? `${API_URL}/api` : '/api'
 
 class ApiError extends Error {

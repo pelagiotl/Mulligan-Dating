@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "ffe7d520-859b-4e18-a2d8-10b607bbf90b"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.lukepelagiotomerlin.mulligan",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    }
+  }
+}

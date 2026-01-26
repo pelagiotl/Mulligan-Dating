@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Mulligan App Icon - 1024x1024</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #f0f0f0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    h1 {
+      margin-bottom: 20px;
+    }
+    .icon-container {
+      width: 1024px;
+      height: 1024px;
+      background: white;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+    .instructions {
+      margin-top: 20px;
+      padding: 20px;
+      background: white;
+      border-radius: 8px;
+      max-width: 600px;
+    }
+    .instructions ol {
+      text-align: left;
+    }
+  </style>
+</head>
+<body>
+  <h1>Mulligan App Icon (1024×1024)</h1>
+  <div class="icon-container">
+    <svg width="1024" height="1024" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <!-- Mulligan burgundy color -->
+        <linearGradient id="heartGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#8B1538" stop-opacity="1" />
+          <stop offset="50%" stop-color="#a11d45" stop-opacity="1" />
+          <stop offset="100%" stop-color="#8B1538" stop-opacity="1" />
+        </linearGradient>
+      </defs>
+      
+      <!-- White background with rounded corners (required for app icon - no transparency) -->
+      <rect width="1024" height="1024" fill="#ffffff" rx="180" />
+      
+      <!-- Heart icon centered (exact path from mobile app, scaled appropriately) -->
+      <g transform="translate(512, 512) scale(10)">
+        <path
+          d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z"
+          fill="url(#heartGradient)"
+        />
+      </g>
+    </svg>
+  </div>
+  
+  <div class="instructions">
+    <h2>To Convert to PNG:</h2>
+    <ol>
+      <li><strong>Option 1 - Online:</strong> Go to <a href="https://cloudconvert.com/svg-to-png" target="_blank">CloudConvert</a> or <a href="https://convertio.co/svg-png/" target="_blank">ConvertIO</a>, upload <code>app-icon.svg</code>, set size to 1024×1024, convert</li>
+      <li><strong>Option 2 - macOS Preview:</strong> Open <code>app-icon.svg</code> in Preview app, File → Export, choose PNG, set size to 1024×1024</li>
+      <li><strong>Option 3 - Canva/Figma:</strong> Import the SVG, export as PNG at 1024×1024</li>
+    </ol>
+  </div>
+</body>
+</html>
+
+
+
+
+
+
+
+

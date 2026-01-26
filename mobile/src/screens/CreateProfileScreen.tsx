@@ -1113,6 +1113,10 @@ export default function CreateProfileScreen() {
       return;
     }
     
+    // If moving to step 7, ensure user has at least 5 photos before allowing navigation
+    // (Note: They can still navigate to step 7 to upload photos, but validation happens on submit)
+    // Actually, let's allow navigation to step 7 so they can upload photos there
+    
     try {
       setStep(nextStep);
     } catch (error: any) {
@@ -2929,7 +2933,7 @@ export default function CreateProfileScreen() {
                   {photo ? (
                     <View style={styles.photoContainer}>
                       <OptimizedImage
-                        source={photo.uri || photo.url}
+                        source={photo.url || photo.uri}
                         style={styles.photoImage}
                         resizeMode="cover"
                       />

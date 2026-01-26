@@ -62,3 +62,12 @@ The code has been updated to include `pg` (PostgreSQL client). When you deploy, 
 - Make sure `DATABASE_URL` is set in Render environment variables
 - Check that the backend is actually using PostgreSQL (look for `🐘 Using PostgreSQL database` in logs)
 
+
+
+
+
+
+
+
+
+

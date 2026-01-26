@@ -36,12 +36,12 @@ npm install
 npm run dev
 ```
 
-The frontend will be available at `http://localhost:5173`
-The backend API will be available at `http://localhost:3001`
+The frontend will be available at: [http://localhost:5173](http://localhost:5173)
+The backend API will be available at: [http://localhost:3001](http://localhost:3001)
 
 ### Geocoding Setup (Optional but Recommended)
 
-For accurate distance calculations in matching, set up a geocoding API key. The app supports multiple providers:
+For accurate distance calculations in matching, set up a  geocoding API key. The app supports multiple providers:
 
 **Option 1: Mapbox (Recommended)**
 1. Sign up at https://account.mapbox.com/

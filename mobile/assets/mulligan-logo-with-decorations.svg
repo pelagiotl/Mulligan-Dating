@@ -1,0 +1,52 @@
+<svg width="900" height="250" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .logo-text {
+        font-family: Georgia, 'Times New Roman', serif;
+        font-weight: 600;
+      }
+    </style>
+    <!-- Heart gradient (matching app) -->
+    <linearGradient id="heartGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="1" />
+      <stop offset="50%" stop-color="#ffe4e6" stop-opacity="1" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Transparent background -->
+  
+  <!-- Heart icon with decorations (matching app design) - positioned on the left -->
+  <g transform="translate(80, 50) scale(2.5)">
+    <!-- Heart with gradient -->
+    <path
+      d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z"
+      fill="url(#heartGradient)"
+    />
+    
+    <!-- Top arrow -->
+    <circle cx="36" cy="10" r="2.5" fill="#ffffff" opacity="0.9" />
+    <path d="M30 10L36 10" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" opacity="0.9" fill="none" />
+    <path d="M33 7L36 10L33 13" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.9" />
+    
+    <!-- Bottom arrow -->
+    <circle cx="12" cy="38" r="2.5" fill="#ffffff" opacity="0.9" />
+    <path d="M18 38L12 38" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" opacity="0.9" fill="none" />
+    <path d="M15 35L12 38L15 41" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.9" />
+    
+    <!-- Sparkles (4 dots) -->
+    <circle cx="24" cy="8" r="1.5" fill="#ffffff" opacity="0.6" />
+    <circle cx="40" cy="24" r="1.5" fill="#ffffff" opacity="0.6" />
+    <circle cx="24" cy="40" r="1.5" fill="#ffffff" opacity="0.6" />
+    <circle cx="8" cy="24" r="1.5" fill="#ffffff" opacity="0.6" />
+  </g>
+  
+  <!-- Text: Mulligan - positioned after heart -->
+  <text x="280" y="155" 
+        class="logo-text"
+        font-size="80" 
+        fill="#ffffff" 
+        letter-spacing="3">
+    Mulligan
+  </text>
+</svg>

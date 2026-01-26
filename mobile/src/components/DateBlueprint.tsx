@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, ScrollView, Animated, Modal, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Animated, Modal, Platform, Vibration, Dimensions, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { api } from '../utils/api';
 import { Socket } from 'socket.io-client';
@@ -40,6 +40,8 @@ export default function DateBlueprint({ matchId, socket, currentUserId }: DateBl
   const [generating, setGenerating] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const shimmerAnim = useRef(new Animated.Value(0)).current;
 
@@ -135,6 +137,7 @@ export default function DateBlueprint({ matchId, socket, currentUserId }: DateBl
   };
 
   const handleGenerate = async () => {
+    Vibration.vibrate(50); // Vibrate when button is clicked
     Alert.alert(
       'Generate Date Plan',
       'Create an AI-powered date plan based on your shared interests and location?',
@@ -167,6 +170,32 @@ export default function DateBlueprint({ matchId, socket, currentUserId }: DateBl
         },
       ]
     );
+  };
+
+  const handleDateChange = async (newDate: Date) => {
+    if (!plan) return;
+
+    try {
+      setUpdating(true);
+      const dateStr = newDate.toISOString().split('T')[0];
+      const timeStr = `${newDate.getHours().toString().padStart(2, '0')}:${newDate.getMinutes().toString().padStart(2, '0')}`;
+
+      const response = await api.put(
+        `/matches/${matchId}/date-plan/${plan.id}/date-time`,
+        { suggestedDate: dateStr, suggestedTime: timeStr }
+      );
+
+      const planData = response.plan || response;
+      if (planData && typeof planData === 'object' && 'id' in planData) {
+        setPlan(planData);
+        Alert.alert('✅ Date Updated', 'The date has been updated successfully.');
+      }
+    } catch (error: any) {
+      console.error('❌ Update date error:', error);
+      Alert.alert('Error', error?.message || 'Failed to update date');
+    } finally {
+      setUpdating(false);
+    }
   };
 
   const handleAction = async (action: 'accept' | 'decline' | 'modify') => {
@@ -293,6 +322,11 @@ export default function DateBlueprint({ matchId, socket, currentUserId }: DateBl
       <TouchableOpacity
         onPress={() => {
           console.log('📅 Date plan button clicked, setting isExpanded to true');
+          if (Platform.OS === 'ios') {
+            Vibration.vibrate(50);
+          } else {
+            Vibration.vibrate(50);
+          }
           setIsExpanded(true);
         }}
         activeOpacity={0.8}
@@ -360,11 +394,9 @@ export default function DateBlueprint({ matchId, socket, currentUserId }: DateBl
             >
               <Text style={styles.modalCloseText}>✕</Text>
             </TouchableOpacity>
-            <ScrollView 
+            <View 
               key={plan.id} // Force re-render when plan changes
-              style={styles.modalScrollView}
-              showsVerticalScrollIndicator={true}
-              contentContainerStyle={styles.modalScrollContent}
+              style={[styles.modalScrollContent, { maxHeight: Dimensions.get('window').height * 0.85 }]}
             >
               <LinearGradient
                 colors={['#667eea', '#764ba2']}
@@ -386,18 +418,69 @@ export default function DateBlueprint({ matchId, socket, currentUserId }: DateBl
                 )}
 
                 {plan.suggestedDate && (
-                  <View style={styles.dateSection}>
+                  <TouchableOpacity
+                    style={styles.dateSection}
+                    onPress={() => {
+                      console.log('📅 Date section pressed');
+                      if (plan.suggestedDate) {
+                        const currentDate = new Date(plan.suggestedDate);
+                        if (plan.suggestedTime) {
+                          const [hours, minutes] = plan.suggestedTime.split(':');
+                          currentDate.setHours(parseInt(hours, 10), parseInt(minutes, 10));
+                        }
+                        console.log('📅 Setting selected date:', currentDate);
+                        setSelectedDate(currentDate);
+                        console.log('📅 Closing date plan modal and opening date picker');
+                        setIsExpanded(false); // Close the date plan modal first
+                        // Use setTimeout to ensure the first modal closes before opening the second
+                        setTimeout(() => {
+                          console.log('📅 Setting showDatePicker to true');
+                          setShowDatePicker(true);
+                        }, 300);
+                      } else {
+                        console.log('⚠️ No suggested date in plan');
+                      }
+                    }}
+                    activeOpacity={0.7}
+                  >
                     <Text style={styles.dateLabel}>📅 Suggested Date</Text>
-                    <Text style={styles.dateText}>
-                      {new Date(plan.suggestedDate).toLocaleDateString('en-US', {
-                        weekday: 'long',
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
-                      })}
-                      {plan.suggestedTime && ` at ${plan.suggestedTime}`}
-                    </Text>
-                  </View>
+                    <View style={styles.dateRow}>
+                      <Text style={styles.dateText}>
+                        {new Date(plan.suggestedDate).toLocaleDateString('en-US', {
+                          weekday: 'long',
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                        })}
+                        {plan.suggestedTime && ` at ${plan.suggestedTime}`}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          console.log('📅 Pencil icon pressed');
+                          if (plan.suggestedDate) {
+                            const currentDate = new Date(plan.suggestedDate);
+                            if (plan.suggestedTime) {
+                              const [hours, minutes] = plan.suggestedTime.split(':');
+                              currentDate.setHours(parseInt(hours, 10), parseInt(minutes, 10));
+                            }
+                            console.log('📅 Setting selected date:', currentDate);
+                            setSelectedDate(currentDate);
+                            console.log('📅 Closing date plan modal and opening date picker');
+                            setIsExpanded(false); // Close the date plan modal first
+                            // Use setTimeout to ensure the first modal closes before opening the second
+                            setTimeout(() => {
+                              console.log('📅 Setting showDatePicker to true');
+                              setShowDatePicker(true);
+                            }, 300);
+                          }
+                        }}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
+                        <Text style={styles.editDateText}>✏️</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </TouchableOpacity>
                 )}
 
                 {plan.budgetRange && (
@@ -430,6 +513,11 @@ export default function DateBlueprint({ matchId, socket, currentUserId }: DateBl
                   <View style={styles.actionsContainer}>
                     <TouchableOpacity
                       onPress={() => {
+                        if (Platform.OS === 'ios') {
+                          Vibration.vibrate(50);
+                        } else {
+                          Vibration.vibrate(50);
+                        }
                         handleAction('accept');
                         setIsExpanded(false);
                       }}
@@ -442,6 +530,11 @@ export default function DateBlueprint({ matchId, socket, currentUserId }: DateBl
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={async () => {
+                        if (Platform.OS === 'ios') {
+                          Vibration.vibrate(50);
+                        } else {
+                          Vibration.vibrate(50);
+                        }
                         // Regenerate a new date plan
                         Alert.alert(
                           'Regenerate Date Plan',
@@ -505,12 +598,17 @@ export default function DateBlueprint({ matchId, socket, currentUserId }: DateBl
                       disabled={updating}
                       style={[styles.actionButton, styles.modifyButton]}
                     >
-                      <Text style={styles.actionButtonText}>
+                      <Text style={styles.actionButtonText} numberOfLines={1} adjustsFontSizeToFit={true} minimumFontScale={0.8}>
                         {updating ? 'Generating...' : 'Regenerate'}
                       </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={() => {
+                        if (Platform.OS === 'ios') {
+                          Vibration.vibrate(50);
+                        } else {
+                          Vibration.vibrate(50);
+                        }
                         handleAction('decline');
                         setIsExpanded(false);
                       }}
@@ -522,9 +620,197 @@ export default function DateBlueprint({ matchId, socket, currentUserId }: DateBl
                   </View>
                 )}
               </LinearGradient>
-            </ScrollView>
+            </View>
           </View>
         </TouchableOpacity>
+      </Modal>
+
+      {/* Date Picker Modal - Outside date plan modal to avoid nesting issues */}
+      <Modal
+        visible={showDatePicker}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => {
+          console.log('📅 Date picker modal onRequestClose');
+          setShowDatePicker(false);
+        }}
+      >
+        <View style={styles.datePickerModal}>
+          <View style={styles.datePickerContainer}>
+            <View style={styles.datePickerHeader}>
+              <Text style={styles.datePickerTitle}>Change Date & Time</Text>
+              <TouchableOpacity
+                onPress={() => setShowDatePicker(false)}
+                style={styles.datePickerCloseButton}
+              >
+                <Text style={styles.datePickerCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.datePickerContent}>
+              <Text style={styles.datePickerSectionTitle}>📅 Select Date</Text>
+              <View style={styles.datePickerWheelContainer}>
+                <View style={styles.datePickerWheelOverlay} pointerEvents="none" />
+                <ScrollView
+                  style={styles.datePickerWheel}
+                  showsVerticalScrollIndicator={false}
+                  snapToInterval={50}
+                  decelerationRate="fast"
+                  contentContainerStyle={styles.datePickerWheelContent}
+                  onMomentumScrollEnd={(e) => {
+                    const offset = e.nativeEvent.contentOffset.y;
+                    const index = Math.round(offset / 50);
+                    const newDate = new Date(selectedDate);
+                    const daysDiff = index - 30;
+                    newDate.setDate(newDate.getDate() + daysDiff);
+                    if (newDate >= new Date()) {
+                      setSelectedDate(newDate);
+                    }
+                  }}
+                >
+                  {Array.from({ length: 61 }, (_, i) => {
+                    const date = new Date(selectedDate);
+                    date.setDate(date.getDate() + (i - 30));
+                    const isToday = date.toDateString() === new Date().toDateString();
+                    const isSelected = i === 30;
+                    return (
+                      <View key={i} style={[styles.datePickerWheelItem, isSelected && styles.datePickerWheelItemSelected]}>
+                        <Text style={[styles.datePickerWheelText, isSelected && styles.datePickerWheelTextSelected, isToday && styles.datePickerWheelTextToday]}>
+                          {date.toLocaleDateString('en-US', {
+                            weekday: 'short',
+                            month: 'short',
+                            day: 'numeric',
+                          })}
+                          {isToday && ' (Today)'}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+
+              <Text style={styles.datePickerSectionTitle}>⏰ Select Time</Text>
+              <View style={styles.timePickerContainer}>
+                <View style={styles.timePickerColumn}>
+                  <Text style={styles.timePickerLabel}>Hour</Text>
+                  <View style={styles.timePickerWheelWrapper}>
+                    <View style={styles.timePickerWheelOverlay} pointerEvents="none" />
+                    <ScrollView
+                      style={styles.timePickerWheel}
+                      showsVerticalScrollIndicator={false}
+                      snapToInterval={50}
+                      decelerationRate="fast"
+                      contentContainerStyle={styles.timePickerWheelContent}
+                      onMomentumScrollEnd={(e) => {
+                        const offset = e.nativeEvent.contentOffset.y;
+                        const hour = Math.round(offset / 50) + 1;
+                        const newDate = new Date(selectedDate);
+                        const isPM = newDate.getHours() >= 12;
+                        newDate.setHours(isPM ? hour + 12 : hour);
+                        setSelectedDate(newDate);
+                      }}
+                    >
+                      {Array.from({ length: 12 }, (_, i) => {
+                        const hour = i + 1;
+                        const isSelected = (selectedDate.getHours() % 12 || 12) === hour;
+                        return (
+                          <View key={i} style={[styles.timePickerWheelItem, isSelected && styles.timePickerWheelItemSelected]}>
+                            <Text style={[styles.timePickerWheelText, isSelected && styles.timePickerWheelTextSelected]}>
+                              {hour}
+                            </Text>
+                          </View>
+                        );
+                      })}
+                    </ScrollView>
+                  </View>
+                </View>
+                <View style={styles.timePickerColumn}>
+                  <Text style={styles.timePickerLabel}>Minute</Text>
+                  <View style={styles.timePickerWheelWrapper}>
+                    <View style={styles.timePickerWheelOverlay} pointerEvents="none" />
+                    <ScrollView
+                      style={styles.timePickerWheel}
+                      showsVerticalScrollIndicator={false}
+                      snapToInterval={50}
+                      decelerationRate="fast"
+                      contentContainerStyle={styles.timePickerWheelContent}
+                      onMomentumScrollEnd={(e) => {
+                        const offset = e.nativeEvent.contentOffset.y;
+                        const minute = Math.max(0, Math.min(59, Math.round(offset / 50)));
+                        const newDate = new Date(selectedDate);
+                        newDate.setMinutes(minute);
+                        setSelectedDate(newDate);
+                      }}
+                    >
+                      {Array.from({ length: 60 }, (_, i) => {
+                        const isSelected = selectedDate.getMinutes() === i;
+                        return (
+                          <View key={i} style={[styles.timePickerWheelItem, isSelected && styles.timePickerWheelItemSelected]}>
+                            <Text style={[styles.timePickerWheelText, isSelected && styles.timePickerWheelTextSelected]}>
+                              {i.toString().padStart(2, '0')}
+                            </Text>
+                          </View>
+                        );
+                      })}
+                    </ScrollView>
+                  </View>
+                </View>
+                <View style={styles.timePickerColumn}>
+                  <Text style={styles.timePickerLabel}>AM/PM</Text>
+                  <View style={styles.timePickerWheelWrapper}>
+                    <View style={styles.timePickerWheelOverlay} pointerEvents="none" />
+                    <ScrollView
+                      style={styles.timePickerWheel}
+                      showsVerticalScrollIndicator={false}
+                      snapToInterval={50}
+                      decelerationRate="fast"
+                      contentContainerStyle={styles.timePickerWheelContent}
+                      onMomentumScrollEnd={(e) => {
+                        const offset = e.nativeEvent.contentOffset.y;
+                        const isPM = Math.round(offset / 50) === 1;
+                        const newDate = new Date(selectedDate);
+                        const currentHour = newDate.getHours();
+                        if (isPM && currentHour < 12) {
+                          newDate.setHours(currentHour + 12);
+                        } else if (!isPM && currentHour >= 12) {
+                          newDate.setHours(currentHour - 12);
+                        }
+                        setSelectedDate(newDate);
+                      }}
+                    >
+                      {['AM', 'PM'].map((period, i) => {
+                        const isSelected = (selectedDate.getHours() >= 12) === (i === 1);
+                        return (
+                          <View key={i} style={[styles.timePickerWheelItem, isSelected && styles.timePickerWheelItemSelected]}>
+                            <Text style={[styles.timePickerWheelText, isSelected && styles.timePickerWheelTextSelected]}>
+                              {period}
+                            </Text>
+                          </View>
+                        );
+                      })}
+                    </ScrollView>
+                  </View>
+                </View>
+              </View>
+            </View>
+            <View style={styles.datePickerFooter}>
+              <TouchableOpacity
+                onPress={() => setShowDatePicker(false)}
+                style={styles.datePickerCancelButton}
+              >
+                <Text style={styles.datePickerCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  handleDateChange(selectedDate);
+                  setShowDatePicker(false);
+                }}
+                style={styles.datePickerDoneButton}
+              >
+                <Text style={styles.datePickerDoneText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
     </View>
   );
@@ -646,9 +932,9 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   modalContent: {
-    width: '90%',
+    width: '95%',
     maxWidth: 500,
-    maxHeight: '80%',
+    maxHeight: '95%',
     backgroundColor: '#fff',
     borderRadius: 20,
     overflow: 'hidden',
@@ -680,10 +966,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   modalScrollContent: {
-    padding: 20,
+    padding: 12,
   },
   planCard: {
-    padding: 16,
+    padding: 12,
     borderRadius: 14,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -693,124 +979,402 @@ const styles = StyleSheet.create({
   },
   planTitle: {
     color: '#fff',
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: 'bold',
-    marginBottom: 10,
+    marginBottom: 6,
   },
   planDescription: {
     color: '#fff',
-    fontSize: 15,
-    lineHeight: 22,
-    marginBottom: 16,
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 10,
     opacity: 0.95,
   },
   venueSection: {
-    marginBottom: 16,
+    marginBottom: 8,
   },
   venueLabel: {
     color: '#fff',
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
-    marginBottom: 4,
+    marginBottom: 2,
     opacity: 0.9,
   },
   venueName: {
     color: '#fff',
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: 'bold',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   venueAddress: {
     color: '#fff',
-    fontSize: 14,
+    fontSize: 12,
     opacity: 0.8,
   },
   dateSection: {
-    marginBottom: 16,
+    marginBottom: 8,
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   dateLabel: {
     color: '#fff',
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     marginBottom: 4,
     opacity: 0.9,
   },
+  dateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   dateText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '500',
+    flex: 1,
+  },
+  editDateText: {
+    color: '#fff',
+    fontSize: 14,
+    opacity: 0.8,
+    marginLeft: 8,
   },
   budgetSection: {
-    marginBottom: 16,
+    marginBottom: 8,
   },
   budgetLabel: {
     color: '#fff',
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
-    marginBottom: 4,
+    marginBottom: 2,
     opacity: 0.9,
   },
   budgetText: {
     color: '#fff',
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: 'bold',
   },
   topicsSection: {
-    marginBottom: 20,
+    marginBottom: 8,
   },
   topicsLabel: {
     color: '#fff',
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
-    marginBottom: 8,
+    marginBottom: 4,
     opacity: 0.9,
   },
   topicText: {
     color: '#fff',
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 4,
+    fontSize: 12,
+    lineHeight: 16,
+    marginBottom: 2,
     opacity: 0.9,
   },
   acceptedBadge: {
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    padding: 12,
+    padding: 8,
     borderRadius: 8,
     alignItems: 'center',
+    marginTop: 6,
   },
   acceptedText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: 'bold',
   },
   actionsContainer: {
     flexDirection: 'row',
-    gap: 10,
-    marginTop: 10,
+    gap: 6,
+    marginTop: 6,
+    justifyContent: 'space-between',
   },
   actionButton: {
     flex: 1,
-    padding: 12,
-    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    borderRadius: 10,
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    minWidth: 90,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
   acceptButton: {
-    backgroundColor: 'rgba(76, 175, 80, 0.3)',
+    backgroundColor: '#4CAF50',
   },
   modifyButton: {
-    backgroundColor: 'rgba(255, 193, 7, 0.3)',
+    backgroundColor: '#FFC107',
   },
   declineButton: {
-    backgroundColor: 'rgba(244, 67, 54, 0.3)',
+    backgroundColor: '#FF5722',
   },
   disabledButton: {
     opacity: 0.5,
   },
   actionButtonText: {
     color: '#fff',
-    fontSize: 14,
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+    letterSpacing: 0.3,
+  },
+  datePickerModal: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  datePickerContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    paddingBottom: 24,
+    width: '90%',
+    maxHeight: '85%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 20,
+  },
+  datePickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 18,
+    paddingBottom: 16,
+    borderBottomWidth: 1.5,
+    borderBottomColor: '#f0f0f0',
+    backgroundColor: '#fafafa',
+  },
+  datePickerTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#1a1a1a',
+    letterSpacing: 0.5,
+    flex: 1,
+  },
+  datePickerCloseButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  datePickerCloseText: {
+    color: '#666',
+    fontSize: 18,
     fontWeight: '600',
+  },
+  datePickerFooter: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    padding: 18,
+    paddingTop: 16,
+    borderTopWidth: 1.5,
+    borderTopColor: '#f0f0f0',
+    backgroundColor: '#fafafa',
+    gap: 12,
+  },
+  datePickerCancelButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    backgroundColor: '#f5f5f5',
+    minWidth: 100,
+    alignItems: 'center',
+  },
+  datePickerCancelText: {
+    color: '#666',
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  datePickerDoneButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 28,
+    borderRadius: 12,
+    backgroundColor: '#667eea',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 4,
+    minWidth: 100,
+    alignItems: 'center',
+  },
+  datePickerDoneText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  datePickerContent: {
+    padding: 20,
+    paddingTop: 10,
+  },
+  datePickerSectionTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#1a1a1a',
+    marginTop: 16,
+    marginBottom: 12,
+    textAlign: 'center',
+    letterSpacing: 0.5,
+  },
+  datePickerWheelContainer: {
+    height: 180,
+    marginBottom: 20,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    overflow: 'hidden',
+    position: 'relative',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 1.5,
+    borderColor: '#f0e6ff',
+  },
+  datePickerWheel: {
+    flex: 1,
+  },
+  datePickerWheelContent: {
+    paddingVertical: 65,
+  },
+  datePickerWheelOverlay: {
+    position: 'absolute',
+    top: 65,
+    left: 0,
+    right: 0,
+    height: 50,
+    borderTopWidth: 2.5,
+    borderBottomWidth: 2.5,
+    borderColor: '#667eea',
+    zIndex: 1,
+    backgroundColor: 'rgba(102, 126, 234, 0.08)',
+  },
+  datePickerWheelItem: {
+    height: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginHorizontal: 12,
+    borderRadius: 12,
+  },
+  datePickerWheelItemSelected: {
+    backgroundColor: '#667eea',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  datePickerWheelText: {
+    fontSize: 15,
+    color: '#999',
+    fontWeight: '500',
+  },
+  datePickerWheelTextSelected: {
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: 17,
+    letterSpacing: 0.3,
+  },
+  datePickerWheelTextToday: {
+    fontWeight: '700',
+    color: '#764ba2',
+  },
+  timePickerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    height: 180,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 20,
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 1.5,
+    borderColor: '#f0e6ff',
+  },
+  timePickerColumn: {
+    flex: 1,
+    alignItems: 'center',
+    position: 'relative',
+    justifyContent: 'flex-start',
+  },
+  timePickerLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#764ba2',
+    marginTop: 12,
+    marginBottom: 8,
+    letterSpacing: 0.5,
+  },
+  timePickerWheelWrapper: {
+    flex: 1,
+    width: '100%',
+    position: 'relative',
+    height: 180,
+  },
+  timePickerWheel: {
+    flex: 1,
+    width: '100%',
+  },
+  timePickerWheelContent: {
+    paddingTop: 65,
+    paddingBottom: 65,
+  },
+  timePickerWheelOverlay: {
+    position: 'absolute',
+    top: 65,
+    left: 0,
+    right: 0,
+    height: 50,
+    borderTopWidth: 2.5,
+    borderBottomWidth: 2.5,
+    borderColor: '#667eea',
+    zIndex: 1,
+    backgroundColor: 'rgba(102, 126, 234, 0.08)',
+  },
+  timePickerWheelItem: {
+    height: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginHorizontal: 8,
+    borderRadius: 12,
+  },
+  timePickerWheelItemSelected: {
+    backgroundColor: '#667eea',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  timePickerWheelText: {
+    fontSize: 17,
+    color: '#999',
+    fontWeight: '500',
+  },
+  timePickerWheelTextSelected: {
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: 22,
+    letterSpacing: 0.5,
   },
 });
 

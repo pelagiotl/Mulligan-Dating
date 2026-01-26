@@ -14,7 +14,7 @@
     "strict": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "noFallthroughCasesInSwitch": true,
+    "noFallthroughCasesInSwitch": false,
     "suppressImplicitAnyIndexErrors": true,
     "noImplicitAny": false,
     "strictNullChecks": false,
@@ -22,10 +22,7 @@
     "strictPropertyInitialization": false,
     "noImplicitThis": false,
     "alwaysStrict": false,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "noImplicitReturns": false,
-    "noFallthroughCasesInSwitch": false
+    "noImplicitReturns": false
   },
   "include": ["src/**/*", "src/vite-env.d.ts"],
   "references": [{ "path": "./tsconfig.node.json" }],
