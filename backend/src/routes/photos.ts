@@ -406,7 +406,6 @@ photosRouter.post("/", authenticateToken, (req: AuthRequest, res, next) => {
                 });
               }
             }
-          }
         }
       } else {
         // Use local filesystem
