@@ -16,6 +16,7 @@ import {
   FlatList,
   InteractionManager,
   TextInput,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -164,7 +165,7 @@ export default function MyProfileScreen() {
   const [editLocation, setEditLocation] = useState('');
   const [editMaxDistance, setEditMaxDistance] = useState<number | null>(50);
   const [editLookingFor, setEditLookingFor] = useState('');
-  const [editingBio, setEditingBio] = useState(false);
+  const [showBioModal, setShowBioModal] = useState(false);
   const [editBio, setEditBio] = useState('');
   const [detectingLocation, setDetectingLocation] = useState(false);
   const [updatingField, setUpdatingField] = useState(false);
@@ -724,7 +725,7 @@ export default function MyProfileScreen() {
         lookingFor: data.profile.looking_for ?? null,
       });
       setData((prev) => prev ? { ...prev, profile: { ...prev.profile, bio: val } } : null);
-      setEditingBio(false);
+      setShowBioModal(false);
       refreshProfile?.();
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Failed to update About Me.');
@@ -1069,6 +1070,8 @@ export default function MyProfileScreen() {
         style={styles.container} 
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="always"
+        keyboardDismissMode="on-drag"
       >
       {/* Header with photo and basic info */}
       <Animated.View
@@ -1749,7 +1752,7 @@ export default function MyProfileScreen() {
                 </LinearGradient>
               </TouchableOpacity>
 
-              {/* About Me - always visible, tappable to edit (saved for all users to see when matching) */}
+              {/* About Me - tappable to open edit modal (keyboard won't cover Save/Cancel) */}
               <View style={styles.bioContainer}>
                 <LinearGradient
                   colors={['rgba(102, 126, 234, 0.08)', 'rgba(240, 147, 251, 0.06)', 'rgba(102, 126, 234, 0.06)']}
@@ -1764,51 +1767,19 @@ export default function MyProfileScreen() {
                     </View>
                     <View style={styles.bioAccentLine} />
                   </View>
-                  {editingBio ? (
-                    <View style={styles.bioEditContainer}>
-                      <TextInput
-                        style={styles.bioInput}
-                        value={editBio}
-                        onChangeText={setEditBio}
-                        placeholder="Tell others about yourself..."
-                        placeholderTextColor="#94a3b8"
-                        multiline
-                        numberOfLines={4}
-                        maxLength={500}
-                        editable={!updatingField}
-                      />
-                      <View style={styles.bioEditActions}>
-                        <TouchableOpacity
-                          style={styles.bioEditCancelButton}
-                          onPress={() => { setEditingBio(false); setEditBio(profile.bio || ''); }}
-                          disabled={updatingField}
-                        >
-                          <Text style={styles.bioEditCancelText}>Cancel</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.bioEditSaveButton}
-                          onPress={saveBio}
-                          disabled={updatingField}
-                        >
-                          <Text style={styles.bioEditSaveText}>{updatingField ? 'Saving...' : 'Save'}</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  ) : (
-                    <TouchableOpacity
-                      activeOpacity={0.9}
-                      onPress={() => {
-                        setEditBio(profile.bio || '');
-                        setEditingBio(true);
-                        if (Platform.OS === 'ios') Vibration.vibrate(50);
-                        else Vibration.vibrate(50);
-                      }}
-                    >
-                      <Text style={[styles.bio, !profile.bio && styles.bioPlaceholder]}>
-                        {profile.bio || 'Tap to add'}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
+                  <TouchableOpacity
+                    activeOpacity={0.9}
+                    onPress={() => {
+                      setEditBio(profile.bio || '');
+                      setShowBioModal(true);
+                      if (Platform.OS === 'ios') Vibration.vibrate(50);
+                      else Vibration.vibrate(50);
+                    }}
+                  >
+                    <Text style={[styles.bio, !profile.bio && styles.bioPlaceholder]}>
+                      {profile.bio || 'Tap to add'}
+                    </Text>
+                  </TouchableOpacity>
                 </LinearGradient>
               </View>
             </View>
@@ -1903,6 +1874,67 @@ export default function MyProfileScreen() {
             </LinearGradient>
           </View>
         </View>
+      </Modal>
+
+      {/* About Me edit modal - KeyboardAvoidingView keeps Save/Cancel visible above keyboard */}
+      <Modal visible={showBioModal} transparent animationType="fade">
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={0}
+        >
+          <View style={styles.modalOverlay}>
+            <TouchableOpacity
+              style={styles.modalOverlayTouchable}
+              activeOpacity={1}
+              onPress={() => setShowBioModal(false)}
+            />
+            <View style={styles.editModalCard}>
+              <LinearGradient
+              colors={['rgba(102, 126, 234, 0.95)', 'rgba(240, 147, 251, 0.9)', 'rgba(102, 126, 234, 0.9)']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.editModalGradient}
+            >
+              <Text style={styles.editModalEmoji}>💬</Text>
+              <Text style={styles.editModalTitleLight}>About Me</Text>
+              <Text style={styles.editModalSubtitleLight}>Tell others about yourself (visible when matching)</Text>
+              <View style={styles.editModalInner}>
+                <TextInput
+                  style={[styles.editModalInput, styles.bioModalInput]}
+                  value={editBio}
+                  onChangeText={setEditBio}
+                  placeholder="Tell others about yourself..."
+                  placeholderTextColor="#94a3b8"
+                  multiline
+                  numberOfLines={5}
+                  maxLength={500}
+                  editable={!updatingField}
+                  textAlignVertical="top"
+                />
+              </View>
+              <View style={styles.editModalActions}>
+                <TouchableOpacity
+                  style={styles.editModalCancelPill}
+                  onPress={() => { setShowBioModal(false); setEditBio(profile.bio || ''); }}
+                  disabled={updatingField}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.editModalCancelPillText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.editModalSavePill}
+                  onPress={saveBio}
+                  disabled={updatingField}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.editModalSavePillText}>{updatingField ? 'Saving...' : 'Save'}</Text>
+                </TouchableOpacity>
+              </View>
+            </LinearGradient>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Max distance edit modal - gradient card */}
@@ -2689,6 +2721,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#1e293b',
     marginBottom: 12,
+  },
+  bioModalInput: {
+    minHeight: 120,
+    paddingTop: 14,
   },
   editModalSecondaryButton: {
     backgroundColor: 'rgba(255,255,255,0.25)',

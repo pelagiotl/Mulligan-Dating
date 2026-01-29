@@ -254,6 +254,38 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
       console.warn('   User preferences:', userPrefs);
     }
 
+    // Fast path for offset=0 (Connect flow): return first eligible profile without distance/scoring to show celebration quickly
+    if (offset === 0 && allProfiles.length > 0) {
+      const fastPathLimit = Math.min(10, allProfiles.length);
+      for (let i = 0; i < fastPathLimit; i++) {
+        const p = allProfiles[i] as ProfileWithMetadata;
+        const passes = await checkDealbreakersUtil(userProfile.id, p.id);
+        if (passes) {
+          const formattedProfile = {
+            id: p.id,
+            userId: p.user_id,
+            displayName: p.display_name,
+            age: p.age,
+            gender: p.gender,
+            location: p.location,
+            bio: p.bio,
+            photoUrl: p.photo_url,
+            lookingFor: p.looking_for,
+            interests: p.interests_list ? p.interests_list.split(',') : [],
+            distance: null as number | null,
+          };
+          console.log('✅ Browse fast path: returning first eligible profile', p.display_name);
+          return res.json({
+            profile: formattedProfile,
+            hasMore: allProfiles.length > 1,
+            offset: 0,
+            total: allProfiles.length,
+          });
+        }
+      }
+      console.log('⚠️  Browse fast path: no profile passed dealbreakers, falling back to full path');
+    }
+
     // Filter by distance if user has location
     // Note: max_distance can be null (unlimited) or a number
     let filteredProfiles = allProfiles;

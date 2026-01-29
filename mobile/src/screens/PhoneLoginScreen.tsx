@@ -401,12 +401,12 @@ const AnimatedLogo = memo(function AnimatedLogo() {
         >
           <Svg width={90} height={90} viewBox="0 0 48 48">
             <Defs>
-              {/* Enhanced gradient with smoother transitions */}
+              {/* Enhanced gradient with smoother transitions - all white */}
               <SvgLinearGradient id="heartGradientLogin" x1="0%" y1="0%" x2="100%" y2="100%">
                 <Stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
-                <Stop offset="25%" stopColor="#fff5f6" stopOpacity="1" />
-                <Stop offset="50%" stopColor="#ffe4e6" stopOpacity="1" />
-                <Stop offset="75%" stopColor="#fff5f6" stopOpacity="1" />
+                <Stop offset="25%" stopColor="#ffffff" stopOpacity="1" />
+                <Stop offset="50%" stopColor="#ffffff" stopOpacity="1" />
+                <Stop offset="75%" stopColor="#ffffff" stopOpacity="1" />
                 <Stop offset="100%" stopColor="#ffffff" stopOpacity="1" />
               </SvgLinearGradient>
               {/* Shimmer gradient for subtle shine effect */}
@@ -541,11 +541,31 @@ export default function PhoneLoginScreen() {
   const [referralCode, setReferralCode] = useState('');
   const codeInputRef = useRef<TextInput>(null);
   const navigation = useNavigation();
-  const { phoneLogin, profile: authProfile, user: authUser } = useAuth();
+  const { phoneLogin, profile: authProfile, user: authUser, loading: authLoading } = useAuth();
   
   // Aliases for easier access
   const phoneNumber = phoneState.value;
   const isValidPhoneNumber = phoneState.isValid;
+
+  // Redirect if already authenticated - don't show login screen if user is logged in
+  useEffect(() => {
+    if (!authLoading && authUser) {
+      // User is already logged in - navigate to appropriate screen
+      if (authProfile) {
+        // User has profile - go to main app
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'MainTabs' as never }],
+        });
+      } else {
+        // User needs to create profile
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'CreateProfile' as never }],
+        });
+      }
+    }
+  }, [authUser, authProfile, authLoading, navigation]);
 
   // Ultra-fast digit extraction - count digits directly from input
   const extractDigits = useCallback((value: string) => {

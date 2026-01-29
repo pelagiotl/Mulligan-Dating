@@ -10,7 +10,8 @@ import {
   Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, TabActions } from '@react-navigation/native';
+import { setPendingOpenMatchId } from '../utils/pendingMatchOpen';
 import { getPhotoUrl } from '../utils/photoUrl';
 import { playMatchSound } from '../utils/sounds';
 
@@ -270,25 +271,18 @@ export default function MatchCelebration({
   }, []);
 
   const handleContinue = () => {
+    const idToOpen = matchId ?? null;
     try {
-      onClose();
-      // Navigate to Matches screen with matchId parameter to auto-open the chat
-      if (matchId) {
-        console.log('🚀 Navigating to Matches with matchId:', matchId);
-        try {
-          navigation.navigate('Matches' as never, { matchId } as never);
-        } catch (navError) {
-          console.error('❌ Navigation error:', navError);
-          // Fallback: navigate without params
-          navigation.navigate('Matches' as never);
-        }
+      if (idToOpen) {
+        setPendingOpenMatchId(idToOpen);
+        const jumpToAction = TabActions.jumpTo('Matches', { matchId: idToOpen });
+        navigation.dispatch(jumpToAction);
       } else {
-        console.log('⚠️ No matchId available, navigating to Matches without params');
         navigation.navigate('Matches' as never);
       }
+      onClose();
     } catch (error) {
       console.error('❌ Error in handleContinue:', error);
-      // Ensure onClose is called even if navigation fails
       onClose();
     }
   };

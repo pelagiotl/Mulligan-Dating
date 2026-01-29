@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Modal, ScrollView, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { api } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 
@@ -129,32 +129,36 @@ export default function TokenDisplay({ compact = false, premium = false }: Token
   const [loadingPackages, setLoadingPackages] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
 
+  const isFocused = useIsFocused();
+
   useEffect(() => {
-    // Only fetch if user is authenticated
     if (user) {
       fetchTokens();
     }
   }, [user]);
 
-  // Refresh tokens when screen is focused (e.g., after returning from admin page)
+  // Refresh tokens when screen is focused — clear cache so count is always up to date (e.g. after admin grant)
   useFocusEffect(
     useCallback(() => {
-      // Only fetch if user is authenticated
-      // Use setTimeout to avoid blocking navigation/tab switching
       if (user) {
-        setTimeout(() => {
-          fetchTokens();
-        }, 0);
+        api.clearCache('/tokens');
+        fetchTokens();
       }
     }, [user])
   );
 
+  // Periodic refresh while screen is focused so token count stays up to date in real time
+  useEffect(() => {
+    if (!user || !isFocused) return;
+    const interval = setInterval(() => {
+      api.clearCache('/tokens');
+      fetchTokens();
+    }, 20 * 1000); // every 20 seconds when this screen is focused
+    return () => clearInterval(interval);
+  }, [user, isFocused]);
+
   const fetchTokens = async () => {
-    // Don't fetch if user is not authenticated
-    if (!user) {
-      return;
-    }
-    
+    if (!user) return;
     try {
       setError('');
       const tokenData = await api.get<TokenData>('/tokens');

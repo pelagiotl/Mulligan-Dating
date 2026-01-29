@@ -244,44 +244,16 @@ export function initializeSocket(server: HTTPServer) {
         console.warn('⚠️  Failed to update compatibility pulse (non-critical):', pulseError);
       }
 
-      // Check if we should auto-advance to stage2 (both users sent at least 2 messages, alternating)
+      // Check if we should auto-advance to stage2 (both users have sent at least 2 messages each)
       let autoAdvanced = false;
       if (match.stage === "stage1") {
-        // Get all messages in chronological order
-        const allMessages = db
-          .prepare(`SELECT sender_id, sent_at FROM messages WHERE match_id = ? ORDER BY sent_at ASC`)
-          .all(matchId) as Array<{ sender_id: string; sent_at: string }>;
+        const countResult = db
+          .prepare(`SELECT sender_id, COUNT(*) as count FROM messages WHERE match_id = ? GROUP BY sender_id`)
+          .all(matchId) as Array<{ sender_id: string; count: number }>;
+        const user1Count = countResult.find((c: { sender_id: string }) => c.sender_id === match.user1_id)?.count ?? 0;
+        const user2Count = countResult.find((c: { sender_id: string }) => c.sender_id === match.user2_id)?.count ?? 0;
 
-        // Count valid messages (only count if previous message was from the other user)
-        let user1ValidCount = 0;
-        let user2ValidCount = 0;
-        
-        for (let i = 0; i < allMessages.length; i++) {
-          const currentMessage = allMessages[i];
-          const isUser1 = currentMessage.sender_id === match.user1_id;
-          
-          if (i === 0) {
-            // First message always counts (it starts the conversation)
-            if (isUser1) user1ValidCount++;
-            else user2ValidCount++;
-          } else {
-            // Subsequent messages only count if the previous message was from the other user
-            const previousMessage = allMessages[i - 1];
-            const previousWasUser1 = previousMessage.sender_id === match.user1_id;
-            
-            if (isUser1 && !previousWasUser1) {
-              // User1 replied to User2
-              user1ValidCount++;
-            } else if (!isUser1 && previousWasUser1) {
-              // User2 replied to User1
-              user2ValidCount++;
-            }
-            // If same user sent consecutive messages, don't count the second one
-          }
-        }
-
-        // Both users need to have sent at least 2 valid messages (alternating)
-        if (user1ValidCount >= 2 && user2ValidCount >= 2) {
+        if (user1Count >= 2 && user2Count >= 2) {
           // Auto-advance to stage2
           db.prepare(
             `UPDATE matches SET stage = 'stage2', stage2_at = CURRENT_TIMESTAMP WHERE id = ?`

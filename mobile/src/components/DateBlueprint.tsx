@@ -124,9 +124,10 @@ export default function DateBlueprint({ matchId, socket, currentUserId }: DateBl
         setPlan(planData);
       }
     } catch (error: any) {
-      // 404 is expected if no plan exists yet - don't log as error
-      if (error?.response?.status === 404) {
-        console.log('ℹ️ No date plan found for this match (this is normal)');
+      // 404 / "No date plan found" is expected when no plan exists yet - don't log as error
+      const isNotFound = error?.status === 404 || error?.message?.includes('No date plan found');
+      if (isNotFound) {
+        // Normal: match has no date plan yet
       } else {
         console.error('❌ Failed to fetch date plan:', error);
       }

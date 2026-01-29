@@ -954,10 +954,8 @@ export async function generateWeeklyMatches(userId: string): Promise<{
   // Create match records (status: pending, stage: stage1 for weekly matches)
   const matchIds: string[] = [];
 
-  const sevenDaysFromNow = new Date();
-  // Add 7 days, but set time to end of day (23:59:59) to ensure we get exactly 7 days
-  sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
-  sevenDaysFromNow.setHours(23, 59, 59, 999);
+  // Exactly 7 days (168 hours) from now — never more than 7-day timer
+  const sevenDaysFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
   for (const candidate of newCandidates) {
     const matchId = uuidv4();

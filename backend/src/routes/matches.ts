@@ -39,6 +39,24 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
 
+    // Auto-expire matches whose 7-day timer has passed (so they disappear from the tab and users can re-match later)
+    const nowIso = new Date().toISOString();
+    try {
+      const expireResult = db
+        .prepare(
+          `UPDATE matches SET stage = 'expired' 
+           WHERE stage != 'expired' AND expires_at IS NOT NULL AND expires_at < ?`
+        )
+        .run([nowIso]);
+      if (expireResult instanceof Promise) {
+        await expireResult;
+      } else if ((expireResult as { changes: number }).changes > 0) {
+        console.log(`⏰ Auto-expired ${(expireResult as { changes: number }).changes} match(es) past 7-day limit`);
+      }
+    } catch (expireErr) {
+      console.warn('Failed to auto-expire matches (non-fatal):', expireErr);
+    }
+
     const matchesResult = db
       .prepare(
         `SELECT m.*, 
@@ -97,7 +115,7 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
       });
     }
 
-    // Batch fetch all primary photos
+    // Batch fetch all primary photos (for stage1 and stage2 — primary only in stage1)
     const primaryPhotosMap = new Map<string, string>(); // profileId -> photoUrl
     const profileIdsArray = Array.from(profileIdsMap.values());
     if (profileIdsArray.length > 0) {
@@ -111,6 +129,29 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
       
       photos.forEach(photo => {
         primaryPhotosMap.set(photo.profile_id, photo.url);
+      });
+    }
+
+    // Batch fetch all photos per profile (for stage2 only — full reveal)
+    const allPhotosByProfileMap = new Map<string, Array<{ id: string; url: string; isPrimary: boolean; displayOrder: number }>>();
+    if (profileIdsArray.length > 0) {
+      const placeholders = profileIdsArray.map(() => '?').join(',');
+      const allPhotosResult = db
+        .prepare(`SELECT id, profile_id, url, is_primary, display_order FROM photos WHERE profile_id IN (${placeholders}) ORDER BY profile_id, display_order ASC`)
+        .all(profileIdsArray);
+      const allPhotos = (allPhotosResult instanceof Promise
+        ? await allPhotosResult
+        : allPhotosResult) as Array<{ id: string; profile_id: string; url: string; is_primary: number; display_order: number }>;
+      allPhotos.forEach(photo => {
+        if (!allPhotosByProfileMap.has(photo.profile_id)) {
+          allPhotosByProfileMap.set(photo.profile_id, []);
+        }
+        allPhotosByProfileMap.get(photo.profile_id)!.push({
+          id: photo.id,
+          url: photo.url,
+          isPrimary: photo.is_primary === 1,
+          displayOrder: photo.display_order ?? 0,
+        });
       });
     }
 
@@ -239,6 +280,11 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
       const partnerQualities = otherProfileId ? (partnerQualitiesMap.get(otherProfileId) || []) : [];
       const unreadMessageCount = unreadCountsMap.get(m.id) || 0;
 
+      // Only include full photos array for stage2; stage1 gets primary via photoUrl only
+      const photos = m.stage === "stage2" && otherProfileId
+        ? (allPhotosByProfileMap.get(otherProfileId) || [])
+        : undefined;
+
       return {
         id: m.id,
         stage: m.stage,
@@ -258,6 +304,7 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
           values,
           partnerQualities,
           lastActiveAt: otherUser.show_active_status ? (otherUser.last_active_at || null) : null,
+          ...(photos !== undefined && { photos }),
         },
       };
     });
@@ -413,10 +460,8 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
 
     // AUTOMATIC MATCH: Create mutual match immediately in stage1 (no pending state)
     const matchId = uuidv4();
-    const sevenDaysFromNow = new Date();
-    // Add 7 days, but set time to end of day (23:59:59) to ensure we get exactly 7 days
-    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
-    sevenDaysFromNow.setHours(23, 59, 59, 999);
+    // Exactly 7 days (168 hours) from now — never more than 7-day timer
+    const sevenDaysFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
     // Create match directly in stage1 (mutual match, chat available immediately)
     const insertMatchResult = db.prepare(
@@ -445,30 +490,10 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
       console.warn('Failed to record success signal (non-critical):', err)
     );
 
-    // Generate match explanation (non-blocking - return null initially, generate in background)
-    // This allows the match to appear immediately while explanation generates
-    let matchExplanation = null;
-    const explanationPromise = generateMatchExplanation(userProfile.id, targetProfile.id)
-      .then(explanation => {
-        // Explanation generated - could emit via socket if needed
-        return explanation;
-      })
-      .catch(err => {
-        console.warn('Failed to generate match explanation:', err);
-        return null;
-      });
-    
-    // Try to get explanation quickly, but don't block if it takes too long
-    try {
-      // Wait max 2 seconds for explanation
-      matchExplanation = await Promise.race([
-        explanationPromise,
-        new Promise<null>(resolve => setTimeout(() => resolve(null), 2000))
-      ]);
-    } catch (err) {
-      // If it fails, continue without explanation
-      matchExplanation = null;
-    }
+    // Generate match explanation in background — don't block response (return immediately)
+    generateMatchExplanation(userProfile.id, targetProfile.id)
+      .then(() => {})
+      .catch(err => console.warn('Failed to generate match explanation:', err));
 
     // Get user display names for notifications
     const userDisplayNameResult = db
@@ -565,7 +590,7 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
       matchId,
       stage: "stage1",
       isMutual: true,
-      explanation: matchExplanation, // Include match explanation
+      explanation: null, // Generated in background; client can refetch if needed
     });
   } catch (error) {
     console.error("Connect error:", error);
@@ -733,47 +758,17 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
       await insertMessageResult;
     }
 
-    // Check if we should auto-advance to stage2 (both users sent at least 2 messages, alternating)
+    // Check if we should auto-advance to stage2 (both users have sent at least 2 messages each)
     let autoAdvanced = false;
     if (match.stage === "stage1") {
-      // Get all messages in chronological order
-      const allMessagesResult = db
-        .prepare(`SELECT sender_id, sent_at FROM messages WHERE match_id = ? ORDER BY sent_at ASC`)
+      const countResult = db
+        .prepare(`SELECT sender_id, COUNT(*) as count FROM messages WHERE match_id = ? GROUP BY sender_id`)
         .all([matchId]);
-      const allMessages = (allMessagesResult instanceof Promise
-        ? await allMessagesResult
-        : allMessagesResult) as Array<{ sender_id: string; sent_at: string }>;
+      const counts = (countResult instanceof Promise ? await countResult : countResult) as Array<{ sender_id: string; count: number }>;
+      const user1Count = counts.find(c => c.sender_id === match.user1_id)?.count ?? 0;
+      const user2Count = counts.find(c => c.sender_id === match.user2_id)?.count ?? 0;
 
-      // Count valid messages (only count if previous message was from the other user)
-      let user1ValidCount = 0;
-      let user2ValidCount = 0;
-      
-      for (let i = 0; i < allMessages.length; i++) {
-        const currentMessage = allMessages[i];
-        const isUser1 = currentMessage.sender_id === match.user1_id;
-        
-        if (i === 0) {
-          // First message always counts (it starts the conversation)
-          if (isUser1) user1ValidCount++;
-          else user2ValidCount++;
-        } else {
-          // Subsequent messages only count if the previous message was from the other user
-          const previousMessage = allMessages[i - 1];
-          const previousWasUser1 = previousMessage.sender_id === match.user1_id;
-          
-          if (isUser1 && !previousWasUser1) {
-            // User1 replied to User2
-            user1ValidCount++;
-          } else if (!isUser1 && previousWasUser1) {
-            // User2 replied to User1
-            user2ValidCount++;
-          }
-          // If same user sent consecutive messages, don't count the second one
-        }
-      }
-
-      // Both users need to have sent at least 2 valid messages (alternating)
-      if (user1ValidCount >= 2 && user2ValidCount >= 2) {
+      if (user1Count >= 2 && user2Count >= 2) {
         // Auto-advance to stage2
         const updateStageResult = db.prepare(
           `UPDATE matches SET stage = 'stage2', stage2_at = CURRENT_TIMESTAMP WHERE id = ?`

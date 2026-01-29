@@ -34,13 +34,16 @@ export function initSentry() {
     Sentry.init({
       dsn: SENTRY_DSN,
       enableInExpoDevelopment: false, // Only enable in production builds
-      debug: __DEV__, // Enable debug mode in development
+      debug: false, // Keep false to avoid Sentry Logger [warn] (e.g. NativeFramesTracking on Expo Go)
       
       // Native crash handling
       enableNativeCrashHandling: true,
       enableNativeNagger: false,
       
-      // Performance monitoring
+      // Disable auto performance tracing so we don't get "NativeFramesTracking is not available" on Web/Expo Go
+      enableAutoPerformanceTracing: false,
+      
+      // Performance monitoring (manual tracing still works if needed)
       tracesSampleRate: 0.1, // 10% of transactions (adjust as needed)
       
       // Release tracking

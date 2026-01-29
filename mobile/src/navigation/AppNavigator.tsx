@@ -7,10 +7,10 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Platform, Text, View, StyleSheet, Alert, Vibration, Animated, Easing } from 'react-native';
-import { useNavigation, useFocusEffect, NavigationContainerRef } from '@react-navigation/native';
+import { Platform, Text, View, StyleSheet, Alert, Vibration, ActivityIndicator, Pressable } from 'react-native';
+import { useNavigation, useRoute, NavigationContainerRef } from '@react-navigation/native';
 
-// Screens (we'll create these)
+// Import screens - React Navigation will lazy load them when lazy={true} is set
 import PhoneLoginScreen from '../screens/PhoneLoginScreen';
 import CreateProfileScreen from '../screens/CreateProfileScreen';
 import BrowseScreen from '../screens/BrowseScreen';
@@ -37,125 +37,99 @@ export type MainTabParamList = {
 const Stack = createStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
-// Animated Icon Component for better visual feedback
-function AnimatedTabIcon({ 
-  children, 
-  focused, 
-  emoji = false,
-  triggerRotation = 0
-}: { 
-  children: React.ReactNode; 
-  focused: boolean; 
-  emoji?: boolean;
-  triggerRotation?: number;
+// Static tab icon - no animations for instant tab switching; sleeker focused glow
+const TabIcon = React.memo(function TabIcon({
+  children,
+  focused,
+}: {
+  children: React.ReactNode;
+  focused: boolean;
 }) {
-  const scaleAnim = React.useRef(new Animated.Value(focused ? 1.1 : 1)).current;
-  const opacityAnim = React.useRef(new Animated.Value(focused ? 1 : 0.5)).current;
-  const glowOpacityAnim = React.useRef(new Animated.Value(focused ? 0.3 : 0)).current;
-  const rotateAnim = React.useRef(new Animated.Value(0)).current;
-  const prevFocusedRef = React.useRef(focused);
-
-  React.useEffect(() => {
-    // Use requestAnimationFrame to ensure animations don't block navigation
-    requestAnimationFrame(() => {
-      Animated.parallel([
-        Animated.spring(scaleAnim, {
-          toValue: focused ? 1.1 : 1,
-          useNativeDriver: true,
-          tension: 300, // Higher tension = faster animation
-          friction: 8, // Higher friction = less bouncy
-        }),
-        Animated.timing(opacityAnim, {
-          toValue: focused ? 1 : 0.5,
-          duration: 150, // Faster transition
-          useNativeDriver: true,
-        }),
-        Animated.timing(glowOpacityAnim, {
-          toValue: focused ? 0.4 : 0,
-          duration: 150, // Faster transition
-          useNativeDriver: true,
-        }),
-      ]).start();
-
-      // Trigger rotation when tab becomes focused (simplified, non-blocking)
-      if (focused && !prevFocusedRef.current) {
-        prevFocusedRef.current = focused;
-        // Simplified rotation - single animation instead of sequence
-        rotateAnim.setValue(0);
-        Animated.timing(rotateAnim, {
-          toValue: 1,
-          duration: 200, // Faster
-          easing: Easing.out(Easing.quad),
-          useNativeDriver: true,
-        }).start(() => {
-          // Reset after animation completes
-          rotateAnim.setValue(0);
-        });
-      } else if (!focused) {
-        prevFocusedRef.current = focused;
-        rotateAnim.setValue(0);
-      }
-    });
-  }, [focused]);
-
-  // Also trigger on explicit press (simplified, non-blocking)
-  React.useEffect(() => {
-    if (triggerRotation > 0) {
-      requestAnimationFrame(() => {
-        rotateAnim.setValue(0);
-        Animated.timing(rotateAnim, {
-          toValue: 1,
-          duration: 200, // Faster
-          easing: Easing.out(Easing.quad),
-          useNativeDriver: true,
-        }).start(() => {
-          rotateAnim.setValue(0);
-        });
-      });
-    }
-  }, [triggerRotation]);
-
-  const rotate = rotateAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '10deg'],
-  });
-
   return (
-    <Animated.View
-      style={{
-        transform: [
-          { rotate: rotate },
-          { scale: scaleAnim },
-        ],
-        opacity: opacityAnim,
-        justifyContent: 'center',
-        alignItems: 'center',
-      }}
-    >
+    <View style={{ justifyContent: 'center', alignItems: 'center' }}>
       {children}
-      {/* Glow effect around active icon */}
       {focused && (
-        <Animated.View
-          style={[
-            {
-              position: 'absolute',
-              width: 52,
-              height: 52,
-              borderRadius: 26,
-              backgroundColor: '#8B1538',
-              opacity: glowOpacityAnim,
-              shadowColor: '#8B1538',
-              shadowOffset: { width: 0, height: 0 },
-              shadowOpacity: 1,
-              shadowRadius: 15,
-              elevation: 8,
-            },
-          ]}
+        <View
+          style={{
+            position: 'absolute',
+            width: 40,
+            height: 40,
+            borderRadius: 20,
+            backgroundColor: '#8B1538',
+            opacity: 0.18,
+            shadowColor: '#8B1538',
+            shadowOffset: { width: 0, height: 0 },
+            shadowOpacity: 0.8,
+            shadowRadius: 10,
+            elevation: 4,
+          }}
         />
       )}
-    </Animated.View>
+    </View>
   );
-}
+});
+
+// Refs so button always sees latest profile/loading without changing callback (keeps options stable)
+type ProfileLoadingRefs = { profileRef: React.MutableRefObject<unknown>; loadingRef: React.MutableRefObject<boolean | undefined> };
+
+// Tab bar button: navigate() only — no extra work so tab content updates as fast as possible
+const FastTabBarButton = React.memo(function FastTabBarButton(
+  props: {
+    requiresProfile?: boolean;
+    refs?: ProfileLoadingRefs;
+    onPress?: () => void;
+    accessibilityState?: { selected?: boolean };
+    children: React.ReactNode;
+    style?: unknown;
+    [key: string]: unknown;
+  }
+) {
+  const { requiresProfile, refs, accessibilityState, children, style, ...rest } = props;
+  const navigation = useNavigation();
+  const route = useRoute();
+  const isFocused = accessibilityState?.selected === true;
+
+  const handlePress = React.useCallback(() => {
+    const profile = refs?.profileRef?.current;
+    const loading = refs?.loadingRef?.current;
+    if (requiresProfile && !profile && !loading) {
+      Alert.alert(
+        'Profile Required',
+        'Please create your profile first to access this feature.',
+        [
+          {
+            text: 'Create Profile',
+            onPress: () => {
+              try {
+                const root = (navigation as any).getParent?.();
+                if (root?.navigate) root.navigate('CreateProfile');
+              } catch (err) {
+                console.error('Navigation error:', err);
+              }
+            },
+          },
+          { text: 'Cancel', style: 'cancel' },
+        ]
+      );
+      return;
+    }
+    if (!isFocused) {
+      (navigation as any).navigate(route.name);
+    }
+    setTimeout(() => {
+      try {
+        if (Platform.OS === 'ios') Vibration.vibrate([0, 30]);
+        else Vibration.vibrate(30);
+      } catch (_) {}
+    }, 0);
+  }, [requiresProfile, refs, isFocused, navigation, route.name]);
+
+  return (
+    <Pressable {...rest} onPress={handlePress} style={style as any} accessibilityState={accessibilityState}>
+      {children}
+    </Pressable>
+  );
+});
 
 // Main Tab Navigator (shown after login)
 function MainTabs() {
@@ -174,249 +148,173 @@ function MainTabs() {
   }
 
   const { user, profile, loading } = authContext;
-  const navigation = useNavigation();
   const isAdmin = user?.isAdmin || false;
-  const [tabPressTrigger, setTabPressTrigger] = React.useState<{ [key: string]: number }>({});
 
-  // Check if user has profile when trying to access tabs that require it
-  useFocusEffect(
-    React.useCallback(() => {
-      // Only check if not loading and user is authenticated
-      if (!loading && user && !profile) {
-        // User is logged in but has no profile - redirect to create profile
-        try {
-          // Wait a tick to ensure navigation is ready
-          setTimeout(() => {
-            try {
-              const rootNavigation = (navigation as any).getParent?.() || navigation;
-              if (rootNavigation && rootNavigation.navigate && typeof rootNavigation.navigate === 'function') {
-                rootNavigation.navigate('CreateProfile');
-              }
-            } catch (err) {
-              console.error('Navigation error in MainTabs setTimeout:', err);
-            }
-          }, 100);
-        } catch (err) {
-          console.error('Navigation error in MainTabs:', err);
-        }
-      }
-    }, [loading, user, profile, navigation])
+  // Refs so tab bar options never change when profile/loading update — avoids tab bar re-renders and delay
+  const profileRef = React.useRef(profile);
+  const loadingRef = React.useRef(loading);
+  profileRef.current = profile;
+  loadingRef.current = loading;
+  const refs = React.useMemo<ProfileLoadingRefs>(() => ({ profileRef, loadingRef }), []);
+
+  // Stable tab bar button factory — same reference always so options are stable
+  const createTabBarButton = React.useCallback((requiresProfile: boolean) => (buttonProps: any) => (
+    <FastTabBarButton {...buttonProps} requiresProfile={requiresProfile} refs={refs} />
+  ), [refs]);
+
+  // Tab options with stable tabBarButton — never recreated so tab bar stays fast
+  const browseTabOptions = React.useMemo(
+    () => ({
+      tabBarIcon: ({ focused }: { focused: boolean }) => (
+        <TabIcon focused={focused}>
+          <View style={[styles.iconContainer, focused && styles.iconContainerActive]}>
+            <Text style={styles.emojiIcon}>😍</Text>
+          </View>
+        </TabIcon>
+      ),
+      tabBarLabel: 'Connect',
+      tabBarButton: createTabBarButton(true),
+    }),
+    [createTabBarButton]
   );
 
-  // Prevent navigation to tabs that require a profile
-  const handleTabPress = (e: any, route: any) => {
-    // Safety check - route might be undefined
-    if (!route || !route.name) {
-      return;
-    }
-    
-    // Tabs that require a profile - check first before any animations
-    const requiresProfile = ['Browse', 'Matches'];
-    
-    if (requiresProfile.includes(route.name) && !profile && !loading) {
-      e.preventDefault();
-      Alert.alert(
-        'Profile Required',
-        'Please create your profile first to access this feature.',
-        [
-          {
-            text: 'Create Profile',
-            onPress: () => {
-              try {
-                const rootNavigation = (navigation as any).getParent?.() || navigation;
-                if (rootNavigation && rootNavigation.navigate && typeof rootNavigation.navigate === 'function') {
-                  rootNavigation.navigate('CreateProfile');
-                }
-              } catch (err) {
-                console.error('Navigation error:', err);
-              }
-            },
-          },
-          { text: 'Cancel', style: 'cancel' },
-        ]
-      );
-      return; // Don't proceed with animations if navigation is blocked
-    }
-    
-    // Trigger rotation animation for this tab (non-blocking)
-    requestAnimationFrame(() => {
-      setTabPressTrigger(prev => ({
-        ...prev,
-        [route.name]: (prev[route.name] || 0) + 1,
-      }));
-    });
-    
-    // Haptic feedback - vibrate asynchronously (non-blocking)
-    // This ensures vibration doesn't delay navigation
-    setTimeout(() => {
-      try {
-        if (Platform.OS === 'ios') {
-          // iOS: Use pattern [delay, duration] for more reliable vibration
-          Vibration.vibrate([0, 50]); // Shorter vibration
-        } else {
-          // Android: Duration in milliseconds
-          Vibration.vibrate(50); // Shorter vibration
-        }
-      } catch (error) {
-        // Silently fail - vibration is non-critical
-        console.warn('Vibration error (non-critical):', error);
-      }
-    }, 0);
-  };
+  const matchesTabOptions = React.useMemo(
+    () => ({
+      tabBarIcon: ({ focused }: { focused: boolean }) => (
+        <TabIcon focused={focused}>
+          <View style={[styles.iconContainer, focused && styles.iconContainerActive]}>
+            <Text style={styles.emojiIcon}>❤️</Text>
+          </View>
+        </TabIcon>
+      ),
+      tabBarLabel: 'Matches',
+      tabBarButton: createTabBarButton(true),
+    }),
+    [createTabBarButton]
+  );
+
+  const profileTabOptions = React.useMemo(
+    () => ({
+      tabBarIcon: ({ focused }: { focused: boolean }) => (
+        <TabIcon focused={focused}>
+          <View style={[styles.iconContainer, focused && styles.iconContainerActive]}>
+            <Text style={styles.emojiIcon}>👤</Text>
+          </View>
+        </TabIcon>
+      ),
+      tabBarLabel: 'Profile',
+      tabBarButton: createTabBarButton(false),
+    }),
+    [createTabBarButton]
+  );
+
+  const settingsTabOptions = React.useMemo(
+    () => ({
+      tabBarIcon: ({ focused }: { focused: boolean }) => (
+        <TabIcon focused={focused}>
+          <View style={[styles.iconContainer, focused && styles.iconContainerActive]}>
+            <Text style={styles.emojiIcon}>⚙️</Text>
+          </View>
+        </TabIcon>
+      ),
+      tabBarLabel: 'Settings',
+      tabBarButton: createTabBarButton(false),
+    }),
+    [createTabBarButton]
+  );
+
+  const adminTabOptions = React.useMemo(
+    () => ({
+      tabBarIcon: ({ focused }: { focused: boolean }) => (
+        <TabIcon focused={focused}>
+          <View style={[styles.iconContainer, focused && styles.iconContainerActive]}>
+            <Text style={styles.emojiIcon}>👑</Text>
+          </View>
+        </TabIcon>
+      ),
+      tabBarLabel: 'Admin',
+      tabBarButton: createTabBarButton(false),
+    }),
+    [createTabBarButton]
+  );
+
+  // Memoize screen options — all screens stay mounted, freeze inactive to avoid 5 re-renders on switch
+  const screenOptions = React.useMemo(() => ({
+    headerShown: false,
+    lazy: false,
+    detachInactiveScreens: false,
+    freezeOnBlur: false, // was true: froze screen when keyboard opened (tab blur), blocking typing in bio and chat
+    sceneContainerStyle: { flex: 1 },
+    tabBarActiveTintColor: '#8B1538',
+    tabBarInactiveTintColor: '#94A3B8',
+    tabBarStyle: {
+      backgroundColor: '#fff',
+      borderTopWidth: 1,
+      borderTopColor: 'rgba(0,0,0,0.06)',
+      height: Platform.OS === 'ios' ? 58 : 56,
+      paddingBottom: Platform.OS === 'ios' ? 6 : 6,
+      paddingTop: 6,
+      paddingHorizontal: 12,
+      elevation: 8,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: -2 },
+      shadowOpacity: 0.06,
+      shadowRadius: 8,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      position: 'absolute' as const,
+    },
+    tabBarItemStyle: {
+      paddingHorizontal: 4,
+      minWidth: 52,
+    },
+    tabBarLabelStyle: {
+      fontSize: 10,
+      fontWeight: '600' as const,
+      marginTop: 2,
+      letterSpacing: 0.2,
+      marginBottom: 0,
+      paddingHorizontal: 2,
+      textAlign: 'center' as const,
+    },
+    tabBarIconStyle: {
+      marginTop: 0,
+      width: 24,
+      height: 24,
+      justifyContent: 'center' as const,
+      alignItems: 'center' as const,
+    },
+    tabBarShowLabel: true,
+    tabBarHideOnKeyboard: true,
+  }), []);
 
   return (
-    <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: '#8B1538',
-        tabBarInactiveTintColor: '#9CA3AF',
-        tabBarStyle: {
-          backgroundColor: '#fff',
-          borderTopWidth: 0,
-          height: Platform.OS === 'ios' ? 70 : 68,
-          paddingBottom: Platform.OS === 'ios' ? 12 : 10,
-          paddingTop: 8,
-          paddingHorizontal: 4,
-          elevation: 16,
-          shadowColor: '#8B1538',
-          shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.12,
-          shadowRadius: 16,
-          borderTopLeftRadius: 24,
-          borderTopRightRadius: 24,
-          position: 'absolute',
-        },
-        tabBarItemStyle: {
-          paddingHorizontal: 4,
-        },
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '700',
-          marginTop: 4,
-          letterSpacing: 0.4,
-          marginBottom: 4,
-          paddingHorizontal: 2,
-          textAlign: 'center',
-        },
-        tabBarIconStyle: {
-          marginTop: 0,
-          width: 28,
-          height: 28,
-          justifyContent: 'center',
-          alignItems: 'center',
-        },
-        tabBarShowLabel: true,
-        tabBarHideOnKeyboard: true,
-      }}
-      screenListeners={{
-        tabPress: handleTabPress,
-      }}
-    >
+    <Tab.Navigator screenOptions={screenOptions}>
       <Tab.Screen 
         name="Browse" 
         component={BrowseScreen}
-        options={{
-          tabBarIcon: ({ focused, color }) => (
-            <AnimatedTabIcon 
-              focused={focused} 
-              emoji={true}
-              triggerRotation={tabPressTrigger['Browse'] || 0}
-            >
-              <View style={[
-                styles.iconContainer,
-                focused && styles.iconContainerActive,
-              ]}>
-                <Text style={styles.emojiIcon}>😍</Text>
-              </View>
-            </AnimatedTabIcon>
-          ),
-          tabBarLabel: 'Connect',
-        }}
+        options={browseTabOptions}
       />
       <Tab.Screen 
         name="Matches" 
         component={MatchesScreen}
-        options={{
-          tabBarIcon: ({ focused, color }) => (
-            <AnimatedTabIcon 
-              focused={focused} 
-              emoji={true}
-              triggerRotation={tabPressTrigger['Matches'] || 0}
-            >
-              <View style={[
-                styles.iconContainer,
-                focused && styles.iconContainerActive,
-              ]}>
-                <Text style={styles.emojiIcon}>❤️</Text>
-              </View>
-            </AnimatedTabIcon>
-          ),
-          tabBarLabel: 'Matches',
-        }}
+        options={matchesTabOptions}
       />
       <Tab.Screen 
         name="MyProfile" 
         component={MyProfileScreen}
-        options={{
-          tabBarIcon: ({ focused, color }) => (
-            <AnimatedTabIcon 
-              focused={focused} 
-              emoji={true}
-              triggerRotation={tabPressTrigger['MyProfile'] || 0}
-            >
-              <View style={[
-                styles.iconContainer,
-                focused && styles.iconContainerActive,
-              ]}>
-                <Text style={styles.emojiIcon}>👤</Text>
-              </View>
-            </AnimatedTabIcon>
-          ),
-          tabBarLabel: 'Profile',
-        }}
+        options={profileTabOptions}
       />
       <Tab.Screen 
         name="Settings" 
         component={SettingsScreen}
-        options={{
-          tabBarIcon: ({ focused, color }) => (
-            <AnimatedTabIcon 
-              focused={focused} 
-              emoji={true}
-              triggerRotation={tabPressTrigger['Settings'] || 0}
-            >
-              <View style={[
-                styles.iconContainer,
-                focused && styles.iconContainerActive,
-              ]}>
-                <Text style={styles.emojiIcon}>⚙️</Text>
-              </View>
-            </AnimatedTabIcon>
-          ),
-          tabBarLabel: 'Settings',
-        }}
+        options={settingsTabOptions}
       />
       {isAdmin && (
         <Tab.Screen 
           name="Admin" 
           component={AdminScreen}
-          options={{
-            tabBarIcon: ({ focused, color }) => (
-              <AnimatedTabIcon 
-                focused={focused} 
-                emoji={true}
-                triggerRotation={tabPressTrigger['Admin'] || 0}
-              >
-                <View style={[
-                  styles.iconContainer,
-                  focused && styles.iconContainerActive,
-                ]}>
-                  <Text style={styles.emojiIcon}>👑</Text>
-                </View>
-              </AnimatedTabIcon>
-            ),
-            tabBarLabel: 'Admin',
-          }}
+          options={adminTabOptions}
         />
       )}
     </Tab.Navigator>
@@ -502,23 +400,29 @@ export default function AppNavigator() {
   }, [loading, user, profile, isNavigationReady]);
 
   // Determine initial route based on auth state
-  // If user is already logged in, skip PhoneLogin screen (standard auto-login behavior)
+  // When user is already logged in, skip PhoneLogin so they never see "enter your phone number"
   const getInitialRouteName = (): keyof RootStackParamList => {
     if (loading) {
-      // Still loading auth state - show PhoneLogin for now
-      return 'PhoneLogin';
+      return 'PhoneLogin'; // Will be replaced once we show loading gate below
     }
     if (user && profile) {
-      // User is logged in and has profile - go to main app
       return 'MainTabs';
     }
     if (user && !profile) {
-      // User is logged in but needs to create profile
       return 'CreateProfile';
     }
-    // Not logged in - show login screen
     return 'PhoneLogin';
   };
+
+  // Don't show phone login screen when user is already logged in: wait for auth before showing stack
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
+        <ActivityIndicator size="large" color="#8B1538" />
+        <Text style={{ marginTop: 12, fontSize: 16, color: '#666' }}>Loading...</Text>
+      </View>
+    );
+  }
 
   try {
     return (

@@ -798,7 +798,7 @@ export default function BrowseScreen() {
   const photoOpacity = useRef(new Animated.Value(1)).current;
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // Start false so Connect tab is interactive immediately
   const [error, setError] = useState('');
   const [connecting, setConnecting] = useState(false);
   const [showMatchCelebration, setShowMatchCelebration] = useState(false);
@@ -810,7 +810,7 @@ export default function BrowseScreen() {
     sharedInterests: string[];
     sharedValues: number;
   } | null>(null);
-  const [hasFetched, setHasFetched] = useState(false);
+  const [hasFetched, setHasFetched] = useState(true); // Start true so we show landing page immediately, no loading screen
   const [matchNotification, setMatchNotification] = useState<string | null>(null);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [browseUnlocked, setBrowseUnlocked] = useState<boolean>(false); // Start as locked (false)
@@ -818,6 +818,7 @@ export default function BrowseScreen() {
   const [isAutoMatching, setIsAutoMatching] = useState(false); // Track when auto-matching to prevent UI flash
   const [canClaimTokens, setCanClaimTokens] = useState<boolean>(false); // Track if user can claim tokens
   const [photoCount, setPhotoCount] = useState<number | null>(null); // User's photo count (for 5-photo minimum)
+  const [photoCountLoading, setPhotoCountLoading] = useState(false); // True while fetching count so we don't briefly show wrong state
   const socketRef = useRef<Socket | null>(null);
   
   // Button animations
@@ -956,33 +957,17 @@ export default function BrowseScreen() {
       }>(`/users/browse?offset=0`);
 
           if (data.profile) {
-            // Fetch photos for this profile
-            try {
-              const photosData = await api.get<{ photos: Photo[] }>(
-                `/photos/profile/${data.profile.id}`
-              );
-              data.profile.photos = photosData.photos;
-            } catch (photoErr) {
-              data.profile.photos = [];
-            }
-            
-            // Automatically match with the first profile and show celebration
+            // Connect immediately — skip photos fetch to speed up match; celebration shows placeholder if no photo
             console.log('🎉 Auto-matching with first profile:', data.profile.displayName);
-            
-            // Ensure we're still authenticated before connecting
             const token = await AsyncStorage.getItem('token');
             if (!token) {
               setError('Session expired. Please log in again.');
               setTimeout(() => setError(''), 5000);
               setIsAutoMatching(false);
-              setBrowseUnlocked(true); // Unlock so user can see the error
+              setBrowseUnlocked(true);
               return;
             }
-            
-            // Connect and create match - this will show the celebration
             await handleConnect(data.profile);
-            
-            // After match is created, wait a moment for celebration to appear, then unlock browsing
             setTimeout(() => {
               setBrowseUnlocked(true);
               setIsAutoMatching(false);
@@ -1043,33 +1028,17 @@ export default function BrowseScreen() {
           });
 
           if (data.profile) {
-            // Fetch photos for this profile
-            try {
-              const photosData = await api.get<{ photos: Photo[] }>(
-                `/photos/profile/${data.profile.id}`
-              );
-              data.profile.photos = photosData.photos;
-            } catch (photoErr) {
-              data.profile.photos = [];
-            }
-            
-            // Automatically match with the first profile and show celebration
+            // Connect immediately — skip photos fetch to speed up match
             console.log('🎉 Auto-matching with first profile:', data.profile.displayName);
-            
-            // Ensure we're still authenticated before connecting
             const token = await AsyncStorage.getItem('token');
             if (!token) {
               setError('Session expired. Please log in again.');
               setTimeout(() => setError(''), 5000);
               setIsAutoMatching(false);
-              setBrowseUnlocked(true); // Unlock so user can see the error
+              setBrowseUnlocked(true);
               return;
             }
-            
-            // Connect and create match - this will show the celebration
             await handleConnect(data.profile);
-            
-            // After match is created, wait a moment for celebration to appear, then unlock browsing
             setTimeout(() => {
               setBrowseUnlocked(true);
               setIsAutoMatching(false);
@@ -1399,26 +1368,25 @@ export default function BrowseScreen() {
     }
   }, []);
 
-  // Reset to landing page when tab is focused — defer so tab switch paints immediately
+  // Reset to landing page when tab is focused — run immediately so tab is clickable right away
   useFocusEffect(
     useCallback(() => {
-      const task = InteractionManager.runAfterInteractions(() => {
-        setBrowseUnlocked(false);
-        setCurrentProfile(null);
-        setOffset(0);
-        setError('');
-        setLoading(false);
-        setPhotoCount(null); // Refetch photo count when landing is shown
-        checkCanClaimTokens();
-      });
-      return () => task.cancel();
+      setBrowseUnlocked(false);
+      setCurrentProfile(null);
+      setOffset(0);
+      setError('');
+      setLoading(false);
+      setPhotoCount(null);
+      checkCanClaimTokens();
     }, [])
   );
 
   // Fetch user's photo count when on landing page (for 5-photo minimum to Connect)
+  // Refetch when tab is focused so count updates after user adds photos on Profile tab
   useEffect(() => {
-    if (!showLandingPage || !isAuthenticated) return;
+    if (!showLandingPage || !isAuthenticated || !isFocused) return;
     let cancelled = false;
+    setPhotoCountLoading(true);
     (async () => {
       try {
         const data = await api.get<{ photos: { id: string }[] }>('/photos/me', false);
@@ -1427,10 +1395,12 @@ export default function BrowseScreen() {
         }
       } catch {
         if (!cancelled) setPhotoCount(0);
+      } finally {
+        if (!cancelled) setPhotoCountLoading(false);
       }
     })();
-    return () => { cancelled = true; };
-  }, [showLandingPage, isAuthenticated]);
+    return () => { cancelled = true; setPhotoCountLoading(false); };
+  }, [showLandingPage, isAuthenticated, isFocused]);
 
   useEffect(() => {
     if (hasFetched && offset > 0) {
@@ -1906,7 +1876,11 @@ export default function BrowseScreen() {
                     >
                       {unlocking ? (
                         <ActivityIndicator color="#fff" size="large" />
-                      ) : photoCount !== null && photoCount < MIN_PHOTOS_TO_CONNECT ? (
+                      ) : (photoCount === null || photoCount >= MIN_PHOTOS_TO_CONNECT) ? (
+                        <Text style={styles.landingButtonText} numberOfLines={1}>
+                          Connect
+                        </Text>
+                      ) : photoCount < MIN_PHOTOS_TO_CONNECT ? (
                         <Text style={styles.landingButtonText} numberOfLines={2}>
                           Add 5+ Photos
                         </Text>

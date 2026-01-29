@@ -21,6 +21,7 @@
     "expo-av": "~14.0.0",
     "expo-clipboard": "~6.0.3",
     "expo-constants": "~16.0.0",
+    "expo-haptics": "^15.0.8",
     "expo-image-picker": "~15.1.0",
     "expo-linear-gradient": "~13.0.0",
     "expo-linking": "~6.3.0",

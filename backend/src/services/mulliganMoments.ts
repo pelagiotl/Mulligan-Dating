@@ -113,19 +113,33 @@ export async function generateConversationStarter(
   // Check if OpenAI is configured
   const openaiApiKey = process.env.OPENAI_API_KEY;
   
+  // Actually unhinged fallback starters when no OpenAI (or AI returns something bland)
+  const unhingedFallbacksWithInterest = [
+    (i: string) => ({ starter: `We both like ${i}. I'm choosing to believe you'd also help me hide a body. No? Just me?`, explanation: 'Unhinged commitment test' }),
+    (i: string) => ({ starter: `${i} fan here. If we dated, our shared hobby would either be our love story or our undoing. Which do you think?`, explanation: 'Chaotic hypothetical' }),
+    (i: string) => ({ starter: `You put ${i} on your profile. I put ${i} on mine. One of us is lying or we're soulmates. No in-between.`, explanation: 'Zero chill' }),
+    (i: string) => ({ starter: `Okay but ${i} — are we talking "healthy interest" or "I have a shrine" level? Be honest.`, explanation: 'Unhinged honesty' }),
+    (i: string) => ({ starter: `Fellow ${i} person. I have one question and it's weird: what's the most unhinged thing you've done for it?`, explanation: 'Chaotic energy' }),
+    (i: string) => ({ starter: `So we both like ${i}. Would you still like me if I was a worm? (Asking for a friend.)`, explanation: 'Absurd hypothetical' }),
+    (i: string) => ({ starter: `${i} is the one thing we have in common. Everything else could be a disaster. I'm into it.`, explanation: 'Chaotic good' }),
+  ];
+  const unhingedFallbacksNoInterest = [
+    { starter: `I have no opener. I'm just here, slightly unhinged, hoping you're the same. Your move.`, explanation: 'Unhinged honesty' },
+    { starter: `What's the most unhinged thing you've done this week? I'll go first if you promise not to run.`, explanation: 'Chaotic energy' },
+    { starter: `Would you still like me if I was a worm? (Asking for a friend. No takebacks.)`, explanation: 'Absurd hypothetical' },
+    { starter: `No "hey" — we're doing this wrong on purpose. What's one thing that would make you immediately reply?`, explanation: 'Bold and weird' },
+    { starter: `I have zero game and I'm not sorry. What's something you're weirdly, passionately obsessed with?`, explanation: 'Unhinged authenticity' },
+    { starter: `Hot take: the best openers are unhinged. So — what's a hill you'd die on that would make people side-eye you?`, explanation: 'Chaotic good' },
+    { starter: `If we went on a first date and it was a disaster, would you still text me after? (Asking for science.)`, explanation: 'Unhinged hypothetical' },
+    { starter: `I'm not good at small talk. So: what's the weirdest thing you've ever done to impress someone?`, explanation: 'Chaotic honesty' },
+  ];
+
   if (!openaiApiKey) {
-    // Fallback: Generate a simple starter without AI
     if (sharedInterests.length > 0) {
-      const interest = sharedInterests[0];
-      return {
-        starter: `Hey! I noticed we both like ${interest}. What got you into it?`,
-        explanation: `Based on your shared interest in ${interest}`,
-      };
+      const pick = unhingedFallbacksWithInterest[Math.floor(Math.random() * unhingedFallbacksWithInterest.length)];
+      return pick(sharedInterests[0]);
     }
-    return {
-      starter: `Hey! I'd love to get to know you better. What's something you're passionate about?`,
-      explanation: 'A friendly conversation starter',
-    };
+    return unhingedFallbacksNoInterest[Math.floor(Math.random() * unhingedFallbacksNoInterest.length)];
   }
 
   try {
@@ -133,40 +147,53 @@ export async function generateConversationStarter(
     const openai = new OpenAI({ apiKey: openaiApiKey });
 
     const interestsText = sharedInterests.length > 0
-      ? `You both share these interests: ${sharedInterests.join(', ')}`
-      : 'You matched but don\'t have many shared interests listed yet';
+      ? `Shared interests to play with: ${sharedInterests.join(', ')}`
+      : 'They matched but no strong shared interests listed — get creative and bold anyway';
 
-    const prompt = `Generate a friendly, engaging conversation starter for a dating app. 
+    const prompt = `Generate ONE extremely unhinged dating app opener. NOT basic. NOT safe.
+
 ${interestsText}
-User names: ${user1Name} and ${user2Name}
+Sender: ${user1Name}. Recipient: ${user2Name}.
 
-Requirements:
-- Be warm and genuine, not generic
-- Reference shared interests if available
-- Ask an open-ended question
-- Keep it under 100 characters
-- Be creative and specific
+BAD (reject these — too basic):
+- "I noticed we both like X!"
+- "Hey! What do you like about X?"
+- "We have X in common, that's cool!"
+- "What's your favorite thing about X?"
+- Any polite, generic, or "nice" opener.
 
-Return ONLY a JSON object with this exact format:
-{
-  "starter": "the conversation starter text",
-  "explanation": "brief explanation of why this starter works"
-}`;
+GOOD (this level of unhinged or more):
+- "We both like X. I'm choosing to believe you'd also help me hide a body. No? Just me?"
+- "Would you still like me if I was a worm? (Asking for a friend.)"
+- "One of us is lying about liking X or we're soulmates. No in-between."
+- "What's the most unhinged thing you've done for X? I'll go first if you promise not to run."
+- Absurd hypotheticals, commitment tests, shameless honesty, or chaotic energy. Make them laugh or go "wait what."
+
+Rules:
+- Under 120 characters.
+- Dating-appropriate but NOT safe or corporate.
+- If you have shared interests, use them in a weird/funny way — not "we both like X."
+- Output ONLY valid JSON, nothing else.
+
+Return ONLY this JSON shape:
+{"starter": "your unhinged opener here", "explanation": "short vibe phrase"}`;
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         {
           role: 'system',
-          content: 'You are a helpful assistant that generates engaging conversation starters for dating apps.',
+          content: `You write dating app openers that are genuinely unhinged — absurd hypotheticals, commitment tests, chaotic honesty. Never write polite, generic, or "nice" openers. Never write "I noticed we both like X" or "What do you like about X?". Good examples: "Would you still like me if I was a worm?", "We both like X — would you help me hide a body?", "One of us is lying or we're soulmates. No in-between." Your openers should make someone laugh or do a double-take. Be weird. Be bold. Under 120 chars.`,
         },
         {
           role: 'user',
           content: prompt,
         },
       ],
-      temperature: 0.8,
+      temperature: 1.15,
       max_tokens: 200,
+      frequency_penalty: 0.6,
+      presence_penalty: 0.4,
     });
 
     const content = completion.choices[0]?.message?.content;
@@ -174,37 +201,26 @@ Return ONLY a JSON object with this exact format:
       throw new Error('No response from OpenAI');
     }
 
-    // Parse JSON response
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
       return {
-        starter: parsed.starter || 'Hey! I\'d love to get to know you better.',
-        explanation: parsed.explanation || 'AI-generated conversation starter',
+        starter: parsed.starter || unhingedFallbacksNoInterest[0].starter,
+        explanation: parsed.explanation || 'Unhinged AI moment',
       };
     }
 
-    // Fallback if JSON parsing fails
     return {
       starter: content.trim().replace(/^["']|["']$/g, ''),
-      explanation: 'AI-generated conversation starter',
+      explanation: 'Unhinged AI moment',
     };
   } catch (error) {
     console.error('❌ Failed to generate AI conversation starter:', error);
-    
-    // Fallback to simple starter
     if (sharedInterests.length > 0) {
-      const interest = sharedInterests[0];
-      return {
-        starter: `Hey! I noticed we both like ${interest}. What got you into it?`,
-        explanation: `Based on your shared interest in ${interest}`,
-      };
+      const pick = unhingedFallbacksWithInterest[Math.floor(Math.random() * unhingedFallbacksWithInterest.length)];
+      return pick(sharedInterests[0]);
     }
-    
-    return {
-      starter: `Hey! I'd love to get to know you better. What's something you're passionate about?`,
-      explanation: 'A friendly conversation starter',
-    };
+    return unhingedFallbacksNoInterest[Math.floor(Math.random() * unhingedFallbacksNoInterest.length)];
   }
 }
 

@@ -6,6 +6,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   TextInput,
   Image,
   ActivityIndicator,
@@ -29,6 +30,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { getPhotoUrl } from '../utils/photoUrl';
+import { getPendingOpenMatchId, clearPendingOpenMatchId } from '../utils/pendingMatchOpen';
 import { playMatchSound, playMessageSound } from '../utils/sounds';
 import LegalFooter from '../components/LegalFooter';
 import CompatibilityPulse from '../components/CompatibilityPulse';
@@ -308,7 +310,8 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
   getStageBadgeStyle,
   getStageEmoji,
   onPress, 
-  onUnmatch 
+  onUnmatch,
+  onStagePress,
 }: {
   item: Match;
   index: number;
@@ -319,6 +322,7 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
   getStageEmoji: (stage: string) => string;
   onPress: () => void;
   onUnmatch: (id: string) => void;
+  onStagePress?: (stage: 'stage1' | 'stage2') => void;
 }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.92)).current;
@@ -517,17 +521,36 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
             <View style={styles.badgesRow}>
               <View style={styles.stageContainer}>
                 <Animated.View style={item.stage === 'stage2' ? { transform: [{ scale: pulseAnim }] } : undefined}>
-                  <LinearGradient
-                    colors={item.stage === 'pending' ? ['#fff5f8', '#ffeef7'] : item.stage === 'stage1' ? ['#ffe6f3', '#ffd9ec'] : ['#ff6b9d', '#ff1493']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={[styles.stageBadge, getStageBadgeStyle(item.stage)]}
-                  >
-                    <Text style={styles.stageEmoji}>{getStageEmoji(item.stage)}</Text>
-                    <Text style={[styles.stageText, item.stage === 'stage2' && { color: '#fff' }]}>
-                      {item.stage === 'pending' ? 'Pending' : item.stage === 'stage1' ? 'Stage 1' : 'Stage 2'}
-                    </Text>
-                  </LinearGradient>
+                  {(item.stage === 'stage1' || item.stage === 'stage2') && onStagePress ? (
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      onPress={() => onStagePress(item.stage as 'stage1' | 'stage2')}
+                    >
+                      <LinearGradient
+                        colors={item.stage === 'stage1' ? ['#ffe6f3', '#ffd9ec'] : ['#ff6b9d', '#ff1493']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={[styles.stageBadge, getStageBadgeStyle(item.stage)]}
+                      >
+                        <Text style={styles.stageEmoji}>{getStageEmoji(item.stage)}</Text>
+                        <Text style={[styles.stageText, item.stage === 'stage2' && { color: '#fff' }]}>
+                          {item.stage === 'stage1' ? 'Stage 1' : 'Stage 2'}
+                        </Text>
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  ) : (
+                    <LinearGradient
+                      colors={item.stage === 'pending' ? ['#fff5f8', '#ffeef7'] : item.stage === 'stage1' ? ['#ffe6f3', '#ffd9ec'] : ['#ff6b9d', '#ff1493']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={[styles.stageBadge, getStageBadgeStyle(item.stage)]}
+                    >
+                      <Text style={styles.stageEmoji}>{getStageEmoji(item.stage)}</Text>
+                      <Text style={[styles.stageText, item.stage === 'stage2' && { color: '#fff' }]}>
+                        {item.stage === 'pending' ? 'Pending' : item.stage === 'stage1' ? 'Stage 1' : 'Stage 2'}
+                      </Text>
+                    </LinearGradient>
+                  )}
                 </Animated.View>
               </View>
               {item.expiresAt && getTimeRemaining(item.expiresAt) ? (
@@ -765,9 +788,14 @@ function MatchProfileModal({
   const { otherUser } = match;
   const { user } = useAuth();
   const [currentUserInterests, setCurrentUserInterests] = useState<string[]>([]);
-  const primaryPhoto = otherUser.photos?.find(p => p.isPrimary) || otherUser.photos?.[0];
+  // Stage1: primary profile picture only; Stage2: all photos
+  const primaryPhoto = match.stage === 'stage1'
+    ? (otherUser.photoUrl ? { id: 'primary', url: otherUser.photoUrl, isPrimary: true, displayOrder: 0 } : null)
+    : (otherUser.photos?.find(p => p.isPrimary) || otherUser.photos?.[0] || null);
   const profilePhotoUrl = primaryPhoto ? getPhotoUrl(primaryPhoto.url) : (otherUser.photoUrl ? getPhotoUrl(otherUser.photoUrl) : null);
-  const allPhotos = otherUser.photos || [];
+  const allPhotos = match.stage === 'stage1'
+    ? (primaryPhoto ? [primaryPhoto] : [])
+    : (otherUser.photos || []);
   
   // Fetch current user's interests when modal opens
   useEffect(() => {
@@ -1628,6 +1656,8 @@ export default function MatchesScreen() {
   const [loading, setLoading] = useState(true);
   const [sendingMessage, setSendingMessage] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [stageInfoModalVisible, setStageInfoModalVisible] = useState(false);
+  const [stageInfoStage, setStageInfoStage] = useState<'stage1' | 'stage2' | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const messagesEndRef = useRef<FlatList>(null);
   const selectedMatchRef = useRef<Match | null>(null);
@@ -1650,21 +1680,24 @@ export default function MatchesScreen() {
   const chatSlideAnim = useRef(new Animated.Value(0)).current;
   const chatFadeAnim = useRef(new Animated.Value(0)).current;
 
-  // Update current time for timer display
-  // Update every second if any match is close to expiring (< 1 hour), otherwise every minute
-  useEffect(() => {
-    const checkUrgentMatches = () => {
-      const now = new Date();
-      return matches.some(match => {
-        if (!match.expiresAt) return false;
-        const expirationDate = new Date(match.expiresAt);
-        const diff = expirationDate.getTime() - now.getTime();
-        return diff > 0 && diff < 3600000; // Less than 1 hour
-      });
-    };
+  // Only show matches that haven't passed their 7-day expiration (so they disappear when timer hits 0)
+  const visibleMatches = useMemo(() => {
+    const now = currentTime.getTime();
+    return matches.filter(m => !m.expiresAt || new Date(m.expiresAt).getTime() > now);
+  }, [matches, currentTime]);
 
-    const hasUrgentMatch = checkUrgentMatches();
-    const updateInterval = hasUrgentMatch ? 1000 : 60000; // Update every second if urgent, otherwise every minute
+  // Clear selected match if it has expired (so we don't show chat for an expired match)
+  useEffect(() => {
+    if (!selectedMatch || !selectedMatch.expiresAt) return;
+    if (new Date(selectedMatch.expiresAt).getTime() <= currentTime.getTime()) {
+      setSelectedMatch(null);
+    }
+  }, [selectedMatch, currentTime]);
+
+  // Update current time for timer display — every second if any match has expiration (so expired matches disappear on the tick)
+  useEffect(() => {
+    const hasAnyExpiring = matches.some(m => m.expiresAt);
+    const updateInterval = hasAnyExpiring ? 1000 : 60000;
 
     const interval = setInterval(() => {
       setCurrentTime(new Date());
@@ -1704,9 +1737,13 @@ export default function MatchesScreen() {
     
     const expirationDate = new Date(expiresAt);
     const now = currentTime;
-    const diff = expirationDate.getTime() - now.getTime();
+    let diff = expirationDate.getTime() - now.getTime();
     
     if (diff <= 0) return 'Expired';
+    
+    // Cap at 7 days so timer never shows more than 7d 0h (handles legacy matches created with end-of-day logic)
+    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+    diff = Math.min(diff, sevenDaysMs);
     
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
     const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
@@ -1739,14 +1776,11 @@ export default function MatchesScreen() {
   }, [currentTime]);
 
   const handleKeyPress = (e: any) => {
-    // On mobile/web, detect Enter key press
-    // For multiline, we'll allow Enter to send (Shift+Enter could be for new line in future)
+    // Hardware keyboard / web: Enter sends (Shift+Enter for newline in future)
     if (e.nativeEvent.key === 'Enter' && !e.nativeEvent.shiftKey) {
       const trimmed = newMessage.trim();
       if (trimmed && !sendingMessage) {
-        // Prevent default newline behavior
-        e.preventDefault();
-        // Send message with current content, then it will clear
+        if (typeof e.preventDefault === 'function') e.preventDefault();
         handleSendMessage(trimmed);
         return;
       }
@@ -1933,6 +1967,12 @@ export default function MatchesScreen() {
         Alert.alert('🎉 New Match!', data.message);
         fetchMatches();
       });
+
+      socket.on('stage_advanced', (data: { matchId: string; stage: string }) => {
+        if (data.stage !== 'stage2') return;
+        setMatches((prev) => prev.map((m) => m.id === data.matchId ? { ...m, stage: 'stage2' } : m));
+        setSelectedMatch((prev) => prev && prev.id === data.matchId ? { ...prev, stage: 'stage2' } : prev);
+      });
     };
 
     initSocket();
@@ -1942,6 +1982,7 @@ export default function MatchesScreen() {
           socketRef.current.off('user_typing');
           socketRef.current.off('typing_stopped');
           socketRef.current.off('messages_read');
+          socketRef.current.off('stage_advanced');
           socketRef.current.disconnect();
         }
         if (typingTimeoutRef.current) {
@@ -2020,22 +2061,28 @@ export default function MatchesScreen() {
     };
   }, [selectedMatch?.id]);
 
-  // Handle route params when screen is focused — defer so tab switch paints immediately
+  // Handle route params and pending open (e.g. "Send message" on celebration) when screen is focused
   useFocusEffect(
     useCallback(() => {
       const task = InteractionManager.runAfterInteractions(() => {
+        if (!user || !isAuthenticated || authLoading) return;
+        const pendingId = getPendingOpenMatchId();
         const routeParams = route.params as { matchId?: string } | undefined;
-        if (routeParams?.matchId && user && isAuthenticated && !authLoading && !loading) {
-          const matchToSelect = matches.find(m => m.id === routeParams.matchId);
-          if (!matchToSelect) {
-            fetchMatches().then(() => {});
-          } else if (!selectedMatch) {
+        const matchIdToOpen = pendingId ?? routeParams?.matchId;
+        if (matchIdToOpen && !loading) {
+          const matchToSelect = matches.find(m => m.id === matchIdToOpen);
+          if (matchToSelect) {
             setSelectedMatch(matchToSelect);
+            if (pendingId) clearPendingOpenMatchId();
+          } else if (matches.length === 0) {
+            fetchMatches().then(() => {});
           }
+        } else if (matchIdToOpen && loading) {
+          // Wait for load to finish; fetchMatches/useEffect will select
         }
       });
       return () => task.cancel();
-    }, [matches, route.params, selectedMatch, user, isAuthenticated, authLoading, loading, fetchMatches])
+    }, [matches, route.params, user, isAuthenticated, authLoading, loading, fetchMatches])
   );
 
   const fetchMatches = useCallback(async () => {
@@ -2057,20 +2104,17 @@ export default function MatchesScreen() {
       const fetchedMatches = data.matches || [];
       setMatches(fetchedMatches);
       
-      // Auto-select match if matchId is provided in route params
+      // Auto-select match from pending (celebration "Send message") or route params
+      const pendingId = getPendingOpenMatchId();
       const routeParams = route.params as { matchId?: string } | undefined;
-      console.log('🔍 fetchMatches - route params:', routeParams);
-      if (routeParams?.matchId && fetchedMatches.length > 0) {
-        const matchToSelect = fetchedMatches.find(m => m.id === routeParams.matchId);
+      const matchIdToOpen = pendingId ?? routeParams?.matchId;
+      if (matchIdToOpen && fetchedMatches.length > 0) {
+        const matchToSelect = fetchedMatches.find(m => m.id === matchIdToOpen);
         if (matchToSelect) {
-          console.log('🎯 Auto-selecting match from route params (in fetchMatches):', routeParams.matchId);
-          // Use setTimeout to ensure state updates properly
           setTimeout(() => {
             setSelectedMatch(matchToSelect);
+            if (pendingId) clearPendingOpenMatchId();
           }, 100);
-        } else {
-          console.log('⚠️ Match not found in fetched matches:', routeParams.matchId);
-          console.log('   Available match IDs:', fetchedMatches.map(m => m.id));
         }
       }
     } catch (error: any) {
@@ -2089,24 +2133,19 @@ export default function MatchesScreen() {
     }
   }, [route.params]);
 
-  // Auto-select match when matches are loaded and route params exist
-  // Only auto-select if matchId is in route params AND selectedMatch is null
-  // (don't auto-select if user manually cleared the selection)
+  // Auto-select match when matches load and we have pending or route param (e.g. celebration "Send message")
   useEffect(() => {
+    const pendingId = getPendingOpenMatchId();
     const routeParams = route.params as { matchId?: string } | undefined;
-    // Only auto-select if we have a matchId in route params, matches are loaded,
-    // no match is currently selected, and we're not loading
-    if (routeParams?.matchId && matches.length > 0 && !selectedMatch && !loading) {
-      const matchToSelect = matches.find(m => m.id === routeParams.matchId);
+    const matchIdToOpen = pendingId ?? routeParams?.matchId;
+    if (matchIdToOpen && matches.length > 0 && !loading) {
+      const matchToSelect = matches.find(m => m.id === matchIdToOpen);
       if (matchToSelect) {
-        console.log('🎯 Auto-selecting match from route params (after matches loaded):', routeParams.matchId);
         setSelectedMatch(matchToSelect);
-      } else {
-        console.log('⚠️ Match not found in matches list:', routeParams.matchId);
-        console.log('   Available match IDs:', matches.map(m => m.id));
+        if (pendingId) clearPendingOpenMatchId();
       }
     }
-  }, [matches, route.params, selectedMatch, loading]);
+  }, [matches, route.params, loading]);
 
   const fetchMessages = async (matchId: string, retryCount = 0) => {
     const maxRetries = 2;
@@ -2156,12 +2195,7 @@ export default function MatchesScreen() {
       typingTimeoutRef.current = null;
     }
 
-    // Clear input immediately - use both state and ref
     setNewMessage('');
-    if (textInputRef.current) {
-      textInputRef.current.setNativeProps({ text: '' });
-    }
-    
     // Dismiss keyboard after sending message and reset keyboard height
     Keyboard.dismiss();
     // Small delay to ensure keyboard dismisses before resetting height
@@ -2192,7 +2226,7 @@ export default function MatchesScreen() {
     setMessages((prev) => [...prev, tempMessage]);
 
     try {
-      const response = await api.post<{ message: Message }>(`/matches/${selectedMatch.id}/messages`, {
+      const response = await api.post<{ message: Message; stage?: string; autoAdvanced?: boolean }>(`/matches/${selectedMatch.id}/messages`, {
         content: messageContent,
       });
       
@@ -2204,8 +2238,12 @@ export default function MatchesScreen() {
         });
       } else {
         // If no message in response, keep temp message (socket will replace it, or it stays as fallback)
-        // Don't remove it - let socket handler or next fetch replace it
         console.log('No message in response, keeping temp message until socket confirms');
+      }
+      // When both users have sent 2+ messages each, backend returns stage: 'stage2' — update UI immediately
+      if (response.stage === 'stage2') {
+        setSelectedMatch((prev) => prev && prev.id === selectedMatch.id ? { ...prev, stage: 'stage2' } : prev);
+        setMatches((prev) => prev.map((m) => m.id === selectedMatch.id ? { ...m, stage: 'stage2' } : m));
       }
     } catch (error: any) {
       // Remove temp message on error
@@ -2285,6 +2323,11 @@ export default function MatchesScreen() {
     }
   }, []);
 
+  const handleStageInfoPress = useCallback((stage: 'stage1' | 'stage2') => {
+    setStageInfoStage(stage);
+    setStageInfoModalVisible(true);
+  }, []);
+
   // When tab is not focused, render minimal view so leaving Matches tab is instant
   if (!isFocused) {
     return <View style={{ flex: 1 }} />;
@@ -2333,20 +2376,20 @@ export default function MatchesScreen() {
     console.log('📋 Rendering matches list view');
     return (
       <View style={styles.container}>
-        <AnimatedHeaderGradient matchesCount={matches.length} gradientPos={headerGradientPos}>
+        <AnimatedHeaderGradient matchesCount={visibleMatches.length} gradientPos={headerGradientPos}>
           <View style={styles.header}>
             <View style={styles.headerTitleContainer}>
               <AnimatedHeartEmoji />
               <Text style={styles.headerTitle}> Your Matches</Text>
             </View>
-            <Text style={styles.headerSubtitle}>{matches.length} {matches.length === 1 ? 'match' : 'matches'}</Text>
+            <Text style={styles.headerSubtitle}>{visibleMatches.length} {visibleMatches.length === 1 ? 'match' : 'matches'}</Text>
           </View>
         </AnimatedHeaderGradient>
-        {matches.length === 0 ? (
+        {visibleMatches.length === 0 ? (
           <EmptyStateAnimated navigation={navigation} />
         ) : (
           <FlatList
-            data={matches}
+            data={visibleMatches}
             keyExtractor={(item) => item.id}
             contentContainerStyle={[styles.matchesList, { paddingBottom: 100 }]}
             ListFooterComponent={<LegalFooter />}
@@ -2382,12 +2425,65 @@ export default function MatchesScreen() {
                     }
                     setSelectedMatch(item);
                   }} 
-                  onUnmatch={(id) => handleUnmatch(id)} 
+                  onUnmatch={(id) => handleUnmatch(id)}
+                  onStagePress={handleStageInfoPress}
                 />
               );
             }}
           />
         )}
+        {/* Stage Info Modal - also in list view so tapping Stage 1/2 on a card shows it */}
+        <Modal
+          visible={stageInfoModalVisible}
+          animationType="fade"
+          transparent
+          onRequestClose={() => setStageInfoModalVisible(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={styles.stageInfoOverlay}
+            onPress={() => setStageInfoModalVisible(false)}
+          >
+            <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={styles.stageInfoCard}>
+              <LinearGradient
+                colors={stageInfoStage === 'stage2' ? ['#ff85b3', '#ff4d94', '#e91e8c'] : ['#ffd6e8', '#ffb3d9', '#ff99cc']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.stageInfoCardGradient}
+              >
+                <View style={styles.stageInfoIconRing}>
+                  <Text style={styles.stageInfoBigEmoji}>{stageInfoStage === 'stage1' ? '💖' : '💕'}</Text>
+                </View>
+                <Text style={styles.stageInfoTitle}>
+                  {stageInfoStage === 'stage1' ? 'Stage 1' : 'Stage 2'}
+                </Text>
+                <Text style={styles.stageInfoSubtitle}>
+                  {stageInfoStage === 'stage1' ? 'Primary photo revealed' : 'All photos unlocked'}
+                </Text>
+                <View style={styles.stageInfoDivider} />
+                <Text style={styles.stageInfoBody}>
+                  {stageInfoStage === 'stage1'
+                    ? 'You can see each other\'s primary profile picture. Chat and send at least 2 messages each to unlock Stage 2 and see all photos.'
+                    : 'You\'ve both sent 2+ messages! All profile photos are now visible to each other.'}
+                </Text>
+                <TouchableOpacity
+                  style={styles.stageInfoCloseBtn}
+                  onPress={() => setStageInfoModalVisible(false)}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={['#fff', '#f8f8ff']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.stageInfoCloseBtnGradient}
+                  >
+                    <Text style={styles.stageInfoCloseText}>Got it</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </LinearGradient>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Modal>
       </View>
     );
   }
@@ -2444,11 +2540,57 @@ export default function MatchesScreen() {
               <Text style={styles.chatHeaderTitle}>{selectedMatch.otherUser.displayName}</Text>
             </View>
             <View style={styles.chatHeaderSubtitleRow}>
-              <Text style={styles.chatHeaderSubtitle}>
-                {selectedMatch.otherUser.age} • {selectedMatch.stage === 'pending' ? 'Pending' : selectedMatch.stage === 'stage1' ? 'Stage 1' : 'Stage 2'}
-              </Text>
+              <View style={styles.chatHeaderPillRow}>
+                <LinearGradient
+                  colors={['#667eea', '#764ba2', '#8b5cf6']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.chatHeaderAgePill}
+                >
+                  <Text style={styles.chatHeaderAgePillIcon}>🎂</Text>
+                  <Text style={styles.chatHeaderAgePillText}>{selectedMatch.otherUser.age}</Text>
+                  <Text style={styles.chatHeaderAgePillLabel}>yrs</Text>
+                </LinearGradient>
+                {selectedMatch.stage === 'pending' ? (
+                  <View style={styles.chatHeaderStagePillWrap}>
+                    <LinearGradient
+                      colors={['rgba(255,255,255,0.25)', 'rgba(255,255,255,0.12)']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.chatHeaderStagePill}
+                    >
+                      <Text style={styles.chatHeaderStagePillText}>Pending</Text>
+                    </LinearGradient>
+                  </View>
+                ) : (selectedMatch.stage === 'stage1' || selectedMatch.stage === 'stage2') ? (
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    onPress={() => handleStageInfoPress(selectedMatch.stage as 'stage1' | 'stage2')}
+                    style={styles.chatHeaderStagePillWrap}
+                  >
+                    <LinearGradient
+                      colors={selectedMatch.stage === 'stage2' ? ['#ff85b3', '#ff4d94'] : ['#ffcce8', '#ffb3d9']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={[styles.chatHeaderStagePill, selectedMatch.stage === 'stage2' && styles.chatHeaderStagePillStage2]}
+                    >
+                      <Text style={styles.chatHeaderStagePillEmoji}>{selectedMatch.stage === 'stage1' ? '💖' : '💕'}</Text>
+                      <Text style={[styles.chatHeaderStagePillText, selectedMatch.stage === 'stage2' && styles.chatHeaderStagePillTextStage2]}>
+                        {selectedMatch.stage === 'stage1' ? 'Stage 1' : 'Stage 2'}
+                      </Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={styles.chatHeaderStagePillWrap}>
+                    <LinearGradient colors={['#ff85b3', '#ff4d94']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.chatHeaderStagePill, styles.chatHeaderStagePillStage2]}>
+                      <Text style={styles.chatHeaderStagePillEmoji}>💕</Text>
+                      <Text style={[styles.chatHeaderStagePillText, styles.chatHeaderStagePillTextStage2]}>Stage 2</Text>
+                    </LinearGradient>
+                  </View>
+                )}
+              </View>
               {selectedMatch.stage !== 'pending' && (
-                <CompatibilityPulse matchId={selectedMatch.id} socket={socketRef.current} />
+                <CompatibilityPulse matchId={selectedMatch.id} socket={socketRef.current} isFocused={isFocused} />
               )}
             </View>
           </View>
@@ -2470,6 +2612,59 @@ export default function MatchesScreen() {
           onClose={() => setShowProfileModal(false)}
         />
       )}
+
+      {/* Stage Info Modal - explains Stage 1 / Stage 2 */}
+      <Modal
+        visible={stageInfoModalVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setStageInfoModalVisible(false)}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          style={styles.stageInfoOverlay}
+          onPress={() => setStageInfoModalVisible(false)}
+        >
+          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={styles.stageInfoCard}>
+            <LinearGradient
+              colors={stageInfoStage === 'stage2' ? ['#ff85b3', '#ff4d94', '#e91e8c'] : ['#ffd6e8', '#ffb3d9', '#ff99cc']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.stageInfoCardGradient}
+            >
+              <View style={styles.stageInfoIconRing}>
+                <Text style={styles.stageInfoBigEmoji}>{stageInfoStage === 'stage1' ? '💖' : '💕'}</Text>
+              </View>
+              <Text style={styles.stageInfoTitle}>
+                {stageInfoStage === 'stage1' ? 'Stage 1' : 'Stage 2'}
+              </Text>
+              <Text style={styles.stageInfoSubtitle}>
+                {stageInfoStage === 'stage1' ? 'Primary photo revealed' : 'All photos unlocked'}
+              </Text>
+              <View style={styles.stageInfoDivider} />
+              <Text style={styles.stageInfoBody}>
+                {stageInfoStage === 'stage1'
+                  ? 'You can see each other\'s primary profile picture. Chat and send at least 2 messages each to unlock Stage 2 and see all photos.'
+                  : 'You\'ve both sent 2+ messages! All profile photos are now visible to each other.'}
+              </Text>
+              <TouchableOpacity
+                style={styles.stageInfoCloseBtn}
+                onPress={() => setStageInfoModalVisible(false)}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={['#fff', '#f8f8ff']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.stageInfoCloseBtnGradient}
+                >
+                  <Text style={styles.stageInfoCloseText}>Got it</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </LinearGradient>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
 
       {/* New Features: Mulligan Moments and First Date Plan - fixed at top, both visible; maxHeight so messages area always has space */}
       {selectedMatch && selectedMatch.stage !== 'pending' && (
@@ -2496,7 +2691,10 @@ export default function MatchesScreen() {
       <Animated.View 
         style={[
           styles.chatMessagesWrapper,
-          { opacity: chatFadeAnim },
+          {
+            opacity: chatFadeAnim,
+            paddingBottom: Platform.OS === 'ios' ? 155 : 152,
+          },
         ]}
       >
         <FlatList
@@ -2508,8 +2706,8 @@ export default function MatchesScreen() {
             styles.messagesContent,
             { 
               paddingBottom: keyboardHeight > 0 
-                ? keyboardHeight + 100 
-                : 95 + (Platform.OS === 'ios' ? 70 : 68)
+                ? keyboardHeight + 80 
+                : 100
             }
           ]}
           keyboardShouldPersistTaps="always"
@@ -2643,7 +2841,7 @@ export default function MatchesScreen() {
               position: 'absolute',
               bottom: keyboardHeight > 0 
                 ? keyboardHeight 
-                : Platform.OS === 'ios' ? 70 : 68,
+                : Platform.OS === 'ios' ? 88 : 86,
               left: 0,
               right: 0,
               width: windowWidth,
@@ -2654,37 +2852,42 @@ export default function MatchesScreen() {
               opacity: chatFadeAnim,
             }
           ]}
+          pointerEvents="box-none"
+          collapsable={false}
         >
-          <TextInput
-            ref={textInputRef}
-            style={styles.input}
-            value={newMessage}
-            onChangeText={handleTextChange}
-            placeholder="Type a message..."
-            placeholderTextColor="#999"
-            multiline
-            maxLength={500}
-            onKeyPress={handleKeyPress}
-            returnKeyType="send"
-            blurOnSubmit={false}
-            onFocus={() => {
-              // Scroll to end when input is focused to ensure latest messages are visible
-              setTimeout(() => {
-                messagesEndRef.current?.scrollToEnd({ animated: true });
-              }, 300);
-            }}
-          />
+          <TouchableWithoutFeedback
+            onPress={() => textInputRef.current?.focus()}
+            accessible={false}
+          >
+            <View style={styles.inputWrapper}>
+              <TextInput
+                ref={textInputRef}
+                style={styles.input}
+                value={newMessage}
+                onChangeText={handleTextChange}
+                placeholder="Type a message..."
+                placeholderTextColor="#999"
+                multiline
+                maxLength={500}
+                editable={!sendingMessage}
+                showSoftInputOnFocus={true}
+                returnKeyType="send"
+                blurOnSubmit={false}
+                onSubmitEditing={() => {
+                  if (newMessage.trim() && !sendingMessage) handleSendMessage(newMessage.trim());
+                }}
+                onKeyPress={handleKeyPress}
+              />
+            </View>
+          </TouchableWithoutFeedback>
           <TouchableOpacity
             onPress={() => {
-              console.log('📤 Send button pressed!');
-              handleSendMessage();
+              if (newMessage.trim() && !sendingMessage) handleSendMessage(newMessage.trim());
             }}
             disabled={sendingMessage || !newMessage.trim()}
             style={styles.sendButtonContainer}
             activeOpacity={0.7}
             hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-            onPressIn={() => console.log('📤 Send button press in')}
-            onPressOut={() => console.log('📤 Send button press out')}
           >
             <LinearGradient
               colors={sendingMessage || !newMessage.trim() ? ['#a0aec0', '#718096'] : ['#667eea', '#764ba2', '#f093fb']}
@@ -3256,9 +3459,185 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     width: '100%',
   },
+  chatHeaderPillRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  chatHeaderAgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.5)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  chatHeaderAgePillIcon: {
+    fontSize: 14,
+    marginRight: 5,
+  },
+  chatHeaderAgePillText: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#fff',
+    marginRight: 3,
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  chatHeaderAgePillLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.95)',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  chatHeaderStagePillWrap: {
+    marginLeft: 8,
+    borderRadius: 14,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  chatHeaderStagePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
+  },
+  chatHeaderStagePillStage2: {
+    borderColor: 'rgba(255,255,255,0.5)',
+  },
+  chatHeaderStagePillEmoji: {
+    fontSize: 13,
+    marginRight: 4,
+  },
+  chatHeaderStagePillText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#b84d6f',
+    letterSpacing: 0.3,
+  },
+  chatHeaderStagePillTextStage2: {
+    color: '#fff',
+    textShadowColor: 'rgba(0,0,0,0.25)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 1,
+  },
   chatHeaderSubtitle: {
     fontSize: 14,
     color: 'rgba(255, 255, 255, 0.9)',
+  },
+  chatHeaderSubtitleInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  chatHeaderStageLink: {
+    textDecorationLine: 'underline',
+  },
+  stageInfoOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 28,
+  },
+  stageInfoCard: {
+    width: '100%',
+    maxWidth: 340,
+    borderRadius: 24,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.4)',
+  },
+  stageInfoCardGradient: {
+    padding: 28,
+    paddingTop: 32,
+    paddingBottom: 28,
+  },
+  stageInfoIconRing: {
+    alignSelf: 'center',
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: 'rgba(255,255,255,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.6)',
+  },
+  stageInfoBigEmoji: {
+    fontSize: 36,
+  },
+  stageInfoTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#2d2d2d',
+    marginBottom: 4,
+    textAlign: 'center',
+    letterSpacing: 0.5,
+  },
+  stageInfoSubtitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'rgba(0,0,0,0.5)',
+    marginBottom: 16,
+    textAlign: 'center',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  stageInfoDivider: {
+    height: 1,
+    backgroundColor: 'rgba(0,0,0,0.08)',
+    marginBottom: 18,
+    marginHorizontal: 8,
+  },
+  stageInfoBody: {
+    fontSize: 16,
+    color: '#444',
+    lineHeight: 24,
+    marginBottom: 24,
+    textAlign: 'center',
+    paddingHorizontal: 4,
+  },
+  stageInfoCloseBtn: {
+    alignSelf: 'center',
+    borderRadius: 24,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  stageInfoCloseBtnGradient: {
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderRadius: 24,
+  },
+  stageInfoCloseText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#333',
+    letterSpacing: 0.3,
   },
   featuresContainer: {
     width: '100%',
@@ -3413,6 +3792,27 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 6,
     elevation: 8,
+  },
+  inputWrapper: {
+    flex: 1,
+  },
+  inputPressable: {
+    flex: 1,
+  },
+  inputPlaceholder: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderColor: '#e5e7eb',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginRight: 8,
+    backgroundColor: '#f9fafb',
+    justifyContent: 'center',
+  },
+  inputPlaceholderText: {
+    fontSize: 14,
+    color: '#999',
   },
   input: {
     flex: 1,

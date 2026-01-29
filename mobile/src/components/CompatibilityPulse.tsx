@@ -15,9 +15,11 @@ interface CompatibilityScore {
 interface CompatibilityPulseProps {
   matchId: string;
   socket: Socket | null;
+  /** When false, animations are stopped to avoid updating frozen Animated values when tab is not focused */
+  isFocused?: boolean;
 }
 
-export default function CompatibilityPulse({ matchId, socket }: CompatibilityPulseProps) {
+export default function CompatibilityPulse({ matchId, socket, isFocused = true }: CompatibilityPulseProps) {
   const [score, setScore] = useState<CompatibilityScore | null>(null);
   const [loading, setLoading] = useState(true);
   const [showInfoModal, setShowInfoModal] = useState(false);
@@ -34,9 +36,9 @@ export default function CompatibilityPulse({ matchId, socket }: CompatibilityPul
     fetchScore();
   }, [matchId]);
 
-  // Continuous pulsating animation with glow effect
+  // Continuous pulsating animation with glow effect — only when focused to avoid mutating frozen Animated values when tab is blurred
   useEffect(() => {
-    if (loading) return;
+    if (loading || !isFocused) return;
     
     const pulseLoop = Animated.loop(
       Animated.parallel([
@@ -131,7 +133,7 @@ export default function CompatibilityPulse({ matchId, socket }: CompatibilityPul
     return () => {
       pulseLoop.stop();
     };
-  }, [loading, continuousPulseAnim, opacityAnim, glowScaleAnim, glowOpacityAnim, glowOuterScaleAnim, glowOuterOpacityAnim]);
+  }, [loading, isFocused, continuousPulseAnim, opacityAnim, glowScaleAnim, glowOpacityAnim, glowOuterScaleAnim, glowOuterOpacityAnim]);
 
   useEffect(() => {
     if (!socket) return;
@@ -139,7 +141,7 @@ export default function CompatibilityPulse({ matchId, socket }: CompatibilityPul
     const handleScoreUpdate = (data: { matchId: string; score: number; engagementLevel: string }) => {
       if (data.matchId === matchId) {
         setScore((prev) => prev ? { ...prev, score: data.score, engagementLevel: data.engagementLevel } : null);
-        animatePulse();
+        if (isFocused) animatePulse();
       }
     };
 
@@ -148,7 +150,7 @@ export default function CompatibilityPulse({ matchId, socket }: CompatibilityPul
     return () => {
       socket.off('compatibility_score_updated', handleScoreUpdate);
     };
-  }, [socket, matchId]);
+  }, [socket, matchId, isFocused]);
 
   const fetchScore = async () => {
     try {

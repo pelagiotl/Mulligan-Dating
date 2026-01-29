@@ -50,7 +50,7 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
               <defs>
                 <linearGradient id="loadingHeartGradient" x1="0%" y1="0%" x2="100%" y2="100%">
                   <stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
-                  <stop offset="50%" stopColor="#ffe4e6" stopOpacity="1" />
+                  <stop offset="50%" stopColor="#ffffff" stopOpacity="1" />
                   <stop offset="100%" stopColor="#ffffff" stopOpacity="1" />
                 </linearGradient>
                 <filter id="loadingGlow">
@@ -130,7 +130,7 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
               <defs>
                 <linearGradient id="loadingHeartGradient" x1="0%" y1="0%" x2="100%" y2="100%">
                   <stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
-                  <stop offset="50%" stopColor="#ffe4e6" stopOpacity="1" />
+                  <stop offset="50%" stopColor="#ffffff" stopOpacity="1" />
                   <stop offset="100%" stopColor="#ffffff" stopOpacity="1" />
                 </linearGradient>
                 <filter id="loadingGlow">
@@ -202,7 +202,7 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
               <defs>
                 <linearGradient id="loadingHeartGradient" x1="0%" y1="0%" x2="100%" y2="100%">
                   <stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
-                  <stop offset="50%" stopColor="#ffe4e6" stopOpacity="1" />
+                  <stop offset="50%" stopColor="#ffffff" stopOpacity="1" />
                   <stop offset="100%" stopColor="#ffffff" stopOpacity="1" />
                 </linearGradient>
                 <filter id="loadingGlow">

@@ -141,8 +141,8 @@ async function request<T = any>(endpoint: string, options: RequestInit & { body?
       // Suppress 404 errors for push-token endpoint (backend may not have it deployed yet)
       const isPushToken404 = response.status === 404 && endpoint === '/auth/push-token';
       
-      // Suppress 404 errors for date-plan endpoint (expected when no plan exists yet)
-      const isDatePlan404 = response.status === 404 && endpoint.includes('/date-plan');
+      // Suppress 404 / "no date plan" for date-plan endpoint (expected when no plan exists yet)
+      const isDatePlan404 = (response.status === 404 || (errorMsgLower.includes('no date plan found'))) && endpoint.includes('/date-plan');
       
       if (!isInformational && !isPushToken404 && !isDatePlan404) {
         console.error('❌ API request failed:', {
@@ -174,6 +174,8 @@ async function request<T = any>(endpoint: string, options: RequestInit & { body?
         ttl = 2 * 60 * 1000; // 2 minutes for profile
       } else if (endpoint.includes('/users/browse')) {
         ttl = 10 * 1000; // 10 seconds for browse (very dynamic)
+      } else if (endpoint === '/tokens' || endpoint.startsWith('/tokens')) {
+        ttl = 15 * 1000; // 15 seconds for tokens (admin grants, claims, etc.)
       }
       apiCache.set(cacheKey, data, ttl);
       console.log('💾 Cached response for:', endpoint, `(TTL: ${ttl}ms)`);
@@ -182,6 +184,14 @@ async function request<T = any>(endpoint: string, options: RequestInit & { body?
     return data as T;
   } catch (error) {
     clearTimeout(timeoutId);
+    // Don't log date-plan 404 (no plan yet) — expected and handled by UI
+    const isDatePlan404Rethrown =
+      error instanceof ApiError &&
+      (error.status === 404 || error.message?.toLowerCase().includes('no date plan found')) &&
+      url.includes('/date-plan');
+    if (isDatePlan404Rethrown) {
+      throw error;
+    }
     const errorDetails = {
       url,
       endpoint,
@@ -224,6 +234,9 @@ export const api = {
     if (endpoint.includes('/matches/connect')) {
       apiCache.clear(APICache.getCacheKey('/matches'));
     }
+    if (endpoint.includes('grant-tokens') || endpoint.includes('/tokens/claim')) {
+      apiCache.clear(APICache.getCacheKey('/tokens'));
+    }
     return request<T>(endpoint, {
       method: 'POST',
       body
@@ -240,9 +253,12 @@ export const api = {
     }, false);
   },
   delete: <T>(endpoint: string) => {
-    // Clear related cache entries on DELETE
+    // Clear related cache entries on DELETE so refetches get fresh data
     if (endpoint.includes('/matches')) {
       apiCache.clear(APICache.getCacheKey('/matches'));
+    }
+    if (endpoint.includes('/photos/')) {
+      apiCache.clear(APICache.getCacheKey('/photos/me'));
     }
     return request<T>(endpoint, {
       method: 'DELETE'

@@ -1249,6 +1249,9 @@ export default function CreateProfileScreen() {
             setPhotos(prev => [...prev, { id: newPhoto.id, url: newPhoto.url, uri: uri }]);
           }
 
+          // Invalidate photos cache so Profile tab shows new photos when user navigates there
+          api.clearCache('/photos/me');
+
           // Success! Exit retry loop
           return;
           

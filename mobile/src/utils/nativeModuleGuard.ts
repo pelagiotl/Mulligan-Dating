@@ -83,10 +83,9 @@ export async function safeNativeModuleCall<T>(
 }
 
 // Auto-initialize after a delay (fallback in case markAppInitialized isn't called)
-// This gives the app 3 seconds to fully mount
+// This gives the app 3 seconds to fully mount — silent so we don't spam the console
 initializationTimeout = setTimeout(() => {
   if (!appInitialized) {
-    console.warn('⚠️ [NativeModuleGuard] Auto-initializing after timeout');
     markAppInitialized();
   }
 }, 3000);
