@@ -482,7 +482,7 @@ export async function initDatabase() {
 
   // Add show_active_status to users table (when false, others don't see last_active_at)
   try {
-    await execSQL(`ALTER TABLE users ADD COLUMN show_active_status ${usePostgres ? 'BOOLEAN' : 'INTEGER'} DEFAULT 1`);
+    await execSQL(`ALTER TABLE users ADD COLUMN show_active_status ${usePostgres ? 'BOOLEAN DEFAULT true' : 'INTEGER DEFAULT 1'}`);
   } catch (e) {
     // Column already exists, ignore
   }

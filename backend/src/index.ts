@@ -146,6 +146,10 @@ app.use((req, res, next) => {
   next();
 });
 
+// Health check for Render / load balancers (GET and HEAD /)
+app.get("/", (req, res) => res.status(200).json({ ok: true, service: "Mulligan API" }));
+app.head("/", (req, res) => res.status(200).end());
+
 // Routes with rate limiting (set up before server starts)
 app.use("/api/auth", rateLimitAuth, authRouter);
 app.use("/api/profile", profileRouter);
