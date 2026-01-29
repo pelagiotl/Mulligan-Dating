@@ -12,10 +12,11 @@ import {
   Animated,
   Platform,
   Vibration,
+  InteractionManager,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { G, Path, Circle, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import Svg, { G, Path, Circle, Defs, LinearGradient as SvgLinearGradient, Stop, ClipPath } from 'react-native-svg';
+import { useNavigation, useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { io, Socket } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '../utils/api';
@@ -28,6 +29,8 @@ import NoTokensModal from '../components/NoTokensModal';
 import OptimizedImage from '../components/OptimizedImage';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+const MIN_PHOTOS_TO_CONNECT = 5;
 
 // Helper function to render location with proper formatting
 function renderLocation(location: string | null | undefined) {
@@ -68,10 +71,6 @@ const AnimatedLogo = memo(function AnimatedLogo() {
   const arrowBottomScale = useRef(new Animated.Value(1)).current;
   const arrowBottomOpacity = useRef(new Animated.Value(0.9)).current;
   const arrowBottomGlowOpacityAnim = useRef(new Animated.Value(0.8)).current;
-  const sparkle1GlowOpacityAnim = useRef(new Animated.Value(0.8)).current;
-  const sparkle2GlowOpacityAnim = useRef(new Animated.Value(0.8)).current;
-  const sparkle3GlowOpacityAnim = useRef(new Animated.Value(0.8)).current;
-  const sparkle4GlowOpacityAnim = useRef(new Animated.Value(0.8)).current;
   const sparkle1Opacity = useRef(new Animated.Value(0.6)).current;
   const sparkle1Scale = useRef(new Animated.Value(1)).current;
   const sparkle1TranslateY = useRef(new Animated.Value(0)).current;
@@ -88,7 +87,17 @@ const AnimatedLogo = memo(function AnimatedLogo() {
   const sparkle4Scale = useRef(new Animated.Value(1)).current;
   const sparkle4TranslateY = useRef(new Animated.Value(0)).current;
   const sparkle4TranslateX = useRef(new Animated.Value(0)).current;
-  
+  // Sparkle pulse animations for brightness variation (matching login page)
+  const sparkle1Pulse = useRef(new Animated.Value(1)).current;
+  const sparkle2Pulse = useRef(new Animated.Value(1)).current;
+  const sparkle3Pulse = useRef(new Animated.Value(1)).current;
+  const sparkle4Pulse = useRef(new Animated.Value(1)).current;
+  // Sparkle glow opacity animations (for listener-driven state updates)
+  const sparkle1GlowOpacityAnim = useRef(new Animated.Value(0.8)).current;
+  const sparkle2GlowOpacityAnim = useRef(new Animated.Value(0.8)).current;
+  const sparkle3GlowOpacityAnim = useRef(new Animated.Value(0.8)).current;
+  const sparkle4GlowOpacityAnim = useRef(new Animated.Value(0.8)).current;
+
   // State for SVG values (react-native-svg doesn't support Animated.Value directly)
   // Use light throttling (16ms = ~60fps) to keep animations smooth while preventing input lag
   const lastUpdateRef = useRef<{ [key: string]: number }>({});
@@ -122,14 +131,18 @@ const AnimatedLogo = memo(function AnimatedLogo() {
   const [sparkle4TranslateXValue, setSparkle4TranslateXValue] = useState(0);
   const [arrowTopOpacityValue, setArrowTopOpacityValue] = useState(0.9);
   const [arrowBottomOpacityValue, setArrowBottomOpacityValue] = useState(0.9);
-  const [arrowTopGlowOpacity, setArrowTopGlowOpacity] = useState(0.8);
-  const [arrowBottomGlowOpacity, setArrowBottomGlowOpacity] = useState(0.8);
-  const [sparkle1GlowOpacity, setSparkle1GlowOpacity] = useState(0.8);
-  const [sparkle2GlowOpacity, setSparkle2GlowOpacity] = useState(0.8);
-  const [sparkle3GlowOpacity, setSparkle3GlowOpacity] = useState(0.8);
-  const [sparkle4GlowOpacity, setSparkle4GlowOpacity] = useState(0.8);
-  const [shineTranslateXValue, setShineTranslateXValue] = useState(-100);
-  const [shineOpacityValue, setShineOpacityValue] = useState(0);
+  const [arrowTopGlowOpacityValue, setArrowTopGlowOpacity] = useState(0.8);
+  const [arrowBottomGlowOpacityValue, setArrowBottomGlowOpacity] = useState(0.8);
+  const [shimmerTranslateXValue, setShimmerTranslateXValue] = useState(-100);
+  const [shimmerOpacityValue, setShimmerOpacityValue] = useState(0);
+  const [sparkle1PulseValue, setSparkle1PulseValue] = useState(1);
+  const [sparkle2PulseValue, setSparkle2PulseValue] = useState(1);
+  const [sparkle3PulseValue, setSparkle3PulseValue] = useState(1);
+  const [sparkle4PulseValue, setSparkle4PulseValue] = useState(1);
+  const [sparkle1GlowOpacityValue, setSparkle1GlowOpacity] = useState(0.8);
+  const [sparkle2GlowOpacityValue, setSparkle2GlowOpacity] = useState(0.8);
+  const [sparkle3GlowOpacityValue, setSparkle3GlowOpacity] = useState(0.8);
+  const [sparkle4GlowOpacityValue, setSparkle4GlowOpacity] = useState(0.8);
 
   useEffect(() => {
     // Continuous rotation (4s linear infinite - matching frontend)
@@ -203,13 +216,43 @@ const AnimatedLogo = memo(function AnimatedLogo() {
       ])
     ).start();
 
-    // Shine/shimmer effect - premium touch
-    const shineTranslateXListenerId = shineAnim.addListener(({ value }) => {
+    // Sparkle pulse animations for subtle brightness variation (matching login page)
+    const sparklePulse = (pulseAnim: Animated.Value, setter: (val: number) => void, key: string, delay: number) => {
+      const listenerId = pulseAnim.addListener(({ value }) => {
+        throttledSetState(setter, value, key);
+      });
+      
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(pulseAnim, {
+            toValue: 1.3, // Slight brightness increase
+            duration: 1500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 1500,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+      
+      return listenerId;
+    };
+    
+    const pulse1Id = sparklePulse(sparkle1Pulse, setSparkle1PulseValue, 'sparkle1Pulse', 0);
+    const pulse2Id = sparklePulse(sparkle2Pulse, setSparkle2PulseValue, 'sparkle2Pulse', 400);
+    const pulse3Id = sparklePulse(sparkle3Pulse, setSparkle3PulseValue, 'sparkle3Pulse', 800);
+    const pulse4Id = sparklePulse(sparkle4Pulse, setSparkle4PulseValue, 'sparkle4Pulse', 1200);
+
+    // Subtle shimmer effect (matching login page)
+    const shimmerTranslateXListenerId = shineAnim.addListener(({ value }) => {
       const translateX = (value - 0.5) * 200; // -100 to 100
-      throttledSetState(setShineTranslateXValue, translateX, 'shineTranslateX');
+      throttledSetState(setShimmerTranslateXValue, translateX, 'shimmerTranslateX');
     });
     
-    const shineOpacityListenerId = shineAnim.addListener(({ value }) => {
+    const shimmerOpacityListenerId = shineAnim.addListener(({ value }) => {
       let opacity = 0;
       if (value >= 0.3 && value <= 0.7) {
         opacity = 0.4;
@@ -218,7 +261,7 @@ const AnimatedLogo = memo(function AnimatedLogo() {
       } else if (value > 0.7) {
         opacity = ((1 - value) / 0.3) * 0.4;
       }
-      throttledSetState(setShineOpacityValue, opacity, 'shineOpacity');
+      throttledSetState(setShimmerOpacityValue, opacity, 'shimmerOpacity');
     });
     
     Animated.loop(
@@ -470,8 +513,8 @@ const AnimatedLogo = memo(function AnimatedLogo() {
       sparkle2GlowOpacityAnim.removeListener(sparkle2GlowListenerId);
       sparkle3GlowOpacityAnim.removeListener(sparkle3GlowListenerId);
       sparkle4GlowOpacityAnim.removeListener(sparkle4GlowListenerId);
-      shineAnim.removeListener(shineTranslateXListenerId);
-      shineAnim.removeListener(shineOpacityListenerId);
+      shineAnim.removeListener(shimmerTranslateXListenerId);
+      shineAnim.removeListener(shimmerOpacityListenerId);
     };
   }, [throttledSetState]);
 
@@ -507,112 +550,72 @@ const AnimatedLogo = memo(function AnimatedLogo() {
         >
           <Svg width={90} height={90} viewBox="0 0 48 48">
             <Defs>
-              {/* Premium gradient with smooth color stops */}
+              {/* Enhanced gradient with smoother transitions - all white (identical to login) */}
               <SvgLinearGradient id="heartGradientBrowse" x1="0%" y1="0%" x2="100%" y2="100%">
-                <Stop offset="0%" stopColor="#ffc0d9" stopOpacity="1" />
-                <Stop offset="20%" stopColor="#ffb3d1" stopOpacity="1" />
-                <Stop offset="40%" stopColor="#ff9ec4" stopOpacity="1" />
-                <Stop offset="60%" stopColor="#ff6b9d" stopOpacity="1" />
-                <Stop offset="80%" stopColor="#ff85b3" stopOpacity="1" />
-                <Stop offset="100%" stopColor="#ff6b9d" stopOpacity="1" />
-              </SvgLinearGradient>
-              {/* Enhanced glow gradient for depth */}
-              <SvgLinearGradient id="heartGlowBrowse" x1="0%" y1="0%" x2="100%" y2="100%">
-                <Stop offset="0%" stopColor="#ff6b9d" stopOpacity="0.3" />
-                <Stop offset="50%" stopColor="#ff9ec4" stopOpacity="0.25" />
-                <Stop offset="100%" stopColor="#ffb3d1" stopOpacity="0.3" />
-              </SvgLinearGradient>
-              {/* Shine gradient for premium effect */}
-              <SvgLinearGradient id="heartShineBrowse" x1="0%" y1="0%" x2="100%" y2="0%">
-                <Stop offset="0%" stopColor="rgba(255, 255, 255, 0)" stopOpacity="0" />
-                <Stop offset="50%" stopColor="rgba(255, 255, 255, 0.6)" stopOpacity="0.6" />
-                <Stop offset="100%" stopColor="rgba(255, 255, 255, 0)" stopOpacity="0" />
-              </SvgLinearGradient>
-              {/* Glow gradient for arrows and sparkles */}
-              <SvgLinearGradient id="arrowGlowBrowse" x1="0%" y1="0%" x2="100%" y2="100%">
-                <Stop offset="0%" stopColor="#ff6b9d" stopOpacity="0.8" />
-                <Stop offset="100%" stopColor="#ffb3d1" stopOpacity="0.8" />
-              </SvgLinearGradient>
-              <SvgLinearGradient id="sparkleGlowBrowse" x1="0%" y1="0%" x2="100%" y2="100%">
                 <Stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
-                <Stop offset="50%" stopColor="#ffb3d1" stopOpacity="1" />
+                <Stop offset="25%" stopColor="#ffffff" stopOpacity="1" />
+                <Stop offset="50%" stopColor="#ffffff" stopOpacity="1" />
+                <Stop offset="75%" stopColor="#ffffff" stopOpacity="1" />
                 <Stop offset="100%" stopColor="#ffffff" stopOpacity="1" />
               </SvgLinearGradient>
+              {/* Shimmer gradient for subtle shine effect */}
+              <SvgLinearGradient id="heartShimmerBrowse" x1="0%" y1="0%" x2="100%" y2="0%">
+                <Stop offset="0%" stopColor="rgba(255, 255, 255, 0)" stopOpacity="0" />
+                <Stop offset="50%" stopColor="rgba(255, 255, 255, 0.5)" stopOpacity="0.5" />
+                <Stop offset="100%" stopColor="rgba(255, 255, 255, 0)" stopOpacity="0" />
+              </SvgLinearGradient>
+              {/* Sparkle glow gradient */}
+              <SvgLinearGradient id="sparkleGlowBrowse" x1="0%" y1="0%" x2="100%" y2="100%">
+                <Stop offset="0%" stopColor="rgba(255, 255, 255, 0.8)" stopOpacity="0.8" />
+                <Stop offset="100%" stopColor="rgba(255, 255, 255, 0.4)" stopOpacity="0.4" />
+              </SvgLinearGradient>
+              {/* Clip path for shimmer effect */}
+              <ClipPath id="heartClipBrowse">
+                <Path
+                  d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z"
+                  fill="#000000"
+                />
+              </ClipPath>
             </Defs>
             <G>
-              {/* Subtle glow layer for depth */}
-              <Path
-                d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z"
-                fill="url(#heartGlowBrowse)"
-                opacity="0.2"
-                transform="scale(1.08) translate(-1.92, -1.92)"
-              />
-              {/* White outer border layer - thin and elegant */}
-              <Path
-                d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z"
-                fill="none"
-                stroke="#ffffff"
-                strokeWidth="1.2"
-                strokeLinejoin="round"
-                opacity="0.95"
-                transform="scale(1.04) translate(-0.96, -0.96)"
-              />
-              {/* Main heart with premium gradient */}
+              {/* Heart with subtle white border for definition */}
               <Path
                 d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z"
                 fill="url(#heartGradientBrowse)"
-                stroke="rgba(255, 255, 255, 0.6)"
-                strokeWidth="0.4"
+                stroke="rgba(255, 255, 255, 0.9)"
+                strokeWidth="0.8"
               />
-              {/* Inner white highlight for depth */}
+              {/* Subtle inner highlight for depth */}
               <Path
                 d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z"
                 fill="none"
-                stroke="rgba(255, 255, 255, 0.3)"
+                stroke="rgba(255, 255, 255, 0.25)"
                 strokeWidth="0.3"
-                opacity="0.8"
+                opacity="0.6"
                 transform="scale(0.96) translate(0.96, 0.96)"
               />
-              {/* Premium shine effect */}
+              {/* Subtle shimmer effect */}
               <G
-                opacity={shineOpacityValue}
-                transform={`translate(${shineTranslateXValue}, 0)`}
+                opacity={shimmerOpacityValue}
+                transform={`translate(${shimmerTranslateXValue}, 0)`}
               >
                 <Path
                   d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z"
-                  fill="url(#heartShineBrowse)"
+                  fill="url(#heartShimmerBrowse)"
                   clipPath="url(#heartClipBrowse)"
                 />
               </G>
-              {/* Top arrow - with glow effects */}
+              {/* Top arrow - identical to login page (M30 6, M33 3, circle at 40,6) */}
               <G>
-                {/* Arrow line with glow */}
                 <Path 
-                  d="M30 10L36 10" 
-                  stroke="url(#arrowGlowBrowse)" 
-                  strokeWidth="3.5" 
-                  strokeLinecap="round" 
-                  opacity={arrowTopOpacityValue * 0.5}
-                />
-                <Path 
-                  d="M30 10L36 10" 
+                  d="M30 6L36 6" 
                   stroke="#ffffff" 
                   strokeWidth="2.5" 
                   strokeLinecap="round" 
                   opacity={arrowTopOpacityValue}
                 />
-                {/* Arrow head with glow */}
                 <Path 
-                  d="M33 7L36 10L33 13" 
-                  stroke="url(#arrowGlowBrowse)" 
-                  strokeWidth="3.5" 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round" 
-                  fill="none" 
-                  opacity={arrowTopOpacityValue * 0.5}
-                />
-                <Path 
-                  d="M33 7L36 10L33 13" 
+                  d="M33 3L36 6L33 9" 
                   stroke="#ffffff" 
                   strokeWidth="2.5" 
                   strokeLinecap="round" 
@@ -620,39 +623,16 @@ const AnimatedLogo = memo(function AnimatedLogo() {
                   fill="none" 
                   opacity={arrowTopOpacityValue}
                 />
-                {/* Glow behind arrow circle - positioned away from arrow */}
-                <Circle cx="40" cy="10" r="4.5" fill="url(#arrowGlowBrowse)" opacity={arrowTopGlowOpacity} />
-                <Circle cx="40" cy="10" r="3.5" fill="url(#arrowGlowBrowse)" opacity={arrowTopGlowOpacity * 0.7} />
-                {/* Arrow circle - positioned away from arrow endpoint */}
-                <Circle cx="40" cy="10" r="2.8" fill="url(#arrowGlowGradient)" opacity={arrowTopGlowOpacity} />
-                <Circle cx="40" cy="10" r="2.5" fill="#ffffff" opacity={arrowTopOpacityValue} />
+                <Circle cx="40" cy="6" r="2.5" fill="#ffffff" opacity={arrowTopOpacityValue} />
               </G>
-              {/* Bottom arrow - with glow effects */}
+              {/* Bottom arrow - identical to login page */}
               <G>
-                {/* Arrow line with glow */}
-                <Path 
-                  d="M18 38L12 38" 
-                  stroke="url(#arrowGlowBrowse)" 
-                  strokeWidth="3.5" 
-                  strokeLinecap="round" 
-                  opacity={arrowBottomOpacityValue * 0.5}
-                />
                 <Path 
                   d="M18 38L12 38" 
                   stroke="#ffffff" 
                   strokeWidth="2.5" 
                   strokeLinecap="round" 
                   opacity={arrowBottomOpacityValue}
-                />
-                {/* Arrow head with glow */}
-                <Path 
-                  d="M15 35L12 38L15 41" 
-                  stroke="url(#arrowGlowBrowse)" 
-                  strokeWidth="3.5" 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round" 
-                  fill="none" 
-                  opacity={arrowBottomOpacityValue * 0.5}
                 />
                 <Path 
                   d="M15 35L12 38L15 41" 
@@ -663,41 +643,28 @@ const AnimatedLogo = memo(function AnimatedLogo() {
                   fill="none" 
                   opacity={arrowBottomOpacityValue}
                 />
-                {/* Glow behind arrow circle - positioned away from arrow */}
-                <Circle cx="8" cy="38" r="4.5" fill="url(#arrowGlowBrowse)" opacity={arrowBottomGlowOpacity} />
-                <Circle cx="8" cy="38" r="3.5" fill="url(#arrowGlowBrowse)" opacity={arrowBottomGlowOpacity * 0.7} />
-                {/* Arrow circle - positioned away from arrow endpoint */}
-                <Circle cx="8" cy="38" r="2.8" fill="url(#arrowGlowGradient)" opacity={arrowBottomGlowOpacity} />
                 <Circle cx="8" cy="38" r="2.5" fill="#ffffff" opacity={arrowBottomOpacityValue} />
               </G>
-              {/* Sparkles with dynamic animations and glow effects */}
-              <G transform={`translate(${sparkle1TranslateXValue}, ${sparkle1TranslateYValue}) scale(${sparkle1ScaleValue})`}>
-                {/* Glow layers with pulse */}
-                <Circle cx="24" cy="8" r="3.5" fill="url(#sparkleGlowBrowse)" opacity={sparkle1GlowOpacity * 0.4} />
-                <Circle cx="24" cy="8" r="2.5" fill="url(#sparkleGlowBrowse)" opacity={sparkle1GlowOpacity * 0.6} />
-                {/* Main sparkle */}
-                <Circle cx="24" cy="8" r="2" fill="#ffffff" opacity={sparkle1OpacityValue} />
+              {/* Sparkles with dynamic animations - scale, opacity, multi-directional movement, and pulse (identical to login) */}
+              <G transform={`translate(${sparkle1TranslateXValue}, ${sparkle1TranslateYValue}) scale(${sparkle1ScaleValue * sparkle1PulseValue})`}>
+                {/* Subtle glow behind sparkle - pulse affects brightness */}
+                <Circle cx="24" cy="8" r="2.2" fill="url(#sparkleGlowBrowse)" opacity={sparkle1OpacityValue * 0.3 * sparkle1PulseValue} />
+                <Circle cx="24" cy="8" r="1.5" fill="#ffffff" opacity={sparkle1OpacityValue * sparkle1PulseValue} />
               </G>
-              <G transform={`translate(${sparkle2TranslateXValue}, ${sparkle2TranslateYValue}) scale(${sparkle2ScaleValue})`}>
-                {/* Glow layers with pulse */}
-                <Circle cx="40" cy="24" r="3.5" fill="url(#sparkleGlowBrowse)" opacity={sparkle2GlowOpacity * 0.4} />
-                <Circle cx="40" cy="24" r="2.5" fill="url(#sparkleGlowBrowse)" opacity={sparkle2GlowOpacity * 0.6} />
-                {/* Main sparkle */}
-                <Circle cx="40" cy="24" r="2" fill="#ffffff" opacity={sparkle2OpacityValue} />
+              <G transform={`translate(${sparkle2TranslateXValue}, ${sparkle2TranslateYValue}) scale(${sparkle2ScaleValue * sparkle2PulseValue})`}>
+                {/* Subtle glow behind sparkle - pulse affects brightness */}
+                <Circle cx="40" cy="24" r="2.2" fill="url(#sparkleGlowBrowse)" opacity={sparkle2OpacityValue * 0.3 * sparkle2PulseValue} />
+                <Circle cx="40" cy="24" r="1.5" fill="#ffffff" opacity={sparkle2OpacityValue * sparkle2PulseValue} />
               </G>
-              <G transform={`translate(${sparkle3TranslateXValue}, ${sparkle3TranslateYValue}) scale(${sparkle3ScaleValue})`}>
-                {/* Glow layers with pulse */}
-                <Circle cx="24" cy="40" r="3.5" fill="url(#sparkleGlowBrowse)" opacity={sparkle3GlowOpacity * 0.4} />
-                <Circle cx="24" cy="40" r="2.5" fill="url(#sparkleGlowBrowse)" opacity={sparkle3GlowOpacity * 0.6} />
-                {/* Main sparkle */}
-                <Circle cx="24" cy="40" r="2" fill="#ffffff" opacity={sparkle3OpacityValue} />
+              <G transform={`translate(${sparkle3TranslateXValue}, ${sparkle3TranslateYValue}) scale(${sparkle3ScaleValue * sparkle3PulseValue})`}>
+                {/* Subtle glow behind sparkle - pulse affects brightness */}
+                <Circle cx="24" cy="40" r="2.2" fill="url(#sparkleGlowBrowse)" opacity={sparkle3OpacityValue * 0.3 * sparkle3PulseValue} />
+                <Circle cx="24" cy="40" r="1.5" fill="#ffffff" opacity={sparkle3OpacityValue * sparkle3PulseValue} />
               </G>
-              <G transform={`translate(${sparkle4TranslateXValue}, ${sparkle4TranslateYValue}) scale(${sparkle4ScaleValue})`}>
-                {/* Glow layers with pulse */}
-                <Circle cx="8" cy="24" r="3.5" fill="url(#sparkleGlowBrowse)" opacity={sparkle4GlowOpacity * 0.4} />
-                <Circle cx="8" cy="24" r="2.5" fill="url(#sparkleGlowBrowse)" opacity={sparkle4GlowOpacity * 0.6} />
-                {/* Main sparkle */}
-                <Circle cx="8" cy="24" r="2" fill="#ffffff" opacity={sparkle4OpacityValue} />
+              <G transform={`translate(${sparkle4TranslateXValue}, ${sparkle4TranslateYValue}) scale(${sparkle4ScaleValue * sparkle4PulseValue})`}>
+                {/* Subtle glow behind sparkle - pulse affects brightness */}
+                <Circle cx="8" cy="24" r="2.2" fill="url(#sparkleGlowBrowse)" opacity={sparkle4OpacityValue * 0.3 * sparkle4PulseValue} />
+                <Circle cx="8" cy="24" r="1.5" fill="#ffffff" opacity={sparkle4OpacityValue * sparkle4PulseValue} />
               </G>
             </G>
           </Svg>
@@ -791,6 +758,7 @@ interface Profile {
 
 export default function BrowseScreen() {
   const navigation = useNavigation();
+  const isFocused = useIsFocused();
   const { profile: userProfile, user, isAuthenticated } = useAuth();
   const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
   
@@ -849,6 +817,7 @@ export default function BrowseScreen() {
   const [unlocking, setUnlocking] = useState(false);
   const [isAutoMatching, setIsAutoMatching] = useState(false); // Track when auto-matching to prevent UI flash
   const [canClaimTokens, setCanClaimTokens] = useState<boolean>(false); // Track if user can claim tokens
+  const [photoCount, setPhotoCount] = useState<number | null>(null); // User's photo count (for 5-photo minimum)
   const socketRef = useRef<Socket | null>(null);
   
   // Button animations
@@ -946,6 +915,26 @@ export default function BrowseScreen() {
     if (!token) {
       setError('Session expired. Please log in again.');
       setTimeout(() => setError(''), 5000);
+      return;
+    }
+
+    // Require at least 5 photos to Connect
+    let count = photoCount;
+    if (count === null) {
+      try {
+        const data = await api.get<{ photos: unknown[] }>('/photos/me', false);
+        count = Array.isArray(data?.photos) ? data.photos.length : 0;
+        setPhotoCount(count);
+      } catch {
+        count = 0;
+      }
+    }
+    if (count < MIN_PHOTOS_TO_CONNECT) {
+      Alert.alert(
+        'Add More Photos',
+        `Add at least ${MIN_PHOTOS_TO_CONNECT} photos to your profile in the Profile tab to start matching with others.`,
+        [{ text: 'OK' }]
+      );
       return;
     }
     
@@ -1148,7 +1137,7 @@ export default function BrowseScreen() {
         setBrowseUnlocked(true);
       }
     }
-  }, [unlocking, isAuthenticated, user, handleConnect]);
+  }, [unlocking, isAuthenticated, user, photoCount, handleConnect]);
 
   const fetchProfile = useCallback(async () => {
     try {
@@ -1410,24 +1399,38 @@ export default function BrowseScreen() {
     }
   }, []);
 
-  // Reset to landing page when tab is focused
+  // Reset to landing page when tab is focused — defer so tab switch paints immediately
   useFocusEffect(
     useCallback(() => {
-      // When the Connect tab is focused, always reset to show the landing page
-      // This allows users to click "Connect" again to match with a new profile
-      console.log('🔄 Connect tab focused - resetting to landing page');
-      setBrowseUnlocked(false);
-      setCurrentProfile(null);
-      setOffset(0);
-      setError('');
-      setLoading(false);
-      // Check if user can claim tokens when screen focuses (non-blocking)
-      // Use setTimeout to avoid blocking navigation
-      setTimeout(() => {
+      const task = InteractionManager.runAfterInteractions(() => {
+        setBrowseUnlocked(false);
+        setCurrentProfile(null);
+        setOffset(0);
+        setError('');
+        setLoading(false);
+        setPhotoCount(null); // Refetch photo count when landing is shown
         checkCanClaimTokens();
-      }, 0);
+      });
+      return () => task.cancel();
     }, [])
   );
+
+  // Fetch user's photo count when on landing page (for 5-photo minimum to Connect)
+  useEffect(() => {
+    if (!showLandingPage || !isAuthenticated) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await api.get<{ photos: { id: string }[] }>('/photos/me', false);
+        if (!cancelled && Array.isArray(data?.photos)) {
+          setPhotoCount(data.photos.length);
+        }
+      } catch {
+        if (!cancelled) setPhotoCount(0);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [showLandingPage, isAuthenticated]);
 
   useEffect(() => {
     if (hasFetched && offset > 0) {
@@ -1483,14 +1486,6 @@ export default function BrowseScreen() {
 
   // Show landing page when browsing is locked OR when auto-matching (to prevent UI flash)
   const showLandingPage = (browseUnlocked === false || isAutoMatching) && !needsProfile && !showMatchCelebration;
-  
-  console.log('🎨 Landing page state:', { 
-    browseUnlocked, 
-    needsProfile, 
-    showLandingPage,
-    loading,
-    hasFetched
-  });
 
   // Button pulse animation (only when landing page is shown)
   // MUST be before any early returns
@@ -1739,6 +1734,11 @@ export default function BrowseScreen() {
     ? getPhotoUrl(currentProfile.photoUrl)
     : null;
 
+  // When tab is not focused, render minimal view so leaving Connect tab is instant (no heavy tree re-render)
+  if (!isFocused) {
+    return <View style={{ flex: 1 }} />;
+  }
+
   // Only show initial loading screen if we're not auto-matching (auto-matching should show landing page)
   if (loading && !hasFetched && !isAutoMatching) {
     return (
@@ -1874,7 +1874,7 @@ export default function BrowseScreen() {
                       useNativeDriver: true,
                     }).start();
                   }}
-                  disabled={unlocking}
+                  disabled={unlocking || (photoCount !== null && photoCount < MIN_PHOTOS_TO_CONNECT)}
                   activeOpacity={0.9}
                   style={styles.landingButtonTouchable}
                 >
@@ -1884,11 +1884,11 @@ export default function BrowseScreen() {
                     end={{ x: 1, y: 1 }}
                     style={[
                       styles.landingButton,
-                      unlocking && styles.landingButtonDisabled,
+                      (unlocking || (photoCount !== null && photoCount < MIN_PHOTOS_TO_CONNECT)) && styles.landingButtonDisabled,
                     ]}
                   >
                     {/* Shimmer effect overlay */}
-                    {!unlocking && (
+                    {!unlocking && photoCount !== null && photoCount >= MIN_PHOTOS_TO_CONNECT && (
                       <Animated.View
                         style={[
                           styles.buttonShimmer,
@@ -1906,10 +1906,14 @@ export default function BrowseScreen() {
                     >
                       {unlocking ? (
                         <ActivityIndicator color="#fff" size="large" />
+                      ) : photoCount !== null && photoCount < MIN_PHOTOS_TO_CONNECT ? (
+                        <Text style={styles.landingButtonText} numberOfLines={2}>
+                          Add 5+ Photos
+                        </Text>
                       ) : (
                         <Text style={styles.landingButtonText} numberOfLines={1}>
-                        Connect
-                      </Text>
+                          Connect
+                        </Text>
                       )}
                     </Animated.View>
                   </LinearGradient>
@@ -1917,7 +1921,9 @@ export default function BrowseScreen() {
               </Animated.View>
               
               <Text style={styles.landingHint}>
-                Use a token to see your match ❤️
+                {photoCount !== null && photoCount < MIN_PHOTOS_TO_CONNECT
+                  ? `Add at least ${MIN_PHOTOS_TO_CONNECT} photos in Profile to Connect`
+                  : 'Use a token to see your match ❤️'}
               </Text>
             </View>
           </View>

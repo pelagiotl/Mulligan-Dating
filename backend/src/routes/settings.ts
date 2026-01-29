@@ -17,17 +17,22 @@ settingsRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
     const userId = req.userId!;
 
     const user = await (db
-      .prepare("SELECT id, email, created_at, last_active_at FROM users WHERE id = ?")
-      .get(userId) as Promise<{ id: string; email: string; created_at: string; last_active_at: string | null } | undefined>);
+      .prepare("SELECT id, email, created_at, last_active_at, show_active_status FROM users WHERE id = ?")
+      .get(userId) as Promise<{ id: string; email: string; created_at: string; last_active_at: string | null; show_active_status: number | boolean | null } | undefined>);
 
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
 
+    const showActiveStatus = user.show_active_status === undefined || user.show_active_status === null
+      ? true
+      : !!user.show_active_status;
+
     res.json({
       email: user.email,
       createdAt: user.created_at,
       lastActiveAt: user.last_active_at,
+      showActiveStatus,
     });
   } catch (error) {
     console.error("Get settings error:", error);
@@ -187,6 +192,27 @@ settingsRouter.put("/email", authenticateToken, async (req: AuthRequest, res) =>
     }
     console.error("Update email error:", error);
     res.status(500).json({ error: "Failed to update email" });
+  }
+});
+
+// Toggle whether others can see your active status (last active) in matches
+const activeStatusSchema = z.object({
+  showActiveStatus: z.boolean(),
+});
+
+settingsRouter.put("/active-status", authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { showActiveStatus } = activeStatusSchema.parse(req.body);
+    const value = showActiveStatus ? 1 : 0;
+    await (db.prepare("UPDATE users SET show_active_status = ? WHERE id = ?").run([value, userId]) as Promise<any>);
+    res.json({ message: "Active status updated", showActiveStatus });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors[0].message });
+    }
+    console.error("Update active status error:", error);
+    res.status(500).json({ error: "Failed to update active status" });
   }
 });
 

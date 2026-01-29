@@ -40,13 +40,14 @@ const profileSchema = z.object({
 });
 
 const preferencesSchema = z.object({
-  minAge: z.number().min(18).max(120).optional(),
-  maxAge: z.union([z.number().min(18).max(120), z.null()]).optional(), // Max age can be null (no limit) or a number up to 120
+  minAge: z.union([z.number().min(18).max(120), z.null()]).optional(),
+  maxAge: z.union([z.number().min(18).max(120), z.null()]).optional(),
   preferredGenders: z.union([z.array(z.string()), z.null()]).optional(),
-  maxDistance: z.union([z.number().min(1).max(10000), z.null()]).optional(), // Max distance can be null (unlimited) or a number up to 10000
+  maxDistance: z.union([z.number().min(1).max(10000), z.null()]).optional(),
   relationshipType: z.union([z.string(), z.null()]).optional(),
-  intent: z.number().min(1).max(10).optional(),
-  values: z.array(z.string()).optional()
+  intent: z.union([z.number().min(1).max(10), z.null()]).optional(),
+  values: z.array(z.string()).optional(),
+  showActiveStatus: z.boolean().optional(), // When provided, updates users.show_active_status (so others see/hide last active in matches)
 });
 
 // Create or update profile
@@ -434,6 +435,12 @@ profileRouter.put('/preferences', authenticateToken, rateLimitAPI, async (req: A
         preferencesData.intent ?? null,
         valuesJson
       ]) as Promise<any>);
+    }
+
+    // Optional: update user's show_active_status (stored on users table) so matches can show/hide last active
+    if (preferencesData.showActiveStatus !== undefined) {
+      const showValue = preferencesData.showActiveStatus ? 1 : 0;
+      await (db.prepare('UPDATE users SET show_active_status = ? WHERE id = ?').run([showValue, userId]) as Promise<any>);
     }
 
     res.json({ message: 'Preferences updated' });

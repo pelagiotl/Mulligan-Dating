@@ -14,13 +14,15 @@ import {
   Platform,
   Animated,
   Dimensions,
+  useWindowDimensions,
   Modal,
   Vibration,
   KeyboardAvoidingView,
   Keyboard,
+  InteractionManager,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { io, Socket } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -66,6 +68,7 @@ interface Match {
     interests: string[];
     values: string[];
     partnerQualities: Array<{ quality: string; importance: number }>;
+    lastActiveAt?: string | null;
   };
 }
 
@@ -301,6 +304,7 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
   index, 
   photoUrl, 
   getTimeRemaining,
+  formatLastActive,
   getStageBadgeStyle,
   getStageEmoji,
   onPress, 
@@ -310,6 +314,7 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
   index: number;
   photoUrl: string | null;
   getTimeRemaining: (expiresAt: string | null) => string | null;
+  formatLastActive: (lastActiveAt: string | null | undefined) => string | null;
   getStageBadgeStyle: (stage: string) => any;
   getStageEmoji: (stage: string) => string;
   onPress: () => void;
@@ -460,7 +465,9 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
                   style={styles.matchPhoto}
                 >
                   <Text style={styles.matchPhotoPlaceholderText}>
-                    {item.otherUser.displayName.charAt(0).toUpperCase()}
+                    {item.otherUser.displayName && item.otherUser.displayName.length > 0
+                      ? item.otherUser.displayName.charAt(0).toUpperCase()
+                      : '?'}
                   </Text>
                 </LinearGradient>
                 {/* Subtle glow around placeholder */}
@@ -486,22 +493,27 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
               </Animated.View>
             )}
             {/* Unread message badge */}
-            {item.unreadCount && item.unreadCount > 0 && (
+            {item.unreadCount != null && item.unreadCount > 0 ? (
               <View style={styles.unreadBadge}>
                 <Text style={styles.unreadBadgeText}>
-                  {item.unreadCount > 99 ? '99+' : item.unreadCount}
+                  {item.unreadCount > 99 ? '99+' : String(item.unreadCount)}
                 </Text>
               </View>
-            )}
+            ) : null}
           </View>
           <View style={styles.matchInfo}>
             <View style={styles.matchHeader}>
               <Text style={[styles.matchName, item.unreadCount && item.unreadCount > 0 && styles.matchNameUnread]}>
-                {item.otherUser.displayName}
+                {item.otherUser.displayName ?? ''}
               </Text>
-              <Text style={styles.matchAge}>, {item.otherUser.age}</Text>
+              <Text style={styles.matchAge}>, {item.otherUser.age != null ? String(item.otherUser.age) : ''}</Text>
             </View>
             {renderMatchLocation(item.otherUser.location)}
+            {formatLastActive(item.otherUser.lastActiveAt) ? (
+              <Text style={styles.activeStatusText} numberOfLines={1}>
+                🟢 {formatLastActive(item.otherUser.lastActiveAt)}
+              </Text>
+            ) : null}
             <View style={styles.badgesRow}>
               <View style={styles.stageContainer}>
                 <Animated.View style={item.stage === 'stage2' ? { transform: [{ scale: pulseAnim }] } : undefined}>
@@ -518,14 +530,12 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
                   </LinearGradient>
                 </Animated.View>
               </View>
-              {item.expiresAt && getTimeRemaining(item.expiresAt) && (
+              {item.expiresAt && getTimeRemaining(item.expiresAt) ? (
                 <View style={styles.timerContainer}>
                   <Text style={styles.timerEmoji}>⏳</Text>
-                  <Text style={styles.timerText}>
-                    {getTimeRemaining(item.expiresAt)}
-                  </Text>
+                  <Text style={styles.timerText}>{getTimeRemaining(item.expiresAt)}</Text>
                 </View>
-              )}
+              ) : null}
             </View>
           </View>
           <TouchableOpacity
@@ -1608,7 +1618,9 @@ export default function MatchesScreen() {
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const navigation = useNavigation();
   const route = useRoute();
+  const isFocused = useIsFocused();
   const insets = useSafeAreaInsets();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const [matches, setMatches] = useState<Match[]>([]);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -1619,6 +1631,7 @@ export default function MatchesScreen() {
   const socketRef = useRef<Socket | null>(null);
   const messagesEndRef = useRef<FlatList>(null);
   const selectedMatchRef = useRef<Match | null>(null);
+  const lastFetchedMatchIdRef = useRef<string | null>(null);
   const textInputRef = useRef<TextInput>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -1706,6 +1719,23 @@ export default function MatchesScreen() {
     } else {
       return `${minutes}m`;
     }
+  }, [currentTime]);
+
+  // Format last active for display in match list (only shown when other user has show_active_status on)
+  const formatLastActive = useCallback((lastActiveAt: string | null | undefined): string | null => {
+    if (!lastActiveAt) return null;
+    const then = new Date(lastActiveAt).getTime();
+    const now = currentTime.getTime();
+    const diffMs = now - then;
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    if (diffMins < 1) return 'Active now';
+    if (diffMins < 60) return `Active ${diffMins}m ago`;
+    if (diffHours < 24) return `Active ${diffHours}h ago`;
+    if (diffDays === 1) return 'Active yesterday';
+    if (diffDays < 7) return `Active ${diffDays}d ago`;
+    return null; // Don't show for older
   }, [currentTime]);
 
   const handleKeyPress = (e: any) => {
@@ -1951,23 +1981,15 @@ export default function MatchesScreen() {
   useEffect(() => {
     selectedMatchRef.current = selectedMatch;
     
-    // Animate chat transition
+    // Chat transition: fade only (no translateX so messages/input stay on screen)
     if (selectedMatch) {
-      chatSlideAnim.setValue(300);
+      chatSlideAnim.setValue(0);
       chatFadeAnim.setValue(0);
-      Animated.parallel([
-        Animated.spring(chatSlideAnim, {
-          toValue: 0,
-          tension: 50,
-          friction: 8,
-          useNativeDriver: true,
-        }),
-        Animated.timing(chatFadeAnim, {
-          toValue: 1,
-          duration: 400,
-          useNativeDriver: true,
-        }),
-      ]).start();
+      Animated.timing(chatFadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
     } else {
       chatSlideAnim.setValue(0);
       chatFadeAnim.setValue(1);
@@ -1976,6 +1998,12 @@ export default function MatchesScreen() {
     if (!socketRef.current || !selectedMatch) return;
 
     if (selectedMatch.stage !== 'pending') {
+      setNewMessage(''); // clear input so Mulligan Moment starter doesn't carry over to another match
+      // Only clear messages when switching to a *different* match (avoids clearing on effect re-run for same match)
+      const matchId = selectedMatch.id;
+      if (lastFetchedMatchIdRef.current !== null && lastFetchedMatchIdRef.current !== matchId) {
+        setMessages([]);
+      }
       socketRef.current.emit('join_match', selectedMatch.id);
       fetchMessages(selectedMatch.id);
       socketRef.current.emit('mark_read', { matchId: selectedMatch.id });
@@ -1992,31 +2020,21 @@ export default function MatchesScreen() {
     };
   }, [selectedMatch?.id]);
 
-  // Handle route params when screen is focused (for deep linking to specific match)
+  // Handle route params when screen is focused — defer so tab switch paints immediately
   useFocusEffect(
     useCallback(() => {
-      const routeParams = route.params as { matchId?: string } | undefined;
-      console.log('🔍 useFocusEffect - route params:', routeParams);
-      console.log('🔍 useFocusEffect - matches count:', matches.length);
-      console.log('🔍 useFocusEffect - selectedMatch:', selectedMatch?.id);
-      
-      // If we have a matchId in route params, always refetch matches first
-      // (especially important for newly created matches that might not be in the list yet)
-      if (routeParams?.matchId && user && isAuthenticated && !authLoading && !loading) {
-        const matchToSelect = matches.find(m => m.id === routeParams.matchId);
-        if (!matchToSelect) {
-          console.log('🔄 Match not found in current list, refetching matches...');
-          fetchMatches().then(() => {
-            // After refetch, the fetchMatches function will auto-select the match
-            console.log('✅ Matches refetched, auto-selection should happen in fetchMatches');
-          });
-        } else if (!selectedMatch) {
-          console.log('🎯 Match found in list, auto-selecting:', routeParams.matchId);
-          setSelectedMatch(matchToSelect);
+      const task = InteractionManager.runAfterInteractions(() => {
+        const routeParams = route.params as { matchId?: string } | undefined;
+        if (routeParams?.matchId && user && isAuthenticated && !authLoading && !loading) {
+          const matchToSelect = matches.find(m => m.id === routeParams.matchId);
+          if (!matchToSelect) {
+            fetchMatches().then(() => {});
+          } else if (!selectedMatch) {
+            setSelectedMatch(matchToSelect);
+          }
         }
-      } else if (routeParams?.matchId && matches.length === 0 && !loading) {
-        console.log('⏳ Matches not loaded yet, will auto-select after fetch');
-      }
+      });
+      return () => task.cancel();
     }, [matches, route.params, selectedMatch, user, isAuthenticated, authLoading, loading, fetchMatches])
   );
 
@@ -2090,32 +2108,38 @@ export default function MatchesScreen() {
     }
   }, [matches, route.params, selectedMatch, loading]);
 
-  // Debug logging - must be before any early returns
-  useEffect(() => {
-    console.log('🔄 MatchesScreen render - selectedMatch:', selectedMatch?.id || 'null');
-  }, [selectedMatch]);
-
-  const fetchMessages = async (matchId: string) => {
+  const fetchMessages = async (matchId: string, retryCount = 0) => {
+    const maxRetries = 2;
     try {
-      const data = await api.get<{ messages: Message[] }>(`/matches/${matchId}/messages`);
-      setMessages(data.messages || []);
+      // Skip cache so we always get fresh messages when opening a chat
+      const data = await api.get<{ messages: Message[] }>(`/matches/${matchId}/messages`, false);
+      const list = Array.isArray(data?.messages) ? data.messages : [];
+      // Only update state if we're still on this match (avoid race when switching matches)
+      if (selectedMatchRef.current?.id === matchId) {
+        lastFetchedMatchIdRef.current = matchId;
+        setMessages(list);
+      }
     } catch (error) {
       console.error('Failed to fetch messages:', error);
-      setMessages([]);
+      if (retryCount < maxRetries) {
+        setTimeout(() => fetchMessages(matchId, retryCount + 1), 600);
+        return;
+      }
+      if (selectedMatchRef.current?.id === matchId) {
+        lastFetchedMatchIdRef.current = matchId; // still mark as "fetched" so we don't clear on next open
+        setMessages([]);
+      }
     }
   };
 
   const handleBack = useCallback(() => {
     console.log('🔙 handleBack called - clearing selected match');
     console.log('   Current selectedMatch:', selectedMatch?.id);
+    lastFetchedMatchIdRef.current = null;
     // Refresh matches to update unread counts after viewing messages
     fetchMatches();
-    // Clear messages first
     setMessages([]);
-    // Clear selectedMatch - use direct setter instead of functional update
-    console.log('   Setting selectedMatch to null...');
     setSelectedMatch(null);
-    console.log('   selectedMatch state updated to null');
   }, [selectedMatch, fetchMatches]);
 
   const handleSendMessage = async (messageToSend?: string) => {
@@ -2238,6 +2262,34 @@ export default function MatchesScreen() {
     return match.otherUser.photoUrl || null;
   }, []);
 
+  // All hooks must be called before any early returns (Rules of Hooks)
+  const getStageBadgeStyle = useCallback((stage: string) => {
+    switch (stage) {
+      case 'stage2':
+        return styles.stageBadgeStage2;
+      case 'stage1':
+        return styles.stageBadgeStage1;
+      default:
+        return styles.stageBadgePending;
+    }
+  }, []);
+
+  const getStageEmoji = useCallback((stage: string) => {
+    switch (stage) {
+      case 'stage2':
+        return '💕';
+      case 'stage1':
+        return '💖';
+      default:
+        return '💌';
+    }
+  }, []);
+
+  // When tab is not focused, render minimal view so leaving Matches tab is instant
+  if (!isFocused) {
+    return <View style={{ flex: 1 }} />;
+  }
+
   // Show loading while auth is initializing or matches are loading
   if (authLoading || loading) {
     return (
@@ -2273,31 +2325,9 @@ export default function MatchesScreen() {
             You need to be logged in to view your matches.
           </Text>
         </View>
-      </View>
-    );
+    </View>
+  );
   }
-
-  const getStageBadgeStyle = useCallback((stage: string) => {
-    switch (stage) {
-      case 'stage2':
-        return styles.stageBadgeStage2;
-      case 'stage1':
-        return styles.stageBadgeStage1;
-      default:
-        return styles.stageBadgePending;
-    }
-  }, []);
-
-  const getStageEmoji = useCallback((stage: string) => {
-    switch (stage) {
-      case 'stage2':
-        return '💕';
-      case 'stage1':
-        return '💖';
-      default:
-        return '💌';
-    }
-  }, []);
 
   if (!selectedMatch) {
     console.log('📋 Rendering matches list view');
@@ -2340,6 +2370,7 @@ export default function MatchesScreen() {
                   index={index} 
                   photoUrl={photoUrl} 
                   getTimeRemaining={getTimeRemaining}
+                  formatLastActive={formatLastActive}
                   getStageBadgeStyle={getStageBadgeStyle}
                   getStageEmoji={getStageEmoji}
                   onPress={() => {
@@ -2363,7 +2394,7 @@ export default function MatchesScreen() {
 
   console.log('💬 Rendering chat view for match:', selectedMatch?.id);
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { width: windowWidth, maxWidth: windowWidth, overflow: 'hidden', alignSelf: 'center' }]}>
       <LinearGradient
         colors={['#667eea', '#764ba2', '#f093fb', '#f5576c']}
         start={{ x: 0, y: 0 }}
@@ -2440,18 +2471,14 @@ export default function MatchesScreen() {
         />
       )}
 
-      {/* New Features: Mulligan Moments and Date Blueprint */}
+      {/* New Features: Mulligan Moments and First Date Plan - fixed at top, both visible; maxHeight so messages area always has space */}
       {selectedMatch && selectedMatch.stage !== 'pending' && (
-        <ScrollView 
-          style={styles.featuresContainer}
-          showsVerticalScrollIndicator={false}
-          nestedScrollEnabled={true}
-        >
+        <View style={[styles.featuresContainer, { maxHeight: Math.min(220, windowHeight * 0.38) }]}>
           <MulliganMoments 
             matchId={selectedMatch.id} 
             socket={socketRef.current}
+            compact
             onStarterGenerated={(starter) => {
-              // Auto-fill the message input with the generated starter
               setNewMessage(starter);
               if (textInputRef.current) {
                 textInputRef.current.focus();
@@ -2463,16 +2490,13 @@ export default function MatchesScreen() {
             socket={socketRef.current}
             currentUserId={user?.id || ''}
           />
-        </ScrollView>
+        </View>
       )}
 
       <Animated.View 
         style={[
-          { flex: 1 },
-          {
-            opacity: chatFadeAnim,
-            transform: [{ translateX: chatSlideAnim }],
-          },
+          styles.chatMessagesWrapper,
+          { opacity: chatFadeAnim },
         ]}
       >
         <FlatList
@@ -2622,10 +2646,12 @@ export default function MatchesScreen() {
                 : Platform.OS === 'ios' ? 70 : 68,
               left: 0,
               right: 0,
+              width: windowWidth,
+              maxWidth: windowWidth,
+              paddingHorizontal: 12,
               zIndex: 1000,
               elevation: 10,
               opacity: chatFadeAnim,
-              transform: [{ translateX: chatSlideAnim }],
             }
           ]}
         >
@@ -3016,6 +3042,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: -0.1,
   },
+  activeStatusText: {
+    fontSize: 13,
+    color: '#22c55e',
+    fontWeight: '600',
+    marginTop: 2,
+  },
   badgesRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -3229,28 +3261,46 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.9)',
   },
   featuresContainer: {
-    maxHeight: 90,
+    width: '100%',
+    maxWidth: '100%',
+    overflow: 'hidden',
     backgroundColor: '#f5f7fa',
-    paddingVertical: 2,
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+    // maxHeight set inline so messages list always gets remaining space
+  },
+  chatMessagesWrapper: {
+    flex: 1,
+    width: '100%',
+    maxWidth: '100%',
+    overflow: 'hidden',
+    alignSelf: 'stretch',
   },
   messagesList: {
     flex: 1,
+    width: '100%',
+    maxWidth: '100%',
+    alignSelf: 'stretch',
   },
   messagesContent: {
     paddingHorizontal: 10,
     paddingTop: 4,
     paddingBottom: 16,
     flexGrow: 1,
+    width: '100%',
+    maxWidth: '100%',
   },
   messageContainerOwn: {
     alignSelf: 'flex-end',
     marginBottom: 2,
-    maxWidth: '65%',
+    maxWidth: '85%',
   },
   messageContainerOther: {
     alignSelf: 'flex-start',
     marginBottom: 2,
-    maxWidth: '65%',
+    maxWidth: '85%',
   },
   messageBubbleOwn: {
     paddingHorizontal: 9,

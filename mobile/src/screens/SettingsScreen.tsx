@@ -547,37 +547,42 @@ export default function SettingsScreen() {
           style={styles.preferencesCard}
         >
           <Text style={styles.preferencesCardTitle}>Maximum Distance</Text>
-          <Text style={styles.preferencesCardDescription}>
-            {maxDistance === null 
-              ? 'Show me people from anywhere (unlimited distance)'
-              : `Show me people within ${maxDistance} mile${maxDistance !== 1 ? 's' : ''}`
-            }
-          </Text>
+          <View style={styles.preferencesCardDescriptionWrap}>
+            <Text style={styles.preferencesCardDescription} numberOfLines={3}>
+              {maxDistance === null 
+                ? 'Show me people from anywhere (unlimited distance)'
+                : `Show me people within ${maxDistance} mile${maxDistance !== 1 ? 's' : ''}`
+              }
+            </Text>
+          </View>
           {loadingPreferences ? (
             <ActivityIndicator size="small" color="#fff" style={styles.sliderLoading} />
           ) : (
             <View style={styles.sliderContainer}>
               <View style={styles.distanceButtons}>
-                {/* Unlimited option */}
-                <TouchableOpacity
-                  style={[
-                    styles.distanceButton,
-                    maxDistance === null && styles.distanceButtonActive
-                  ]}
-                  onPress={() => {
-                    if (!updatingDistance) {
-                      handleDistanceChange(null);
-                    }
-                  }}
-                  disabled={updatingDistance}
-                >
-                  <Text style={[
-                    styles.distanceButtonText,
-                    maxDistance === null && styles.distanceButtonTextActive
-                  ]}>
-                    ∞ Unlimited
-                  </Text>
-                </TouchableOpacity>
+                {/* Unlimited option - full width so "Unlimited" reads normally */}
+                <View style={styles.distanceButtonUnlimitedWrap}>
+                  <TouchableOpacity
+                    style={[
+                      styles.distanceButton,
+                      styles.distanceButtonUnlimited,
+                      maxDistance === null && styles.distanceButtonActive
+                    ]}
+                    onPress={() => {
+                      if (!updatingDistance) {
+                        handleDistanceChange(null);
+                      }
+                    }}
+                    disabled={updatingDistance}
+                  >
+                    <Text style={[
+                      styles.distanceButtonText,
+                      maxDistance === null && styles.distanceButtonTextActive
+                    ]} numberOfLines={1}>
+                      ∞ Unlimited
+                    </Text>
+                  </TouchableOpacity>
+                </View>
                 {[10, 25, 50, 75, 100].map((value) => (
                   <TouchableOpacity
                     key={value}
@@ -1599,10 +1604,13 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     letterSpacing: -0.3,
   },
+  preferencesCardDescriptionWrap: {
+    width: '100%',
+    marginBottom: 20,
+  },
   preferencesCardDescription: {
     fontSize: 15,
     color: 'rgba(255, 255, 255, 0.9)',
-    marginBottom: 20,
     lineHeight: 22,
     fontWeight: '500',
   },
@@ -1615,6 +1623,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: 8,
     gap: 8,
+  },
+  distanceButtonUnlimitedWrap: {
+    width: '100%',
+  },
+  distanceButtonUnlimited: {
+    minWidth: undefined,
+    flex: undefined,
   },
   distanceButton: {
     flex: 1,

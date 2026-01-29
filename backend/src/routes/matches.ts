@@ -46,7 +46,8 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
                 p1.photo_url as user1_photo, p1.gender as user1_gender, p1.location as user1_location,
                 p2.display_name as user2_name, p2.age as user2_age, p2.bio as user2_bio,
                 p2.photo_url as user2_photo, p2.gender as user2_gender, p2.location as user2_location,
-                u1.last_active_at as user1_last_active, u2.last_active_at as user2_last_active
+                u1.last_active_at as user1_last_active, u2.last_active_at as user2_last_active,
+                u1.show_active_status as user1_show_active, u2.show_active_status as user2_show_active
          FROM matches m
          LEFT JOIN profiles p1 ON p1.user_id = m.user1_id
          LEFT JOIN profiles p2 ON p2.user_id = m.user2_id
@@ -218,6 +219,8 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
         }
       }
 
+      const otherLastActive = isUser1 ? m.user2_last_active : m.user1_last_active;
+      const otherShowActive = isUser1 ? (m.user2_show_active !== 0 && m.user2_show_active !== false) : (m.user1_show_active !== 0 && m.user1_show_active !== false);
       const otherUser = {
         userId: otherUserId,
         displayName: isUser1 ? m.user2_name : m.user1_name,
@@ -227,7 +230,8 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
         location: isUser1 ? m.user2_location : m.user1_location,
         // Show primary photo in stage1 and stage2 (all photos shown in stage2 via separate photos array)
         photoUrl: (m.stage === "stage1" || m.stage === "stage2") ? primaryPhotoUrl : null,
-        last_active_at: isUser1 ? m.user2_last_active : m.user1_last_active,
+        last_active_at: otherLastActive,
+        show_active_status: otherShowActive,
       };
 
       const interests = otherProfileId ? (interestsMap.get(otherProfileId) || []) : [];
@@ -253,7 +257,7 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
           interests,
           values,
           partnerQualities,
-          lastActiveAt: otherUser.last_active_at || null,
+          lastActiveAt: otherUser.show_active_status ? (otherUser.last_active_at || null) : null,
         },
       };
     });

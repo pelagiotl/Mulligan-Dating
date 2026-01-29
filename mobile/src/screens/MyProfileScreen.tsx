@@ -14,10 +14,14 @@ import {
   Modal,
   Dimensions,
   FlatList,
+  InteractionManager,
+  TextInput,
 } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, useIsFocused } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GestureHandlerRootView, PanGestureHandler, State } from 'react-native-gesture-handler';
 import { api } from '../utils/api';
@@ -101,7 +105,7 @@ interface ProfileData {
     min_age: number;
     max_age: number | null;
     preferred_genders: string | null;
-    max_distance: number;
+    max_distance: number | null;
     relationship_type: string | null;
   } | null;
   dealbreakers: Array<{ description: string; category: string | null }>;
@@ -128,24 +132,43 @@ interface SettingsData {
   email: string;
   createdAt: string;
   lastActiveAt: string | null;
+  showActiveStatus?: boolean;
 }
+
+const LOOKING_FOR_OPTIONS = ['Relationship', 'Something casual', 'Friendship', 'Not sure yet'];
+
+const MAX_DISTANCE_OPTIONS: (number | null)[] = [10, 25, 50, 100, 250, 500, null]; // null = Any
 
 export default function MyProfileScreen() {
   const navigation = useNavigation();
+  const isFocused = useIsFocused();
   const { refreshProfile, user } = useAuth();
   const [data, setData] = useState<ProfileData | null>(null);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [settings, setSettings] = useState<SettingsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [uploading, setUploading] = useState(false);
+  const [uploadingSlotIndex, setUploadingSlotIndex] = useState<number | null>(null);
   const [showPhotoGallery, setShowPhotoGallery] = useState(false);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const photoGalleryScrollRef = useRef<FlatList<Photo>>(null);
+  const photoGalleryProgrammaticScrollRef = useRef(false);
   const [draggingPhotoId, setDraggingPhotoId] = useState<string | null>(null);
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
   const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
   const dragAnimatedValue = useRef(new Animated.ValueXY()).current;
+  // Location / Max distance / Looking for / Bio edit modals and state
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [showDistanceModal, setShowDistanceModal] = useState(false);
+  const [showLookingForModal, setShowLookingForModal] = useState(false);
+  const [editLocation, setEditLocation] = useState('');
+  const [editMaxDistance, setEditMaxDistance] = useState<number | null>(50);
+  const [editLookingFor, setEditLookingFor] = useState('');
+  const [editingBio, setEditingBio] = useState(false);
+  const [editBio, setEditBio] = useState('');
+  const [detectingLocation, setDetectingLocation] = useState(false);
+  const [updatingField, setUpdatingField] = useState(false);
+  const [updatingActiveStatus, setUpdatingActiveStatus] = useState(false);
   const [reordering, setReordering] = useState(false);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   
@@ -179,24 +202,16 @@ export default function MyProfileScreen() {
   
   useEffect(() => {
     if (data) {
-      // Animate header entrance
+      // Show header immediately so picture, name, and basic info are visible at top
+      headerFade.setValue(1);
+      headerScale.setValue(1);
+      avatarScale.setValue(1);
+      // Optional: subtle entrance (fast, non-blocking)
       Animated.parallel([
-        Animated.timing(headerFade, {
-          toValue: 1,
-          duration: 600,
-          useNativeDriver: true,
-        }),
-        Animated.spring(headerScale, {
-          toValue: 1,
-          tension: 50,
-          friction: 7,
-          useNativeDriver: true,
-        }),
         Animated.spring(avatarScale, {
           toValue: 1,
           tension: 40,
           friction: 6,
-          delay: 100,
           useNativeDriver: true,
         }),
       ]).start();
@@ -437,6 +452,20 @@ export default function MyProfileScreen() {
       setLoading(false);
     }
   }, [user]);
+
+  // Refetch when Profile tab is focused — defer so tab switch paints immediately, then refetch in background
+  useFocusEffect(
+    React.useCallback(() => {
+      const task = InteractionManager.runAfterInteractions(() => {
+        if (user) {
+          fetchProfile();
+          fetchPhotos();
+          fetchSettings();
+        }
+      });
+      return () => task.cancel();
+    }, [user])
+  );
   
   // Initialize and animate sections
   useEffect(() => {
@@ -489,7 +518,8 @@ export default function MyProfileScreen() {
   const fetchPhotos = async () => {
     if (!user) return;
     try {
-      const data = await api.get<{ photos: Photo[] }>('/photos/me');
+      // Skip cache so photos uploaded in Create Profile appear immediately when opening Profile tab
+      const data = await api.get<{ photos: Photo[] }>('/photos/me', false);
       setPhotos(data.photos || []);
     } catch (err) {
       // Only log error if it's not an auth error
@@ -506,7 +536,9 @@ export default function MyProfileScreen() {
       return;
     }
     try {
-      setLoading(true);
+      // Only show full-screen loading on initial load (no data yet)
+      // Keeps current profile visible when refetching on tab focus
+      setLoading((prev) => (data == null ? true : prev));
       const profileData = await api.get<ProfileData>('/profile');
       setData(profileData);
       setError('');
@@ -538,36 +570,195 @@ export default function MyProfileScreen() {
     }
   };
 
-  const handlePickImage = async () => {
+  const toggleActiveStatus = async () => {
+    if (!settings || updatingActiveStatus) return;
+    const next = !(settings.showActiveStatus !== false);
+    setUpdatingActiveStatus(true);
     try {
-      // Request camera roll permissions
+      const prefs = data?.preferences;
+      if (prefs) {
+        let preferredGenders: string[] | null = null;
+        if (prefs.preferred_genders) {
+          try {
+            preferredGenders = JSON.parse(prefs.preferred_genders) as string[];
+          } catch {
+            preferredGenders = null;
+          }
+        }
+        await api.put('/profile/preferences', {
+          minAge: prefs.min_age ?? null,
+          maxAge: prefs.max_age ?? null,
+          preferredGenders: preferredGenders ?? null,
+          maxDistance: prefs.max_distance ?? null,
+          showActiveStatus: next,
+        });
+      } else {
+        await api.put('/profile/preferences', { showActiveStatus: next });
+      }
+      setSettings((prev) => prev ? { ...prev, showActiveStatus: next } : null);
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to update active status.');
+    } finally {
+      setUpdatingActiveStatus(false);
+    }
+  };
+
+  const detectLocation = async () => {
+    setDetectingLocation(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Location permission is required to detect your location.');
+        setDetectingLocation(false);
+        return;
+      }
+      const locationData = await Location.getCurrentPositionAsync({});
+      const { latitude, longitude } = locationData.coords;
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&addressdetails=1`,
+        { headers: { 'User-Agent': 'Mulligan-Dating-App/1.0' } }
+      );
+      if (!response.ok) throw new Error('Failed to reverse geocode');
+      const geo = await response.json();
+      const address = geo.address || {};
+      const city = address.city || address.town || address.village || address.municipality || address.county || '';
+      const state = address.state || address.region || address.province || address['ISO3166-2']?.split('-')[1] || '';
+      if (city && state) setEditLocation(`${city}, ${state}`);
+      else if (city) setEditLocation(city);
+      else setEditLocation(geo.display_name || '');
+    } catch (e: any) {
+      Alert.alert('Location Error', e?.message || 'Could not detect location.');
+    } finally {
+      setDetectingLocation(false);
+    }
+  };
+
+  const saveLocation = async () => {
+    if (!data?.profile) return;
+    const loc = editLocation.trim() || null;
+    setUpdatingField(true);
+    try {
+      await api.post('/profile', {
+        displayName: data.profile.display_name,
+        age: data.profile.age,
+        gender: data.profile.gender,
+        location: loc,
+        bio: data.profile.bio ?? null,
+        lookingFor: data.profile.looking_for ?? null,
+      });
+      setData((prev) => prev ? { ...prev, profile: { ...prev.profile, location: loc } } : null);
+      setShowLocationModal(false);
+      refreshProfile?.();
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to update location.');
+    } finally {
+      setUpdatingField(false);
+    }
+  };
+
+  const saveLookingFor = async () => {
+    if (!data?.profile) return;
+    const val = editLookingFor.trim() || null;
+    setUpdatingField(true);
+    try {
+      await api.post('/profile', {
+        displayName: data.profile.display_name,
+        age: data.profile.age,
+        gender: data.profile.gender,
+        location: data.profile.location ?? null,
+        bio: data.profile.bio ?? null,
+        lookingFor: val,
+      });
+      setData((prev) => prev ? { ...prev, profile: { ...prev.profile, looking_for: val } } : null);
+      setShowLookingForModal(false);
+      refreshProfile?.();
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to update looking for.');
+    } finally {
+      setUpdatingField(false);
+    }
+  };
+
+  const saveMaxDistance = async () => {
+    if (!data?.profile) return;
+    setUpdatingField(true);
+    try {
+      const prefs = data.preferences;
+      let preferredGenders: string[] | null = null;
+      if (prefs?.preferred_genders) {
+        try {
+          preferredGenders = JSON.parse(prefs.preferred_genders) as string[];
+        } catch {
+          preferredGenders = null;
+        }
+      }
+      await api.put('/profile/preferences', {
+        minAge: prefs?.min_age ?? null,
+        maxAge: prefs?.max_age ?? null,
+        preferredGenders: preferredGenders ?? null,
+        maxDistance: editMaxDistance,
+      });
+      setData((prev) => prev && prev.preferences
+        ? { ...prev, preferences: { ...prev.preferences, max_distance: editMaxDistance } }
+        : prev);
+      setShowDistanceModal(false);
+      refreshProfile?.();
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to update max distance.');
+    } finally {
+      setUpdatingField(false);
+    }
+  };
+
+  const saveBio = async () => {
+    if (!data?.profile) return;
+    const val = editBio.trim() || null;
+    setUpdatingField(true);
+    try {
+      await api.post('/profile', {
+        displayName: data.profile.display_name,
+        age: data.profile.age,
+        gender: data.profile.gender,
+        location: data.profile.location ?? null,
+        bio: val,
+        lookingFor: data.profile.looking_for ?? null,
+      });
+      setData((prev) => prev ? { ...prev, profile: { ...prev.profile, bio: val } } : null);
+      setEditingBio(false);
+      refreshProfile?.();
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to update About Me.');
+    } finally {
+      setUpdatingField(false);
+    }
+  };
+
+  const handlePickImage = async (slotIndex?: number) => {
+    try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert(
-          'Permission needed', 
+          'Permission needed',
           'Please grant photo library access to upload photos. You can enable this in Settings > Privacy & Security > Photos.'
         );
         return;
       }
 
-      // Check if we can upload more photos
       if (photos.length >= 6) {
         Alert.alert('Limit reached', 'You can only upload up to 6 photos');
         return;
       }
 
-      // Launch image picker with more flexible options
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: false, // Allow full image selection without cropping
-        quality: 0.9, // Higher quality
+        allowsEditing: false,
+        quality: 0.9,
         allowsMultipleSelection: false,
       });
 
       if (!result.canceled && result.assets[0]) {
-        await uploadPhoto(result.assets[0].uri);
+        await uploadPhoto(result.assets[0].uri, slotIndex ?? -1);
       } else if (result.canceled) {
-        // User canceled, no error needed
         return;
       }
     } catch (err: any) {
@@ -580,9 +771,9 @@ export default function MyProfileScreen() {
     }
   };
 
-  const uploadPhoto = async (uri: string) => {
+  const uploadPhoto = async (uri: string, slotIndex: number = -1) => {
     try {
-      setUploading(true);
+      setUploadingSlotIndex(slotIndex);
 
       // Extract filename and determine MIME type
       const filename = uri.split('/').pop() || 'photo.jpg';
@@ -678,7 +869,7 @@ export default function MyProfileScreen() {
       });
       Alert.alert('Error', errorMessage);
     } finally {
-      setUploading(false);
+      setUploadingSlotIndex(null);
     }
   };
 
@@ -778,15 +969,41 @@ export default function MyProfileScreen() {
   };
 
   const handleDeletePhoto = async (photoId: string) => {
+    const deletedPhoto = photos.find((p) => p.id === photoId);
+    const wasInGallery = showPhotoGallery;
+    const wasCurrentIndex = currentPhotoIndex;
+    const previousLength = photos.length;
+
+    // Optimistic update: remove photo from UI immediately
+    setPhotos((prev) => prev.filter((p) => p.id !== photoId));
+    if (wasInGallery) {
+      if (previousLength <= 1) {
+        setShowPhotoGallery(false);
+      } else {
+        const newIndex = Math.min(wasCurrentIndex, previousLength - 2);
+        setCurrentPhotoIndex(newIndex >= 0 ? newIndex : 0);
+      }
+    }
+
     try {
       await api.delete(`/photos/${photoId}`);
+      // Refetch photos so list stays in sync (cache for /photos/me is invalidated by delete)
       await fetchPhotos();
       await fetchProfile();
       await refreshProfile();
     } catch (err: any) {
+      // Rollback on failure
+      if (deletedPhoto) {
+        setPhotos((prev) => [...prev, deletedPhoto].sort((a, b) => a.displayOrder - b.displayOrder));
+      }
       Alert.alert('Error', err?.message || 'Failed to delete photo');
     }
   };
+
+  // When tab is not focused, render minimal view so leaving Profile tab is instant
+  if (!isFocused) {
+    return <View style={{ flex: 1 }} />;
+  }
 
   if (loading) {
     return (
@@ -1377,22 +1594,22 @@ export default function MyProfileScreen() {
                     ]}
                   >
                     <LinearGradient
-                    colors={['#667eea', '#764ba2']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.statCard}
-                  >
-                    <Text style={styles.statEmoji}>🎉</Text>
-                    <Text style={styles.statLabel}>Member Since</Text>
-                    <Text style={styles.statValue}>
-                      {settings.createdAt
-                        ? new Date(settings.createdAt).toLocaleDateString('en-US', {
-                            month: 'short',
-                            year: 'numeric',
-                          })
-                        : 'N/A'}
-                    </Text>
-                  </LinearGradient>
+                      colors={['#667eea', '#764ba2']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.statCard}
+                    >
+                      <Text style={styles.statEmojiSmall}>🎉</Text>
+                      <Text style={styles.statLabel}>Member Since</Text>
+                      <Text style={styles.statValue} numberOfLines={1}>
+                        {settings.createdAt
+                          ? new Date(settings.createdAt).toLocaleDateString('en-US', {
+                              month: 'short',
+                              year: 'numeric',
+                            })
+                          : 'N/A'}
+                      </Text>
+                    </LinearGradient>
                   </Animated.View>
 
                   <Animated.View
@@ -1403,23 +1620,33 @@ export default function MyProfileScreen() {
                       },
                     ]}
                   >
-                    <LinearGradient
-                    colors={['#f093fb', '#f5576c']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.statCard}
-                  >
-                    <Text style={styles.statEmoji}>🟢</Text>
-                    <Text style={styles.statLabel}>Last Active</Text>
-                    <Text style={styles.statValue}>
-                      {settings.lastActiveAt
-                        ? new Date(settings.lastActiveAt).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                          })
-                        : 'Just now'}
-                    </Text>
-                  </LinearGradient>
+                    <TouchableOpacity
+                      activeOpacity={0.9}
+                      onPress={toggleActiveStatus}
+                      disabled={updatingActiveStatus}
+                      style={styles.statCardTouchable}
+                    >
+                      <LinearGradient
+                        colors={['#f093fb', '#f5576c']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={[styles.statCard, styles.statCardLastActive]}
+                      >
+                        <Text style={styles.statEmojiSmall}>🟢</Text>
+                        <Text style={styles.statLabel}>Last Active</Text>
+                        <Text style={styles.statValue} numberOfLines={1}>
+                          {settings.lastActiveAt
+                            ? new Date(settings.lastActiveAt).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                              })
+                            : 'Just now'}
+                        </Text>
+                        <Text style={styles.statSubtext} numberOfLines={1}>
+                          {settings.showActiveStatus !== false ? 'Visible: On' : 'Visible: Off'}
+                        </Text>
+                      </LinearGradient>
+                    </TouchableOpacity>
                   </Animated.View>
                 </View>
               )}
@@ -1449,7 +1676,17 @@ export default function MyProfileScreen() {
                 </LinearGradient>
               </View>
 
-              {profile.location && (
+              {/* Location - tappable to update */}
+              <TouchableOpacity
+                activeOpacity={0.9}
+                onPress={() => {
+                  setEditLocation(profile.location || '');
+                  setShowLocationModal(true);
+                  if (Platform.OS === 'ios') Vibration.vibrate(50);
+                  else Vibration.vibrate(50);
+                }}
+                style={styles.infoCardFullTouchable}
+              >
                 <LinearGradient
                   colors={['#4facfe', '#00f2fe']}
                   start={{ x: 0, y: 0 }}
@@ -1458,11 +1695,48 @@ export default function MyProfileScreen() {
                 >
                   <Text style={styles.infoCardEmoji}>📍</Text>
                   <Text style={styles.infoCardLabel}>Location</Text>
-                  <Text style={styles.infoCardValueFull}>{profile.location}</Text>
+                  <Text style={styles.infoCardValueFull}>{profile.location || 'Tap to add'}</Text>
                 </LinearGradient>
-              )}
+              </TouchableOpacity>
 
-              {profile.looking_for && (
+              {/* Max distance - tappable to update (used by matching) */}
+              <TouchableOpacity
+                activeOpacity={0.9}
+                onPress={() => {
+                  setEditMaxDistance(data?.preferences?.max_distance ?? 50);
+                  setShowDistanceModal(true);
+                  if (Platform.OS === 'ios') Vibration.vibrate(50);
+                  else Vibration.vibrate(50);
+                }}
+                style={styles.infoCardFullTouchable}
+              >
+                <LinearGradient
+                  colors={['#43e97b', '#38f9d7']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.infoCardFull}
+                >
+                  <Text style={styles.infoCardEmoji}>📏</Text>
+                  <Text style={styles.infoCardLabel}>Max distance</Text>
+                  <Text style={styles.infoCardValueFull}>
+                    {data?.preferences?.max_distance == null
+                      ? 'Any distance'
+                      : `${data.preferences.max_distance} mi`}
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+
+              {/* Looking For - tappable to update */}
+              <TouchableOpacity
+                activeOpacity={0.9}
+                onPress={() => {
+                  setEditLookingFor(profile.looking_for || '');
+                  setShowLookingForModal(true);
+                  if (Platform.OS === 'ios') Vibration.vibrate(50);
+                  else Vibration.vibrate(50);
+                }}
+                style={styles.infoCardFullTouchable}
+              >
                 <LinearGradient
                   colors={['#f5576c', '#f093fb', '#667eea']}
                   start={{ x: 0, y: 0 }}
@@ -1471,30 +1745,214 @@ export default function MyProfileScreen() {
                 >
                   <Text style={styles.infoCardEmoji}>💕</Text>
                   <Text style={styles.infoCardLabel}>Looking For</Text>
-                  <Text style={styles.infoCardValueFull}>{profile.looking_for}</Text>
+                  <Text style={styles.infoCardValueFull}>{profile.looking_for || 'Tap to add'}</Text>
                 </LinearGradient>
-              )}
+              </TouchableOpacity>
 
-              {profile.bio && (
-                <View style={styles.bioContainer}>
-                  <LinearGradient
-                    colors={['rgba(102, 126, 234, 0.1)', 'rgba(118, 75, 162, 0.1)']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.bioGradient}
-                  >
-                    <View style={styles.bioHeader}>
+              {/* About Me - always visible, tappable to edit (saved for all users to see when matching) */}
+              <View style={styles.bioContainer}>
+                <LinearGradient
+                  colors={['rgba(102, 126, 234, 0.08)', 'rgba(240, 147, 251, 0.06)', 'rgba(102, 126, 234, 0.06)']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.bioGradient}
+                >
+                  <View style={styles.bioHeader}>
+                    <View style={styles.bioTitleRow}>
                       <Text style={styles.bioIcon}>💬</Text>
                       <Text style={styles.bioTitle}>About Me</Text>
                     </View>
-                    <Text style={styles.bio}>{profile.bio}</Text>
-                  </LinearGradient>
-                </View>
-              )}
+                    <View style={styles.bioAccentLine} />
+                  </View>
+                  {editingBio ? (
+                    <View style={styles.bioEditContainer}>
+                      <TextInput
+                        style={styles.bioInput}
+                        value={editBio}
+                        onChangeText={setEditBio}
+                        placeholder="Tell others about yourself..."
+                        placeholderTextColor="#94a3b8"
+                        multiline
+                        numberOfLines={4}
+                        maxLength={500}
+                        editable={!updatingField}
+                      />
+                      <View style={styles.bioEditActions}>
+                        <TouchableOpacity
+                          style={styles.bioEditCancelButton}
+                          onPress={() => { setEditingBio(false); setEditBio(profile.bio || ''); }}
+                          disabled={updatingField}
+                        >
+                          <Text style={styles.bioEditCancelText}>Cancel</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.bioEditSaveButton}
+                          onPress={saveBio}
+                          disabled={updatingField}
+                        >
+                          <Text style={styles.bioEditSaveText}>{updatingField ? 'Saving...' : 'Save'}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      activeOpacity={0.9}
+                      onPress={() => {
+                        setEditBio(profile.bio || '');
+                        setEditingBio(true);
+                        if (Platform.OS === 'ios') Vibration.vibrate(50);
+                        else Vibration.vibrate(50);
+                      }}
+                    >
+                      <Text style={[styles.bio, !profile.bio && styles.bioPlaceholder]}>
+                        {profile.bio || 'Tap to add'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </LinearGradient>
+              </View>
             </View>
           </View>
         </LinearGradient>
       </Animated.View>
+
+      {/* Location edit modal - gradient card */}
+      <Modal visible={showLocationModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={styles.modalOverlayTouchable} activeOpacity={1} onPress={() => setShowLocationModal(false)} />
+          <View style={styles.editModalCard}>
+            <LinearGradient
+              colors={['#4facfe', '#00f2fe']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.editModalGradient}
+            >
+              <Text style={styles.editModalEmoji}>📍</Text>
+              <Text style={styles.editModalTitleLight}>Update Location</Text>
+              <Text style={styles.editModalSubtitleLight}>City, state, or area</Text>
+              <View style={styles.editModalInner}>
+                <TextInput
+                  style={styles.editModalInput}
+                  value={editLocation}
+                  onChangeText={setEditLocation}
+                  placeholder="e.g. San Francisco, CA"
+                  placeholderTextColor="#94a3b8"
+                  editable={!detectingLocation}
+                />
+                <TouchableOpacity
+                  style={[styles.editModalSecondaryButton, detectingLocation && styles.editModalButtonDisabled]}
+                  onPress={detectLocation}
+                  disabled={detectingLocation}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.editModalSecondaryButtonText}>
+                    {detectingLocation ? 'Detecting...' : '📍 Use My Location'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.editModalActions}>
+                <TouchableOpacity style={styles.editModalCancelPill} onPress={() => setShowLocationModal(false)} activeOpacity={0.8}>
+                  <Text style={styles.editModalCancelPillText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.editModalSavePill} onPress={saveLocation} disabled={updatingField} activeOpacity={0.8}>
+                  <Text style={styles.editModalSavePillText}>{updatingField ? 'Saving...' : 'Save'}</Text>
+                </TouchableOpacity>
+              </View>
+            </LinearGradient>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Looking for edit modal - gradient card */}
+      <Modal visible={showLookingForModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={styles.modalOverlayTouchable} activeOpacity={1} onPress={() => setShowLookingForModal(false)} />
+          <View style={styles.editModalCard}>
+            <LinearGradient
+              colors={['#f5576c', '#f093fb', '#667eea']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.editModalGradient}
+            >
+              <Text style={styles.editModalEmoji}>💕</Text>
+              <Text style={styles.editModalTitleLight}>What are you looking for?</Text>
+              <Text style={styles.editModalSubtitleLight}>Help us show you better matches</Text>
+              <View style={styles.editModalInner}>
+                <View style={styles.pickerWrapper}>
+                  <Picker
+                    selectedValue={editLookingFor}
+                    onValueChange={(v) => setEditLookingFor(v || '')}
+                    style={styles.picker}
+                    itemStyle={Platform.OS === 'ios' ? styles.pickerItem : undefined}
+                  >
+                    <Picker.Item label="Select an option" value="" />
+                    {LOOKING_FOR_OPTIONS.map((opt) => (
+                      <Picker.Item key={opt} label={opt} value={opt} />
+                    ))}
+                  </Picker>
+                </View>
+              </View>
+              <View style={styles.editModalActions}>
+                <TouchableOpacity style={styles.editModalCancelPill} onPress={() => setShowLookingForModal(false)} activeOpacity={0.8}>
+                  <Text style={styles.editModalCancelPillText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.editModalSavePill} onPress={saveLookingFor} disabled={updatingField} activeOpacity={0.8}>
+                  <Text style={styles.editModalSavePillText}>{updatingField ? 'Saving...' : 'Save'}</Text>
+                </TouchableOpacity>
+              </View>
+            </LinearGradient>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Max distance edit modal - gradient card */}
+      <Modal visible={showDistanceModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={styles.modalOverlayTouchable} activeOpacity={1} onPress={() => setShowDistanceModal(false)} />
+          <View style={styles.editModalCard}>
+            <LinearGradient
+              colors={['#43e97b', '#38f9d7']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.editModalGradient}
+            >
+              <Text style={styles.editModalEmoji}>📏</Text>
+              <Text style={styles.editModalTitleLight}>Max distance</Text>
+              <Text style={styles.editModalSubtitleLight}>Matches within this distance (used by matching)</Text>
+              <View style={styles.editModalInner}>
+                <View style={styles.distanceOptionsRow}>
+                  {MAX_DISTANCE_OPTIONS.map((value) => (
+                    <TouchableOpacity
+                      key={value ?? 'any'}
+                      style={[
+                        styles.distanceOptionButton,
+                        editMaxDistance === value && styles.distanceOptionButtonActive,
+                      ]}
+                      onPress={() => setEditMaxDistance(value)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[
+                        styles.distanceOptionText,
+                        editMaxDistance === value && styles.distanceOptionTextActive,
+                      ]}>
+                        {value == null ? 'Any' : `${value} mi`}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+              <View style={styles.editModalActions}>
+                <TouchableOpacity style={styles.editModalCancelPill} onPress={() => setShowDistanceModal(false)} activeOpacity={0.8}>
+                  <Text style={styles.editModalCancelPillText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.editModalSavePill} onPress={saveMaxDistance} disabled={updatingField} activeOpacity={0.8}>
+                  <Text style={styles.editModalSavePillText}>{updatingField ? 'Saving...' : 'Save'}</Text>
+                </TouchableOpacity>
+              </View>
+            </LinearGradient>
+          </View>
+        </View>
+      </Modal>
 
       {/* Photos Section */}
       <Animated.View 
@@ -1557,96 +2015,96 @@ export default function MyProfileScreen() {
         )}
         
         <View style={styles.photosGrid}>
-          {photos.map((photo, index) => {
-            const isDragging = draggingPhotoId === photo.id;
-            const dragStyle = isDragging ? {
-              opacity: 0.5,
-              zIndex: 1000,
-              transform: [
-                { translateX: dragAnimatedValue.x },
-                { translateY: dragAnimatedValue.y },
-                { scale: 1.1 },
-              ],
-            } : {};
-            
-            return (
-              <PanGestureHandler
-                key={photo.id}
-                onGestureEvent={Animated.event(
-                  [{ nativeEvent: { translationX: dragAnimatedValue.x, translationY: dragAnimatedValue.y } }],
-                  { useNativeDriver: false }
-                )}
-                onHandlerStateChange={(event) => {
-                  const { state } = event.nativeEvent;
-                  if (state === State.BEGAN && !isDragging) {
-                    // Start long press timer
-                    longPressTimerRef.current = setTimeout(() => {
-                      onLongPress(photo.id, index);
-                    }, 300);
-                  } else if (state === State.ACTIVE && isDragging && draggingPhotoId === photo.id) {
-                    // Update position while dragging
-                    const { translationX, translationY } = event.nativeEvent;
-                    dragAnimatedValue.setValue({ x: translationX, y: translationY });
-                  } else if (state === State.END || state === State.CANCELLED || state === State.FAILED) {
-                    // Clear timer
-                    if (longPressTimerRef.current) {
-                      clearTimeout(longPressTimerRef.current);
-                      longPressTimerRef.current = null;
+          {Array.from({ length: 6 }, (_, index) => {
+            const photo = photos[index];
+            if (photo) {
+              const isDragging = draggingPhotoId === photo.id;
+              const dragStyle = isDragging ? {
+                opacity: 0.5,
+                zIndex: 1000,
+                transform: [
+                  { translateX: dragAnimatedValue.x },
+                  { translateY: dragAnimatedValue.y },
+                  { scale: 1.1 },
+                ],
+              } : {};
+              return (
+                <PanGestureHandler
+                  key={photo.id}
+                  onGestureEvent={Animated.event(
+                    [{ nativeEvent: { translationX: dragAnimatedValue.x, translationY: dragAnimatedValue.y } }],
+                    { useNativeDriver: false }
+                  )}
+                  onHandlerStateChange={(event) => {
+                    const { state } = event.nativeEvent;
+                    if (state === State.BEGAN && !isDragging) {
+                      longPressTimerRef.current = setTimeout(() => {
+                        onLongPress(photo.id, index);
+                      }, 300);
+                    } else if (state === State.ACTIVE && isDragging && draggingPhotoId === photo.id) {
+                      const { translationX, translationY } = event.nativeEvent;
+                      dragAnimatedValue.setValue({ x: translationX, y: translationY });
+                    } else if (state === State.END || state === State.CANCELLED || state === State.FAILED) {
+                      if (longPressTimerRef.current) {
+                        clearTimeout(longPressTimerRef.current);
+                        longPressTimerRef.current = null;
+                      }
+                      if (isDragging && draggingPhotoId === photo.id) {
+                        onDragEnd(event);
+                      }
                     }
-                    if (isDragging && draggingPhotoId === photo.id) {
-                      onDragEnd(event);
-                    }
-                  }
-                }}
-                minPointers={1}
-                maxPointers={1}
-                enabled={!isDragging || draggingPhotoId === photo.id}
-              >
-                <Animated.View
-                  style={[
-                    styles.photoContainer,
-                    dragStyle,
-                    isDragging && styles.photoContainerDragging,
-                  ]}
+                  }}
+                  minPointers={1}
+                  maxPointers={1}
+                  enabled={!isDragging || draggingPhotoId === photo.id}
                 >
-                  <OptimizedImage
-                    source={photo.url}
-                    style={styles.photo}
-                    resizeMode="cover"
-                  />
-                  {photo.isPrimary && (
-                    <View style={styles.primaryBadge}>
-                      <Text style={styles.primaryBadgeText}>Primary</Text>
-                    </View>
-                  )}
-                  <TouchableOpacity
-                    style={styles.deleteButton}
-                    onPress={() => handleDeletePhoto(photo.id)}
+                  <Animated.View
+                    style={[
+                      styles.photoContainer,
+                      dragStyle,
+                      isDragging && styles.photoContainerDragging,
+                    ]}
                   >
-                    <Text style={styles.deleteButtonText}>×</Text>
-                  </TouchableOpacity>
-                  {isDragging && (
-                    <View style={styles.dragIndicator}>
-                      <Text style={styles.dragIndicatorText}>📱</Text>
-                    </View>
-                  )}
-                </Animated.View>
-              </PanGestureHandler>
+                    <OptimizedImage
+                      source={photo.url}
+                      style={styles.photo}
+                      resizeMode="cover"
+                    />
+                    {photo.isPrimary && (
+                      <View style={styles.primaryBadge}>
+                        <Text style={styles.primaryBadgeText}>Primary</Text>
+                      </View>
+                    )}
+                    <TouchableOpacity
+                      style={styles.deleteButton}
+                      onPress={() => handleDeletePhoto(photo.id)}
+                    >
+                      <Text style={styles.deleteButtonText}>×</Text>
+                    </TouchableOpacity>
+                    {isDragging && (
+                      <View style={styles.dragIndicator}>
+                        <Text style={styles.dragIndicatorText}>📱</Text>
+                      </View>
+                    )}
+                  </Animated.View>
+                </PanGestureHandler>
+              );
+            }
+            return (
+              <TouchableOpacity
+                key={`empty-${index}`}
+                style={styles.addPhotoButton}
+                onPress={() => handlePickImage(index)}
+                disabled={uploadingSlotIndex !== null}
+              >
+                {uploadingSlotIndex === index ? (
+                  <ActivityIndicator color="#667eea" />
+                ) : (
+                  <Text style={styles.addPhotoText}>+</Text>
+                )}
+              </TouchableOpacity>
             );
           })}
-          {photos.length < 6 && (
-            <TouchableOpacity
-              style={styles.addPhotoButton}
-              onPress={handlePickImage}
-              disabled={uploading}
-            >
-              {uploading ? (
-                <ActivityIndicator color="#8B1538" />
-              ) : (
-                <Text style={styles.addPhotoText}>+</Text>
-              )}
-            </TouchableOpacity>
-          )}
         </View>
         <Text style={styles.photoHint}>
           {photos.length}/6 photos {photos.length < 6 && '(tap + to add)'}
@@ -1943,8 +2401,7 @@ export default function MyProfileScreen() {
                   style={styles.photoGalleryAddButton}
                   onPress={async () => {
                     try {
-                      await handlePickImage();
-                      // Haptic feedback
+                      await handlePickImage(); // no slot - gallery add
                       if (Platform.OS === 'ios') {
                         Vibration.vibrate([0, 50]);
                       } else {
@@ -1954,10 +2411,10 @@ export default function MyProfileScreen() {
                       console.error('Failed to upload photo:', error);
                     }
                   }}
-                  disabled={uploading}
+                  disabled={uploadingSlotIndex !== null}
                   activeOpacity={0.8}
                 >
-                  {uploading ? (
+                  {uploadingSlotIndex !== null ? (
                     <ActivityIndicator color="#fff" size="small" />
                   ) : (
                     <Text style={styles.photoGalleryAddText}>➕</Text>
@@ -1968,42 +2425,80 @@ export default function MyProfileScreen() {
           </View>
           
           {photos.length > 0 && (
-            <FlatList
-              ref={photoGalleryScrollRef}
-              data={photos}
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              keyExtractor={(item) => item.id}
-              // Performance optimizations
-              removeClippedSubviews={true}
-              maxToRenderPerBatch={3}
-              updateCellsBatchingPeriod={50}
-              initialNumToRender={2}
-              windowSize={3}
-              getItemLayout={(_, index) => ({
-                length: Dimensions.get('window').width,
-                offset: Dimensions.get('window').width * index,
-                index,
-              })}
-              onMomentumScrollEnd={(event) => {
-                const index = Math.round(
-                  event.nativeEvent.contentOffset.x / Dimensions.get('window').width
-                );
-                if (index >= 0 && index < photos.length) {
-                  setCurrentPhotoIndex(index);
-                }
-              }}
-              renderItem={({ item }) => (
-                <View style={styles.photoGalleryItem}>
-                  <OptimizedImage
-                    source={item.url}
-                    style={styles.photoGalleryImage}
-                    resizeMode="contain"
+            <View style={styles.photoGalleryContent}>
+              <FlatList
+                ref={photoGalleryScrollRef}
+                data={photos}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                keyExtractor={(item) => item.id}
+                removeClippedSubviews={true}
+                maxToRenderPerBatch={3}
+                updateCellsBatchingPeriod={50}
+                initialNumToRender={2}
+                windowSize={3}
+                getItemLayout={(_, index) => ({
+                  length: Dimensions.get('window').width,
+                  offset: Dimensions.get('window').width * index,
+                  index,
+                })}
+                onMomentumScrollEnd={(event) => {
+                  if (photoGalleryProgrammaticScrollRef.current) {
+                    photoGalleryProgrammaticScrollRef.current = false;
+                    return;
+                  }
+                  const index = Math.round(
+                    event.nativeEvent.contentOffset.x / Dimensions.get('window').width
+                  );
+                  if (index >= 0 && index < photos.length) {
+                    setCurrentPhotoIndex(index);
+                  }
+                }}
+                renderItem={({ item }) => (
+                  <View style={styles.photoGalleryItem}>
+                    <OptimizedImage
+                      source={item.url}
+                      style={styles.photoGalleryImage}
+                      resizeMode="contain"
+                    />
+                  </View>
+                )}
+              />
+              {/* Tap left = previous, tap right = next */}
+              {photos.length > 1 && (
+                <View style={styles.photoGalleryTapOverlay} pointerEvents="box-none">
+                  <TouchableOpacity
+                    style={styles.photoGalleryTapLeft}
+                    activeOpacity={1}
+                    onPress={() => {
+                      if (currentPhotoIndex > 0) {
+                        const prev = currentPhotoIndex - 1;
+                        photoGalleryProgrammaticScrollRef.current = true;
+                        setCurrentPhotoIndex(prev);
+                        photoGalleryScrollRef.current?.scrollToIndex({ index: prev, animated: true });
+                        if (Platform.OS === 'ios') Vibration.vibrate(30);
+                        else Vibration.vibrate(30);
+                      }
+                    }}
+                  />
+                  <TouchableOpacity
+                    style={styles.photoGalleryTapRight}
+                    activeOpacity={1}
+                    onPress={() => {
+                      if (currentPhotoIndex < photos.length - 1) {
+                        const next = currentPhotoIndex + 1;
+                        photoGalleryProgrammaticScrollRef.current = true;
+                        setCurrentPhotoIndex(next);
+                        photoGalleryScrollRef.current?.scrollToIndex({ index: next, animated: true });
+                        if (Platform.OS === 'ios') Vibration.vibrate(30);
+                        else Vibration.vibrate(30);
+                      }
+                    }}
                   />
                 </View>
               )}
-            />
+            </View>
           )}
           
           {photos.length > 1 && (
@@ -2118,6 +2613,182 @@ const styles = StyleSheet.create({
     padding: 44,
     paddingTop: 52,
     borderBottomWidth: 0,
+  },
+  infoCardFullTouchable: {
+    width: '100%',
+    marginBottom: 10,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalOverlayTouchable: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  editModalCard: {
+    width: '100%',
+    maxWidth: 340,
+    borderRadius: 24,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.35,
+    shadowRadius: 24,
+    elevation: 16,
+  },
+  editModalGradient: {
+    padding: 28,
+    paddingTop: 32,
+    paddingBottom: 28,
+  },
+  editModalEmoji: {
+    fontSize: 44,
+    textAlign: 'center',
+    marginBottom: 12,
+    textShadowColor: 'rgba(0,0,0,0.15)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  editModalTitleLight: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#fff',
+    textAlign: 'center',
+    marginBottom: 6,
+    textShadowColor: 'rgba(0,0,0,0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  editModalSubtitleLight: {
+    fontSize: 15,
+    color: 'rgba(255,255,255,0.92)',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  editModalInner: {
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  editModalInput: {
+    backgroundColor: '#fff',
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: '#1e293b',
+    marginBottom: 12,
+  },
+  editModalSecondaryButton: {
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.5)',
+  },
+  editModalButtonDisabled: {
+    opacity: 0.6,
+  },
+  editModalSecondaryButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
+    textShadowColor: 'rgba(0,0,0,0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  editModalActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 4,
+  },
+  editModalCancelPill: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.5)',
+  },
+  editModalCancelPillText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#fff',
+    textShadowColor: 'rgba(0,0,0,0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  editModalSavePill: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  editModalSavePillText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1e293b',
+  },
+  pickerWrapper: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    overflow: 'hidden',
+  },
+  picker: {
+    height: Platform.OS === 'ios' ? 160 : 50,
+    width: '100%',
+  },
+  pickerItem: {
+    fontSize: 16,
+    color: '#1e293b',
+  },
+  distanceOptionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    justifyContent: 'center',
+  },
+  distanceOptionButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+  },
+  distanceOptionButtonActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderColor: '#0d9488',
+  },
+  distanceOptionText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#0f766e',
+  },
+  distanceOptionTextActive: {
+    color: '#0d9488',
+    fontWeight: '800',
   },
   avatarWrapper: {
     alignSelf: 'center',
@@ -2292,12 +2963,12 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    paddingVertical: 20,
-    paddingHorizontal: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
     borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 120,
+    minHeight: 110,
     shadowColor: '#667eea',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.4,
@@ -2306,26 +2977,42 @@ const styles = StyleSheet.create({
     borderWidth: 2.5,
     borderColor: 'rgba(255, 255, 255, 0.4)',
   },
+  statCardLastActive: {
+    minHeight: 110,
+  },
   statEmoji: {
     fontSize: 32,
-    marginBottom: 8,
+    marginBottom: 6,
+  },
+  statEmojiSmall: {
+    fontSize: 26,
+    marginBottom: 4,
   },
   statLabel: {
-    fontSize: 11,
+    fontSize: 10,
     color: 'rgba(255, 255, 255, 0.95)',
-    marginBottom: 6,
+    marginBottom: 4,
     fontWeight: '800',
     textTransform: 'uppercase',
-    letterSpacing: 1.5,
+    letterSpacing: 1.2,
   },
   statValue: {
-    fontSize: 16,
+    fontSize: 15,
     color: '#fff',
     fontWeight: '800',
     textAlign: 'center',
     textShadowColor: 'rgba(0, 0, 0, 0.2)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
+  },
+  statCardTouchable: {
+    flex: 1,
+  },
+  statSubtext: {
+    fontSize: 10,
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginTop: 2,
+    fontWeight: '600',
   },
   infoGrid: {
     flexDirection: 'row',
@@ -2399,46 +3086,104 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   bioContainer: {
-    marginTop: 28,
+    marginTop: 24,
     width: '100%',
   },
   bioGradient: {
-    paddingHorizontal: 28,
-    paddingVertical: 28,
-    borderRadius: 28,
-    borderWidth: 3,
-    borderColor: 'rgba(102, 126, 234, 0.35)',
+    paddingHorizontal: 24,
+    paddingVertical: 24,
+    paddingTop: 22,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(102, 126, 234, 0.18)',
     shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.6)',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    overflow: 'hidden',
   },
   bioHeader: {
+    marginBottom: 18,
+  },
+  bioTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: 10,
   },
   bioIcon: {
-    fontSize: 24,
-    marginRight: 8,
+    fontSize: 22,
+    marginRight: 10,
+    opacity: 0.95,
   },
   bioTitle: {
-    fontSize: 16,
-    color: '#667eea',
-    fontWeight: '800',
+    fontSize: 15,
+    color: '#4f46e5',
+    fontWeight: '700',
+    letterSpacing: 1.4,
     textTransform: 'uppercase',
-    letterSpacing: 1.2,
+  },
+  bioAccentLine: {
+    width: 48,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: 'rgba(102, 126, 234, 0.45)',
   },
   bio: {
-    fontSize: 18,
-    color: '#1a1a1a',
-    lineHeight: 28,
-    textAlign: 'center',
+    fontSize: 16,
+    color: '#334155',
+    lineHeight: 26,
+    textAlign: 'left',
+    fontWeight: '500',
+    letterSpacing: 0.15,
+    paddingLeft: 2,
+  },
+  bioPlaceholder: {
+    color: '#94a3b8',
+    fontStyle: 'italic',
+  },
+  bioEditContainer: {
+    width: '100%',
+  },
+  bioInput: {
+    backgroundColor: '#f1f5f9',
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 16,
+    color: '#334155',
+    minHeight: 100,
+    textAlignVertical: 'top',
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+  },
+  bioEditActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+    marginTop: 14,
+  },
+  bioEditCancelButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 12,
+    backgroundColor: '#e2e8f0',
+  },
+  bioEditCancelText: {
+    fontSize: 15,
     fontWeight: '600',
-    letterSpacing: 0.2,
+    color: '#64748b',
+  },
+  bioEditSaveButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 12,
+    backgroundColor: '#667eea',
+  },
+  bioEditSaveText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
   },
   section: {
     backgroundColor: 'rgba(255, 255, 255, 0.98)',
@@ -2731,6 +3476,22 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 24,
     fontWeight: '600',
+  },
+  photoGalleryContent: {
+    flex: 1,
+    width: '100%',
+    position: 'relative',
+  },
+  photoGalleryTapOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    flexDirection: 'row',
+    zIndex: 10,
+  },
+  photoGalleryTapLeft: {
+    flex: 1,
+  },
+  photoGalleryTapRight: {
+    flex: 1,
   },
   photoGalleryItem: {
     width: Dimensions.get('window').width,

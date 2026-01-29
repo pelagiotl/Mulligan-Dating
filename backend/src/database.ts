@@ -480,6 +480,13 @@ export async function initDatabase() {
     // Column already exists, ignore
   }
 
+  // Add show_active_status to users table (when false, others don't see last_active_at)
+  try {
+    await execSQL(`ALTER TABLE users ADD COLUMN show_active_status ${usePostgres ? 'BOOLEAN' : 'INTEGER'} DEFAULT 1`);
+  } catch (e) {
+    // Column already exists, ignore
+  }
+
   // Payments table - tracks token purchases via Stripe
   await execSQL(`
     CREATE TABLE IF NOT EXISTS payments (
