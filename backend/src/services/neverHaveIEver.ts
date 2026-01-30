@@ -15,16 +15,16 @@ const FALLBACK_PROMPTS = [
   'gone on a blind date',
   'had a summer fling',
   'stayed friends with an ex',
-  'fallen for someone's smile before their personality',
+  'fallen for someone\'s smile before their personality',
   'sent a risky text and regretted it',
   'ghosted someone',
   'been ghosted',
   'had a crush on a coworker',
-  'dated someone my friends didn't like',
+  'dated someone my friends didn\'t like',
   'reconnected with an ex',
   'lied about my age on a dating app',
   'swiped right on everyone',
-  'gone back to someone I said I wouldn't',
+  'gone back to someone I said I wouldn\'t',
   'had feelings for a friend',
   'made the first move',
   'been on a terrible first date',
@@ -206,10 +206,10 @@ export interface GameState {
   winner: 'you' | 'them' | null;
   roundResult?: { youStrike: boolean; themStrike: boolean };
   phase: 'lobby' | 'playing';
-  yourSpiceChoice: 'pg13' | 'ratedr' | null;
-  theirSpiceChoice: 'pg13' | 'ratedr' | null;
+  yourSpiceChoice: 'pg13' | 'ratedr' | 'spicy' | null;
+  theirSpiceChoice: 'pg13' | 'ratedr' | 'spicy' | null;
   spiceReady: boolean;
-  spiceLevel: 'pg13' | 'ratedr' | null;
+  spiceLevel: 'pg13' | 'ratedr' | 'spicy' | null;
 }
 
 export async function getGameState(
@@ -224,12 +224,12 @@ export async function getGameState(
     .get([matchId]);
   const row = (rowResult instanceof Promise ? await rowResult : rowResult) as GameRow | undefined;
 
-  const yourSpiceChoice = (isUser1 ? row?.user1_spice_choice : row?.user2_spice_choice) as 'pg13' | 'ratedr' | null;
-  const theirSpiceChoice = (isUser1 ? row?.user2_spice_choice : row?.user1_spice_choice) as 'pg13' | 'ratedr' | null;
+  const yourSpiceChoice = (isUser1 ? row?.user1_spice_choice : row?.user2_spice_choice) as 'pg13' | 'ratedr' | 'spicy' | null;
+  const theirSpiceChoice = (isUser1 ? row?.user2_spice_choice : row?.user1_spice_choice) as 'pg13' | 'ratedr' | 'spicy' | null;
   const c1 = row?.user1_spice_choice;
   const c2 = row?.user2_spice_choice;
   const spiceReady = !!c1 && !!c2 && c1 === c2;
-  const spiceLevel = spiceReady ? (c1 as 'pg13' | 'ratedr') : null;
+  const spiceLevel = spiceReady ? (c1 as 'pg13' | 'ratedr' | 'spicy') : null;
 
   if (!row) {
     return {
@@ -304,7 +304,7 @@ export async function setSpiceChoice(
   matchId: string,
   userId: string,
   match: { user1_id: string; user2_id: string },
-  choice: 'pg13' | 'ratedr'
+  choice: 'pg13' | 'ratedr' | 'spicy'
 ): Promise<GameState> {
   const isUser1 = userId === match.user1_id;
 
