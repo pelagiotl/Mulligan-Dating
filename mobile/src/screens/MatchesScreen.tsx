@@ -31,12 +31,16 @@ import { api } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { getPhotoUrl } from '../utils/photoUrl';
 import { getPendingOpenMatchId, clearPendingOpenMatchId } from '../utils/pendingMatchOpen';
+import { getPendingGameRequest, clearPendingGameRequest, type PendingGameRequest } from '../utils/pendingGameRequest';
 import { playMatchSound, playMessageSound } from '../utils/sounds';
 import LegalFooter from '../components/LegalFooter';
 import CompatibilityPulse from '../components/CompatibilityPulse';
 import MulliganMoments from '../components/MulliganMoments';
 import DateBlueprint from '../components/DateBlueprint';
+import TruthOrDare from '../components/TruthOrDare';
+import NeverHaveIEver from '../components/NeverHaveIEver';
 import OptimizedImage from '../components/OptimizedImage';
+import GameRequestModal from '../components/GameRequestModal';
 
 interface Photo {
   id: string;
@@ -83,6 +87,87 @@ interface Message {
   readAt?: string | null;
   isOwn: boolean;
 }
+
+// Memoized message bubble - prevents re-renders when parent state changes (typing, keyboard, etc.)
+const ANIMATE_LAST_N = 8; // Only animate the last N messages for performance
+
+const MessageBubble = React.memo(function MessageBubble({
+  item,
+  animValue,
+  styles: s,
+}: {
+  item: Message;
+  animValue: Animated.Value | null;
+  styles: { [key: string]: any };
+}) {
+  const formattedTime = useMemo(
+    () => new Date(item.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    [item.sentAt]
+  );
+
+  if (animValue) {
+    return item.isOwn ? (
+      <Animated.View
+        style={[
+          s.messageContainerOwn,
+          {
+            opacity: animValue,
+            transform: [
+              { translateX: animValue.interpolate({ inputRange: [0, 1], outputRange: [50, 0] }) },
+              { scale: animValue.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) },
+            ],
+          },
+        ]}
+      >
+        <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.messageBubbleOwn}>
+          <Text style={s.messageTextOwn}>{item.content}</Text>
+          <View style={s.messageFooterOwn}>
+            <Text style={s.messageTimeOwn}>{formattedTime}</Text>
+            {item.readAt ? <Text style={s.messageStatusRead}>✓✓</Text> : <Text style={s.messageStatusSent}>✓</Text>}
+          </View>
+        </LinearGradient>
+      </Animated.View>
+    ) : (
+      <Animated.View
+        style={[
+          s.messageContainerOther,
+          {
+            opacity: animValue,
+            transform: [
+              { translateX: animValue.interpolate({ inputRange: [0, 1], outputRange: [-50, 0] }) },
+              { scale: animValue.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) },
+            ],
+          },
+        ]}
+      >
+        <View style={s.messageBubbleOther}>
+          <Text style={s.messageTextOther}>{item.content}</Text>
+          <Text style={s.messageTimeOther}>{formattedTime}</Text>
+        </View>
+      </Animated.View>
+    );
+  }
+
+  // Static render for older messages (no animation)
+  return item.isOwn ? (
+    <View style={s.messageContainerOwn}>
+      <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.messageBubbleOwn}>
+        <Text style={s.messageTextOwn}>{item.content}</Text>
+        <View style={s.messageFooterOwn}>
+          <Text style={s.messageTimeOwn}>{formattedTime}</Text>
+          {item.readAt ? <Text style={s.messageStatusRead}>✓✓</Text> : <Text style={s.messageStatusSent}>✓</Text>}
+        </View>
+      </LinearGradient>
+    </View>
+  ) : (
+    <View style={s.messageContainerOther}>
+      <View style={s.messageBubbleOther}>
+        <Text style={s.messageTextOther}>{item.content}</Text>
+        <Text style={s.messageTimeOther}>{formattedTime}</Text>
+      </View>
+    </View>
+  );
+});
 
 // Typing Indicator Component with Animated Dots
 function TypingIndicator() {
@@ -527,26 +612,28 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
                       onPress={() => onStagePress(item.stage as 'stage1' | 'stage2')}
                     >
                       <LinearGradient
-                        colors={item.stage === 'stage1' ? ['#ffe6f3', '#ffd9ec'] : ['#ff6b9d', '#ff1493']}
+                        colors={item.stage === 'stage1' ? ['#ff80ab', '#ff4081', '#ff80ab'] : ['#ff6b9d', '#ff1493']}
+                        locations={item.stage === 'stage1' ? [0, 0.5, 1] : undefined}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
                         style={[styles.stageBadge, getStageBadgeStyle(item.stage)]}
                       >
                         <Text style={styles.stageEmoji}>{getStageEmoji(item.stage)}</Text>
-                        <Text style={[styles.stageText, item.stage === 'stage2' && { color: '#fff' }]}>
+                        <Text style={[styles.stageText, item.stage === 'stage2' && { color: '#fff' }, item.stage === 'stage1' && styles.stageTextStage1]}>
                           {item.stage === 'stage1' ? 'Stage 1' : 'Stage 2'}
                         </Text>
                       </LinearGradient>
                     </TouchableOpacity>
                   ) : (
                     <LinearGradient
-                      colors={item.stage === 'pending' ? ['#fff5f8', '#ffeef7'] : item.stage === 'stage1' ? ['#ffe6f3', '#ffd9ec'] : ['#ff6b9d', '#ff1493']}
+                      colors={item.stage === 'pending' ? ['#fff5f8', '#ffeef7'] : item.stage === 'stage1' ? ['#ff80ab', '#ff4081', '#ff80ab'] : ['#ff6b9d', '#ff1493']}
+                      locations={item.stage === 'stage1' ? [0, 0.5, 1] : undefined}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                       style={[styles.stageBadge, getStageBadgeStyle(item.stage)]}
                     >
                       <Text style={styles.stageEmoji}>{getStageEmoji(item.stage)}</Text>
-                      <Text style={[styles.stageText, item.stage === 'stage2' && { color: '#fff' }]}>
+                      <Text style={[styles.stageText, item.stage === 'stage2' && { color: '#fff' }, item.stage === 'stage1' && styles.stageTextStage1]}>
                         {item.stage === 'pending' ? 'Pending' : item.stage === 'stage1' ? 'Stage 1' : 'Stage 2'}
                       </Text>
                     </LinearGradient>
@@ -583,113 +670,6 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
     prevProps.item.stage === nextProps.item.stage &&
     prevProps.item.expiresAt === nextProps.item.expiresAt &&
     prevProps.photoUrl === nextProps.photoUrl
-  );
-});
-
-// Memoized Message Bubble Component
-const MessageBubble = React.memo(function MessageBubble({ 
-  message, 
-  isOwn, 
-  animation 
-}: { 
-  message: Message; 
-  isOwn: boolean; 
-  animation: Animated.Value;
-}) {
-  const messageAnim = animation || new Animated.Value(1);
-
-  if (isOwn) {
-    return (
-      <Animated.View 
-        style={[
-          styles.messageContainerOwn,
-          {
-            opacity: messageAnim,
-            transform: [
-              { 
-                translateX: messageAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [50, 0],
-                })
-              },
-              {
-                scale: messageAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0.9, 1],
-                })
-              }
-            ],
-          },
-        ]}
-      >
-        <LinearGradient
-          colors={['#667eea', '#764ba2', '#f093fb']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.messageBubbleOwn}
-        >
-          <Text style={styles.messageTextOwn}>
-            {message.content}
-          </Text>
-          <View style={styles.messageFooterOwn}>
-            <Text style={styles.messageTimeOwn}>
-              {new Date(message.sentAt).toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-            </Text>
-            {message.readAt ? (
-              <Text style={styles.messageStatusRead}>✓✓</Text>
-            ) : (
-              <Text style={styles.messageStatusSent}>✓</Text>
-            )}
-          </View>
-        </LinearGradient>
-      </Animated.View>
-    );
-  } else {
-    return (
-      <Animated.View 
-        style={[
-          styles.messageContainerOther,
-          {
-            opacity: messageAnim,
-            transform: [
-              { 
-                translateX: messageAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [-50, 0],
-                })
-              },
-              {
-                scale: messageAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0.9, 1],
-                })
-              }
-            ],
-          },
-        ]}
-      >
-        <View style={styles.messageBubbleOther}>
-          <Text style={styles.messageTextOther}>
-            {message.content}
-          </Text>
-          <Text style={styles.messageTimeOther}>
-            {new Date(message.sentAt).toLocaleTimeString([], {
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
-          </Text>
-        </View>
-      </Animated.View>
-    );
-  }
-}, (prevProps, nextProps) => {
-  return (
-    prevProps.message.id === nextProps.message.id &&
-    prevProps.message.readAt === nextProps.message.readAt &&
-    prevProps.isOwn === nextProps.isOwn
   );
 });
 
@@ -1658,9 +1638,12 @@ export default function MatchesScreen() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [stageInfoModalVisible, setStageInfoModalVisible] = useState(false);
   const [stageInfoStage, setStageInfoStage] = useState<'stage1' | 'stage2' | null>(null);
+  const [gameRequestToShow, setGameRequestToShow] = useState<PendingGameRequest | null>(null);
+  const [openGameForAccept, setOpenGameForAccept] = useState<{ matchId: string; gameType: 'truth_or_dare' | 'never_have_i_ever' } | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const messagesEndRef = useRef<FlatList>(null);
   const selectedMatchRef = useRef<Match | null>(null);
+  const matchesRef = useRef<Match[]>([]);
   const lastFetchedMatchIdRef = useRef<string | null>(null);
   const textInputRef = useRef<TextInput>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -1679,6 +1662,8 @@ export default function MatchesScreen() {
   // Chat transition animations
   const chatSlideAnim = useRef(new Animated.Value(0)).current;
   const chatFadeAnim = useRef(new Animated.Value(0)).current;
+
+  matchesRef.current = matches;
 
   // Only show matches that haven't passed their 7-day expiration (so they disappear when timer hits 0)
   const visibleMatches = useMemo(() => {
@@ -1837,6 +1822,66 @@ export default function MatchesScreen() {
     }
   }, [sendingMessage, selectedMatch, isTyping, emitTypingDebounced]);
 
+  // Debounced scroll to end - avoids rapid successive scrolls on content size changes
+  const scrollToEndDebounced = useRef(
+    debounce(() => {
+      InteractionManager.runAfterInteractions(() => {
+        messagesEndRef.current?.scrollToEnd({ animated: false });
+      });
+    }, 80)
+  ).current;
+
+  const scrollToEndOnLayout = useCallback(() => {
+    messagesEndRef.current?.scrollToEnd({ animated: false });
+  }, []);
+
+  // Memoized renderItem - only animates last N messages for performance
+  const renderMessageItem = useCallback(
+    ({ item, index }: { item: Message; index: number }) => {
+      const totalCount = messages.length;
+      const shouldAnimate = index >= totalCount - ANIMATE_LAST_N;
+
+      let animValue: Animated.Value | null = null;
+      if (shouldAnimate) {
+        if (!messageAnimations[item.id]) {
+          messageAnimations[item.id] = new Animated.Value(0);
+          Animated.spring(messageAnimations[item.id], {
+            toValue: 1,
+            tension: 50,
+            friction: 7,
+            delay: Math.min(index * 20, 150),
+            useNativeDriver: true,
+          }).start();
+        }
+        animValue = messageAnimations[item.id];
+      }
+
+      return <MessageBubble item={item} animValue={animValue} styles={styles} />;
+    },
+    [messages.length]
+  );
+
+  // Prune old message animations when list changes (prevents memory leak)
+  useEffect(() => {
+    const ids = new Set(messages.map((m) => m.id));
+    Object.keys(messageAnimations).forEach((id) => {
+      if (!ids.has(id)) delete messageAnimations[id];
+    });
+  }, [messages]);
+
+  const listFooterComponent = useMemo(
+    () => (typingUsers.size > 0 ? <TypingIndicator /> : null),
+    [typingUsers.size]
+  );
+
+  const messagesContentStyle = useMemo(
+    () => [
+      styles.messagesContent,
+      { paddingBottom: keyboardHeight > 0 ? keyboardHeight + 80 : 160 },
+    ],
+    [keyboardHeight]
+  );
+
   // Initialize WebSocket connection
   useEffect(() => {
     const initSocket = async () => {
@@ -1973,6 +2018,29 @@ export default function MatchesScreen() {
         setMatches((prev) => prev.map((m) => m.id === data.matchId ? { ...m, stage: 'stage2' } : m));
         setSelectedMatch((prev) => prev && prev.id === data.matchId ? { ...prev, stage: 'stage2' } : prev);
       });
+
+      socket.on('game_request_received', (data: { requestId: string; matchId: string; fromUserId: string; fromUserName: string; gameType: 'truth_or_dare' | 'never_have_i_ever' }) => {
+        playMessageSound().catch(() => {});
+        setGameRequestToShow({
+          requestId: data.requestId,
+          matchId: data.matchId,
+          fromUserId: data.fromUserId,
+          fromUserName: data.fromUserName,
+          gameType: data.gameType,
+        });
+        const matchToSelect = matchesRef.current.find(m => m.id === data.matchId);
+        if (matchToSelect) setSelectedMatch(matchToSelect);
+      });
+
+      socket.on('game_request_responded', (data: { requestId: string; matchId: string; gameType: string; accepted: boolean }) => {
+        if (data.accepted) {
+          const m = matchesRef.current.find(x => x.id === data.matchId);
+          if (m) {
+            setSelectedMatch(m);
+            setOpenGameForAccept({ matchId: data.matchId, gameType: data.gameType as 'truth_or_dare' | 'never_have_i_ever' });
+          }
+        }
+      });
     };
 
     initSocket();
@@ -1983,6 +2051,8 @@ export default function MatchesScreen() {
           socketRef.current.off('typing_stopped');
           socketRef.current.off('messages_read');
           socketRef.current.off('stage_advanced');
+          socketRef.current.off('game_request_received');
+          socketRef.current.off('game_request_responded');
           socketRef.current.disconnect();
         }
         if (typingTimeoutRef.current) {
@@ -2043,7 +2113,10 @@ export default function MatchesScreen() {
       // Only clear messages when switching to a *different* match (avoids clearing on effect re-run for same match)
       const matchId = selectedMatch.id;
       if (lastFetchedMatchIdRef.current !== null && lastFetchedMatchIdRef.current !== matchId) {
+        console.log(`📨 Switching from match ${lastFetchedMatchIdRef.current} to ${matchId}, clearing messages`);
         setMessages([]);
+      } else {
+        console.log(`📨 Opening match ${matchId} (same as last or first time)`);
       }
       socketRef.current.emit('join_match', selectedMatch.id);
       fetchMessages(selectedMatch.id);
@@ -2059,26 +2132,36 @@ export default function MatchesScreen() {
         socketRef.current.emit('leave_match', selectedMatch.id);
       }
     };
-  }, [selectedMatch?.id]);
+  }, [selectedMatch?.id, fetchMessages]);
 
-  // Handle route params and pending open (e.g. "Send message" on celebration) when screen is focused
+  // Handle route params and pending open (e.g. "Send message" on celebration, game request from push) when screen is focused
   useFocusEffect(
     useCallback(() => {
       const task = InteractionManager.runAfterInteractions(() => {
         if (!user || !isAuthenticated || authLoading) return;
         const pendingId = getPendingOpenMatchId();
-        const routeParams = route.params as { matchId?: string } | undefined;
+        const pendingGame = getPendingGameRequest();
+        const routeParams = route.params as { matchId?: string; showGameRequest?: boolean } | undefined;
         const matchIdToOpen = pendingId ?? routeParams?.matchId;
         if (matchIdToOpen && !loading) {
           const matchToSelect = matches.find(m => m.id === matchIdToOpen);
           if (matchToSelect) {
             setSelectedMatch(matchToSelect);
             if (pendingId) clearPendingOpenMatchId();
+            if (pendingGame && (routeParams?.showGameRequest || pendingGame.matchId === matchIdToOpen)) {
+              setGameRequestToShow(pendingGame);
+              clearPendingGameRequest();
+            }
           } else if (matches.length === 0) {
             fetchMatches().then(() => {});
           }
-        } else if (matchIdToOpen && loading) {
-          // Wait for load to finish; fetchMatches/useEffect will select
+        } else if (pendingGame && matches.length > 0 && !loading) {
+          const matchToSelect = matches.find(m => m.id === pendingGame.matchId);
+          if (matchToSelect) {
+            setSelectedMatch(matchToSelect);
+            setGameRequestToShow(pendingGame);
+            clearPendingGameRequest();
+          }
         }
       });
       return () => task.cancel();
@@ -2147,13 +2230,13 @@ export default function MatchesScreen() {
     }
   }, [matches, route.params, loading]);
 
-  const fetchMessages = async (matchId: string, retryCount = 0) => {
+  const fetchMessages = useCallback(async (matchId: string, retryCount = 0) => {
     const maxRetries = 2;
     try {
-      // Skip cache so we always get fresh messages when opening a chat
+      console.log(`📨 Fetching messages for match: ${matchId} (attempt ${retryCount + 1})`);
       const data = await api.get<{ messages: Message[] }>(`/matches/${matchId}/messages`, false);
       const list = Array.isArray(data?.messages) ? data.messages : [];
-      // Only update state if we're still on this match (avoid race when switching matches)
+      console.log(`📨 Received ${list.length} messages for match: ${matchId}`);
       if (selectedMatchRef.current?.id === matchId) {
         lastFetchedMatchIdRef.current = matchId;
         setMessages(list);
@@ -2164,12 +2247,16 @@ export default function MatchesScreen() {
         setTimeout(() => fetchMessages(matchId, retryCount + 1), 600);
         return;
       }
+      // DON'T clear messages on error - keep existing messages visible
+      // This prevents messages from "disappearing" due to temporary network issues
+      console.warn(`⚠️ Failed to fetch messages after ${maxRetries + 1} attempts, keeping existing messages`);
       if (selectedMatchRef.current?.id === matchId) {
-        lastFetchedMatchIdRef.current = matchId; // still mark as "fetched" so we don't clear on next open
-        setMessages([]);
+        lastFetchedMatchIdRef.current = matchId;
+        // Only set to empty if we have no existing messages (first load for this match)
+        setMessages((prev) => prev.length > 0 ? prev : []);
       }
     }
-  };
+  }, []);
 
   const handleBack = useCallback(() => {
     console.log('🔙 handleBack called - clearing selected match');
@@ -2196,16 +2283,11 @@ export default function MatchesScreen() {
     }
 
     setNewMessage('');
-    // Dismiss keyboard after sending message and reset keyboard height
     Keyboard.dismiss();
-    // Small delay to ensure keyboard dismisses before resetting height
-    setTimeout(() => {
-      setKeyboardHeight(0);
-    }, 100);
+    setTimeout(() => setKeyboardHeight(0), 100);
     
     setSendingMessage(true);
 
-    // Optimistically add message to UI immediately
     const tempMessage: Message = {
       id: `temp-${Date.now()}`,
       content: messageContent,
@@ -2214,7 +2296,6 @@ export default function MatchesScreen() {
       sentAt: new Date().toISOString(),
       isOwn: true,
     };
-    // Create animation for temp message
     const tempAnim = new Animated.Value(0);
     messageAnimations[tempMessage.id] = tempAnim;
     Animated.spring(tempAnim, {
@@ -2224,6 +2305,16 @@ export default function MatchesScreen() {
       useNativeDriver: true,
     }).start();
     setMessages((prev) => [...prev, tempMessage]);
+
+    const scrollToEndAfterLayout = () => {
+      InteractionManager.runAfterInteractions(() => {
+        setTimeout(() => {
+          messagesEndRef.current?.scrollToEnd({ animated: false });
+        }, 50);
+      });
+    };
+    scrollToEndAfterLayout();
+    setTimeout(scrollToEndAfterLayout, 200);
 
     try {
       const response = await api.post<{ message: Message; stage?: string; autoAdvanced?: boolean }>(`/matches/${selectedMatch.id}/messages`, {
@@ -2235,6 +2326,9 @@ export default function MatchesScreen() {
         setMessages((prev) => {
           const filtered = prev.filter((m) => m.id !== tempMessage.id);
           return [...filtered, { ...response.message, isOwn: response.message.senderId === user.id }];
+        });
+        InteractionManager.runAfterInteractions(() => {
+          setTimeout(() => messagesEndRef.current?.scrollToEnd({ animated: false }), 50);
         });
       } else {
         // If no message in response, keep temp message (socket will replace it, or it stays as fallback)
@@ -2566,16 +2660,25 @@ export default function MatchesScreen() {
                   <TouchableOpacity
                     activeOpacity={0.85}
                     onPress={() => handleStageInfoPress(selectedMatch.stage as 'stage1' | 'stage2')}
-                    style={styles.chatHeaderStagePillWrap}
+                    style={[styles.chatHeaderStagePillWrap, selectedMatch.stage === 'stage1' && styles.chatHeaderStagePillWrapStage1]}
                   >
                     <LinearGradient
-                      colors={selectedMatch.stage === 'stage2' ? ['#ff85b3', '#ff4d94'] : ['#ffcce8', '#ffb3d9']}
+                      colors={selectedMatch.stage === 'stage2' ? ['#ff85b3', '#ff4d94'] : ['#ff80ab', '#ff4081', '#ff80ab']}
+                      locations={selectedMatch.stage === 'stage1' ? [0, 0.5, 1] : undefined}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
-                      style={[styles.chatHeaderStagePill, selectedMatch.stage === 'stage2' && styles.chatHeaderStagePillStage2]}
+                      style={[styles.chatHeaderStagePill, selectedMatch.stage === 'stage2' && styles.chatHeaderStagePillStage2, selectedMatch.stage === 'stage1' && styles.chatHeaderStagePillStage1]}
                     >
+                      {selectedMatch.stage === 'stage1' && (
+                        <LinearGradient
+                          colors={['rgba(255,255,255,0.35)', 'rgba(255,255,255,0)']}
+                          style={styles.chatHeaderStagePillGloss}
+                          start={{ x: 0.5, y: 0 }}
+                          end={{ x: 0.5, y: 1 }}
+                        />
+                      )}
                       <Text style={styles.chatHeaderStagePillEmoji}>{selectedMatch.stage === 'stage1' ? '💖' : '💕'}</Text>
-                      <Text style={[styles.chatHeaderStagePillText, selectedMatch.stage === 'stage2' && styles.chatHeaderStagePillTextStage2]}>
+                      <Text style={[styles.chatHeaderStagePillText, selectedMatch.stage === 'stage2' && styles.chatHeaderStagePillTextStage2, selectedMatch.stage === 'stage1' && styles.chatHeaderStagePillTextStage1]}>
                         {selectedMatch.stage === 'stage1' ? 'Stage 1' : 'Stage 2'}
                       </Text>
                     </LinearGradient>
@@ -2612,6 +2715,19 @@ export default function MatchesScreen() {
           onClose={() => setShowProfileModal(false)}
         />
       )}
+
+      {/* Game Request Modal - when User B receives invite */}
+      <GameRequestModal
+        visible={!!gameRequestToShow}
+        request={gameRequestToShow}
+        onClose={() => setGameRequestToShow(null)}
+        onAccepted={(matchId, gameType) => {
+          setGameRequestToShow(null);
+          const m = matches.find(x => x.id === matchId);
+          if (m) setSelectedMatch(m);
+          setOpenGameForAccept({ matchId, gameType });
+        }}
+      />
 
       {/* Stage Info Modal - explains Stage 1 / Stage 2 */}
       <Modal
@@ -2666,9 +2782,9 @@ export default function MatchesScreen() {
         </TouchableOpacity>
       </Modal>
 
-      {/* New Features: Mulligan Moments and First Date Plan - fixed at top, both visible; maxHeight so messages area always has space */}
+      {/* New Features: Mulligan Moments, Date Plan, Truth or Dare - fixed at top */}
       {selectedMatch && selectedMatch.stage !== 'pending' && (
-        <View style={[styles.featuresContainer, { maxHeight: Math.min(220, windowHeight * 0.38) }]}>
+        <View style={[styles.featuresContainer, { maxHeight: Math.min(260, windowHeight * 0.42) }]}>
           <MulliganMoments 
             matchId={selectedMatch.id} 
             socket={socketRef.current}
@@ -2680,11 +2796,61 @@ export default function MatchesScreen() {
               }
             }}
           />
-          <DateBlueprint 
-            matchId={selectedMatch.id} 
-            socket={socketRef.current}
-            currentUserId={user?.id || ''}
-          />
+          <View style={styles.featuresRow}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <DateBlueprint 
+                matchId={selectedMatch.id} 
+                socket={socketRef.current}
+                currentUserId={user?.id || ''}
+              />
+            </View>
+          </View>
+          <View style={styles.gamesRow}>
+            <View style={styles.squareGameButton}>
+              <TruthOrDare
+                matchId={selectedMatch.id}
+                messages={messages}
+                currentUserId={user?.id || ''}
+                socket={socketRef.current}
+                onSendToChat={(text) => {
+                  setNewMessage(text);
+                  textInputRef.current?.focus();
+                }}
+                onRequestGame={async () => {
+                  try {
+                    await api.post(`/matches/${selectedMatch.id}/game-request`, { gameType: 'truth_or_dare' });
+                    Alert.alert('Request sent!', 'Waiting for them to accept. You\'ll be notified when they do.');
+                  } catch (e: any) {
+                    Alert.alert('Error', e?.message || 'Failed to send game request');
+                  }
+                }}
+                openForAccept={openGameForAccept?.gameType === 'truth_or_dare' && openGameForAccept?.matchId === selectedMatch.id}
+                onOpenedForAccept={() => setOpenGameForAccept(null)}
+                compact
+                square
+              />
+            </View>
+            <View style={styles.squareGameButton}>
+              <NeverHaveIEver
+                matchId={selectedMatch.id}
+                messages={messages}
+                currentUserId={user?.id || ''}
+                socket={socketRef.current}
+                onRequestGame={async () => {
+                  try {
+                    await api.post(`/matches/${selectedMatch.id}/game-request`, { gameType: 'never_have_i_ever' });
+                    Alert.alert('Request sent!', 'Waiting for them to accept. You\'ll be notified when they do.');
+                  } catch (e: any) {
+                    Alert.alert('Error', e?.message || 'Failed to send game request');
+                  }
+                }}
+                openForAccept={openGameForAccept?.gameType === 'never_have_i_ever' && openGameForAccept?.matchId === selectedMatch.id}
+                onOpenedForAccept={() => setOpenGameForAccept(null)}
+                compact
+                square
+              />
+            </View>
+          </View>
         </View>
       )}
 
@@ -2702,135 +2868,20 @@ export default function MatchesScreen() {
           data={messages}
           keyExtractor={(item) => item.id}
           style={styles.messagesList}
-          contentContainerStyle={[
-            styles.messagesContent,
-            { 
-              paddingBottom: keyboardHeight > 0 
-                ? keyboardHeight + 80 
-                : 100
-            }
-          ]}
+          contentContainerStyle={messagesContentStyle}
           keyboardShouldPersistTaps="always"
           keyboardDismissMode="interactive"
           scrollEnabled={true}
-          // Performance optimizations
-          removeClippedSubviews={true}
           maxToRenderPerBatch={15}
           updateCellsBatchingPeriod={50}
           initialNumToRender={15}
           windowSize={10}
-          onContentSizeChange={() => {
-            messagesEndRef.current?.scrollToEnd({ animated: true });
-          }}
-          onLayout={() => {
-            messagesEndRef.current?.scrollToEnd({ animated: false });
-          }}
-          renderItem={({ item, index }) => {
-            // Get or create animation for this message
-            if (!messageAnimations[item.id]) {
-              messageAnimations[item.id] = new Animated.Value(0);
-              // Animate message entrance
-              Animated.parallel([
-                Animated.spring(messageAnimations[item.id], {
-                  toValue: 1,
-                  tension: 50,
-                  friction: 7,
-                  delay: index * 30,
-                  useNativeDriver: true,
-                }),
-              ]).start();
-            }
-            
-            const messageAnim = messageAnimations[item.id];
-            
-            return item.isOwn ? (
-              <Animated.View 
-                style={[
-                  styles.messageContainerOwn,
-                  {
-                    opacity: messageAnim,
-                    transform: [
-                      { 
-                        translateX: messageAnim.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [50, 0],
-                        })
-                      },
-                      {
-                        scale: messageAnim.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [0.9, 1],
-                        })
-                      }
-                    ],
-                  },
-                ]}
-              >
-                <LinearGradient
-                  colors={['#667eea', '#764ba2', '#f093fb']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.messageBubbleOwn}
-                >
-                  <Text style={styles.messageTextOwn}>
-                    {item.content}
-                  </Text>
-                  <View style={styles.messageFooterOwn}>
-                    <Text style={styles.messageTimeOwn}>
-                      {new Date(item.sentAt).toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </Text>
-                    {/* Message status indicator */}
-                    {item.readAt ? (
-                      <Text style={styles.messageStatusRead}>✓✓</Text>
-                    ) : (
-                      <Text style={styles.messageStatusSent}>✓</Text>
-                    )}
-                  </View>
-                </LinearGradient>
-              </Animated.View>
-            ) : (
-              <Animated.View 
-                style={[
-                  styles.messageContainerOther,
-                  {
-                    opacity: messageAnim,
-                    transform: [
-                      { 
-                        translateX: messageAnim.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [-50, 0],
-                        })
-                      },
-                      {
-                        scale: messageAnim.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [0.9, 1],
-                        })
-                      }
-                    ],
-                  },
-                ]}
-              >
-                <View style={styles.messageBubbleOther}>
-                  <Text style={styles.messageTextOther}>
-                    {item.content}
-                  </Text>
-                  <Text style={styles.messageTimeOther}>
-                    {new Date(item.sentAt).toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </Text>
-                </View>
-              </Animated.View>
-            );
-          }}
-          ListFooterComponent={
-            typingUsers.size > 0 ? <TypingIndicator /> : null
-          }
+          removeClippedSubviews={false}
+          onContentSizeChange={scrollToEndDebounced}
+          onLayout={scrollToEndOnLayout}
+          renderItem={renderMessageItem}
+          extraData={messages.length}
+          ListFooterComponent={listFooterComponent}
         />
       </Animated.View>
 
@@ -3312,7 +3363,10 @@ const styles = StyleSheet.create({
     borderColor: '#ffb3d1',
   },
   stageBadgeStage1: {
-    borderColor: '#ff6b9d',
+    borderColor: 'rgba(255,255,255,0.55)',
+    shadowColor: '#ff4081',
+    shadowOpacity: 0.45,
+    shadowRadius: 8,
   },
   stageBadgeStage2: {
     borderColor: '#ff1493',
@@ -3326,6 +3380,12 @@ const styles = StyleSheet.create({
     color: '#ff6b9d',
     fontWeight: '700',
     letterSpacing: 0.2,
+  },
+  stageTextStage1: {
+    color: '#ffffff',
+    textShadowColor: 'rgba(0,0,0,0.25)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 1,
   },
   timerContainer: {
     flexDirection: 'row',
@@ -3500,7 +3560,7 @@ const styles = StyleSheet.create({
   },
   chatHeaderStagePillWrap: {
     marginLeft: 8,
-    borderRadius: 14,
+    borderRadius: 16,
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -3508,17 +3568,37 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 2,
   },
+  chatHeaderStagePillWrapStage1: {
+    shadowColor: '#ff4081',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.5,
+    shadowRadius: 6,
+    elevation: 4,
+  },
   chatHeaderStagePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 5,
-    paddingHorizontal: 12,
-    borderRadius: 14,
-    borderWidth: 1,
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    borderWidth: 1.5,
     borderColor: 'rgba(255,255,255,0.35)',
+    position: 'relative',
+  },
+  chatHeaderStagePillStage1: {
+    borderColor: 'rgba(255,255,255,0.6)',
   },
   chatHeaderStagePillStage2: {
     borderColor: 'rgba(255,255,255,0.5)',
+  },
+  chatHeaderStagePillGloss: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '50%',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
   },
   chatHeaderStagePillEmoji: {
     fontSize: 13,
@@ -3529,6 +3609,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#b84d6f',
     letterSpacing: 0.3,
+  },
+  chatHeaderStagePillTextStage1: {
+    color: '#ffffff',
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   chatHeaderStagePillTextStage2: {
     color: '#fff',
@@ -3648,7 +3734,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
-    // maxHeight set inline so messages list always gets remaining space
+  },
+  featuresRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: 8,
+    paddingHorizontal: 4,
+    marginTop: 2,
+  },
+  gamesRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: 12,
+    paddingHorizontal: 4,
+    marginTop: 12,
+  },
+  squareGameButton: {
+    flex: 1,
+    aspectRatio: 1,
+    minHeight: 76,
+    maxHeight: 104,
   },
   chatMessagesWrapper: {
     flex: 1,

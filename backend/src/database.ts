@@ -626,6 +626,60 @@ export async function initDatabase() {
     )
   `);
 
+  // Never Have I Ever: Game state per match
+  await execSQL(`
+    CREATE TABLE IF NOT EXISTS never_have_i_ever_games (
+      match_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} PRIMARY KEY,
+      user1_strikes ${usePostgres ? 'INT' : 'INTEGER'} DEFAULT 0,
+      user2_strikes ${usePostgres ? 'INT' : 'INTEGER'} DEFAULT 0,
+      user1_spice_choice ${usePostgres ? 'VARCHAR(20)' : 'TEXT'},
+      user2_spice_choice ${usePostgres ? 'VARCHAR(20)' : 'TEXT'},
+      spice_level ${usePostgres ? 'VARCHAR(20)' : 'TEXT'},
+      current_prompt ${usePostgres ? 'TEXT' : 'TEXT'},
+      user1_answer ${usePostgres ? 'VARCHAR(20)' : 'TEXT'},
+      user2_answer ${usePostgres ? 'VARCHAR(20)' : 'TEXT'},
+      updated_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE
+    )
+  `);
+  try {
+    await execSQL(`ALTER TABLE never_have_i_ever_games ADD COLUMN user1_spice_choice ${usePostgres ? 'VARCHAR(20)' : 'TEXT'}`);
+  } catch (e) { /* exists */ }
+  try {
+    await execSQL(`ALTER TABLE never_have_i_ever_games ADD COLUMN user2_spice_choice ${usePostgres ? 'VARCHAR(20)' : 'TEXT'}`);
+  } catch (e) { /* exists */ }
+  try {
+    await execSQL(`ALTER TABLE never_have_i_ever_games ADD COLUMN spice_level ${usePostgres ? 'VARCHAR(20)' : 'TEXT'}`);
+  } catch (e) { /* exists */ }
+
+  // Truth or Dare: Game state per match (lobby for spice level agreement)
+  await execSQL(`
+    CREATE TABLE IF NOT EXISTS truth_or_dare_games (
+      match_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} PRIMARY KEY,
+      user1_spice_choice ${usePostgres ? 'VARCHAR(20)' : 'TEXT'},
+      user2_spice_choice ${usePostgres ? 'VARCHAR(20)' : 'TEXT'},
+      spice_level ${usePostgres ? 'VARCHAR(20)' : 'TEXT'},
+      updated_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE
+    )
+  `);
+
+  // Game requests: when User A invites User B to play Truth or Dare or Never Have I Ever
+  await execSQL(`
+    CREATE TABLE IF NOT EXISTS game_requests (
+      id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} PRIMARY KEY,
+      match_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      from_user_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      to_user_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      game_type ${usePostgres ? 'VARCHAR(50)' : 'TEXT'} NOT NULL,
+      status ${usePostgres ? 'VARCHAR(20)' : 'TEXT'} DEFAULT 'pending',
+      created_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE,
+      FOREIGN KEY (from_user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (to_user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
   // Date Blueprint: Store AI-generated date plans
   await execSQL(`
     CREATE TABLE IF NOT EXISTS date_plans (

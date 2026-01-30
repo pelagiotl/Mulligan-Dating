@@ -189,6 +189,42 @@ export async function sendMatchPushNotification(
 }
 
 /**
+ * Send push notification for a game request (Truth or Dare / Never Have I Ever)
+ * @param pushToken - Expo push token
+ * @param fromUserName - Name of the person who sent the request
+ * @param gameType - 'truth_or_dare' | 'never_have_i_ever'
+ * @param matchId - Match ID
+ * @param fromUserId - Sender user ID
+ * @param requestId - Game request ID
+ * @returns Promise<boolean> - true if sent successfully
+ */
+export async function sendGameRequestPushNotification(
+  pushToken: string,
+  fromUserName: string,
+  gameType: 'truth_or_dare' | 'never_have_i_ever',
+  matchId: string,
+  fromUserId: string,
+  requestId: string
+): Promise<boolean> {
+  const gameLabel = gameType === 'truth_or_dare' ? 'Truth or Dare' : 'Never Have I Ever';
+  const emoji = gameType === 'truth_or_dare' ? '🎲' : '🙊';
+  return sendPushNotification(
+    pushToken,
+    `${emoji} Game invite`,
+    `${fromUserName} wants to play ${gameLabel} with you!`,
+    {
+      type: 'game_request',
+      matchId,
+      fromUserId,
+      fromUserName,
+      gameType,
+      requestId,
+    },
+    'message-sound'
+  );
+}
+
+/**
  * Send push notification for a new message
  * @param pushToken - Expo push token
  * @param senderName - Name of the person who sent the message

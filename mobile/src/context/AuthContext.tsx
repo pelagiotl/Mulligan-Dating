@@ -12,6 +12,7 @@ import { registerForPushNotificationsAsync, clearPushToken } from '../utils/push
 import * as Notifications from 'expo-notifications';
 import { navigationRef } from '../navigation/navigationRef';
 import { playMessageSound, playMatchSound } from '../utils/sounds';
+import { setPendingGameRequest } from '../utils/pendingGameRequest';
 
 interface AuthContextType {
   user: User | null;
@@ -105,6 +106,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         );
       }
       
+      // Show in-app notification for game request
+      if (data?.type === 'game_request') {
+        playMessageSound().catch(() => {});
+        const fromUserName = data.fromUserName || 'Someone';
+        const gameLabel = data.gameType === 'truth_or_dare' ? 'Truth or Dare' : 'Never Have I Ever';
+        setPendingGameRequest({
+          requestId: data.requestId,
+          matchId: data.matchId,
+          fromUserId: data.fromUserId,
+          fromUserName,
+          gameType: data.gameType,
+        });
+        const attemptNavigation = (attemptNumber: number = 0) => {
+          const maxAttempts = 10;
+          if (navigationRef.current?.isReady() && data?.matchId) {
+            try {
+              navigationRef.current.navigate('MainTabs', {
+                screen: 'Matches',
+                params: { matchId: data.matchId, showGameRequest: true },
+              });
+            } catch (e) {
+              console.error('Navigate to game request failed:', e);
+            }
+          } else if (attemptNumber < maxAttempts) {
+            setTimeout(() => attemptNavigation(attemptNumber + 1), 500);
+          }
+        };
+        attemptNavigation();
+        Alert.alert(
+          '🎲 Game Invite',
+          `${fromUserName} wants to play ${gameLabel} with you!`,
+          [
+            { text: 'View', onPress: () => attemptNavigation(0) },
+            { text: 'OK', style: 'cancel' },
+          ]
+        );
+      }
+
       // Show in-app notification for new matches
       if (data?.type === 'new_match') {
         console.log('🎉 New match notification:', {
@@ -167,6 +206,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log('👆 Notification tapped:', response);
       const data = response.notification.request.content.data;
       
+      // If it's a game request, set pending and navigate
+      if (data?.type === 'game_request' && data?.matchId && data?.requestId) {
+        setPendingGameRequest({
+          requestId: data.requestId,
+          matchId: data.matchId,
+          fromUserId: data.fromUserId || '',
+          fromUserName: data.fromUserName || 'Someone',
+          gameType: data.gameType || 'truth_or_dare',
+        });
+        const attemptNavigation = (attemptNumber: number = 0) => {
+          const maxAttempts = 10;
+          if (navigationRef.current?.isReady()) {
+            try {
+              navigationRef.current.navigate('MainTabs', {
+                screen: 'Matches',
+                params: { matchId: data.matchId, showGameRequest: true },
+              });
+            } catch (e) {
+              console.error('Navigate to game request failed:', e);
+            }
+          } else if (attemptNumber < maxAttempts) {
+            setTimeout(() => attemptNavigation(attemptNumber + 1), 500);
+          }
+        };
+        attemptNavigation();
+      }
+
       // If it's a message or date plan notification, navigate to that match
       if (data?.type === 'new_message' && data?.matchId) {
         console.log('💬 Navigating to match:', data.matchId);

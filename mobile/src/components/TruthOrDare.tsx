@@ -1,0 +1,965 @@
+/**
+ * Truth or Dare - Unlocked when both users have sent 10+ messages each
+ */
+
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Modal,
+  Platform,
+  Vibration,
+  ActivityIndicator,
+  Animated,
+  Alert,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { api } from '../utils/api';
+
+const MIN_MESSAGES_EACH = 10;
+
+// Slightly spicy but tasteful — flirty, playful, PG-13
+const TRUTH_PROMPTS = [
+  "What's the first thing you notice about someone you're attracted to?",
+  "What's your love language and how do you show it?",
+  "What's something that would make you swipe right immediately?",
+  "What's your idea of a perfect first date?",
+  "What's the best compliment you've ever received from a crush?",
+  "Have you ever had a crush on someone you just met?",
+  "What's your go-to move to break the ice on a first date?",
+  "What's the most attractive quality in someone's profile?",
+  "What's something you'd want a date to do to impress you?",
+  "What's your guilty pleasure when it comes to romance?",
+  "What's the most romantic thing someone's ever done for you?",
+  "What emoji would you use to describe your dating energy?",
+  "What's your biggest green flag in a conversation?",
+  "What's something you're secretly picky about in dating?",
+  "What would make you want to extend a first date into a second?",
+];
+
+const DARE_PROMPTS = [
+  "Send a voice note saying something you'd normally only say in person",
+  "Describe your ideal partner in exactly 3 words",
+  "Send a selfie with your best 'I'm into you' look",
+  "Send a voice note saying 'I have a crush on you' in a funny accent",
+  "Describe your ideal first date in 3 emojis",
+  "Send a pic of your current view and rate it as a date spot 1-10",
+  "Reply with the cheesiest pick-up line you'd actually use",
+  "Send a selfie making a silly face — bonus points if it's flirty",
+  "Describe what you find attractive in someone using only emojis",
+  "Send a voice note singing the chorus of a song that describes your mood",
+  "Reply with 3 words that describe your vibe on a good date",
+  "Send a pic of your pet (or pet plant!) and say they're your wingman",
+  "Pick an emoji that represents your dating energy and explain why",
+  "Reply with a question you've always wanted to ask me",
+  "Send a selfie with your best smile — make us melt",
+];
+
+// Rated R — spicier, more suggestive (still app-store safe)
+const TRUTH_PROMPTS_R = [
+  "What's your biggest turn-on in a conversation?",
+  "What's the most attractive physical feature on someone?",
+  "Have you ever made the first move? How did it go?",
+  "What's something you find irresistible in a date?",
+  "What's your idea of the perfect kiss?",
+  "What's the boldest thing you've done to get someone's attention?",
+  "What's a dealbreaker for you when it comes to chemistry?",
+  "What's your love language when it comes to physical affection?",
+  "What's something that instantly attracts you to someone?",
+  "What's the most romantic thing you've ever done for a crush?",
+  "What's your take on making the first move?",
+  "What's something you'd never do on a first date?",
+  "What's your biggest green flag when it comes to chemistry?",
+  "What's the most memorable compliment you've gotten about your looks?",
+  "What would make you want to kiss someone on a first date?",
+];
+
+const DARE_PROMPTS_R = [
+  "Send a voice note saying something flirty you'd whisper on a date",
+  "Send a selfie with your best 'come here' look",
+  "Describe what you find physically attractive in 3 words",
+  "Send a voice note saying you're attracted to them (keep it classy)",
+  "Describe your ideal first kiss in 3 emojis",
+  "Send a pic of your lips with a flirty caption",
+  "Reply with the boldest thing you'd say to break the tension on a date",
+  "Send a selfie from a flattering angle — make them look twice",
+  "Describe your type using only suggestive emojis",
+  "Send a voice note with your best 'smooth operator' impression",
+  "Reply with 3 words that describe your romantic energy",
+  "Send a selfie with your most captivating look",
+  "Pick an emoji that represents your flirty side and explain",
+  "Reply with a question that would make someone blush",
+  "Send a selfie that shows off your favorite feature",
+];
+
+// Spicy — boldest level, most provocative
+const TRUTH_PROMPTS_SPICY = [
+  "What's your biggest fantasy when it comes to a first date?",
+  "What's the boldest thing you've ever done to get someone's attention?",
+  "What would make you want to skip straight to the good part on a date?",
+  "What's something you'd never admit in person but might say here?",
+  "What's the most attractive thing someone could whisper to you?",
+  "What's your secret turn-on that you've never told anyone?",
+  "What would you do if we had the place to ourselves right now?",
+  "What's the most impulsive romantic thing you've ever done?",
+  "What's your idea of the perfect night alone with someone you're into?",
+  "What would make you lose your cool on a date?",
+  "What's the most memorable way someone's ever flirted with you?",
+  "What's something you find irresistible that most people overlook?",
+  "What's your boldest move when you know there's chemistry?",
+  "What would you want me to say to make your heart race?",
+  "What's the hottest non-physical thing someone can do on a date?",
+];
+
+const DARE_PROMPTS_SPICY = [
+  "Send a voice note saying something you'd whisper in their ear on a date",
+  "Send a selfie from a steamy angle — make them look twice",
+  "Describe what you find attractive about them in 3 bold words",
+  "Send a voice note with your best 'I want you' energy (keep it classy)",
+  "Reply with the boldest thing you'd do if we were alone right now",
+  "Send a pic of your lips with a flirty caption",
+  "Voice note: say something that would make them blush — tasteful but bold",
+  "Send a selfie that shows off your most confident feature",
+  "Reply with a question that would make someone's heart skip",
+  "Describe your ideal night with them using only emojis",
+  "Send a voice note saying what you'd want to do on a second date",
+  "Reply with 3 words that describe the vibe you want between us",
+  "Send a selfie with your best 'come here' look",
+  "Voice note: describe your type in a way that makes it clear you're into them",
+  "Send a pic with a caption that flirts without saying it outright",
+];
+
+function pickRandom<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+interface Message {
+  id: string;
+  senderId: string;
+  isOwn?: boolean;
+  content: string;
+}
+
+interface GameState {
+  yourSpiceChoice: 'pg13' | 'ratedr' | 'spicy' | null;
+  theirSpiceChoice: 'pg13' | 'ratedr' | 'spicy' | null;
+  spiceReady: boolean;
+  spiceLevel: 'pg13' | 'ratedr' | 'spicy' | null;
+}
+
+interface TruthOrDareProps {
+  matchId: string;
+  messages: Message[];
+  currentUserId: string;
+  socket: any;
+  onSendToChat?: (text: string) => void;
+  onRequestGame?: () => void;
+  openForAccept?: boolean;
+  onOpenedForAccept?: () => void;
+  compact?: boolean;
+  square?: boolean;
+}
+
+export default function TruthOrDare({
+  matchId,
+  messages,
+  currentUserId,
+  socket,
+  onSendToChat,
+  onRequestGame,
+  openForAccept,
+  onOpenedForAccept,
+  compact = true,
+  square = false,
+}: TruthOrDareProps) {
+  const [modalVisible, setModalVisible] = useState(false);
+  const [step, setStep] = useState<'lobby' | 'choose' | 'prompt'>('lobby');
+  const [prompt, setPrompt] = useState<string>('');
+  const [promptType, setPromptType] = useState<'truth' | 'dare'>('truth');
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [gameState, setGameState] = useState<GameState | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const ownCount = messages.filter((m) => m.senderId === currentUserId).length;
+  const otherCount = messages.filter((m) => m.senderId !== currentUserId).length;
+  const isUnlocked = ownCount >= MIN_MESSAGES_EACH && otherCount >= MIN_MESSAGES_EACH;
+
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const emojiScale = useRef(new Animated.Value(1)).current;
+  const emojiRotate = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Dice wobble + bounce: rotation -12deg to 12deg, scale 1 to 1.18
+    // Using Animated.timing instead of Animated.spring to avoid memory leak
+    const diceRoll = Animated.loop(
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(emojiScale, {
+            toValue: 1.18,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.timing(emojiRotate, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.timing(emojiScale, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.timing(emojiRotate, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+        ]),
+      ])
+    );
+    diceRoll.start();
+    return () => {
+      diceRoll.stop();
+      emojiScale.setValue(1);
+      emojiRotate.setValue(0);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isUnlocked) return;
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.03,
+          duration: 1100,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1100,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    pulse.start();
+    return () => pulse.stop();
+  }, [isUnlocked, pulseAnim]);
+
+  const fetchState = useCallback(async () => {
+    try {
+      const data = await api.get<GameState>(`/matches/${matchId}/truth-or-dare/state`);
+      setGameState(data);
+      // If spice level is agreed, show choose step
+      if (data.spiceReady && data.spiceLevel) {
+        setStep('choose');
+      } else {
+        setStep('lobby');
+      }
+    } catch (err) {
+      console.warn('Truth or Dare fetch state error:', err);
+    }
+  }, [matchId]);
+
+  useEffect(() => {
+    if (openForAccept) {
+      setStep('lobby');
+      setPrompt('');
+      setModalVisible(true);
+      setLoading(true);
+      fetchState().finally(() => setLoading(false));
+      pollRef.current = setInterval(fetchState, 3000);
+      onOpenedForAccept?.();
+    }
+  }, [openForAccept, fetchState]);
+
+  useEffect(() => {
+    if (!modalVisible) return;
+    const onUpdate = () => fetchState();
+    socket?.on?.('truth_or_dare_updated', onUpdate);
+    return () => {
+      socket?.off?.('truth_or_dare_updated', onUpdate);
+    };
+  }, [modalVisible, socket, fetchState]);
+
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, []);
+
+  const handleOpen = () => {
+    if (Platform.OS === 'ios' || Platform.OS === 'android') {
+      Vibration.vibrate(50);
+    }
+    if (onRequestGame) {
+      onRequestGame();
+      return;
+    }
+    setStep('lobby');
+    setPrompt('');
+    setModalVisible(true);
+    setLoading(true);
+    fetchState().finally(() => setLoading(false));
+    pollRef.current = setInterval(fetchState, 3000);
+  };
+
+  const handleClose = () => {
+    setModalVisible(false);
+    setStep('lobby');
+    setPrompt('');
+    setGameState(null);
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  };
+
+  const handleSetSpiceChoice = async (choice: 'pg13' | 'ratedr' | 'spicy') => {
+    setSubmitting(true);
+    try {
+      const data = await api.post<GameState>(`/matches/${matchId}/truth-or-dare/spice-choice`, { choice });
+      setGameState(data);
+      if (data.spiceReady && data.spiceLevel) {
+        setStep('choose');
+      }
+    } catch (err) {
+      console.warn('Truth or Dare spice choice error:', err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleChoose = async (type: 'truth' | 'dare') => {
+    setPromptType(type);
+    setStep('prompt');
+    setLoading(true);
+    setPrompt('');
+
+    const spiceLevel = gameState?.spiceLevel || 'pg13';
+
+    try {
+      const data = await api.post<{ prompt: string; fromAI: boolean; spiceLevel?: string }>(
+        `/matches/${matchId}/truth-or-dare`,
+        { type }
+      );
+      if (data?.prompt) {
+        setPrompt(data.prompt);
+      } else {
+        throw new Error('No prompt returned');
+      }
+    } catch (err) {
+      const list = type === 'truth'
+        ? (spiceLevel === 'spicy' ? TRUTH_PROMPTS_SPICY : spiceLevel === 'ratedr' ? TRUTH_PROMPTS_R : TRUTH_PROMPTS)
+        : (spiceLevel === 'spicy' ? DARE_PROMPTS_SPICY : spiceLevel === 'ratedr' ? DARE_PROMPTS_R : DARE_PROMPTS);
+      setPrompt(pickRandom(list));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSendToChat = () => {
+    const prefix = promptType === 'truth' ? 'Truth: ' : 'Dare: ';
+    onSendToChat?.(`${prefix}${prompt}`);
+    handleClose();
+  };
+
+  const diceRotateInterp = emojiRotate.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['-12deg', '12deg'],
+  });
+
+  const handleLockedPress = () => {
+    if (Platform.OS === 'ios' || Platform.OS === 'android') {
+      Vibration.vibrate(30);
+    }
+    const yourRemaining = Math.max(0, MIN_MESSAGES_EACH - ownCount);
+    const theirRemaining = Math.max(0, MIN_MESSAGES_EACH - otherCount);
+    
+    let message = '';
+    if (yourRemaining > 0 && theirRemaining > 0) {
+      message = `You need to send ${yourRemaining} more message${yourRemaining !== 1 ? 's' : ''} and they need to send ${theirRemaining} more message${theirRemaining !== 1 ? 's' : ''} to unlock this game.`;
+    } else if (yourRemaining > 0) {
+      message = `You need to send ${yourRemaining} more message${yourRemaining !== 1 ? 's' : ''} to unlock this game.`;
+    } else if (theirRemaining > 0) {
+      message = `Waiting for them to send ${theirRemaining} more message${theirRemaining !== 1 ? 's' : ''} to unlock this game.`;
+    }
+    
+    Alert.alert(
+      '🎲 Truth or Dare',
+      `${message}\n\nBoth of you need to exchange ${MIN_MESSAGES_EACH} messages each before you can play!`,
+      [{ text: 'Got it', style: 'default' }]
+    );
+  };
+
+  if (!isUnlocked) {
+    return (
+      <View style={[styles.container, compact && styles.containerCompact, square && styles.containerSquare]}>
+        <TouchableOpacity 
+          onPress={handleLockedPress} 
+          activeOpacity={0.7}
+          style={[styles.lockedCard, square && styles.lockedCardSquare]}
+        >
+          <Animated.Text style={[styles.lockedEmoji, { transform: [{ scale: emojiScale }, { rotate: diceRotateInterp }] }]}>🎲</Animated.Text>
+          <View style={styles.lockedTextWrap}>
+            <Text style={styles.lockedText}>Truth or Dare</Text>
+            <Text style={styles.lockedSubtext}>Tap to see how to unlock</Text>
+          </View>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <>
+      <View style={[styles.container, compact && styles.containerCompact, square && styles.containerSquare]}>
+        <Animated.View style={[styles.buttonGlow, square && styles.buttonSquare, { transform: [{ scale: pulseAnim }] }]}>
+          <TouchableOpacity onPress={handleOpen} activeOpacity={0.85} style={[styles.button, square && styles.buttonSquare]}>
+            <LinearGradient
+              colors={['#ff006e', '#ff4081', '#ff6d00', '#ffab40', '#ff006e']}
+              locations={[0, 0.25, 0.5, 0.75, 1]}
+              style={[styles.buttonGradient, square && styles.buttonGradientSquare]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <LinearGradient
+                colors={['rgba(255,255,255,0.5)', 'rgba(255,255,255,0.15)', 'transparent']}
+                locations={[0, 0.35, 0.7]}
+                style={styles.buttonGloss}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+              />
+              <View style={[styles.buttonContent, square && styles.buttonContentSquare]}>
+                <View style={[styles.emojiBadge, square && styles.emojiBadgeSquare]}>
+                  <Animated.Text style={[styles.buttonEmoji, square && styles.buttonEmojiSquare, { transform: [{ scale: emojiScale }, { rotate: diceRotateInterp }] }]}>🎲</Animated.Text>
+                </View>
+                <Text style={[styles.buttonText, square && styles.buttonTextSquare]}>Truth or Dare</Text>
+              </View>
+            </LinearGradient>
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
+
+      <Modal
+        visible={modalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={handleClose}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={handleClose}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+            style={styles.modalContent}
+          >
+            <LinearGradient
+              colors={['#f093fb', '#f5576c', '#667eea']}
+              style={styles.modalGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Text style={styles.modalTitle}>
+                {step === 'lobby' ? '🎲 Truth or Dare' : step === 'choose' ? 'Pick One' : promptType === 'truth' ? '✨ Truth' : '🔥 Dare'}
+              </Text>
+
+              {loading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="large" color="#fff" />
+                  <Text style={styles.loadingText}>Loading...</Text>
+                </View>
+              ) : step === 'lobby' ? (
+                <View style={styles.lobbyContainer}>
+                  <Text style={styles.lobbyTitle}>Both pick the same to play</Text>
+                  <View style={styles.spicePills}>
+                    <TouchableOpacity
+                      onPress={() => handleSetSpiceChoice('pg13')}
+                      style={[styles.spicePill, gameState?.yourSpiceChoice === 'pg13' && styles.spicePillActive]}
+                      disabled={submitting}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.spicePillText, gameState?.yourSpiceChoice === 'pg13' && styles.spicePillTextActive]}>
+                        PG-13
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleSetSpiceChoice('ratedr')}
+                      style={[styles.spicePill, gameState?.yourSpiceChoice === 'ratedr' && styles.spicePillActive]}
+                      disabled={submitting}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.spicePillText, gameState?.yourSpiceChoice === 'ratedr' && styles.spicePillTextActive]}>
+                        Rated R
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleSetSpiceChoice('spicy')}
+                      style={[styles.spicePill, gameState?.yourSpiceChoice === 'spicy' && styles.spicePillActive]}
+                      disabled={submitting}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.spicePillText, gameState?.yourSpiceChoice === 'spicy' && styles.spicePillTextActive]}>
+                        Spicy
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                  {gameState?.theirSpiceChoice ? (
+                    <Text style={styles.lobbyHint}>
+                      They picked {gameState.theirSpiceChoice === 'pg13' ? 'PG-13' : gameState.theirSpiceChoice === 'ratedr' ? 'Rated R' : 'Spicy'}
+                      {gameState.spiceReady ? ' — Match! Ready to play' : ' — pick the same to play'}
+                    </Text>
+                  ) : (
+                    <Text style={styles.lobbyHint}>Waiting for them to pick...</Text>
+                  )}
+                </View>
+              ) : step === 'choose' ? (
+                <View style={styles.chooseContainer}>
+                  {gameState?.spiceLevel && (
+                    <View style={styles.promptSpiceBadge}>
+                      <Text style={styles.promptSpiceText}>
+                        {gameState.spiceLevel === 'spicy' ? 'Spicy' : gameState.spiceLevel === 'ratedr' ? 'Rated R' : 'PG-13'}
+                      </Text>
+                    </View>
+                  )}
+                  <View style={styles.chooseRow}>
+                  <TouchableOpacity
+                    onPress={() => handleChoose('truth')}
+                    style={styles.choiceButton}
+                    activeOpacity={0.8}
+                  >
+                    <LinearGradient
+                      colors={['#667eea', '#764ba2']}
+                      style={styles.choiceGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    >
+                      <Text style={styles.choiceEmoji}>✨</Text>
+                      <Text style={styles.choiceText}>Truth</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => handleChoose('dare')}
+                    style={styles.choiceButton}
+                    activeOpacity={0.8}
+                  >
+                    <LinearGradient
+                      colors={['#f5576c', '#f093fb']}
+                      style={styles.choiceGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    >
+                      <Text style={styles.choiceEmoji}>🔥</Text>
+                      <Text style={styles.choiceText}>Dare</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
+                </View>
+              ) : (
+                <>
+                  {loading ? (
+                    <View style={styles.loadingContainer}>
+                      <ActivityIndicator size="large" color="#fff" />
+                      <Text style={styles.loadingText}>Generating your prompt...</Text>
+                    </View>
+                  ) : (
+                    <>
+                      <View style={styles.promptSpiceBadge}>
+                        <Text style={styles.promptSpiceText}>
+                          {spiceLevel === 'spicy' ? 'Spicy' : spiceLevel === 'ratedr' ? 'Rated R' : 'PG-13'}
+                        </Text>
+                      </View>
+                      <Text style={styles.promptText}>{prompt}</Text>
+                    </>
+                  )}
+                  <View style={styles.promptActions}>
+                    {onSendToChat && !loading && (
+                      <TouchableOpacity
+                        onPress={handleSendToChat}
+                        style={styles.sendButton}
+                        activeOpacity={0.8}
+                      >
+                        <LinearGradient
+                          colors={['#667eea', '#764ba2']}
+                          style={styles.sendButtonGradient}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                        >
+                          <Text style={styles.sendButtonText}>Send to Chat</Text>
+                        </LinearGradient>
+                      </TouchableOpacity>
+                    )}
+                    {!loading && (
+                      <TouchableOpacity
+                        onPress={() => handleChoose(promptType)}
+                        style={styles.anotherButton}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.anotherButtonText}>Another one</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </>
+              )}
+
+              <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
+                <Text style={styles.closeButtonText}>Close</Text>
+              </TouchableOpacity>
+            </LinearGradient>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    marginVertical: 4,
+    paddingHorizontal: 12,
+  },
+  containerCompact: {
+    marginVertical: 2,
+    paddingHorizontal: 8,
+  },
+  containerSquare: {
+    flex: 1,
+    marginVertical: 0,
+    paddingHorizontal: 0,
+  },
+  lockedCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ff8fab',
+    borderRadius: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderWidth: 2,
+    borderColor: '#ff006e',
+    minWidth: 140,
+    shadowColor: '#ff006e',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  lockedCardSquare: {
+    flex: 1,
+    justifyContent: 'center',
+    minWidth: 0,
+  },
+  lockedEmoji: {
+    fontSize: 18,
+    marginRight: 8,
+  },
+  lockedTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  lockedText: {
+    fontSize: 13,
+    color: '#000000',
+    fontWeight: '700',
+  },
+  lockedSubtext: {
+    fontSize: 10,
+    color: 'rgba(0,0,0,0.6)',
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  button: {
+    borderRadius: 18,
+    overflow: 'hidden',
+    shadowColor: '#ff006e',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.7,
+    shadowRadius: 14,
+    elevation: 12,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.8)',
+  },
+  buttonGlow: {
+    shadowColor: '#ff4081',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 18,
+    elevation: 14,
+  },
+  buttonSquare: {
+    flex: 1,
+    alignSelf: 'stretch',
+  },
+  buttonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    position: 'relative',
+  },
+  buttonGloss: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '55%',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+  },
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonContentSquare: {
+    flexDirection: 'column',
+  },
+  emojiBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.4)',
+  },
+  emojiBadgeSquare: {
+    marginRight: 0,
+    marginBottom: 6,
+  },
+  buttonGradientSquare: {
+    flex: 1,
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+  },
+  buttonEmoji: {
+    fontSize: 20,
+    marginRight: 0,
+    textShadowColor: 'rgba(0,0,0,0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  buttonEmojiSquare: {
+    marginRight: 0,
+    marginBottom: 0,
+    fontSize: 22,
+  },
+  buttonText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#ffffff',
+    letterSpacing: 0.5,
+    textShadowColor: 'rgba(0,0,0,0.4)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  buttonTextSquare: {
+    fontSize: 11,
+    textAlign: 'center',
+    color: '#ffffff',
+    fontWeight: '800',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 340,
+    borderRadius: 24,
+    overflow: 'hidden',
+  },
+  modalGradient: {
+    padding: 24,
+    borderRadius: 24,
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#fff',
+    marginBottom: 20,
+    letterSpacing: 0.5,
+  },
+  chooseRow: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 20,
+  },
+  choiceButton: {
+    flex: 1,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  choiceGradient: {
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  choiceEmoji: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  choiceText: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#fff',
+  },
+  chooseContainer: {
+    alignItems: 'center',
+  },
+  loadingContainer: {
+    paddingVertical: 32,
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.9)',
+    marginTop: 12,
+  },
+  lobbyContainer: {
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  lobbyTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 14,
+  },
+  lobbyHint: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.9)',
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  spiceRow: {
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  spiceLabel: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.8)',
+    marginBottom: 6,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  spicePills: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    justifyContent: 'center',
+  },
+  spicePill: {
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  spicePillActive: {
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderColor: 'rgba(255,255,255,0.95)',
+  },
+  spicePillText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.9)',
+  },
+  spicePillTextActive: {
+    color: '#f5576c',
+  },
+  promptSpiceBadge: {
+    alignSelf: 'center',
+    marginBottom: 8,
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+  },
+  promptSpiceText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.9)',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  loadingContainer: {
+    paddingVertical: 24,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.9)',
+    marginTop: 12,
+    fontWeight: '500',
+  },
+  promptText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#fff',
+    textAlign: 'center',
+    lineHeight: 26,
+    marginBottom: 20,
+    paddingHorizontal: 8,
+  },
+  promptActions: {
+    width: '100%',
+    gap: 12,
+    marginBottom: 16,
+  },
+  sendButton: {
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  sendButtonGradient: {
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  sendButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  anotherButton: {
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  anotherButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.9)',
+    textDecorationLine: 'underline',
+  },
+  closeButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  closeButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.8)',
+  },
+});

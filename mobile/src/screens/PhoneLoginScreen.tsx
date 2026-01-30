@@ -541,31 +541,14 @@ export default function PhoneLoginScreen() {
   const [referralCode, setReferralCode] = useState('');
   const codeInputRef = useRef<TextInput>(null);
   const navigation = useNavigation();
-  const { phoneLogin, profile: authProfile, user: authUser, loading: authLoading } = useAuth();
+  const { phoneLogin } = useAuth();
   
   // Aliases for easier access
   const phoneNumber = phoneState.value;
   const isValidPhoneNumber = phoneState.isValid;
 
-  // Redirect if already authenticated - don't show login screen if user is logged in
-  useEffect(() => {
-    if (!authLoading && authUser) {
-      // User is already logged in - navigate to appropriate screen
-      if (authProfile) {
-        // User has profile - go to main app
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'MainTabs' as never }],
-        });
-      } else {
-        // User needs to create profile
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'CreateProfile' as never }],
-        });
-      }
-    }
-  }, [authUser, authProfile, authLoading, navigation]);
+  // Post-verify navigation is handled only in handleVerifySubmitWithCode using hasProfile from API.
+  // We avoid a redirect effect here so we don't race with verify flow and send existing users to CreateProfile.
 
   // Ultra-fast digit extraction - count digits directly from input
   const extractDigits = useCallback((value: string) => {
@@ -696,30 +679,17 @@ export default function PhoneLoginScreen() {
       const cleanPhoneNumber = extractDigits(phoneNumber);
       const { hasProfile } = await phoneLogin(cleanPhoneNumber, codeToUse, referralCode || undefined);
       
-      // Wait a moment for auth state to update and check profile from context
-      // Use both API response and auth context for reliability
-      await new Promise(resolve => setTimeout(resolve, 150));
+      // Use verify-code API hasProfile as source of truth. Don't rely on auth context here:
+      // profile state may not have updated yet, and other effects must not override this navigation.
+      console.log('📱 Login complete - navigating:', { hasProfile });
       
-      // Double-check profile state from auth context (in case API response was wrong)
-      const finalHasProfile = hasProfile || (authUser && !!authProfile);
-      
-      console.log('📱 Login complete - navigating:', { 
-        hasProfile, 
-        authProfile: !!authProfile, 
-        finalHasProfile 
-      });
-      
-      // Navigate based on profile status - use reset to ensure proper navigation
-      if (finalHasProfile) {
+      if (hasProfile) {
         // User has profile - go to main app
-        console.log('📱 Navigating to MainTabs (user has profile)');
         navigation.reset({
           index: 0,
           routes: [{ name: 'MainTabs' as never }],
         });
       } else {
-        // User has no profile - navigate to create profile
-        console.log('📱 Navigating to CreateProfile (user needs profile)');
         navigation.reset({
           index: 0,
           routes: [{ name: 'CreateProfile' as never }],

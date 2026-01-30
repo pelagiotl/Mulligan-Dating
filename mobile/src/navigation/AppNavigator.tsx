@@ -348,52 +348,22 @@ export default function AppNavigator() {
 
   // Check profile status on mount and when auth state changes
   React.useEffect(() => {
-    // Wait for navigation container to be ready
     if (!loading && isNavigationReady && navigationRef.current) {
+      const currentRoute = navigationRef.current.getCurrentRoute();
+      // Never redirect when on PhoneLogin: post-verify navigation is handled there using
+      // verify-code API hasProfile. Otherwise we race and can send existing users to CreateProfile.
+      if (currentRoute?.name === 'PhoneLogin') return;
+
       if (user && !profile) {
-        // User is logged in but has no profile - navigate to create profile
         try {
-          const currentRoute = navigationRef.current.getCurrentRoute();
-          // Only navigate if we're NOT already on CreateProfile or PhoneLogin
-          // This handles the case where user just logged in from PhoneLogin screen
-          if (currentRoute?.name !== 'CreateProfile' && currentRoute?.name !== 'PhoneLogin') {
-            // Use reset to ensure clean navigation stack
+          if (currentRoute?.name !== 'CreateProfile') {
             navigationRef.current.reset({
               index: 0,
               routes: [{ name: 'CreateProfile' }],
             });
-          } else if (currentRoute?.name === 'PhoneLogin') {
-            // If still on PhoneLogin after login, navigate to CreateProfile
-            // Small delay to ensure navigation is ready
-            setTimeout(() => {
-              try {
-                if (navigationRef.current && navigationRef.current.isReady?.()) {
-                  navigationRef.current.navigate('CreateProfile');
-                }
-              } catch (err) {
-                console.error('Navigation error in AppNavigator setTimeout:', err);
-              }
-            }, 200);
           }
         } catch (err) {
           console.error('Navigation error in AppNavigator:', err);
-        }
-      } else if (user && profile && isNavigationReady && navigationRef.current) {
-        // User has profile - make sure we're on MainTabs if we're on PhoneLogin
-        const currentRoute = navigationRef.current.getCurrentRoute();
-        if (currentRoute?.name === 'PhoneLogin') {
-          setTimeout(() => {
-            try {
-              if (navigationRef.current && navigationRef.current.isReady?.()) {
-                navigationRef.current.reset({
-                  index: 0,
-                  routes: [{ name: 'MainTabs' }],
-                });
-              }
-            } catch (err) {
-              console.error('Navigation error navigating to MainTabs:', err);
-            }
-          }, 200);
         }
       }
     }

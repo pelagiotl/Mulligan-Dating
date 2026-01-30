@@ -659,6 +659,8 @@ matchesRouter.get("/:matchId/messages", authenticateToken, async (req: AuthReque
     const userId = req.userId!;
     const { matchId } = req.params;
 
+    console.log(`📨 Fetching messages for match ${matchId} by user ${userId}`);
+
     // Verify user is part of this match
     const matchResult = db
       .prepare(
@@ -670,14 +672,15 @@ matchesRouter.get("/:matchId/messages", authenticateToken, async (req: AuthReque
       : matchResult) as MatchRow | undefined;
 
     if (!match) {
+      console.log(`📨 Match ${matchId} not found or not accessible by user ${userId}`);
       return res.status(404).json({ error: "Match not found or not yet mutual" });
     }
 
     const messagesResult = db
       .prepare(
-        `SELECT m.*, p.display_name as sender_name
+        `SELECT m.*, COALESCE(p.display_name, 'Unknown User') as sender_name
          FROM messages m
-         JOIN profiles p ON p.user_id = m.sender_id
+         LEFT JOIN profiles p ON p.user_id = m.sender_id
          WHERE m.match_id = ?
          ORDER BY m.sent_at ASC`
       )
@@ -685,6 +688,8 @@ matchesRouter.get("/:matchId/messages", authenticateToken, async (req: AuthReque
     const messages = (messagesResult instanceof Promise
       ? await messagesResult
       : messagesResult) as any[];
+
+    console.log(`📨 Found ${messages.length} messages for match ${matchId}`);
 
     // Mark messages as read
     const updateReadResult = db.prepare(
@@ -1205,6 +1210,500 @@ matchesRouter.post("/:matchId/reset-conversation", authenticateToken, rateLimitA
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error("Reset conversation error:", error);
     res.status(500).json({ error: `Failed to reset conversation: ${errorMessage}` });
+  }
+});
+
+// Game request: User A invites User B to play Truth or Dare or Never Have I Ever
+matchesRouter.post("/:matchId/game-request", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { matchId } = req.params;
+    const { gameType } = req.body as { gameType?: string };
+
+    if (!gameType || (gameType !== 'truth_or_dare' && gameType !== 'never_have_i_ever')) {
+      return res.status(400).json({ error: "Invalid gameType. Must be 'truth_or_dare' or 'never_have_i_ever'." });
+    }
+
+    const matchResult = db
+      .prepare('SELECT user1_id, user2_id FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?) AND stage IN (\'stage1\', \'stage2\')')
+      .get([matchId, userId, userId]);
+    const match = (matchResult instanceof Promise
+      ? await matchResult
+      : matchResult) as { user1_id: string; user2_id: string } | undefined;
+
+    if (!match) {
+      return res.status(404).json({ error: "Match not found" });
+    }
+
+    const toUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
+
+    // Check for existing pending request from this user for this match+game
+    const existingResult = db
+      .prepare(
+        `SELECT id FROM game_requests WHERE match_id = ? AND from_user_id = ? AND game_type = ? AND status = 'pending'`
+      )
+      .get([matchId, userId, gameType]) as { id: string } | undefined;
+
+    if (existingResult) {
+      return res.status(400).json({ error: "You already have a pending request. Wait for them to respond." });
+    }
+
+    const requestId = uuidv4();
+    db.prepare(
+      `INSERT INTO game_requests (id, match_id, from_user_id, to_user_id, game_type, status) VALUES (?, ?, ?, ?, ?, 'pending')`
+    ).run([requestId, matchId, userId, toUserId, gameType]);
+
+    const profile = db.prepare('SELECT display_name FROM profiles WHERE user_id = ?').get(userId) as { display_name: string } | undefined;
+    const fromUserName = profile?.display_name || 'Someone';
+
+    const { getIO } = await import('../socket.js');
+    const io = getIO();
+    if (io) {
+      io.to(`user:${toUserId}`).emit('game_request_received', {
+        requestId,
+        matchId,
+        fromUserId: userId,
+        fromUserName,
+        gameType,
+      });
+    }
+
+    try {
+      const { sendGameRequestPushNotification, isPushNotificationConfigured, isExpoPushToken } = await import('../services/pushNotifications.js');
+      if (isPushNotificationConfigured()) {
+        const toUserTokenResult = db.prepare('SELECT push_token FROM users WHERE id = ?').get(toUserId) as { push_token: string | null } | undefined;
+        if (toUserTokenResult?.push_token && isExpoPushToken(toUserTokenResult.push_token)) {
+          await sendGameRequestPushNotification(
+            toUserTokenResult.push_token,
+            fromUserName,
+            gameType as 'truth_or_dare' | 'never_have_i_ever',
+            matchId,
+            userId,
+            requestId
+          );
+          console.log(`✅ Sent game request push notification to ${toUserId}`);
+        }
+      }
+    } catch (pushErr) {
+      console.warn('⚠️  Failed to send game request push notification (non-critical):', pushErr);
+    }
+
+    res.json({ requestId, matchId, gameType, fromUserName, status: 'pending' });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Game request error:", error);
+    res.status(500).json({ error: `Failed to create game request: ${errorMessage}` });
+  }
+});
+
+matchesRouter.post("/:matchId/game-request/:requestId/respond", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { matchId, requestId } = req.params;
+    const { accept } = req.body as { accept?: boolean };
+
+    if (typeof accept !== 'boolean') {
+      return res.status(400).json({ error: "Invalid body. Must include accept: true or accept: false." });
+    }
+
+    const row = db
+      .prepare(
+        `SELECT * FROM game_requests WHERE id = ? AND match_id = ? AND to_user_id = ? AND status = 'pending'`
+      )
+      .get([requestId, matchId, userId]) as { id: string; from_user_id: string; to_user_id: string; game_type: string } | undefined;
+
+    if (!row) {
+      return res.status(404).json({ error: "Request not found or already responded" });
+    }
+
+    db.prepare(`UPDATE game_requests SET status = ? WHERE id = ?`).run(accept ? 'accepted' : 'denied', requestId);
+
+    const { getIO } = await import('../socket.js');
+    const io = getIO();
+    if (io) {
+      io.to(`user:${row.from_user_id}`).emit('game_request_responded', {
+        requestId,
+        matchId,
+        fromUserId: row.from_user_id,
+        toUserId: userId,
+        gameType: row.game_type,
+        accepted: accept,
+      });
+    }
+
+    res.json({ requestId, matchId, gameType: row.game_type, accepted: accept });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Game request respond error:", error);
+    res.status(500).json({ error: `Failed to respond to game request: ${errorMessage}` });
+  }
+});
+
+// Get Truth or Dare game state (spice level lobby)
+matchesRouter.get("/:matchId/truth-or-dare/state", authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { matchId } = req.params;
+
+    const matchResult = db
+      .prepare('SELECT user1_id, user2_id FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?)')
+      .get([matchId, userId, userId]);
+    const match = (matchResult instanceof Promise
+      ? await matchResult
+      : matchResult) as { user1_id: string; user2_id: string } | undefined;
+
+    if (!match) {
+      return res.status(404).json({ error: "Match not found" });
+    }
+
+    const isUser1 = match.user1_id === userId;
+
+    // Get or create game state
+    let gameResult = db.prepare('SELECT * FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
+    let game = (gameResult instanceof Promise ? await gameResult : gameResult) as any;
+
+    if (!game) {
+      db.prepare(`INSERT INTO truth_or_dare_games (match_id) VALUES (?)`).run([matchId]);
+      game = { match_id: matchId, user1_spice_choice: null, user2_spice_choice: null, spice_level: null };
+    }
+
+    const yourSpiceChoice = isUser1 ? game.user1_spice_choice : game.user2_spice_choice;
+    const theirSpiceChoice = isUser1 ? game.user2_spice_choice : game.user1_spice_choice;
+    const spiceReady = yourSpiceChoice && theirSpiceChoice && yourSpiceChoice === theirSpiceChoice;
+
+    res.json({
+      yourSpiceChoice,
+      theirSpiceChoice,
+      spiceReady,
+      spiceLevel: game.spice_level,
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Truth or Dare state error:", error);
+    res.status(500).json({ error: `Failed to get game state: ${errorMessage}` });
+  }
+});
+
+// Set Truth or Dare spice choice
+matchesRouter.post("/:matchId/truth-or-dare/spice-choice", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { matchId } = req.params;
+    const { choice } = req.body as { choice?: string };
+
+    if (!choice || (choice !== 'pg13' && choice !== 'ratedr' && choice !== 'spicy')) {
+      return res.status(400).json({ error: "Invalid choice. Must be 'pg13', 'ratedr', or 'spicy'." });
+    }
+
+    const matchResult = db
+      .prepare('SELECT user1_id, user2_id FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?)')
+      .get([matchId, userId, userId]);
+    const match = (matchResult instanceof Promise
+      ? await matchResult
+      : matchResult) as { user1_id: string; user2_id: string } | undefined;
+
+    if (!match) {
+      return res.status(404).json({ error: "Match not found" });
+    }
+
+    const isUser1 = match.user1_id === userId;
+    const column = isUser1 ? 'user1_spice_choice' : 'user2_spice_choice';
+
+    // Upsert game state
+    const existingResult = db.prepare('SELECT match_id FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
+    const existing = existingResult instanceof Promise ? await existingResult : existingResult;
+
+    if (!existing) {
+      db.prepare(`INSERT INTO truth_or_dare_games (match_id, ${column}) VALUES (?, ?)`).run([matchId, choice]);
+    } else {
+      db.prepare(`UPDATE truth_or_dare_games SET ${column} = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?`).run([choice, matchId]);
+    }
+
+    // Get updated state
+    const gameResult = db.prepare('SELECT * FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
+    const game = (gameResult instanceof Promise ? await gameResult : gameResult) as any;
+
+    const yourSpiceChoice = isUser1 ? game.user1_spice_choice : game.user2_spice_choice;
+    const theirSpiceChoice = isUser1 ? game.user2_spice_choice : game.user1_spice_choice;
+    const spiceReady = yourSpiceChoice && theirSpiceChoice && yourSpiceChoice === theirSpiceChoice;
+
+    // If both matched, set the spice level
+    if (spiceReady && !game.spice_level) {
+      db.prepare('UPDATE truth_or_dare_games SET spice_level = ? WHERE match_id = ?').run([yourSpiceChoice, matchId]);
+    }
+
+    // Emit socket event to notify other user
+    try {
+      const { getIO } = await import('../socket.js');
+      const io = getIO();
+      if (io) {
+        io.to(`match:${matchId}`).emit('truth_or_dare_updated', { matchId });
+      }
+    } catch (e) {
+      console.warn('Socket emit failed:', e);
+    }
+
+    res.json({
+      yourSpiceChoice,
+      theirSpiceChoice,
+      spiceReady,
+      spiceLevel: spiceReady ? yourSpiceChoice : null,
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Truth or Dare spice choice error:", error);
+    res.status(500).json({ error: `Failed to set spice choice: ${errorMessage}` });
+  }
+});
+
+// Generate AI Truth or Dare prompt (free, no token cost)
+matchesRouter.post("/:matchId/truth-or-dare", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { matchId } = req.params;
+    const { type } = req.body as { type?: 'truth' | 'dare' };
+
+    if (!type || (type !== 'truth' && type !== 'dare')) {
+      return res.status(400).json({ error: "Invalid type. Must be 'truth' or 'dare'." });
+    }
+
+    const matchResult = db
+      .prepare('SELECT user1_id, user2_id FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?)')
+      .get([matchId, userId, userId]);
+    const match = (matchResult instanceof Promise
+      ? await matchResult
+      : matchResult) as { user1_id: string; user2_id: string } | undefined;
+
+    if (!match) {
+      return res.status(404).json({ error: "Match not found" });
+    }
+
+    // Get agreed spice level from game state
+    const gameResult = db.prepare('SELECT spice_level FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
+    const game = (gameResult instanceof Promise ? await gameResult : gameResult) as { spice_level: string | null } | undefined;
+    
+    const level = (game?.spice_level === 'ratedr' ? 'ratedr' : game?.spice_level === 'spicy' ? 'spicy' : 'pg13') as 'pg13' | 'ratedr' | 'spicy';
+
+    const { generateTruthOrDarePrompt } = await import('../services/truthOrDare.js');
+    const { prompt, fromAI } = await generateTruthOrDarePrompt(type, matchId, userId, level);
+
+    res.json({ prompt, fromAI, spiceLevel: level });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Truth or Dare error:", error);
+    res.status(500).json({ error: `Failed to generate prompt: ${errorMessage}` });
+  }
+});
+
+// Never Have I Ever game
+matchesRouter.post("/:matchId/never-have-i-ever/spice-choice", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { matchId } = req.params;
+    const { choice } = req.body as { choice?: string };
+
+    if (!choice || (choice !== 'pg13' && choice !== 'ratedr' && choice !== 'spicy')) {
+      return res.status(400).json({ error: "Invalid choice. Must be 'pg13', 'ratedr', or 'spicy'." });
+    }
+
+    const matchResult = db
+      .prepare('SELECT user1_id, user2_id FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?)')
+      .get([matchId, userId, userId]);
+    const match = (matchResult instanceof Promise
+      ? await matchResult
+      : matchResult) as { user1_id: string; user2_id: string } | undefined;
+
+    if (!match) {
+      return res.status(404).json({ error: "Match not found" });
+    }
+
+    const { setSpiceChoice } = await import('../services/neverHaveIEver.js');
+    const state = await setSpiceChoice(matchId, userId, match, choice as 'pg13' | 'ratedr' | 'spicy');
+
+    try {
+      const { getIO } = await import('../socket.js');
+      const io = getIO();
+      if (io) {
+        io.to(`match:${matchId}`).emit('never_have_i_ever_updated', { matchId });
+      }
+    } catch (socketError) {
+      console.warn('⚠️  Socket.io not available for Never Have I Ever notification');
+    }
+
+    res.json(state);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Never Have I Ever spice choice error:", error);
+    res.status(500).json({ error: `Failed to set spice choice: ${errorMessage}` });
+  }
+});
+
+matchesRouter.post("/:matchId/never-have-i-ever/start", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { matchId } = req.params;
+
+    const matchResult = db
+      .prepare('SELECT user1_id, user2_id FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?)')
+      .get([matchId, userId, userId]);
+    const match = (matchResult instanceof Promise
+      ? await matchResult
+      : matchResult) as { user1_id: string; user2_id: string } | undefined;
+
+    if (!match) {
+      return res.status(404).json({ error: "Match not found" });
+    }
+
+    const { startGame } = await import('../services/neverHaveIEver.js');
+    const state = await startGame(matchId, userId, match);
+
+    try {
+      const { getIO } = await import('../socket.js');
+      const io = getIO();
+      if (io) {
+        io.to(`match:${matchId}`).emit('never_have_i_ever_updated', { matchId });
+      }
+    } catch (socketError) {
+      console.warn('⚠️  Socket.io not available for Never Have I Ever notification');
+    }
+
+    res.json(state);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Never Have I Ever start error:", error);
+    res.status(500).json({ error: `Failed to start game: ${errorMessage}` });
+  }
+});
+
+matchesRouter.get("/:matchId/never-have-i-ever", authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { matchId } = req.params;
+
+    const matchResult = db
+      .prepare('SELECT user1_id, user2_id FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?)')
+      .get([matchId, userId, userId]);
+    const match = (matchResult instanceof Promise
+      ? await matchResult
+      : matchResult) as { user1_id: string; user2_id: string } | undefined;
+
+    if (!match) {
+      return res.status(404).json({ error: "Match not found" });
+    }
+
+    const { getGameState } = await import('../services/neverHaveIEver.js');
+    const state = await getGameState(matchId, userId, match);
+    res.json(state);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Never Have I Ever get error:", error);
+    res.status(500).json({ error: `Failed to get game state: ${errorMessage}` });
+  }
+});
+
+matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { matchId } = req.params;
+    const { answer } = req.body as { answer?: string };
+
+    if (!answer || (answer !== 'have' && answer !== 'havent')) {
+      return res.status(400).json({ error: "Invalid answer. Must be 'have' or 'havent'." });
+    }
+
+    const matchResult = db
+      .prepare('SELECT user1_id, user2_id FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?)')
+      .get([matchId, userId, userId]);
+    const match = (matchResult instanceof Promise
+      ? await matchResult
+      : matchResult) as { user1_id: string; user2_id: string } | undefined;
+
+    if (!match) {
+      return res.status(404).json({ error: "Match not found" });
+    }
+
+    const { submitAnswer } = await import('../services/neverHaveIEver.js');
+    const { state, roundResult } = await submitAnswer(matchId, userId, match, answer as 'have' | 'havent');
+
+    // Notify other user via socket
+    try {
+      const { getIO } = await import('../socket.js');
+      const io = getIO();
+      if (io) {
+        io.to(`match:${matchId}`).emit('never_have_i_ever_updated', { matchId });
+      }
+    } catch (socketError) {
+      console.warn('⚠️  Socket.io not available for Never Have I Ever notification');
+    }
+
+    res.json({ ...state, roundResult });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Never Have I Ever answer error:", error);
+    res.status(500).json({ error: `Failed to submit answer: ${errorMessage}` });
+  }
+});
+
+matchesRouter.post("/:matchId/never-have-i-ever/next", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { matchId } = req.params;
+
+    const matchResult = db
+      .prepare('SELECT user1_id, user2_id FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?)')
+      .get([matchId, userId, userId]);
+    const match = (matchResult instanceof Promise
+      ? await matchResult
+      : matchResult) as { user1_id: string; user2_id: string } | undefined;
+
+    if (!match) {
+      return res.status(404).json({ error: "Match not found" });
+    }
+
+    const { advanceToNextRound } = await import('../services/neverHaveIEver.js');
+    const state = await advanceToNextRound(matchId, userId, match);
+
+    try {
+      const { getIO } = await import('../socket.js');
+      const io = getIO();
+      if (io) {
+        io.to(`match:${matchId}`).emit('never_have_i_ever_updated', { matchId });
+      }
+    } catch (socketError) {
+      console.warn('⚠️  Socket.io not available for Never Have I Ever notification');
+    }
+
+    res.json(state);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Never Have I Ever next error:", error);
+    res.status(500).json({ error: `Failed to advance round: ${errorMessage}` });
+  }
+});
+
+matchesRouter.post("/:matchId/never-have-i-ever/restart", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { matchId } = req.params;
+
+    const matchResult = db
+      .prepare('SELECT user1_id, user2_id FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?)')
+      .get([matchId, userId, userId]);
+    const match = (matchResult instanceof Promise
+      ? await matchResult
+      : matchResult) as { user1_id: string; user2_id: string } | undefined;
+
+    if (!match) {
+      return res.status(404).json({ error: "Match not found" });
+    }
+
+    const { startNewGame } = await import('../services/neverHaveIEver.js');
+    const state = await startNewGame(matchId, userId, match);
+    res.json(state);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Never Have I Ever restart error:", error);
+    res.status(500).json({ error: `Failed to restart game: ${errorMessage}` });
   }
 });
 
