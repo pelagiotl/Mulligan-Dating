@@ -5,6 +5,8 @@ import { authenticateToken, AuthRequest } from "../middleware/auth.js";
 import { generateWeeklyMatches, generateMatchExplanation } from "../services/matching.js";
 import { recordSuccessSignal } from "../utils/successTracking.js";
 import { rateLimitAPI } from "../middleware/security.js";
+import { uploadChatImage } from "../middleware/upload.js";
+import { uploadToCloudinary, isCloudinaryConfigured } from "../services/cloudinary.js";
 
 export const matchesRouter = Router();
 
@@ -812,6 +814,7 @@ matchesRouter.get("/:matchId/messages", authenticateToken, async (req: AuthReque
       messages: messages.map((m) => ({
         id: m.id,
         content: m.content,
+        imageUrl: m.image_url || null,
         senderId: m.sender_id,
         senderName: m.sender_name,
         sentAt: m.sent_at,
@@ -826,27 +829,71 @@ matchesRouter.get("/:matchId/messages", authenticateToken, async (req: AuthReque
   }
 });
 
+// Upload chat image (returns imageUrl for use in send message)
+matchesRouter.post("/:matchId/messages/upload-image", authenticateToken, rateLimitAPI, (req: AuthRequest, res, next) => {
+  uploadChatImage(req, res, (err) => {
+    if (err) {
+      return res.status(400).json({ error: err instanceof Error ? err.message : "Image upload failed" });
+    }
+    next();
+  });
+}, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { matchId } = req.params;
+    const file = (req as any).file;
+
+    if (!file || !file.buffer) {
+      return res.status(400).json({ error: "No image file received" });
+    }
+
+    const matchResult = db
+      .prepare(
+        `SELECT * FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?) AND stage IN ('stage1', 'stage2')`
+      )
+      .get([matchId, userId, userId]);
+    const match = (matchResult instanceof Promise ? await matchResult : matchResult) as MatchRow | undefined;
+    if (!match) {
+      return res.status(404).json({ error: "Match not found or not yet mutual" });
+    }
+
+    if (!isCloudinaryConfigured()) {
+      return res.status(503).json({ error: "Image upload is not configured" });
+    }
+
+    const imageUrl = await uploadToCloudinary(file.buffer, 'chat-images');
+    res.json({ imageUrl });
+  } catch (error) {
+    console.error("Chat image upload error:", error);
+    const msg = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: `Failed to upload image: ${msg}` });
+  }
+});
+
 // Send a message
 matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
     const { matchId } = req.params;
-    const { content } = req.body;
+    const { content, imageUrl } = req.body;
 
-    if (!content || typeof content !== 'string' || !content.trim()) {
-      return res.status(400).json({ error: "Message content required" });
+    const hasContent = content != null && typeof content === 'string' && content.trim().length > 0;
+    const hasImage = imageUrl != null && typeof imageUrl === 'string' && imageUrl.trim().length > 0;
+
+    if (!hasContent && !hasImage) {
+      return res.status(400).json({ error: "Message content or image required" });
     }
-    
-    // Sanitize and validate message content
+
     const { sanitizeText } = await import('../middleware/security.js');
-    const sanitizedContent = sanitizeText(content.trim(), 1000); // Max 1000 characters per message
-    
-    if (sanitizedContent.length === 0) {
-      return res.status(400).json({ error: "Message cannot be empty" });
-    }
-    
+    const sanitizedContent = hasContent ? sanitizeText(content.trim(), 1000) : '';
+
     if (sanitizedContent.length > 1000) {
       return res.status(400).json({ error: "Message must be at most 1000 characters" });
+    }
+
+    const finalImageUrl = hasImage ? imageUrl.trim() : null;
+    if (finalImageUrl && !/^https?:\/\//.test(finalImageUrl)) {
+      return res.status(400).json({ error: "Invalid image URL" });
     }
 
     // Verify user is part of this match and it's mutual
@@ -865,8 +912,8 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
 
     const messageId = uuidv4();
     const insertMessageResult = db.prepare(
-      `INSERT INTO messages (id, match_id, sender_id, content) VALUES (?, ?, ?, ?)`
-    ).run([messageId, matchId, userId, sanitizedContent]);
+      `INSERT INTO messages (id, match_id, sender_id, content, image_url) VALUES (?, ?, ?, ?, ?)`
+    ).run([messageId, matchId, userId, sanitizedContent, finalImageUrl]);
     if (insertMessageResult instanceof Promise) {
       await insertMessageResult;
     }
@@ -936,9 +983,9 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
           .get([otherUserId]) as { push_token: string | null } | undefined;
         
         if (otherUserPushTokenResult?.push_token && isExpoPushToken(otherUserPushTokenResult.push_token)) {
-          const messagePreview = sanitizedContent.length > 50 
-            ? sanitizedContent.substring(0, 50) + '...' 
-            : sanitizedContent;
+          const messagePreview = finalImageUrl
+            ? (sanitizedContent ? sanitizedContent.substring(0, 50) + (sanitizedContent.length > 50 ? '...' : '') : '📷 Photo')
+            : (sanitizedContent.length > 50 ? sanitizedContent.substring(0, 50) + '...' : sanitizedContent);
           
           await sendMessagePushNotification(
             otherUserPushTokenResult.push_token,
@@ -974,6 +1021,7 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
           id: messageId,
           matchId,
           content: sanitizedContent,
+          imageUrl: finalImageUrl,
           senderId: userId,
           senderName: senderProfile?.display_name || 'Someone',
           sentAt: new Date().toISOString(),
@@ -988,11 +1036,18 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
       console.warn('⚠️  Failed to emit socket event for message (non-critical):', socketError);
     }
 
+    const senderProfileResult = db
+      .prepare("SELECT display_name FROM profiles WHERE user_id = ?")
+      .get([userId]);
+    const senderProfile = (senderProfileResult instanceof Promise ? await senderProfileResult : senderProfileResult) as { display_name: string } | undefined;
+
     res.json({
       message: {
         id: messageId,
         content: sanitizedContent,
+        imageUrl: finalImageUrl,
         senderId: userId,
+        senderName: senderProfile?.display_name || 'Someone',
         sentAt: new Date().toISOString(),
         isOwn: true,
       },

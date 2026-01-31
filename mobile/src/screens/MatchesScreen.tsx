@@ -41,6 +41,7 @@ import TruthOrDare from '../components/TruthOrDare';
 import NeverHaveIEver from '../components/NeverHaveIEver';
 import OptimizedImage from '../components/OptimizedImage';
 import GameRequestModal from '../components/GameRequestModal';
+import * as ImagePicker from 'expo-image-picker';
 
 interface Photo {
   id: string;
@@ -81,6 +82,7 @@ interface Match {
 interface Message {
   id: string;
   content: string;
+  imageUrl?: string | null;
   senderId: string;
   senderName: string;
   sentAt: string;
@@ -105,6 +107,29 @@ const MessageBubble = React.memo(function MessageBubble({
     [item.sentAt]
   );
 
+  const renderBubbleContent = (isOwn: boolean) => (
+    <>
+      {item.imageUrl ? (
+        <Image
+          source={{ uri: item.imageUrl }}
+          style={s.messageImage}
+          resizeMode="cover"
+        />
+      ) : null}
+      {item.content ? (
+        <Text style={isOwn ? s.messageTextOwn : s.messageTextOther}>{item.content}</Text>
+      ) : null}
+      {item.isOwn ? (
+        <View style={s.messageFooterOwn}>
+          <Text style={s.messageTimeOwn}>{formattedTime}</Text>
+          {item.readAt ? <Text style={s.messageStatusRead}>✓✓</Text> : <Text style={s.messageStatusSent}>✓</Text>}
+        </View>
+      ) : (
+        <Text style={s.messageTimeOther}>{formattedTime}</Text>
+      )}
+    </>
+  );
+
   if (animValue) {
     return item.isOwn ? (
       <Animated.View
@@ -120,11 +145,7 @@ const MessageBubble = React.memo(function MessageBubble({
         ]}
       >
         <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.messageBubbleOwn}>
-          <Text style={s.messageTextOwn}>{item.content}</Text>
-          <View style={s.messageFooterOwn}>
-            <Text style={s.messageTimeOwn}>{formattedTime}</Text>
-            {item.readAt ? <Text style={s.messageStatusRead}>✓✓</Text> : <Text style={s.messageStatusSent}>✓</Text>}
-          </View>
+          {renderBubbleContent(true)}
         </LinearGradient>
       </Animated.View>
     ) : (
@@ -141,8 +162,7 @@ const MessageBubble = React.memo(function MessageBubble({
         ]}
       >
         <View style={s.messageBubbleOther}>
-          <Text style={s.messageTextOther}>{item.content}</Text>
-          <Text style={s.messageTimeOther}>{formattedTime}</Text>
+          {renderBubbleContent(false)}
         </View>
       </Animated.View>
     );
@@ -152,18 +172,13 @@ const MessageBubble = React.memo(function MessageBubble({
   return item.isOwn ? (
     <View style={s.messageContainerOwn}>
       <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.messageBubbleOwn}>
-        <Text style={s.messageTextOwn}>{item.content}</Text>
-        <View style={s.messageFooterOwn}>
-          <Text style={s.messageTimeOwn}>{formattedTime}</Text>
-          {item.readAt ? <Text style={s.messageStatusRead}>✓✓</Text> : <Text style={s.messageStatusSent}>✓</Text>}
-        </View>
+        {renderBubbleContent(true)}
       </LinearGradient>
     </View>
   ) : (
     <View style={s.messageContainerOther}>
       <View style={s.messageBubbleOther}>
-        <Text style={s.messageTextOther}>{item.content}</Text>
-        <Text style={s.messageTimeOther}>{formattedTime}</Text>
+        {renderBubbleContent(false)}
       </View>
     </View>
   );
@@ -1635,6 +1650,7 @@ export default function MatchesScreen() {
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [sendingMessage, setSendingMessage] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [stageInfoModalVisible, setStageInfoModalVisible] = useState(false);
   const [stageInfoStage, setStageInfoStage] = useState<'stage1' | 'stage2' | null>(null);
@@ -2106,7 +2122,7 @@ export default function MatchesScreen() {
       chatFadeAnim.setValue(1);
     }
     
-    if (!socketRef.current || !selectedMatch) return;
+    if (!selectedMatch) return;
 
     if (selectedMatch.stage !== 'pending') {
       setNewMessage(''); // clear input so Mulligan Moment starter doesn't carry over to another match
@@ -2118,9 +2134,12 @@ export default function MatchesScreen() {
       } else {
         console.log(`📨 Opening match ${matchId} (same as last or first time)`);
       }
-      socketRef.current.emit('join_match', selectedMatch.id);
+      // Fetch messages immediately via HTTP - don't wait for socket (messages load works without real-time)
       fetchMessages(selectedMatch.id);
-      socketRef.current.emit('mark_read', { matchId: selectedMatch.id });
+      if (socketRef.current) {
+        socketRef.current.emit('join_match', selectedMatch.id);
+        socketRef.current.emit('mark_read', { matchId: selectedMatch.id });
+      }
       // Refresh matches list to update unread counts after marking as read
       setTimeout(() => {
         fetchMatches();
@@ -2137,12 +2156,13 @@ export default function MatchesScreen() {
   // Handle route params and pending open (e.g. "Send message" on celebration, game request from push) when screen is focused
   useFocusEffect(
     useCallback(() => {
-      const task = InteractionManager.runAfterInteractions(() => {
-        if (!user || !isAuthenticated || authLoading) return;
-        const pendingId = getPendingOpenMatchId();
-        const pendingGame = getPendingGameRequest();
-        const routeParams = route.params as { matchId?: string; showGameRequest?: boolean } | undefined;
-        const matchIdToOpen = pendingId ?? routeParams?.matchId;
+      if (!user || !isAuthenticated || authLoading) return;
+      const pendingId = getPendingOpenMatchId();
+      const pendingGame = getPendingGameRequest();
+      const routeParams = route.params as { matchId?: string; showGameRequest?: boolean } | undefined;
+      const matchIdToOpen = pendingId ?? routeParams?.matchId;
+
+      const runPendingLogic = () => {
         if (matchIdToOpen && !loading) {
           const matchToSelect = matches.find(m => m.id === matchIdToOpen);
           if (matchToSelect) {
@@ -2152,7 +2172,9 @@ export default function MatchesScreen() {
               setGameRequestToShow(pendingGame);
               clearPendingGameRequest();
             }
-          } else if (matches.length === 0) {
+          } else {
+            // Match not in list (e.g. just created) - clear cache and fetch immediately for fresh data
+            api.clearCache('/matches');
             fetchMatches().then(() => {});
           }
         } else if (pendingGame && matches.length > 0 && !loading) {
@@ -2163,8 +2185,15 @@ export default function MatchesScreen() {
             clearPendingGameRequest();
           }
         }
-      });
-      return () => task.cancel();
+      };
+
+      // When we have a pending match to open, run immediately - don't wait for interactions
+      if (matchIdToOpen || (pendingGame && matches.length > 0)) {
+        runPendingLogic();
+      } else {
+        const task = InteractionManager.runAfterInteractions(runPendingLogic);
+        return () => task.cancel();
+      }
     }, [matches, route.params, user, isAuthenticated, authLoading, loading, fetchMatches])
   );
 
@@ -2194,10 +2223,8 @@ export default function MatchesScreen() {
       if (matchIdToOpen && fetchedMatches.length > 0) {
         const matchToSelect = fetchedMatches.find(m => m.id === matchIdToOpen);
         if (matchToSelect) {
-          setTimeout(() => {
-            setSelectedMatch(matchToSelect);
-            if (pendingId) clearPendingOpenMatchId();
-          }, 100);
+          setSelectedMatch(matchToSelect);
+          if (pendingId) clearPendingOpenMatchId();
         }
       }
     } catch (error: any) {
@@ -2231,7 +2258,7 @@ export default function MatchesScreen() {
   }, [matches, route.params, loading]);
 
   const fetchMessages = useCallback(async (matchId: string, retryCount = 0) => {
-    const maxRetries = 2;
+    const maxRetries = 3;
     try {
       console.log(`📨 Fetching messages for match: ${matchId} (attempt ${retryCount + 1})`);
       const data = await api.get<{ messages: Message[] }>(`/matches/${matchId}/messages`, false);
@@ -2240,6 +2267,10 @@ export default function MatchesScreen() {
       if (selectedMatchRef.current?.id === matchId) {
         lastFetchedMatchIdRef.current = matchId;
         setMessages(list);
+        // If we got 0 messages, retry once after short delay (handles race when match just created)
+        if (list.length === 0 && retryCount < 1) {
+          setTimeout(() => fetchMessages(matchId, retryCount + 1), 400);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch messages:', error);
@@ -2248,11 +2279,9 @@ export default function MatchesScreen() {
         return;
       }
       // DON'T clear messages on error - keep existing messages visible
-      // This prevents messages from "disappearing" due to temporary network issues
       console.warn(`⚠️ Failed to fetch messages after ${maxRetries + 1} attempts, keeping existing messages`);
       if (selectedMatchRef.current?.id === matchId) {
         lastFetchedMatchIdRef.current = matchId;
-        // Only set to empty if we have no existing messages (first load for this match)
         setMessages((prev) => prev.length > 0 ? prev : []);
       }
     }
@@ -2268,9 +2297,11 @@ export default function MatchesScreen() {
     setSelectedMatch(null);
   }, [selectedMatch, fetchMatches]);
 
-  const handleSendMessage = async (messageToSend?: string) => {
-    const messageContent = (messageToSend || newMessage).trim();
-    if (!messageContent || !selectedMatch || sendingMessage || !user) return;
+  const handleSendMessage = async (messageToSend?: string, imageUrlToSend?: string) => {
+    const messageContent = (messageToSend ?? newMessage).trim();
+    const hasContent = messageContent.length > 0;
+    const hasImage = !!imageUrlToSend;
+    if ((!hasContent && !hasImage) || !selectedMatch || sendingMessage || !user) return;
 
     // Stop typing indicator
     if (isTyping && selectedMatch.id) {
@@ -2290,7 +2321,8 @@ export default function MatchesScreen() {
 
     const tempMessage: Message = {
       id: `temp-${Date.now()}`,
-      content: messageContent,
+      content: hasImage && !hasContent ? '' : messageContent,
+      imageUrl: imageUrlToSend || null,
       senderId: user.id,
       senderName: user.displayName || 'You',
       sentAt: new Date().toISOString(),
@@ -2318,7 +2350,8 @@ export default function MatchesScreen() {
 
     try {
       const response = await api.post<{ message: Message; stage?: string; autoAdvanced?: boolean }>(`/matches/${selectedMatch.id}/messages`, {
-        content: messageContent,
+        content: messageContent || '',
+        ...(imageUrlToSend ? { imageUrl: imageUrlToSend } : {}),
       });
       
       // Replace temp message with real message from server
@@ -2348,6 +2381,109 @@ export default function MatchesScreen() {
     }
   };
 
+  const handleSendPhoto = useCallback(async () => {
+    if (!selectedMatch || sendingMessage || uploadingImage || !user) return;
+    Alert.alert(
+      'Send Photo',
+      'Choose a photo to send',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Take Photo',
+          onPress: async () => {
+            try {
+              const { status } = await ImagePicker.requestCameraPermissionsAsync();
+              if (status !== 'granted') {
+                Alert.alert('Permission needed', 'Please grant camera access in Settings to take photos.');
+                return;
+              }
+              const result = await ImagePicker.launchCameraAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.8,
+              });
+              if (!result.canceled && result.assets[0]) {
+                await uploadAndSendImage(result.assets[0].uri);
+              }
+            } catch (err: any) {
+              Alert.alert('Error', err?.message || 'Failed to take photo');
+            }
+          },
+        },
+        {
+          text: 'Photo Library',
+          onPress: async () => {
+            try {
+              const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+              if (status !== 'granted') {
+                Alert.alert('Permission needed', 'Please grant photo library access in Settings.');
+                return;
+              }
+              const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.8,
+              });
+              if (!result.canceled && result.assets[0]) {
+                await uploadAndSendImage(result.assets[0].uri);
+              }
+            } catch (err: any) {
+              Alert.alert('Error', err?.message || 'Failed to pick photo');
+            }
+          },
+        },
+      ]
+    );
+  }, [selectedMatch, sendingMessage, uploadingImage, user]);
+
+  const uploadAndSendImage = async (uri: string) => {
+    if (!selectedMatch || !user) return;
+    setUploadingImage(true);
+    try {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        throw new Error('Session expired. Please log in again.');
+      }
+      const filename = uri.split('/').pop() || 'photo.jpg';
+      const ext = filename.toLowerCase().match(/\.(\w+)$/)?.[1] || 'jpg';
+      const mimeTypes: Record<string, string> = {
+        jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp',
+      };
+      const mimeType = mimeTypes[ext] || 'image/jpeg';
+
+      const formData = new FormData();
+      formData.append('image', { uri, type: mimeType, name: filename } as any);
+
+      const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://mulligan-backend.onrender.com';
+      const response = await fetch(
+        `${API_URL}/api/matches/${selectedMatch.id}/messages/upload-image`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        }
+      );
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || `Upload failed: ${response.status}`);
+      }
+
+      const { imageUrl } = await response.json();
+      if (imageUrl) {
+        await handleSendMessage('', imageUrl);
+      } else {
+        throw new Error('No image URL returned');
+      }
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Failed to upload photo');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   const handleUnmatch = useCallback(async (matchId: string) => {
     Alert.alert(
       'Unmatch',
@@ -2366,16 +2502,6 @@ export default function MatchesScreen() {
                 setMessages([]);
               }
               
-              // Show reflection prompt
-              setTimeout(() => {
-                Alert.alert(
-                  '💭 Quick Reflection',
-                  'Match ended successfully',
-                  [
-                    { text: 'OK', style: 'default' },
-                  ]
-                );
-              }, 500);
             } catch (error: any) {
               Alert.alert('Error', error?.message || 'Failed to unmatch');
             }
@@ -2610,27 +2736,33 @@ export default function MatchesScreen() {
           </TouchableOpacity>
           <View style={styles.chatHeaderInfo}>
             <View style={styles.chatHeaderNameRow}>
-              {(() => {
-                const chatPhotoUrl = getMatchPhoto(selectedMatch);
-                return chatPhotoUrl ? (
-                  <Image
-                    source={{ uri: chatPhotoUrl }}
-                    style={styles.chatHeaderPhoto}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <LinearGradient
-                    colors={['#667eea', '#764ba2', '#f093fb']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.chatHeaderPhotoPlaceholder}
-                  >
-                    <Text style={styles.chatHeaderPhotoPlaceholderText}>
-                      {selectedMatch.otherUser.displayName.charAt(0).toUpperCase()}
-                    </Text>
-                  </LinearGradient>
-                );
-              })()}
+              <TouchableOpacity
+                onPress={() => setShowProfileModal(true)}
+                activeOpacity={0.8}
+                style={styles.chatHeaderPhotoTouch}
+              >
+                {(() => {
+                  const chatPhotoUrl = getMatchPhoto(selectedMatch);
+                  return chatPhotoUrl ? (
+                    <Image
+                      source={{ uri: chatPhotoUrl }}
+                      style={styles.chatHeaderPhoto}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <LinearGradient
+                      colors={['#667eea', '#764ba2', '#f093fb']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.chatHeaderPhotoPlaceholder}
+                    >
+                      <Text style={styles.chatHeaderPhotoPlaceholderText}>
+                        {selectedMatch.otherUser.displayName.charAt(0).toUpperCase()}
+                      </Text>
+                    </LinearGradient>
+                  );
+                })()}
+              </TouchableOpacity>
               <Text style={styles.chatHeaderTitle}>{selectedMatch.otherUser.displayName}</Text>
             </View>
             <View style={styles.chatHeaderSubtitleRow}>
@@ -2697,13 +2829,6 @@ export default function MatchesScreen() {
               )}
             </View>
           </View>
-          <TouchableOpacity
-            onPress={() => setShowProfileModal(true)}
-            style={styles.profileButton}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.profileButtonText}>👤</Text>
-          </TouchableOpacity>
         </View>
       </LinearGradient>
       
@@ -2911,6 +3036,18 @@ export default function MatchesScreen() {
             accessible={false}
           >
             <View style={styles.inputWrapper}>
+              <TouchableOpacity
+                onPress={handleSendPhoto}
+                disabled={sendingMessage || uploadingImage}
+                style={styles.photoButton}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                {uploadingImage ? (
+                  <ActivityIndicator size="small" color="#667eea" />
+                ) : (
+                  <Text style={styles.photoButtonIcon}>📷</Text>
+                )}
+              </TouchableOpacity>
               <TextInput
                 ref={textInputRef}
                 style={styles.input}
@@ -2935,7 +3072,7 @@ export default function MatchesScreen() {
             onPress={() => {
               if (newMessage.trim() && !sendingMessage) handleSendMessage(newMessage.trim());
             }}
-            disabled={sendingMessage || !newMessage.trim()}
+            disabled={sendingMessage || uploadingImage || !newMessage.trim()}
             style={styles.sendButtonContainer}
             activeOpacity={0.7}
             hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
@@ -3468,11 +3605,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 4,
   },
+  chatHeaderPhotoTouch: {
+    marginRight: 12,
+  },
   chatHeaderPhoto: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    marginRight: 12,
     borderWidth: 2.5,
     borderColor: 'rgba(255, 255, 255, 0.3)',
     shadowColor: '#000',
@@ -3485,7 +3624,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    marginRight: 12,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2.5,
@@ -3811,6 +3949,13 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
+  messageImage: {
+    width: 200,
+    height: 200,
+    borderRadius: 12,
+    marginBottom: 4,
+    backgroundColor: '#e5e7eb',
+  },
   messageTextOwn: {
     fontSize: 15,
     lineHeight: 20,
@@ -3900,6 +4045,17 @@ const styles = StyleSheet.create({
   },
   inputWrapper: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  photoButton: {
+    padding: 8,
+    marginRight: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  photoButtonIcon: {
+    fontSize: 24,
   },
   inputPressable: {
     flex: 1,
@@ -3964,19 +4120,6 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.2)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
-  },
-  profileButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  profileButtonText: {
-    fontSize: 20,
   },
   modalOverlay: {
     flex: 1,

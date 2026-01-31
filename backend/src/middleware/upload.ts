@@ -130,6 +130,9 @@ export const upload = multer({
 // Single file upload
 export const uploadSingle = upload.single('photo');
 
+// Single image upload for chat messages
+export const uploadChatImage = upload.single('image');
+
 // Multiple files upload (up to 6 photos)
 export const uploadMultiple = upload.array('photos', 6);
 

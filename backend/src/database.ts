@@ -238,6 +238,11 @@ export async function initDatabase() {
   } catch (e) {
     // Column already exists, ignore
   }
+  try {
+    await execSQL(`ALTER TABLE users ADD COLUMN match_slot_limit ${usePostgres ? 'INT' : 'INTEGER'} DEFAULT 7`);
+  } catch (e) {
+    // Column already exists, ignore
+  }
 
   // Profiles table
   await execSQL(`
@@ -459,6 +464,13 @@ export async function initDatabase() {
       FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE
     )
   `);
+
+  // Add image_url to messages for chat photo sharing
+  try {
+    await execSQL(`ALTER TABLE messages ADD COLUMN image_url ${usePostgres ? 'TEXT' : 'TEXT'}`);
+  } catch (e) {
+    // Column already exists, ignore
+  }
 
   // Blocks table - users blocking other users
   await execSQL(`
