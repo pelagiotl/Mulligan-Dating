@@ -265,7 +265,7 @@ export default function Browse() {
     }
   };
 
-  const handleConnect = async (profile: Profile) => {
+  const handleConnect = async (profile: Profile, expandSlot?: boolean) => {
     if (connecting) return; // Prevent double-clicks
     
     setConnecting(true);
@@ -278,7 +278,7 @@ export default function Browse() {
       // Consume token and create match immediately
       const result = await api.post<{ message: string; isMutual: boolean; matchId: string; stage: string }>(
         "/matches/connect",
-        { targetUserId: profile.userId }
+        { targetUserId: profile.userId, expandSlot: expandSlot || false }
       );
 
       console.log('✅ Connect successful:', result);
@@ -304,7 +304,20 @@ export default function Browse() {
         
         // Check if it's an ApiError (which has a status property)
         if ('status' in err) {
-          const apiErr = err as Error & { status: number };
+          const apiErr = err as Error & { status: number; code?: string; canExpand?: boolean; currentLimit?: number; newLimit?: number };
+          // Check if at match limit - offer to expand slot with extra token
+          if (apiErr.status === 400 && apiErr.code === 'AT_MATCH_LIMIT' && apiErr.canExpand) {
+            const currentLimit = apiErr.currentLimit ?? 7;
+            const newLimit = apiErr.newLimit ?? 8;
+            setConnecting(false);
+            const ok = window.confirm(
+              `You've reached your limit of ${currentLimit} matches. You need 2 Mulligan tokens (1 for the match + 1 for the extra slot). Spend 2 tokens to connect?`
+            );
+            if (ok) {
+              handleConnect(profile, true);
+            }
+            return;
+          }
           // Provide more specific error messages based on status code
           if (apiErr.status === 400) {
             // Bad request - likely validation error or missing requirements (no token, no photos, etc.)

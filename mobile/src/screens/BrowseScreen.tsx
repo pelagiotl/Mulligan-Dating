@@ -1550,16 +1550,16 @@ export default function BrowseScreen() {
           setConnecting(false);
           const nextSlot = Math.min(slotLimit + 1, 10);
           const ordinal = nextSlot === 8 ? '8th' : nextSlot === 9 ? '9th' : '10th';
-          const message = `You already have ${count} matches. To connect with more people, you can:\n\n• Unmatch with someone to free a slot\n• Wait for a match to expire (7-day limit)\n• Use a Mulligan token to get an ${ordinal} match slot`;
+          const message = `You already have ${count} matches. To connect with more people, you can:\n\n• Unmatch with someone to free a slot\n• Wait for a match to expire (7-day limit)\n• Use 2 Mulligan tokens to get an ${ordinal} match (1 for the match + 1 for the extra slot)`;
           Alert.alert(
             'Match limit reached',
             slotLimit < 10
-              ? `${message}\n\nSpend 1 token to open another slot and connect with ${profile.displayName}?`
+              ? `${message}\n\nSpend 2 tokens to connect with ${profile.displayName}?`
               : message,
             slotLimit < 10
               ? [
                   { text: 'Cancel', style: 'cancel' },
-                  { text: 'Use Token', onPress: () => handleConnect(profile, true) },
+                  { text: 'Use 2 Tokens', onPress: () => handleConnect(profile, true) },
                 ]
               : [{ text: 'OK', style: 'cancel' }]
           );
@@ -1568,7 +1568,14 @@ export default function BrowseScreen() {
       } catch (e) {
         console.error('Match count check failed:', e);
         setConnecting(false);
-        Alert.alert('Cannot connect', 'Unable to verify match limit. Please try again.');
+        Alert.alert(
+          'Match limit reached',
+          'You may have reached the maximum of 7 matches. You need 2 Mulligan tokens to connect (1 for the match + 1 for the extra slot). Spend 2 tokens to connect with ' + profile.displayName + '?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Use 2 Tokens', onPress: () => handleConnect(profile, true) },
+          ]
+        );
         return;
       }
     }
@@ -1655,16 +1662,16 @@ export default function BrowseScreen() {
               const currentLimit = apiErr.currentLimit ?? 7;
               const newLimit = apiErr.newLimit ?? 8;
               setConnecting(false);
-              const message = `You already have ${currentLimit} matches. To connect with more people, you can:\n\n• Unmatch with someone to free a slot\n• Wait for a match to expire (7-day limit)\n• Use a Mulligan token to get an ${newLimit}th match slot`;
+              const message = `You already have ${currentLimit} matches. To connect with more people, you can:\n\n• Unmatch with someone to free a slot\n• Wait for a match to expire (7-day limit)\n• Use 2 Mulligan tokens to get an ${newLimit}th match (1 for the match + 1 for the extra slot)`;
               Alert.alert(
                 "Match limit reached",
                 apiErr.canExpand
-                  ? `${message}\n\nSpend 1 token to open another slot and connect with ${profile.displayName}?`
+                  ? `${message}\n\nSpend 2 tokens to connect with ${profile.displayName}?`
                   : message,
                 apiErr.canExpand
                   ? [
                       { text: "Cancel", style: "cancel" },
-                      { text: "Use Token", onPress: () => handleConnect(profile, true) },
+                      { text: "Use 2 Tokens", onPress: () => handleConnect(profile, true) },
                     ]
                   : [{ text: "OK", style: "cancel" }]
               );

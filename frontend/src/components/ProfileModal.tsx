@@ -71,7 +71,7 @@ export default function ProfileModal({ profile, onClose, onConnect }: ProfileMod
     }
   };
 
-  const handleConnect = async () => {
+  const handleConnect = async (expandSlot?: boolean) => {
     setLoading(true);
     setError("");
     setSuccess("");
@@ -79,7 +79,7 @@ export default function ProfileModal({ profile, onClose, onConnect }: ProfileMod
     try {
       const result = await api.post<{ message: string; isMutual: boolean }>(
         "/matches/connect",
-        { targetUserId: profile.userId }
+        { targetUserId: profile.userId, expandSlot: expandSlot || false }
       );
 
       setSuccess(result.message);
@@ -89,10 +89,25 @@ export default function ProfileModal({ profile, onClose, onConnect }: ProfileMod
       
       // Close after celebration (handled by MatchCelebration component)
     } catch (err) {
-      // Handle specific error messages from backend
+      // Check if at match limit - offer to expand slot with extra token
+      if (err instanceof Error && "status" in err) {
+        const apiErr = err as Error & { status: number; code?: string; canExpand?: boolean; currentLimit?: number; newLimit?: number };
+        if (apiErr.status === 400 && apiErr.code === "AT_MATCH_LIMIT" && apiErr.canExpand) {
+          const currentLimit = apiErr.currentLimit ?? 7;
+          const newLimit = apiErr.newLimit ?? 8;
+          setLoading(false);
+          const ok = window.confirm(
+            `You've reached your limit of ${currentLimit} matches. You need 2 Mulligan tokens (1 for the match + 1 for the extra slot). Spend 2 tokens to connect?`
+          );
+          if (ok) {
+            handleConnect(true);
+          }
+          return;
+        }
+      }
+      // Handle other error messages
       if (err instanceof Error) {
         const errorMessage = err.message;
-        // Check if it's a photo count error
         if (errorMessage.includes("need") && errorMessage.includes("photos")) {
           setError(errorMessage);
         } else {
@@ -232,7 +247,7 @@ export default function ProfileModal({ profile, onClose, onConnect }: ProfileMod
                 <p>This person already wants to connect with you!</p>
                 <button
                   className="btn btn-primary btn-lg"
-                  onClick={handleConnect}
+                  onClick={() => handleConnect()}
                   disabled={loading || tokenCount === 0}
                 >
                   {loading ? "Connecting..." : "Match Back! 💘"}
@@ -241,7 +256,7 @@ export default function ProfileModal({ profile, onClose, onConnect }: ProfileMod
             ) : (
               <button
                 className="btn btn-primary btn-lg w-full"
-                onClick={handleConnect}
+                onClick={() => handleConnect()}
                 disabled={loading || tokenCount === 0}
               >
                 {loading ? (

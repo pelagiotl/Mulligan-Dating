@@ -453,12 +453,12 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
 
     if (count >= slotLimit && !expandSlot) {
       return res.status(400).json({
-        error: `You've reached your match limit (${slotLimit}). Spend 1 token to open another slot and connect?`,
+        error: `You've reached your match limit (${slotLimit}). You need 2 tokens to connect (1 for the match + 1 for the extra slot). Spend 2 tokens?`,
         code: "AT_MATCH_LIMIT",
         canExpand: slotLimit < 10,
         currentLimit: slotLimit,
         newLimit: Math.min(slotLimit + 1, 10),
-        tokensNeeded: 1,
+        tokensNeeded: 2,
       });
     }
 
@@ -557,12 +557,12 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
     const effectiveLimit = expandSlot === true && slotLimit < 10 ? slotLimit + 1 : slotLimit;
     if (recheckCount >= effectiveLimit) {
       return res.status(400).json({
-        error: `You've reached your match limit (${effectiveLimit}). Unmatch with someone, wait for a match to expire, or use a Mulligan token to open another slot.`,
+        error: `You've reached your match limit (${effectiveLimit}). Unmatch with someone, wait for a match to expire, or use 2 Mulligan tokens (1 for the match + 1 for the extra slot) to connect.`,
         code: "AT_MATCH_LIMIT",
         canExpand: effectiveLimit < 10,
         currentLimit: effectiveLimit,
         newLimit: Math.min(effectiveLimit + 1, 10),
-        tokensNeeded: 1,
+        tokensNeeded: 2,
       });
     }
 
