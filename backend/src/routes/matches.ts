@@ -34,6 +34,32 @@ interface ProfileRow {
   looking_for: string | null;
 }
 
+// Get active match count and slot limit - MUST be before /:matchId routes so "count" isn't treated as matchId
+matchesRouter.get("/count", authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const countResult = db
+      .prepare(
+        `SELECT COUNT(*) as count FROM matches 
+         WHERE (user1_id = ? OR user2_id = ?) AND stage != 'expired'`
+      )
+      .get([userId, userId]);
+    const countRow = (countResult instanceof Promise ? await countResult : countResult) as { count: number | string };
+    const count = Math.floor(Number(countRow?.count ?? 0));
+
+    const limitResult = db
+      .prepare("SELECT COALESCE(match_slot_limit, 7) as slot_limit FROM users WHERE id = ?")
+      .get([userId]);
+    const limitRow = (limitResult instanceof Promise ? await limitResult : limitResult) as { slot_limit: number | string } | undefined;
+    const slotLimit = Math.floor(Number(limitRow?.slot_limit ?? 7));
+
+    res.json({ count, slotLimit });
+  } catch (error) {
+    console.error('Matches count error:', error);
+    res.status(500).json({ error: 'Failed to get match count', count: 0, slotLimit: 7 });
+  }
+});
+
 // Get all matches for current user
 matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
   try {
@@ -318,9 +344,10 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
 });
 
 // Send a match request (use a token) - AUTOMATIC MATCH
+// Match limit: default 7, can expand to 8/9/10 by spending extra token(s). Max 10.
 matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
   const userId = req.userId!;
-  const { targetUserId } = req.body;
+  const { targetUserId, expandSlot } = req.body;
 
   if (!targetUserId || typeof targetUserId !== 'string') {
     return res.status(400).json({ error: "Target user ID required" });
@@ -399,6 +426,42 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
       return res.status(400).json({ error: "Target user profile not found" });
     }
 
+    // Match limit: max 7 by default, can expand to 8/9/10 with extra tokens. Absolute max 10.
+    const activeMatchCountResult = db
+      .prepare(
+        `SELECT COUNT(*) as count FROM matches 
+         WHERE (user1_id = ? OR user2_id = ?) AND stage != 'expired'`
+      )
+      .get([userId, userId]);
+    const activeMatchCount = (activeMatchCountResult instanceof Promise
+      ? await activeMatchCountResult
+      : activeMatchCountResult) as { count: number | string };
+    const count = Math.floor(Number(activeMatchCount?.count ?? 0));
+
+    const userRowResult = db
+      .prepare("SELECT COALESCE(match_slot_limit, 7) as slot_limit FROM users WHERE id = ?")
+      .get([userId]);
+    const userRow = (userRowResult instanceof Promise ? await userRowResult : userRowResult) as { slot_limit: number | string } | undefined;
+    const slotLimit = Math.floor(Number(userRow?.slot_limit ?? 7));
+
+    if (count >= 10) {
+      return res.status(400).json({
+        error: "You've reached the maximum of 10 matches. Unmatch with someone to free up a slot.",
+        code: "MAX_MATCHES_REACHED",
+      });
+    }
+
+    if (count >= slotLimit && !expandSlot) {
+      return res.status(400).json({
+        error: `You've reached your match limit (${slotLimit}). Spend 1 token to open another slot and connect?`,
+        code: "AT_MATCH_LIMIT",
+        canExpand: slotLimit < 10,
+        currentLimit: slotLimit,
+        newLimit: Math.min(slotLimit + 1, 10),
+        tokensNeeded: 1,
+      });
+    }
+
     // Photo requirement temporarily removed - will be added back later
     // const targetPhotoCountResult = db
     //   .prepare("SELECT COUNT(*) as count FROM photos WHERE profile_id = ?")
@@ -415,19 +478,27 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
     //   });
     // }
 
-    // Get available token
+    // Get available token(s) - need 2 if expanding slot
+    const tokensNeeded = expandSlot === true && count >= slotLimit && slotLimit < 10 ? 2 : 1;
     const tokenResult = db
       .prepare(
         `SELECT * FROM mulligan_tokens 
          WHERE user_id = ? AND used_at IS NULL AND returned_at IS NULL
-         ORDER BY granted_at ASC LIMIT 1`
+         ORDER BY granted_at ASC LIMIT ?`
       )
-      .get([userId]);
-    const token = (tokenResult instanceof Promise
-      ? await tokenResult
-      : tokenResult) as any;
+      .all([userId, tokensNeeded]);
+    const tokens = (tokenResult instanceof Promise ? await tokenResult : tokenResult) as any[];
+    const token = tokens[0];
 
-    if (!token) {
+    if (!token || tokens.length < tokensNeeded) {
+      if (tokensNeeded === 2 && tokens.length === 1) {
+        return res.status(400).json({
+          error: "You need 2 tokens: 1 to open a new slot and 1 to connect. Claim your weekly token!",
+          code: "NO_TOKENS",
+          canExpand: true,
+          tokensNeeded: 2,
+        });
+      }
       // Check if user can claim weekly tokens
       const allTokensResult = db
         .prepare(
@@ -458,6 +529,43 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
       });
     }
 
+    // If expanding slot, consume the second token and increment limit
+    if (tokensNeeded === 2 && tokens[1]) {
+      const expandTokenResult = db.prepare(
+        `UPDATE mulligan_tokens SET used_at = CURRENT_TIMESTAMP, match_id = NULL WHERE id = ?`
+      ).run([tokens[1].id]);
+      if (expandTokenResult instanceof Promise) {
+        await expandTokenResult;
+      }
+      const updateLimitResult = db.prepare(
+        `UPDATE users SET match_slot_limit = COALESCE(match_slot_limit, 7) + 1 WHERE id = ?`
+      ).run([userId]);
+      if (updateLimitResult instanceof Promise) {
+        await updateLimitResult;
+      }
+    }
+
+    // Final safety check: re-verify count before creating match (prevents race conditions)
+    const recheckCountResult = db
+      .prepare(
+        `SELECT COUNT(*) as count FROM matches 
+         WHERE (user1_id = ? OR user2_id = ?) AND stage != 'expired'`
+      )
+      .get([userId, userId]);
+    const recheckRow = (recheckCountResult instanceof Promise ? await recheckCountResult : recheckCountResult) as { count: number | string };
+    const recheckCount = Math.floor(Number(recheckRow?.count ?? 0));
+    const effectiveLimit = expandSlot === true && slotLimit < 10 ? slotLimit + 1 : slotLimit;
+    if (recheckCount >= effectiveLimit) {
+      return res.status(400).json({
+        error: `You've reached your match limit (${effectiveLimit}). Unmatch with someone, wait for a match to expire, or use a Mulligan token to open another slot.`,
+        code: "AT_MATCH_LIMIT",
+        canExpand: effectiveLimit < 10,
+        currentLimit: effectiveLimit,
+        newLimit: Math.min(effectiveLimit + 1, 10),
+        tokensNeeded: 1,
+      });
+    }
+
     // AUTOMATIC MATCH: Create mutual match immediately in stage1 (no pending state)
     const matchId = uuidv4();
     // Exactly 7 days (168 hours) from now — never more than 7-day timer
@@ -472,7 +580,7 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
       await insertMatchResult;
     }
 
-    // Use the token
+    // Use the token (first token - for the match)
     const updateTokenResult = db.prepare(
       `UPDATE mulligan_tokens SET used_at = CURRENT_TIMESTAMP, match_id = ? WHERE id = ?`
     ).run([matchId, token.id]);

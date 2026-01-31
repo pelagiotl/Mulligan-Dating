@@ -801,6 +801,7 @@ export default function BrowseScreen() {
   const [loading, setLoading] = useState(false); // Start false so Connect tab is interactive immediately
   const [error, setError] = useState('');
   const [connecting, setConnecting] = useState(false);
+  const connectPressOutTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showMatchCelebration, setShowMatchCelebration] = useState(false);
   const [showNoTokensModal, setShowNoTokensModal] = useState(false);
   const [matchedProfile, setMatchedProfile] = useState<Profile | null>(null);
@@ -1540,24 +1541,44 @@ export default function BrowseScreen() {
     }
   }, [showLandingPage, unlocking]);
 
-  const handleConnect = useCallback(async (profile: Profile) => {
-    // Haptic feedback - vibrate IMMEDIATELY when user clicks connect (before any checks)
-    // This ensures vibration works even if the function returns early
+  const handleConnect = useCallback(async (profile: Profile, expandSlot?: boolean) => {
+    setError('');
+    if (!expandSlot) {
+      try {
+        const { count, slotLimit = 7 } = await api.get<{ count: number; slotLimit?: number }>('/matches/count', false);
+        if (count >= slotLimit) {
+          setConnecting(false);
+          const nextSlot = Math.min(slotLimit + 1, 10);
+          const ordinal = nextSlot === 8 ? '8th' : nextSlot === 9 ? '9th' : '10th';
+          const message = `You already have ${count} matches. To connect with more people, you can:\n\n• Unmatch with someone to free a slot\n• Wait for a match to expire (7-day limit)\n• Use a Mulligan token to get an ${ordinal} match slot`;
+          Alert.alert(
+            'Match limit reached',
+            slotLimit < 10
+              ? `${message}\n\nSpend 1 token to open another slot and connect with ${profile.displayName}?`
+              : message,
+            slotLimit < 10
+              ? [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Use Token', onPress: () => handleConnect(profile, true) },
+                ]
+              : [{ text: 'OK', style: 'cancel' }]
+          );
+          return;
+        }
+      } catch (e) {
+        console.error('Match count check failed:', e);
+        setConnecting(false);
+        Alert.alert('Cannot connect', 'Unable to verify match limit. Please try again.');
+        return;
+      }
+    }
     try {
       if (Platform.OS === 'ios') {
-        Vibration.vibrate([0, 100]); // iOS pattern: [delay, duration] for more reliable vibration
+        Vibration.vibrate([0, 100]);
       } else {
-        Vibration.vibrate(100); // Android: Duration in milliseconds
+        Vibration.vibrate(100);
       }
-    } catch (error) {
-      // Silently fail - vibration is non-critical
-      console.warn('Vibration error (non-critical):', error);
-    }
-
-    if (connecting) return;
-
-    setConnecting(true);
-    setError('');
+    } catch (_) {}
 
     try {
       // Ensure we have a valid token before making the request
@@ -1577,7 +1598,7 @@ export default function BrowseScreen() {
           sharedInterests: string[];
           sharedValues: number;
         } | null;
-      }>('/matches/connect', { targetUserId: profile.userId });
+      }>('/matches/connect', { targetUserId: profile.userId, expandSlot: expandSlot || false });
 
       // Success! Automatically show match celebration
       console.log('✅ Match created successfully:', result);
@@ -1627,8 +1648,28 @@ export default function BrowseScreen() {
       if (err instanceof Error) {
         errorMessage = err.message || errorMessage;
         if ('status' in err) {
-          const apiErr = err as Error & { status: number };
+          const apiErr = err as Error & { status: number; code?: string; canExpand?: boolean; currentLimit?: number; newLimit?: number };
           if (apiErr.status === 400) {
+            // Check if at match limit - offer to expand slot with extra token
+            if (apiErr.code === 'AT_MATCH_LIMIT') {
+              const currentLimit = apiErr.currentLimit ?? 7;
+              const newLimit = apiErr.newLimit ?? 8;
+              setConnecting(false);
+              const message = `You already have ${currentLimit} matches. To connect with more people, you can:\n\n• Unmatch with someone to free a slot\n• Wait for a match to expire (7-day limit)\n• Use a Mulligan token to get an ${newLimit}th match slot`;
+              Alert.alert(
+                "Match limit reached",
+                apiErr.canExpand
+                  ? `${message}\n\nSpend 1 token to open another slot and connect with ${profile.displayName}?`
+                  : message,
+                apiErr.canExpand
+                  ? [
+                      { text: "Cancel", style: "cancel" },
+                      { text: "Use Token", onPress: () => handleConnect(profile, true) },
+                    ]
+                  : [{ text: "OK", style: "cancel" }]
+              );
+              return;
+            }
             // Check if this is a token error
             const errorLower = errorMessage.toLowerCase();
             if (errorLower.includes('no tokens') || 
@@ -1748,6 +1789,7 @@ export default function BrowseScreen() {
         style={[styles.scrollView, showLandingPage && { backgroundColor: 'transparent' }]} 
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         {/* Match Notification */}
         {matchNotification && (
@@ -2152,9 +2194,39 @@ export default function BrowseScreen() {
           {/* Connect Button - Automatically creates match */}
           <TouchableOpacity
             style={styles.connectButton}
-            onPress={() => handleConnect(currentProfile)}
+            delayPressIn={0}
+            delayPressOut={0}
+            onPressIn={() => {
+              if (connecting) return;
+              setConnecting(true);
+              try { Vibration.vibrate(Platform.OS === 'ios' ? [0, 30] : 30); } catch (_) {}
+              Animated.timing(connectButtonScale, {
+                toValue: 0.92,
+                duration: 50,
+                useNativeDriver: true,
+              }).start();
+            }}
+            onPressOut={() => {
+              Animated.spring(connectButtonScale, {
+                toValue: 1,
+                friction: 6,
+                tension: 300,
+                useNativeDriver: true,
+              }).start();
+              connectPressOutTimer.current = setTimeout(() => {
+                setConnecting(false);
+                connectPressOutTimer.current = null;
+              }, 80);
+            }}
+            onPress={() => {
+              if (connectPressOutTimer.current) {
+                clearTimeout(connectPressOutTimer.current);
+                connectPressOutTimer.current = null;
+              }
+              if (currentProfile) handleConnect(currentProfile);
+            }}
             disabled={connecting}
-            activeOpacity={0.9}
+            activeOpacity={1}
           >
             <Animated.View
               style={[
