@@ -10,6 +10,30 @@ import { apiCache, APICache } from './apiCache';
 export const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://mulligan-backend.onrender.com';
 const BASE_URL = `${API_URL}/api`;
 
+let tokenCache: string | null | undefined = undefined;
+
+export function clearTokenCache() {
+  tokenCache = undefined;
+}
+
+export function setTokenCache(token: string | null) {
+  tokenCache = token ?? null;
+}
+
+export function prefetchToken() {
+  if (tokenCache === undefined) {
+    AsyncStorage.getItem('token').then((t) => {
+      tokenCache = t ?? null;
+    });
+  }
+}
+
+async function getToken(): Promise<string | null> {
+  if (tokenCache !== undefined) return tokenCache;
+  tokenCache = await AsyncStorage.getItem('token');
+  return tokenCache;
+}
+
 console.log('🔧 API Client initialized:', { API_URL, BASE_URL });
 
 class ApiError extends Error {
@@ -31,8 +55,7 @@ async function request<T = any>(endpoint: string, options: RequestInit & { body?
     }
   }
 
-  // Get token from AsyncStorage (async, unlike localStorage)
-  const token = await AsyncStorage.getItem('token');
+  const token = await getToken();
   
   // Validate token - must be non-null, non-empty string
   const hasValidToken = token && typeof token === 'string' && token.trim().length > 0;
@@ -152,13 +175,26 @@ async function request<T = any>(endpoint: string, options: RequestInit & { body?
           hasToken: !!token
         });
       }
+      if (response.status === 401) clearTokenCache();
       const apiError = new ApiError(response.status, errorMsg);
-      // Preserve additional error data (like code, canClaimWeeklyToken) for error handling
+      // Preserve additional error data (like code, canClaimWeeklyToken, AT_MATCH_LIMIT fields) for error handling
       if (data.code) {
         (apiError as any).code = data.code;
       }
       if (data.canClaimWeeklyToken !== undefined) {
         (apiError as any).canClaimWeeklyToken = data.canClaimWeeklyToken;
+      }
+      if (data.canExpand !== undefined) {
+        (apiError as any).canExpand = data.canExpand;
+      }
+      if (data.currentLimit !== undefined) {
+        (apiError as any).currentLimit = data.currentLimit;
+      }
+      if (data.newLimit !== undefined) {
+        (apiError as any).newLimit = data.newLimit;
+      }
+      if (data.tokensNeeded !== undefined) {
+        (apiError as any).tokensNeeded = data.tokensNeeded;
       }
       throw apiError;
     }

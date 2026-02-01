@@ -6,7 +6,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { api } from '../utils/api';
+import { api, clearTokenCache, setTokenCache } from '../utils/api';
 import { User, Profile } from '../types';
 import { registerForPushNotificationsAsync, clearPushToken } from '../utils/pushNotifications';
 import * as Notifications from 'expo-notifications';
@@ -292,7 +292,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       
       if (token) {
-        // User has a saved token - automatically log them in
+        setTokenCache(token);
         await fetchUser();
       } else {
         // No token found - show login screen
@@ -437,6 +437,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.warn('⚠️  Failed to clear push token (non-critical):', pushError);
     }
     
+    clearTokenCache();
     await AsyncStorage.removeItem('token');
     setUser(null);
     setProfile(null);

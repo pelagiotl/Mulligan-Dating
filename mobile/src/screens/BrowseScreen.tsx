@@ -14,12 +14,13 @@ import {
   Vibration,
   InteractionManager,
 } from 'react-native';
+import { TouchableOpacity as GestureTouchable } from 'react-native-gesture-handler';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { G, Path, Circle, Defs, LinearGradient as SvgLinearGradient, Stop, ClipPath } from 'react-native-svg';
 import { useNavigation, useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { io, Socket } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { api } from '../utils/api';
+import { api, prefetchToken, clearTokenCache } from '../utils/api';
 import { getPhotoUrl } from '../utils/photoUrl';
 import { useAuth } from '../context/AuthContext';
 import TokenDisplay from '../components/TokenDisplay';
@@ -777,6 +778,9 @@ export default function BrowseScreen() {
   const connectButtonGlow = useRef(new Animated.Value(0.5)).current;
   const connectButtonShimmer = useRef(new Animated.Value(0)).current;
   const connectButtonScale = useRef(new Animated.Value(1)).current;
+  const connectSpinnerOpacity = useRef(new Animated.Value(0)).current;
+  const connectTextOpacity = useRef(new Animated.Value(1)).current;
+  const connectOverlayOpacity = useRef(new Animated.Value(0)).current;
   
   // Header gradient animation
   const headerGradientPos = useRef(new Animated.Value(0)).current;
@@ -834,6 +838,18 @@ export default function BrowseScreen() {
   const titleScale = useRef(new Animated.Value(0.9)).current;
   const titleOpacity = useRef(new Animated.Value(0)).current;
   const titleTranslateY = useRef(new Animated.Value(20)).current;
+
+  useEffect(() => {
+    if (!connecting) {
+      connectSpinnerOpacity.setValue(0);
+      connectTextOpacity.setValue(1);
+      connectOverlayOpacity.setValue(0);
+    }
+  }, [connecting]);
+
+  useEffect(() => {
+    if (isAuthenticated) prefetchToken();
+  }, [isAuthenticated]);
 
   const checkCanClaimTokens = async () => {
     try {
@@ -1088,7 +1104,7 @@ export default function BrowseScreen() {
         // Check if it's an authentication error
         if (errorLower.includes('authentication required') || errorLower.includes('authentication')) {
           setError('Session expired. Please log in again.');
-          // Clear invalid token
+          clearTokenCache();
           await AsyncStorage.removeItem('token');
           setTimeout(() => setError(''), 5000);
           return;
@@ -1543,58 +1559,7 @@ export default function BrowseScreen() {
 
   const handleConnect = useCallback(async (profile: Profile, expandSlot?: boolean) => {
     setError('');
-    if (!expandSlot) {
-      try {
-        const { count, slotLimit = 7 } = await api.get<{ count: number; slotLimit?: number }>('/matches/count', false);
-        if (count >= slotLimit) {
-          setConnecting(false);
-          const nextSlot = Math.min(slotLimit + 1, 10);
-          const ordinal = nextSlot === 8 ? '8th' : nextSlot === 9 ? '9th' : '10th';
-          const message = `You already have ${count} matches. To connect with more people, you can:\n\n• Unmatch with someone to free a slot\n• Wait for a match to expire (7-day limit)\n• Use 2 Mulligan tokens to get an ${ordinal} match (1 for the match + 1 for the extra slot)`;
-          Alert.alert(
-            'Match limit reached',
-            slotLimit < 10
-              ? `${message}\n\nSpend 2 tokens to connect with ${profile.displayName}?`
-              : message,
-            slotLimit < 10
-              ? [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: 'Use 2 Tokens', onPress: () => handleConnect(profile, true) },
-                ]
-              : [{ text: 'OK', style: 'cancel' }]
-          );
-          return;
-        }
-      } catch (e) {
-        console.error('Match count check failed:', e);
-        setConnecting(false);
-        Alert.alert(
-          'Match limit reached',
-          'You may have reached the maximum of 7 matches. You need 2 Mulligan tokens to connect (1 for the match + 1 for the extra slot). Spend 2 tokens to connect with ' + profile.displayName + '?',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Use 2 Tokens', onPress: () => handleConnect(profile, true) },
-          ]
-        );
-        return;
-      }
-    }
     try {
-      if (Platform.OS === 'ios') {
-        Vibration.vibrate([0, 100]);
-      } else {
-        Vibration.vibrate(100);
-      }
-    } catch (_) {}
-
-    try {
-      // Ensure we have a valid token before making the request
-      const token = await AsyncStorage.getItem('token');
-      if (!token) {
-        throw new Error('Session expired. Please log in again.');
-      }
-
-      console.log('🔗 Connecting with profile:', profile.displayName, 'userId:', profile.userId);
       const result = await api.post<{
         message: string;
         isMutual: boolean;
@@ -1608,8 +1573,6 @@ export default function BrowseScreen() {
       }>('/matches/connect', { targetUserId: profile.userId, expandSlot: expandSlot || false });
 
       // Success! Automatically show match celebration
-      console.log('✅ Match created successfully:', result);
-      console.log('🎉 Setting match celebration with profile:', profile);
       
       // Clear the current profile immediately so it doesn't show behind the celebration
       setCurrentProfile(null);
@@ -1714,6 +1677,7 @@ export default function BrowseScreen() {
           errorLower.includes('invalid or expired token') ||
           errorLower.includes('authentication')) {
         errorMessage = 'Session expired. Please log in again.';
+        clearTokenCache();
         await AsyncStorage.removeItem('token');
       }
 
@@ -1794,9 +1758,10 @@ export default function BrowseScreen() {
       
       <ScrollView 
         style={[styles.scrollView, showLandingPage && { backgroundColor: 'transparent' }]} 
-        contentContainerStyle={styles.contentContainer}
+        contentContainerStyle={[styles.contentContainer, !showLandingPage && !needsProfile && currentProfile && !loading && { paddingBottom: 100 }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        scrollEventThrottle={16}
       >
         {/* Match Notification */}
         {matchNotification && (
@@ -2198,103 +2163,7 @@ export default function BrowseScreen() {
             )}
           </View>
 
-          {/* Connect Button - Automatically creates match */}
-          <TouchableOpacity
-            style={styles.connectButton}
-            delayPressIn={0}
-            delayPressOut={0}
-            onPressIn={() => {
-              if (connecting) return;
-              setConnecting(true);
-              try { Vibration.vibrate(Platform.OS === 'ios' ? [0, 30] : 30); } catch (_) {}
-              Animated.timing(connectButtonScale, {
-                toValue: 0.92,
-                duration: 50,
-                useNativeDriver: true,
-              }).start();
-            }}
-            onPressOut={() => {
-              Animated.spring(connectButtonScale, {
-                toValue: 1,
-                friction: 6,
-                tension: 300,
-                useNativeDriver: true,
-              }).start();
-              connectPressOutTimer.current = setTimeout(() => {
-                setConnecting(false);
-                connectPressOutTimer.current = null;
-              }, 80);
-            }}
-            onPress={() => {
-              if (connectPressOutTimer.current) {
-                clearTimeout(connectPressOutTimer.current);
-                connectPressOutTimer.current = null;
-              }
-              if (currentProfile) handleConnect(currentProfile);
-            }}
-            disabled={connecting}
-            activeOpacity={1}
-          >
-            <Animated.View
-              style={[
-                {
-                  transform: [
-                    { scale: Animated.multiply(connectButtonPulse, connectButtonScale) },
-                  ],
-                },
-              ]}
-            >
-              <LinearGradient
-                  colors={['#667eea', '#764ba2', '#f093fb', '#f5576c']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={[
-                    styles.connectButtonGradient,
-                    connecting && styles.connectButtonDisabled,
-                    {
-                      shadowOpacity: connectButtonGlow.interpolate({
-                        inputRange: [0.5, 0.8],
-                        outputRange: [0.45, 0.7],
-                      }),
-                      shadowRadius: connectButtonGlow.interpolate({
-                        inputRange: [0.5, 0.8],
-                        outputRange: [20, 30],
-                      }),
-                    },
-                  ]}
-                >
-                {/* Enhanced shimmer effect */}
-                <Animated.View
-                  style={[
-                    styles.connectButtonShimmer,
-                    {
-                      transform: [
-                        {
-                          translateX: connectButtonShimmer.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [-200, 400],
-                          }),
-                        },
-                        {
-                          rotate: connectButtonShimmer.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: ['-20deg', '-20deg'],
-                          }),
-                        },
-                      ],
-                    },
-                  ]}
-                />
-                {connecting ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.connectButtonText} numberOfLines={1}>
-                    Connect & Match 🎟️
-                  </Text>
-                )}
-              </LinearGradient>
-            </Animated.View>
-        </TouchableOpacity>
+          <View style={{ height: 16 }} />
           </View>
         </Animated.View>
       ) : null}
@@ -2340,6 +2209,123 @@ export default function BrowseScreen() {
       {/* Legal Footer */}
       <LegalFooter />
       </ScrollView>
+
+      {/* Full-screen loading overlay - shows IMMEDIATELY on tap (Animated, no React re-render) */}
+      {!showLandingPage && currentProfile && (
+        <Animated.View
+          pointerEvents={connecting ? 'auto' : 'none'}
+          style={[
+            StyleSheet.absoluteFill,
+            {
+              opacity: connectOverlayOpacity,
+              backgroundColor: 'rgba(0,0,0,0.3)',
+              justifyContent: 'center',
+              alignItems: 'center',
+              zIndex: 9999,
+            },
+          ]}
+        >
+          <ActivityIndicator size="large" color="#fff" />
+        </Animated.View>
+      )}
+
+      {/* Connect Button - OUTSIDE ScrollView, GestureHandler for native-thread touch */}
+      {!showLandingPage && !needsProfile && currentProfile && !loading && (
+        <View style={styles.connectButtonFixed} pointerEvents="box-none">
+          <GestureTouchable
+            style={styles.connectButton}
+            delayPressIn={0}
+            delayPressOut={0}
+            activeOpacity={0.9}
+            onPressIn={() => {
+              if (connecting) return;
+              connectOverlayOpacity.setValue(1);
+              connectSpinnerOpacity.setValue(1);
+              connectTextOpacity.setValue(0);
+              try { Vibration.vibrate(Platform.OS === 'ios' ? [0, 30] : 30); } catch (_) {}
+              Animated.timing(connectButtonScale, {
+                toValue: 0.92,
+                duration: 30,
+                useNativeDriver: true,
+              }).start();
+              setConnecting(true);
+            }}
+            onPressOut={() => {
+              Animated.spring(connectButtonScale, {
+                toValue: 1,
+                friction: 6,
+                tension: 300,
+                useNativeDriver: true,
+              }).start();
+              connectPressOutTimer.current = setTimeout(() => {
+                setConnecting(false);
+                connectSpinnerOpacity.setValue(0);
+                connectTextOpacity.setValue(1);
+                connectOverlayOpacity.setValue(0);
+                connectPressOutTimer.current = null;
+              }, 80);
+            }}
+            onPress={() => {
+              if (connectPressOutTimer.current) {
+                clearTimeout(connectPressOutTimer.current);
+                connectPressOutTimer.current = null;
+              }
+              if (currentProfile) handleConnect(currentProfile);
+            }}
+            disabled={connecting}
+          >
+            <Animated.View
+              style={[
+                {
+                  transform: [
+                    { scale: Animated.multiply(connectButtonPulse, connectButtonScale) },
+                  ],
+                },
+              ]}
+            >
+              <LinearGradient
+                colors={['#667eea', '#764ba2', '#f093fb', '#f5576c']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[
+                  styles.connectButtonGradient,
+                  connecting && styles.connectButtonDisabled,
+                  {
+                    shadowOpacity: connectButtonGlow.interpolate({
+                      inputRange: [0.5, 0.8],
+                      outputRange: [0.45, 0.7],
+                    }),
+                    shadowRadius: connectButtonGlow.interpolate({
+                      inputRange: [0.5, 0.8],
+                      outputRange: [20, 30],
+                    }),
+                  },
+                ]}
+              >
+                <Animated.View
+                  style={[
+                    styles.connectButtonShimmer,
+                    {
+                      transform: [
+                        { translateX: connectButtonShimmer.interpolate({ inputRange: [0, 1], outputRange: [-200, 400] }) },
+                        { rotate: connectButtonShimmer.interpolate({ inputRange: [0, 1], outputRange: ['-20deg', '-20deg'] }) },
+                      ],
+                    },
+                  ]}
+                />
+                <View style={styles.connectButtonContent}>
+                  <Animated.View style={[StyleSheet.absoluteFill, { opacity: connectSpinnerOpacity, justifyContent: 'center', alignItems: 'center' }]} pointerEvents="none">
+                    <ActivityIndicator color="#fff" />
+                  </Animated.View>
+                  <Animated.View style={{ opacity: connectTextOpacity }} pointerEvents="none">
+                    <Text style={styles.connectButtonText} numberOfLines={1}>Connect & Match 🎟️</Text>
+                  </Animated.View>
+                </View>
+              </LinearGradient>
+            </Animated.View>
+          </GestureTouchable>
+        </View>
+      )}
     </View>
   );
 }
@@ -2938,6 +2924,22 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     overflow: 'hidden',
     alignSelf: 'stretch',
+  },
+  connectButtonFixed: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 24,
+    paddingBottom: Platform.OS === 'ios' ? 94 : 88,
+    alignItems: 'center',
+    zIndex: 100,
+  },
+  connectButtonContent: {
+    minHeight: 24,
+    minWidth: 140,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   connectButtonGradient: {
     paddingVertical: 20,
