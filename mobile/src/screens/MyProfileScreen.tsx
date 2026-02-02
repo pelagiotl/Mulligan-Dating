@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -200,6 +200,54 @@ export default function MyProfileScreen() {
   const sparkle1Anim = useRef(new Animated.Value(0)).current;
   const sparkle2Anim = useRef(new Animated.Value(0)).current;
   const sparkle3Anim = useRef(new Animated.Value(0)).current;
+
+  // Edit Profile button animations (pulse + shimmer, similar to Connect button)
+  const editButtonPulse = useRef(new Animated.Value(1)).current;
+  const editButtonShimmer = useRef(new Animated.Value(0)).current;
+  const editButtonScale = useRef(new Animated.Value(1)).current;
+  const editButtonLoopsRef = useRef<{ pulseLoop: Animated.CompositeAnimation; shimmerLoop: Animated.CompositeAnimation } | null>(null);
+
+  const startEditButtonAnimations = useCallback(() => {
+    if (editButtonLoopsRef.current) return;
+    editButtonPulse.setValue(1);
+    editButtonShimmer.setValue(0);
+    const pulseLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(editButtonPulse, { toValue: 1.05, duration: 1500, useNativeDriver: true }),
+        Animated.timing(editButtonPulse, { toValue: 1, duration: 1500, useNativeDriver: true }),
+      ])
+    );
+    const shimmerLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(editButtonShimmer, { toValue: 1, duration: 3000, useNativeDriver: true }),
+        Animated.timing(editButtonShimmer, { toValue: 0, duration: 0, useNativeDriver: true }),
+      ])
+    );
+    pulseLoop.start();
+    shimmerLoop.start();
+    editButtonLoopsRef.current = { pulseLoop, shimmerLoop };
+  }, []);
+
+  const stopEditButtonAnimations = useCallback(() => {
+    const loops = editButtonLoopsRef.current;
+    if (loops) {
+      loops.pulseLoop.stop();
+      loops.shimmerLoop.stop();
+      editButtonLoopsRef.current = null;
+    }
+    editButtonPulse.setValue(1);
+    editButtonShimmer.setValue(0);
+  }, []);
+
+  const handleEditButtonLayout = useCallback(() => {
+    stopEditButtonAnimations();
+    setTimeout(() => startEditButtonAnimations(), 200);
+  }, [stopEditButtonAnimations, startEditButtonAnimations]);
+
+  useEffect(() => {
+    if (!isFocused) stopEditButtonAnimations();
+    return () => stopEditButtonAnimations();
+  }, [isFocused, stopEditButtonAnimations]);
   
   useEffect(() => {
     if (data) {
@@ -2333,27 +2381,60 @@ export default function MyProfileScreen() {
       )}
 
       {/* Edit Profile Button */}
-      <TouchableOpacity
-        style={styles.editButton}
-        onPress={() => {
-          // Haptic feedback - light vibration
-          if (Platform.OS === 'ios') {
-            Vibration.vibrate(50); // Increased from 10ms to 50ms for better feel on iOS
-          } else {
-            Vibration.vibrate(50); // Same for Android
-          }
-          navigation.navigate('CreateProfile' as never);
-        }}
-      >
-        <LinearGradient
-          colors={['#667eea', '#764ba2', '#f093fb', '#f5576c']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={{ paddingVertical: 22, alignItems: 'center', justifyContent: 'center' }}
+      <View style={styles.editButton} onLayout={handleEditButtonLayout}>
+        <TouchableOpacity
+          activeOpacity={0.9}
+          onPressIn={() => {
+            Animated.timing(editButtonScale, {
+              toValue: 0.92,
+              duration: 30,
+              useNativeDriver: true,
+            }).start();
+          }}
+          onPressOut={() => {
+            Animated.spring(editButtonScale, {
+              toValue: 1,
+              friction: 6,
+              tension: 300,
+              useNativeDriver: true,
+            }).start();
+          }}
+          onPress={() => {
+            if (Platform.OS === 'ios') {
+              Vibration.vibrate(50);
+            } else {
+              Vibration.vibrate(50);
+            }
+            (navigation as any).navigate('CreateProfile', { startFromBeginning: true });
+          }}
         >
-          <Text style={styles.editButtonText}>✨ Edit Profile</Text>
-        </LinearGradient>
-      </TouchableOpacity>
+          <Animated.View
+            style={{
+              transform: [{ scale: Animated.multiply(editButtonPulse, editButtonScale) }],
+            }}
+          >
+            <LinearGradient
+              colors={['#667eea', '#764ba2', '#f093fb', '#f5576c']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={[styles.editButtonGradient]}
+            >
+              <Animated.View
+                style={[
+                  styles.editButtonShimmer,
+                  {
+                    transform: [
+                      { translateX: editButtonShimmer.interpolate({ inputRange: [0, 1], outputRange: [-200, 400] }) },
+                      { rotate: editButtonShimmer.interpolate({ inputRange: [0, 1], outputRange: ['-20deg', '-20deg'] }) },
+                    ],
+                  },
+                ]}
+              />
+              <Text style={styles.editButtonText}>✨ Edit Profile</Text>
+            </LinearGradient>
+          </Animated.View>
+        </TouchableOpacity>
+      </View>
 
       {/* Legal Footer */}
       <View style={{ marginTop: 'auto', paddingTop: 20 }}>
@@ -3439,6 +3520,23 @@ const styles = StyleSheet.create({
     elevation: 16,
     borderWidth: 2.5,
     borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  editButtonGradient: {
+    paddingVertical: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  editButtonShimmer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: 50,
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    transform: [{ skewX: '-20deg' }],
   },
   editButtonText: {
     color: '#fff',

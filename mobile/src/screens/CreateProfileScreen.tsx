@@ -25,7 +25,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Picker } from '@react-native-picker/picker';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import { api } from '../utils/api';
@@ -34,7 +34,8 @@ import { useAuth } from '../context/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import OptimizedImage from '../components/OptimizedImage';
 
-const GENDER_OPTIONS = ['Man', 'Woman', 'Non-binary', 'Other', 'Prefer not to say'];
+const GENDER_OPTIONS = ['Man', 'Woman', 'Other', 'Prefer not to say'];
+const PREFERRED_GENDER_OPTIONS = ['Man', 'Woman']; // For step 5 preferences
 const LOOKING_FOR_OPTIONS = ['Relationship', 'Something casual', 'Friendship', 'Not sure yet'];
 
 const INTEREST_OPTIONS = [
@@ -87,6 +88,8 @@ const DEALBREAKER_OPTIONS = [
 
 export default function CreateProfileScreen() {
   const navigation = useNavigation();
+  const route = useRoute();
+  const startFromBeginning = (route.params as { startFromBeginning?: boolean } | undefined)?.startFromBeginning === true;
   const { refreshProfile } = useAuth();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -117,6 +120,10 @@ export default function CreateProfileScreen() {
   const genderFieldRef = useRef<View>(null);
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const displayNameTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const skipAutoScrollRef = useRef(false); // when true (edit profile from start), don't auto-scroll to bio
+  const step5AllowScrollRef = useRef(false); // when false (just entered step 5), don't auto-scroll in preferences
+  const step6AllowScrollRef = useRef(false); // when false (just entered step 6), don't auto-scroll in lifestyle
+  const lifestyleCardYsRef = useRef<Record<string, number>>({});
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const minAgeInputRef = useRef<TextInput>(null);
   const maxAgeInputRef = useRef<TextInput>(null);
@@ -222,6 +229,7 @@ export default function CreateProfileScreen() {
   const [preferredGenders, setPreferredGenders] = useState<string[]>([]);
   const [maxDistance, setMaxDistance] = useState<number | null>(50);
   const [maxAgeCardY, setMaxAgeCardY] = useState<number | null>(null);
+  const [preferredGendersCardY, setPreferredGendersCardY] = useState<number | null>(null);
 
   // Step 5: Lifestyle
   const [smoking, setSmoking] = useState('');
@@ -380,13 +388,13 @@ export default function CreateProfileScreen() {
   };
 
   // Animate age field when first name is entered (prepare it, but don't auto-navigate)
-  // Navigation only happens when onChangeText timeout triggers after user stops typing
+  // Navigation only happens when onChangeText timeout triggers or user presses Enter
   useEffect(() => {
-    if (step === 1 && displayName.trim().length >= 3) {
+    if (step === 1 && displayName.trim().length >= 2) {
       // Just prepare the animation, don't navigate yet
       // Navigation will happen via the onChangeText timeout
       animateField(ageScale, ageOpacity, ageGlow);
-    } else if (step === 1 && displayName.trim().length < 3) {
+    } else if (step === 1 && displayName.trim().length < 2) {
       ageScale.setValue(0.95);
       ageOpacity.setValue(0);
       ageGlow.setValue(0);
@@ -395,20 +403,10 @@ export default function CreateProfileScreen() {
 
   // Animate gender field when age is entered and navigate to gender card
   useEffect(() => {
+    if (skipAutoScrollRef.current) return;
     const ageNum = parseInt(age);
-    // Match the exact condition used in showGenderField
     const isValidAge = age.trim().length > 0 && !isNaN(ageNum) && ageNum >= 18;
     const hasDisplayName = displayName.trim().length >= 2;
-    
-    console.log('🔍 Gender useEffect triggered:', { 
-      age, 
-      ageNum, 
-      isValidAge, 
-      hasDisplayName,
-      displayNameLength: displayName.trim().length,
-      step 
-    });
-    
     if (step === 1 && hasDisplayName && isValidAge) {
       console.log('✅ Conditions met, animating gender field NOW');
       // Start animation immediately - no delay
@@ -428,6 +426,7 @@ export default function CreateProfileScreen() {
 
   // Animate location field when gender is selected and navigate to location card
   useEffect(() => {
+    if (skipAutoScrollRef.current) return;
     if (step === 1 && displayName.trim().length >= 2 && age.trim().length > 0 && gender.trim().length > 0) {
       setTimeout(() => {
         animateField(locationScale, locationOpacity, locationGlow);
@@ -445,6 +444,7 @@ export default function CreateProfileScreen() {
 
   // Animate "looking for" field when location is entered and navigate to lookingFor card
   useEffect(() => {
+    if (skipAutoScrollRef.current) return;
     if (step === 1 && displayName.trim().length >= 2 && age.trim().length > 0 && gender.trim().length > 0 && location.trim().length > 0) {
       setTimeout(() => {
         animateField(lookingForScale, lookingForOpacity, lookingForGlow);
@@ -462,6 +462,7 @@ export default function CreateProfileScreen() {
 
   // Animate bio field when "looking for" is selected and navigate to bio card
   useEffect(() => {
+    if (skipAutoScrollRef.current) return;
     if (step === 1 && displayName.trim().length >= 2 && age.trim().length > 0 && gender.trim().length > 0 && location.trim().length > 0 && lookingFor.trim().length > 0) {
       setTimeout(() => {
         animateField(bioScale, bioOpacity, bioGlow);
@@ -480,11 +481,15 @@ export default function CreateProfileScreen() {
   // Step 5 (dating preferences) - Progressive disclosure with vertical scrolling (like lifestyle)
   useEffect(() => {
     if (step === 5) {
-      // Animate first card (minimum age) on mount
+      step5AllowScrollRef.current = false; // Disable auto-scroll from useEffects entirely
       animateField(minAgeScale, minAgeOpacity, minAgeGlow);
       setTimeout(() => {
         minAgeInputRef.current?.focus();
       }, 300);
+      // Scroll to top to ensure we start at minimum age card
+      setTimeout(() => {
+        step5ScrollViewRef.current?.scrollTo({ y: 0, animated: false });
+      }, 100);
     }
   }, [step]);
 
@@ -493,10 +498,12 @@ export default function CreateProfileScreen() {
     if (step === 5 && minAge >= 18 && minAge <= 120) {
       setTimeout(() => {
         animateField(maxAgeScale, maxAgeOpacity, maxAgeGlow);
-        // Auto-scroll to show next card
-        setTimeout(() => {
-          step5ScrollViewRef.current?.scrollToEnd({ animated: true });
-        }, 300);
+        // Auto-scroll to show next card (only if user is actively filling, not on initial mount)
+        if (step5AllowScrollRef.current) {
+          setTimeout(() => {
+            step5ScrollViewRef.current?.scrollToEnd({ animated: true });
+          }, 300);
+        }
       }, 300);
     } else if (step === 5 && (minAge < 18 || minAge > 120)) {
       // Reset if min age becomes invalid
@@ -511,10 +518,12 @@ export default function CreateProfileScreen() {
     if (step === 5 && minAge >= 18 && minAge <= 120 && maxAge >= minAge && maxAge <= 120) {
       setTimeout(() => {
         animateField(preferredGendersScale, preferredGendersOpacity, preferredGendersGlow);
-        // Auto-scroll to show next card
-        setTimeout(() => {
-          step5ScrollViewRef.current?.scrollToEnd({ animated: true });
-        }, 300);
+        // Auto-scroll to show next card (only if user is actively filling, not on initial mount)
+        if (step5AllowScrollRef.current) {
+          setTimeout(() => {
+            step5ScrollViewRef.current?.scrollToEnd({ animated: true });
+          }, 300);
+        }
       }, 300);
     } else if (step === 5 && (maxAge < minAge || maxAge > 120)) {
       // Reset if max age becomes invalid
@@ -529,10 +538,12 @@ export default function CreateProfileScreen() {
     if (step === 5 && preferredGenders.length > 0) {
       setTimeout(() => {
         animateField(maxDistanceScale, maxDistanceOpacity, maxDistanceGlow);
-        // Auto-scroll to show next card
-        setTimeout(() => {
-          step5ScrollViewRef.current?.scrollToEnd({ animated: true });
-        }, 300);
+        // Auto-scroll to show next card (only if user is actively filling, not on initial mount)
+        if (step5AllowScrollRef.current) {
+          setTimeout(() => {
+            step5ScrollViewRef.current?.scrollToEnd({ animated: true });
+          }, 300);
+        }
       }, 300);
     } else if (step === 5 && preferredGenders.length === 0) {
       // Reset if no genders selected
@@ -545,68 +556,55 @@ export default function CreateProfileScreen() {
   // Step 6 (lifestyle) - Progressive disclosure with auto-navigation
   useEffect(() => {
     if (step === 6) {
-      // Animate first lifestyle card on mount
+      step6AllowScrollRef.current = false; // Disable auto-scroll from useEffects/onLayout on initial entry
       animateField(smokingScale, smokingOpacity, smokingGlow);
+      // Scroll to top so user starts at smoking card
+      setTimeout(() => {
+        scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+      }, 100);
     }
   }, [step]);
 
-  // Animate next cards as previous ones are completed
+  // Animate next cards as previous ones are completed (scroll happens only from Picker onValueChange)
   useEffect(() => {
     if (step === 6 && smoking) {
-      setTimeout(() => {
-        animateField(drinkingScale, drinkingOpacity, drinkingGlow);
-        setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 300);
-      }, 300);
+      setTimeout(() => animateField(drinkingScale, drinkingOpacity, drinkingGlow), 300);
     }
   }, [smoking, step]);
 
   useEffect(() => {
     if (step === 6 && drinking) {
-      setTimeout(() => {
-        animateField(childrenScale, childrenOpacity, childrenGlow);
-        setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 300);
-      }, 300);
+      setTimeout(() => animateField(childrenScale, childrenOpacity, childrenGlow), 300);
     }
   }, [drinking, step]);
 
   useEffect(() => {
     if (step === 6 && children) {
-      setTimeout(() => {
-        animateField(petsScale, petsOpacity, petsGlow);
-        setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 300);
-      }, 300);
+      setTimeout(() => animateField(petsScale, petsOpacity, petsGlow), 300);
     }
   }, [children, step]);
 
   useEffect(() => {
     if (step === 6 && pets) {
-      setTimeout(() => {
-        animateField(religionScale, religionOpacity, religionGlow);
-        setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 300);
-      }, 300);
+      setTimeout(() => animateField(religionScale, religionOpacity, religionGlow), 300);
     }
   }, [pets, step]);
 
   useEffect(() => {
     if (step === 6 && religion) {
-      setTimeout(() => {
-        animateField(workLifeBalanceScale, workLifeBalanceOpacity, workLifeBalanceGlow);
-        setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 300);
-      }, 300);
+      setTimeout(() => animateField(workLifeBalanceScale, workLifeBalanceOpacity, workLifeBalanceGlow), 300);
     }
   }, [religion, step]);
 
   useEffect(() => {
     if (step === 6 && workLifeBalance) {
-      setTimeout(() => {
-        animateField(worksOutScale, worksOutOpacity, worksOutGlow);
-        setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 300);
-      }, 300);
+      setTimeout(() => animateField(worksOutScale, worksOutOpacity, worksOutGlow), 300);
     }
   }, [workLifeBalance, step]);
 
   // Load existing profile data
   useEffect(() => {
+    if (startFromBeginning) skipAutoScrollRef.current = true;
     const loadProfile = async () => {
       try {
         const data = await api.get('/profile');
@@ -617,7 +615,6 @@ export default function CreateProfileScreen() {
           setLocation(data.profile.location || '');
           setBio(data.profile.bio || '');
           setLookingFor(data.profile.looking_for || '');
-          
           if (data.interests) {
             setInterests(data.interests.map((i: any) => i.name));
           }
@@ -649,13 +646,18 @@ export default function CreateProfileScreen() {
             setWorkLifeBalance(data.lifestyle.work_life_balance || '');
             setWorksOut(data.lifestyle.works_out || '');
           }
+          if (startFromBeginning) {
+            setTimeout(() => {
+              step1ScrollViewRef.current?.scrollTo({ y: 0, animated: false });
+            }, 600);
+          }
         }
       } catch (err) {
         console.log('No existing profile found');
       }
     };
     loadProfile();
-  }, []);
+  }, [startFromBeginning]);
 
   // Save profile data and load existing photos when entering step 7
   const profileSavedRef = useRef(false);
@@ -1661,9 +1663,17 @@ export default function CreateProfileScreen() {
                         // Clear timeout on submit
                         if (displayNameTimeoutRef.current) {
                           clearTimeout(displayNameTimeoutRef.current);
+                          displayNameTimeoutRef.current = null;
                         }
                         if (displayName.trim().length >= 2) {
                           displayNameInputRef.current?.blur();
+                          // Auto-progress to age card
+                          setTimeout(() => {
+                            scrollToStep1Card(ageCardY, -20);
+                            setTimeout(() => {
+                              ageInputRef.current?.focus();
+                            }, 300);
+                          }, 300);
                         } else {
                           setError('Please enter at least 2 characters');
                           setTimeout(() => setError(''), 3000);
@@ -2567,13 +2577,11 @@ export default function CreateProfileScreen() {
                   },
                 ]}
                 onLayout={(event) => {
-                  // Capture the Y position of the maxAge card for scrolling
-                  if (field.key === 'maxAge') {
-                    const { y } = event.nativeEvent.layout;
-                    setMaxAgeCardY(y);
-                  }
-                  // Auto-scroll for other cards when they have values
-                  if (index > 0 && field.value && field.key !== 'maxAge') {
+                  const { y } = event.nativeEvent.layout;
+                  if (field.key === 'maxAge') setMaxAgeCardY(y);
+                  if (field.key === 'preferredGenders') setPreferredGendersCardY(y);
+                  // Auto-scroll for other cards when they have values (only if user is actively filling)
+                  if (index > 0 && field.value && field.key !== 'maxAge' && step5AllowScrollRef.current) {
                     setTimeout(() => {
                       step5ScrollViewRef.current?.scrollToEnd({ animated: true });
                     }, 300);
@@ -2654,12 +2662,16 @@ export default function CreateProfileScreen() {
                             const value = parseInt(text) || baseAge;
                             const newAge = Math.max(baseAge, Math.min(120, value));
                             setMaxAge(newAge);
-                            // Auto-scroll to next card when valid age is entered
+                            // Auto-scroll to preferred genders card when valid age is entered
                             if (newAge >= baseAge && newAge <= 120 && text.length >= 2) {
                               setTimeout(() => {
                                 maxAgeInputRef.current?.blur();
                                 setTimeout(() => {
-                                  step5ScrollViewRef.current?.scrollToEnd({ animated: true });
+                                  if (preferredGendersCardY !== null) {
+                                    step5ScrollViewRef.current?.scrollTo({ y: preferredGendersCardY - 20, animated: true });
+                                  } else {
+                                    step5ScrollViewRef.current?.scrollTo({ y: 500, animated: true });
+                                  }
                                 }, 300);
                               }, 300);
                             }
@@ -2671,7 +2683,11 @@ export default function CreateProfileScreen() {
                             maxAgeInputRef.current?.blur();
                             if (maxAge >= minAge && maxAge <= 120) {
                               setTimeout(() => {
-                                step5ScrollViewRef.current?.scrollToEnd({ animated: true });
+                                if (preferredGendersCardY !== null) {
+                                  step5ScrollViewRef.current?.scrollTo({ y: preferredGendersCardY - 20, animated: true });
+                                } else {
+                                  step5ScrollViewRef.current?.scrollTo({ y: 500, animated: true });
+                                }
                               }, 300);
                             }
                           }}
@@ -2689,7 +2705,7 @@ export default function CreateProfileScreen() {
                       contentContainerStyle={styles.preferencesGenderGrid}
                       showsVerticalScrollIndicator={true}
                     >
-                      {GENDER_OPTIONS.map(gender => {
+                      {PREFERRED_GENDER_OPTIONS.map(gender => {
                         const isSelected = preferredGenders.includes(gender);
                         return (
                           <TouchableOpacity
@@ -2844,12 +2860,9 @@ export default function CreateProfileScreen() {
                     opacity: field.opacity,
                   },
                 ]}
-                onLayout={() => {
-                  if (index > 0 && field.value) {
-                    setTimeout(() => {
-                      scrollViewRef.current?.scrollToEnd({ animated: true });
-                    }, 300);
-                  }
+                onLayout={(e) => {
+                  const { y } = e.nativeEvent.layout;
+                  lifestyleCardYsRef.current[field.key] = y;
                 }}
               >
                 <LinearGradient
@@ -2866,11 +2879,19 @@ export default function CreateProfileScreen() {
                       selectedValue={field.value}
                       onValueChange={(itemValue) => {
                         if (itemValue && itemValue !== '') {
+                          step6AllowScrollRef.current = true;
                           field.setValue(itemValue);
-                          // Auto-scroll to next card after selection
+                          // Scroll to next card only (not to end)
+                          const nextIndex = index + 1;
+                          const nextKey = lifestyleFields[nextIndex]?.key;
                           setTimeout(() => {
-                            scrollViewRef.current?.scrollToEnd({ animated: true });
-                          }, 300);
+                            const nextY = nextKey ? lifestyleCardYsRef.current[nextKey] : undefined;
+                            if (typeof nextY === 'number') {
+                              scrollViewRef.current?.scrollTo({ y: nextY - 20, animated: true });
+                            } else {
+                              scrollViewRef.current?.scrollTo({ y: (nextIndex) * 300, animated: true });
+                            }
+                          }, 400);
                         }
                       }}
                       style={styles.lifestylePicker}
@@ -3014,8 +3035,17 @@ export default function CreateProfileScreen() {
         colors={['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={styles.header}
+        style={[styles.header, { position: 'relative' }]}
       >
+        <TouchableOpacity
+          style={styles.exitButton}
+          onPress={() => {
+            (navigation as any).navigate('MainTabs', { screen: 'Browse' });
+          }}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.exitButtonText}>Exit</Text>
+        </TouchableOpacity>
         <Text style={styles.title}>Create Your Profile</Text>
         <Text style={styles.subtitle}>Step {step} of 7</Text>
       </LinearGradient>
@@ -3125,6 +3155,21 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
+  },
+  exitButton: {
+    position: 'absolute',
+    top: 52,
+    right: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    zIndex: 10,
+  },
+  exitButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
   },
   title: {
     fontSize: 32,

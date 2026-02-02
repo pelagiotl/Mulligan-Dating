@@ -35,6 +35,8 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const MIN_PHOTOS_TO_CONNECT = 5;
 
+const MAX_DISTANCE_OPTIONS: (number | null)[] = [10, 25, 50, 100, 250, 500, null]; // null = Any distance
+
 // Helper function to render location with proper formatting
 function renderLocation(location: string | null | undefined) {
   if (!location) return null;
@@ -148,102 +150,77 @@ const AnimatedLogo = memo(function AnimatedLogo() {
   const [sparkle4GlowOpacityValue, setSparkle4GlowOpacity] = useState(0.8);
 
   useEffect(() => {
+    const loops: Animated.CompositeAnimation[] = [];
+
     // Continuous rotation (4s linear infinite - matching frontend)
-    Animated.loop(
+    const rotateLoop = Animated.loop(
       Animated.timing(rotateAnim, {
         toValue: 1,
         duration: 4000,
         useNativeDriver: true,
       })
-    ).start();
+    );
+    loops.push(rotateLoop);
+    rotateLoop.start();
 
     // Heart beat (2s ease-in-out infinite - matching frontend keyframes)
-    // 0%, 100%: scale(1), 10%, 30%: scale(1.1)
-    Animated.loop(
+    const heartLoop = Animated.loop(
       Animated.sequence([
         Animated.timing(heartScale, {
           toValue: 1.1,
-          duration: 200, // 10% of 2000ms
+          duration: 200,
           useNativeDriver: true,
         }),
         Animated.timing(heartScale, {
           toValue: 1.1,
-          duration: 400, // 20% of 2000ms (10% to 30%)
+          duration: 400,
           useNativeDriver: true,
         }),
         Animated.timing(heartScale, {
           toValue: 1,
-          duration: 1400, // 70% of 2000ms (30% to 100%)
+          duration: 1400,
           useNativeDriver: true,
         }),
       ])
-    ).start();
+    );
+    loops.push(heartLoop);
+    heartLoop.start();
 
     // Glow pulse animation - smooth and premium
-    Animated.loop(
+    const glowLoop = Animated.loop(
       Animated.sequence([
         Animated.parallel([
-          Animated.timing(glowAnim, {
-            toValue: 0.75,
-            duration: 2500,
-            useNativeDriver: true,
-          }),
-          Animated.timing(glowScale, {
-            toValue: 1.08,
-            duration: 2500,
-            useNativeDriver: true,
-          }),
-          Animated.timing(borderGlowAnim, {
-            toValue: 0.9,
-            duration: 2500,
-            useNativeDriver: true,
-          }),
+          Animated.timing(glowAnim, { toValue: 0.75, duration: 2500, useNativeDriver: true }),
+          Animated.timing(glowScale, { toValue: 1.08, duration: 2500, useNativeDriver: true }),
+          Animated.timing(borderGlowAnim, { toValue: 0.9, duration: 2500, useNativeDriver: true }),
         ]),
         Animated.parallel([
-          Animated.timing(glowAnim, {
-            toValue: 0.5,
-            duration: 2500,
-            useNativeDriver: true,
-          }),
-          Animated.timing(glowScale, {
-            toValue: 1,
-            duration: 2500,
-            useNativeDriver: true,
-          }),
-          Animated.timing(borderGlowAnim, {
-            toValue: 0.6,
-            duration: 2500,
-            useNativeDriver: true,
-          }),
+          Animated.timing(glowAnim, { toValue: 0.5, duration: 2500, useNativeDriver: true }),
+          Animated.timing(glowScale, { toValue: 1, duration: 2500, useNativeDriver: true }),
+          Animated.timing(borderGlowAnim, { toValue: 0.6, duration: 2500, useNativeDriver: true }),
         ]),
       ])
-    ).start();
+    );
+    loops.push(glowLoop);
+    glowLoop.start();
 
     // Sparkle pulse animations for subtle brightness variation (matching login page)
     const sparklePulse = (pulseAnim: Animated.Value, setter: (val: number) => void, key: string, delay: number) => {
       const listenerId = pulseAnim.addListener(({ value }) => {
         throttledSetState(setter, value, key);
       });
-      
-      Animated.loop(
+      const loop = Animated.loop(
         Animated.sequence([
           Animated.delay(delay),
-          Animated.timing(pulseAnim, {
-            toValue: 1.3, // Slight brightness increase
-            duration: 1500,
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulseAnim, {
-            toValue: 1,
-            duration: 1500,
-            useNativeDriver: true,
-          }),
+          Animated.timing(pulseAnim, { toValue: 1.3, duration: 1500, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 1500, useNativeDriver: true }),
         ])
-      ).start();
-      
+      );
+      loops.push(loop);
+      loop.start();
       return listenerId;
     };
-    
+
     const pulse1Id = sparklePulse(sparkle1Pulse, setSparkle1PulseValue, 'sparkle1Pulse', 0);
     const pulse2Id = sparklePulse(sparkle2Pulse, setSparkle2PulseValue, 'sparkle2Pulse', 400);
     const pulse3Id = sparklePulse(sparkle3Pulse, setSparkle3PulseValue, 'sparkle3Pulse', 800);
@@ -267,52 +244,32 @@ const AnimatedLogo = memo(function AnimatedLogo() {
       throttledSetState(setShimmerOpacityValue, opacity, 'shimmerOpacity');
     });
     
-    Animated.loop(
+    const shineLoop = Animated.loop(
       Animated.sequence([
-        Animated.timing(shineAnim, {
-          toValue: 1,
-          duration: 3000,
-          useNativeDriver: true,
-        }),
+        Animated.timing(shineAnim, { toValue: 1, duration: 3000, useNativeDriver: true }),
         Animated.delay(1000),
-        Animated.timing(shineAnim, {
-          toValue: 0,
-          duration: 0,
-          useNativeDriver: true,
-        }),
+        Animated.timing(shineAnim, { toValue: 0, duration: 0, useNativeDriver: true }),
       ])
-    ).start();
+    );
+    loops.push(shineLoop);
+    shineLoop.start();
 
     // Arrow pulse animations (2s ease-in-out infinite)
     const arrowPulse = (scale: Animated.Value, opacity: Animated.Value) => {
-      Animated.loop(
+      const loop = Animated.loop(
         Animated.sequence([
           Animated.parallel([
-            Animated.timing(scale, {
-              toValue: 1.1,
-              duration: 1000,
-              useNativeDriver: true,
-            }),
-            Animated.timing(opacity, {
-              toValue: 1,
-              duration: 1000,
-              useNativeDriver: true,
-            }),
+            Animated.timing(scale, { toValue: 1.1, duration: 1000, useNativeDriver: true }),
+            Animated.timing(opacity, { toValue: 1, duration: 1000, useNativeDriver: true }),
           ]),
           Animated.parallel([
-            Animated.timing(scale, {
-              toValue: 1,
-              duration: 1000,
-              useNativeDriver: true,
-            }),
-            Animated.timing(opacity, {
-              toValue: 0.9,
-              duration: 1000,
-              useNativeDriver: true,
-            }),
+            Animated.timing(scale, { toValue: 1, duration: 1000, useNativeDriver: true }),
+            Animated.timing(opacity, { toValue: 0.9, duration: 1000, useNativeDriver: true }),
           ]),
         ])
-      ).start();
+      );
+      loops.push(loop);
+      loop.start();
     };
 
     arrowPulse(arrowTopScale, arrowTopOpacity);
@@ -345,63 +302,26 @@ const AnimatedLogo = memo(function AnimatedLogo() {
       const translateXListenerId = translateX.addListener(({ value }) => {
         throttledSetState(setTranslateX, value, `${keyPrefix}_translateX`);
       });
-      
-      Animated.loop(
+      const loop = Animated.loop(
         Animated.sequence([
           Animated.delay(delay),
           Animated.parallel([
-            Animated.timing(opacity, {
-              toValue: 1,
-              duration: 1000,
-              useNativeDriver: true,
-            }),
-            Animated.timing(scale, {
-              toValue: 1.5, // Scale up like frontend
-              duration: 1000,
-              useNativeDriver: true,
-            }),
-            Animated.timing(translateY, {
-              toValue: yOffset, // Move in direction
-              duration: 1000,
-              useNativeDriver: true,
-            }),
-            Animated.timing(translateX, {
-              toValue: xOffset, // Move in direction
-              duration: 1000,
-              useNativeDriver: true,
-            }),
+            Animated.timing(opacity, { toValue: 1, duration: 1000, useNativeDriver: true }),
+            Animated.timing(scale, { toValue: 1.5, duration: 1000, useNativeDriver: true }),
+            Animated.timing(translateY, { toValue: yOffset, duration: 1000, useNativeDriver: true }),
+            Animated.timing(translateX, { toValue: xOffset, duration: 1000, useNativeDriver: true }),
           ]),
           Animated.parallel([
-            Animated.timing(opacity, {
-              toValue: 0.6,
-              duration: 1000,
-              useNativeDriver: true,
-            }),
-            Animated.timing(scale, {
-              toValue: 1, // Scale back down
-              duration: 1000,
-              useNativeDriver: true,
-            }),
-            Animated.timing(translateY, {
-              toValue: 0, // Move back
-              duration: 1000,
-              useNativeDriver: true,
-            }),
-            Animated.timing(translateX, {
-              toValue: 0, // Move back
-              duration: 1000,
-              useNativeDriver: true,
-            }),
+            Animated.timing(opacity, { toValue: 0.6, duration: 1000, useNativeDriver: true }),
+            Animated.timing(scale, { toValue: 1, duration: 1000, useNativeDriver: true }),
+            Animated.timing(translateY, { toValue: 0, duration: 1000, useNativeDriver: true }),
+            Animated.timing(translateX, { toValue: 0, duration: 1000, useNativeDriver: true }),
           ]),
         ])
-      ).start();
-      
-      return { 
-        opacity: opacityListenerId, 
-        scale: scaleListenerId,
-        translateY: translateYListenerId,
-        translateX: translateXListenerId
-      };
+      );
+      loops.push(loop);
+      loop.start();
+      return { opacity: opacityListenerId, scale: scaleListenerId, translateY: translateYListenerId, translateX: translateXListenerId };
     };
 
     // Each sparkle moves in a different direction for more dynamic effect
@@ -439,50 +359,34 @@ const AnimatedLogo = memo(function AnimatedLogo() {
       const listenerId = opacity.addListener(({ value }) => {
         throttledSetState(setter, value, key);
       });
-      
-      Animated.loop(
+      const loop = Animated.loop(
         Animated.sequence([
-          Animated.timing(opacity, {
-            toValue: 1,
-            duration: 1500,
-            useNativeDriver: true,
-          }),
-          Animated.timing(opacity, {
-            toValue: 0.6,
-            duration: 1500,
-            useNativeDriver: true,
-          }),
+          Animated.timing(opacity, { toValue: 1, duration: 1500, useNativeDriver: true }),
+          Animated.timing(opacity, { toValue: 0.6, duration: 1500, useNativeDriver: true }),
         ])
-      ).start();
-      
+      );
+      loops.push(loop);
+      loop.start();
       return listenerId;
     };
-    
+
     const arrowTopGlowListenerId = arrowGlowPulse(arrowTopGlowOpacityAnim, setArrowTopGlowOpacity, 'arrowTopGlow');
     const arrowBottomGlowListenerId = arrowGlowPulse(arrowBottomGlowOpacityAnim, setArrowBottomGlowOpacity, 'arrowBottomGlow');
-    
+
     // Sparkle glow pulse animations
     const sparkleGlowPulse = (opacity: Animated.Value, setter: (val: number) => void, key: string, delay: number) => {
       const listenerId = opacity.addListener(({ value }) => {
         throttledSetState(setter, value, key);
       });
-      
-      Animated.loop(
+      const loop = Animated.loop(
         Animated.sequence([
           Animated.delay(delay),
-          Animated.timing(opacity, {
-            toValue: 1,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-          Animated.timing(opacity, {
-            toValue: 0.7,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
+          Animated.timing(opacity, { toValue: 1, duration: 1000, useNativeDriver: true }),
+          Animated.timing(opacity, { toValue: 0.7, duration: 1000, useNativeDriver: true }),
         ])
-      ).start();
-      
+      );
+      loops.push(loop);
+      loop.start();
       return listenerId;
     };
     
@@ -492,6 +396,7 @@ const AnimatedLogo = memo(function AnimatedLogo() {
     const sparkle4GlowListenerId = sparkleGlowPulse(sparkle4GlowOpacityAnim, setSparkle4GlowOpacity, 'sparkle4Glow', 750);
     
     return () => {
+      loops.forEach((l) => l.stop());
       sparkle1Opacity.removeListener(listener1.opacity);
       sparkle1Scale.removeListener(listener1.scale);
       sparkle1TranslateY.removeListener(listener1.translateY);
@@ -683,39 +588,26 @@ function AnimatedEmoji({ emoji, delay = 0 }: { emoji: string; delay?: number }) 
   const rotateAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Gentle pulse animation (subtle and alive)
-    Animated.loop(
+    const scaleLoop = Animated.loop(
       Animated.sequence([
         Animated.delay(delay),
-        Animated.timing(scaleAnim, {
-          toValue: 1.15,
-          duration: 1500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleAnim, {
-          toValue: 1,
-          duration: 1500,
-          useNativeDriver: true,
-        }),
+        Animated.timing(scaleAnim, { toValue: 1.15, duration: 1500, useNativeDriver: true }),
+        Animated.timing(scaleAnim, { toValue: 1, duration: 1500, useNativeDriver: true }),
       ])
-    ).start();
-
-    // Subtle rotation animation
-    Animated.loop(
+    );
+    scaleLoop.start();
+    const rotateLoop = Animated.loop(
       Animated.sequence([
         Animated.delay(delay),
-        Animated.timing(rotateAnim, {
-          toValue: 1,
-          duration: 4000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(rotateAnim, {
-          toValue: 0,
-          duration: 4000,
-          useNativeDriver: true,
-        }),
+        Animated.timing(rotateAnim, { toValue: 1, duration: 4000, useNativeDriver: true }),
+        Animated.timing(rotateAnim, { toValue: 0, duration: 4000, useNativeDriver: true }),
       ])
-    ).start();
+    );
+    rotateLoop.start();
+    return () => {
+      scaleLoop.stop();
+      rotateLoop.stop();
+    };
   }, [delay]);
 
   const rotate = rotateAnim.interpolate({
@@ -770,6 +662,7 @@ export default function BrowseScreen() {
   const profileCardOpacity = useRef(new Animated.Value(0)).current;
   const profileCardTranslateY = useRef(new Animated.Value(30)).current;
   const profileCardGlow = useRef(new Animated.Value(1)).current;
+  const profileCardGlowLoopRef = useRef<Animated.CompositeAnimation | null>(null);
   const profileCardRotate = useRef(new Animated.Value(0)).current;
   const profileCardTiltX = useRef(new Animated.Value(0)).current;
   const profileCardTiltY = useRef(new Animated.Value(0)).current;
@@ -814,6 +707,11 @@ export default function BrowseScreen() {
   const [showMatchLimitModal, setShowMatchLimitModal] = useState(false);
   const [matchLimitCanExpand, setMatchLimitCanExpand] = useState(false);
   const [matchLimitProfile, setMatchLimitProfile] = useState<Profile | null>(null);
+  const [showNoProfilesModal, setShowNoProfilesModal] = useState(false);
+  const [noProfilesDistanceMode, setNoProfilesDistanceMode] = useState(false);
+  const [noProfilesSelectedDistance, setNoProfilesSelectedDistance] = useState<number | null>(50);
+  const [noProfilesCurrentPrefs, setNoProfilesCurrentPrefs] = useState<{ min_age: number; max_age: number | null; preferred_genders: string | string[] | null } | null>(null);
+  const [noProfilesUpdating, setNoProfilesUpdating] = useState(false);
   const [matchedProfile, setMatchedProfile] = useState<Profile | null>(null);
   const [matchId, setMatchId] = useState<string | null>(null);
   const [matchExplanation, setMatchExplanation] = useState<{
@@ -1013,22 +911,8 @@ export default function BrowseScreen() {
             // Explicitly set browseUnlocked to false to show landing page
             setBrowseUnlocked(false);
             console.log('🔄 Set browseUnlocked to false, should show landing page');
-            // Show notification - use setTimeout to ensure state updates first
-            setTimeout(() => {
-              Alert.alert(
-                'No Profiles Available',
-                'There are no other profiles to match with at the moment. Check back later for new people!',
-                [{ 
-                  text: 'OK',
-                  onPress: () => {
-                    // Ensure we stay on landing page after alert is dismissed
-                    console.log('🔄 Alert dismissed, ensuring landing page stays visible');
-                    setBrowseUnlocked(false);
-                    setIsAutoMatching(false);
-                  }
-                }]
-              );
-            }, 100);
+            // Show custom "no profiles available" modal
+            setTimeout(() => setShowNoProfilesModal(true), 100);
             return; // Exit early to prevent any further state changes
           }
     } catch (err: any) {
@@ -1084,22 +968,8 @@ export default function BrowseScreen() {
             // Explicitly set browseUnlocked to false to show landing page
             setBrowseUnlocked(false);
             console.log('🔄 Set browseUnlocked to false, should show landing page');
-            // Show notification - use setTimeout to ensure state updates first
-            setTimeout(() => {
-              Alert.alert(
-                'No Profiles Available',
-                'There are no other profiles to match with at the moment. Check back later for new people!',
-                [{ 
-                  text: 'OK',
-                  onPress: () => {
-                    // Ensure we stay on landing page after alert is dismissed
-                    console.log('🔄 Alert dismissed, ensuring landing page stays visible');
-                    setBrowseUnlocked(false);
-                    setIsAutoMatching(false);
-                  }
-                }]
-              );
-            }, 100);
+            // Show custom "no profiles available" modal
+            setTimeout(() => setShowNoProfilesModal(true), 100);
             return; // Exit early to prevent any further state changes
           }
         } catch (fetchErr: any) {
@@ -1233,21 +1103,16 @@ export default function BrowseScreen() {
         ]).start();
         
         // Continuous glow pulse — use native driver so it doesn't block touch
-        Animated.loop(
+        profileCardGlowLoopRef.current?.stop();
+        const glowLoop = Animated.loop(
           Animated.sequence([
-            Animated.timing(profileCardGlow, {
-              toValue: 1.15,
-              duration: 2000,
-              useNativeDriver: true,
-            }),
-            Animated.timing(profileCardGlow, {
-              toValue: 1,
-              duration: 2000,
-              useNativeDriver: true,
-            }),
+            Animated.timing(profileCardGlow, { toValue: 1.15, duration: 2000, useNativeDriver: true }),
+            Animated.timing(profileCardGlow, { toValue: 1, duration: 2000, useNativeDriver: true }),
           ])
-        ).start();
-        
+        );
+        profileCardGlowLoopRef.current = glowLoop;
+        glowLoop.start();
+
         // Card rotation removed — reduces animation load for snappier tab
         profileCardRotate.setValue(0);
         
@@ -1410,63 +1275,32 @@ export default function BrowseScreen() {
   // Button pulse animation (only when landing page is shown)
   // MUST be before any early returns
   useEffect(() => {
+    let buttonLoop: Animated.CompositeAnimation | null = null;
+    let shimmerLoop: Animated.CompositeAnimation | null = null;
     if (showLandingPage && !unlocking) {
       // Animate "Discover People" title
       Animated.parallel([
-        Animated.timing(titleOpacity, {
-          toValue: 1,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-        Animated.spring(titleScale, {
-          toValue: 1,
-          tension: 50,
-          friction: 7,
-          useNativeDriver: true,
-        }),
-        Animated.timing(titleTranslateY, {
-          toValue: 0,
-          duration: 800,
-          useNativeDriver: true,
-        }),
+        Animated.timing(titleOpacity, { toValue: 1, duration: 1000, useNativeDriver: true }),
+        Animated.spring(titleScale, { toValue: 1, tension: 50, friction: 7, useNativeDriver: true }),
+        Animated.timing(titleTranslateY, { toValue: 0, duration: 800, useNativeDriver: true }),
       ]).start();
 
-
-      // Continuous pulse animation
-      Animated.loop(
+      buttonLoop = Animated.loop(
         Animated.sequence([
-          Animated.timing(buttonPulse, {
-            toValue: 1.05,
-            duration: 1500,
-            useNativeDriver: true,
-          }),
-          Animated.timing(buttonPulse, {
-            toValue: 1,
-            duration: 1500,
-            useNativeDriver: true,
-          }),
+          Animated.timing(buttonPulse, { toValue: 1.05, duration: 1500, useNativeDriver: true }),
+          Animated.timing(buttonPulse, { toValue: 1, duration: 1500, useNativeDriver: true }),
         ])
-      ).start();
+      );
+      buttonLoop.start();
 
-      // Shimmer effect
-      Animated.loop(
+      shimmerLoop = Animated.loop(
         Animated.sequence([
-          Animated.timing(shimmerTranslate, {
-            toValue: 400,
-            duration: 2000,
-            useNativeDriver: true,
-          }),
-          Animated.timing(shimmerTranslate, {
-            toValue: -200,
-            duration: 0,
-            useNativeDriver: true,
-          }),
+          Animated.timing(shimmerTranslate, { toValue: 400, duration: 2000, useNativeDriver: true }),
+          Animated.timing(shimmerTranslate, { toValue: -200, duration: 0, useNativeDriver: true }),
         ])
-      ).start();
-      
-      // Gradient: static (no loop) — JS-thread gradient animation caused tab lag
+      );
+      shimmerLoop.start();
     } else {
-      // Stop animations when not on landing page or when unlocking
       buttonPulse.setValue(1);
       shimmerTranslate.setValue(-200);
       gradientPosition.setValue(0);
@@ -1474,6 +1308,10 @@ export default function BrowseScreen() {
       titleOpacity.setValue(0);
       titleTranslateY.setValue(20);
     }
+    return () => {
+      buttonLoop?.stop();
+      shimmerLoop?.stop();
+    };
   }, [showLandingPage, unlocking]);
 
   // Connect button pulse/shimmer: start on layout (view ready), stop when Connect button not shown
@@ -1509,21 +1347,75 @@ export default function BrowseScreen() {
     connectButtonShimmer.setValue(0);
   }, []);
 
+  // When Connect button mounts/layouts: stop any stale loops then start after a short delay so native view is attached and animations run
+  const handleConnectButtonLayout = useCallback(() => {
+    stopConnectButtonAnimations();
+    setTimeout(() => startConnectButtonAnimations(), 200);
+  }, [stopConnectButtonAnimations, startConnectButtonAnimations]);
+
+  const openNoProfilesDistancePicker = useCallback(async () => {
+    setNoProfilesUpdating(true);
+    try {
+      const data = await api.get<{ preferences: { min_age: number; max_age: number | null; preferred_genders: string | string[] | null; max_distance: number | null } | null }>('/profile');
+      const prefs = data?.preferences;
+      if (prefs) {
+        setNoProfilesCurrentPrefs({ min_age: prefs.min_age, max_age: prefs.max_age, preferred_genders: prefs.preferred_genders });
+        setNoProfilesSelectedDistance(prefs.max_distance ?? 50);
+      } else {
+        setNoProfilesSelectedDistance(50);
+      }
+      setNoProfilesDistanceMode(true);
+    } catch {
+      Alert.alert('Error', 'Could not load preferences. Try again.');
+    } finally {
+      setNoProfilesUpdating(false);
+    }
+  }, []);
+
+  const saveNoProfilesDistance = useCallback(async () => {
+    setNoProfilesUpdating(true);
+    try {
+      const prefs = noProfilesCurrentPrefs;
+      const preferredGenders = prefs?.preferred_genders == null
+        ? null
+        : Array.isArray(prefs.preferred_genders)
+          ? prefs.preferred_genders
+          : (typeof prefs.preferred_genders === 'string' ? (() => {
+              try { return JSON.parse(prefs.preferred_genders as string) as string[]; } catch { return null; }
+            })() : null);
+      await api.put('/profile/preferences', {
+        minAge: prefs?.min_age ?? null,
+        maxAge: prefs?.max_age ?? null,
+        preferredGenders: preferredGenders ?? null,
+        maxDistance: noProfilesSelectedDistance,
+      });
+      setShowNoProfilesModal(false);
+      setNoProfilesDistanceMode(false);
+      setBrowseUnlocked(false);
+      setIsAutoMatching(false);
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to update distance.');
+    } finally {
+      setNoProfilesUpdating(false);
+    }
+  }, [noProfilesCurrentPrefs, noProfilesSelectedDistance]);
+
   useEffect(() => {
     const shouldShowConnectButton = currentProfile && !showLandingPage && !needsProfile && !loading;
     if (!shouldShowConnectButton) stopConnectButtonAnimations();
     return () => stopConnectButtonAnimations();
   }, [currentProfile, showLandingPage, needsProfile, loading, stopConnectButtonAnimations]);
 
-  // Restart Connect button animations when returning to Connect tab (opacity:0 while blurred can pause native driver)
-  useFocusEffect(
-    useCallback(() => {
-      const shouldShow = currentProfile && !showLandingPage && !needsProfile && !loading;
-      if (!shouldShow) return;
-      stopConnectButtonAnimations();
-      requestAnimationFrame(() => startConnectButtonAnimations());
-    }, [currentProfile, showLandingPage, needsProfile, loading, startConnectButtonAnimations, stopConnectButtonAnimations])
-  );
+  // Restart Connect button animations when returning to Connect tab (isFocused drives restart after tab visible)
+  const shouldShowConnectButton = currentProfile && !showLandingPage && !needsProfile && !loading;
+  useEffect(() => {
+    if (!isFocused || !shouldShowConnectButton) return;
+    stopConnectButtonAnimations();
+    const t = setTimeout(() => {
+      startConnectButtonAnimations();
+    }, 400);
+    return () => clearTimeout(t);
+  }, [isFocused, shouldShowConnectButton, startConnectButtonAnimations, stopConnectButtonAnimations]);
 
   const handleConnect = useCallback((profile: Profile, expandSlot?: boolean) => {
     setError('');
@@ -1661,13 +1553,20 @@ export default function BrowseScreen() {
     ? getPhotoUrl(currentProfile.photoUrl)
     : null;
 
-  // When tab not focused: minimal view only when on landing page; otherwise keep profile + Connect button mounted but hidden
-  // (keeps Connect button animations running so they work when returning to tab)
-  const showConnectButton = currentProfile && !showLandingPage && !needsProfile && !loading;
+  // Stop profile card glow loop when tab loses focus to avoid leaked native animation callbacks
+  useEffect(() => {
+    if (!isFocused) {
+      profileCardGlowLoopRef.current?.stop();
+      profileCardGlowLoopRef.current = null;
+    }
+  }, [isFocused]);
+
+  // When tab not focused: always render minimal view so leaving is instant. When we return, full content (including Connect button) mounts fresh and onLayout starts animations.
   if (!isFocused) {
-    if (showLandingPage) return <View style={{ flex: 1 }} />;
-    // Have a profile — render full content hidden so Connect button stays mounted and animations keep running
+    return <View style={{ flex: 1 }} />;
   }
+
+  const showConnectButton = currentProfile && !showLandingPage && !needsProfile && !loading;
 
   // Only show initial loading screen if we're not auto-matching (auto-matching should show landing page)
   if (loading && !hasFetched && !isAutoMatching) {
@@ -1691,7 +1590,6 @@ export default function BrowseScreen() {
       style={[
         styles.container,
         showLandingPage && { backgroundColor: 'transparent' },
-        !isFocused && showConnectButton && { opacity: 0, pointerEvents: 'none' as const },
       ]}
     >
       {/* Beautiful gradient background (matching web version) - full screen behind everything */}
@@ -1934,12 +1832,24 @@ export default function BrowseScreen() {
           </TouchableOpacity>
         </View>
       ) : !currentProfile && !loading ? (
-        <View style={styles.noMoreContainer}>
-          <Text style={styles.noMoreEmoji}>🔍</Text>
-          <Text style={styles.noMoreTitle}>No more profiles</Text>
-          <Text style={styles.noMoreText}>
-            You've seen everyone! Check back later for new people.
-          </Text>
+        <View style={styles.noMoreWrapper}>
+          <LinearGradient
+            colors={['#f8f7ff', '#ffffff', '#fff5f8']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.noMoreCard}
+          >
+            <View style={styles.noMoreEmojiRing}>
+              <Text style={styles.noMoreEmoji}>✨</Text>
+            </View>
+            <Text style={styles.noMoreTitle}>You're all caught up</Text>
+            <Text style={styles.noMoreText}>
+              You've seen everyone for now. New people join every day — check back soon!
+            </Text>
+            <View style={styles.noMoreHint}>
+              <Text style={styles.noMoreHintText}>🔍 We'll show new profiles here</Text>
+            </View>
+          </LinearGradient>
         </View>
       ) : currentProfile ? (
         <Animated.View 
@@ -2236,6 +2146,130 @@ export default function BrowseScreen() {
         </View>
       </Modal>
 
+      {/* No Profiles Available Modal */}
+      <Modal
+        visible={showNoProfilesModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setShowNoProfilesModal(false);
+          setNoProfilesDistanceMode(false);
+          setBrowseUnlocked(false);
+          setIsAutoMatching(false);
+        }}
+      >
+        <View style={styles.noProfilesModalOverlay}>
+          <LinearGradient
+            colors={['#667eea', '#764ba2', '#f093fb', '#f5576c']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={styles.noProfilesModalCard}>
+            <LinearGradient
+              colors={['#f8f7ff', '#ffffff', '#fff5f8']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.noProfilesModalCardInner}
+            >
+              {!noProfilesDistanceMode ? (
+                <>
+                  <View style={styles.noProfilesModalEmojiRing}>
+                    <Text style={styles.noProfilesModalEmoji}>👋</Text>
+                  </View>
+                  <Text style={styles.noProfilesModalTitle}>No profiles available</Text>
+                  <Text style={styles.noProfilesModalBody}>
+                    There are no other profiles to match with right now. New people join every day — check back soon!
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.noProfilesModalButton}
+                    onPress={() => {
+                      setShowNoProfilesModal(false);
+                      setBrowseUnlocked(false);
+                      setIsAutoMatching(false);
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    <LinearGradient
+                      colors={['#667eea', '#764ba2', '#f093fb']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.noProfilesModalButtonGradient}
+                    >
+                      <Text style={styles.noProfilesModalButtonText}>OK</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.noProfilesModalUpdateDistanceButton}
+                    onPress={openNoProfilesDistancePicker}
+                    disabled={noProfilesUpdating}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.noProfilesModalUpdateDistanceText}>
+                      {noProfilesUpdating ? 'Loading…' : 'Update distance'}
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <View style={styles.noProfilesModalEmojiRing}>
+                    <Text style={styles.noProfilesModalEmoji}>📏</Text>
+                  </View>
+                  <Text style={styles.noProfilesModalTitle}>Max distance</Text>
+                  <Text style={styles.noProfilesModalBody}>
+                    Show me people within this distance. Try increasing it to see more profiles.
+                  </Text>
+                  <View style={styles.noProfilesDistanceOptionsRow}>
+                    {MAX_DISTANCE_OPTIONS.map((value) => (
+                      <TouchableOpacity
+                        key={value ?? 'any'}
+                        style={[
+                          styles.noProfilesDistanceOptionButton,
+                          noProfilesSelectedDistance === value && styles.noProfilesDistanceOptionButtonActive,
+                        ]}
+                        onPress={() => setNoProfilesSelectedDistance(value)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[
+                          styles.noProfilesDistanceOptionText,
+                          noProfilesSelectedDistance === value && styles.noProfilesDistanceOptionTextActive,
+                        ]}>
+                          {value == null ? 'Any' : `${value} mi`}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <View style={styles.noProfilesModalDistanceActions}>
+                    <TouchableOpacity
+                      style={styles.noProfilesModalBackButton}
+                      onPress={() => setNoProfilesDistanceMode(false)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.noProfilesModalBackButtonText}>Back</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.noProfilesModalSaveDistanceButton}
+                      onPress={saveNoProfilesDistance}
+                      disabled={noProfilesUpdating}
+                      activeOpacity={0.85}
+                    >
+                      <LinearGradient
+                        colors={['#667eea', '#764ba2', '#f093fb']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.noProfilesModalButtonGradient}
+                      >
+                        <Text style={styles.noProfilesModalButtonText}>{noProfilesUpdating ? 'Saving…' : 'Save'}</Text>
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+            </LinearGradient>
+          </View>
+        </View>
+      </Modal>
+
       {/* Legal Footer */}
       <LegalFooter />
       </ScrollView>
@@ -2259,12 +2293,12 @@ export default function BrowseScreen() {
         </Animated.View>
       )}
 
-      {/* Connect Button - OUTSIDE ScrollView, GestureHandler for native-thread touch */}
+      {/* Connect Button - OUTSIDE ScrollView. Mounts fresh when returning to tab (minimal view when blurred); onLayout stops any stale ref then starts animations. */}
       {!showLandingPage && !needsProfile && currentProfile && !loading && (
         <View
           style={styles.connectButtonFixed}
           pointerEvents="box-none"
-          onLayout={startConnectButtonAnimations}
+          onLayout={handleConnectButtonLayout}
         >
           <GestureTouchable
             style={styles.connectButton}
@@ -2499,31 +2533,74 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
   },
-  noMoreContainer: {
-    padding: 40,
+  noMoreWrapper: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 40,
+    paddingHorizontal: 24,
+    marginTop: 20,
+  },
+  noMoreCard: {
+    width: '100%',
+    maxWidth: 340,
+    paddingVertical: 40,
+    paddingHorizontal: 28,
+    alignItems: 'center',
+    borderRadius: 28,
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 12,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.9)',
+    overflow: 'hidden',
+  },
+  noMoreEmojiRing: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: 'rgba(102, 126, 234, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
   },
   noMoreEmoji: {
-    fontSize: 64,
-    marginBottom: 16,
+    fontSize: 44,
   },
   noMoreTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 8,
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#1a1a2e',
+    marginBottom: 12,
+    textAlign: 'center',
+    letterSpacing: 0.3,
   },
   noMoreText: {
     fontSize: 16,
-    color: '#666',
+    color: '#555',
     textAlign: 'center',
+    lineHeight: 24,
+    paddingHorizontal: 8,
+    marginBottom: 20,
+  },
+  noMoreHint: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(102, 126, 234, 0.08)',
+    borderRadius: 12,
+  },
+  noMoreHintText: {
+    fontSize: 13,
+    color: '#5a5a7a',
+    textAlign: 'center',
+    fontWeight: '500',
   },
   // Landing page styles (when browsing is locked)
   landingPageWrapper: {
     flex: 1,
     minHeight: Dimensions.get('window').height - 100,
-    paddingTop: 40,
+    paddingTop: 56,
     paddingBottom: 40,
     position: 'relative',
     justifyContent: 'center',
@@ -2618,20 +2695,11 @@ const styles = StyleSheet.create({
   featureItem: {
     alignItems: 'center',
     justifyContent: 'center',
-    flex: 1, // Equal flex distribution
-    maxWidth: 110, // Maximum width to prevent cards from getting too wide
-    minWidth: 90, // Minimum width for readability
+    flex: 1,
+    maxWidth: 110,
+    minWidth: 90,
     paddingHorizontal: 6,
-    paddingVertical: 22,
-    backgroundColor: 'rgba(255, 255, 255, 0.7)',
-    borderRadius: 24,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.9)',
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 6,
+    paddingVertical: 12,
   },
   featureIcon: {
     fontSize: 32,
@@ -3105,14 +3173,153 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
   },
+  // No profiles available modal
+  noProfilesModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  noProfilesModalCard: {
+    width: '100%',
+    maxWidth: 340,
+    borderRadius: 28,
+    overflow: 'hidden',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.25,
+    shadowRadius: 28,
+    elevation: 16,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.9)',
+  },
+  noProfilesModalCardInner: {
+    paddingVertical: 36,
+    paddingHorizontal: 28,
+    alignItems: 'center',
+  },
+  noProfilesModalEmojiRing: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(102, 126, 234, 0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  noProfilesModalEmoji: {
+    fontSize: 40,
+  },
+  noProfilesModalTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#1a1a2e',
+    marginBottom: 12,
+    textAlign: 'center',
+    letterSpacing: 0.2,
+  },
+  noProfilesModalBody: {
+    fontSize: 16,
+    color: '#555',
+    lineHeight: 24,
+    textAlign: 'center',
+    paddingHorizontal: 8,
+    marginBottom: 24,
+  },
+  noProfilesModalButton: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    minWidth: 120,
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  noProfilesModalButtonGradient: {
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  noProfilesModalButtonText: {
+    color: '#fff',
+    fontSize: 17,
+    fontWeight: '800',
+  },
+  noProfilesModalUpdateDistanceButton: {
+    marginTop: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+  },
+  noProfilesModalUpdateDistanceText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#667eea',
+  },
+  noProfilesDistanceOptionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 24,
+  },
+  noProfilesDistanceOptionButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: 'rgba(102, 126, 234, 0.12)',
+  },
+  noProfilesDistanceOptionButtonActive: {
+    backgroundColor: '#667eea',
+  },
+  noProfilesDistanceOptionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#555',
+  },
+  noProfilesDistanceOptionTextActive: {
+    color: '#fff',
+  },
+  noProfilesModalDistanceActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  noProfilesModalBackButton: {
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 14,
+    backgroundColor: '#f0f0f0',
+    minWidth: 90,
+    alignItems: 'center',
+  },
+  noProfilesModalBackButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#555',
+  },
+  noProfilesModalSaveDistanceButton: {
+    borderRadius: 14,
+    overflow: 'hidden',
+    minWidth: 100,
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
   tokenOverlay: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     zIndex: 100,
-    paddingTop: Platform.OS === 'ios' ? 56 : 48,
-    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 62 : 54,
+    paddingLeft: 16,
+    paddingRight: 32,
     alignItems: 'flex-end',
     pointerEvents: 'box-none',
   },
