@@ -28,6 +28,14 @@ export function prefetchToken() {
   }
 }
 
+/** Returns a promise that resolves when token is in cache. Call when Connect button is about to be shown. */
+export function ensureTokenPrefetched(): Promise<void> {
+  if (tokenCache !== undefined) return Promise.resolve();
+  return AsyncStorage.getItem('token').then((t) => {
+    tokenCache = t ?? null;
+  });
+}
+
 async function getToken(): Promise<string | null> {
   if (tokenCache !== undefined) return tokenCache;
   tokenCache = await AsyncStorage.getItem('token');
@@ -50,7 +58,7 @@ async function request<T = any>(endpoint: string, options: RequestInit & { body?
     const cacheKey = APICache.getCacheKey(endpoint);
     const cached = apiCache.get<T>(cacheKey);
     if (cached !== null) {
-      console.log('💾 Cache hit for:', endpoint);
+      if (__DEV__) console.log('💾 Cache hit for:', endpoint);
       return cached;
     }
   }
@@ -112,13 +120,9 @@ async function request<T = any>(endpoint: string, options: RequestInit & { body?
   const timeoutId = setTimeout(() => controller.abort(), 45000); // 45 second timeout
 
   const url = `${BASE_URL}${endpoint}`;
-  console.log('🌐 Making API request:', { 
-    method: options.method || 'GET', 
-    url, 
-    hasToken: !!token,
-    endpoint,
-    baseUrl: BASE_URL
-  });
+  if (__DEV__) {
+    console.log('🌐 API:', options.method || 'GET', endpoint);
+  }
 
   try {
     // Build fetch options, ensuring headers are set correctly and Authorization is not overridden
@@ -214,7 +218,7 @@ async function request<T = any>(endpoint: string, options: RequestInit & { body?
         ttl = 15 * 1000; // 15 seconds for tokens (admin grants, claims, etc.)
       }
       apiCache.set(cacheKey, data, ttl);
-      console.log('💾 Cached response for:', endpoint, `(TTL: ${ttl}ms)`);
+      if (__DEV__) console.log('💾 Cached for:', endpoint);
     }
 
     return data as T;

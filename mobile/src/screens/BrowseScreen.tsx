@@ -12,12 +12,14 @@ import {
   Animated,
   Platform,
   Vibration,
-  InteractionManager,
+  Modal,
 } from 'react-native';
 import { TouchableOpacity as GestureTouchable } from 'react-native-gesture-handler';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { G, Path, Circle, Defs, LinearGradient as SvgLinearGradient, Stop, ClipPath } from 'react-native-svg';
-import { useNavigation, useFocusEffect, useIsFocused } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, useIsFocused, CommonActions } from '@react-navigation/native';
+import { setPendingOpenMatchId } from '../utils/pendingMatchOpen';
+import { navigationRef } from '../navigation/navigationRef';
 import { io, Socket } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api, prefetchToken, ensureTokenPrefetched, clearTokenCache } from '../utils/api';
@@ -100,9 +102,9 @@ const AnimatedLogo = memo(function AnimatedLogo() {
   const sparkle4GlowOpacityAnim = useRef(new Animated.Value(0.8)).current;
 
   // State for SVG values (react-native-svg doesn't support Animated.Value directly)
-  // Use light throttling (16ms = ~60fps) to keep animations smooth while preventing input lag
+  // Throttle updates to reduce re-renders and tab lag (was 16ms = 60/sec; 120ms = ~8/sec)
   const lastUpdateRef = useRef<{ [key: string]: number }>({});
-  const THROTTLE_MS = 16; // ~60fps - smooth enough to look continuous
+  const THROTTLE_MS = 120;
   
   const throttledSetState = useCallback((setter: (val: number) => void, value: number, key: string) => {
     const now = performance.now();
@@ -777,6 +779,7 @@ export default function BrowseScreen() {
   const connectButtonPulse = useRef(new Animated.Value(1)).current;
   const connectButtonShimmer = useRef(new Animated.Value(0)).current;
   const connectButtonScale = useRef(new Animated.Value(1)).current;
+  const connectButtonLoopsRef = useRef<{ pulseLoop: Animated.CompositeAnimation; shimmerLoop: Animated.CompositeAnimation } | null>(null);
   const connectSpinnerOpacity = useRef(new Animated.Value(0)).current;
   const connectTextOpacity = useRef(new Animated.Value(1)).current;
   const connectOverlayOpacity = useRef(new Animated.Value(0)).current;
@@ -808,6 +811,9 @@ export default function BrowseScreen() {
   const connectRequestedRef = useRef(false);
   const [showMatchCelebration, setShowMatchCelebration] = useState(false);
   const [showNoTokensModal, setShowNoTokensModal] = useState(false);
+  const [showMatchLimitModal, setShowMatchLimitModal] = useState(false);
+  const [matchLimitCanExpand, setMatchLimitCanExpand] = useState(false);
+  const [matchLimitProfile, setMatchLimitProfile] = useState<Profile | null>(null);
   const [matchedProfile, setMatchedProfile] = useState<Profile | null>(null);
   const [matchId, setMatchId] = useState<string | null>(null);
   const [matchExplanation, setMatchExplanation] = useState<{
@@ -1242,58 +1248,10 @@ export default function BrowseScreen() {
           ])
         ).start();
         
-        // Subtle rotation animation
-        Animated.loop(
-          Animated.sequence([
-            Animated.timing(profileCardRotate, {
-              toValue: 0.5,
-              duration: 4000,
-              useNativeDriver: true,
-            }),
-            Animated.timing(profileCardRotate, {
-              toValue: 0,
-              duration: 4000,
-              useNativeDriver: true,
-            }),
-          ])
-        ).start();
+        // Card rotation removed — reduces animation load for snappier tab
+        profileCardRotate.setValue(0);
         
-        // Connect button continuous pulse
-        Animated.loop(
-          Animated.sequence([
-            Animated.timing(connectButtonPulse, {
-              toValue: 1.05,
-              duration: 1500,
-              useNativeDriver: true,
-            }),
-            Animated.timing(connectButtonPulse, {
-              toValue: 1,
-              duration: 1500,
-              useNativeDriver: true,
-            }),
-          ])
-        ).start();
-        
-        // Connect button glow removed — was useNativeDriver: false and blocked touch response
-        // Static shadow in styles instead.
-        
-        // Connect button shimmer
-        Animated.loop(
-          Animated.sequence([
-            Animated.timing(connectButtonShimmer, {
-              toValue: 1,
-              duration: 3000,
-              useNativeDriver: true,
-            }),
-            Animated.timing(connectButtonShimmer, {
-              toValue: 0,
-              duration: 0,
-              useNativeDriver: true,
-            }),
-          ])
-        ).start();
-        
-        // Removed rotation effect - keeping pulse, shimmer, and glow effects instead
+        // Connect button pulse/shimmer started in useEffect when tab is focused (so they restart when returning to tab)
         
         // Photo entrance animation
         photoScale.setValue(0.95);
@@ -1312,21 +1270,8 @@ export default function BrowseScreen() {
           }),
         ]).start();
         
-        // Header gradient animation — use native driver so it doesn't block touch
-        Animated.loop(
-          Animated.sequence([
-            Animated.timing(headerGradientPos, {
-              toValue: 1,
-              duration: 8000,
-              useNativeDriver: true,
-            }),
-            Animated.timing(headerGradientPos, {
-              toValue: 0,
-              duration: 8000,
-              useNativeDriver: true,
-            }),
-          ])
-        ).start();
+        // Header gradient: static — one less loop for snappier tab
+        headerGradientPos.setValue(0.2);
       }
     } catch (err: any) {
       const errorMessage =
@@ -1378,15 +1323,9 @@ export default function BrowseScreen() {
     }
   }, []);
 
-  // Reset to landing page when tab is focused — run immediately so tab is clickable right away
+  // On focus: only refresh token/claim state so returning to tab keeps current profile and Connect button animations
   useFocusEffect(
     useCallback(() => {
-      setBrowseUnlocked(false);
-      setCurrentProfile(null);
-      setOffset(0);
-      setError('');
-      setLoading(false);
-      setPhotoCount(null);
       checkCanClaimTokens();
       prefetchToken();
     }, [])
@@ -1525,21 +1464,7 @@ export default function BrowseScreen() {
         ])
       ).start();
       
-      // Animated gradient shift (matching web version) - animate colors
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(gradientPosition, {
-            toValue: 1,
-            duration: 8000,
-            useNativeDriver: false, // Colors can't use native driver
-          }),
-          Animated.timing(gradientPosition, {
-            toValue: 0,
-            duration: 8000,
-            useNativeDriver: false,
-          }),
-        ])
-      ).start();
+      // Gradient: static (no loop) — JS-thread gradient animation caused tab lag
     } else {
       // Stop animations when not on landing page or when unlocking
       buttonPulse.setValue(1);
@@ -1551,35 +1476,102 @@ export default function BrowseScreen() {
     }
   }, [showLandingPage, unlocking]);
 
+  // Connect button pulse/shimmer: start on layout (view ready), stop when Connect button not shown
+  const startConnectButtonAnimations = useCallback(() => {
+    if (connectButtonLoopsRef.current) return; // already running
+    connectButtonPulse.setValue(1);
+    connectButtonShimmer.setValue(0);
+    const pulseLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(connectButtonPulse, { toValue: 1.05, duration: 1500, useNativeDriver: true }),
+        Animated.timing(connectButtonPulse, { toValue: 1, duration: 1500, useNativeDriver: true }),
+      ])
+    );
+    const shimmerLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(connectButtonShimmer, { toValue: 1, duration: 3000, useNativeDriver: true }),
+        Animated.timing(connectButtonShimmer, { toValue: 0, duration: 0, useNativeDriver: true }),
+      ])
+    );
+    pulseLoop.start();
+    shimmerLoop.start();
+    connectButtonLoopsRef.current = { pulseLoop, shimmerLoop };
+  }, []);
+
+  const stopConnectButtonAnimations = useCallback(() => {
+    const loops = connectButtonLoopsRef.current;
+    if (loops) {
+      loops.pulseLoop.stop();
+      loops.shimmerLoop.stop();
+      connectButtonLoopsRef.current = null;
+    }
+    connectButtonPulse.setValue(1);
+    connectButtonShimmer.setValue(0);
+  }, []);
+
+  useEffect(() => {
+    const shouldShowConnectButton = currentProfile && !showLandingPage && !needsProfile && !loading;
+    if (!shouldShowConnectButton) stopConnectButtonAnimations();
+    return () => stopConnectButtonAnimations();
+  }, [currentProfile, showLandingPage, needsProfile, loading, stopConnectButtonAnimations]);
+
+  // Restart Connect button animations when returning to Connect tab (opacity:0 while blurred can pause native driver)
+  useFocusEffect(
+    useCallback(() => {
+      const shouldShow = currentProfile && !showLandingPage && !needsProfile && !loading;
+      if (!shouldShow) return;
+      stopConnectButtonAnimations();
+      requestAnimationFrame(() => startConnectButtonAnimations());
+    }, [currentProfile, showLandingPage, needsProfile, loading, startConnectButtonAnimations, stopConnectButtonAnimations])
+  );
+
   const handleConnect = useCallback((profile: Profile, expandSlot?: boolean) => {
     setError('');
-    // Optimistic UI: show celebration immediately so Connect feels instant; confirm in background
-    setCurrentProfile(null);
-    setMatchedProfile(profile);
-    setMatchId(null);
-    setMatchExplanation(null);
-    setShowMatchCelebration(true);
-    connectRequestedRef.current = false;
-    connectSpinnerOpacity.setValue(0);
-    connectTextOpacity.setValue(1);
-    connectOverlayOpacity.setValue(0);
-    setConnecting(false);
+    setConnecting(true);
+    connectRequestedRef.current = true;
+    connectOverlayOpacity.setValue(1);
+    connectSpinnerOpacity.setValue(1);
+    connectTextOpacity.setValue(0);
 
     type ConnectResult = {
-      message: string;
-      isMutual: boolean;
+      message?: string;
+      isMutual?: boolean;
       matchId: string;
-      stage: string;
+      stage?: string;
+      existingMatch?: boolean;
       explanation?: { reasons: string[]; sharedInterests: string[]; sharedValues: number } | null;
     };
 
     api
       .post<ConnectResult>('/matches/connect', { targetUserId: profile.userId, expandSlot: expandSlot || false })
       .then((result) => {
-        if (result?.matchId) {
-          setMatchId(result.matchId);
-          setMatchExplanation(result.explanation ?? null);
+        connectRequestedRef.current = false;
+        connectSpinnerOpacity.setValue(0);
+        connectTextOpacity.setValue(1);
+        connectOverlayOpacity.setValue(0);
+        setConnecting(false);
+        if (!result?.matchId) return;
+        if (result.existingMatch) {
+          // Already matched: open existing conversation (no celebration)
+          setCurrentProfile(null);
+          setPendingOpenMatchId(result.matchId);
+          if (navigationRef.current?.isReady()) {
+            navigationRef.current.dispatch(
+              CommonActions.navigate({
+                name: 'MainTabs',
+                params: { screen: 'Matches', params: { matchId: result.matchId } },
+              })
+            );
+          } else {
+            navigation.navigate('Matches' as never, { matchId: result.matchId } as never);
+          }
+          return;
         }
+        setCurrentProfile(null);
+        setMatchedProfile(profile);
+        setMatchId(result.matchId);
+        setMatchExplanation(result.explanation ?? null);
+        setShowMatchCelebration(true);
       })
       .catch((err: any) => {
         // Rollback optimistic state so user can retry
@@ -1599,31 +1591,9 @@ export default function BrowseScreen() {
         if (err instanceof Error && 'status' in err) {
           const apiErr = err as Error & { status: number; code?: string; canExpand?: boolean; currentLimit?: number; newLimit?: number };
           if (apiErr.status === 400 && apiErr.code === 'AT_MATCH_LIMIT') {
-            const currentLimit = apiErr.currentLimit ?? 7;
-            const newLimit = apiErr.newLimit ?? 8;
-            const message = `You already have ${currentLimit} matches. To connect with more people, you can:\n\n• Unmatch with someone to free a slot\n• Wait for a match to expire (7-day limit)\n• Use 2 Mulligan tokens to get an ${newLimit}th match (1 for the match + 1 for the extra slot)`;
-            Alert.alert(
-              'Match limit reached',
-              apiErr.canExpand
-                ? `${message}\n\nSpend 2 tokens to connect with ${profile.displayName}?`
-                : message,
-              apiErr.canExpand
-                ? [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Use 2 Tokens',
-                      onPress: () => {
-                        connectRequestedRef.current = true;
-                        connectOverlayOpacity.setValue(1);
-                        connectSpinnerOpacity.setValue(1);
-                        connectTextOpacity.setValue(0);
-                        setConnecting(true);
-                        handleConnect(profile, true);
-                      },
-                    },
-                  ]
-                : [{ text: 'OK', style: 'cancel' }]
-            );
+            setMatchLimitCanExpand(!!apiErr.canExpand);
+            setMatchLimitProfile(profile);
+            setShowMatchLimitModal(true);
             return;
           }
           if (
@@ -1675,13 +1645,11 @@ export default function BrowseScreen() {
     setMatchedProfile(null);
     setMatchId(null);
     setMatchExplanation(null);
-    // Ensure browsing is unlocked after celebration closes
-    setBrowseUnlocked(true);
     setIsAutoMatching(false);
-    // Move to next profile after celebration
-    setOffset((prev) => prev + 1);
-    fetchProfile();
-  }, [fetchProfile]);
+    // After a successful match, reset to the landing page so user starts fresh when returning to Connect tab
+    setBrowseUnlocked(false);
+    setCurrentProfile(null);
+  }, []);
 
   const needsProfile = !userProfile && !loading;
 
@@ -1693,9 +1661,12 @@ export default function BrowseScreen() {
     ? getPhotoUrl(currentProfile.photoUrl)
     : null;
 
-  // When tab is not focused, render minimal view so leaving Connect tab is instant (no heavy tree re-render)
+  // When tab not focused: minimal view only when on landing page; otherwise keep profile + Connect button mounted but hidden
+  // (keeps Connect button animations running so they work when returning to tab)
+  const showConnectButton = currentProfile && !showLandingPage && !needsProfile && !loading;
   if (!isFocused) {
-    return <View style={{ flex: 1 }} />;
+    if (showLandingPage) return <View style={{ flex: 1 }} />;
+    // Have a profile — render full content hidden so Connect button stays mounted and animations keep running
   }
 
   // Only show initial loading screen if we're not auto-matching (auto-matching should show landing page)
@@ -1716,7 +1687,13 @@ export default function BrowseScreen() {
   }
 
   return (
-    <View style={[styles.container, showLandingPage && { backgroundColor: 'transparent' }]}>
+    <View
+      style={[
+        styles.container,
+        showLandingPage && { backgroundColor: 'transparent' },
+        !isFocused && showConnectButton && { opacity: 0, pointerEvents: 'none' as const },
+      ]}
+    >
       {/* Beautiful gradient background (matching web version) - full screen behind everything */}
       {showLandingPage && (
         <LinearGradient
@@ -2143,7 +2120,7 @@ export default function BrowseScreen() {
       )}
 
       {/* Match Celebration Modal */}
-      {showMatchCelebration && matchedProfile && matchId && (
+      {showMatchCelebration && matchedProfile && (
         <MatchCelebration
           profileName={matchedProfile.displayName || 'Someone'}
           photoUrl={
@@ -2178,6 +2155,87 @@ export default function BrowseScreen() {
         }}
       />
 
+      {/* Match Limit Reached Modal */}
+      <Modal
+        visible={showMatchLimitModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setShowMatchLimitModal(false);
+          setBrowseUnlocked(false);
+          setCurrentProfile(null);
+          setIsAutoMatching(false);
+          setMatchLimitProfile(null);
+        }}
+      >
+        <View style={styles.matchLimitOverlay}>
+          <LinearGradient
+            colors={['#667eea', '#764ba2', '#f093fb', '#f5576c']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={styles.matchLimitCard}>
+            <Text style={styles.matchLimitEmoji}>🎯</Text>
+            <Text style={styles.matchLimitTitle}>Match limit reached</Text>
+            <Text style={styles.matchLimitBody}>
+              You already have 7 matches. To connect with more people, you can:
+            </Text>
+            <View style={styles.matchLimitBullets}>
+              <Text style={styles.matchLimitBullet}>• Unmatch with someone to free a slot</Text>
+              <Text style={styles.matchLimitBullet}>• Wait for a match to expire (7-day limit)</Text>
+              <Text style={styles.matchLimitBullet}>• Use 2 Mulligan tokens to get an 8th match (1 for the match + 1 for the extra slot)</Text>
+            </View>
+            {matchLimitCanExpand && matchLimitProfile && (
+              <Text style={styles.matchLimitExpand}>
+                Spend 2 tokens to connect with {matchLimitProfile.displayName || 'them'}?
+              </Text>
+            )}
+            <View style={styles.matchLimitButtons}>
+              <TouchableOpacity
+                style={styles.matchLimitCancelButton}
+                onPress={() => {
+                  setShowMatchLimitModal(false);
+                  setBrowseUnlocked(false);
+                  setCurrentProfile(null);
+                  setIsAutoMatching(false);
+                  setMatchLimitProfile(null);
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.matchLimitCancelText}>{matchLimitCanExpand ? 'Cancel' : 'OK'}</Text>
+              </TouchableOpacity>
+              {matchLimitCanExpand && matchLimitProfile && (
+                <TouchableOpacity
+                  style={styles.matchLimitTokensButton}
+                  onPress={() => {
+                    const profileToConnect = matchLimitProfile;
+                    setShowMatchLimitModal(false);
+                    setMatchLimitProfile(null);
+                    connectRequestedRef.current = true;
+                    connectOverlayOpacity.setValue(1);
+                    connectSpinnerOpacity.setValue(1);
+                    connectTextOpacity.setValue(0);
+                    setConnecting(true);
+                    handleConnect(profileToConnect, true);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={['#667eea', '#764ba2', '#f093fb']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.matchLimitTokensGradient}
+                  >
+                    <Text style={styles.matchLimitTokensText}>Use 2 Tokens</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Legal Footer */}
       <LegalFooter />
       </ScrollView>
@@ -2203,7 +2261,11 @@ export default function BrowseScreen() {
 
       {/* Connect Button - OUTSIDE ScrollView, GestureHandler for native-thread touch */}
       {!showLandingPage && !needsProfile && currentProfile && !loading && (
-        <View style={styles.connectButtonFixed} pointerEvents="box-none">
+        <View
+          style={styles.connectButtonFixed}
+          pointerEvents="box-none"
+          onLayout={startConnectButtonAnimations}
+        >
           <GestureTouchable
             style={styles.connectButton}
             delayPressIn={0}
@@ -2945,6 +3007,103 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     includeFontPadding: false,
     flexWrap: 'nowrap',
+  },
+  // Match limit reached modal
+  matchLimitOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  matchLimitCard: {
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    padding: 28,
+    maxWidth: '100%',
+    width: 340,
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.35,
+    shadowRadius: 24,
+    elevation: 16,
+    alignItems: 'center',
+  },
+  matchLimitEmoji: {
+    fontSize: 48,
+    marginBottom: 12,
+  },
+  matchLimitTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#1a1a1a',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  matchLimitBody: {
+    fontSize: 16,
+    color: '#444',
+    lineHeight: 24,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  matchLimitBullets: {
+    alignSelf: 'stretch',
+    marginBottom: 16,
+  },
+  matchLimitBullet: {
+    fontSize: 15,
+    color: '#555',
+    lineHeight: 22,
+    marginBottom: 8,
+    paddingLeft: 4,
+  },
+  matchLimitExpand: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#667eea',
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+  matchLimitButtons: {
+    flexDirection: 'row',
+    alignSelf: 'stretch',
+    justifyContent: 'center',
+  },
+  matchLimitCancelButton: {
+    marginRight: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 14,
+    backgroundColor: '#f0f0f0',
+    minWidth: 100,
+    alignItems: 'center',
+  },
+  matchLimitCancelText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#555',
+  },
+  matchLimitTokensButton: {
+    borderRadius: 14,
+    overflow: 'hidden',
+    minWidth: 120,
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  matchLimitTokensGradient: {
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  matchLimitTokensText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '800',
   },
   tokenOverlay: {
     position: 'absolute',

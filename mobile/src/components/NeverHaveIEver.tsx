@@ -302,7 +302,9 @@ export default function NeverHaveIEver({
           activeOpacity={0.7}
           style={[styles.lockedCard, square && styles.lockedCardSquare]}
         >
-          <Animated.Text style={[styles.lockedEmoji, { transform: [{ scale: emojiScale }, { rotate: monkeyRotateInterp }] }]}>🙊</Animated.Text>
+          <View style={styles.lockedEmojiWrap}>
+            <Animated.Text style={[styles.lockedEmoji, { transform: [{ scale: emojiScale }, { rotate: monkeyRotateInterp }] }]}>🙊</Animated.Text>
+          </View>
           <View style={styles.lockedTextWrap}>
             <Text style={styles.lockedText}>Never Have I Ever</Text>
             <Text style={styles.lockedSubtext}>Tap to see how to unlock</Text>
@@ -315,27 +317,30 @@ export default function NeverHaveIEver({
   return (
     <>
       <View style={[styles.container, compact && styles.containerCompact, square && styles.containerSquare]}>
-        <Animated.View style={[styles.buttonGlow, square && styles.buttonSquare, { transform: [{ scale: pulseAnim }] }]}>
-          <TouchableOpacity onPress={handleOpen} activeOpacity={0.85} style={[styles.button, square && styles.buttonSquare]}>
+        <Animated.View style={[styles.buttonWrapper, square && styles.buttonSquare, { transform: [{ scale: pulseAnim }] }]}>
+          <View style={styles.buttonGlowLayer} />
+          <TouchableOpacity onPress={handleOpen} activeOpacity={0.9} style={[styles.button, square && styles.buttonSquare]}>
             <LinearGradient
-              colors={['#00e676', '#00e5ff', '#00b8d4', '#26c6da', '#00e676']}
-              locations={[0, 0.3, 0.5, 0.75, 1]}
+              colors={['#00b894', '#00cec9', '#55efc4', '#81ecec', '#00cec9']}
+              locations={[0, 0.25, 0.5, 0.75, 1]}
               style={[styles.buttonGradient, square && styles.buttonGradientSquare]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             >
               <LinearGradient
-                colors={['rgba(255,255,255,0.5)', 'rgba(255,255,255,0.15)', 'transparent']}
-                locations={[0, 0.35, 0.7]}
+                colors={['rgba(255,255,255,0.55)', 'rgba(255,255,255,0.15)', 'transparent']}
+                locations={[0, 0.35, 0.8]}
                 style={styles.buttonGloss}
                 start={{ x: 0.5, y: 0 }}
                 end={{ x: 0.5, y: 1 }}
               />
+              <View style={styles.buttonInnerBorder} />
               <View style={[styles.buttonContent, square && styles.buttonContentSquare]}>
                 <View style={[styles.emojiBadge, square && styles.emojiBadgeSquare]}>
+                  <View style={styles.emojiGlow} />
                   <Animated.Text style={[styles.buttonEmoji, square && styles.buttonEmojiSquare, { transform: [{ scale: emojiScale }, { rotate: monkeyRotateInterp }] }]}>🙊</Animated.Text>
                 </View>
-                <Text style={[styles.buttonText, square && styles.buttonTextSquare]}>Never Have I Ever</Text>
+                <Text style={[styles.buttonText, square && styles.buttonTextSquare]}>NEVER HAVE I EVER</Text>
               </View>
             </LinearGradient>
           </TouchableOpacity>
@@ -345,7 +350,7 @@ export default function NeverHaveIEver({
       <Modal
         visible={modalVisible}
         transparent
-        animationType="fade"
+        animationType="slide"
         onRequestClose={handleClose}
       >
         <TouchableOpacity
@@ -359,11 +364,20 @@ export default function NeverHaveIEver({
             style={styles.modalContent}
           >
             <LinearGradient
-              colors={['#11998e', '#38ef7d', '#667eea']}
+              colors={['#00b894', '#00cec9', '#00a896', '#55efc4', '#00cec9']}
+              locations={[0, 0.2, 0.5, 0.8, 1]}
               style={styles.modalGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             >
+              <LinearGradient
+                colors={['rgba(255,255,255,0.25)', 'transparent', 'transparent']}
+                locations={[0, 0.35, 1]}
+                style={styles.modalGloss}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+              />
+              <View style={styles.modalHeaderBar} />
               <Text style={styles.modalTitle}>🙊 Never Have I Ever</Text>
 
               {loading ? (
@@ -422,7 +436,7 @@ export default function NeverHaveIEver({
                       activeOpacity={0.8}
                     >
                       <LinearGradient
-                        colors={['#667eea', '#764ba2']}
+                        colors={['#00e676', '#00c853']}
                         style={styles.startGradient}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
@@ -451,9 +465,9 @@ export default function NeverHaveIEver({
                     disabled={submitting}
                     activeOpacity={0.8}
                   >
-                    <LinearGradient
-                      colors={['#667eea', '#764ba2']}
-                      style={styles.restartGradient}
+                      <LinearGradient
+                        colors={['#00e676', '#00c853']}
+                        style={styles.restartGradient}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                     >
@@ -488,7 +502,9 @@ export default function NeverHaveIEver({
                     </View>
                   </View>
 
-                  <Text style={styles.promptText}>{state.prompt}</Text>
+                  <View style={styles.promptCard}>
+                    <Text style={styles.promptText}>{state.prompt}</Text>
+                  </View>
 
                   {state.bothAnswered ? (
                     <View style={styles.resultsContainer}>
@@ -520,7 +536,7 @@ export default function NeverHaveIEver({
                         activeOpacity={0.8}
                       >
                         <LinearGradient
-                          colors={['#667eea', '#764ba2']}
+                          colors={['#00e676', '#00c853']}
                           style={styles.nextGradient}
                           start={{ x: 0, y: 0 }}
                           end={{ x: 1, y: 1 }}
@@ -571,8 +587,10 @@ export default function NeverHaveIEver({
                 </>
               ) : null}
 
-              <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-                <Text style={styles.closeButtonText}>Close</Text>
+              <TouchableOpacity onPress={handleClose} style={styles.closeButton} activeOpacity={0.8}>
+                <View style={styles.closeButtonInner}>
+                  <Text style={styles.closeButtonText}>Close</Text>
+                </View>
               </TouchableOpacity>
             </LinearGradient>
           </TouchableOpacity>
@@ -599,17 +617,17 @@ const styles = StyleSheet.create({
   lockedCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#80cbc4',
+    backgroundColor: 'rgba(0, 206, 201, 0.18)',
     borderRadius: 16,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderWidth: 2,
-    borderColor: '#00b8d4',
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    borderWidth: 1.5,
+    borderColor: 'rgba(0, 184, 148, 0.5)',
     minWidth: 140,
-    shadowColor: '#00b8d4',
+    shadowColor: '#00cec9',
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
     elevation: 6,
   },
   lockedCardSquare: {
@@ -617,43 +635,66 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minWidth: 0,
   },
+  lockedEmojiWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0, 206, 201, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 184, 148, 0.45)',
+  },
   lockedEmoji: {
-    fontSize: 18,
-    marginRight: 8,
+    fontSize: 20,
   },
   lockedTextWrap: {
     flex: 1,
     minWidth: 0,
   },
   lockedText: {
-    fontSize: 13,
-    color: '#000000',
+    fontSize: 15,
+    color: '#2d2d2d',
     fontWeight: '700',
+    letterSpacing: 0.5,
   },
   lockedSubtext: {
-    fontSize: 10,
-    color: 'rgba(0,0,0,0.6)',
-    fontWeight: '500',
-    marginTop: 2,
+    fontSize: 11,
+    color: 'rgba(0,0,0,0.55)',
+    fontWeight: '600',
+    marginTop: 3,
+    letterSpacing: 0.3,
   },
-  buttonGlow: {
-    shadowColor: '#00e5ff',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.9,
-    shadowRadius: 18,
+  buttonWrapper: {
+    position: 'relative',
+  },
+  buttonGlowLayer: {
+    position: 'absolute',
+    top: 4,
+    left: 8,
+    right: 8,
+    bottom: -4,
+    borderRadius: 18,
+    backgroundColor: 'transparent',
+    shadowColor: '#00cec9',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.75,
+    shadowRadius: 24,
     elevation: 14,
   },
   button: {
-    borderRadius: 18,
+    borderRadius: 16,
     overflow: 'hidden',
+    position: 'relative',
     alignSelf: 'flex-start',
-    shadowColor: '#00b8d4',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.7,
-    shadowRadius: 14,
-    elevation: 12,
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.8)',
+    shadowColor: '#00cec9',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.65,
+    shadowRadius: 20,
+    elevation: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.6)',
   },
   buttonSquare: {
     flex: 1,
@@ -663,8 +704,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
     position: 'relative',
   },
   buttonGloss: {
@@ -673,8 +714,18 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: '55%',
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+  },
+  buttonInnerBorder: {
+    position: 'absolute',
+    top: 0,
+    left: 12,
+    right: 12,
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.7)',
+    borderTopLeftRadius: 1,
+    borderTopRightRadius: 1,
   },
   buttonContent: {
     flexDirection: 'row',
@@ -685,15 +736,25 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
   },
   emojiBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(0,0,0,0.2)',
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.25)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 10,
+    marginRight: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.4)',
+    borderColor: 'rgba(255,255,255,0.45)',
+    position: 'relative',
+  },
+  emojiGlow: {
+    position: 'absolute',
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    top: 3,
+    left: 3,
   },
   emojiBadgeSquare: {
     marginRight: 0,
@@ -708,41 +769,45 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   buttonEmoji: {
-    fontSize: 18,
+    fontSize: 22,
     marginRight: 0,
-    textShadowColor: 'rgba(0,0,0,0.2)',
+    textShadowColor: 'rgba(0,0,0,0.3)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    textShadowRadius: 3,
   },
   buttonEmojiSquare: {
     marginRight: 0,
     marginBottom: 0,
-    fontSize: 22,
+    fontSize: 24,
   },
   buttonText: {
     fontSize: 13,
     fontWeight: '800',
     color: '#ffffff',
-    letterSpacing: 0.5,
-    textShadowColor: 'rgba(0,0,0,0.4)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    letterSpacing: 1.2,
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   buttonTextSquare: {
-    fontSize: 11,
+    fontSize: 10,
     textAlign: 'center',
     color: '#ffffff',
     fontWeight: '800',
+    letterSpacing: 1,
   },
   lobbyContainer: {
     paddingVertical: 12,
     alignItems: 'center',
   },
   lobbyTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '700',
     color: '#fff',
-    marginBottom: 14,
+    marginBottom: 16,
+    textShadowColor: 'rgba(0,0,0,0.15)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   spiceRow: {
     flexDirection: 'row',
@@ -753,23 +818,24 @@ const styles = StyleSheet.create({
   },
   spicePill: {
     paddingVertical: 8,
-    paddingHorizontal: 18,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
+    paddingHorizontal: 16,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.4)',
   },
   spicePillActive: {
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    borderColor: 'rgba(255,255,255,0.95)',
+    backgroundColor: '#fff',
+    borderColor: '#fff',
   },
   spicePillText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.9)',
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.95)',
   },
   spicePillTextActive: {
-    color: '#11998e',
+    color: '#00b894',
+    fontWeight: '800',
   },
   lobbyHint: {
     fontSize: 13,
@@ -778,12 +844,20 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   startButton: {
+    marginTop: 12,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#00c853',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
     borderRadius: 12,
     overflow: 'hidden',
   },
   startGradient: {
-    paddingVertical: 12,
-    paddingHorizontal: 28,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
   },
   startButtonText: {
     fontSize: 16,
@@ -807,27 +881,58 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: 24,
   },
   modalContent: {
     width: '100%',
     maxWidth: 340,
-    borderRadius: 20,
+    borderRadius: 28,
     overflow: 'hidden',
+    shadowColor: '#00cec9',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.5,
+    shadowRadius: 28,
+    elevation: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
   },
   modalGradient: {
-    padding: 24,
-    borderRadius: 20,
+    padding: 28,
+    borderRadius: 28,
+    position: 'relative',
+    alignItems: 'center',
+  },
+  modalGloss: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '40%',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+  },
+  modalHeaderBar: {
+    position: 'absolute',
+    top: 0,
+    left: '20%',
+    right: '20%',
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.5)',
+    borderRadius: 2,
+    marginTop: 12,
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: '800',
     color: '#fff',
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
+    textShadowColor: 'rgba(0,0,0,0.2)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
   },
   loadingContainer: {
     paddingVertical: 32,
@@ -847,11 +952,13 @@ const styles = StyleSheet.create({
   },
   scoreBox: {
     backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
     alignItems: 'center',
-    minWidth: 80,
+    minWidth: 84,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
   },
   scoreLabel: {
     fontSize: 11,
@@ -876,13 +983,24 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: 'rgba(255,255,255,0.8)',
   },
+  promptCard: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 20,
+    width: '100%',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
   promptText: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: '#fff',
     textAlign: 'center',
-    marginBottom: 20,
-    lineHeight: 24,
+    lineHeight: 26,
+    textShadowColor: 'rgba(0,0,0,0.15)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   answerRow: {
     flexDirection: 'row',
@@ -892,8 +1010,13 @@ const styles = StyleSheet.create({
   },
   answerButton: {
     flex: 1,
-    borderRadius: 12,
+    borderRadius: 14,
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 6,
   },
   answerGradient: {
     paddingVertical: 14,
@@ -917,7 +1040,13 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   resultsContainer: {
-    marginBottom: 12,
+    marginBottom: 16,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 16,
+    padding: 16,
+    width: '100%',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
   },
   resultRow: {
     flexDirection: 'row',
@@ -961,13 +1090,16 @@ const styles = StyleSheet.create({
   },
   gameOverContainer: {
     alignItems: 'center',
-    paddingVertical: 20,
+    paddingVertical: 24,
   },
   gameOverTitle: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: '800',
     color: '#fff',
-    marginBottom: 8,
+    marginBottom: 10,
+    textShadowColor: 'rgba(0,0,0,0.2)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
   },
   gameOverSubtitle: {
     fontSize: 14,
@@ -995,12 +1127,21 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     alignSelf: 'center',
-    marginTop: 16,
+    marginTop: 18,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+  },
+  closeButtonInner: {
     paddingVertical: 8,
+    paddingHorizontal: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
   },
   closeButtonText: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.9)',
-    fontWeight: '600',
+    fontSize: 15,
+    color: 'rgba(255,255,255,0.95)',
+    fontWeight: '700',
   },
 });

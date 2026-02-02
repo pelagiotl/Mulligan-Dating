@@ -385,7 +385,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const phoneLogin = async (phoneNumber: string, code: string, referralCode?: string) => {
-    setLoading(true);
     try {
       const data: {
         token: string;
@@ -402,6 +401,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       await AsyncStorage.setItem('token', data.token);
+      setTokenCache(data.token);
       await fetchUser();
       
       // Register for push notifications after login
@@ -418,13 +418,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       return { hasProfile: data.hasProfile };
     } catch (error) {
+      clearTokenCache();
       await AsyncStorage.removeItem('token');
       setUser(null);
       setProfile(null);
-      setLoading(false);
       throw error;
-    } finally {
-      setLoading(false);
     }
   };
 

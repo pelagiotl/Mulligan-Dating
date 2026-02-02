@@ -55,7 +55,14 @@ async function request<T = any>(endpoint: string, options: RequestInit = {}): Pr
     }
 
     if (!response.ok) {
-      throw new ApiError(response.status, data.error || `Request failed with status ${response.status}`)
+      const apiError = new ApiError(response.status, data.error || `Request failed with status ${response.status}`)
+      // Preserve additional error data (AT_MATCH_LIMIT, etc.) for error handling
+      if (data.code) (apiError as any).code = data.code
+      if (data.canExpand !== undefined) (apiError as any).canExpand = data.canExpand
+      if (data.currentLimit !== undefined) (apiError as any).currentLimit = data.currentLimit
+      if (data.newLimit !== undefined) (apiError as any).newLimit = data.newLimit
+      if (data.tokensNeeded !== undefined) (apiError as any).tokensNeeded = data.tokensNeeded
+      throw apiError
     }
 
     return data as T

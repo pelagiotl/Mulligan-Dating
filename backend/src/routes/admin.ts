@@ -163,7 +163,7 @@ adminRouter.post('/create-test-users', async (req: AuthRequest, res) => {
         const tokenId = uuidv4();
         const tokenStmt = db.prepare(`
           INSERT INTO mulligan_tokens (id, user_id, granted_at, source)
-          VALUES (?, ?, ?, 'test_account')
+          VALUES (?, ?, ?, ?)
         `);
 
         await (tokenStmt.run([tokenId, userId, now, 'test_account']) as Promise<any>);
@@ -258,7 +258,7 @@ adminRouter.post('/create-unique-test-users', authenticateToken, requireAdmin, a
 
         // Grant a token
         const tokenId = uuidv4();
-        const tokenStmt = db.prepare(`INSERT INTO mulligan_tokens (id, user_id, granted_at, source) VALUES (?, ?, ?, 'test_account')`);
+        const tokenStmt = db.prepare(`INSERT INTO mulligan_tokens (id, user_id, granted_at, source) VALUES (?, ?, ?, ?)`);
         await (tokenStmt.run([tokenId, userId, now, 'test_account']) as Promise<any>);
 
         createdUsers.push(userData.name);

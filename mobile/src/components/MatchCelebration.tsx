@@ -10,8 +10,10 @@ import {
   Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useNavigation, TabActions } from '@react-navigation/native';
+import { useNavigation, CommonActions } from '@react-navigation/native';
+import * as Haptics from 'expo-haptics';
 import { setPendingOpenMatchId } from '../utils/pendingMatchOpen';
+import { navigationRef } from '../navigation/navigationRef';
 import { getPhotoUrl } from '../utils/photoUrl';
 import { playMatchSound } from '../utils/sounds';
 
@@ -109,6 +111,7 @@ export default function MatchCelebration({
   });
 
   const scaleAnim = useRef(new Animated.Value(0)).current;
+  const slideUpAnim = useRef(new Animated.Value(SCREEN_HEIGHT * 0.25)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const word1Anim = useRef(new Animated.Value(0)).current;
   const word2Anim = useRef(new Animated.Value(0)).current;
@@ -123,28 +126,23 @@ export default function MatchCelebration({
   const buttonPulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
+    // Strong haptic on reveal - satisfying "thunk" when match card appears
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    } catch {
+      // Haptics not available (simulator, etc.)
+    }
+
     // Play match notification sound
-    // Enhanced error handling to help debug TestFlight issues
     playMatchSound().catch((error) => {
-      // Non-critical - app works without sound, but log for debugging
       console.warn('🎵 [MatchCelebration] Sound playback failed:', error?.message || error);
     });
 
-    // Trigger animations in sequence
     const timer1 = setTimeout(() => setShowContent(true), 100);
     const timer2 = setTimeout(() => setShowConfetti(true), 300);
     const timer3 = setTimeout(() => setShowButton(true), 2000);
 
-    // Animate photo scale with bounce
-    Animated.spring(photoScaleAnim, {
-      toValue: 1,
-      friction: 5,
-      tension: 50,
-      useNativeDriver: true,
-    }).start();
-
-    // Continuous photo pulse animation
-    Animated.loop(
+    const photoPulseLoop = Animated.loop(
       Animated.sequence([
         Animated.timing(photoPulseAnim, {
           toValue: 1.1,
@@ -157,10 +155,10 @@ export default function MatchCelebration({
           useNativeDriver: true,
         }),
       ])
-    ).start();
+    );
+    photoPulseLoop.start();
 
-    // Heart beat animation
-    Animated.loop(
+    const heartBeatLoop = Animated.loop(
       Animated.sequence([
         Animated.timing(heartBeatAnim, {
           toValue: 1.2,
@@ -174,99 +172,79 @@ export default function MatchCelebration({
         }),
         Animated.delay(600),
       ])
-    ).start();
+    );
+    heartBeatLoop.start();
 
-    // Glow animation removed - using static shadow values to avoid native driver conflicts
-    // Shadow animations with useNativeDriver: false can conflict with other native driver animations
+    const buttonPulseLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(buttonPulseAnim, {
+          toValue: 1.05,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(buttonPulseAnim, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+      ])
+    );
 
-    // Animate rings
-    Animated.parallel([
-      Animated.timing(ring1Anim, {
-        toValue: 1,
-        duration: 2000,
-        useNativeDriver: true,
-      }),
-      Animated.timing(ring2Anim, {
-        toValue: 1,
-        duration: 2000,
-        delay: 200,
-        useNativeDriver: true,
-      }),
-      Animated.timing(ring3Anim, {
-        toValue: 1,
-        duration: 2000,
-        delay: 400,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    // Animate container scale
-    Animated.spring(scaleAnim, {
-      toValue: 1,
-      friction: 8,
-      tension: 40,
-      useNativeDriver: true,
-    }).start();
-
-    // Animate opacity
-    Animated.timing(opacityAnim, {
-      toValue: 1,
-      duration: 500,
-      useNativeDriver: true,
-    }).start();
-
-    // Animate words with stagger and bounce
-    Animated.sequence([
-      Animated.spring(word1Anim, {
-        toValue: 1,
-        friction: 4,
-        tension: 40,
-        useNativeDriver: true,
-      }),
-      Animated.spring(word2Anim, {
-        toValue: 1,
-        friction: 4,
-        tension: 40,
-        useNativeDriver: true,
-      }),
-      Animated.spring(word3Anim, {
-        toValue: 1,
-        friction: 4,
-        tension: 40,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    // Animate button with delay
-    setTimeout(() => {
+    const timer4 = setTimeout(() => {
       Animated.spring(buttonScaleAnim, {
         toValue: 1,
         friction: 5,
         tension: 50,
         useNativeDriver: true,
       }).start();
-
-      // Continuous button pulse
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(buttonPulseAnim, {
-            toValue: 1.05,
-            duration: 800,
-            useNativeDriver: true,
-          }),
-          Animated.timing(buttonPulseAnim, {
-            toValue: 1,
-            duration: 800,
-            useNativeDriver: true,
-          }),
-        ])
-      ).start();
+      buttonPulseLoop.start();
     }, 2000);
+
+    // One-shot animations (no need to stop - they complete)
+    Animated.spring(slideUpAnim, {
+      toValue: 0,
+      friction: 8,
+      tension: 65,
+      useNativeDriver: true,
+    }).start();
+    Animated.spring(photoScaleAnim, {
+      toValue: 1,
+      friction: 5,
+      tension: 50,
+      useNativeDriver: true,
+    }).start();
+    Animated.parallel([
+      Animated.timing(ring1Anim, { toValue: 1, duration: 2000, useNativeDriver: true }),
+      Animated.timing(ring2Anim, { toValue: 1, duration: 2000, delay: 200, useNativeDriver: true }),
+      Animated.timing(ring3Anim, { toValue: 1, duration: 2000, delay: 400, useNativeDriver: true }),
+    ]).start();
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      friction: 8,
+      tension: 40,
+      useNativeDriver: true,
+    }).start();
+    Animated.timing(opacityAnim, {
+      toValue: 1,
+      duration: 500,
+      useNativeDriver: true,
+    }).start();
+    Animated.sequence([
+      Animated.spring(word1Anim, { toValue: 1, friction: 4, tension: 40, useNativeDriver: true }),
+      Animated.delay(180),
+      Animated.spring(word2Anim, { toValue: 1, friction: 4, tension: 40, useNativeDriver: true }),
+      Animated.delay(180),
+      Animated.spring(word3Anim, { toValue: 1, friction: 4, tension: 40, useNativeDriver: true }),
+    ]).start();
 
     return () => {
       clearTimeout(timer1);
       clearTimeout(timer2);
       clearTimeout(timer3);
+      clearTimeout(timer4);
+      photoPulseLoop.stop();
+      heartBeatLoop.stop();
+      buttonPulseLoop.stop();
     };
   }, []);
 
@@ -275,10 +253,28 @@ export default function MatchCelebration({
     try {
       if (idToOpen) {
         setPendingOpenMatchId(idToOpen);
-        const jumpToAction = TabActions.jumpTo('Matches', { matchId: idToOpen });
-        navigation.dispatch(jumpToAction);
+        // Navigate to Matches tab with matchId - use root nav for reliable tab + params
+        if (navigationRef.current?.isReady()) {
+          navigationRef.current.dispatch(
+            CommonActions.navigate({
+              name: 'MainTabs',
+              params: {
+                screen: 'Matches',
+                params: { matchId: idToOpen },
+              },
+            })
+          );
+        } else {
+          navigation.navigate('Matches' as never, { matchId: idToOpen } as never);
+        }
       } else {
-        navigation.navigate('Matches' as never);
+        if (navigationRef.current?.isReady()) {
+          navigationRef.current.dispatch(
+            CommonActions.navigate({ name: 'MainTabs', params: { screen: 'Matches' } })
+          );
+        } else {
+          navigation.navigate('Matches' as never);
+        }
       }
       onClose();
     } catch (error) {
@@ -348,7 +344,8 @@ export default function MatchCelebration({
       <View style={styles.overlay}>
         {/* Beautiful gradient background */}
         <LinearGradient
-          colors={['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe']}
+          colors={['#667eea', '#764ba2', '#ff0080', '#f5576c', '#4facfe']}
+          locations={[0, 0.25, 0.5, 0.75, 1]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={StyleSheet.absoluteFill}
@@ -368,7 +365,10 @@ export default function MatchCelebration({
           style={[
             styles.container,
             {
-              transform: [{ scale: scaleAnim }],
+              transform: [
+                { translateY: slideUpAnim },
+                { scale: scaleAnim },
+              ],
               opacity: opacityAnim,
               shadowOpacity: 0.5,
               shadowRadius: 25,
@@ -518,7 +518,8 @@ export default function MatchCelebration({
                     activeOpacity={0.8}
                   >
                     <LinearGradient
-                      colors={['#f5576c', '#f093fb', '#667eea']}
+                      colors={['#ff0080', '#ff3399', '#cc0066', '#ff66b2']}
+                      locations={[0, 0.3, 0.7, 1]}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                       style={styles.buttonGradient}
@@ -527,6 +528,15 @@ export default function MatchCelebration({
                     </LinearGradient>
                   </TouchableOpacity>
                 </Animated.View>
+                
+                {/* Keep Browsing button */}
+                <TouchableOpacity
+                  style={styles.secondaryButton}
+                  onPress={onClose}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.secondaryButtonText}>Keep Browsing 💫</Text>
+                </TouchableOpacity>
               </Animated.View>
             )}
           </View>
@@ -542,27 +552,35 @@ export default function MatchCelebration({
   );
 }
 
-// Separate component for floating hearts
-function FloatingHeartsComponent() {
-  const hearts = Array.from({ length: 8 }).map((_, i) => {
-    const startX = Math.random() * SCREEN_WIDTH;
-    const startY = SCREEN_HEIGHT + 20;
-    const endY = -50;
-    const translateX = useRef(new Animated.Value(0)).current;
-    const translateY = useRef(new Animated.Value(0)).current;
-    const opacity = useRef(new Animated.Value(0)).current;
-    const scale = useRef(new Animated.Value(0.5)).current;
-    const rotate = useRef(new Animated.Value(0)).current;
+// Individual floating heart with its own looping animation
+function FloatingHeart({ index }: { index: number }) {
+  const startX = useRef(Math.random() * SCREEN_WIDTH).current;
+  const startY = SCREEN_HEIGHT + 20;
+  const endY = -50;
+  const translateX = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(0)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+  const scale = useRef(new Animated.Value(0.5)).current;
+  const rotate = useRef(new Animated.Value(0)).current;
+  const horizontalMovement = useRef((Math.random() - 0.5) * 100).current;
+  const animationRef = useRef<Animated.CompositeAnimation | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    useEffect(() => {
-      const delay = i * 300;
-      const duration = 3000 + Math.random() * 2000;
-      const horizontalMovement = (Math.random() - 0.5) * 100;
+  useEffect(() => {
+    let mounted = true;
+    const delay = index * 400;
+    const duration = 3500 + Math.random() * 1500;
 
-      // Single animation - no looping to avoid native driver conflicts
-      // Each heart animates once and stays at final position
-      Animated.sequence([
-        Animated.delay(delay),
+    const runAnimation = () => {
+      if (!mounted) return;
+
+      translateX.setValue(0);
+      translateY.setValue(0);
+      opacity.setValue(0);
+      scale.setValue(0.5);
+      rotate.setValue(0);
+
+      const seq = Animated.sequence([
         Animated.parallel([
           Animated.timing(opacity, {
             toValue: 1,
@@ -595,42 +613,65 @@ function FloatingHeartsComponent() {
         ]),
         Animated.timing(opacity, {
           toValue: 0,
-          duration: 500,
+          duration: 400,
           useNativeDriver: true,
         }),
-      ]).start();
-    }, []);
+      ]);
+      animationRef.current = seq;
+      seq.start(({ finished }) => {
+        animationRef.current = null;
+        if (finished && mounted) runAnimation();
+      });
+    };
 
-    const rotation = rotate.interpolate({
-      inputRange: [0, 1],
-      outputRange: ['0deg', '360deg'],
-    });
+    timeoutRef.current = setTimeout(runAnimation, delay);
 
-    return { startX, startY, translateX, translateY, opacity, scale, rotation, key: i };
+    return () => {
+      mounted = false;
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      if (animationRef.current) {
+        animationRef.current.stop();
+        animationRef.current = null;
+      }
+    };
+  }, []);
+
+  const rotation = rotate.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
   });
 
   return (
+    <Animated.View
+      style={[
+        styles.floatingHeart,
+        {
+          left: startX,
+          top: startY,
+          transform: [
+            { translateX },
+            { translateY },
+            { scale },
+            { rotate: rotation },
+          ],
+          opacity,
+        },
+      ]}
+    >
+      <Text style={styles.heartEmoji}>💖</Text>
+    </Animated.View>
+  );
+}
+
+// Separate component for floating hearts - renders individual hearts that loop continuously
+function FloatingHeartsComponent() {
+  return (
     <View style={styles.floatingHeartsContainer} pointerEvents="none">
-      {hearts.map((heart) => (
-        <Animated.View
-          key={heart.key}
-          style={[
-            styles.floatingHeart,
-            {
-              left: heart.startX,
-              top: heart.startY,
-              transform: [
-                { translateX: heart.translateX },
-                { translateY: heart.translateY },
-                { scale: heart.scale },
-                { rotate: heart.rotation },
-              ],
-              opacity: heart.opacity,
-            },
-          ]}
-        >
-          <Text style={styles.heartEmoji}>💖</Text>
-        </Animated.View>
+      {Array.from({ length: 10 }).map((_, i) => (
+        <FloatingHeart key={i} index={i} />
       ))}
     </View>
   );
@@ -776,17 +817,17 @@ const styles = StyleSheet.create({
   },
   container: {
     backgroundColor: '#fff',
-    borderRadius: 40,
-    padding: 48,
+    borderRadius: 36,
+    padding: 40,
     alignItems: 'center',
     maxWidth: '90%',
-    borderWidth: 3,
-    borderColor: 'rgba(245, 87, 108, 0.2)',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.8)',
     shadowColor: '#f5576c',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.4,
-    shadowRadius: 24,
-    elevation: 20,
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.5,
+    shadowRadius: 32,
+    elevation: 24,
   },
   photoContainer: {
     position: 'relative',
@@ -798,12 +839,12 @@ const styles = StyleSheet.create({
     position: 'absolute',
     borderRadius: 100,
     borderWidth: 4,
-    borderColor: '#f093fb',
-    shadowColor: '#f093fb',
+    borderColor: '#ff8fab',
+    shadowColor: '#ff8fab',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowOpacity: 0.6,
+    shadowRadius: 12,
+    elevation: 10,
   },
   ring1: {
     width: 140,
@@ -828,11 +869,11 @@ const styles = StyleSheet.create({
     borderWidth: 5,
     borderColor: '#fff',
     zIndex: 10,
-    shadowColor: '#f5576c',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.6,
-    shadowRadius: 16,
-    elevation: 12,
+    shadowColor: '#ff0080',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 14,
   },
   photo: {
     width: '100%',
@@ -841,7 +882,7 @@ const styles = StyleSheet.create({
   photoPlaceholder: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#f5576c',
+    backgroundColor: '#ff0080',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -869,11 +910,11 @@ const styles = StyleSheet.create({
     textShadowRadius: 4,
   },
   titleWordMatch: {
-    color: '#f093fb',
+    color: '#ff0080',
     fontSize: 48,
-    textShadowColor: 'rgba(240, 147, 251, 0.5)',
+    textShadowColor: 'rgba(255, 0, 128, 0.5)',
     textShadowOffset: { width: 0, height: 4 },
-    textShadowRadius: 8,
+    textShadowRadius: 10,
   },
   subtitleContainer: {
     marginBottom: 12,
@@ -888,7 +929,7 @@ const styles = StyleSheet.create({
   },
   bold: {
     fontWeight: '800',
-    color: '#f5576c',
+    color: '#ff0080',
     fontSize: 22,
   },
   messageContainer: {
@@ -897,25 +938,25 @@ const styles = StyleSheet.create({
   },
   message: {
     fontSize: 18,
-    color: '#f5576c',
+    color: '#ff0080',
     textAlign: 'center',
     fontWeight: '700',
     letterSpacing: 0.2,
   },
   explanationContainer: {
-    backgroundColor: '#f8f9fa',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: 'rgba(255, 0, 128, 0.06)',
+    borderRadius: 16,
+    padding: 18,
     marginVertical: 16,
     marginHorizontal: 8,
     borderWidth: 1,
-    borderColor: '#e9ecef',
+    borderColor: 'rgba(255, 0, 128, 0.2)',
     maxWidth: '90%',
   },
   explanationTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#f5576c',
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#ff0080',
     marginBottom: 12,
     textAlign: 'center',
   },
@@ -936,18 +977,18 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   button: {
-    borderRadius: 20,
+    borderRadius: 24,
     marginTop: 8,
     overflow: 'hidden',
-    shadowColor: '#f5576c',
-    shadowOffset: { width: 0, height: 8 },
+    shadowColor: '#ff0080',
+    shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.5,
-    shadowRadius: 16,
-    elevation: 12,
+    shadowRadius: 20,
+    elevation: 14,
   },
   buttonGradient: {
-    paddingHorizontal: 40,
-    paddingVertical: 18,
+    paddingHorizontal: 44,
+    paddingVertical: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -959,6 +1000,28 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.2)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
+  },
+  secondaryButton: {
+    marginTop: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderWidth: 2,
+    borderColor: '#ff0080',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#ff0080',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  secondaryButtonText: {
+    color: '#ff0080',
+    fontSize: 17,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   sparklesContainer: {
     position: 'absolute',

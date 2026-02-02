@@ -404,7 +404,9 @@ export default function TruthOrDare({
           activeOpacity={0.7}
           style={[styles.lockedCard, square && styles.lockedCardSquare]}
         >
-          <Animated.Text style={[styles.lockedEmoji, { transform: [{ scale: emojiScale }, { rotate: diceRotateInterp }] }]}>🎲</Animated.Text>
+          <View style={styles.lockedEmojiWrap}>
+            <Animated.Text style={[styles.lockedEmoji, { transform: [{ scale: emojiScale }, { rotate: diceRotateInterp }] }]}>🎲</Animated.Text>
+          </View>
           <View style={styles.lockedTextWrap}>
             <Text style={styles.lockedText}>Truth or Dare</Text>
             <Text style={styles.lockedSubtext}>Tap to see how to unlock</Text>
@@ -417,27 +419,30 @@ export default function TruthOrDare({
   return (
     <>
       <View style={[styles.container, compact && styles.containerCompact, square && styles.containerSquare]}>
-        <Animated.View style={[styles.buttonGlow, square && styles.buttonSquare, { transform: [{ scale: pulseAnim }] }]}>
-          <TouchableOpacity onPress={handleOpen} activeOpacity={0.85} style={[styles.button, square && styles.buttonSquare]}>
+        <Animated.View style={[styles.buttonWrapper, square && styles.buttonSquare, { transform: [{ scale: pulseAnim }] }]}>
+          <View style={styles.buttonGlowLayer} />
+          <TouchableOpacity onPress={handleOpen} activeOpacity={0.9} style={[styles.button, square && styles.buttonSquare]}>
             <LinearGradient
-              colors={['#ff006e', '#ff4081', '#ff6d00', '#ffab40', '#ff006e']}
+              colors={['#ff0080', '#ff3399', '#ff66b2', '#cc0066', '#ff0080']}
               locations={[0, 0.25, 0.5, 0.75, 1]}
               style={[styles.buttonGradient, square && styles.buttonGradientSquare]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             >
               <LinearGradient
-                colors={['rgba(255,255,255,0.5)', 'rgba(255,255,255,0.15)', 'transparent']}
-                locations={[0, 0.35, 0.7]}
+                colors={['rgba(255,255,255,0.55)', 'rgba(255,255,255,0.15)', 'transparent']}
+                locations={[0, 0.35, 0.8]}
                 style={styles.buttonGloss}
                 start={{ x: 0.5, y: 0 }}
                 end={{ x: 0.5, y: 1 }}
               />
+              <View style={styles.buttonInnerBorder} />
               <View style={[styles.buttonContent, square && styles.buttonContentSquare]}>
                 <View style={[styles.emojiBadge, square && styles.emojiBadgeSquare]}>
+                  <View style={styles.emojiGlow} />
                   <Animated.Text style={[styles.buttonEmoji, square && styles.buttonEmojiSquare, { transform: [{ scale: emojiScale }, { rotate: diceRotateInterp }] }]}>🎲</Animated.Text>
                 </View>
-                <Text style={[styles.buttonText, square && styles.buttonTextSquare]}>Truth or Dare</Text>
+                <Text style={[styles.buttonText, square && styles.buttonTextSquare]}>TRUTH OR DARE</Text>
               </View>
             </LinearGradient>
           </TouchableOpacity>
@@ -447,7 +452,7 @@ export default function TruthOrDare({
       <Modal
         visible={modalVisible}
         transparent
-        animationType="fade"
+        animationType="slide"
         onRequestClose={handleClose}
       >
         <TouchableOpacity
@@ -461,11 +466,20 @@ export default function TruthOrDare({
             style={styles.modalContent}
           >
             <LinearGradient
-              colors={['#f093fb', '#f5576c', '#667eea']}
+              colors={['#ff0080', '#ff3399', '#cc0066', '#ff66b2', '#ff0080']}
+              locations={[0, 0.2, 0.5, 0.8, 1]}
               style={styles.modalGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             >
+              <LinearGradient
+                colors={['rgba(255,255,255,0.2)', 'transparent', 'transparent']}
+                locations={[0, 0.3, 1]}
+                style={styles.modalGloss}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+              />
+              <View style={styles.modalHeaderBar} />
               <Text style={styles.modalTitle}>
                 {step === 'lobby' ? '🎲 Truth or Dare' : step === 'choose' ? 'Pick One' : promptType === 'truth' ? '✨ Truth' : '🔥 Dare'}
               </Text>
@@ -535,7 +549,7 @@ export default function TruthOrDare({
                     activeOpacity={0.8}
                   >
                     <LinearGradient
-                      colors={['#667eea', '#764ba2']}
+                      colors={['#7c4dff', '#b388ff', '#651fff']}
                       style={styles.choiceGradient}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
@@ -550,7 +564,7 @@ export default function TruthOrDare({
                     activeOpacity={0.8}
                   >
                     <LinearGradient
-                      colors={['#f5576c', '#f093fb']}
+                      colors={['#ff1744', '#ff4081', '#f50057']}
                       style={styles.choiceGradient}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
@@ -575,7 +589,9 @@ export default function TruthOrDare({
                           {spiceLevel === 'spicy' ? 'Spicy' : spiceLevel === 'ratedr' ? 'Rated R' : 'PG-13'}
                         </Text>
                       </View>
-                      <Text style={styles.promptText}>{prompt}</Text>
+                      <View style={styles.promptCard}>
+                        <Text style={styles.promptText}>{prompt}</Text>
+                      </View>
                     </>
                   )}
                   <View style={styles.promptActions}>
@@ -586,12 +602,12 @@ export default function TruthOrDare({
                         activeOpacity={0.8}
                       >
                         <LinearGradient
-                          colors={['#667eea', '#764ba2']}
+                          colors={['#7c4dff', '#651fff']}
                           style={styles.sendButtonGradient}
                           start={{ x: 0, y: 0 }}
                           end={{ x: 1, y: 1 }}
                         >
-                          <Text style={styles.sendButtonText}>Send to Chat</Text>
+                          <Text style={styles.sendButtonText}>Send to Chat 💬</Text>
                         </LinearGradient>
                       </TouchableOpacity>
                     )}
@@ -601,15 +617,17 @@ export default function TruthOrDare({
                         style={styles.anotherButton}
                         activeOpacity={0.8}
                       >
-                        <Text style={styles.anotherButtonText}>Another one</Text>
+                        <Text style={styles.anotherButtonText}>Another one ↻</Text>
                       </TouchableOpacity>
                     )}
                   </View>
                 </>
               )}
 
-              <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-                <Text style={styles.closeButtonText}>Close</Text>
+              <TouchableOpacity onPress={handleClose} style={styles.closeButton} activeOpacity={0.8}>
+                <View style={styles.closeButtonInner}>
+                  <Text style={styles.closeButtonText}>Close</Text>
+                </View>
               </TouchableOpacity>
             </LinearGradient>
           </TouchableOpacity>
@@ -636,17 +654,17 @@ const styles = StyleSheet.create({
   lockedCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ff8fab',
+    backgroundColor: 'rgba(255, 0, 128, 0.15)',
     borderRadius: 16,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderWidth: 2,
-    borderColor: '#ff006e',
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 0, 128, 0.45)',
     minWidth: 140,
-    shadowColor: '#ff006e',
+    shadowColor: '#ff0080',
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
     elevation: 6,
   },
   lockedCardSquare: {
@@ -654,42 +672,65 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minWidth: 0,
   },
+  lockedEmojiWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 0, 128, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 0, 128, 0.4)',
+  },
   lockedEmoji: {
-    fontSize: 18,
-    marginRight: 8,
+    fontSize: 20,
   },
   lockedTextWrap: {
     flex: 1,
     minWidth: 0,
   },
   lockedText: {
-    fontSize: 13,
-    color: '#000000',
+    fontSize: 15,
+    color: '#2d2d2d',
     fontWeight: '700',
+    letterSpacing: 0.5,
   },
   lockedSubtext: {
-    fontSize: 10,
-    color: 'rgba(0,0,0,0.6)',
-    fontWeight: '500',
-    marginTop: 2,
+    fontSize: 11,
+    color: 'rgba(0,0,0,0.55)',
+    fontWeight: '600',
+    marginTop: 3,
+    letterSpacing: 0.3,
+  },
+  buttonWrapper: {
+    position: 'relative',
+  },
+  buttonGlowLayer: {
+    position: 'absolute',
+    top: 4,
+    left: 8,
+    right: 8,
+    bottom: -4,
+    borderRadius: 18,
+    backgroundColor: 'transparent',
+    shadowColor: '#ff0080',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.75,
+    shadowRadius: 24,
+    elevation: 14,
   },
   button: {
-    borderRadius: 18,
+    borderRadius: 16,
     overflow: 'hidden',
-    shadowColor: '#ff006e',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.7,
-    shadowRadius: 14,
-    elevation: 12,
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.8)',
-  },
-  buttonGlow: {
-    shadowColor: '#ff4081',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.9,
-    shadowRadius: 18,
-    elevation: 14,
+    position: 'relative',
+    shadowColor: '#ff0080',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.65,
+    shadowRadius: 20,
+    elevation: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.6)',
   },
   buttonSquare: {
     flex: 1,
@@ -699,8 +740,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
     position: 'relative',
   },
   buttonGloss: {
@@ -709,8 +750,18 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: '55%',
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+  },
+  buttonInnerBorder: {
+    position: 'absolute',
+    top: 0,
+    left: 12,
+    right: 12,
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.7)',
+    borderTopLeftRadius: 1,
+    borderTopRightRadius: 1,
   },
   buttonContent: {
     flexDirection: 'row',
@@ -721,15 +772,25 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
   },
   emojiBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(0,0,0,0.2)',
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.25)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 10,
+    marginRight: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.4)',
+    borderColor: 'rgba(255,255,255,0.45)',
+    position: 'relative',
+  },
+  emojiGlow: {
+    position: 'absolute',
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    top: 3,
+    left: 3,
   },
   emojiBadgeSquare: {
     marginRight: 0,
@@ -744,35 +805,36 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   buttonEmoji: {
-    fontSize: 20,
+    fontSize: 22,
     marginRight: 0,
-    textShadowColor: 'rgba(0,0,0,0.2)',
+    textShadowColor: 'rgba(0,0,0,0.3)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    textShadowRadius: 3,
   },
   buttonEmojiSquare: {
     marginRight: 0,
     marginBottom: 0,
-    fontSize: 22,
+    fontSize: 24,
   },
   buttonText: {
     fontSize: 14,
     fontWeight: '800',
     color: '#ffffff',
-    letterSpacing: 0.5,
-    textShadowColor: 'rgba(0,0,0,0.4)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    letterSpacing: 1.2,
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   buttonTextSquare: {
-    fontSize: 11,
+    fontSize: 10,
     textAlign: 'center',
     color: '#ffffff',
     fontWeight: '800',
+    letterSpacing: 1,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
@@ -780,20 +842,50 @@ const styles = StyleSheet.create({
   modalContent: {
     width: '100%',
     maxWidth: 340,
-    borderRadius: 24,
+    borderRadius: 28,
     overflow: 'hidden',
+    shadowColor: '#ff0080',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.5,
+    shadowRadius: 28,
+    elevation: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
   },
   modalGradient: {
-    padding: 24,
-    borderRadius: 24,
+    padding: 28,
+    borderRadius: 28,
     alignItems: 'center',
+    position: 'relative',
+  },
+  modalGloss: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '40%',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+  },
+  modalHeaderBar: {
+    position: 'absolute',
+    top: 0,
+    left: '20%',
+    right: '20%',
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.5)',
+    borderRadius: 2,
+    marginTop: 12,
   },
   modalTitle: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '800',
     color: '#fff',
-    marginBottom: 20,
-    letterSpacing: 0.5,
+    marginBottom: 22,
+    letterSpacing: 0.6,
+    textShadowColor: 'rgba(0,0,0,0.2)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
   },
   chooseRow: {
     flexDirection: 'row',
@@ -802,13 +894,15 @@ const styles = StyleSheet.create({
   },
   choiceButton: {
     flex: 1,
-    borderRadius: 16,
+    borderRadius: 18,
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.4)',
   },
   choiceGradient: {
     paddingVertical: 24,
@@ -871,24 +965,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   spicePill: {
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.4)',
   },
   spicePillActive: {
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    borderColor: 'rgba(255,255,255,0.95)',
+    backgroundColor: '#fff',
+    borderColor: '#fff',
   },
   spicePillText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.9)',
+    fontSize: 14,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.95)',
   },
   spicePillTextActive: {
-    color: '#f5576c',
+    color: '#ff0080',
+    fontWeight: '800',
   },
   promptSpiceBadge: {
     alignSelf: 'center',
@@ -916,50 +1011,73 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontWeight: '500',
   },
+  promptCard: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 20,
+    width: '100%',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
   promptText: {
-    fontSize: 18,
+    fontSize: 19,
     fontWeight: '600',
     color: '#fff',
     textAlign: 'center',
-    lineHeight: 26,
-    marginBottom: 20,
-    paddingHorizontal: 8,
+    lineHeight: 28,
+    textShadowColor: 'rgba(0,0,0,0.15)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   promptActions: {
     width: '100%',
-    gap: 12,
-    marginBottom: 16,
+    gap: 14,
+    marginBottom: 18,
   },
   sendButton: {
-    borderRadius: 14,
+    borderRadius: 18,
     overflow: 'hidden',
+    shadowColor: '#651fff',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 6,
   },
   sendButtonGradient: {
-    paddingVertical: 14,
+    paddingVertical: 16,
     alignItems: 'center',
   },
   sendButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '800',
     color: '#fff',
   },
   anotherButton: {
-    paddingVertical: 10,
+    paddingVertical: 12,
     alignItems: 'center',
   },
   anotherButtonText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.9)',
-    textDecorationLine: 'underline',
+    color: 'rgba(255,255,255,0.95)',
   },
   closeButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    marginTop: 4,
+  },
+  closeButtonInner: {
     paddingVertical: 8,
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
   },
   closeButtonText: {
     fontSize: 15,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.8)',
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.95)',
   },
 });

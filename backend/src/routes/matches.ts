@@ -378,13 +378,13 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
       ? await existingMatchResult
       : existingMatchResult) as MatchRow | undefined;
 
-    // Only block if there's an active (non-expired) match
-    // Users can still match again if the previous match expired
+    // Already matched: return success with existing matchId so app can open the conversation (no token consumed)
     if (existingMatch && existingMatch.stage !== 'expired') {
-      return res.status(400).json({ 
-        error: "Already matched with this user",
+      return res.status(200).json({
         matchId: existingMatch.id,
-        note: "You can chat with them in your Matches section"
+        existingMatch: true,
+        message: "You're already connected!",
+        stage: existingMatch.stage || 'stage1',
       });
     }
 

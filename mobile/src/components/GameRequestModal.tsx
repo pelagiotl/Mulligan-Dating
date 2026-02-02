@@ -75,11 +75,21 @@ export default function GameRequestModal({
           style={styles.card}
         >
           <LinearGradient
-            colors={request.gameType === 'truth_or_dare' ? ['#ff006e', '#ff4081', '#667eea'] : ['#00e676', '#00b8d4', '#667eea']}
+            colors={request.gameType === 'truth_or_dare'
+              ? ['#ff0080', '#ff3399', '#cc0066', '#ff66b2']
+              : ['#00b894', '#00cec9', '#55efc4', '#00cec9']}
+            locations={[0, 0.3, 0.7, 1]}
             style={styles.gradient}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
           >
+            <LinearGradient
+              colors={['rgba(255,255,255,0.25)', 'transparent']}
+              locations={[0, 0.5]}
+              style={styles.gradientGloss}
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
+            />
             <Text style={styles.emoji}>{emoji}</Text>
             <Text style={styles.title}>Game Invite</Text>
             <Text style={styles.body}>
@@ -95,7 +105,7 @@ export default function GameRequestModal({
                   activeOpacity={0.8}
                 >
                   <LinearGradient
-                    colors={['#00c853', '#00e676']}
+                    colors={['#00e676', '#00c853', '#00b386']}
                     style={styles.acceptGradient}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
@@ -125,7 +135,7 @@ export default function GameRequestModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
@@ -133,27 +143,43 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: 320,
-    borderRadius: 24,
+    borderRadius: 28,
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 12,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.4,
+    shadowRadius: 24,
+    elevation: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
   },
   gradient: {
-    padding: 28,
+    padding: 32,
     alignItems: 'center',
+    position: 'relative',
+  },
+  gradientGloss: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '45%',
   },
   emoji: {
-    fontSize: 48,
-    marginBottom: 12,
+    fontSize: 52,
+    marginBottom: 14,
+    textShadowColor: 'rgba(0,0,0,0.2)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   title: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '800',
     color: '#fff',
-    marginBottom: 8,
+    marginBottom: 10,
+    textShadowColor: 'rgba(0,0,0,0.2)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   body: {
     fontSize: 16,
@@ -172,11 +198,16 @@ const styles = StyleSheet.create({
   },
   acceptButton: {
     flex: 1,
-    borderRadius: 14,
+    borderRadius: 16,
     overflow: 'hidden',
+    shadowColor: '#00c853',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
   },
   acceptGradient: {
-    paddingVertical: 14,
+    paddingVertical: 16,
     alignItems: 'center',
   },
   acceptText: {
@@ -186,12 +217,12 @@ const styles = StyleSheet.create({
   },
   declineButton: {
     flex: 1,
-    paddingVertical: 14,
+    paddingVertical: 16,
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.4)',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.5)',
   },
   declineText: {
     fontSize: 16,
