@@ -20,7 +20,7 @@ import Svg, { G, Path, Circle, Defs, LinearGradient as SvgLinearGradient, Stop, 
 import { useNavigation, useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { io, Socket } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { api, prefetchToken, clearTokenCache } from '../utils/api';
+import { api, prefetchToken, ensureTokenPrefetched, clearTokenCache } from '../utils/api';
 import { getPhotoUrl } from '../utils/photoUrl';
 import { useAuth } from '../context/AuthContext';
 import TokenDisplay from '../components/TokenDisplay';
@@ -775,7 +775,6 @@ export default function BrowseScreen() {
   
   // Connect button animations
   const connectButtonPulse = useRef(new Animated.Value(1)).current;
-  const connectButtonGlow = useRef(new Animated.Value(0.5)).current;
   const connectButtonShimmer = useRef(new Animated.Value(0)).current;
   const connectButtonScale = useRef(new Animated.Value(1)).current;
   const connectSpinnerOpacity = useRef(new Animated.Value(0)).current;
@@ -806,6 +805,7 @@ export default function BrowseScreen() {
   const [error, setError] = useState('');
   const [connecting, setConnecting] = useState(false);
   const connectPressOutTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const connectRequestedRef = useRef(false);
   const [showMatchCelebration, setShowMatchCelebration] = useState(false);
   const [showNoTokensModal, setShowNoTokensModal] = useState(false);
   const [matchedProfile, setMatchedProfile] = useState<Profile | null>(null);
@@ -841,6 +841,7 @@ export default function BrowseScreen() {
 
   useEffect(() => {
     if (!connecting) {
+      connectRequestedRef.current = false;
       connectSpinnerOpacity.setValue(0);
       connectTextOpacity.setValue(1);
       connectOverlayOpacity.setValue(0);
@@ -850,6 +851,11 @@ export default function BrowseScreen() {
   useEffect(() => {
     if (isAuthenticated) prefetchToken();
   }, [isAuthenticated]);
+
+  // Prefetch token as soon as a profile is shown (before user taps Connect) — eliminates AsyncStorage read delay
+  useEffect(() => {
+    if (currentProfile && isAuthenticated) ensureTokenPrefetched();
+  }, [currentProfile, isAuthenticated]);
 
   const checkCanClaimTokens = async () => {
     try {
@@ -1220,18 +1226,18 @@ export default function BrowseScreen() {
           }),
         ]).start();
         
-        // Continuous glow pulse
+        // Continuous glow pulse — use native driver so it doesn't block touch
         Animated.loop(
           Animated.sequence([
             Animated.timing(profileCardGlow, {
               toValue: 1.15,
               duration: 2000,
-              useNativeDriver: false,
+              useNativeDriver: true,
             }),
             Animated.timing(profileCardGlow, {
               toValue: 1,
               duration: 2000,
-              useNativeDriver: false,
+              useNativeDriver: true,
             }),
           ])
         ).start();
@@ -1268,21 +1274,8 @@ export default function BrowseScreen() {
           ])
         ).start();
         
-        // Connect button glow
-        Animated.loop(
-          Animated.sequence([
-            Animated.timing(connectButtonGlow, {
-              toValue: 0.8,
-              duration: 2000,
-              useNativeDriver: false,
-            }),
-            Animated.timing(connectButtonGlow, {
-              toValue: 0.5,
-              duration: 2000,
-              useNativeDriver: false,
-            }),
-          ])
-        ).start();
+        // Connect button glow removed — was useNativeDriver: false and blocked touch response
+        // Static shadow in styles instead.
         
         // Connect button shimmer
         Animated.loop(
@@ -1319,18 +1312,18 @@ export default function BrowseScreen() {
           }),
         ]).start();
         
-        // Header gradient animation
+        // Header gradient animation — use native driver so it doesn't block touch
         Animated.loop(
           Animated.sequence([
             Animated.timing(headerGradientPos, {
               toValue: 1,
               duration: 8000,
-              useNativeDriver: false,
+              useNativeDriver: true,
             }),
             Animated.timing(headerGradientPos, {
               toValue: 0,
               duration: 8000,
-              useNativeDriver: false,
+              useNativeDriver: true,
             }),
           ])
         ).start();
@@ -1395,6 +1388,7 @@ export default function BrowseScreen() {
       setLoading(false);
       setPhotoCount(null);
       checkCanClaimTokens();
+      prefetchToken();
     }, [])
   );
 
@@ -1557,140 +1551,123 @@ export default function BrowseScreen() {
     }
   }, [showLandingPage, unlocking]);
 
-  const handleConnect = useCallback(async (profile: Profile, expandSlot?: boolean) => {
+  const handleConnect = useCallback((profile: Profile, expandSlot?: boolean) => {
     setError('');
-    try {
-      const result = await api.post<{
-        message: string;
-        isMutual: boolean;
-        matchId: string;
-        stage: string;
-        explanation?: {
-          reasons: string[];
-          sharedInterests: string[];
-          sharedValues: number;
-        } | null;
-      }>('/matches/connect', { targetUserId: profile.userId, expandSlot: expandSlot || false });
+    // Optimistic UI: show celebration immediately so Connect feels instant; confirm in background
+    setCurrentProfile(null);
+    setMatchedProfile(profile);
+    setMatchId(null);
+    setMatchExplanation(null);
+    setShowMatchCelebration(true);
+    connectRequestedRef.current = false;
+    connectSpinnerOpacity.setValue(0);
+    connectTextOpacity.setValue(1);
+    connectOverlayOpacity.setValue(0);
+    setConnecting(false);
 
-      // Success! Automatically show match celebration
-      
-      // Clear the current profile immediately so it doesn't show behind the celebration
-      setCurrentProfile(null);
-      
-      // Validate required data before setting state
-      if (!profile || !result.matchId) {
-        console.error('❌ Invalid match data:', { profile, matchId: result.matchId });
-        throw new Error('Invalid match response from server');
-      }
-      
-      // Set matched profile, match ID, and explanation first, then show celebration
-      // This ensures both states are set before React re-renders
-      try {
-        setMatchedProfile(profile);
-        setMatchId(result.matchId);
-        setMatchExplanation(result.explanation || null);
-        
-        // Show celebration immediately - no delay needed
-        // React will batch the state updates efficiently
-        try {
-          setShowMatchCelebration(true);
-          console.log('🎉 Celebration state set - showMatchCelebration: true, matchedProfile:', profile?.displayName, 'matchId:', result.matchId);
-        } catch (celebrationError) {
-          console.error('❌ Error setting celebration state:', celebrationError);
-          // Fallback: show error but don't crash
-          Alert.alert('Match Created!', 'You matched with ' + (profile?.displayName || 'someone') + '! Check your matches to start chatting.');
-          setConnecting(false);
+    type ConnectResult = {
+      message: string;
+      isMutual: boolean;
+      matchId: string;
+      stage: string;
+      explanation?: { reasons: string[]; sharedInterests: string[]; sharedValues: number } | null;
+    };
+
+    api
+      .post<ConnectResult>('/matches/connect', { targetUserId: profile.userId, expandSlot: expandSlot || false })
+      .then((result) => {
+        if (result?.matchId) {
+          setMatchId(result.matchId);
+          setMatchExplanation(result.explanation ?? null);
         }
-      } catch (stateError) {
-        console.error('❌ Error setting match state:', stateError);
-        // Fallback: show success message even if state setting fails
-        Alert.alert('Match Created!', 'You matched with ' + (profile?.displayName || 'someone') + '! Check your matches to start chatting.');
+      })
+      .catch((err: any) => {
+        // Rollback optimistic state so user can retry
+        setShowMatchCelebration(false);
+        setMatchedProfile(null);
+        setMatchId(null);
+        setMatchExplanation(null);
+        setCurrentProfile(profile);
         setConnecting(false);
-        return;
-      }
-      
-      setConnecting(false);
-    } catch (err: any) {
-      console.error('❌ Connect error:', err);
-      let errorMessage = 'Failed to connect. Please try again.';
-      let isTokenError = false;
+        connectRequestedRef.current = false;
+        connectSpinnerOpacity.setValue(0);
+        connectTextOpacity.setValue(1);
+        connectOverlayOpacity.setValue(0);
 
-      if (err instanceof Error) {
-        errorMessage = err.message || errorMessage;
-        if ('status' in err) {
+        let errorMessage = 'Failed to connect. Please try again.';
+
+        if (err instanceof Error && 'status' in err) {
           const apiErr = err as Error & { status: number; code?: string; canExpand?: boolean; currentLimit?: number; newLimit?: number };
-          if (apiErr.status === 400) {
-            // Check if at match limit - offer to expand slot with extra token
-            if (apiErr.code === 'AT_MATCH_LIMIT') {
-              const currentLimit = apiErr.currentLimit ?? 7;
-              const newLimit = apiErr.newLimit ?? 8;
-              setConnecting(false);
-              const message = `You already have ${currentLimit} matches. To connect with more people, you can:\n\n• Unmatch with someone to free a slot\n• Wait for a match to expire (7-day limit)\n• Use 2 Mulligan tokens to get an ${newLimit}th match (1 for the match + 1 for the extra slot)`;
-              Alert.alert(
-                "Match limit reached",
-                apiErr.canExpand
-                  ? `${message}\n\nSpend 2 tokens to connect with ${profile.displayName}?`
-                  : message,
-                apiErr.canExpand
-                  ? [
-                      { text: "Cancel", style: "cancel" },
-                      { text: "Use 2 Tokens", onPress: () => handleConnect(profile, true) },
-                    ]
-                  : [{ text: "OK", style: "cancel" }]
-              );
-              return;
+          if (apiErr.status === 400 && apiErr.code === 'AT_MATCH_LIMIT') {
+            const currentLimit = apiErr.currentLimit ?? 7;
+            const newLimit = apiErr.newLimit ?? 8;
+            const message = `You already have ${currentLimit} matches. To connect with more people, you can:\n\n• Unmatch with someone to free a slot\n• Wait for a match to expire (7-day limit)\n• Use 2 Mulligan tokens to get an ${newLimit}th match (1 for the match + 1 for the extra slot)`;
+            Alert.alert(
+              'Match limit reached',
+              apiErr.canExpand
+                ? `${message}\n\nSpend 2 tokens to connect with ${profile.displayName}?`
+                : message,
+              apiErr.canExpand
+                ? [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Use 2 Tokens',
+                      onPress: () => {
+                        connectRequestedRef.current = true;
+                        connectOverlayOpacity.setValue(1);
+                        connectSpinnerOpacity.setValue(1);
+                        connectTextOpacity.setValue(0);
+                        setConnecting(true);
+                        handleConnect(profile, true);
+                      },
+                    },
+                  ]
+                : [{ text: 'OK', style: 'cancel' }]
+            );
+            return;
+          }
+          if (
+            apiErr.status === 400 &&
+            (String(err.message || '').toLowerCase().includes('no tokens') ||
+              String(err.message || '').toLowerCase().includes('claim your weekly token') ||
+              (err as any).code === 'NO_TOKENS')
+          ) {
+            setShowNoTokensModal(true);
+            if (isAutoMatching) {
+              setIsAutoMatching(false);
+              setBrowseUnlocked(true);
             }
-            // Check if this is a token error
-            const errorLower = errorMessage.toLowerCase();
-            if (errorLower.includes('no tokens') || 
-                errorLower.includes('claim your weekly token') ||
-                (err as any).code === 'NO_TOKENS') {
-              isTokenError = true;
-              setShowNoTokensModal(true);
-              setConnecting(false);
-              
-              // If we were auto-matching and got an error, unlock browsing
-              if (isAutoMatching) {
-                setIsAutoMatching(false);
-                setBrowseUnlocked(true);
-              }
-              return; // Don't show regular error message for token errors
-            }
-            errorMessage =
-              err.message ||
-              'Cannot connect. Please check that both you and the other person have photos uploaded and you have available tokens.';
-          } else if (apiErr.status === 401 || apiErr.status === 403) {
+            return;
+          }
+          errorMessage =
+            err.message ||
+            'Cannot connect. Please check that both you and the other person have photos uploaded and you have available tokens.';
+          if (apiErr.status === 401 || apiErr.status === 403) {
             errorMessage = 'Session expired. Please log in again.';
-            // Clear invalid token
-            await AsyncStorage.removeItem('token');
+            AsyncStorage.removeItem('token');
           } else if (apiErr.status === 404) {
             errorMessage = 'Profile not found. Please refresh and try again.';
           } else if (apiErr.status === 408) {
             errorMessage = 'Request timed out. The server may be slow. Please try again.';
           }
         }
-      }
-
-      // Check for authentication-related error messages
-      const errorLower = errorMessage.toLowerCase();
-      if (errorLower.includes('authentication required') || 
-          errorLower.includes('invalid or expired token') ||
-          errorLower.includes('authentication')) {
-        errorMessage = 'Session expired. Please log in again.';
-        clearTokenCache();
-        await AsyncStorage.removeItem('token');
-      }
-
-      setError(errorMessage);
-      setTimeout(() => setError(''), 8000);
-      setConnecting(false);
-      
-      // If we were auto-matching and got an error, unlock browsing so user can see the error
-      if (isAutoMatching) {
-        setIsAutoMatching(false);
-        setBrowseUnlocked(true);
-      }
-    }
+        const lower = String(errorMessage).toLowerCase();
+        if (
+          lower.includes('authentication required') ||
+          lower.includes('invalid or expired token') ||
+          lower.includes('authentication')
+        ) {
+          errorMessage = 'Session expired. Please log in again.';
+          clearTokenCache();
+          AsyncStorage.removeItem('token');
+        }
+        setError(errorMessage);
+        setTimeout(() => setError(''), 8000);
+        if (isAutoMatching) {
+          setIsAutoMatching(false);
+          setBrowseUnlocked(true);
+        }
+      });
   }, [isAutoMatching]);
 
   const handleCelebrationClose = useCallback(() => {
@@ -1756,6 +1733,18 @@ export default function BrowseScreen() {
         />
       )}
       
+      {/* Token display fixed outside ScrollView so taps are instant (no scroll gesture delay) */}
+      <View style={styles.tokenOverlay} pointerEvents="box-none">
+        <View style={styles.tokenOverlayInner}>
+          {canClaimTokens && (
+            <View style={styles.claimTokenBanner}>
+              <Text style={styles.claimTokenText}>✨ Claim your 7 tokens!</Text>
+            </View>
+          )}
+          <TokenDisplay compact={true} premium={true} />
+        </View>
+      </View>
+
       <ScrollView 
         style={[styles.scrollView, showLandingPage && { backgroundColor: 'transparent' }]} 
         contentContainerStyle={[styles.contentContainer, !showLandingPage && !needsProfile && currentProfile && !loading && { paddingBottom: 100 }]}
@@ -1779,16 +1768,6 @@ export default function BrowseScreen() {
         {/* Browse Locked State - Beautiful Landing Page */}
         {showLandingPage ? (
           <View style={styles.landingPageWrapper}>
-          {/* Token display on landing page */}
-          <View style={styles.landingTokenContainer}>
-            {canClaimTokens && (
-              <View style={styles.claimTokenBannerLanding}>
-                <Text style={styles.claimTokenTextLanding}>✨ Claim your 7 tokens!</Text>
-              </View>
-            )}
-            <TokenDisplay compact={true} premium={true} />
-          </View>
-          
           <View style={styles.landingContainer}>
             {/* Main content */}
             <View style={styles.landingContent}>
@@ -1933,14 +1912,7 @@ export default function BrowseScreen() {
             />
             <View style={styles.headerTop}>
               <View style={{ flex: 1 }} />
-              <View style={styles.tokenContainer}>
-                {canClaimTokens && (
-                  <View style={styles.claimTokenBanner}>
-                    <Text style={styles.claimTokenText}>✨ Claim your 7 tokens!</Text>
-                  </View>
-                )}
-                <TokenDisplay compact={true} premium={true} />
-              </View>
+              {/* Token is in fixed overlay above ScrollView for instant taps */}
             </View>
             <Animated.Text
               style={[
@@ -2238,17 +2210,18 @@ export default function BrowseScreen() {
             delayPressOut={0}
             activeOpacity={0.9}
             onPressIn={() => {
-              if (connecting) return;
-              connectOverlayOpacity.setValue(1);
-              connectSpinnerOpacity.setValue(1);
-              connectTextOpacity.setValue(0);
+              if (connecting || connectRequestedRef.current) return;
+              const profile = currentProfile;
+              if (!profile) return;
+              connectRequestedRef.current = true;
               try { Vibration.vibrate(Platform.OS === 'ios' ? [0, 30] : 30); } catch (_) {}
               Animated.timing(connectButtonScale, {
                 toValue: 0.92,
                 duration: 30,
                 useNativeDriver: true,
               }).start();
-              setConnecting(true);
+              // Optimistic: show celebration immediately; API confirms in background
+              handleConnect(profile);
             }}
             onPressOut={() => {
               Animated.spring(connectButtonScale, {
@@ -2258,10 +2231,12 @@ export default function BrowseScreen() {
                 useNativeDriver: true,
               }).start();
               connectPressOutTimer.current = setTimeout(() => {
-                setConnecting(false);
-                connectSpinnerOpacity.setValue(0);
-                connectTextOpacity.setValue(1);
-                connectOverlayOpacity.setValue(0);
+                if (!connectRequestedRef.current) {
+                  setConnecting(false);
+                  connectSpinnerOpacity.setValue(0);
+                  connectTextOpacity.setValue(1);
+                  connectOverlayOpacity.setValue(0);
+                }
                 connectPressOutTimer.current = null;
               }, 80);
             }}
@@ -2270,7 +2245,6 @@ export default function BrowseScreen() {
                 clearTimeout(connectPressOutTimer.current);
                 connectPressOutTimer.current = null;
               }
-              if (currentProfile) handleConnect(currentProfile);
             }}
             disabled={connecting}
           >
@@ -2290,16 +2264,6 @@ export default function BrowseScreen() {
                 style={[
                   styles.connectButtonGradient,
                   connecting && styles.connectButtonDisabled,
-                  {
-                    shadowOpacity: connectButtonGlow.interpolate({
-                      inputRange: [0.5, 0.8],
-                      outputRange: [0.45, 0.7],
-                    }),
-                    shadowRadius: connectButtonGlow.interpolate({
-                      inputRange: [0.5, 0.8],
-                      outputRange: [20, 30],
-                    }),
-                  },
                 ]}
               >
                 <Animated.View
@@ -2981,6 +2945,20 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     includeFontPadding: false,
     flexWrap: 'nowrap',
+  },
+  tokenOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 100,
+    paddingTop: Platform.OS === 'ios' ? 56 : 48,
+    paddingHorizontal: 16,
+    alignItems: 'flex-end',
+    pointerEvents: 'box-none',
+  },
+  tokenOverlayInner: {
+    alignItems: 'flex-end',
   },
   tokenContainer: {
     alignItems: 'flex-end',

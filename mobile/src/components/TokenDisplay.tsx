@@ -76,6 +76,7 @@ function PremiumTokenDisplay({
     <TouchableOpacity
       activeOpacity={0.8}
       onPress={onPress}
+      delayPressIn={0}
     >
       <Animated.View
         style={[

@@ -605,64 +605,61 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
       .then(() => {})
       .catch(err => console.warn('Failed to generate match explanation:', err));
 
-    // Get user display names for notifications
-    const userDisplayNameResult = db
-      .prepare("SELECT display_name FROM profiles WHERE user_id = ?")
-      .get([userId]);
-    const userDisplayName = (userDisplayNameResult instanceof Promise
-      ? await userDisplayNameResult
-      : userDisplayNameResult) as { display_name: string } | undefined;
+    // Send HTTP response immediately so the client feels instant; run notifications after
+    res.json({
+      message: "It's a match! You can now chat.",
+      matchId,
+      stage: "stage1",
+      isMutual: true,
+      explanation: null, // Generated in background; client can refetch if needed
+    });
 
-    const targetDisplayNameResult = db
-      .prepare("SELECT display_name FROM profiles WHERE user_id = ?")
-      .get([targetUserId]);
-    const targetDisplayName = (targetDisplayNameResult instanceof Promise
-      ? await targetDisplayNameResult
-      : targetDisplayNameResult) as { display_name: string } | undefined;
-
-    // Send in-app notifications via Socket.io to both users
-    const { getIO } = await import('../socket.js');
-    const io = getIO();
-    if (io) {
-      // Notify the initiator (userId)
-      io.to(`user:${userId}`).emit('new_match', {
-        matchId,
-        otherUserId: targetUserId,
-        otherUserName: targetDisplayName?.display_name || 'Someone',
-        message: `🎉 It's a match! You matched with ${targetDisplayName?.display_name || 'someone'}. Start chatting now!`,
-        stage: 'stage1',
-      });
-
-      // Notify the target user (targetUserId)
-      io.to(`user:${targetUserId}`).emit('new_match', {
-        matchId,
-        otherUserId: userId,
-        otherUserName: userDisplayName?.display_name || 'Someone',
-        message: `🎉 It's a match! ${userDisplayName?.display_name || 'Someone'} matched with you. Start chatting now!`,
-        stage: 'stage1',
-      });
-
-      console.log(`✅ Sent match notifications to both users: ${userId} and ${targetUserId}`);
-    } else {
-      console.warn('⚠️  Socket.io not initialized, skipping in-app notifications');
-    }
-
-    // Send push notifications to both users (primary notification method)
-    // Push notifications are the standard for match notifications in modern dating apps
-    // SMS is reserved for verification codes only
-    // Make non-blocking - send in background
-    (async () => {
+    // Notifications run after response is sent — don't block the connect round-trip
+    setImmediate(async () => {
       try {
+        const userDisplayNameResult = db
+          .prepare("SELECT display_name FROM profiles WHERE user_id = ?")
+          .get([userId]);
+        const userDisplayName = (userDisplayNameResult instanceof Promise
+          ? await userDisplayNameResult
+          : userDisplayNameResult) as { display_name: string } | undefined;
+
+        const targetDisplayNameResult = db
+          .prepare("SELECT display_name FROM profiles WHERE user_id = ?")
+          .get([targetUserId]);
+        const targetDisplayName = (targetDisplayNameResult instanceof Promise
+          ? await targetDisplayNameResult
+          : targetDisplayNameResult) as { display_name: string } | undefined;
+
+        const { getIO } = await import('../socket.js');
+        const io = getIO();
+        if (io) {
+          io.to(`user:${userId}`).emit('new_match', {
+            matchId,
+            otherUserId: targetUserId,
+            otherUserName: targetDisplayName?.display_name || 'Someone',
+            message: `🎉 It's a match! You matched with ${targetDisplayName?.display_name || 'someone'}. Start chatting now!`,
+            stage: 'stage1',
+          });
+          io.to(`user:${targetUserId}`).emit('new_match', {
+            matchId,
+            otherUserId: userId,
+            otherUserName: userDisplayName?.display_name || 'Someone',
+            message: `🎉 It's a match! ${userDisplayName?.display_name || 'Someone'} matched with you. Start chatting now!`,
+            stage: 'stage1',
+          });
+          console.log(`✅ Sent match notifications to both users: ${userId} and ${targetUserId}`);
+        } else {
+          console.warn('⚠️  Socket.io not initialized, skipping in-app notifications');
+        }
+
         const { sendMatchPushNotification } = await import('../services/pushNotifications.js');
-        
-        // Get push tokens for both users
         const userPushTokenResult = db
           .prepare("SELECT push_token FROM users WHERE id = ?")
           .get([userId]);
         const userPushToken = (userPushTokenResult instanceof Promise
           ? await userPushTokenResult
           : userPushTokenResult) as { push_token: string | null } | undefined;
-
         const targetPushTokenResult = db
           .prepare("SELECT push_token FROM users WHERE id = ?")
           .get([targetUserId]);
@@ -670,7 +667,6 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
           ? await targetPushTokenResult
           : targetPushTokenResult) as { push_token: string | null } | undefined;
 
-        // Send push notification to target user (User B - the one who was matched with)
         if (targetPushToken?.push_token) {
           await sendMatchPushNotification(
             targetPushToken.push_token,
@@ -679,8 +675,6 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
           );
           console.log(`✅ Sent push notification to ${targetUserId} (User B)`);
         }
-
-        // Send push notification to initiator (User A - the one who initiated the match)
         if (userPushToken?.push_token) {
           await sendMatchPushNotification(
             userPushToken.push_token,
@@ -689,18 +683,9 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
           );
           console.log(`✅ Sent push notification to ${userId} (User A)`);
         }
-      } catch (pushError) {
-        // Push notifications are optional, don't fail the match creation if push fails
-        console.warn('⚠️  Failed to send push notification (non-critical):', pushError);
+      } catch (notifErr) {
+        console.warn('⚠️  Match notifications failed (non-critical):', notifErr);
       }
-    })();
-
-    res.json({
-      message: "It's a match! You can now chat.",
-      matchId,
-      stage: "stage1",
-      isMutual: true,
-      explanation: null, // Generated in background; client can refetch if needed
     });
   } catch (error) {
     console.error("Connect error:", error);
