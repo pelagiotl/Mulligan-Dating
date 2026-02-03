@@ -22,13 +22,14 @@ import {
   useWindowDimensions,
   Keyboard,
   Vibration,
+  InteractionManager,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Picker } from '@react-native-picker/picker';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
-import { api } from '../utils/api';
+import { api, getToken } from '../utils/api';
 import ProfileCompleteCelebration from '../components/ProfileCompleteCelebration';
 import { useAuth } from '../context/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -120,13 +121,12 @@ export default function CreateProfileScreen() {
   const genderFieldRef = useRef<View>(null);
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const displayNameTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingScrollToRef = useRef<'lookingFor' | 'bio' | null>(null);
   const skipAutoScrollRef = useRef(false); // when true (edit profile from start), don't auto-scroll to bio
   const step5AllowScrollRef = useRef(false); // when false (just entered step 5), don't auto-scroll in preferences
   const step6AllowScrollRef = useRef(false); // when false (just entered step 6), don't auto-scroll in lifestyle
   const lifestyleCardYsRef = useRef<Record<string, number>>({});
   const [keyboardVisible, setKeyboardVisible] = useState(false);
-  const minAgeInputRef = useRef<TextInput>(null);
-  const maxAgeInputRef = useRef<TextInput>(null);
   const maxAgeCardRef = useRef<View>(null);
   const preferredGendersRef = useRef<View>(null);
   const maxDistanceInputRef = useRef<TextInput>(null);
@@ -446,46 +446,51 @@ export default function CreateProfileScreen() {
   useEffect(() => {
     if (skipAutoScrollRef.current) return;
     if (step === 1 && displayName.trim().length >= 2 && age.trim().length > 0 && gender.trim().length > 0 && location.trim().length > 0) {
-      setTimeout(() => {
-        animateField(lookingForScale, lookingForOpacity, lookingForGlow);
-        // Navigate to lookingFor card with vertical scroll
-        setTimeout(() => {
-          scrollToStep1Card(lookingForCardY, -20);
-        }, 300);
-      }, 100); // Faster transition
+      animateField(lookingForScale, lookingForOpacity, lookingForGlow);
+      // Delay scroll so lookingFor card is laid out first (it was just enabled)
+      pendingScrollToRef.current = 'lookingFor';
     } else if (step === 1 && !location.trim()) {
       lookingForScale.setValue(0.95);
       lookingForOpacity.setValue(0);
       lookingForGlow.setValue(0);
+      pendingScrollToRef.current = null;
     }
-  }, [location, displayName, age, gender, step, lookingForCardY]);
+  }, [location, displayName, age, gender, step]);
+
+  // Run pending scroll once target card Y is available (after layout)
+  useEffect(() => {
+    if (pendingScrollToRef.current === 'lookingFor' && lookingForCardY !== null) {
+      InteractionManager.runAfterInteractions(() => {
+        scrollToStep1Card(lookingForCardY, -20);
+        pendingScrollToRef.current = null;
+      });
+    } else if (pendingScrollToRef.current === 'bio' && bioCardY !== null) {
+      InteractionManager.runAfterInteractions(() => {
+        scrollToStep1Card(bioCardY, -20);
+        pendingScrollToRef.current = null;
+      });
+    }
+  }, [lookingForCardY, bioCardY]);
 
   // Animate bio field when "looking for" is selected and navigate to bio card
   useEffect(() => {
     if (skipAutoScrollRef.current) return;
     if (step === 1 && displayName.trim().length >= 2 && age.trim().length > 0 && gender.trim().length > 0 && location.trim().length > 0 && lookingFor.trim().length > 0) {
-      setTimeout(() => {
-        animateField(bioScale, bioOpacity, bioGlow);
-        // Navigate to bio card with vertical scroll
-        setTimeout(() => {
-          scrollToStep1Card(bioCardY, -20);
-        }, 300);
-      }, 100); // Faster transition
+      animateField(bioScale, bioOpacity, bioGlow);
+      pendingScrollToRef.current = 'bio';
     } else if (step === 1 && !lookingFor.trim()) {
       bioScale.setValue(0.95);
       bioOpacity.setValue(0);
       bioGlow.setValue(0);
+      pendingScrollToRef.current = null;
     }
-  }, [lookingFor, displayName, age, gender, location, step, bioCardY]);
+  }, [lookingFor, displayName, age, gender, location, step]);
 
   // Step 5 (dating preferences) - Progressive disclosure with vertical scrolling (like lifestyle)
   useEffect(() => {
     if (step === 5) {
       step5AllowScrollRef.current = false; // Disable auto-scroll from useEffects entirely
       animateField(minAgeScale, minAgeOpacity, minAgeGlow);
-      setTimeout(() => {
-        minAgeInputRef.current?.focus();
-      }, 300);
       // Scroll to top to ensure we start at minimum age card
       setTimeout(() => {
         step5ScrollViewRef.current?.scrollTo({ y: 0, animated: false });
@@ -1154,9 +1159,9 @@ export default function CreateProfileScreen() {
         mimeType = mimeTypes[ext] || 'image/jpeg';
       }
 
-      // Get token first
-      const token = await AsyncStorage.getItem('token');
-      if (!token) {
+      // Get token (same source as api client: in-memory cache then AsyncStorage)
+      const token = await getToken();
+      if (!token || typeof token !== 'string' || !token.trim()) {
         throw new Error('No authentication token found. Please log in again.');
       }
 
@@ -1604,8 +1609,8 @@ export default function CreateProfileScreen() {
                   ]}
                 >
                   <Text style={[styles.focusedEmoji, keyboardVisible && styles.focusedEmojiSmall]}>👋</Text>
-                  <Text style={[styles.focusedTitle, keyboardVisible && styles.focusedTitleSmall]}>Welcome to Mulligan!</Text>
-                  <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleSmall]}>Let's start with your first name</Text>
+                  <Text style={[styles.focusedTitle, keyboardVisible && styles.focusedTitleCompact]}>Welcome to Mulligan!</Text>
+                  <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleCompact]}>Let's start with your first name</Text>
                   
                   <Animated.View
                     style={[
@@ -1646,11 +1651,11 @@ export default function CreateProfileScreen() {
                             displayNameInputRef.current?.blur();
                             // Then navigate to age card after a small delay
                             setTimeout(() => {
-                              scrollToStep1Card(ageCardY, -20);
-                              // Focus the age input after navigation
+                              scrollToStep1Card(ageCardY, -40);
+                              // Focus the age input after scroll and layout settle
                               setTimeout(() => {
                                 ageInputRef.current?.focus();
-                              }, 300);
+                              }, 450);
                             }, 300);
                           }, 3000); // 3 second delay - gives user plenty of time to finish typing
                         }
@@ -1669,10 +1674,10 @@ export default function CreateProfileScreen() {
                           displayNameInputRef.current?.blur();
                           // Auto-progress to age card
                           setTimeout(() => {
-                            scrollToStep1Card(ageCardY, -20);
+                            scrollToStep1Card(ageCardY, -40);
                             setTimeout(() => {
                               ageInputRef.current?.focus();
-                            }, 300);
+                            }, 450);
                           }, 300);
                         } else {
                           setError('Please enter at least 2 characters');
@@ -2484,8 +2489,7 @@ export default function CreateProfileScreen() {
         value: minAge !== null && minAge >= 18 && minAge <= 120 ? minAge : null,
         scale: minAgeScale, 
         opacity: minAgeOpacity, 
-        glow: minAgeGlow, 
-        ref: minAgeInputRef,
+        glow: minAgeGlow,
         gradient: ['#667eea', '#764ba2', '#f093fb'],
         enabled: true, // Always enabled (first card)
       },
@@ -2497,8 +2501,7 @@ export default function CreateProfileScreen() {
         value: maxAge !== null && minAge !== null && maxAge >= minAge && maxAge <= 120 ? maxAge : null,
         scale: maxAgeScale, 
         opacity: maxAgeOpacity, 
-        glow: maxAgeGlow, 
-        ref: maxAgeInputRef,
+        glow: maxAgeGlow,
         gradient: ['#f5576c', '#f093fb', '#667eea'],
         enabled: minAge !== null && minAge >= 18 && minAge <= 120,
       },
@@ -2600,101 +2603,55 @@ export default function CreateProfileScreen() {
                   
                   {field.key === 'minAge' && (
                     <View style={styles.preferenceInputWrapper}>
-                      <View style={styles.preferenceInputContainer}>
-                        <TextInput
-                          ref={minAgeInputRef}
-                          style={styles.preferenceNumberInputLarge}
-                          value={minAge === null ? '18' : minAge.toString()}
-                          onChangeText={(text) => {
-                            const value = parseInt(text) || 18;
-                            const newAge = Math.max(18, Math.min(120, value));
+                      <View style={styles.focusedPickerWrapper}>
+                        <Picker
+                          selectedValue={minAge}
+                          onValueChange={(itemValue) => {
+                            const newAge = typeof itemValue === 'number' ? itemValue : (parseInt(String(itemValue), 10) || 18);
                             setMinAge(newAge);
-                            // Auto-scroll to maxAge card when valid age is entered
-                            if (newAge >= 18 && newAge <= 120 && text.length >= 2) {
+                            if (maxAge < newAge) setMaxAge(newAge);
+                            step5AllowScrollRef.current = true;
+                            if (maxAgeCardY !== null) {
                               setTimeout(() => {
-                                minAgeInputRef.current?.blur();
-                                setTimeout(() => {
-                                  // Scroll to maxAge card position if we have it, otherwise scroll a fixed amount
-                                  if (maxAgeCardY !== null) {
-                                    step5ScrollViewRef.current?.scrollTo({ y: maxAgeCardY - 20, animated: true });
-                                  } else {
-                                    // Estimate: each card is roughly 200-250px tall, scroll to second card
-                                    step5ScrollViewRef.current?.scrollTo({ y: 250, animated: true });
-                                  }
-                                }, 300);
+                                step5ScrollViewRef.current?.scrollTo({ y: maxAgeCardY - 20, animated: true });
                               }, 300);
                             }
                           }}
-                          keyboardType="number-pad"
-                          maxLength={3}
-                          returnKeyType="done"
-                          onSubmitEditing={() => {
-                            minAgeInputRef.current?.blur();
-                            if (minAge >= 18 && minAge <= 120) {
-                              setTimeout(() => {
-                                // Scroll to maxAge card position if we have it, otherwise scroll a fixed amount
-                                if (maxAgeCardY !== null) {
-                                  step5ScrollViewRef.current?.scrollTo({ y: maxAgeCardY - 20, animated: true });
-                                } else {
-                                  // Estimate: each card is roughly 200-250px tall, scroll to second card
-                                  step5ScrollViewRef.current?.scrollTo({ y: 250, animated: true });
-                                }
-                              }, 300);
-                            }
-                          }}
-                          placeholder="18"
-                          placeholderTextColor="rgba(255, 255, 255, 0.7)"
-                        />
-                        <Text style={styles.preferenceInputLabelLarge}>years old</Text>
+                          style={styles.focusedPicker}
+                          itemStyle={Platform.OS === 'ios' ? styles.focusedPickerItem : undefined}
+                          mode={Platform.OS === 'android' ? 'dropdown' : 'dialog'}
+                        >
+                          {Array.from({ length: 103 }, (_, i) => 18 + i).map((age) => (
+                            <Picker.Item key={age} label={`${age} years old`} value={age} />
+                          ))}
+                        </Picker>
                       </View>
                     </View>
                   )}
 
                   {field.key === 'maxAge' && (
                     <View style={styles.preferenceInputWrapper}>
-                      <View style={styles.preferenceInputContainer}>
-                        <TextInput
-                          ref={maxAgeInputRef}
-                          style={styles.preferenceNumberInputLarge}
-                          value={maxAge === null ? '' : maxAge.toString()}
-                          onChangeText={(text) => {
-                            const baseAge = minAge ?? 18;
-                            const value = parseInt(text) || baseAge;
-                            const newAge = Math.max(baseAge, Math.min(120, value));
+                      <View style={styles.focusedPickerWrapper}>
+                        <Picker
+                          selectedValue={maxAge}
+                          onValueChange={(itemValue) => {
+                            const newAge = typeof itemValue === 'number' ? itemValue : (parseInt(String(itemValue), 10) || minAge);
                             setMaxAge(newAge);
-                            // Auto-scroll to preferred genders card when valid age is entered
-                            if (newAge >= baseAge && newAge <= 120 && text.length >= 2) {
+                            step5AllowScrollRef.current = true;
+                            if (preferredGendersCardY !== null) {
                               setTimeout(() => {
-                                maxAgeInputRef.current?.blur();
-                                setTimeout(() => {
-                                  if (preferredGendersCardY !== null) {
-                                    step5ScrollViewRef.current?.scrollTo({ y: preferredGendersCardY - 20, animated: true });
-                                  } else {
-                                    step5ScrollViewRef.current?.scrollTo({ y: 500, animated: true });
-                                  }
-                                }, 300);
+                                step5ScrollViewRef.current?.scrollTo({ y: preferredGendersCardY - 20, animated: true });
                               }, 300);
                             }
                           }}
-                          keyboardType="number-pad"
-                          maxLength={3}
-                          returnKeyType="done"
-                          onSubmitEditing={() => {
-                            maxAgeInputRef.current?.blur();
-                            if (maxAge >= minAge && maxAge <= 120) {
-                              setTimeout(() => {
-                                if (preferredGendersCardY !== null) {
-                                  step5ScrollViewRef.current?.scrollTo({ y: preferredGendersCardY - 20, animated: true });
-                                } else {
-                                  step5ScrollViewRef.current?.scrollTo({ y: 500, animated: true });
-                                }
-                              }, 300);
-                            }
-                          }}
-                          placeholder={minAge.toString()}
-                          placeholderTextColor="rgba(255, 255, 255, 0.7)"
-                        />
-                        <Text style={styles.preferenceInputLabelLarge}>years old</Text>
+                          style={styles.focusedPicker}
+                          itemStyle={Platform.OS === 'ios' ? styles.focusedPickerItem : undefined}
+                          mode={Platform.OS === 'android' ? 'dropdown' : 'dialog'}
+                        >
+                          {Array.from({ length: 121 - minAge }, (_, i) => minAge + i).map((age) => (
+                            <Picker.Item key={age} label={`${age} years old`} value={age} />
+                          ))}
+                        </Picker>
                       </View>
                     </View>
                   )}
@@ -3370,6 +3327,10 @@ const styles = StyleSheet.create({
     fontSize: 24,
     marginBottom: 6,
   },
+  focusedTitleCompact: {
+    fontSize: 30,
+    marginBottom: 8,
+  },
   focusedSubtitle: {
     fontSize: 20,
     color: 'rgba(255, 255, 255, 0.95)',
@@ -3381,6 +3342,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginBottom: 16,
     lineHeight: 18,
+  },
+  focusedSubtitleCompact: {
+    fontSize: 18,
+    marginBottom: 20,
+    lineHeight: 22,
   },
   focusedInputWrapper: {
     width: '100%',

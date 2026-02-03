@@ -1714,6 +1714,7 @@ export default function MatchesScreen() {
   const [loading, setLoading] = useState(true);
   const [sendingMessage, setSendingMessage] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [pendingImageUri, setPendingImageUri] = useState<string | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [stageInfoModalVisible, setStageInfoModalVisible] = useState(false);
   const [stageInfoStage, setStageInfoStage] = useState<'stage1' | 'stage2' | null>(null);
@@ -1757,6 +1758,11 @@ export default function MatchesScreen() {
       setSelectedMatch(null);
     }
   }, [selectedMatch, currentTime]);
+
+  // Clear pending image when switching matches
+  useEffect(() => {
+    setPendingImageUri(null);
+  }, [selectedMatch?.id]);
 
   // Update current time for timer display — every second if any match has expiration (so expired matches disappear on the tick)
   useEffect(() => {
@@ -2467,7 +2473,7 @@ export default function MatchesScreen() {
                 quality: 0.8,
               });
               if (!result.canceled && result.assets[0]) {
-                await uploadAndSendImage(result.assets[0].uri);
+                setPendingImageUri(result.assets[0].uri);
               }
             } catch (err: any) {
               Alert.alert('Error', err?.message || 'Failed to take photo');
@@ -2490,7 +2496,7 @@ export default function MatchesScreen() {
                 quality: 0.8,
               });
               if (!result.canceled && result.assets[0]) {
-                await uploadAndSendImage(result.assets[0].uri);
+                setPendingImageUri(result.assets[0].uri);
               }
             } catch (err: any) {
               Alert.alert('Error', err?.message || 'Failed to pick photo');
@@ -3094,6 +3100,18 @@ export default function MatchesScreen() {
           pointerEvents="box-none"
           collapsable={false}
         >
+          {pendingImageUri ? (
+            <View style={styles.pendingImagePreview}>
+              <Image source={{ uri: pendingImageUri }} style={styles.pendingImageThumb} />
+              <TouchableOpacity
+                onPress={() => setPendingImageUri(null)}
+                style={styles.pendingImageRemove}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Text style={styles.pendingImageRemoveText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
           <TouchableWithoutFeedback
             onPress={() => textInputRef.current?.focus()}
             accessible={false}
@@ -3132,16 +3150,23 @@ export default function MatchesScreen() {
             </View>
           </TouchableWithoutFeedback>
           <TouchableOpacity
-            onPress={() => {
-              if (newMessage.trim() && !sendingMessage) handleSendMessage(newMessage.trim());
+            onPress={async () => {
+              if (sendingMessage || uploadingImage) return;
+              if (pendingImageUri) {
+                const uri = pendingImageUri;
+                setPendingImageUri(null);
+                await uploadAndSendImage(uri);
+              } else if (newMessage.trim()) {
+                handleSendMessage(newMessage.trim());
+              }
             }}
-            disabled={sendingMessage || uploadingImage || !newMessage.trim()}
+            disabled={sendingMessage || uploadingImage || (!newMessage.trim() && !pendingImageUri)}
             style={styles.sendButtonContainer}
             activeOpacity={0.7}
             hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
           >
             <LinearGradient
-              colors={sendingMessage || !newMessage.trim() ? ['#a0aec0', '#718096'] : ['#667eea', '#764ba2', '#f093fb']}
+              colors={sendingMessage || (!newMessage.trim() && !pendingImageUri) ? ['#a0aec0', '#718096'] : ['#667eea', '#764ba2', '#f093fb']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.sendButton}
@@ -4119,6 +4144,32 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 6,
     elevation: 8,
+  },
+  pendingImagePreview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+  },
+  pendingImageThumb: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+  },
+  pendingImageRemove: {
+    marginLeft: 10,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pendingImageRemoveText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   inputWrapper: {
     flex: 1,

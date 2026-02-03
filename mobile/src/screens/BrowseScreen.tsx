@@ -19,7 +19,7 @@ import { TouchableOpacity as GestureTouchable } from 'react-native-gesture-handl
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { G, Path, Circle, Defs, LinearGradient as SvgLinearGradient, Stop, ClipPath } from 'react-native-svg';
 import { useNavigation, useFocusEffect, useIsFocused, CommonActions } from '@react-navigation/native';
-import { setPendingOpenMatchId } from '../utils/pendingMatchOpen';
+import { setPendingOpenMatchId, clearPendingOpenMatchId } from '../utils/pendingMatchOpen';
 import { navigationRef } from '../navigation/navigationRef';
 import { io, Socket } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -877,14 +877,14 @@ export default function BrowseScreen() {
       await api.post('/users/unlock-browse', {});
       // DON'T set browseUnlocked yet - wait until after match is created
       
-      // Fetch the first profile after unlocking
+      // Fetch the first profile after unlocking (skip cache so we get a NEW profile, not the one just matched)
       setLoading(true);
       const data = await api.get<{
         profile: Profile | null;
         hasMore: boolean;
         offset: number;
         total: number;
-      }>(`/users/browse?offset=0`);
+      }>(`/users/browse?offset=0`, false);
 
           if (data.profile) {
             // Connect immediately — skip photos fetch to speed up match; celebration shows placeholder if no photo
@@ -934,7 +934,7 @@ export default function BrowseScreen() {
             hasMore: boolean;
             offset: number;
             total: number;
-          }>(`/users/browse?offset=0`);
+          }>(`/users/browse?offset=0`, false);
 
           console.log('📊 Browse API response:', { 
             hasProfile: !!data.profile, 
@@ -1553,6 +1553,7 @@ export default function BrowseScreen() {
     setMatchId(null);
     setMatchExplanation(null);
     setIsAutoMatching(false);
+    clearPendingOpenMatchId(); // Ensure no stale pending match when user chooses Keep Browsing
     // After a successful match, reset to the landing page so user starts fresh when returning to Connect tab
     setBrowseUnlocked(false);
     setCurrentProfile(null);

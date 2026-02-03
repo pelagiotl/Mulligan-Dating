@@ -36,7 +36,7 @@ export function ensureTokenPrefetched(): Promise<void> {
   });
 }
 
-async function getToken(): Promise<string | null> {
+export async function getToken(): Promise<string | null> {
   if (tokenCache !== undefined) return tokenCache;
   tokenCache = await AsyncStorage.getItem('token');
   return tokenCache;
