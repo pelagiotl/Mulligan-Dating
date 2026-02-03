@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -97,6 +97,44 @@ export default function ProfileCompleteCelebration({
   const titleOpacity = useRef(new Animated.Value(0)).current;
   const subtitleOpacity = useRef(new Animated.Value(0)).current;
 
+  // Start Connecting button animations (pulse + shimmer, same as Connect button)
+  const buttonPulse = useRef(new Animated.Value(1)).current;
+  const buttonShimmer = useRef(new Animated.Value(0)).current;
+  const buttonScale = useRef(new Animated.Value(1)).current;
+  const buttonLoopsRef = useRef<{ pulseLoop: Animated.CompositeAnimation; shimmerLoop: Animated.CompositeAnimation } | null>(null);
+
+  const startButtonAnimations = useCallback(() => {
+    if (buttonLoopsRef.current) return;
+    buttonPulse.setValue(1);
+    buttonShimmer.setValue(0);
+    const pulseLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(buttonPulse, { toValue: 1.05, duration: 1500, useNativeDriver: true }),
+        Animated.timing(buttonPulse, { toValue: 1, duration: 1500, useNativeDriver: true }),
+      ])
+    );
+    const shimmerLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(buttonShimmer, { toValue: 1, duration: 3000, useNativeDriver: true }),
+        Animated.timing(buttonShimmer, { toValue: 0, duration: 0, useNativeDriver: true }),
+      ])
+    );
+    pulseLoop.start();
+    shimmerLoop.start();
+    buttonLoopsRef.current = { pulseLoop, shimmerLoop };
+  }, []);
+
+  const stopButtonAnimations = useCallback(() => {
+    const loops = buttonLoopsRef.current;
+    if (loops) {
+      loops.pulseLoop.stop();
+      loops.shimmerLoop.stop();
+      buttonLoopsRef.current = null;
+    }
+    buttonPulse.setValue(1);
+    buttonShimmer.setValue(0);
+  }, []);
+
   useEffect(() => {
     if (visible) {
       // Play celebration sound
@@ -168,8 +206,21 @@ export default function ProfileCompleteCelebration({
           setShowButton(true);
         }, 1000);
       }, 100);
+    } else {
+      stopButtonAnimations();
     }
-  }, [visible]);
+  }, [visible, stopButtonAnimations]);
+
+  // Start button pulse/shimmer when button appears
+  useEffect(() => {
+    if (showButton && visible) {
+      const t = setTimeout(startButtonAnimations, 150);
+      return () => {
+        clearTimeout(t);
+        stopButtonAnimations();
+      };
+    }
+  }, [showButton, visible, startButtonAnimations, stopButtonAnimations]);
 
   const handleContinue = () => {
     onClose();
@@ -234,21 +285,41 @@ export default function ProfileCompleteCelebration({
                 </Text>
               </Animated.View>
 
-              {/* Continue button */}
+              {/* Continue button - pulse + shimmer like Connect button */}
               {showButton && (
                 <TouchableOpacity
                   style={styles.button}
                   onPress={handleContinue}
-                  activeOpacity={0.8}
+                  activeOpacity={0.9}
+                  onPressIn={() => {
+                    Animated.timing(buttonScale, { toValue: 0.95, duration: 50, useNativeDriver: true }).start();
+                  }}
+                  onPressOut={() => {
+                    Animated.spring(buttonScale, { toValue: 1, friction: 6, tension: 300, useNativeDriver: true }).start();
+                  }}
                 >
-                  <LinearGradient
-                    colors={['#fff', '#f8f9fa']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.buttonGradient}
-                  >
-                    <Text style={styles.buttonText}>Start Connecting →</Text>
-                  </LinearGradient>
+                  <Animated.View style={{ transform: [{ scale: Animated.multiply(buttonPulse, buttonScale) }] }}>
+                    <LinearGradient
+                      colors={['#667eea', '#764ba2', '#f093fb', '#f5576c']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.buttonGradient}
+                    >
+                      <Animated.View
+                        style={[
+                          styles.buttonShimmer,
+                          {
+                            transform: [
+                              { translateX: buttonShimmer.interpolate({ inputRange: [0, 1], outputRange: [-200, 400] }) },
+                              { rotate: buttonShimmer.interpolate({ inputRange: [0, 1], outputRange: ['-20deg', '-20deg'] }) },
+                            ],
+                          },
+                        ]}
+                        pointerEvents="none"
+                      />
+                      <Text style={styles.buttonText}>Start Connecting →</Text>
+                    </LinearGradient>
+                  </Animated.View>
                 </TouchableOpacity>
               )}
             </LinearGradient>
@@ -325,23 +396,41 @@ const styles = StyleSheet.create({
     width: '100%',
     borderRadius: 20,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 10,
   },
   buttonGradient: {
     paddingVertical: 18,
     paddingHorizontal: 32,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+    position: 'relative',
+    borderRadius: 18,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  buttonShimmer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: 50,
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    transform: [{ skewX: '-20deg' }],
   },
   buttonText: {
     fontSize: 18,
-    fontWeight: '800',
-    color: '#667eea',
+    fontWeight: '900',
+    color: '#fff',
     letterSpacing: 0.5,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
 });
 

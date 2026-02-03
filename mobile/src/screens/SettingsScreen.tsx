@@ -86,6 +86,8 @@ export default function SettingsScreen() {
   const headerIconRotate = useRef(new Animated.Value(0)).current;
   const sectionAnimations = useRef<Animated.Value[]>([]).current;
   const statCardAnimations = useRef<Animated.Value[]>([]).current;
+  const sectionFallbackAnim = useRef(new Animated.Value(1)).current;
+  const statCardFallbackAnim = useRef(new Animated.Value(1)).current;
   const gradientPos = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -461,7 +463,7 @@ export default function SettingsScreen() {
                 flex: 1,
                 transform: [
                   {
-                    scale: statCardAnimations[0] || new Animated.Value(1),
+                    scale: statCardAnimations[0] ?? statCardFallbackAnim,
                   },
                 ],
               },
@@ -492,7 +494,7 @@ export default function SettingsScreen() {
                 flex: 1,
                 transform: [
                   {
-                    scale: statCardAnimations[1] || new Animated.Value(1),
+                    scale: statCardAnimations[1] ?? statCardFallbackAnim,
                   },
                 ],
               },
@@ -524,10 +526,10 @@ export default function SettingsScreen() {
         style={[
           styles.section,
           {
-            opacity: sectionAnimations[1] || new Animated.Value(1),
+            opacity: sectionAnimations[1] ?? sectionFallbackAnim,
             transform: [
               {
-                translateY: (sectionAnimations[1] || new Animated.Value(1)).interpolate({
+                translateY: (sectionAnimations[1] ?? sectionFallbackAnim).interpolate({
                   inputRange: [0, 1],
                   outputRange: [30, 0],
                 }),
@@ -663,10 +665,10 @@ export default function SettingsScreen() {
         style={[
           styles.section,
           {
-            opacity: sectionAnimations[2] || new Animated.Value(1),
+            opacity: sectionAnimations[2] ?? sectionFallbackAnim,
             transform: [
               {
-                translateY: (sectionAnimations[2] || new Animated.Value(1)).interpolate({
+                translateY: (sectionAnimations[2] ?? sectionFallbackAnim).interpolate({
                   inputRange: [0, 1],
                   outputRange: [30, 0],
                 }),
@@ -714,10 +716,10 @@ export default function SettingsScreen() {
           styles.section,
           styles.testSection,
           {
-            opacity: sectionAnimations[3] || new Animated.Value(1),
+            opacity: sectionAnimations[3] ?? sectionFallbackAnim,
             transform: [
               {
-                translateY: (sectionAnimations[3] || new Animated.Value(1)).interpolate({
+                translateY: (sectionAnimations[3] ?? sectionFallbackAnim).interpolate({
                   inputRange: [0, 1],
                   outputRange: [30, 0],
                 }),
@@ -764,10 +766,10 @@ export default function SettingsScreen() {
           styles.section,
           styles.testSection,
           {
-            opacity: sectionAnimations[4] || new Animated.Value(1),
+            opacity: sectionAnimations[4] ?? sectionFallbackAnim,
             transform: [
               {
-                translateY: (sectionAnimations[4] || new Animated.Value(1)).interpolate({
+                translateY: (sectionAnimations[4] ?? sectionFallbackAnim).interpolate({
                   inputRange: [0, 1],
                   outputRange: [30, 0],
                 }),
@@ -836,10 +838,10 @@ export default function SettingsScreen() {
           styles.section,
           styles.dangerSection,
           {
-            opacity: sectionAnimations[5] || new Animated.Value(1),
+            opacity: sectionAnimations[5] ?? sectionFallbackAnim,
             transform: [
               {
-                translateY: (sectionAnimations[5] || new Animated.Value(1)).interpolate({
+                translateY: (sectionAnimations[5] ?? sectionFallbackAnim).interpolate({
                   inputRange: [0, 1],
                   outputRange: [30, 0],
                 }),
@@ -899,10 +901,10 @@ export default function SettingsScreen() {
         style={[
           styles.section,
           {
-            opacity: sectionAnimations[6] || new Animated.Value(1),
+            opacity: sectionAnimations[6] ?? sectionFallbackAnim,
             transform: [
               {
-                translateY: (sectionAnimations[6] || new Animated.Value(1)).interpolate({
+                translateY: (sectionAnimations[6] ?? sectionFallbackAnim).interpolate({
                   inputRange: [0, 1],
                   outputRange: [30, 0],
                 }),

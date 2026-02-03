@@ -2881,17 +2881,17 @@ export default function CreateProfileScreen() {
                         if (itemValue && itemValue !== '') {
                           step6AllowScrollRef.current = true;
                           field.setValue(itemValue);
-                          // Scroll to next card only (not to end)
+                          // Scroll to next card only if there is one (don't scroll on last card - worksOut)
                           const nextIndex = index + 1;
                           const nextKey = lifestyleFields[nextIndex]?.key;
-                          setTimeout(() => {
-                            const nextY = nextKey ? lifestyleCardYsRef.current[nextKey] : undefined;
-                            if (typeof nextY === 'number') {
-                              scrollViewRef.current?.scrollTo({ y: nextY - 20, animated: true });
-                            } else {
-                              scrollViewRef.current?.scrollTo({ y: (nextIndex) * 300, animated: true });
-                            }
-                          }, 400);
+                          if (nextKey) {
+                            setTimeout(() => {
+                              const nextY = lifestyleCardYsRef.current[nextKey];
+                              if (typeof nextY === 'number') {
+                                scrollViewRef.current?.scrollTo({ y: nextY - 20, animated: true });
+                              }
+                            }, 400);
+                          }
                         }
                       }}
                       style={styles.lifestylePicker}

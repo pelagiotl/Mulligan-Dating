@@ -10,6 +10,7 @@ import {
   TextInput,
   Modal,
   RefreshControl,
+  Share,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
@@ -46,6 +47,16 @@ interface UserDetails extends User {
   blocks: number;
 }
 
+interface MatchPair {
+  id: string;
+  stage: string;
+  stage1At: string;
+  user1: { id: string; name: string; phone?: string };
+  user2: { id: string; name: string; phone?: string };
+}
+
+type StatDrillDownType = 'users' | 'matches' | 'restricted' | 'active';
+
 export default function AdminScreen() {
   const navigation = useNavigation();
   const { user } = useAuth();
@@ -59,15 +70,22 @@ export default function AdminScreen() {
   const [page, setPage] = useState(1);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [statDrillDown, setStatDrillDown] = useState<StatDrillDownType | null>(null);
+  const [drillDownUsers, setDrillDownUsers] = useState<User[]>([]);
+  const [drillDownMatches, setDrillDownMatches] = useState<MatchPair[]>([]);
+  const [drillDownLoading, setDrillDownLoading] = useState(false);
+  const drillDownRequestRef = React.useRef<StatDrillDownType | null>(null);
+  const [drillDownUnrestricting, setDrillDownUnrestricting] = useState<string | null>(null);
 
   useEffect(() => {
     fetchStats();
     fetchUsers();
   }, [page, search]);
 
-  const fetchStats = async () => {
+  const fetchStats = async (skipCache = false) => {
     try {
-      const data = await api.get<Stats>('/admin/stats');
+      const data = await api.get<Stats>('/admin/stats', !skipCache);
       setStats(data);
     } catch (error: any) {
       console.error('Failed to fetch stats:', error);
@@ -106,6 +124,82 @@ export default function AdminScreen() {
     setRefreshing(true);
     await Promise.all([fetchStats(), fetchUsers()]);
     setRefreshing(false);
+  };
+
+  const handleExportReport = async () => {
+    setExporting(true);
+    try {
+      const report = await api.get<any>('/admin/export/report', false);
+      const json = JSON.stringify(report, null, 2);
+      const filename = `mulligan-report-${new Date().toISOString().slice(0, 10)}.json`;
+      await Share.share({
+        message: json,
+        title: 'Mulligan Activity Report',
+        subject: filename,
+      });
+    } catch (error: any) {
+      Alert.alert('Export Failed', error.message || 'Could not export report');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const openStatDrillDown = async (type: StatDrillDownType) => {
+    setStatDrillDown(type);
+    setDrillDownLoading(true);
+    drillDownRequestRef.current = type;
+    const requestedType = type;
+    fetchStats(true); // Refresh stats (no cache) so card and drill-down numbers stay in sync
+    try {
+      if (type === 'matches') {
+        const data = await api.get<{ matches: MatchPair[]; total: number }>('/admin/matches', false);
+        if (drillDownRequestRef.current === requestedType) {
+          setDrillDownMatches(data.matches || []);
+          setDrillDownUsers([]);
+        }
+      } else {
+        const filter = type === 'users' ? '' : type;
+        const params = new URLSearchParams({ limit: '200', ...(filter && { filter }) });
+        const data = await api.get<{ users: User[] }>(`/admin/users?${params}`, false);
+        if (drillDownRequestRef.current === requestedType) {
+          setDrillDownUsers(data.users || []);
+          setDrillDownMatches([]);
+        }
+      }
+    } catch (error: any) {
+      if (drillDownRequestRef.current === requestedType) {
+        Alert.alert('Error', error.message || 'Failed to load data');
+        setStatDrillDown(null);
+      }
+    } finally {
+      if (drillDownRequestRef.current === requestedType) {
+        setDrillDownLoading(false);
+      }
+    }
+  };
+
+  const handleUnrestrictFromDrillDown = async (userId: string) => {
+    setDrillDownUnrestricting(userId);
+    try {
+      await api.post(`/admin/users/${userId}/restrict`, { restricted: false });
+      setDrillDownUsers((prev) => prev.filter((u) => u.id !== userId));
+      await fetchStats();
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to unrestrict');
+    } finally {
+      setDrillDownUnrestricting(null);
+    }
+  };
+
+  const handleBatchUnrestrict = async (names: string[]) => {
+    try {
+      const data = await api.post<{ unrestricted: number; userIds: string[] }>('/admin/users/batch-unrestrict', { displayNames: names });
+      Alert.alert('Success', `Unrestricted ${data.unrestricted} user(s)`);
+      setDrillDownUsers((prev) => prev.filter((u) => !data.userIds.includes(u.id)));
+      await fetchStats();
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to batch unrestrict');
+    }
   };
 
   const handleGrantTokens = async (userId: string, count: number) => {
@@ -343,27 +437,49 @@ export default function AdminScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>📊 Statistics</Text>
           <View style={styles.statsGrid}>
-            <LinearGradient colors={['#667eea', '#764ba2']} style={styles.statCardGradient}>
-              <Text style={styles.statValue}>{stats.totalUsers}</Text>
-              <Text style={styles.statLabel} numberOfLines={1}>Users</Text>
-            </LinearGradient>
-            <LinearGradient colors={['#f093fb', '#f5576c']} style={styles.statCardGradient}>
-              <Text style={styles.statValue}>{stats.totalProfiles}</Text>
-              <Text style={styles.statLabel} numberOfLines={1}>Profiles</Text>
-            </LinearGradient>
-            <LinearGradient colors={['#4facfe', '#00f2fe']} style={styles.statCardGradient}>
-              <Text style={styles.statValue}>{stats.totalMatches}</Text>
-              <Text style={styles.statLabel} numberOfLines={1}>Matches</Text>
-            </LinearGradient>
-            <LinearGradient colors={['#fa709a', '#fee140']} style={styles.statCardGradient}>
-              <Text style={styles.statValue}>{stats.restrictedUsers}</Text>
-              <Text style={styles.statLabel} numberOfLines={1}>Restricted</Text>
-            </LinearGradient>
-            <LinearGradient colors={['#30cfd0', '#330867']} style={styles.statCardGradient}>
-              <Text style={styles.statValue}>{stats.activeUsers}</Text>
-              <Text style={styles.statLabel} numberOfLines={1}>Active (7d)</Text>
-            </LinearGradient>
+            <TouchableOpacity style={styles.statCardTouchable} onPress={() => openStatDrillDown('users')} activeOpacity={0.9}>
+              <LinearGradient colors={['#667eea', '#764ba2']} style={styles.statCardGradient}>
+                <Text style={styles.statValue}>{stats.totalUsers}</Text>
+                <Text style={styles.statLabel} numberOfLines={1}>Users</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.statCardTouchable} onPress={() => openStatDrillDown('matches')} activeOpacity={0.9}>
+              <LinearGradient colors={['#4facfe', '#00f2fe']} style={styles.statCardGradient}>
+                <Text style={styles.statValue}>{stats.totalMatches}</Text>
+                <Text style={styles.statLabel} numberOfLines={1}>Matches</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.statCardTouchable} onPress={() => openStatDrillDown('restricted')} activeOpacity={0.9}>
+              <LinearGradient colors={['#fa709a', '#fee140']} style={styles.statCardGradient}>
+                <Text style={styles.statValue}>{stats.restrictedUsers}</Text>
+                <Text style={styles.statLabel} numberOfLines={1}>Restricted</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.statCardTouchable} onPress={() => openStatDrillDown('active')} activeOpacity={0.9}>
+              <LinearGradient colors={['#30cfd0', '#330867']} style={styles.statCardGradient}>
+                <Text style={styles.statValue}>{stats.activeUsers}</Text>
+                <Text style={styles.statLabel} numberOfLines={1}>Active (7d)</Text>
+              </LinearGradient>
+            </TouchableOpacity>
           </View>
+          <TouchableOpacity
+            style={[styles.button, styles.exportButton]}
+            onPress={handleExportReport}
+            disabled={exporting}
+          >
+            <LinearGradient
+              colors={['#10b981', '#059669']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.buttonGradient}
+            >
+              {exporting ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>📤 Export Report</Text>
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
         </View>
       )}
 
@@ -661,6 +777,160 @@ export default function AdminScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Stat Drill-Down Modal */}
+      <Modal
+        visible={statDrillDown !== null}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setStatDrillDown(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, styles.drillDownModalContent]}>
+            <LinearGradient
+              colors={
+                statDrillDown === 'restricted' ? ['#fa709a', '#fee140'] :
+                statDrillDown === 'active' ? ['#30cfd0', '#330867'] :
+                statDrillDown === 'matches' ? ['#4facfe', '#00f2fe'] :
+                ['#667eea', '#764ba2']
+              }
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.drillDownModalHeader}
+            >
+              <View style={styles.drillDownModalHeaderRow}>
+                <Text style={styles.drillDownModalTitle}>
+                  {statDrillDown === 'users' && '👥 All Users'}
+                  {statDrillDown === 'matches' && '💕 Match Pairs'}
+                  {statDrillDown === 'restricted' && '🚫 Restricted Users'}
+                  {statDrillDown === 'active' && '✨ Active (7d)'}
+                </Text>
+                <TouchableOpacity onPress={() => setStatDrillDown(null)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+                  <Text style={styles.drillDownModalClose}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              {!drillDownLoading && (
+                <>
+                  <Text style={styles.drillDownModalSubtitle}>
+                    {statDrillDown === 'matches'
+                      ? `${drillDownMatches.length} pair${drillDownMatches.length !== 1 ? 's' : ''}`
+                      : `${drillDownUsers.length} user${drillDownUsers.length !== 1 ? 's' : ''}`}
+                  </Text>
+                  {statDrillDown === 'restricted' && drillDownUsers.length > 0 && (
+                    <TouchableOpacity
+                      style={styles.drillDownFixBtn}
+                      onPress={() => {
+                        Alert.alert(
+                          'Unrestrict Leo, Dan, Luke?',
+                          'This will unrestrict these users if they appear in the list.',
+                          [
+                            { text: 'Cancel', style: 'cancel' },
+                            { text: 'Unrestrict', onPress: () => handleBatchUnrestrict(['Leo', 'Dan', 'Luke']) }
+                          ]
+                        );
+                      }}
+                    >
+                      <Text style={styles.drillDownFixBtnText}>Fix: Unrestrict Leo, Dan, Luke</Text>
+                    </TouchableOpacity>
+                  )}
+                </>
+              )}
+            </LinearGradient>
+            {drillDownLoading ? (
+              <View style={styles.drillDownLoadingWrap}>
+                <ActivityIndicator size="large" color="#667eea" />
+              </View>
+            ) : statDrillDown === 'matches' ? (
+              <ScrollView style={styles.drillDownScroll} showsVerticalScrollIndicator={false}>
+                {drillDownMatches.length === 0 ? (
+                  <View style={styles.drillDownEmpty}>
+                    <Text style={styles.drillDownEmptyText}>No matches yet</Text>
+                  </View>
+                ) : (
+                  drillDownMatches.map((m) => (
+                    <TouchableOpacity
+                      key={m.id}
+                      style={styles.drillDownCard}
+                      onPress={() => {
+                        setStatDrillDown(null);
+                        fetchUserDetails(m.user1.id);
+                      }}
+                      activeOpacity={0.85}
+                    >
+                      <LinearGradient colors={['#4facfe', '#00f2fe']} style={styles.drillDownCardGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+                        <Text style={styles.drillDownPair}>{m.user1.name} ↔ {m.user2.name}</Text>
+                        <Text style={styles.drillDownMetaLight}>{m.stage} • {new Date(m.stage1At).toLocaleDateString()}</Text>
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  ))
+                )}
+              </ScrollView>
+            ) : (
+              <ScrollView style={styles.drillDownScroll} showsVerticalScrollIndicator={false}>
+                {drillDownUsers.length === 0 ? (
+                  <View style={styles.drillDownEmpty}>
+                    <Text style={styles.drillDownEmptyText}>No users found</Text>
+                  </View>
+                ) : (
+                  drillDownUsers.map((u) => (
+                    <TouchableOpacity
+                      key={u.id}
+                      style={styles.drillDownCard}
+                      onPress={() => {
+                        setStatDrillDown(null);
+                        fetchUserDetails(u.id);
+                      }}
+                      activeOpacity={0.85}
+                    >
+                      {statDrillDown === 'restricted' ? (
+                        <LinearGradient colors={['#fa709a', '#fee140']} style={styles.drillDownCardGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+                          <View style={styles.drillDownRestrictedRow}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.drillDownNameLight}>{u.display_name || u.email || u.phoneNumber || 'N/A'}</Text>
+                              <Text style={styles.drillDownMetaLight}>{u.email || u.phoneNumber || 'No contact'}{u.age && u.gender ? ` • ${u.age} ${u.gender}` : ''}</Text>
+                            </View>
+                            <TouchableOpacity
+                              style={styles.drillDownUnrestrictBtn}
+                              onPress={(e) => {
+                                e.stopPropagation();
+                                handleUnrestrictFromDrillDown(u.id);
+                              }}
+                              disabled={drillDownUnrestricting === u.id}
+                            >
+                              {drillDownUnrestricting === u.id ? (
+                                <ActivityIndicator size="small" color="#fff" />
+                              ) : (
+                                <Text style={styles.drillDownUnrestrictText}>Unrestrict</Text>
+                              )}
+                            </TouchableOpacity>
+                          </View>
+                        </LinearGradient>
+                      ) : statDrillDown === 'active' ? (
+                        <LinearGradient colors={['#30cfd0', '#330867']} style={styles.drillDownCardGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+                          <View style={styles.drillDownActiveRow}>
+                            <Text style={styles.drillDownNameLight}>{u.display_name || u.email || u.phoneNumber || 'N/A'}</Text>
+                            {u.tokenCount > 0 && (
+                              <View style={styles.drillDownTokenBadge}>
+                                <Text style={styles.drillDownTokenText}>🎟️ {u.tokenCount}</Text>
+                              </View>
+                            )}
+                          </View>
+                          <Text style={styles.drillDownMetaLight}>{u.email || u.phoneNumber || 'No contact'}{u.age && u.gender ? ` • ${u.age} ${u.gender}` : ''}</Text>
+                        </LinearGradient>
+                      ) : (
+                        <View style={styles.drillDownCardPlain}>
+                          <Text style={styles.drillDownName}>{u.display_name || u.email || u.phoneNumber || 'N/A'}</Text>
+                          <Text style={styles.drillDownMeta}>{u.email || u.phoneNumber || 'No contact'}{u.age && u.gender ? ` • ${u.age} ${u.gender}` : ''}</Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  ))
+                )}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
       </ScrollView>
     </View>
   );
@@ -762,8 +1032,13 @@ const styles = StyleSheet.create({
     padding: 12,
     alignItems: 'center',
   },
-  statCardGradient: {
+  statCardTouchable: {
     flexBasis: '48%',
+    marginBottom: 12,
+    maxWidth: '48%',
+  },
+  statCardGradient: {
+    flex: 1,
     borderRadius: 20,
     padding: 20,
     alignItems: 'center',
@@ -776,8 +1051,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.3)',
     minHeight: 120,
-    marginBottom: 12,
-    maxWidth: '48%',
   },
   statValue: {
     fontSize: 32,
@@ -796,6 +1069,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.3,
     width: '100%',
+  },
+  exportButton: {
+    marginTop: 20,
   },
   button: {
     borderRadius: 28,
@@ -982,6 +1258,165 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: '#999',
     padding: 20,
+  },
+  drillDownModalContent: {
+    overflow: 'hidden',
+    paddingTop: 0,
+    paddingHorizontal: 0,
+  },
+  drillDownModalHeader: {
+    paddingHorizontal: 28,
+    paddingTop: 24,
+    paddingBottom: 20,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+  },
+  drillDownModalHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  drillDownModalTitle: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#fff',
+    letterSpacing: -0.5,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  drillDownModalClose: {
+    fontSize: 28,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '300',
+  },
+  drillDownModalSubtitle: {
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginTop: 6,
+    fontWeight: '600',
+  },
+  drillDownLoadingWrap: {
+    paddingVertical: 48,
+    alignItems: 'center',
+  },
+  drillDownScroll: {
+    maxHeight: 400,
+    paddingHorizontal: 28,
+    paddingTop: 16,
+    paddingBottom: 24,
+  },
+  drillDownEmpty: {
+    paddingVertical: 48,
+    alignItems: 'center',
+  },
+  drillDownEmptyText: {
+    fontSize: 16,
+    color: '#999',
+    fontWeight: '500',
+  },
+  drillDownCard: {
+    borderRadius: 20,
+    marginBottom: 12,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  drillDownCardGradient: {
+    padding: 18,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+  },
+  drillDownCardPlain: {
+    padding: 18,
+    backgroundColor: '#f8f9ff',
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#e5e7eb',
+  },
+  drillDownName: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#1a1a1a',
+    marginBottom: 4,
+  },
+  drillDownNameLight: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#fff',
+    marginBottom: 4,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  drillDownPair: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#fff',
+    marginBottom: 4,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  drillDownMeta: {
+    fontSize: 14,
+    color: '#666',
+  },
+  drillDownMetaLight: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.92)',
+  },
+  drillDownActiveRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  drillDownTokenBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  drillDownTokenText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#fff',
+  },
+  drillDownRestrictedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  drillDownUnrestrictBtn: {
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    minWidth: 90,
+    alignItems: 'center',
+  },
+  drillDownUnrestrictText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#fff',
+  },
+  drillDownFixBtn: {
+    marginTop: 12,
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  drillDownFixBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#fff',
   },
   modalOverlay: {
     flex: 1,

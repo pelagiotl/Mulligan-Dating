@@ -13,6 +13,7 @@ import {
   Platform,
   Vibration,
   Modal,
+  InteractionManager,
 } from 'react-native';
 import { TouchableOpacity as GestureTouchable } from 'react-native-gesture-handler';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -683,6 +684,8 @@ export default function BrowseScreen() {
   // Interest tags animations
   const interestTagScales = useRef<{ [key: number]: Animated.Value }>({}).current;
   const interestTagOpacities = useRef<{ [key: number]: Animated.Value }>({}).current;
+  const interestTagScaleFallback = useRef(new Animated.Value(0.9)).current;
+  const interestTagOpacityFallback = useRef(new Animated.Value(0.9)).current;
   
   // Floating particles for background
   const particleAnimations = useRef<Array<{
@@ -1406,16 +1409,28 @@ export default function BrowseScreen() {
     return () => stopConnectButtonAnimations();
   }, [currentProfile, showLandingPage, needsProfile, loading, stopConnectButtonAnimations]);
 
-  // Restart Connect button animations when returning to Connect tab (isFocused drives restart after tab visible)
+  // Restart Connect button animations when returning to Connect tab — useFocusEffect ensures we run after tab is visible
   const shouldShowConnectButton = currentProfile && !showLandingPage && !needsProfile && !loading;
-  useEffect(() => {
-    if (!isFocused || !shouldShowConnectButton) return;
-    stopConnectButtonAnimations();
-    const t = setTimeout(() => {
-      startConnectButtonAnimations();
-    }, 400);
-    return () => clearTimeout(t);
-  }, [isFocused, shouldShowConnectButton, startConnectButtonAnimations, stopConnectButtonAnimations]);
+  useFocusEffect(
+    useCallback(() => {
+      if (!shouldShowConnectButton) {
+        stopConnectButtonAnimations();
+        return;
+      }
+      stopConnectButtonAnimations();
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
+      const task = InteractionManager.runAfterInteractions(() => {
+        timeoutId = setTimeout(() => {
+          startConnectButtonAnimations();
+        }, 350);
+      });
+      return () => {
+        task.cancel();
+        if (timeoutId) clearTimeout(timeoutId);
+        stopConnectButtonAnimations();
+      };
+    }, [shouldShowConnectButton, startConnectButtonAnimations, stopConnectButtonAnimations])
+  );
 
   const handleConnect = useCallback((profile: Profile, expandSlot?: boolean) => {
     setError('');
@@ -1994,14 +2009,8 @@ export default function BrowseScreen() {
                 <Text style={styles.interestsLabel}>Interests:</Text>
                 <View style={styles.interestsList}>
                   {currentProfile.interests.slice(0, 6).map((interest, idx) => {
-                    const scaleAnim = interestTagScales[idx] || new Animated.Value(0.8);
-                    const opacityAnim = interestTagOpacities[idx] || new Animated.Value(0);
-                    if (!interestTagScales[idx]) {
-                      interestTagScales[idx] = scaleAnim;
-                    }
-                    if (!interestTagOpacities[idx]) {
-                      interestTagOpacities[idx] = opacityAnim;
-                    }
+                    const scaleAnim = interestTagScales[idx] ?? interestTagScaleFallback;
+                    const opacityAnim = interestTagOpacities[idx] ?? interestTagOpacityFallback;
                     return (
                       <Animated.View
                         key={idx}

@@ -22,6 +22,51 @@ interface TokenPackage {
   maxTokensCanBuy?: number;
 }
 
+// Animated hourglass for "waiting for refill" state — gentle sway + pulse
+function AnimatedHourglass() {
+  const sway = useRef(new Animated.Value(0)).current;
+  const pulse = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const swayLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(sway, { toValue: 1, duration: 2000, useNativeDriver: true }),
+        Animated.timing(sway, { toValue: 0, duration: 2000, useNativeDriver: true }),
+      ])
+    );
+    const pulseLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1.08, duration: 1500, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: 1500, useNativeDriver: true }),
+      ])
+    );
+    swayLoop.start();
+    pulseLoop.start();
+    return () => {
+      swayLoop.stop();
+      pulseLoop.stop();
+    };
+  }, []);
+
+  const rotate = sway.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['-8deg', '8deg'],
+  });
+
+  return (
+    <Animated.View
+      style={[
+        styles.refillEmojiWrap,
+        {
+          transform: [{ rotate }, { scale: pulse }],
+        },
+      ]}
+    >
+      <Text style={styles.refillEmoji}>⏳</Text>
+    </Animated.View>
+  );
+}
+
 // Premium Token Display Component with animations
 function PremiumTokenDisplay({ 
   count, 
@@ -288,30 +333,40 @@ export default function TokenDisplay({ compact = false, premium = false }: Token
           >
             <View style={styles.modalOverlay}>
               <View style={styles.infoModalContent}>
-                <View style={styles.infoModalHeader}>
+                <LinearGradient
+                  colors={['#667eea', '#764ba2', '#f093fb']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.infoModalHeaderGradient}
+                >
                   <Text style={styles.infoModalTitle}>🎟️ Your Tokens</Text>
-                  <TouchableOpacity onPress={() => setShowInfoModal(false)}>
-                    <Text style={styles.modalClose}>✕</Text>
+                  <TouchableOpacity onPress={() => setShowInfoModal(false)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+                    <Text style={styles.infoModalClose}>✕</Text>
                   </TouchableOpacity>
-                </View>
+                </LinearGradient>
 
                 <ScrollView style={styles.infoModalScroll} showsVerticalScrollIndicator={false}>
                   {/* Current Token Count */}
                   <View style={styles.infoSection}>
                     <Text style={styles.infoSectionTitle}>Current Balance</Text>
-                    <View style={styles.tokenBalanceCard}>
+                    <LinearGradient
+                      colors={['#667eea', '#764ba2', '#f093fb']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.tokenBalanceCard}
+                    >
                       <Text style={styles.tokenBalanceNumber}>{data.availableTokens}</Text>
                       <Text style={styles.tokenBalanceLabel}>
                         Token{data.availableTokens !== 1 ? 's' : ''} Available
                       </Text>
-                    </View>
+                    </LinearGradient>
                   </View>
 
                   {/* Weekly Refill Info */}
                   <View style={styles.infoSection}>
                     <Text style={styles.infoSectionTitle}>Weekly Refill</Text>
                     {data.canClaimWeeklyToken ? (
-                      <View style={styles.refillCard}>
+                      <LinearGradient colors={['#f8f9ff', '#f0f4ff']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.refillCard}>
                         <Text style={styles.refillEmoji}>✨</Text>
                         <Text style={styles.refillText}>
                           Your weekly tokens are ready! Claim them now to fill up to 7 tokens.
@@ -322,7 +377,8 @@ export default function TokenDisplay({ compact = false, premium = false }: Token
                             setShowInfoModal(false);
                           }}
                           disabled={claiming}
-                          activeOpacity={0.8}
+                          activeOpacity={0.9}
+                          style={styles.refillButtonWrap}
                         >
                           <LinearGradient
                             colors={claiming ? ['#999', '#777'] : ['#667eea', '#764ba2', '#f093fb']}
@@ -337,10 +393,10 @@ export default function TokenDisplay({ compact = false, premium = false }: Token
                             )}
                           </LinearGradient>
                         </TouchableOpacity>
-                      </View>
+                      </LinearGradient>
                     ) : data.nextRefillDate ? (
-                      <View style={styles.refillCard}>
-                        <Text style={styles.refillEmoji}>⏰</Text>
+                      <LinearGradient colors={['#f8f9ff', '#f0f4ff']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.refillCard}>
+                        <AnimatedHourglass />
                         <Text style={styles.refillText}>
                           Next weekly refill available:
                         </Text>
@@ -355,9 +411,9 @@ export default function TokenDisplay({ compact = false, premium = false }: Token
                         <Text style={styles.refillSubtext}>
                           You'll get 7 tokens to fill up to your maximum of 7.
                         </Text>
-                      </View>
+                      </LinearGradient>
                     ) : (
-                      <View style={styles.refillCard}>
+                      <LinearGradient colors={['#f8f9ff', '#f0f4ff']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.refillCard}>
                         <Text style={styles.refillEmoji}>🎉</Text>
                         <Text style={styles.refillText}>
                           Claim your first weekly tokens now!
@@ -368,7 +424,8 @@ export default function TokenDisplay({ compact = false, premium = false }: Token
                             setShowInfoModal(false);
                           }}
                           disabled={claiming}
-                          activeOpacity={0.8}
+                          activeOpacity={0.9}
+                          style={styles.refillButtonWrap}
                         >
                           <LinearGradient
                             colors={claiming ? ['#999', '#777'] : ['#667eea', '#764ba2', '#f093fb']}
@@ -383,7 +440,7 @@ export default function TokenDisplay({ compact = false, premium = false }: Token
                             )}
                           </LinearGradient>
                         </TouchableOpacity>
-                      </View>
+                      </LinearGradient>
                     )}
                   </View>
 
@@ -391,28 +448,36 @@ export default function TokenDisplay({ compact = false, premium = false }: Token
                   <View style={styles.infoSection}>
                     <Text style={styles.infoSectionTitle}>Need More Tokens?</Text>
                     <TouchableOpacity
-                      style={[styles.buyButton]}
+                      activeOpacity={0.9}
                       onPress={() => {
                         setShowInfoModal(false);
-                        // Small delay to ensure info modal closes before purchase modal opens
                         setTimeout(() => {
                           setShowPurchaseModal(true);
                           fetchPackages();
                         }, 300);
                       }}
+                      style={styles.buyButtonWrap}
                     >
-                      <Text style={styles.buyButtonText}>💳 Buy More Tokens</Text>
+                      <LinearGradient
+                        colors={['#10b981', '#059669']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.buyButtonGradient}
+                      >
+                        <Text style={styles.buyButtonText}>💳 Buy More Tokens</Text>
+                      </LinearGradient>
                     </TouchableOpacity>
                   </View>
 
                   {/* Info Text */}
                   <View style={styles.infoSection}>
-                    <Text style={styles.tokenInfoText}>
-                      💡 <Text style={styles.tokenInfoTextBold}>How tokens work:</Text>
-                      {'\n'}• Use tokens to connect with people
-                      {'\n'}• Get 7 tokens weekly (fills up to 7 max)
-                      {'\n'}• Maximum of 7 tokens at a time
-                    </Text>
+                    <View style={styles.tokenInfoCard}>
+                      <Text style={styles.tokenInfoText}>
+                        💡 <Text style={styles.tokenInfoTextBold}>How tokens work:</Text>
+                        {'\n'}• Use tokens to connect with people
+                        {'\n'}• Get 7 tokens weekly
+                      </Text>
+                    </View>
                   </View>
                 </ScrollView>
               </View>
@@ -427,28 +492,30 @@ export default function TokenDisplay({ compact = false, premium = false }: Token
             onRequestClose={() => setShowPurchaseModal(false)}
           >
             <View style={styles.modalOverlay}>
-              <View style={styles.modalContent}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Buy Mulligan Tokens</Text>
-                  <TouchableOpacity onPress={() => setShowPurchaseModal(false)}>
-                    <Text style={styles.modalClose}>✕</Text>
+              <View style={styles.purchaseModalContent}>
+                <LinearGradient
+                  colors={['#10b981', '#059669', '#047857']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.purchaseModalHeaderGradient}
+                >
+                  <Text style={styles.purchaseModalTitle}>🎟️ Buy Mulligan Tokens</Text>
+                  <TouchableOpacity onPress={() => setShowPurchaseModal(false)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+                    <Text style={styles.purchaseModalClose}>✕</Text>
                   </TouchableOpacity>
-                </View>
+                </LinearGradient>
 
                 {loadingPackages ? (
-                  <ActivityIndicator size="large" color="#8B1538" style={styles.modalLoading} />
+                  <ActivityIndicator size="large" color="#10b981" style={styles.modalLoading} />
                 ) : (
-                  <ScrollView style={styles.packagesList}>
+                  <ScrollView style={styles.packagesList} showsVerticalScrollIndicator={false}>
                     {packages.map((pkg) => {
                       const isDisabled = purchasing || pkg.wouldExceedLimit || !pkg.available;
+                      const isBestValue = pkg.id === 3 || pkg.id === 7;
                       return (
                         <TouchableOpacity
                           key={pkg.id}
-                          style={[
-                            styles.packageItem,
-                            (pkg.id === 3 || pkg.id === 7) && styles.packageItemBestValue,
-                            isDisabled && styles.packageItemDisabled
-                          ]}
+                          activeOpacity={0.9}
                           onPress={() => {
                             if (pkg.wouldExceedLimit) {
                               Alert.alert(
@@ -461,25 +528,46 @@ export default function TokenDisplay({ compact = false, premium = false }: Token
                             handlePurchase(pkg.id);
                           }}
                           disabled={isDisabled}
+                          style={styles.packageItemWrap}
                         >
-                          <View style={styles.packageHeader}>
-                            <Text style={styles.packageTokens}>{pkg.tokens} Token{pkg.tokens > 1 ? 's' : ''}</Text>
-                            {(pkg.id === 3 || pkg.id === 7) && (
-                              <Text style={styles.bestValueBadge}>Best Value</Text>
-                            )}
-                            {pkg.wouldExceedLimit && (
-                              <Text style={styles.limitExceededBadge}>Limit Exceeded</Text>
-                            )}
-                          </View>
-                          <Text style={styles.packagePrice}>{pkg.priceFormatted}</Text>
-                          <Text style={styles.packagePricePerToken}>
-                            ${pkg.pricePerToken} per token
-                          </Text>
-                          {pkg.wouldExceedLimit && (
-                            <Text style={styles.limitExceededText}>
-                              You can only purchase up to {pkg.maxTokensCanBuy} more token{(pkg.maxTokensCanBuy || 0) > 1 ? 's' : ''}
+                          <LinearGradient
+                            colors={
+                              isDisabled
+                                ? ['#f1f5f9', '#e2e8f0']
+                                : isBestValue
+                                ? ['#d1fae5', '#a7f3d0', '#6ee7b7']
+                                : ['#f8fafc', '#f1f5f9', '#e2e8f0']
+                            }
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={[
+                              styles.packageItem,
+                              isDisabled && styles.packageItemDisabled
+                            ]}
+                          >
+                            <View style={styles.packageHeader}>
+                              <Text style={[styles.packageTokens, isBestValue && styles.packageTokensBestValue]}>
+                                {pkg.tokens} Token{pkg.tokens > 1 ? 's' : ''}
+                              </Text>
+                              {isBestValue && (
+                                <View style={styles.bestValueBadgeWrap}>
+                                  <Text style={styles.bestValueBadge}>★ Best Value</Text>
+                                </View>
+                              )}
+                              {pkg.wouldExceedLimit && (
+                                <Text style={styles.limitExceededBadge}>Limit</Text>
+                              )}
+                            </View>
+                            <Text style={[styles.packagePrice, isBestValue && styles.packagePriceBestValue]}>{pkg.priceFormatted}</Text>
+                            <Text style={[styles.packagePricePerToken, isBestValue && styles.packagePricePerTokenBestValue]}>
+                              ${pkg.pricePerToken} per token
                             </Text>
-                          )}
+                            {pkg.wouldExceedLimit && (
+                              <Text style={styles.limitExceededText}>
+                                Up to {pkg.maxTokensCanBuy} more token{(pkg.maxTokensCanBuy || 0) > 1 ? 's' : ''} available
+                              </Text>
+                            )}
+                          </LinearGradient>
                         </TouchableOpacity>
                       );
                     })}
@@ -488,7 +576,7 @@ export default function TokenDisplay({ compact = false, premium = false }: Token
 
                 {purchasing && (
                   <View style={styles.purchasingOverlay}>
-                    <ActivityIndicator size="large" color="#8B1538" />
+                    <ActivityIndicator size="large" color="#10b981" />
                     <Text style={styles.purchasingText}>Processing payment...</Text>
                   </View>
                 )}
@@ -575,28 +663,30 @@ export default function TokenDisplay({ compact = false, premium = false }: Token
         onRequestClose={() => setShowPurchaseModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Buy Mulligan Tokens</Text>
-              <TouchableOpacity onPress={() => setShowPurchaseModal(false)}>
-                <Text style={styles.modalClose}>✕</Text>
+          <View style={styles.purchaseModalContent}>
+            <LinearGradient
+              colors={['#10b981', '#059669', '#047857']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.purchaseModalHeaderGradient}
+            >
+              <Text style={styles.purchaseModalTitle}>🎟️ Buy Mulligan Tokens</Text>
+              <TouchableOpacity onPress={() => setShowPurchaseModal(false)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+                <Text style={styles.purchaseModalClose}>✕</Text>
               </TouchableOpacity>
-            </View>
+            </LinearGradient>
 
             {loadingPackages ? (
-              <ActivityIndicator size="large" color="#8B1538" style={styles.modalLoading} />
+              <ActivityIndicator size="large" color="#10b981" style={styles.modalLoading} />
             ) : (
-              <ScrollView style={styles.packagesList}>
+              <ScrollView style={styles.packagesList} showsVerticalScrollIndicator={false}>
                 {packages.map((pkg) => {
                   const isDisabled = purchasing || pkg.wouldExceedLimit || !pkg.available;
+                  const isBestValue = pkg.id === 3 || pkg.id === 7;
                   return (
                     <TouchableOpacity
                       key={pkg.id}
-                      style={[
-                        styles.packageItem,
-                        (pkg.id === 3 || pkg.id === 7) && styles.packageItemBestValue,
-                        isDisabled && styles.packageItemDisabled
-                      ]}
+                      activeOpacity={0.9}
                       onPress={() => {
                         if (pkg.wouldExceedLimit) {
                           Alert.alert(
@@ -609,25 +699,46 @@ export default function TokenDisplay({ compact = false, premium = false }: Token
                         handlePurchase(pkg.id);
                       }}
                       disabled={isDisabled}
+                      style={styles.packageItemWrap}
                     >
-                      <View style={styles.packageHeader}>
-                        <Text style={styles.packageTokens}>{pkg.tokens} Token{pkg.tokens > 1 ? 's' : ''}</Text>
-                        {(pkg.id === 3 || pkg.id === 7) && (
-                          <Text style={styles.bestValueBadge}>Best Value</Text>
-                        )}
-                        {pkg.wouldExceedLimit && (
-                          <Text style={styles.limitExceededBadge}>Limit Exceeded</Text>
-                        )}
-                      </View>
-                      <Text style={styles.packagePrice}>{pkg.priceFormatted}</Text>
-                      <Text style={styles.packagePricePerToken}>
-                        ${pkg.pricePerToken} per token
-                      </Text>
-                      {pkg.wouldExceedLimit && (
-                        <Text style={styles.limitExceededText}>
-                          You can only purchase up to {pkg.maxTokensCanBuy} more token{(pkg.maxTokensCanBuy || 0) > 1 ? 's' : ''}
+                      <LinearGradient
+                        colors={
+                          isDisabled
+                            ? ['#f1f5f9', '#e2e8f0']
+                            : isBestValue
+                            ? ['#d1fae5', '#a7f3d0', '#6ee7b7']
+                            : ['#f8fafc', '#f1f5f9', '#e2e8f0']
+                        }
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={[
+                          styles.packageItem,
+                          isDisabled && styles.packageItemDisabled
+                        ]}
+                      >
+                        <View style={styles.packageHeader}>
+                          <Text style={[styles.packageTokens, isBestValue && styles.packageTokensBestValue]}>
+                            {pkg.tokens} Token{pkg.tokens > 1 ? 's' : ''}
+                          </Text>
+                          {isBestValue && (
+                            <View style={styles.bestValueBadgeWrap}>
+                              <Text style={styles.bestValueBadge}>★ Best Value</Text>
+                            </View>
+                          )}
+                          {pkg.wouldExceedLimit && (
+                            <Text style={styles.limitExceededBadge}>Limit</Text>
+                          )}
+                        </View>
+                        <Text style={[styles.packagePrice, isBestValue && styles.packagePriceBestValue]}>{pkg.priceFormatted}</Text>
+                        <Text style={[styles.packagePricePerToken, isBestValue && styles.packagePricePerTokenBestValue]}>
+                          ${pkg.pricePerToken} per token
                         </Text>
-                      )}
+                        {pkg.wouldExceedLimit && (
+                          <Text style={styles.limitExceededText}>
+                            Up to {pkg.maxTokensCanBuy} more token{(pkg.maxTokensCanBuy || 0) > 1 ? 's' : ''} available
+                          </Text>
+                        )}
+                      </LinearGradient>
                     </TouchableOpacity>
                   );
                 })}
@@ -636,7 +747,7 @@ export default function TokenDisplay({ compact = false, premium = false }: Token
 
             {purchasing && (
               <View style={styles.purchasingOverlay}>
-                <ActivityIndicator size="large" color="#8B1538" />
+                <ActivityIndicator size="large" color="#10b981" />
                 <Text style={styles.purchasingText}>Processing payment...</Text>
               </View>
             )}
@@ -650,7 +761,7 @@ export default function TokenDisplay({ compact = false, premium = false }: Token
           style={[styles.claimButton, { marginTop: 12, backgroundColor: '#666' }]}
           onPress={async () => {
             try {
-              const result = await api.post('/admin/grant-tokens-by-phone', {
+              const result = await api.post<{ tokensGranted: number; totalAvailableTokens: number }>('/admin/grant-tokens-by-phone', {
                 phoneNumber: '+15413163939',
                 tokenCount: 10,
               });
@@ -796,11 +907,13 @@ const styles = StyleSheet.create({
   },
   claimButtonGradient: {
     paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 12,
+    paddingVertical: 16,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 50,
+    minHeight: 54,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   claimButtonDisabled: {
     opacity: 0.6,
@@ -834,6 +947,41 @@ const styles = StyleSheet.create({
     maxHeight: '80%',
     paddingBottom: 20,
   },
+  purchaseModalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    maxHeight: '85%',
+    paddingBottom: 24,
+    overflow: 'hidden',
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  purchaseModalHeaderGradient: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 24,
+  },
+  purchaseModalTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#fff',
+    textShadowColor: 'rgba(0,0,0,0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  purchaseModalClose: {
+    fontSize: 24,
+    color: '#fff',
+    fontWeight: '300',
+    opacity: 0.95,
+  },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -857,32 +1005,37 @@ const styles = StyleSheet.create({
   },
   packagesList: {
     padding: 20,
+    paddingTop: 16,
+  },
+  packageItemWrap: {
+    marginBottom: 14,
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#64748b',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 6,
   },
   packageItem: {
-    borderWidth: 2,
-    borderColor: '#ddd',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    backgroundColor: '#fafafa',
-  },
-  packageItemBestValue: {
-    borderColor: '#10b981',
-    backgroundColor: '#f0fdf4',
+    borderRadius: 20,
+    padding: 18,
+    borderWidth: 1.5,
+    borderColor: 'rgba(148, 163, 184, 0.4)',
   },
   packageItemDisabled: {
-    opacity: 0.5,
-    borderColor: '#ccc',
-    backgroundColor: '#f5f5f5',
+    opacity: 0.65,
+    borderColor: 'rgba(148, 163, 184, 0.3)',
   },
   limitExceededBadge: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#ef4444',
-    backgroundColor: '#fee2e2',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
+    color: '#dc2626',
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    overflow: 'hidden',
   },
   limitExceededText: {
     fontSize: 12,
@@ -894,31 +1047,49 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
+    flexWrap: 'wrap',
+    gap: 8,
   },
   packageTokens: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1e293b',
+  },
+  packageTokensBestValue: {
+    color: '#047857',
+  },
+  bestValueBadgeWrap: {
+    backgroundColor: 'rgba(16, 185, 129, 0.25)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.4)',
   },
   bestValueBadge: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#10b981',
-    backgroundColor: '#dcfce7',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#047857',
   },
   packagePrice: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#8B1538',
-    marginBottom: 4,
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#1e293b',
+    marginBottom: 6,
+    letterSpacing: 0.3,
+  },
+  packagePriceBestValue: {
+    color: '#047857',
+    fontSize: 28,
   },
   packagePricePerToken: {
     fontSize: 14,
-    color: '#666',
+    color: '#64748b',
+  },
+  packagePricePerTokenBestValue: {
+    color: '#059669',
+    fontWeight: '600',
   },
   purchasingOverlay: {
     position: 'absolute',
@@ -938,66 +1109,102 @@ const styles = StyleSheet.create({
   // Info Modal Styles
   infoModalContent: {
     backgroundColor: '#fff',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     maxHeight: '85%',
-    paddingBottom: 20,
+    paddingBottom: 24,
+    overflow: 'hidden',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 24,
+    elevation: 16,
   },
-  infoModalHeader: {
+  infoModalHeaderGradient: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    paddingHorizontal: 24,
+    paddingVertical: 22,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
   },
   infoModalTitle: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#1a1a1a',
+    fontSize: 26,
+    fontWeight: '900',
+    color: '#fff',
     letterSpacing: 0.5,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  infoModalClose: {
+    fontSize: 26,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '300',
   },
   infoModalScroll: {
-    padding: 20,
+    padding: 24,
   },
   infoSection: {
     marginBottom: 24,
   },
   infoSectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#333',
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#1a1a1a',
     marginBottom: 12,
+    letterSpacing: 0.3,
   },
   tokenBalanceCard: {
-    backgroundColor: '#f8f9ff',
-    borderRadius: 16,
-    padding: 24,
+    borderRadius: 24,
+    padding: 28,
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#667eea',
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 20,
+    elevation: 10,
   },
   tokenBalanceNumber: {
-    fontSize: 48,
+    fontSize: 56,
     fontWeight: '900',
-    color: '#667eea',
+    color: '#fff',
     marginBottom: 8,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   tokenBalanceLabel: {
-    fontSize: 16,
-    color: '#666',
-    fontWeight: '500',
+    fontSize: 17,
+    color: 'rgba(255, 255, 255, 0.95)',
+    fontWeight: '600',
   },
   refillCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderRadius: 20,
+    padding: 24,
+    borderWidth: 2,
+    borderColor: 'rgba(102, 126, 234, 0.25)',
     alignItems: 'center',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 6,
+  },
+  refillButtonWrap: {
+    marginTop: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
+    width: '100%',
+  },
+  refillEmojiWrap: {
+    alignSelf: 'center',
   },
   refillEmoji: {
-    fontSize: 32,
+    fontSize: 36,
     marginBottom: 12,
   },
   refillText: {
@@ -1020,17 +1227,38 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontStyle: 'italic',
   },
-  buyButton: {
-    backgroundColor: '#10b981',
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    borderRadius: 12,
+  buyButtonWrap: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  buyButtonGradient: {
+    paddingHorizontal: 28,
+    paddingVertical: 18,
+    borderRadius: 20,
     alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.35)',
   },
   buyButtonText: {
     color: '#fff',
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '900',
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  tokenInfoCard: {
+    backgroundColor: '#f8f9ff',
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 2,
+    borderColor: 'rgba(102, 126, 234, 0.15)',
   },
   tokenInfoText: {
     fontSize: 14,

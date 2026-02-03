@@ -294,13 +294,15 @@ adminRouter.get('/stats', authenticateToken, requireAdmin, async (req: AuthReque
     const totalMatches = totalMatchesResult?.count || 0;
 
     // Restricted users
-    const restrictedUsersResult = await (db.prepare('SELECT COUNT(*) as count FROM users WHERE is_restricted = 1').get([]) as Promise<{ count: number }>);
+    const restrictedUsersResult = await (db.prepare('SELECT COUNT(*) as count FROM users WHERE COALESCE(is_restricted, 0) = 1 AND COALESCE(is_admin, 0) = 0').get([]) as Promise<{ count: number }>);
     const restrictedUsers = restrictedUsersResult?.count || 0;
 
-    // Active users (last 7 days)
+    // Active users (last 7 days) — same query as /users?filter=active so stats and drill-down match
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    const activeUsersResult = await (db.prepare('SELECT COUNT(DISTINCT user_id) as count FROM mulligan_tokens WHERE granted_at >= ?').get([sevenDaysAgo.toISOString()]) as Promise<{ count: number }>);
+    const activeUsersResult = await (db.prepare(
+      'SELECT COUNT(DISTINCT u.id) as count FROM users u INNER JOIN mulligan_tokens t ON t.user_id = u.id AND t.granted_at >= ?'
+    ).get([sevenDaysAgo.toISOString()]) as Promise<{ count: number }>);
     const activeUsers = activeUsersResult?.count || 0;
 
     res.json({
@@ -316,17 +318,205 @@ adminRouter.get('/stats', authenticateToken, requireAdmin, async (req: AuthReque
   }
 });
 
-// List users with pagination and search
+// Export report (stats + users summary) for sharing with partners
+adminRouter.get('/export/report', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit as string) || 500, 1000);
+
+    // Stats (same logic as /stats)
+    const totalUsersResult = await (db.prepare('SELECT COUNT(*) as count FROM users').get([]) as Promise<{ count: number }>);
+    const totalUsers = totalUsersResult?.count || 0;
+
+    const totalProfilesResult = await (db.prepare('SELECT COUNT(*) as count FROM profiles').get([]) as Promise<{ count: number }>);
+    const totalProfiles = totalProfilesResult?.count || 0;
+
+    const totalMatchesResult = await (db.prepare('SELECT COUNT(*) as count FROM matches WHERE stage != ?').get(['expired']) as Promise<{ count: number }>);
+    const totalMatches = totalMatchesResult?.count || 0;
+
+    const restrictedUsersResult = await (db.prepare('SELECT COUNT(*) as count FROM users WHERE COALESCE(is_restricted, 0) = 1 AND COALESCE(is_admin, 0) = 0').get([]) as Promise<{ count: number }>);
+    const restrictedUsers = restrictedUsersResult?.count || 0;
+
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const activeUsersResult = await (db.prepare(
+      'SELECT COUNT(DISTINCT u.id) as count FROM users u INNER JOIN mulligan_tokens t ON t.user_id = u.id AND t.granted_at >= ?'
+    ).get([sevenDaysAgo.toISOString()]) as Promise<{ count: number }>);
+    const activeUsers = activeUsersResult?.count || 0;
+
+    // Users list (most recent, limited)
+    const usersResult = await (db.prepare(`
+      SELECT 
+        u.id, u.email, u.phone_number, u.is_admin, u.is_restricted, 
+        u.created_at, u.last_active_at,
+        p.display_name, p.age, p.gender, p.location
+      FROM users u
+      LEFT JOIN profiles p ON p.user_id = u.id
+      ORDER BY u.created_at DESC
+      LIMIT ?
+    `).all([limit]) as Promise<any[]>);
+
+    const userIds = usersResult.map((u: any) => u.id);
+    let tokenCounts: Record<string, number> = {};
+
+    if (userIds.length > 0) {
+      const placeholders = userIds.map(() => '?').join(',');
+      const tokensResult = await (db.prepare(`
+        SELECT user_id, COUNT(*) as count FROM mulligan_tokens 
+        WHERE user_id IN (${placeholders}) AND used_at IS NULL AND returned_at IS NULL 
+        GROUP BY user_id
+      `).all(userIds) as Promise<{ user_id: string; count: number }[]>);
+
+      tokensResult.forEach((row: any) => {
+        tokenCounts[row.user_id] = parseInt(row.count) || 0;
+      });
+    }
+
+    const users = usersResult.map((u: any) => ({
+      id: u.id,
+      email: u.email || u.phone_number || 'N/A',
+      phoneNumber: u.phone_number,
+      display_name: u.display_name,
+      age: u.age,
+      gender: u.gender,
+      location: u.location,
+      is_admin: u.is_admin === 1,
+      is_restricted: u.is_restricted === 1,
+      created_at: u.created_at,
+      last_active_at: u.last_active_at,
+      tokenCount: tokenCounts[u.id] || 0
+    }));
+
+    const report = {
+      exportedAt: new Date().toISOString(),
+      stats: {
+        totalUsers,
+        totalProfiles,
+        totalMatches,
+        restrictedUsers,
+        activeUsers
+      },
+      users,
+      usersIncluded: users.length,
+      note: users.length < totalUsers ? `Showing most recent ${users.length} of ${totalUsers} users` : undefined
+    };
+
+    res.json(report);
+  } catch (error: any) {
+    console.error('Error exporting report:', error);
+    res.status(500).json({ error: 'Failed to export report', details: error.message });
+  }
+});
+
+// List match pairs (for drill-down from Matches stat)
+adminRouter.get('/matches', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit as string) || 100, 500);
+    const offset = parseInt(req.query.offset as string) || 0;
+
+    const matchesResult = await (db.prepare(`
+      SELECT m.id, m.stage, m.stage1_at,
+        u1.id as user1_id, p1.display_name as user1_name, u1.phone_number as user1_phone,
+        u2.id as user2_id, p2.display_name as user2_name, u2.phone_number as user2_phone
+      FROM matches m
+      JOIN users u1 ON u1.id = m.user1_id
+      JOIN users u2 ON u2.id = m.user2_id
+      LEFT JOIN profiles p1 ON p1.user_id = u1.id
+      LEFT JOIN profiles p2 ON p2.user_id = u2.id
+      WHERE m.stage != 'expired'
+      ORDER BY m.stage1_at DESC
+      LIMIT ? OFFSET ?
+    `).all([limit, offset]) as Promise<any[]>);
+
+    const totalResult = await (db.prepare('SELECT COUNT(*) as count FROM matches WHERE stage != ?').get(['expired']) as Promise<{ count: number }>);
+    const total = totalResult?.count || 0;
+
+    const matches = matchesResult.map((m: any) => ({
+      id: m.id,
+      stage: m.stage,
+      stage1At: m.stage1_at,
+      user1: { id: m.user1_id, name: m.user1_name || m.user1_phone || 'Unknown', phone: m.user1_phone },
+      user2: { id: m.user2_id, name: m.user2_name || m.user2_phone || 'Unknown', phone: m.user2_phone }
+    }));
+
+    res.json({ matches, total });
+  } catch (error: any) {
+    console.error('Error fetching matches:', error);
+    res.status(500).json({ error: 'Failed to fetch matches', details: error.message });
+  }
+});
+
+// List users with pagination, search, and filter (restricted | active)
 adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 50;
     const offset = (page - 1) * limit;
     const search = req.query.search as string || '';
+    const filter = (req.query.filter as string || '').trim().toLowerCase();
 
-    // Get users with profiles
+    // Restricted: use a dedicated query - ONLY users explicitly marked restricted (is_restricted = 1)
+    // COALESCE handles NULL; exclude admins from this list per product intent
+    if (filter === 'restricted') {
+      const baseWhere = 'COALESCE(u.is_restricted, 0) = 1 AND COALESCE(u.is_admin, 0) = 0';
+      const searchWhere = search
+        ? ` AND (u.email LIKE ? OR p.display_name LIKE ? OR u.phone_number LIKE ?)`
+        : '';
+      const searchTerm = `%${search}%`;
+      const query = `
+        SELECT DISTINCT u.id, u.email, u.phone_number, u.is_admin, u.is_restricted,
+          u.created_at, u.last_active_at,
+          p.display_name, p.age, p.gender, p.location
+        FROM users u
+        LEFT JOIN profiles p ON p.user_id = u.id
+        WHERE ${baseWhere}${searchWhere}
+        ORDER BY u.created_at DESC
+        LIMIT ? OFFSET ?
+      `;
+      const params = search ? [searchTerm, searchTerm, searchTerm, limit, offset] : [limit, offset];
+      const usersResult = await (db.prepare(query).all(params) as Promise<any[]>);
+
+      const countQuery = `
+        SELECT COUNT(DISTINCT u.id) as count FROM users u
+        LEFT JOIN profiles p ON p.user_id = u.id
+        WHERE ${baseWhere}${searchWhere}
+      `;
+      const countParams = search ? [searchTerm, searchTerm, searchTerm] : [];
+      const totalResult = await (db.prepare(countQuery).get(countParams) as Promise<{ count: number }>);
+      const total = totalResult?.count || 0;
+
+      const userIds = usersResult.map((u: any) => u.id);
+      let tokenCounts: Record<string, number> = {};
+      if (userIds.length > 0) {
+        const placeholders = userIds.map(() => '?').join(',');
+        const tokensResult = await (db.prepare(`
+          SELECT user_id, COUNT(*) as count FROM mulligan_tokens
+          WHERE user_id IN (${placeholders}) AND used_at IS NULL AND returned_at IS NULL
+          GROUP BY user_id
+        `).all(userIds) as Promise<{ user_id: string; count: number }[]>);
+        tokensResult.forEach((row: any) => { tokenCounts[row.user_id] = parseInt(row.count) || 0; });
+      }
+
+      const users = usersResult.map((u: any) => ({
+        id: u.id,
+        email: u.email || u.phone_number || 'N/A',
+        phoneNumber: u.phone_number,
+        display_name: u.display_name,
+        age: u.age,
+        gender: u.gender,
+        location: u.location,
+        is_admin: u.is_admin === 1,
+        is_restricted: true,
+        created_at: u.created_at,
+        last_active_at: u.last_active_at,
+        tokenCount: tokenCounts[u.id] || 0
+      }));
+
+      return res.json({ users, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
+    }
+
+    // Build base query for non-restricted filters
     let query = `
-      SELECT 
+      SELECT DISTINCT
         u.id, u.email, u.phone_number, u.is_admin, u.is_restricted, 
         u.created_at, u.last_active_at,
         p.display_name, p.age, p.gender, p.location
@@ -335,11 +525,31 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
     `;
 
     const params: any[] = [];
+    const conditions: string[] = [];
+
+    if (filter === 'active') {
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      query = `
+        SELECT DISTINCT
+          u.id, u.email, u.phone_number, u.is_admin, u.is_restricted, 
+          u.created_at, u.last_active_at,
+          p.display_name, p.age, p.gender, p.location
+        FROM users u
+        LEFT JOIN profiles p ON p.user_id = u.id
+        INNER JOIN mulligan_tokens t ON t.user_id = u.id AND t.granted_at >= ?
+      `;
+      params.push(sevenDaysAgo.toISOString());
+    }
 
     if (search) {
-      query += ` WHERE (u.email LIKE ? OR p.display_name LIKE ? OR u.phone_number LIKE ?)`;
+      conditions.push('(u.email LIKE ? OR p.display_name LIKE ? OR u.phone_number LIKE ?)');
       const searchTerm = `%${search}%`;
       params.push(searchTerm, searchTerm, searchTerm);
+    }
+
+    if (conditions.length > 0) {
+      query += ` WHERE ${conditions.join(' AND ')}`;
     }
 
     query += ` ORDER BY u.created_at DESC LIMIT ? OFFSET ?`;
@@ -347,12 +557,22 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
 
     const usersResult = await (db.prepare(query).all(params) as Promise<any[]>);
     
-    // Get total count for pagination
-    let countQuery = 'SELECT COUNT(DISTINCT u.id) as count FROM users u';
-    if (search) {
-      countQuery += ` LEFT JOIN profiles p ON p.user_id = u.id WHERE (u.email LIKE ? OR p.display_name LIKE ? OR u.phone_number LIKE ?)`;
+    // Get total count for pagination (mirror filter logic)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    let countQuery: string;
+    const countParams: any[] = [];
+    if (filter === 'active') {
+      countQuery = 'SELECT COUNT(DISTINCT u.id) as count FROM users u INNER JOIN mulligan_tokens t ON t.user_id = u.id AND t.granted_at >= ? LEFT JOIN profiles p ON p.user_id = u.id';
+      countParams.push(sevenDaysAgo.toISOString());
+    } else {
+      countQuery = 'SELECT COUNT(DISTINCT u.id) as count FROM users u LEFT JOIN profiles p ON p.user_id = u.id';
     }
-    const countParams = search ? [`%${search}%`, `%${search}%`, `%${search}%`] : [];
+    if (search) {
+      countQuery += countQuery.includes('WHERE') ? ' AND ' : ' WHERE ';
+      countQuery += '(u.email LIKE ? OR p.display_name LIKE ? OR u.phone_number LIKE ?)';
+      countParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    }
     const totalResult = await (db.prepare(countQuery).get(countParams) as Promise<{ count: number }>);
     const total = totalResult?.count || 0;
 
@@ -449,6 +669,40 @@ adminRouter.get('/users/:id', authenticateToken, requireAdmin, async (req: AuthR
   } catch (error: any) {
     console.error('Error fetching user details:', error);
     res.status(500).json({ error: 'Failed to fetch user details', details: error.message });
+  }
+});
+
+// Batch unrestrict users by display name (fix users wrongly marked restricted)
+adminRouter.post('/users/batch-unrestrict', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { displayNames } = req.body as { displayNames: string[] };
+    if (!Array.isArray(displayNames) || displayNames.length === 0) {
+      return res.status(400).json({ error: 'displayNames must be a non-empty array' });
+    }
+
+    const placeholders = displayNames.map(() => '?').join(',');
+    const profilesResult = await (db.prepare(`
+      SELECT p.user_id FROM profiles p
+      WHERE p.display_name IN (${placeholders})
+    `).all(displayNames) as Promise<{ user_id: string }[]>);
+
+    const userIds = profilesResult.map((r: any) => r.user_id);
+    if (userIds.length === 0) {
+      return res.json({ message: 'No matching users found', unrestricted: 0, userIds: [] });
+    }
+
+    for (const userId of userIds) {
+      await (db.prepare('UPDATE users SET is_restricted = 0 WHERE id = ?').run([userId]) as Promise<any>);
+    }
+
+    res.json({
+      message: `Unrestricted ${userIds.length} user(s)`,
+      unrestricted: userIds.length,
+      userIds
+    });
+  } catch (error: any) {
+    console.error('Error batch unrestricting:', error);
+    res.status(500).json({ error: 'Failed to batch unrestrict', details: error.message });
   }
 });
 

@@ -693,6 +693,49 @@ function EmptyStateAnimated({ navigation }: { navigation: any }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
+
+  // Browse button pulse/shimmer (same style as Connect button)
+  const browseButtonPulse = useRef(new Animated.Value(1)).current;
+  const browseButtonShimmer = useRef(new Animated.Value(0)).current;
+  const browseButtonLoopsRef = useRef<{ pulseLoop: Animated.CompositeAnimation; shimmerLoop: Animated.CompositeAnimation } | null>(null);
+
+  const startBrowseButtonAnimations = useCallback(() => {
+    if (browseButtonLoopsRef.current) return;
+    browseButtonPulse.setValue(1);
+    browseButtonShimmer.setValue(0);
+    const pulseLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(browseButtonPulse, { toValue: 1.05, duration: 1500, useNativeDriver: true }),
+        Animated.timing(browseButtonPulse, { toValue: 1, duration: 1500, useNativeDriver: true }),
+      ])
+    );
+    const shimmerLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(browseButtonShimmer, { toValue: 1, duration: 3000, useNativeDriver: true }),
+        Animated.timing(browseButtonShimmer, { toValue: 0, duration: 0, useNativeDriver: true }),
+      ])
+    );
+    pulseLoop.start();
+    shimmerLoop.start();
+    browseButtonLoopsRef.current = { pulseLoop, shimmerLoop };
+  }, []);
+
+  const stopBrowseButtonAnimations = useCallback(() => {
+    const loops = browseButtonLoopsRef.current;
+    if (loops) {
+      loops.pulseLoop.stop();
+      loops.shimmerLoop.stop();
+      browseButtonLoopsRef.current = null;
+    }
+    browseButtonPulse.setValue(1);
+    browseButtonShimmer.setValue(0);
+  }, []);
+
+  // Start pulse/shimmer on mount; stop on unmount (component only mounts when empty state is visible)
+  useEffect(() => {
+    startBrowseButtonAnimations();
+    return stopBrowseButtonAnimations;
+  }, [startBrowseButtonAnimations, stopBrowseButtonAnimations]);
   
   useEffect(() => {
     Animated.parallel([
@@ -757,13 +800,33 @@ function EmptyStateAnimated({ navigation }: { navigation: any }) {
       <TouchableOpacity
         style={styles.browseButton}
         onPress={() => navigation.navigate('Browse' as never)}
+        activeOpacity={0.9}
       >
-        <LinearGradient
-          colors={['#667eea', '#764ba2', '#f093fb']}
-          style={styles.browseButtonGradient}
-        >
-          <Text style={styles.browseButtonText}>✨ Browse People</Text>
-        </LinearGradient>
+        <Animated.View style={{ transform: [{ scale: browseButtonPulse }] }}>
+          <View style={styles.browseButtonInner}>
+            <LinearGradient
+              colors={['#667eea', '#764ba2', '#f093fb']}
+              style={StyleSheet.absoluteFill}
+            />
+            <Animated.View
+              style={[
+                styles.browseButtonShimmer,
+                {
+                  opacity: browseButtonShimmer.interpolate({
+                    inputRange: [0, 0.3, 0.5, 0.7, 1],
+                    outputRange: [0, 0.5, 0.8, 0.5, 0],
+                  }),
+                  transform: [
+                    { skewX: '-25deg' },
+                    { translateX: browseButtonShimmer.interpolate({ inputRange: [0, 1], outputRange: [-150, 350] }) },
+                  ],
+                },
+              ]}
+              pointerEvents="none"
+            />
+            <Text style={styles.browseButtonText}>✨ Browse People</Text>
+          </View>
+        </Animated.View>
       </TouchableOpacity>
       <LegalFooter />
     </View>
@@ -3263,11 +3326,25 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 8,
   },
-  browseButtonGradient: {
+  browseButtonInner: {
     paddingHorizontal: 32,
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+    position: 'relative',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderRadius: 25,
+    minHeight: 56,
+  },
+  browseButtonShimmer: {
+    position: 'absolute',
+    top: -20,
+    left: 0,
+    bottom: -20,
+    width: 60,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
   },
   browseButtonText: {
     color: '#fff',

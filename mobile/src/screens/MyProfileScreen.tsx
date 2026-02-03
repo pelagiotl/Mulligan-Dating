@@ -184,6 +184,7 @@ export default function MyProfileScreen() {
   
   // Animations for sections (scroll-based)
   const sectionAnims = useRef<Animated.Value[]>([]).current;
+  const sectionFallbackAnim = useRef(new Animated.Value(1)).current; // Single stable fallback to avoid creating new Animated values in render
   
   // Animations for avatar ring - make it alive and immersive
   const ring1Scale = useRef(new Animated.Value(1)).current;
@@ -2039,16 +2040,16 @@ export default function MyProfileScreen() {
         style={[
           styles.section,
           {
-            opacity: sectionAnims[0] || 1,
+            opacity: sectionAnims[0] ?? sectionFallbackAnim,
             transform: [
               { 
-                translateY: (sectionAnims[0] || new Animated.Value(1)).interpolate({ 
+                translateY: (sectionAnims[0] ?? sectionFallbackAnim).interpolate({ 
                   inputRange: [0, 1], 
                   outputRange: [40, 0] 
                 }) 
               },
               { 
-                scale: (sectionAnims[0] || new Animated.Value(1)).interpolate({ 
+                scale: (sectionAnims[0] ?? sectionFallbackAnim).interpolate({ 
                   inputRange: [0, 1], 
                   outputRange: [0.92, 1] 
                 }) 
@@ -2197,16 +2198,16 @@ export default function MyProfileScreen() {
           style={[
             styles.section,
             {
-              opacity: sectionAnims[1] || 1,
+              opacity: sectionAnims[1] ?? sectionFallbackAnim,
               transform: [
                 { 
-                  translateY: (sectionAnims[1] || new Animated.Value(1)).interpolate({ 
+                  translateY: (sectionAnims[1] ?? sectionFallbackAnim).interpolate({ 
                     inputRange: [0, 1], 
                     outputRange: [40, 0] 
                   }) 
                 },
                 { 
-                  scale: (sectionAnims[1] || new Animated.Value(1)).interpolate({ 
+                  scale: (sectionAnims[1] ?? sectionFallbackAnim).interpolate({ 
                     inputRange: [0, 1], 
                     outputRange: [0.92, 1] 
                   }) 
@@ -2235,16 +2236,16 @@ export default function MyProfileScreen() {
           style={[
             styles.section,
             {
-              opacity: sectionAnims[2] || 1,
+              opacity: sectionAnims[2] ?? sectionFallbackAnim,
               transform: [
                 { 
-                  translateY: (sectionAnims[2] || new Animated.Value(1)).interpolate({ 
+                  translateY: (sectionAnims[2] ?? sectionFallbackAnim).interpolate({ 
                     inputRange: [0, 1], 
                     outputRange: [40, 0] 
                   }) 
                 },
                 { 
-                  scale: (sectionAnims[2] || new Animated.Value(1)).interpolate({ 
+                  scale: (sectionAnims[2] ?? sectionFallbackAnim).interpolate({ 
                     inputRange: [0, 1], 
                     outputRange: [0.92, 1] 
                   }) 
@@ -2273,16 +2274,16 @@ export default function MyProfileScreen() {
           style={[
             styles.section,
             {
-              opacity: sectionAnims[3] || 1,
+              opacity: sectionAnims[3] ?? sectionFallbackAnim,
               transform: [
                 { 
-                  translateY: (sectionAnims[3] || new Animated.Value(1)).interpolate({ 
+                  translateY: (sectionAnims[3] ?? sectionFallbackAnim).interpolate({ 
                     inputRange: [0, 1], 
                     outputRange: [40, 0] 
                   }) 
                 },
                 { 
-                  scale: (sectionAnims[3] || new Animated.Value(1)).interpolate({ 
+                  scale: (sectionAnims[3] ?? sectionFallbackAnim).interpolate({ 
                     inputRange: [0, 1], 
                     outputRange: [0.92, 1] 
                   }) 
@@ -2311,16 +2312,16 @@ export default function MyProfileScreen() {
           style={[
             styles.section,
             {
-              opacity: sectionAnims[4] || 1,
+              opacity: sectionAnims[4] ?? sectionFallbackAnim,
               transform: [
                 { 
-                  translateY: (sectionAnims[4] || new Animated.Value(1)).interpolate({ 
+                  translateY: (sectionAnims[4] ?? sectionFallbackAnim).interpolate({ 
                     inputRange: [0, 1], 
                     outputRange: [40, 0] 
                   }) 
                 },
                 { 
-                  scale: (sectionAnims[4] || new Animated.Value(1)).interpolate({ 
+                  scale: (sectionAnims[4] ?? sectionFallbackAnim).interpolate({ 
                     inputRange: [0, 1], 
                     outputRange: [0.92, 1] 
                   }) 
