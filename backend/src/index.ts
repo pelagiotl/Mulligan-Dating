@@ -60,6 +60,73 @@ const server = createServer(app);
 // Security middleware (apply first)
 app.use(securityHeaders);
 
+// Public privacy policy page (for Google Play, App Store, etc.)
+app.get("/privacy", (_req, res) => {
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Privacy Policy - Mulligan Dating</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 0 auto; padding: 24px; line-height: 1.6; color: #333; }
+    h1 { color: #8B1538; margin-bottom: 8px; }
+    h2 { font-size: 1.25rem; margin-top: 24px; margin-bottom: 12px; }
+    h3 { font-size: 1.1rem; margin-top: 16px; margin-bottom: 8px; }
+    .meta { color: #666; margin-bottom: 32px; }
+    .footer { margin-top: 32px; padding: 16px; background: #fef2f2; border-radius: 8px; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <h1>Privacy Policy</h1>
+  <p class="meta"><strong>Last Updated:</strong> ${new Date().toLocaleDateString()}</p>
+
+  <h2>1. Introduction</h2>
+  <p>Mulligan Dating ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our dating service.</p>
+
+  <h2>2. Information We Collect</h2>
+  <h3>2.1 Information You Provide</h3>
+  <p>We collect information you provide directly to us, including:</p>
+  <ul>
+    <li><strong>Account Information:</strong> Phone number, email, password (hashed)</li>
+    <li><strong>Profile Information:</strong> Display name, bio, photos, location, age, gender, interests, lifestyle preferences, relationship goals</li>
+    <li><strong>Matching Preferences:</strong> Age range, gender preferences, distance preferences</li>
+    <li><strong>Communication:</strong> Messages sent through the Service</li>
+  </ul>
+  <h3>2.2 Automatically Collected Information</h3>
+  <p>We automatically collect certain information when you use the Service:</p>
+  <ul>
+    <li>Device information (IP address, device type, operating system)</li>
+    <li>Usage data (features used, time spent)</li>
+    <li>Location data (if you provide location information)</li>
+  </ul>
+
+  <h2>3. How We Use Your Information</h2>
+  <p>We use the information we collect to create and manage your account, provide matching services, facilitate communication, improve the app, detect and prevent fraud, and comply with legal obligations.</p>
+
+  <h2>4. Camera and Photos</h2>
+  <p>We request access to your camera and photo library to allow you to take and upload profile photos and send photos in chat. Photos are stored securely and are only shared with other users as part of your profile or in private messages.</p>
+
+  <h2>5. How We Share Your Information</h2>
+  <p>We do not sell your personal information. We may share your profile information with other users for matching purposes. We may share information with service providers (e.g., hosting) and when required by law.</p>
+
+  <h2>6. Data Security</h2>
+  <p>We implement encryption, secure storage, and HTTPS for data transmission. No method of transmission over the Internet is 100% secure.</p>
+
+  <h2>7. Your Rights</h2>
+  <p>You can access and update your profile, delete your account and data, or contact us for a data export. EU users have additional rights under GDPR.</p>
+
+  <h2>8. Contact Us</h2>
+  <p>If you have questions about this Privacy Policy, contact us at <strong>Mulligandating@gmail.com</strong></p>
+
+  <div class="footer">
+    By using Mulligan Dating, you acknowledge that you have read, understood, and agree to this Privacy Policy.
+  </div>
+</body>
+</html>`);
+});
+
 // CORS configuration
 const allowedOrigins = process.env.NODE_ENV === 'production' 
   ? (process.env.ALLOWED_ORIGINS?.split(',') || [])
