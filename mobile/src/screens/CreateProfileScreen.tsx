@@ -88,7 +88,7 @@ const DEALBREAKER_OPTIONS = [
   'Doesn\'t like pets'
 ];
 
-const TOTAL_STEPS = 12; // Steps 1-6: basic info (name, age, gender, location, looking for, bio); 7-12: interests, dealbreakers, qualities, preferences, lifestyle, photos
+const TOTAL_STEPS = 15; // 1-6: basic info; 7: interests; 8: dealbreakers; 9: qualities; 10-13: min age, max age, preferred genders, max distance; 14: lifestyle; 15: photos
 
 export default function CreateProfileScreen() {
   const navigation = useNavigation();
@@ -245,7 +245,7 @@ export default function CreateProfileScreen() {
 
   // Step 7: Photos
   const [photos, setPhotos] = useState<Array<{ id?: string; url: string; uri?: string }>>([]);
-  const [uploading, setUploading] = useState(false);
+  const [uploadingSlotIndex, setUploadingSlotIndex] = useState<number | null>(null);
 
   // Track keyboard visibility
   useEffect(() => {
@@ -266,6 +266,37 @@ export default function CreateProfileScreen() {
     };
   }, []);
 
+  // Responsive scaling based on device size (375pt = iPhone 8/SE baseline, 430pt = Pro Max)
+  const rs = React.useMemo(() => {
+    const w = screenWidth;
+    const h = screenHeight;
+    const scaleW = Math.min(Math.max(w / 375, 0.9), 1.15);
+    const scaleH = Math.min(Math.max(h / 812, 0.85), 1.1);
+    return {
+      sectionMinHeight: h * 0.62,
+      sectionPaddingH: Math.round(20 * scaleW),
+      sectionPaddingV: Math.round(36 * scaleH),
+      cardPadding: Math.round(36 * scaleW),
+      cardPaddingFirst: Math.round(44 * scaleW),
+      cardPaddingKeyboard: Math.round(22 * scaleW),
+      emojiSize: Math.round(72 * scaleW),
+      emojiSizeSmall: Math.round(42 * scaleW),
+      titleSize: Math.round(32 * scaleW),
+      titleSizeSmall: Math.round(22 * scaleW),
+      titleSizeCompact: Math.round(28 * scaleW),
+      titleMargin: Math.round(12 * scaleH),
+      subtitleSize: Math.round(18 * scaleW),
+      subtitleSizeSmall: Math.round(13 * scaleW),
+      subtitleSizeCompact: Math.round(16 * scaleW),
+      subtitleMargin: Math.round(32 * scaleH),
+      subtitleMarginSmall: Math.round(14 * scaleH),
+      lifestyleCardPadding: Math.round(24 * scaleW),
+      lifestyleEmojiSize: Math.round(44 * scaleW),
+      lifestyleTitleSize: Math.round(22 * scaleW),
+      lifestyleSubtitleSize: Math.round(13 * scaleW),
+    };
+  }, [screenWidth, screenHeight]);
+
   // Animate and focus the active basic-info field when on steps 1-6
   useEffect(() => {
     const anim = (s: Animated.Value, o: Animated.Value, g: Animated.Value) => {
@@ -280,14 +311,11 @@ export default function CreateProfileScreen() {
     };
     if (step === 1) {
       anim(firstNameScale, firstNameOpacity, firstNameGlow);
-      setTimeout(() => displayNameInputRef.current?.focus(), 300);
     } else if (step === 2) {
       anim(ageScale, ageOpacity, ageGlow);
-      setTimeout(() => ageInputRef.current?.focus(), 300);
     } else if (step === 3) anim(genderScale, genderOpacity, genderGlow);
     else if (step === 4) {
       anim(locationScale, locationOpacity, locationGlow);
-      setTimeout(() => locationInputRef.current?.focus(), 300);
     } else if (step === 5) anim(lookingForScale, lookingForOpacity, lookingForGlow);
     else if (step === 6) anim(bioScale, bioOpacity, bioGlow);
     else {
@@ -365,78 +393,25 @@ export default function CreateProfileScreen() {
   // Step 10 (dating preferences) - Progressive disclosure with vertical scrolling
   useEffect(() => {
     if (step === 10) {
-      step5AllowScrollRef.current = false; // Disable auto-scroll from useEffects entirely
       animateField(minAgeScale, minAgeOpacity, minAgeGlow);
-      // Scroll to top to ensure we start at minimum age card
-      setTimeout(() => {
-        step5ScrollViewRef.current?.scrollTo({ y: 0, animated: false });
-      }, 100);
     }
   }, [step]);
 
-  // Animate max age card when min age is valid
   useEffect(() => {
-    if (step === 10 && minAge >= 18 && minAge <= 120) {
-      setTimeout(() => {
-        animateField(maxAgeScale, maxAgeOpacity, maxAgeGlow);
-        // Auto-scroll to show next card (only if user is actively filling, not on initial mount)
-        if (step5AllowScrollRef.current) {
-          setTimeout(() => {
-            step5ScrollViewRef.current?.scrollToEnd({ animated: true });
-          }, 300);
-        }
-      }, 300);
-    } else if (step === 10 && (minAge < 18 || minAge > 120)) {
-      // Reset if min age becomes invalid
-      maxAgeScale.setValue(0.95);
-      maxAgeOpacity.setValue(0);
-      maxAgeGlow.setValue(0);
+    if (step === 11) animateField(maxAgeScale, maxAgeOpacity, maxAgeGlow);
+  }, [step]);
+  useEffect(() => {
+    if (step === 12) animateField(preferredGendersScale, preferredGendersOpacity, preferredGendersGlow);
+  }, [step]);
+  useEffect(() => {
+    if (step === 13) {
+      animateField(maxDistanceScale, maxDistanceOpacity, maxDistanceGlow);
     }
-  }, [minAge, step]);
+  }, [step]);
 
-  // Animate preferred genders card when max age is valid
+  // Step 14 (lifestyle) - Progressive disclosure with auto-navigation
   useEffect(() => {
-    if (step === 5 && minAge >= 18 && minAge <= 120 && maxAge >= minAge && maxAge <= 120) {
-      setTimeout(() => {
-        animateField(preferredGendersScale, preferredGendersOpacity, preferredGendersGlow);
-        // Auto-scroll to show next card (only if user is actively filling, not on initial mount)
-        if (step5AllowScrollRef.current) {
-          setTimeout(() => {
-            step5ScrollViewRef.current?.scrollToEnd({ animated: true });
-          }, 300);
-        }
-      }, 300);
-    } else if (step === 10 && (maxAge < minAge || maxAge > 120)) {
-      // Reset if max age becomes invalid
-      preferredGendersScale.setValue(0.95);
-      preferredGendersOpacity.setValue(0);
-      preferredGendersGlow.setValue(0);
-    }
-  }, [minAge, maxAge, step]);
-
-  // Animate max distance card when gender is selected
-  useEffect(() => {
-    if (step === 10 && preferredGenders.length > 0) {
-      setTimeout(() => {
-        animateField(maxDistanceScale, maxDistanceOpacity, maxDistanceGlow);
-        // Auto-scroll to show next card (only if user is actively filling, not on initial mount)
-        if (step5AllowScrollRef.current) {
-          setTimeout(() => {
-            step5ScrollViewRef.current?.scrollToEnd({ animated: true });
-          }, 300);
-        }
-      }, 300);
-    } else if (step === 10 && preferredGenders.length === 0) {
-      // Reset if no genders selected
-      maxDistanceScale.setValue(0.95);
-      maxDistanceOpacity.setValue(0);
-      maxDistanceGlow.setValue(0);
-    }
-  }, [preferredGenders.length, step]);
-
-  // Step 6 (lifestyle) - Progressive disclosure with auto-navigation
-  useEffect(() => {
-    if (step === 11) {
+    if (step === 14) {
       step6AllowScrollRef.current = false; // Disable auto-scroll from useEffects/onLayout on initial entry
       animateField(smokingScale, smokingOpacity, smokingGlow);
       // Scroll to top so user starts at smoking card
@@ -448,37 +423,37 @@ export default function CreateProfileScreen() {
 
   // Animate next cards as previous ones are completed (scroll happens only from Picker onValueChange)
   useEffect(() => {
-    if (step === 11 && smoking) {
+    if (step === 14 && smoking) {
       setTimeout(() => animateField(drinkingScale, drinkingOpacity, drinkingGlow), 300);
     }
   }, [smoking, step]);
 
   useEffect(() => {
-    if (step === 11 && drinking) {
+    if (step === 14 && drinking) {
       setTimeout(() => animateField(childrenScale, childrenOpacity, childrenGlow), 300);
     }
   }, [drinking, step]);
 
   useEffect(() => {
-    if (step === 11 && children) {
+    if (step === 14 && children) {
       setTimeout(() => animateField(petsScale, petsOpacity, petsGlow), 300);
     }
   }, [children, step]);
 
   useEffect(() => {
-    if (step === 11 && pets) {
+    if (step === 14 && pets) {
       setTimeout(() => animateField(religionScale, religionOpacity, religionGlow), 300);
     }
   }, [pets, step]);
 
   useEffect(() => {
-    if (step === 6 && religion) {
+    if (step === 14 && religion) {
       setTimeout(() => animateField(workLifeBalanceScale, workLifeBalanceOpacity, workLifeBalanceGlow), 300);
     }
   }, [religion, step]);
 
   useEffect(() => {
-    if (step === 11 && workLifeBalance) {
+    if (step === 14 && workLifeBalance) {
       setTimeout(() => animateField(worksOutScale, worksOutOpacity, worksOutGlow), 300);
     }
   }, [workLifeBalance, step]);
@@ -546,7 +521,7 @@ export default function CreateProfileScreen() {
   
   useEffect(() => {
     const saveProfileAndLoadPhotos = async () => {
-      if (step === 12 && !profileSavedRef.current) {
+      if (step === 15 && !profileSavedRef.current) {
         // Mark as saving to prevent duplicate calls
         profileSavedRef.current = true;
         
@@ -981,18 +956,37 @@ export default function CreateProfileScreen() {
       }
     }
     if (step === 10) {
-      if (minAge < 18) {
+      if (minAge === null || minAge < 18) {
         setError('Minimum age must be 18 or older');
         return;
       }
     }
     if (step === 11) {
+      if (maxAge === null || maxAge < (minAge ?? 18)) {
+        setError('Maximum age must be at least ' + (minAge ?? 18));
+        return;
+      }
+    }
+    if (step === 12) {
+      if (preferredGenders.length < 1) {
+        setError('Please select at least one preferred gender');
+        return;
+      }
+    }
+    if (step === 13) {
+      if (maxDistance === null || maxDistance < 1) {
+        setError('Please enter a maximum distance (at least 1 mile)');
+        return;
+      }
+    }
+    if (step === 14) {
       if (!smoking || !drinking || !children || !pets || !religion || !workLifeBalance || !worksOut) {
         setError('Please fill in all lifestyle fields');
         return;
       }
     }
     
+    Keyboard.dismiss();
     if (Platform.OS === 'ios') Vibration.vibrate(50);
     else Vibration.vibrate(50);
     setError('');
@@ -1017,12 +1011,13 @@ export default function CreateProfileScreen() {
   };
 
   const handleBack = () => {
+    Keyboard.dismiss();
     if (step > 1) setStep(step - 1);
   };
 
-  const uploadPhoto = async (uri: string) => {
+  const uploadPhoto = async (uri: string, slotIndex: number) => {
     try {
-      setUploading(true);
+      setUploadingSlotIndex(slotIndex);
       setError(''); // Clear any previous errors
 
       // Extract filename and determine MIME type
@@ -1208,7 +1203,7 @@ export default function CreateProfileScreen() {
         Alert.alert('Upload Failed', errorMessage, [{ text: 'OK' }]);
       }
     } finally {
-      setUploading(false);
+      setUploadingSlotIndex(null);
     }
   };
 
@@ -1254,7 +1249,7 @@ export default function CreateProfileScreen() {
           }
         }
         // Upload immediately without confirmation - seamless experience
-        await uploadPhoto(asset.uri);
+        await uploadPhoto(asset.uri, photos.length);
       }
     } catch (error: any) {
       console.error('Error picking photo:', error);
@@ -1430,12 +1425,12 @@ export default function CreateProfileScreen() {
     </ScrollView>
   );
   const renderStep1DisplayName = () => basicInfoStepWrapper(
-    <View style={[styles.focusedFirstNameSection, keyboardVisible && styles.focusedSectionWithKeyboard]}>
+    <View style={[styles.focusedFirstNameSection, keyboardVisible && styles.focusedSectionWithKeyboard, { minHeight: rs.sectionMinHeight, paddingHorizontal: rs.sectionPaddingH, paddingVertical: rs.sectionPaddingV }]}>
       <Animated.View style={[{ transform: [{ scale: firstNameScale }], opacity: firstNameOpacity }]}>
-        <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.focusedFirstNameCard, keyboardVisible && styles.focusedCardWithKeyboard]}>
-          <Text style={[styles.focusedEmoji, keyboardVisible && styles.focusedEmojiSmall]}>👋</Text>
-          <Text style={[styles.focusedTitle, keyboardVisible && styles.focusedTitleCompact]}>Welcome to Mulligan!</Text>
-          <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleCompact]}>Let's start with your first name</Text>
+        <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.focusedFirstNameCard, keyboardVisible && styles.focusedCardWithKeyboard, { padding: keyboardVisible ? rs.cardPaddingKeyboard : rs.cardPaddingFirst }]}>
+          <Text style={[styles.focusedEmoji, keyboardVisible && styles.focusedEmojiSmall, { fontSize: keyboardVisible ? rs.emojiSizeSmall : rs.emojiSize, marginBottom: keyboardVisible ? 8 : 20 }]}>👋</Text>
+          <Text style={[styles.focusedTitle, keyboardVisible && styles.focusedTitleCompact, { fontSize: keyboardVisible ? rs.titleSizeCompact : rs.titleSize, marginBottom: keyboardVisible ? 8 : rs.titleMargin }]}>Welcome to Mulligan!</Text>
+          <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleCompact, { fontSize: keyboardVisible ? rs.subtitleSizeCompact : rs.subtitleSize, marginBottom: keyboardVisible ? 20 : rs.subtitleMargin }]}>Let's start with your first name</Text>
           <Animated.View style={[styles.focusedInputWrapper, { shadowOpacity: firstNameGlow.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.6] }), shadowRadius: firstNameGlow.interpolate({ inputRange: [0, 1], outputRange: [8, 20] }) }]}>
             <TextInput ref={displayNameInputRef} style={[styles.focusedFirstNameInput, keyboardVisible && styles.focusedFirstNameInputKeyboard]} value={displayName} onChangeText={setDisplayName} placeholder="Your first name" placeholderTextColor="rgba(255, 255, 255, 0.6)" autoCapitalize="words" returnKeyType="next" />
           </Animated.View>
@@ -1446,12 +1441,12 @@ export default function CreateProfileScreen() {
   );
 
   const renderStep2Age = () => basicInfoStepWrapper(
-    <View style={[styles.focusedAgeSection, keyboardVisible && styles.focusedSectionWithKeyboard]}>
+    <View style={[styles.focusedAgeSection, keyboardVisible && styles.focusedSectionWithKeyboard, { minHeight: rs.sectionMinHeight, paddingHorizontal: rs.sectionPaddingH, paddingVertical: rs.sectionPaddingV }]}>
       <Animated.View style={[{ transform: [{ scale: ageScale }], opacity: ageOpacity }]}>
-        <LinearGradient colors={['#f093fb', '#f5576c', '#4facfe']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.focusedAgeCard, keyboardVisible && styles.focusedCardWithKeyboard]}>
-          <Text style={[styles.focusedEmoji, keyboardVisible && styles.focusedEmojiSmall]}>🎂</Text>
-          <Text style={[styles.focusedTitle, keyboardVisible && styles.focusedTitleSmall]}>How old are you?</Text>
-          <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleSmall]}>We need to know your age</Text>
+        <LinearGradient colors={['#f093fb', '#f5576c', '#4facfe']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.focusedAgeCard, keyboardVisible && styles.focusedCardWithKeyboard, { padding: keyboardVisible ? rs.cardPaddingKeyboard : rs.cardPadding }]}>
+          <Text style={[styles.focusedEmoji, keyboardVisible && styles.focusedEmojiSmall, { fontSize: keyboardVisible ? rs.emojiSizeSmall : rs.emojiSize, marginBottom: keyboardVisible ? 8 : 20 }]}>🎂</Text>
+          <Text style={[styles.focusedTitle, keyboardVisible && styles.focusedTitleSmall, { fontSize: rs.titleSizeSmall, marginBottom: keyboardVisible ? 6 : rs.titleMargin }]}>How old are you?</Text>
+          <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleSmall, { fontSize: rs.subtitleSizeSmall, marginBottom: keyboardVisible ? 16 : rs.subtitleMargin }]}>We need to know your age</Text>
           <Animated.View style={[styles.focusedInputWrapper, { shadowOpacity: ageGlow.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.6] }), shadowRadius: ageGlow.interpolate({ inputRange: [0, 1], outputRange: [8, 20] }) }]}>
             <TextInput ref={ageInputRef} style={styles.focusedAgeInput} value={age} onChangeText={(t) => setAge(t.replace(/[^0-9]/g, ''))} placeholder="Your age" placeholderTextColor="rgba(255, 255, 255, 0.6)" keyboardType="number-pad" returnKeyType="done" />
           </Animated.View>
@@ -1462,12 +1457,12 @@ export default function CreateProfileScreen() {
   );
 
   const renderStep3Gender = () => basicInfoStepWrapper(
-    <View style={styles.focusedFieldSection}>
+    <View style={[styles.focusedFieldSection, { minHeight: rs.sectionMinHeight, paddingHorizontal: rs.sectionPaddingH, paddingVertical: rs.sectionPaddingV }]}>
       <Animated.View style={[{ transform: [{ scale: genderScale }], opacity: genderOpacity }]}>
-        <LinearGradient colors={['#764ba2', '#f093fb', '#f5576c']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.focusedFieldCard}>
-          <Text style={styles.focusedEmoji}>⚧️</Text>
-          <Text style={styles.focusedTitle}>What's your gender?</Text>
-          <Text style={styles.focusedSubtitle}>Help us match you with the right people</Text>
+        <LinearGradient colors={['#764ba2', '#f093fb', '#f5576c']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.focusedFieldCard, { padding: rs.cardPadding }]}>
+          <Text style={[styles.focusedEmoji, { fontSize: rs.emojiSize, marginBottom: 20 }]}>⚧️</Text>
+          <Text style={[styles.focusedTitle, { fontSize: rs.titleSize, marginBottom: rs.titleMargin }]}>What's your gender?</Text>
+          <Text style={[styles.focusedSubtitle, { fontSize: rs.subtitleSize, marginBottom: rs.subtitleMargin }]}>Help us match you with the right people</Text>
           <View style={styles.focusedPickerWrapper}>
             <Picker selectedValue={gender || ''} onValueChange={(v) => v && setGender(v)} style={styles.focusedPicker} itemStyle={Platform.OS === 'ios' ? styles.focusedPickerItem : undefined} mode={Platform.OS === 'android' ? 'dropdown' : 'dialog'}>
               <Picker.Item label="Select gender" value="" />
@@ -1481,12 +1476,12 @@ export default function CreateProfileScreen() {
   );
 
   const renderStep4Location = () => basicInfoStepWrapper(
-    <View style={[styles.focusedFieldSection, keyboardVisible && styles.focusedSectionWithKeyboard]}>
+    <View style={[styles.focusedFieldSection, keyboardVisible && styles.focusedSectionWithKeyboard, { minHeight: rs.sectionMinHeight, paddingHorizontal: rs.sectionPaddingH, paddingVertical: rs.sectionPaddingV }]}>
       <Animated.View style={[{ transform: [{ scale: locationScale }], opacity: locationOpacity }]}>
-        <LinearGradient colors={['#f5576c', '#4facfe', '#00f2fe']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.focusedFieldCard, keyboardVisible && styles.focusedCardWithKeyboard]}>
-          <Text style={[styles.focusedEmoji, keyboardVisible && styles.focusedEmojiSmall]}>📍</Text>
-          <Text style={[styles.focusedTitle, keyboardVisible && styles.focusedTitleSmall]}>Where are you located?</Text>
-          <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleSmall]}>We'll help you find matches nearby</Text>
+        <LinearGradient colors={['#f5576c', '#4facfe', '#00f2fe']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.focusedFieldCard, keyboardVisible && styles.focusedCardWithKeyboard, { padding: keyboardVisible ? rs.cardPaddingKeyboard : rs.cardPadding }]}>
+          <Text style={[styles.focusedEmoji, keyboardVisible && styles.focusedEmojiSmall, { fontSize: keyboardVisible ? rs.emojiSizeSmall : rs.emojiSize, marginBottom: keyboardVisible ? 8 : 20 }]}>📍</Text>
+          <Text style={[styles.focusedTitle, keyboardVisible && styles.focusedTitleSmall, { fontSize: rs.titleSizeSmall, marginBottom: keyboardVisible ? 6 : rs.titleMargin }]}>Where are you located?</Text>
+          <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleSmall, { fontSize: rs.subtitleSizeSmall, marginBottom: keyboardVisible ? 16 : rs.subtitleMargin }]}>We'll help you find matches nearby</Text>
           <Animated.View style={[styles.focusedInputWrapper, { shadowOpacity: locationGlow.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.6] }), shadowRadius: locationGlow.interpolate({ inputRange: [0, 1], outputRange: [8, 20] }) }]}>
             <TextInput ref={locationInputRef} style={styles.focusedLocationInput} value={location} onChangeText={setLocation} placeholder="City, State" placeholderTextColor="rgba(255, 255, 255, 0.6)" editable={!detectingLocation} returnKeyType="next" />
           </Animated.View>
@@ -1500,12 +1495,12 @@ export default function CreateProfileScreen() {
   );
 
   const renderStep5LookingFor = () => basicInfoStepWrapper(
-    <View style={styles.focusedFieldSection}>
+    <View style={[styles.focusedFieldSection, { minHeight: rs.sectionMinHeight, paddingHorizontal: rs.sectionPaddingH, paddingVertical: rs.sectionPaddingV }]}>
       <Animated.View style={[{ transform: [{ scale: lookingForScale }], opacity: lookingForOpacity }]}>
-        <LinearGradient colors={['#4facfe', '#667eea', '#764ba2']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.focusedFieldCard}>
-          <Text style={styles.focusedEmoji}>💕</Text>
-          <Text style={styles.focusedTitle}>What are you looking for?</Text>
-          <Text style={styles.focusedSubtitle}>Help us understand what you want</Text>
+        <LinearGradient colors={['#4facfe', '#667eea', '#764ba2']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.focusedFieldCard, { padding: rs.cardPadding }]}>
+          <Text style={[styles.focusedEmoji, { fontSize: rs.emojiSize, marginBottom: 20 }]}>💕</Text>
+          <Text style={[styles.focusedTitle, { fontSize: rs.titleSize, marginBottom: rs.titleMargin }]}>What are you looking for?</Text>
+          <Text style={[styles.focusedSubtitle, { fontSize: rs.subtitleSize, marginBottom: rs.subtitleMargin }]}>Help us understand what you want</Text>
           <View style={styles.focusedPickerWrapper}>
             <Picker selectedValue={lookingFor} onValueChange={(v) => v && setLookingFor(v)} style={styles.focusedPicker} itemStyle={styles.focusedPickerItem}>
               <Picker.Item label="Select an option" value="" enabled={false} />
@@ -1519,12 +1514,12 @@ export default function CreateProfileScreen() {
   );
 
   const renderStep6Bio = () => basicInfoStepWrapper(
-    <View style={[styles.focusedFieldSection, keyboardVisible && styles.focusedSectionWithKeyboard]}>
+    <View style={[styles.focusedFieldSection, keyboardVisible && styles.focusedSectionWithKeyboard, { minHeight: rs.sectionMinHeight, paddingHorizontal: rs.sectionPaddingH, paddingVertical: rs.sectionPaddingV }]}>
       <Animated.View style={[{ transform: [{ scale: bioScale }], opacity: bioOpacity }]}>
-        <LinearGradient colors={['#667eea', '#f093fb', '#f5576c']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.focusedFieldCard, keyboardVisible && styles.focusedCardWithKeyboard]}>
-          <Text style={[styles.focusedEmoji, keyboardVisible && styles.focusedEmojiSmall]}>📝</Text>
-          <Text style={[styles.focusedTitle, keyboardVisible && styles.focusedTitleSmall]}>Tell us about yourself</Text>
-          <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleSmall]}>Share what makes you unique</Text>
+        <LinearGradient colors={['#667eea', '#f093fb', '#f5576c']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.focusedFieldCard, keyboardVisible && styles.focusedCardWithKeyboard, { padding: keyboardVisible ? rs.cardPaddingKeyboard : rs.cardPadding }]}>
+          <Text style={[styles.focusedEmoji, keyboardVisible && styles.focusedEmojiSmall, { fontSize: keyboardVisible ? rs.emojiSizeSmall : rs.emojiSize, marginBottom: keyboardVisible ? 8 : 20 }]}>📝</Text>
+          <Text style={[styles.focusedTitle, keyboardVisible && styles.focusedTitleSmall, { fontSize: rs.titleSizeSmall, marginBottom: keyboardVisible ? 6 : rs.titleMargin }]}>Tell us about yourself</Text>
+          <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleSmall, { fontSize: rs.subtitleSizeSmall, marginBottom: keyboardVisible ? 16 : rs.subtitleMargin }]}>Share what makes you unique</Text>
           <Animated.View style={[styles.focusedInputWrapper, { shadowOpacity: bioGlow.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.6] }), shadowRadius: bioGlow.interpolate({ inputRange: [0, 1], outputRange: [8, 20] }) }]}>
             <TextInput style={styles.focusedBioInput} value={bio} onChangeText={setBio} placeholder="Write a bit about yourself..." placeholderTextColor="rgba(255, 255, 255, 0.6)" multiline numberOfLines={6} maxLength={500} textAlignVertical="top" returnKeyType="done" blurOnSubmit={true} />
           </Animated.View>
@@ -1537,24 +1532,24 @@ export default function CreateProfileScreen() {
 
   const renderStep2 = () => (
     <View style={styles.stepContainer}>
-      {/* Modern Header with Gradient - Condensed */}
+      {/* Modern Header - Minimal (more room for interests grid) */}
       <LinearGradient
         colors={['#667eea', '#764ba2', '#f093fb']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={styles.modernHeaderCondensed}
+        style={styles.modernHeaderMinimal}
       >
-        <Text style={styles.modernHeaderEmojiCondensed}>🎯</Text>
-        <Text style={styles.modernHeaderTitleCondensed}>Your Interests</Text>
-        <Text style={styles.modernHeaderSubtitleCondensed}>
+        <Text style={styles.modernHeaderEmojiMinimal}>🎯</Text>
+        <Text style={styles.modernHeaderTitleMinimal}>Your Interests</Text>
+        <Text style={styles.modernHeaderSubtitleMinimal}>
           Select at least 3 interests that define you
         </Text>
-        <View style={styles.selectionCounterCondensed}>
-          <Text style={styles.selectionCounterTextCondensed}>
+        <View style={styles.selectionCounterMinimal}>
+          <Text style={styles.selectionCounterTextMinimal}>
             {interests.length} selected {interests.length >= 3 && '✓'}
           </Text>
           {interests.length < 3 && (
-            <Text style={styles.selectionCounterHintCondensed}>
+            <Text style={styles.modernHeaderSubtitleMinimal}>
               ({3 - interests.length} more needed)
             </Text>
           )}
@@ -1728,24 +1723,24 @@ export default function CreateProfileScreen() {
 
   const renderStep4 = () => (
     <View style={styles.stepContainer}>
-      {/* Partner Qualities Section - Compact */}
+      {/* Partner Qualities Section - Minimal (more room for qualities grid) */}
       <LinearGradient
         colors={['#667eea', '#764ba2', '#f093fb']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={styles.modernHeaderCondensed}
+        style={styles.modernHeaderMinimal}
       >
-        <Text style={styles.modernHeaderEmojiCondensed}>💕</Text>
-        <Text style={styles.modernHeaderTitleCondensed}>What You Want in a Partner</Text>
-        <Text style={styles.modernHeaderSubtitleCondensed}>
+        <Text style={styles.modernHeaderEmojiMinimal}>💕</Text>
+        <Text style={styles.modernHeaderTitleMinimal}>What You Want in a Partner</Text>
+        <Text style={styles.modernHeaderSubtitleMinimal}>
           Select at least 3 qualities you value
         </Text>
-        <View style={styles.selectionCounterCondensed}>
-          <Text style={styles.selectionCounterTextCondensed}>
+        <View style={styles.selectionCounterMinimal}>
+          <Text style={styles.selectionCounterTextMinimal}>
             {qualities.length} selected {qualities.length >= 3 && '✓'}
           </Text>
           {qualities.length < 3 && (
-            <Text style={styles.selectionCounterHintCondensed}>
+            <Text style={styles.modernHeaderSubtitleMinimal}>
               ({3 - qualities.length} more needed)
             </Text>
           )}
@@ -1826,286 +1821,93 @@ export default function CreateProfileScreen() {
     </View>
   );
 
-  const renderStep5 = () => {
-    // Define the 4 preference cards (similar to lifestyle cards structure)
-    const preferenceFields = [
-      { 
-        key: 'minAge', 
-        label: 'Minimum Age', 
-        emoji: '🎂', 
-        subtitle: 'Must be 18 or older',
-        value: minAge !== null && minAge >= 18 && minAge <= 120 ? minAge : null,
-        scale: minAgeScale, 
-        opacity: minAgeOpacity, 
-        glow: minAgeGlow,
-        gradient: ['#667eea', '#764ba2', '#f093fb'],
-        enabled: true, // Always enabled (first card)
-      },
-      { 
-        key: 'maxAge', 
-        label: 'Maximum Age', 
-        emoji: '🎂', 
-        subtitle: `Must be ${minAge ?? 18} or older`,
-        value: maxAge !== null && minAge !== null && maxAge >= minAge && maxAge <= 120 ? maxAge : null,
-        scale: maxAgeScale, 
-        opacity: maxAgeOpacity, 
-        glow: maxAgeGlow,
-        gradient: ['#f5576c', '#f093fb', '#667eea'],
-        enabled: minAge !== null && minAge >= 18 && minAge <= 120,
-      },
-      { 
-        key: 'preferredGenders', 
-        label: 'Preferred Genders', 
-        emoji: '⚧️', 
-        subtitle: 'Select all that apply',
-        value: preferredGenders.length > 0 ? preferredGenders : null,
-        scale: preferredGendersScale, 
-        opacity: preferredGendersOpacity, 
-        glow: preferredGendersGlow, 
-        ref: preferredGendersRef,
-        gradient: ['#4facfe', '#00f2fe', '#667eea'],
-        enabled: minAge !== null && minAge >= 18 && minAge <= 120 && maxAge !== null && maxAge >= minAge && maxAge <= 120,
-      },
-      { 
-        key: 'maxDistance', 
-        label: 'Maximum Distance', 
-        emoji: '📍', 
-        subtitle: 'How far to search for matches',
-        value: maxDistance !== null && maxDistance > 0 ? maxDistance : null,
-        scale: maxDistanceScale, 
-        opacity: maxDistanceOpacity, 
-        glow: maxDistanceGlow, 
-        ref: maxDistanceInputRef,
-        gradient: ['#4facfe', '#00f2fe', '#667eea'],
-        enabled: minAge !== null && minAge >= 18 && minAge <= 120 && maxAge !== null && maxAge >= minAge && maxAge <= 120 && preferredGenders.length > 0,
-      },
-    ];
-
-    // Determine which cards should be shown (progressive disclosure)
-    const shouldShowCard = (index: number) => {
-      if (index === 0) return true; // First card always visible
-      // Show next card when previous is completed
-      for (let i = 0; i < index; i++) {
-        if (!preferenceFields[i].value) return false;
-      }
-      return true;
-    };
-
-    return (
-      <View style={styles.stepContainer}>
-        {/* Modern Header */}
-        <LinearGradient
-          colors={['#667eea', '#764ba2', '#f093fb']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.modernHeaderCondensed}
-        >
-          <Text style={styles.modernHeaderEmojiCondensed}>⚙️</Text>
-          <Text style={styles.modernHeaderTitleCondensed}>Your Preferences</Text>
-          <Text style={styles.modernHeaderSubtitleCondensed}>
-            Set your matching preferences
-          </Text>
+  // Steps 10-13: One card per page (min age, max age, preferred genders, max distance)
+  const renderStep10MinAge = () => basicInfoStepWrapper(
+    <View style={[styles.focusedFieldSection, { minHeight: rs.sectionMinHeight, paddingHorizontal: rs.sectionPaddingH, paddingVertical: rs.sectionPaddingV }]}>
+      <Animated.View style={[{ transform: [{ scale: minAgeScale }], opacity: minAgeOpacity }]}>
+        <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.focusedFieldCard, { padding: rs.cardPadding }]}>
+          <Text style={[styles.focusedEmoji, { fontSize: rs.emojiSize, marginBottom: 20 }]}>🎂</Text>
+          <Text style={[styles.focusedTitle, { fontSize: rs.titleSize, marginBottom: rs.titleMargin }]}>Minimum Age</Text>
+          <Text style={[styles.focusedSubtitle, { fontSize: rs.subtitleSize, marginBottom: rs.subtitleMargin }]}>Must be 18 or older</Text>
+          <View style={styles.focusedPickerWrapper}>
+            <Picker selectedValue={minAge} onValueChange={(v) => { const n = typeof v === 'number' ? v : (parseInt(String(v), 10) || 18); setMinAge(n); if (maxAge < n) setMaxAge(n); }} style={styles.focusedPicker} itemStyle={Platform.OS === 'ios' ? styles.focusedPickerItem : undefined} mode={Platform.OS === 'android' ? 'dropdown' : 'dialog'}>
+              {Array.from({ length: 103 }, (_, i) => 18 + i).map((age) => <Picker.Item key={age} label={`${age} years old`} value={age} />)}
+            </Picker>
+          </View>
+          {minAge !== null && minAge >= 18 && <Animated.View style={[styles.successIndicator, { opacity: minAgeOpacity }]}><Text style={styles.successText}>✓ Tap Continue</Text></Animated.View>}
         </LinearGradient>
+      </Animated.View>
+    </View>
+  );
 
-        <ScrollView 
-          ref={step5ScrollViewRef}
-          style={styles.stepContent}
-          contentContainerStyle={styles.lifestyleScrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {preferenceFields.map((field, index) => {
-            const isVisible = shouldShowCard(index);
-            if (!isVisible) return null;
+  const renderStep11MaxAge = () => basicInfoStepWrapper(
+    <View style={[styles.focusedFieldSection, { minHeight: rs.sectionMinHeight, paddingHorizontal: rs.sectionPaddingH, paddingVertical: rs.sectionPaddingV }]}>
+      <Animated.View style={[{ transform: [{ scale: maxAgeScale }], opacity: maxAgeOpacity }]}>
+        <LinearGradient colors={['#f5576c', '#f093fb', '#667eea']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.focusedFieldCard, { padding: rs.cardPadding }]}>
+          <Text style={[styles.focusedEmoji, { fontSize: rs.emojiSize, marginBottom: 20 }]}>🎂</Text>
+          <Text style={[styles.focusedTitle, { fontSize: rs.titleSize, marginBottom: rs.titleMargin }]}>Maximum Age</Text>
+          <Text style={[styles.focusedSubtitle, { fontSize: rs.subtitleSize, marginBottom: rs.subtitleMargin }]}>Must be {minAge ?? 18} or older</Text>
+          <View style={styles.focusedPickerWrapper}>
+            <Picker selectedValue={maxAge} onValueChange={(v) => { const n = typeof v === 'number' ? v : (parseInt(String(v), 10) || minAge); setMaxAge(n); }} style={styles.focusedPicker} itemStyle={Platform.OS === 'ios' ? styles.focusedPickerItem : undefined} mode={Platform.OS === 'android' ? 'dropdown' : 'dialog'}>
+              {Array.from({ length: 121 - (minAge ?? 18) }, (_, i) => (minAge ?? 18) + i).map((age) => <Picker.Item key={age} label={`${age} years old`} value={age} />)}
+            </Picker>
+          </View>
+          {maxAge !== null && maxAge >= (minAge ?? 18) && <Animated.View style={[styles.successIndicator, { opacity: maxAgeOpacity }]}><Text style={styles.successText}>✓ Tap Continue</Text></Animated.View>}
+        </LinearGradient>
+      </Animated.View>
+    </View>
+  );
 
-            return (
-              <Animated.View
-                key={field.key}
-                style={[
-                  styles.lifestyleCard,
-                  {
-                    transform: [{ scale: field.scale }],
-                    opacity: field.opacity,
-                  },
-                ]}
-                onLayout={(event) => {
-                  const { y } = event.nativeEvent.layout;
-                  if (field.key === 'maxAge') setMaxAgeCardY(y);
-                  if (field.key === 'preferredGenders') setPreferredGendersCardY(y);
-                  // Auto-scroll for other cards when they have values (only if user is actively filling)
-                  if (index > 0 && field.value && field.key !== 'maxAge' && step5AllowScrollRef.current) {
-                    setTimeout(() => {
-                      step5ScrollViewRef.current?.scrollToEnd({ animated: true });
-                    }, 300);
-                  }
-                }}
-              >
-                <LinearGradient
-                  colors={field.gradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.lifestyleCardGradient}
-                >
-                  <Text style={styles.lifestyleEmoji}>{field.emoji}</Text>
-                  <Text style={styles.lifestyleTitle}>{field.label}</Text>
-                  <Text style={styles.lifestyleSubtitle}>{field.subtitle}</Text>
-                  
-                  {field.key === 'minAge' && (
-                    <View style={styles.preferenceInputWrapper}>
-                      <View style={styles.focusedPickerWrapper}>
-                        <Picker
-                          selectedValue={minAge}
-                          onValueChange={(itemValue) => {
-                            const newAge = typeof itemValue === 'number' ? itemValue : (parseInt(String(itemValue), 10) || 18);
-                            setMinAge(newAge);
-                            if (maxAge < newAge) setMaxAge(newAge);
-                            step5AllowScrollRef.current = true;
-                            if (maxAgeCardY !== null) {
-                              setTimeout(() => {
-                                step5ScrollViewRef.current?.scrollTo({ y: maxAgeCardY - 20, animated: true });
-                              }, 300);
-                            }
-                          }}
-                          style={styles.focusedPicker}
-                          itemStyle={Platform.OS === 'ios' ? styles.focusedPickerItem : undefined}
-                          mode={Platform.OS === 'android' ? 'dropdown' : 'dialog'}
-                        >
-                          {Array.from({ length: 103 }, (_, i) => 18 + i).map((age) => (
-                            <Picker.Item key={age} label={`${age} years old`} value={age} />
-                          ))}
-                        </Picker>
-                      </View>
+  const renderStep12PreferredGenders = () => basicInfoStepWrapper(
+    <View style={[styles.focusedFieldSection, { minHeight: rs.sectionMinHeight, paddingHorizontal: rs.sectionPaddingH, paddingVertical: rs.sectionPaddingV }]}>
+      <Animated.View style={[{ transform: [{ scale: preferredGendersScale }], opacity: preferredGendersOpacity }]}>
+        <LinearGradient colors={['#4facfe', '#00f2fe', '#667eea']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.focusedFieldCard, { padding: rs.cardPadding }]}>
+          <Text style={[styles.focusedEmoji, { fontSize: rs.emojiSize, marginBottom: 20 }]}>⚧️</Text>
+          <Text style={[styles.focusedTitle, { fontSize: rs.titleSize, marginBottom: rs.titleMargin }]}>Preferred Genders</Text>
+          <Text style={[styles.focusedSubtitle, { fontSize: rs.subtitleSize, marginBottom: rs.subtitleMargin }]}>Select all that apply</Text>
+          <View style={styles.preferencesGenderGrid}>
+            {PREFERRED_GENDER_OPTIONS.map(gender => {
+              const isSelected = preferredGenders.includes(gender);
+              return (
+                <TouchableOpacity key={gender} style={styles.preferencesGenderCard} onPress={() => togglePreferredGender(gender)} activeOpacity={0.7}>
+                  {isSelected ? (
+                    <LinearGradient colors={['#f5576c', '#f093fb', '#667eea']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.preferencesGenderCardSelected}>
+                      <Text style={styles.preferencesGenderTextSelected}>{gender}</Text>
+                      <View style={styles.preferencesCheckmark}><Text style={styles.preferencesCheckmarkText}>✓</Text></View>
+                    </LinearGradient>
+                  ) : (
+                    <View style={styles.preferencesGenderCardUnselected}>
+                      <Text style={styles.preferencesGenderText}>{gender}</Text>
                     </View>
                   )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          {preferredGenders.length > 0 && <Animated.View style={[styles.successIndicator, { opacity: preferredGendersOpacity }]}><Text style={styles.successText}>✓ {preferredGenders.length} selected</Text></Animated.View>}
+        </LinearGradient>
+      </Animated.View>
+    </View>
+  );
 
-                  {field.key === 'maxAge' && (
-                    <View style={styles.preferenceInputWrapper}>
-                      <View style={styles.focusedPickerWrapper}>
-                        <Picker
-                          selectedValue={maxAge}
-                          onValueChange={(itemValue) => {
-                            const newAge = typeof itemValue === 'number' ? itemValue : (parseInt(String(itemValue), 10) || minAge);
-                            setMaxAge(newAge);
-                            step5AllowScrollRef.current = true;
-                            if (preferredGendersCardY !== null) {
-                              setTimeout(() => {
-                                step5ScrollViewRef.current?.scrollTo({ y: preferredGendersCardY - 20, animated: true });
-                              }, 300);
-                            }
-                          }}
-                          style={styles.focusedPicker}
-                          itemStyle={Platform.OS === 'ios' ? styles.focusedPickerItem : undefined}
-                          mode={Platform.OS === 'android' ? 'dropdown' : 'dialog'}
-                        >
-                          {Array.from({ length: 121 - minAge }, (_, i) => minAge + i).map((age) => (
-                            <Picker.Item key={age} label={`${age} years old`} value={age} />
-                          ))}
-                        </Picker>
-                      </View>
-                    </View>
-                  )}
-
-                  {field.key === 'preferredGenders' && (
-                    <ScrollView 
-                      style={{ maxHeight: 300, width: '100%' }}
-                      contentContainerStyle={styles.preferencesGenderGrid}
-                      showsVerticalScrollIndicator={true}
-                    >
-                      {PREFERRED_GENDER_OPTIONS.map(gender => {
-                        const isSelected = preferredGenders.includes(gender);
-                        return (
-                          <TouchableOpacity
-                            key={gender}
-                            style={styles.preferencesGenderCard}
-                            onPress={() => {
-                              togglePreferredGender(gender);
-                              // Auto-scroll to next card after selection
-                              if (preferredGenders.length === 0 && !isSelected) {
-                                // First selection
-                                setTimeout(() => {
-                                  step5ScrollViewRef.current?.scrollToEnd({ animated: true });
-                                }, 300);
-                              }
-                            }}
-                            activeOpacity={0.7}
-                          >
-                            {isSelected ? (
-                              <LinearGradient
-                                colors={['#f5576c', '#f093fb', '#667eea']}
-                                start={{ x: 0, y: 0 }}
-                                end={{ x: 1, y: 1 }}
-                                style={styles.preferencesGenderCardSelected}
-                              >
-                                <Text style={styles.preferencesGenderTextSelected}>
-                                  {gender}
-                                </Text>
-                                <View style={styles.preferencesCheckmark}>
-                                  <Text style={styles.preferencesCheckmarkText}>✓</Text>
-                                </View>
-                              </LinearGradient>
-                            ) : (
-                              <View style={styles.preferencesGenderCardUnselected}>
-                                <Text style={styles.preferencesGenderText}>
-                                  {gender}
-                                </Text>
-                              </View>
-                            )}
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </ScrollView>
-                  )}
-
-                  {field.key === 'maxDistance' && (
-                    <View style={styles.preferenceInputWrapper}>
-                      <View style={styles.preferenceInputContainer}>
-                        <TextInput
-                          ref={maxDistanceInputRef}
-                          style={styles.preferenceNumberInputLarge}
-                          value={maxDistance === null ? '' : maxDistance.toString()}
-                          onChangeText={(text) => {
-                            if (text === '' || text === '0') {
-                              setMaxDistance(1);
-                            } else {
-                              const value = parseInt(text);
-                              if (!isNaN(value) && value >= 1) {
-                                setMaxDistance(value);
-                              }
-                            }
-                          }}
-                          keyboardType="number-pad"
-                          returnKeyType="done"
-                          onSubmitEditing={() => {
-                            maxDistanceInputRef.current?.blur();
-                          }}
-                          placeholder="50"
-                          placeholderTextColor="rgba(255, 255, 255, 0.7)"
-                        />
-                        <Text style={styles.preferenceInputLabelLarge}>miles</Text>
-                      </View>
-                    </View>
-                  )}
-
-                  {field.value && (
-                    <View style={styles.lifestyleSelectedIndicator}>
-                      <Text style={styles.lifestyleSelectedText}>
-                        ✓ {
-                          field.key === 'minAge' ? `${field.value} years old` :
-                          field.key === 'maxAge' ? `${field.value} years old` :
-                          field.key === 'preferredGenders' ? `${preferredGenders.length} selected` :
-                          field.key === 'maxDistance' && field.value !== null ? `${field.value} miles` :
-                          field.value !== null ? `${field.value} miles` : ''
-                        }
-                      </Text>
-                    </View>
-                  )}
-                </LinearGradient>
-              </Animated.View>
-            );
-          })}
-        </ScrollView>
-      </View>
-    );
-  };
+  const renderStep13MaxDistance = () => basicInfoStepWrapper(
+    <View style={[styles.focusedFieldSection, keyboardVisible && styles.focusedSectionWithKeyboard, { minHeight: rs.sectionMinHeight, paddingHorizontal: rs.sectionPaddingH, paddingVertical: rs.sectionPaddingV }]}>
+      <Animated.View style={[{ transform: [{ scale: maxDistanceScale }], opacity: maxDistanceOpacity }]}>
+        <LinearGradient colors={['#4facfe', '#00f2fe', '#667eea']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.focusedFieldCard, keyboardVisible && styles.focusedCardWithKeyboard, { padding: keyboardVisible ? rs.cardPaddingKeyboard : rs.cardPadding }]}>
+          <Text style={[styles.focusedEmoji, keyboardVisible && styles.focusedEmojiSmall, { fontSize: keyboardVisible ? rs.emojiSizeSmall : rs.emojiSize, marginBottom: keyboardVisible ? 8 : 20 }]}>📍</Text>
+          <Text style={[styles.focusedTitle, keyboardVisible && styles.focusedTitleSmall, { fontSize: rs.titleSizeSmall, marginBottom: keyboardVisible ? 6 : rs.titleMargin }]}>Maximum Distance</Text>
+          <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleSmall, { fontSize: rs.subtitleSizeSmall, marginBottom: keyboardVisible ? 16 : rs.subtitleMargin }]}>How far to search for matches</Text>
+          <View style={styles.preferenceInputWrapper}>
+            <View style={styles.preferenceInputContainer}>
+              <TextInput ref={maxDistanceInputRef} style={styles.preferenceNumberInputLarge} value={maxDistance === null ? '' : maxDistance.toString()} onChangeText={(t) => { if (t === '' || t === '0') setMaxDistance(1); else { const v = parseInt(t); if (!isNaN(v) && v >= 1) setMaxDistance(v); } }} keyboardType="number-pad" returnKeyType="done" placeholder="50" placeholderTextColor="rgba(255, 255, 255, 0.7)" />
+              <Text style={styles.preferenceInputLabelLarge}>miles</Text>
+            </View>
+          </View>
+          {maxDistance !== null && maxDistance > 0 && <Animated.View style={[styles.successIndicator, { opacity: maxDistanceOpacity }]}><Text style={styles.successText}>✓ {maxDistance} miles</Text></Animated.View>}
+        </LinearGradient>
+      </Animated.View>
+    </View>
+  );
 
   const renderStep6 = () => {
     const lifestyleFields = [
@@ -2174,10 +1976,10 @@ export default function CreateProfileScreen() {
                   colors={field.gradient}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
-                  style={styles.lifestyleCardGradient}
+                  style={[styles.lifestyleCardGradient, { padding: rs.lifestyleCardPadding }]}
                 >
-                  <Text style={styles.lifestyleEmoji}>{field.emoji}</Text>
-                  <Text style={styles.lifestyleTitle}>{field.label}</Text>
+                  <Text style={[styles.lifestyleEmoji, { fontSize: rs.lifestyleEmojiSize, marginBottom: 12 }]}>{field.emoji}</Text>
+                  <Text style={[styles.lifestyleTitle, { fontSize: rs.lifestyleTitleSize, marginBottom: 8 }]}>{field.label}</Text>
                   
                   <View style={styles.lifestylePickerWrapper}>
                     <Picker
@@ -2190,12 +1992,16 @@ export default function CreateProfileScreen() {
                           const nextIndex = index + 1;
                           const nextKey = lifestyleFields[nextIndex]?.key;
                           if (nextKey) {
-                            setTimeout(() => {
+                            // Retry scroll - next card may not have laid out yet (progressive disclosure)
+                            const tryScroll = (attempt = 0) => {
                               const nextY = lifestyleCardYsRef.current[nextKey];
                               if (typeof nextY === 'number') {
                                 scrollViewRef.current?.scrollTo({ y: nextY - 20, animated: true });
+                              } else if (attempt < 5) {
+                                setTimeout(() => tryScroll(attempt + 1), 150);
                               }
-                            }, 400);
+                            };
+                            setTimeout(() => tryScroll(0), 350);
                           }
                         }
                       }}
@@ -2285,7 +2091,7 @@ export default function CreateProfileScreen() {
                         isRequired && photos.length < 5 && styles.addPhotoButtonRequired
                       ]}
                       onPress={canAddMore ? handlePickPhoto : undefined}
-                      disabled={!canAddMore || uploading}
+                      disabled={!canAddMore || uploadingSlotIndex !== null}
                     >
                       <LinearGradient
                         colors={
@@ -2297,7 +2103,7 @@ export default function CreateProfileScreen() {
                         end={{ x: 1, y: 1 }}
                         style={styles.addPhotoButtonGradient}
                       >
-                        {uploading ? (
+                        {uploadingSlotIndex === slotIndex ? (
                           <ActivityIndicator color="#fff" size="small" />
                         ) : (
                           <>
@@ -2387,9 +2193,12 @@ export default function CreateProfileScreen() {
       {step === 7 && renderStep2()}
       {step === 8 && renderStep3()}
       {step === 9 && renderStep4()}
-      {step === 10 && renderStep5()}
-      {step === 11 && renderStep6()}
-      {step === 12 && renderStep7()}
+      {step === 10 && renderStep10MinAge()}
+      {step === 11 && renderStep11MaxAge()}
+      {step === 12 && renderStep12PreferredGenders()}
+      {step === 13 && renderStep13MaxDistance()}
+      {step === 14 && renderStep6()}
+      {step === 15 && renderStep7()}
 
       <View style={styles.actions}>
           {step > 1 ? (
@@ -3322,6 +3131,24 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: 'bold',
   },
+  // Minimal header - for Interests & Partner Qualities (max room for selection grid)
+  modernHeaderMinimal: {
+    padding: 10,
+    paddingTop: 38,
+    paddingBottom: 6,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  modernHeaderEmojiMinimal: { fontSize: 24, textAlign: 'center' as const, marginBottom: 2 },
+  modernHeaderTitleMinimal: { fontSize: 18, fontWeight: '700' as const, color: '#fff', textAlign: 'center' as const, letterSpacing: 0.3 },
+  modernHeaderSubtitleMinimal: { fontSize: 11, color: 'rgba(255, 255, 255, 0.9)', textAlign: 'center' as const, marginTop: 2 },
+  selectionCounterMinimal: { alignSelf: 'center' as const, marginTop: 4 },
+  selectionCounterTextMinimal: { fontSize: 12, fontWeight: '600' as const, color: '#fff' },
   // Condensed styles for Step 2 (Interests) and Step 3 (Dealbreakers)
   modernHeaderCondensed: {
     padding: 16,

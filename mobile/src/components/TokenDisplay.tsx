@@ -213,7 +213,7 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
           api.clearCache('/tokens');
           await fetchTokens();
           const msg = opts?.successMessage ?? `Congrats! You've been officially reupped and are ready to start matching! 🎉`;
-          Alert.alert('🎉 You\'re Reupped!', msg, [{ text: 'Let\'s go!', onPress: () => opts?.onSuccess?.() }]);
+          Alert.alert('🎉 Reupped!', msg, [{ text: 'Let\'s go!', onPress: () => opts?.onSuccess?.() }]);
         } catch (err: any) {
           const errorMessage = err?.message || 'Failed to claim tokens. Please try again.';
           Alert.alert('Oops', errorMessage);

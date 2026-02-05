@@ -20,7 +20,7 @@ import {
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useNavigation, useFocusEffect, useIsFocused } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect, useIsFocused } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -142,6 +142,7 @@ const MAX_DISTANCE_OPTIONS: (number | null)[] = [10, 25, 50, 100, 250, 500, null
 
 export default function MyProfileScreen() {
   const navigation = useNavigation();
+  const route = useRoute();
   const isFocused = useIsFocused();
   const { refreshProfile, user } = useAuth();
   const [data, setData] = useState<ProfileData | null>(null);
@@ -154,6 +155,8 @@ export default function MyProfileScreen() {
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const photoGalleryScrollRef = useRef<FlatList<Photo>>(null);
   const photoGalleryProgrammaticScrollRef = useRef(false);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const photosSectionYRef = useRef<number>(0);
   const [draggingPhotoId, setDraggingPhotoId] = useState<string | null>(null);
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
   const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
@@ -516,6 +519,23 @@ export default function MyProfileScreen() {
       return () => task.cancel();
     }, [user])
   );
+
+  // Scroll to photos section when navigated from "Add 5+ Photos" button
+  useEffect(() => {
+    const params = (route.params ?? {}) as { scrollToPhotos?: boolean };
+    if (!params.scrollToPhotos || loading) return;
+    const scrollToPhotosSection = (attempt = 0) => {
+      const y = photosSectionYRef.current;
+      if (y > 0 && scrollViewRef.current) {
+        scrollViewRef.current.scrollTo({ y: Math.max(0, y - 24), animated: true });
+        (navigation as any).setParams({ scrollToPhotos: undefined });
+      } else if (attempt < 8) {
+        setTimeout(() => scrollToPhotosSection(attempt + 1), 150);
+      }
+    };
+    const t = setTimeout(() => scrollToPhotosSection(0), 200);
+    return () => clearTimeout(t);
+  }, [route.params, navigation, loading]);
   
   // Initialize and animate sections
   useEffect(() => {
@@ -1115,6 +1135,7 @@ export default function MyProfileScreen() {
         style={StyleSheet.absoluteFill}
       />
       <ScrollView 
+        ref={scrollViewRef}
         style={styles.container} 
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
@@ -2036,6 +2057,7 @@ export default function MyProfileScreen() {
 
       {/* Photos Section */}
       <Animated.View 
+        onLayout={(e) => { photosSectionYRef.current = e.nativeEvent.layout.y; }}
         style={[
           styles.section,
           {

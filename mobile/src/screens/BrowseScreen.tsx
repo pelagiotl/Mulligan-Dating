@@ -1760,7 +1760,13 @@ export default function BrowseScreen() {
                 ]}
               >
                 <TouchableOpacity
-                  onPress={handleUnlockBrowse}
+                  onPress={() => {
+                    if (photoCount !== null && photoCount < MIN_PHOTOS_TO_CONNECT) {
+                      (navigation as any).navigate('MyProfile', { scrollToPhotos: true });
+                    } else {
+                      handleUnlockBrowse();
+                    }
+                  }}
                   onPressIn={() => {
                     Animated.spring(buttonScale, {
                       toValue: 0.95,
@@ -1773,7 +1779,7 @@ export default function BrowseScreen() {
                       useNativeDriver: true,
                     }).start();
                   }}
-                  disabled={unlocking || (photoCount !== null && photoCount < MIN_PHOTOS_TO_CONNECT)}
+                  disabled={unlocking}
                   activeOpacity={0.9}
                   style={styles.landingButtonTouchable}
                 >
@@ -1783,7 +1789,7 @@ export default function BrowseScreen() {
                     end={{ x: 1, y: 1 }}
                     style={[
                       styles.landingButton,
-                      (unlocking || (photoCount !== null && photoCount < MIN_PHOTOS_TO_CONNECT)) && styles.landingButtonDisabled,
+                      unlocking && styles.landingButtonDisabled,
                     ]}
                   >
                     {/* Shimmer effect overlay */}

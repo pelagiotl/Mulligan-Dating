@@ -30,7 +30,7 @@ export type { RootStackParamList };
 export type MainTabParamList = {
   Browse: undefined;
   Matches: { matchId?: string } | undefined;
-  MyProfile: undefined;
+  MyProfile: { scrollToPhotos?: boolean } | undefined;
   Settings: undefined;
   Admin: undefined;
 };
