@@ -8,6 +8,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Platform, Text, View, StyleSheet, Alert, Vibration, ActivityIndicator, Pressable } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, NavigationContainerRef } from '@react-navigation/native';
 
 // Import screens - React Navigation will lazy load them when lazy={true} is set
@@ -52,15 +53,15 @@ const TabIcon = React.memo(function TabIcon({
         <View
           style={{
             position: 'absolute',
-            width: 40,
-            height: 40,
-            borderRadius: 20,
+            width: 44,
+            height: 44,
+            borderRadius: 22,
             backgroundColor: '#8B1538',
-            opacity: 0.18,
+            opacity: 0.14,
             shadowColor: '#8B1538',
-            shadowOffset: { width: 0, height: 0 },
-            shadowOpacity: 0.8,
-            shadowRadius: 10,
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.25,
+            shadowRadius: 6,
             elevation: 4,
           }}
         />
@@ -156,6 +157,7 @@ function MainTabs() {
   profileRef.current = profile;
   loadingRef.current = loading;
   const refs = React.useMemo<ProfileLoadingRefs>(() => ({ profileRef, loadingRef }), []);
+  const insets = useSafeAreaInsets();
 
   // Stable tab bar button factory — same reference always so options are stable
   const createTabBarButton = React.useCallback((requiresProfile: boolean) => (buttonProps: any) => (
@@ -248,31 +250,30 @@ function MainTabs() {
     tabBarActiveTintColor: '#8B1538',
     tabBarInactiveTintColor: '#94A3B8',
     tabBarStyle: {
-      backgroundColor: '#fff',
-      borderTopWidth: 1,
-      borderTopColor: 'rgba(0,0,0,0.06)',
-      height: Platform.OS === 'ios' ? 52 : 50,
-      paddingBottom: 4,
-      paddingTop: 4,
+      backgroundColor: '#FAFAFA',
+      borderTopWidth: 0,
+      height: Platform.OS === 'ios' ? 56 + Math.round(insets.bottom * 0.5) : 56,
+      paddingBottom: Platform.OS === 'ios' ? 8 + Math.round(insets.bottom * 0.5) : 8,
+      paddingTop: 8,
       paddingHorizontal: 8,
-      elevation: 8,
+      elevation: 12,
       shadowColor: '#000',
-      shadowOffset: { width: 0, height: -2 },
-      shadowOpacity: 0.06,
-      shadowRadius: 8,
-      borderTopLeftRadius: 20,
-      borderTopRightRadius: 20,
+      shadowOffset: { width: 0, height: -3 },
+      shadowOpacity: 0.08,
+      shadowRadius: 12,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
       position: 'absolute' as const,
     },
     tabBarItemStyle: {
-      paddingHorizontal: 0,
-      minWidth: 40,
+      paddingHorizontal: 2,
+      minWidth: 44,
     },
     tabBarLabelStyle: {
-      fontSize: 10,
+      fontSize: 11,
       fontWeight: '600' as const,
-      marginTop: 2,
-      letterSpacing: 0.2,
+      marginTop: 4,
+      letterSpacing: 0.15,
       marginBottom: 0,
       paddingHorizontal: 2,
       textAlign: 'center' as const,
@@ -286,7 +287,7 @@ function MainTabs() {
     },
     tabBarShowLabel: true,
     tabBarHideOnKeyboard: true,
-  }), []);
+  }), [insets.bottom]);
 
   return (
     <Tab.Navigator screenOptions={screenOptions}>
@@ -433,13 +434,13 @@ const styles = StyleSheet.create({
     fontWeight: '300',
   },
   iconContainer: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 20,
+    borderRadius: 22,
     position: 'relative',
-    marginBottom: 2,
+    marginBottom: 0,
     zIndex: 1,
   },
   iconContainerActive: {

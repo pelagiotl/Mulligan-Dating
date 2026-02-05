@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
+import { usePaymentSheet } from '@stripe/stripe-react-native';
 import { api } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import LegalFooter from '../components/LegalFooter';
@@ -49,6 +50,7 @@ interface ProfileData {
 export default function SettingsScreen() {
   const { logout, refreshProfile } = useAuth();
   const navigation = useNavigation();
+  const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
   const [settings, setSettings] = useState<SettingsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -274,13 +276,21 @@ export default function SettingsScreen() {
   };
 
   const handlePurchase = useCallback(async (packageId: number) => {
+    const publishableKey = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+    if (!publishableKey || !publishableKey.startsWith('pk_')) {
+      Alert.alert(
+        'Payment Not Configured',
+        'Stripe is not configured. Please set EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY in your environment.'
+      );
+      return;
+    }
+
     try {
       setPurchasing(true);
       setError('');
 
       console.log('🛒 Purchase initiated for package ID:', packageId);
-      
-      // Create payment intent
+
       const paymentIntent = await api.post<{
         clientSecret: string;
         paymentIntentId: string;
@@ -288,33 +298,42 @@ export default function SettingsScreen() {
         tokensToGrant: number;
       }>('/payments/create-intent', { packageId });
 
-      console.log('✅ Payment intent created:', {
-        packageId,
-        tokensToGrant: paymentIntent.tokensToGrant,
-        amount: paymentIntent.amount,
-        paymentIntentId: paymentIntent.paymentIntentId
+      if (!paymentIntent.clientSecret) {
+        throw new Error('Invalid payment intent response');
+      }
+
+      const { error: initError } = await initPaymentSheet({
+        paymentIntentClientSecret: paymentIntent.clientSecret,
+        merchantDisplayName: 'Mulligan',
       });
 
-      // TODO: For Expo Go, Stripe PaymentSheet requires a development build
-      // For now, show a message that payment processing will be available in production
-      // When ready for production, you'll need to:
-      // 1. Create a development build with: npx expo prebuild && npx expo run:ios
-      // 2. Re-enable StripeProvider in App.tsx
-      // 3. Uncomment PaymentSheet code below
-      
-      Alert.alert(
-        'Payment Integration',
-        `Payment intent created for ${paymentIntent.tokensToGrant} token${paymentIntent.tokensToGrant !== 1 ? 's' : ''}. \n\nNote: Full payment processing requires a development build (not Expo Go). This will work in production builds.`,
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              setShowPurchaseModal(false);
-              setPurchasing(false);
-            }
-          }
-        ]
-      );
+      if (initError) {
+        console.error('PaymentSheet init error:', initError);
+        setError(initError.message || 'Failed to initialize payment');
+        Alert.alert('Payment Error', initError.message || 'Failed to initialize payment');
+        return;
+      }
+
+      const { error: presentError } = await presentPaymentSheet();
+
+      if (presentError) {
+        if (presentError.code === 'Canceled') {
+          return;
+        }
+        console.error('PaymentSheet present error:', presentError);
+        setError(presentError.message || 'Payment failed');
+        Alert.alert('Payment Failed', presentError.message || 'Payment failed');
+        return;
+      }
+
+      setShowPurchaseModal(false);
+      setSuccess(`${paymentIntent.tokensToGrant} token${paymentIntent.tokensToGrant !== 1 ? 's' : ''} added!`);
+      setTimeout(() => setSuccess(''), 4000);
+      api.clearCache('/tokens');
+      setTimeout(() => {
+        fetchSettings();
+        fetchPackages();
+      }, 1500);
     } catch (err: any) {
       console.error('Purchase error:', err);
       const errorMessage = err?.message || 'Failed to process purchase. Please try again.';
@@ -323,7 +342,7 @@ export default function SettingsScreen() {
     } finally {
       setPurchasing(false);
     }
-  }, []);
+  }, [initPaymentSheet, presentPaymentSheet]);
 
   const handleDeleteAccount = useCallback(async () => {
     setError('');
@@ -1065,6 +1084,7 @@ const styles = StyleSheet.create({
     textShadowRadius: 4,
   },
   headerGradient: {
+    marginTop: 56,
     paddingTop: 60,
     paddingBottom: 32,
     borderBottomLeftRadius: 28,

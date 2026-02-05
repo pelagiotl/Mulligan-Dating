@@ -25,7 +25,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GestureHandlerRootView, PanGestureHandler, State } from 'react-native-gesture-handler';
-import { api } from '../utils/api';
+import { api, getToken } from '../utils/api';
 import { getPhotoUrl } from '../utils/photoUrl';
 import OptimizedImage from '../components/OptimizedImage';
 import { useAuth } from '../context/AuthContext';
@@ -802,7 +802,7 @@ export default function MyProfileScreen() {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
-        quality: 0.9,
+        quality: 0.6,
         allowsMultipleSelection: false,
       });
 
@@ -842,9 +842,8 @@ export default function MyProfileScreen() {
         mimeType = mimeTypes[ext] || 'image/jpeg';
       }
 
-      // Get token first
-      const token = await AsyncStorage.getItem('token');
-      if (!token) {
+      const token = await getToken();
+      if (!token || !token.trim()) {
         throw new Error('No authentication token found. Please log in again.');
       }
 

@@ -732,6 +732,8 @@ export default function BrowseScreen() {
   const [photoCount, setPhotoCount] = useState<number | null>(null); // User's photo count (for 5-photo minimum)
   const [photoCountLoading, setPhotoCountLoading] = useState(false); // True while fetching count so we don't briefly show wrong state
   const socketRef = useRef<Socket | null>(null);
+  const openTokenModalRef = useRef<(() => void) | null>(null);
+  const performClaimRef = useRef<((opts?: { onSuccess?: () => void; successMessage?: string }) => Promise<void>) | null>(null);
   
   // Button animations
   const buttonPulse = useRef(new Animated.Value(1)).current;
@@ -745,6 +747,22 @@ export default function BrowseScreen() {
   const titleScale = useRef(new Animated.Value(0.9)).current;
   const titleOpacity = useRef(new Animated.Value(0)).current;
   const titleTranslateY = useRef(new Animated.Value(20)).current;
+
+  // Claim banner animations (pulse + shimmer feel)
+  const claimBannerPulse = useRef(new Animated.Value(1)).current;
+  const claimBannerScale = useRef(new Animated.Value(1)).current;
+
+  // Claim banner pulse animation (subtle breath effect)
+  useEffect(() => {
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(claimBannerPulse, { toValue: 1.03, duration: 1200, useNativeDriver: true }),
+        Animated.timing(claimBannerPulse, { toValue: 1, duration: 1200, useNativeDriver: true }),
+      ])
+    );
+    pulse.start();
+    return () => pulse.stop();
+  }, [claimBannerPulse]);
 
   useEffect(() => {
     if (!connecting) {
@@ -1628,11 +1646,38 @@ export default function BrowseScreen() {
       <View style={styles.tokenOverlay} pointerEvents="box-none">
         <View style={styles.tokenOverlayInner}>
           {canClaimTokens && (
-            <View style={styles.claimTokenBanner}>
-              <Text style={styles.claimTokenText}>✨ Claim your 7 tokens!</Text>
-            </View>
+            <TouchableOpacity
+              activeOpacity={1}
+              onPress={() => {
+                if (Platform.OS === 'ios') Vibration.vibrate([0, 30]);
+                else Vibration.vibrate(30);
+                performClaimRef.current?.({
+                  onSuccess: checkCanClaimTokens,
+                  successMessage: "Congrats! You've been officially reupped and are ready to start matching! 🎉",
+                });
+              }}
+              onPressIn={() => {
+                Animated.spring(claimBannerScale, { toValue: 0.95, useNativeDriver: true }).start();
+              }}
+              onPressOut={() => {
+                Animated.spring(claimBannerScale, { toValue: 1, useNativeDriver: true }).start();
+              }}
+            >
+              <Animated.View
+                style={[
+                  styles.claimTokenBanner,
+                  {
+                    transform: [
+                      { scale: Animated.multiply(claimBannerPulse, claimBannerScale) },
+                    ],
+                  },
+                ]}
+              >
+                <Text style={styles.claimTokenText}>✨ Claim your 7 tokens!</Text>
+              </Animated.View>
+            </TouchableOpacity>
           )}
-          <TokenDisplay compact={true} premium={true} />
+          <TokenDisplay compact={true} premium={true} openModalRef={openTokenModalRef} performClaimRef={performClaimRef} />
         </View>
       </View>
 

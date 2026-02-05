@@ -80,25 +80,26 @@ settingsRouter.post("/change-password", authenticateToken, async (req: AuthReque
 // Delete account
 settingsRouter.post("/delete-account", authenticateToken, async (req: AuthRequest, res) => {
   const userId = req.userId!;
-  const { password } = req.body as { password?: string };
-
-  if (!password) {
-    return res.status(400).json({ error: "Password required to delete account" });
-  }
+  const { password } = (req.body || {}) as { password?: string };
 
   try {
-    // Verify password
     const user = await (db
       .prepare("SELECT password FROM users WHERE id = ?")
-      .get(userId) as Promise<{ password: string } | undefined>);
+      .get(userId) as Promise<{ password: string | null } | undefined>);
 
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    const validPassword = await bcrypt.compare(password, user.password);
-    if (!validPassword) {
-      return res.status(401).json({ error: "Password is incorrect" });
+    // Phone-auth users have no password; allow deletion with just JWT
+    if (user.password) {
+      if (!password) {
+        return res.status(400).json({ error: "Password required to delete account" });
+      }
+      const validPassword = await bcrypt.compare(password, user.password);
+      if (!validPassword) {
+        return res.status(401).json({ error: "Password is incorrect" });
+      }
     }
 
     // Delete user (cascade will delete profile, matches, messages, etc.)

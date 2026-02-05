@@ -27,7 +27,7 @@ import { useNavigation, useRoute, useFocusEffect, useIsFocused } from '@react-na
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { io, Socket } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { api } from '../utils/api';
+import { api, getToken } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { getPhotoUrl } from '../utils/photoUrl';
 import { getPendingOpenMatchId, clearPendingOpenMatchId } from '../utils/pendingMatchOpen';
@@ -2470,7 +2470,9 @@ export default function MatchesScreen() {
                 mediaTypes: ImagePicker.MediaTypeOptions.Images,
                 allowsEditing: true,
                 aspect: [1, 1],
-                quality: 0.8,
+                quality: 0.5,
+                maxWidth: 1024,
+                maxHeight: 1024,
               });
               if (!result.canceled && result.assets[0]) {
                 setPendingImageUri(result.assets[0].uri);
@@ -2493,7 +2495,9 @@ export default function MatchesScreen() {
                 mediaTypes: ImagePicker.MediaTypeOptions.Images,
                 allowsEditing: true,
                 aspect: [1, 1],
-                quality: 0.8,
+                quality: 0.5,
+                maxWidth: 1024,
+                maxHeight: 1024,
               });
               if (!result.canceled && result.assets[0]) {
                 setPendingImageUri(result.assets[0].uri);
@@ -2511,8 +2515,8 @@ export default function MatchesScreen() {
     if (!selectedMatch || !user) return;
     setUploadingImage(true);
     try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) {
+      const token = await getToken();
+      if (!token || !token.trim()) {
         throw new Error('Session expired. Please log in again.');
       }
       const filename = uri.split('/').pop() || 'photo.jpg';

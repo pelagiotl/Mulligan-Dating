@@ -8,10 +8,14 @@
 import 'react-native-gesture-handler';
 
 import React from 'react';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { StripeProvider } from '@stripe/stripe-react-native';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { AuthProvider } from './src/context/AuthContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import { initSentry, captureException, captureMessage } from './src/utils/sentry';
+
+const STRIPE_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || '';
 
 // Initialize Sentry early (before anything else that might crash)
 // This will capture native crashes and JavaScript errors
@@ -187,11 +191,18 @@ export default function App() {
   }, []);
 
   return (
-    <ErrorBoundary>
-      <AuthProvider>
-        <AppNavigator />
-      </AuthProvider>
-    </ErrorBoundary>
+    <SafeAreaProvider>
+      <StripeProvider
+        publishableKey={STRIPE_PUBLISHABLE_KEY}
+        merchantIdentifier="merchant.com.lukepelagiotomerlin.mulligan"
+      >
+        <ErrorBoundary>
+          <AuthProvider>
+            <AppNavigator />
+          </AuthProvider>
+        </ErrorBoundary>
+      </StripeProvider>
+    </SafeAreaProvider>
   );
 }
 

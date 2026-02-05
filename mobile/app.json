@@ -20,10 +20,13 @@
         "NSPhotoLibraryUsageDescription": "Mulligan needs access to your photos to upload profile pictures.",
         "NSCameraUsageDescription": "Mulligan needs access to your camera to take profile pictures.",
         "ITSAppUsesNonExemptEncryption": false,
-        "UIBackgroundModes": ["audio"]
+        "UIBackgroundModes": [
+          "audio"
+        ]
       }
     },
     "android": {
+      "package": "com.lukepelagiotomerlin.mulligan",
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -49,6 +52,15 @@
     },
     "plugins": [
       [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35
+          }
+        }
+      ],
+      [
         "expo-location",
         {
           "locationAlwaysAndWhenInUsePermission": "Mulligan uses your location to find matches near you."
@@ -73,7 +85,15 @@
         {
           "microphonePermission": "Mulligan does not use the microphone. Audio playback is used for match notifications."
         }
-      ]
+      ],
+      "@sentry/react-native",
+      [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": "merchant.com.lukepelagiotomerlin.mulligan"
+        }
+      ],
+      "expo-asset"
     ],
     "extra": {
       "eas": {

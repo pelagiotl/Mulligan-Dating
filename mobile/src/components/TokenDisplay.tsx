@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Modal, ScrollView, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
+import { usePaymentSheet } from '@stripe/stripe-react-native';
 import { api } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 
@@ -160,10 +161,14 @@ function PremiumTokenDisplay({
 interface TokenDisplayProps {
   compact?: boolean; // If true, only show token count (for header use)
   premium?: boolean; // If true, show premium styled version with animations
+  openModalRef?: React.MutableRefObject<(() => void) | null>;
+  /** When set, parent can trigger claim directly (e.g. from "Claim your 7 tokens!" banner) and show custom success message */
+  performClaimRef?: React.MutableRefObject<((opts?: { onSuccess?: () => void; successMessage?: string }) => Promise<void>) | null>;
 }
 
-export default function TokenDisplay({ compact = false, premium = false }: TokenDisplayProps) {
+export default function TokenDisplay({ compact = false, premium = false, openModalRef, performClaimRef }: TokenDisplayProps) {
   const { user } = useAuth();
+  const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
   const isAdmin = user?.isAdmin || false;
   const [data, setData] = useState<TokenData | null>(null);
   const [claiming, setClaiming] = useState(false);
@@ -176,6 +181,51 @@ export default function TokenDisplay({ compact = false, premium = false }: Token
   const [purchasing, setPurchasing] = useState(false);
 
   const isFocused = useIsFocused();
+
+  // Expose open-modal function to parent (e.g. for token count tap)
+  useEffect(() => {
+    if (openModalRef) {
+      openModalRef.current = () => {
+        setShowInfoModal(true);
+        fetchPackages();
+      };
+      return () => {
+        openModalRef.current = null;
+      };
+    }
+  }, [openModalRef]);
+
+  // Expose perform-claim function to parent (e.g. "Claim your 7 tokens!" banner - claim directly, show celebratory message)
+  useEffect(() => {
+    if (performClaimRef) {
+      performClaimRef.current = async (opts?: { onSuccess?: () => void; successMessage?: string }) => {
+        if (claiming || !data?.canClaimWeeklyToken) {
+          if (!data?.canClaimWeeklyToken) {
+            Alert.alert('Not Yet', 'You cannot claim weekly tokens right now. Check back next week!');
+          }
+          return;
+        }
+        setClaiming(true);
+        setError('');
+        setSuccess('');
+        try {
+          const result = await api.post<{ message: string; tokensGranted: number }>('/tokens/claim', {});
+          api.clearCache('/tokens');
+          await fetchTokens();
+          const msg = opts?.successMessage ?? `Congrats! You've been officially reupped and are ready to start matching! 🎉`;
+          Alert.alert('🎉 You\'re Reupped!', msg, [{ text: 'Let\'s go!', onPress: () => opts?.onSuccess?.() }]);
+        } catch (err: any) {
+          const errorMessage = err?.message || 'Failed to claim tokens. Please try again.';
+          Alert.alert('Oops', errorMessage);
+        } finally {
+          setClaiming(false);
+        }
+      };
+      return () => {
+        performClaimRef.current = null;
+      };
+    }
+  }, [performClaimRef, data?.canClaimWeeklyToken, claiming]);
 
   useEffect(() => {
     if (user) {
@@ -230,13 +280,21 @@ export default function TokenDisplay({ compact = false, premium = false }: Token
   };
 
   const handlePurchase = async (packageId: number) => {
+    const publishableKey = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+    if (!publishableKey || !publishableKey.startsWith('pk_')) {
+      Alert.alert(
+        'Payment Not Configured',
+        'Stripe is not configured. Please set EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY in your environment.'
+      );
+      return;
+    }
+
     try {
       setPurchasing(true);
       setError('');
 
       console.log('🛒 Purchase initiated for package ID:', packageId);
 
-      // Create payment intent
       const paymentIntent = await api.post<{
         clientSecret: string;
         paymentIntentId: string;
@@ -244,28 +302,41 @@ export default function TokenDisplay({ compact = false, premium = false }: Token
         tokensToGrant: number;
       }>('/payments/create-intent', { packageId });
 
-      console.log('✅ Payment intent created:', {
-        packageId,
-        tokensToGrant: paymentIntent.tokensToGrant,
-        amount: paymentIntent.amount,
-        paymentIntentId: paymentIntent.paymentIntentId
+      if (!paymentIntent.clientSecret) {
+        throw new Error('Invalid payment intent response');
+      }
+
+      const { error: initError } = await initPaymentSheet({
+        paymentIntentClientSecret: paymentIntent.clientSecret,
+        merchantDisplayName: 'Mulligan',
       });
 
-      // TODO: Stripe PaymentSheet requires a development build (not Expo Go)
-      // For now, show a message that payment processing will be available in production builds
-      Alert.alert(
-        'Payment Integration',
-        `Payment intent created for ${paymentIntent.tokensToGrant} token${paymentIntent.tokensToGrant !== 1 ? 's' : ''}. \n\nNote: Full payment processing requires a development build (not Expo Go). This will work in production builds.`,
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              setShowPurchaseModal(false);
-              setPurchasing(false);
-            }
-          }
-        ]
-      );
+      if (initError) {
+        console.error('PaymentSheet init error:', initError);
+        setError(initError.message || 'Failed to initialize payment');
+        Alert.alert('Payment Error', initError.message || 'Failed to initialize payment');
+        return;
+      }
+
+      const { error: presentError } = await presentPaymentSheet();
+
+      if (presentError) {
+        if (presentError.code === 'Canceled') {
+          // User cancelled - no need to show error
+          return;
+        }
+        console.error('PaymentSheet present error:', presentError);
+        setError(presentError.message || 'Payment failed');
+        Alert.alert('Payment Failed', presentError.message || 'Payment failed');
+        return;
+      }
+
+      // Payment succeeded - webhook will grant tokens; refresh after short delay
+      setShowPurchaseModal(false);
+      setSuccess(`${paymentIntent.tokensToGrant} token${paymentIntent.tokensToGrant !== 1 ? 's' : ''} added!`);
+      setTimeout(() => setSuccess(''), 4000);
+      api.clearCache('/tokens');
+      setTimeout(() => fetchTokens(), 1500);
     } catch (err: any) {
       console.error('Purchase error:', err);
       const errorMessage = err?.message || 'Failed to process purchase. Please try again.';

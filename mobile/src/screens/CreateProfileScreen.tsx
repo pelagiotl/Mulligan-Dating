@@ -27,9 +27,10 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Picker } from '@react-native-picker/picker';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { navigationRef } from '../navigation/navigationRef';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
-import { api, getToken } from '../utils/api';
+import { api, getToken, ensureTokenPrefetched } from '../utils/api';
 import ProfileCompleteCelebration from '../components/ProfileCompleteCelebration';
 import { useAuth } from '../context/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -87,11 +88,13 @@ const DEALBREAKER_OPTIONS = [
   'Doesn\'t like pets'
 ];
 
+const TOTAL_STEPS = 12; // Steps 1-6: basic info (name, age, gender, location, looking for, bio); 7-12: interests, dealbreakers, qualities, preferences, lifestyle, photos
+
 export default function CreateProfileScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   const startFromBeginning = (route.params as { startFromBeginning?: boolean } | undefined)?.startFromBeginning === true;
-  const { refreshProfile } = useAuth();
+  const { refreshProfile, profile: existingProfile, logout } = useAuth();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -263,62 +266,34 @@ export default function CreateProfileScreen() {
     };
   }, []);
 
-  // Auto-focus first name input when step 1 loads with animation
+  // Animate and focus the active basic-info field when on steps 1-6
   useEffect(() => {
-    if (step === 1) {
-      // Animate the first name field to pop out
+    const anim = (s: Animated.Value, o: Animated.Value, g: Animated.Value) => {
       Animated.parallel([
-        Animated.spring(firstNameScale, {
-          toValue: 1,
-          tension: 50,
-          friction: 7,
-          useNativeDriver: true,
-        }),
-        Animated.timing(firstNameOpacity, {
-          toValue: 1,
-          duration: 400,
-          useNativeDriver: true,
-        }),
-        Animated.loop(
-          Animated.sequence([
-            Animated.timing(firstNameGlow, {
-              toValue: 1,
-              duration: 1500,
-              useNativeDriver: true,
-            }),
-            Animated.timing(firstNameGlow, {
-              toValue: 0,
-              duration: 1500,
-              useNativeDriver: true,
-            }),
-          ])
-        ),
+        Animated.spring(s, { toValue: 1, tension: 50, friction: 7, useNativeDriver: true }),
+        Animated.timing(o, { toValue: 1, duration: 400, useNativeDriver: true }),
+        Animated.loop(Animated.sequence([
+          Animated.timing(g, { toValue: 1, duration: 1500, useNativeDriver: true }),
+          Animated.timing(g, { toValue: 0, duration: 1500, useNativeDriver: true }),
+        ])),
       ]).start();
-
-      // Small delay to ensure the input is rendered, then focus
-      setTimeout(() => {
-        displayNameInputRef.current?.focus();
-      }, 300);
-    } else {
-      // Reset all animations when leaving step 1
-      firstNameScale.setValue(0.95);
-      firstNameOpacity.setValue(0);
-      firstNameGlow.setValue(0);
-      ageScale.setValue(0.95);
-      ageOpacity.setValue(0);
-      ageGlow.setValue(0);
-      genderScale.setValue(0.95);
-      genderOpacity.setValue(0);
-      genderGlow.setValue(0);
-      locationScale.setValue(0.95);
-      locationOpacity.setValue(0);
-      locationGlow.setValue(0);
-      lookingForScale.setValue(0.95);
-      lookingForOpacity.setValue(0);
-      lookingForGlow.setValue(0);
-      bioScale.setValue(0.95);
-      bioOpacity.setValue(0);
-      bioGlow.setValue(0);
+    };
+    if (step === 1) {
+      anim(firstNameScale, firstNameOpacity, firstNameGlow);
+      setTimeout(() => displayNameInputRef.current?.focus(), 300);
+    } else if (step === 2) {
+      anim(ageScale, ageOpacity, ageGlow);
+      setTimeout(() => ageInputRef.current?.focus(), 300);
+    } else if (step === 3) anim(genderScale, genderOpacity, genderGlow);
+    else if (step === 4) {
+      anim(locationScale, locationOpacity, locationGlow);
+      setTimeout(() => locationInputRef.current?.focus(), 300);
+    } else if (step === 5) anim(lookingForScale, lookingForOpacity, lookingForGlow);
+    else if (step === 6) anim(bioScale, bioOpacity, bioGlow);
+    else {
+      [firstNameScale, ageScale, genderScale, locationScale, lookingForScale, bioScale].forEach(s => s.setValue(0.95));
+      [firstNameOpacity, ageOpacity, genderOpacity, locationOpacity, lookingForOpacity, bioOpacity].forEach(o => o.setValue(0));
+      [firstNameGlow, ageGlow, genderGlow, locationGlow, lookingForGlow, bioGlow].forEach(g => g.setValue(0));
     }
   }, [step]);
 
@@ -387,108 +362,9 @@ export default function CreateProfileScreen() {
     }
   };
 
-  // Animate age field when first name is entered (prepare it, but don't auto-navigate)
-  // Navigation only happens when onChangeText timeout triggers or user presses Enter
+  // Step 10 (dating preferences) - Progressive disclosure with vertical scrolling
   useEffect(() => {
-    if (step === 1 && displayName.trim().length >= 2) {
-      // Just prepare the animation, don't navigate yet
-      // Navigation will happen via the onChangeText timeout
-      animateField(ageScale, ageOpacity, ageGlow);
-    } else if (step === 1 && displayName.trim().length < 2) {
-      ageScale.setValue(0.95);
-      ageOpacity.setValue(0);
-      ageGlow.setValue(0);
-    }
-  }, [displayName, step]);
-
-  // Animate gender field when age is entered and navigate to gender card
-  useEffect(() => {
-    if (skipAutoScrollRef.current) return;
-    const ageNum = parseInt(age);
-    const isValidAge = age.trim().length > 0 && !isNaN(ageNum) && ageNum >= 18;
-    const hasDisplayName = displayName.trim().length >= 2;
-    if (step === 1 && hasDisplayName && isValidAge) {
-      console.log('✅ Conditions met, animating gender field NOW');
-      // Start animation immediately - no delay
-      animateField(genderScale, genderOpacity, genderGlow);
-      
-      // Navigate to gender card with vertical scroll
-      setTimeout(() => {
-        scrollToStep1Card(genderCardY, -20);
-      }, 300);
-    } else if (step === 1 && age.trim().length > 0 && !isValidAge) {
-      console.log('❌ Invalid age, resetting gender animation');
-      genderScale.setValue(0.95);
-      genderOpacity.setValue(0);
-      genderGlow.setValue(0);
-    }
-  }, [age, displayName, step, genderCardY]);
-
-  // Animate location field when gender is selected and navigate to location card
-  useEffect(() => {
-    if (skipAutoScrollRef.current) return;
-    if (step === 1 && displayName.trim().length >= 2 && age.trim().length > 0 && gender.trim().length > 0) {
-      setTimeout(() => {
-        animateField(locationScale, locationOpacity, locationGlow);
-        // Navigate to location card with vertical scroll
-        setTimeout(() => {
-          scrollToStep1Card(locationCardY, -20);
-        }, 300);
-      }, 100); // Faster transition
-    } else if (step === 1 && !gender.trim()) {
-      locationScale.setValue(0.95);
-      locationOpacity.setValue(0);
-      locationGlow.setValue(0);
-    }
-  }, [gender, displayName, age, step, locationCardY]);
-
-  // Animate "looking for" field when location is entered and navigate to lookingFor card
-  useEffect(() => {
-    if (skipAutoScrollRef.current) return;
-    if (step === 1 && displayName.trim().length >= 2 && age.trim().length > 0 && gender.trim().length > 0 && location.trim().length > 0) {
-      animateField(lookingForScale, lookingForOpacity, lookingForGlow);
-      // Delay scroll so lookingFor card is laid out first (it was just enabled)
-      pendingScrollToRef.current = 'lookingFor';
-    } else if (step === 1 && !location.trim()) {
-      lookingForScale.setValue(0.95);
-      lookingForOpacity.setValue(0);
-      lookingForGlow.setValue(0);
-      pendingScrollToRef.current = null;
-    }
-  }, [location, displayName, age, gender, step]);
-
-  // Run pending scroll once target card Y is available (after layout)
-  useEffect(() => {
-    if (pendingScrollToRef.current === 'lookingFor' && lookingForCardY !== null) {
-      InteractionManager.runAfterInteractions(() => {
-        scrollToStep1Card(lookingForCardY, -20);
-        pendingScrollToRef.current = null;
-      });
-    } else if (pendingScrollToRef.current === 'bio' && bioCardY !== null) {
-      InteractionManager.runAfterInteractions(() => {
-        scrollToStep1Card(bioCardY, -20);
-        pendingScrollToRef.current = null;
-      });
-    }
-  }, [lookingForCardY, bioCardY]);
-
-  // Animate bio field when "looking for" is selected and navigate to bio card
-  useEffect(() => {
-    if (skipAutoScrollRef.current) return;
-    if (step === 1 && displayName.trim().length >= 2 && age.trim().length > 0 && gender.trim().length > 0 && location.trim().length > 0 && lookingFor.trim().length > 0) {
-      animateField(bioScale, bioOpacity, bioGlow);
-      pendingScrollToRef.current = 'bio';
-    } else if (step === 1 && !lookingFor.trim()) {
-      bioScale.setValue(0.95);
-      bioOpacity.setValue(0);
-      bioGlow.setValue(0);
-      pendingScrollToRef.current = null;
-    }
-  }, [lookingFor, displayName, age, gender, location, step]);
-
-  // Step 5 (dating preferences) - Progressive disclosure with vertical scrolling (like lifestyle)
-  useEffect(() => {
-    if (step === 5) {
+    if (step === 10) {
       step5AllowScrollRef.current = false; // Disable auto-scroll from useEffects entirely
       animateField(minAgeScale, minAgeOpacity, minAgeGlow);
       // Scroll to top to ensure we start at minimum age card
@@ -500,7 +376,7 @@ export default function CreateProfileScreen() {
 
   // Animate max age card when min age is valid
   useEffect(() => {
-    if (step === 5 && minAge >= 18 && minAge <= 120) {
+    if (step === 10 && minAge >= 18 && minAge <= 120) {
       setTimeout(() => {
         animateField(maxAgeScale, maxAgeOpacity, maxAgeGlow);
         // Auto-scroll to show next card (only if user is actively filling, not on initial mount)
@@ -510,7 +386,7 @@ export default function CreateProfileScreen() {
           }, 300);
         }
       }, 300);
-    } else if (step === 5 && (minAge < 18 || minAge > 120)) {
+    } else if (step === 10 && (minAge < 18 || minAge > 120)) {
       // Reset if min age becomes invalid
       maxAgeScale.setValue(0.95);
       maxAgeOpacity.setValue(0);
@@ -530,7 +406,7 @@ export default function CreateProfileScreen() {
           }, 300);
         }
       }, 300);
-    } else if (step === 5 && (maxAge < minAge || maxAge > 120)) {
+    } else if (step === 10 && (maxAge < minAge || maxAge > 120)) {
       // Reset if max age becomes invalid
       preferredGendersScale.setValue(0.95);
       preferredGendersOpacity.setValue(0);
@@ -540,7 +416,7 @@ export default function CreateProfileScreen() {
 
   // Animate max distance card when gender is selected
   useEffect(() => {
-    if (step === 5 && preferredGenders.length > 0) {
+    if (step === 10 && preferredGenders.length > 0) {
       setTimeout(() => {
         animateField(maxDistanceScale, maxDistanceOpacity, maxDistanceGlow);
         // Auto-scroll to show next card (only if user is actively filling, not on initial mount)
@@ -550,7 +426,7 @@ export default function CreateProfileScreen() {
           }, 300);
         }
       }, 300);
-    } else if (step === 5 && preferredGenders.length === 0) {
+    } else if (step === 10 && preferredGenders.length === 0) {
       // Reset if no genders selected
       maxDistanceScale.setValue(0.95);
       maxDistanceOpacity.setValue(0);
@@ -560,7 +436,7 @@ export default function CreateProfileScreen() {
 
   // Step 6 (lifestyle) - Progressive disclosure with auto-navigation
   useEffect(() => {
-    if (step === 6) {
+    if (step === 11) {
       step6AllowScrollRef.current = false; // Disable auto-scroll from useEffects/onLayout on initial entry
       animateField(smokingScale, smokingOpacity, smokingGlow);
       // Scroll to top so user starts at smoking card
@@ -572,25 +448,25 @@ export default function CreateProfileScreen() {
 
   // Animate next cards as previous ones are completed (scroll happens only from Picker onValueChange)
   useEffect(() => {
-    if (step === 6 && smoking) {
+    if (step === 11 && smoking) {
       setTimeout(() => animateField(drinkingScale, drinkingOpacity, drinkingGlow), 300);
     }
   }, [smoking, step]);
 
   useEffect(() => {
-    if (step === 6 && drinking) {
+    if (step === 11 && drinking) {
       setTimeout(() => animateField(childrenScale, childrenOpacity, childrenGlow), 300);
     }
   }, [drinking, step]);
 
   useEffect(() => {
-    if (step === 6 && children) {
+    if (step === 11 && children) {
       setTimeout(() => animateField(petsScale, petsOpacity, petsGlow), 300);
     }
   }, [children, step]);
 
   useEffect(() => {
-    if (step === 6 && pets) {
+    if (step === 11 && pets) {
       setTimeout(() => animateField(religionScale, religionOpacity, religionGlow), 300);
     }
   }, [pets, step]);
@@ -602,7 +478,7 @@ export default function CreateProfileScreen() {
   }, [religion, step]);
 
   useEffect(() => {
-    if (step === 6 && workLifeBalance) {
+    if (step === 11 && workLifeBalance) {
       setTimeout(() => animateField(worksOutScale, worksOutOpacity, worksOutGlow), 300);
     }
   }, [workLifeBalance, step]);
@@ -651,11 +527,7 @@ export default function CreateProfileScreen() {
             setWorkLifeBalance(data.lifestyle.work_life_balance || '');
             setWorksOut(data.lifestyle.works_out || '');
           }
-          if (startFromBeginning) {
-            setTimeout(() => {
-              step1ScrollViewRef.current?.scrollTo({ y: 0, animated: false });
-            }, 600);
-          }
+          // startFromBeginning: no scroll needed - each step is now its own page
         }
       } catch (err) {
         console.log('No existing profile found');
@@ -664,12 +536,17 @@ export default function CreateProfileScreen() {
     loadProfile();
   }, [startFromBeginning]);
 
+  // Prefetch auth token on mount (handles AsyncStorage timing / cache sync after login)
+  useEffect(() => {
+    ensureTokenPrefetched();
+  }, []);
+
   // Save profile data and load existing photos when entering step 7
   const profileSavedRef = useRef(false);
   
   useEffect(() => {
     const saveProfileAndLoadPhotos = async () => {
-      if (step === 7 && !profileSavedRef.current) {
+      if (step === 12 && !profileSavedRef.current) {
         // Mark as saving to prevent duplicate calls
         profileSavedRef.current = true;
         
@@ -677,6 +554,19 @@ export default function CreateProfileScreen() {
         setTimeout(async () => {
           try {
             console.log('💾 Saving profile data before photo upload...');
+            
+            // Ensure auth token is loaded (handles cache timing / AsyncStorage race)
+            await ensureTokenPrefetched();
+            let token = await getToken();
+            if (!token || typeof token !== 'string' || !token.trim()) {
+              await new Promise((r) => setTimeout(r, 200));
+              token = await getToken();
+            }
+            if (!token || typeof token !== 'string' || !token.trim()) {
+              profileSavedRef.current = false;
+              setError('Session expired. Please log in again.');
+              return;
+            }
             
             // First, save basic profile (required for photos endpoint and other operations)
             try {
@@ -694,7 +584,13 @@ export default function CreateProfileScreen() {
               await new Promise(resolve => setTimeout(resolve, 200));
             } catch (err: any) {
               console.error('❌ Failed to save basic profile:', err?.message || err);
-              setError(`Failed to save profile: ${err?.message || 'Please try again'}`);
+              const isAuthError = err?.status === 401 || (typeof err?.message === 'string' && err.message.toLowerCase().includes('authentication'));
+              if (isAuthError) {
+                await logout();
+                setError('Session expired. Please log in again.');
+              } else {
+                setError(`Failed to save profile: ${err?.message || 'Please try again'}`);
+              }
               profileSavedRef.current = false; // Allow retry
               return;
             }
@@ -992,10 +888,6 @@ export default function CreateProfileScreen() {
           const locationString = `${city}, ${state}`;
           console.log('✅ Setting location with state:', locationString);
           setLocation(locationString);
-          // Trigger next field animation after a short delay
-          setTimeout(() => {
-            triggerNextField('lookingFor');
-          }, 600);
         } else if (city) {
           // If we have city but no state, parse from display_name as last resort
           const displayName = data.display_name || '';
@@ -1014,12 +906,7 @@ export default function CreateProfileScreen() {
             const locationString = `${city}, ${extractedState}`;
             console.log('✅ Extracted state from display_name, setting location:', locationString);
             setLocation(locationString);
-            // Blur the location input and trigger next field animation after a short delay
-            setTimeout(() => {
-              locationInputRef.current?.blur();
-              // The useEffect should trigger the animation, but we'll also call it explicitly
-              triggerNextField('lookingFor');
-            }, 800);
+            locationInputRef.current?.blur();
           } else {
             // Show debug alert if we still can't find state
             console.error('❌ Could not extract state. Showing debug info.');
@@ -1029,11 +916,7 @@ export default function CreateProfileScreen() {
               [{ text: 'OK' }]
             );
             setLocation(city);
-            // Blur the location input and trigger next field animation after a short delay
-            setTimeout(() => {
-              locationInputRef.current?.blur();
-              triggerNextField('lookingFor');
-            }, 800);
+            locationInputRef.current?.blur();
           }
         } else {
           setLocation('');
@@ -1054,68 +937,68 @@ export default function CreateProfileScreen() {
 
   const handleNext = () => {
     if (step === 1) {
-      if (!displayName?.trim()) {
-        setError('Please enter your display name');
+      if (!displayName?.trim() || displayName.trim().length < 2) {
+        setError('Please enter at least 2 characters for your name');
         return;
       }
-      if (displayName.trim().length < 2) {
-        setError('Display name must be at least 2 characters');
-        return;
-      }
-      if (!age?.trim()) {
-        setError('Please enter your age');
-        return;
-      }
+    }
+    if (step === 2) {
       const ageNum = parseInt(age);
-      if (isNaN(ageNum) || ageNum < 18 || ageNum > 120) {
+      if (!age?.trim() || isNaN(ageNum) || ageNum < 18 || ageNum > 120) {
         setError('Please enter a valid age (18-120)');
         return;
       }
+    }
+    if (step === 3) {
       if (!gender?.trim()) {
         setError('Please select your gender');
         return;
       }
     }
-    if (step === 2) {
+    if (step === 4) {
+      if (!location?.trim()) {
+        setError('Please enter your location');
+        return;
+      }
+    }
+    if (step === 5) {
+      if (!lookingFor?.trim()) {
+        setError('Please select what you\'re looking for');
+        return;
+      }
+    }
+    // Step 6 (bio) - optional
+    if (step === 7) {
       if (interests.length < 3) {
         setError('Please select at least 3 interests');
         return;
       }
     }
-    // Step 3 (dealbreakers) - optional, no validation needed
-    // Step 4 (what you want in a partner) - requires at least 3 qualities
-    if (step === 4) {
+    if (step === 9) {
       if (qualities.length < 3) {
         setError('Please select at least 3 qualities you want in a partner');
         return;
       }
     }
-    if (step === 5) {
+    if (step === 10) {
       if (minAge < 18) {
         setError('Minimum age must be 18 or older');
         return;
       }
     }
-    if (step === 6) {
+    if (step === 11) {
       if (!smoking || !drinking || !children || !pets || !religion || !workLifeBalance || !worksOut) {
         setError('Please fill in all lifestyle fields');
         return;
       }
     }
     
-    // Haptic feedback - vibrate when validation passes
-    if (Platform.OS === 'ios') {
-      Vibration.vibrate(50); // Increased from 10ms to 50ms for better feel on iOS
-    } else {
-      Vibration.vibrate(50); // Same for Android
-    }
-    
+    if (Platform.OS === 'ios') Vibration.vibrate(50);
+    else Vibration.vibrate(50);
     setError('');
     
-    // Ensure step doesn't exceed maximum
     const nextStep = step + 1;
-    if (nextStep > 7) {
-      console.error('Attempted to go beyond step 7');
+    if (nextStep > TOTAL_STEPS) {
       setError('Invalid step number');
       return;
     }
@@ -1134,7 +1017,7 @@ export default function CreateProfileScreen() {
   };
 
   const handleBack = () => {
-    setStep(step - 1);
+    if (step > 1) setStep(step - 1);
   };
 
   const uploadPhoto = async (uri: string) => {
@@ -1159,10 +1042,16 @@ export default function CreateProfileScreen() {
         mimeType = mimeTypes[ext] || 'image/jpeg';
       }
 
-      // Get token (same source as api client: in-memory cache then AsyncStorage)
-      const token = await getToken();
+      // Ensure auth token is loaded (handles cache timing / AsyncStorage race)
+      await ensureTokenPrefetched();
+      let token = await getToken();
       if (!token || typeof token !== 'string' || !token.trim()) {
-        throw new Error('No authentication token found. Please log in again.');
+        await new Promise((r) => setTimeout(r, 200));
+        token = await getToken();
+      }
+      if (!token || typeof token !== 'string' || !token.trim()) {
+        setError('Session expired. Please log in again.');
+        return;
       }
 
       const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://mulligan-backend.onrender.com';
@@ -1212,6 +1101,13 @@ export default function CreateProfileScreen() {
               errorData = JSON.parse(errorText);
             } catch {
               errorData = { error: errorText || `Upload failed with status ${response.status}` };
+            }
+            
+            // Auth error - session expired, redirect to login
+            if (response.status === 401 || (typeof errorData?.error === 'string' && errorData.error.toLowerCase().includes('authentication'))) {
+              await logout();
+              setError('Session expired. Please log in again.');
+              return;
             }
             
             // Log detailed error information
@@ -1304,12 +1200,13 @@ export default function CreateProfileScreen() {
         error: err
       });
       const errorMessage = err?.message || 'Failed to upload photo';
-      // Show error to user with more details
-      Alert.alert(
-        'Upload Failed', 
-        errorMessage,
-        [{ text: 'OK' }]
-      );
+      const isAuthError = err?.status === 401 || (typeof err?.message === 'string' && err.message.toLowerCase().includes('authentication'));
+      if (isAuthError) {
+        await logout();
+        setError('Session expired. Please log in again.');
+      } else {
+        Alert.alert('Upload Failed', errorMessage, [{ text: 'OK' }]);
+      }
     } finally {
       setUploading(false);
     }
@@ -1336,9 +1233,9 @@ export default function CreateProfileScreen() {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [4, 3],
-        quality: 0.6, // Reduced quality for smaller file size and faster uploads
-        maxWidth: 1920, // Limit width to reduce file size
-        maxHeight: 1920, // Limit height to reduce file size
+        quality: 0.5,
+        maxWidth: 1200,
+        maxHeight: 1200,
       });
 
       if (!result.canceled && result.assets[0]) {
@@ -1399,30 +1296,10 @@ export default function CreateProfileScreen() {
     setLoading(true);
     setError('');
 
-    // Validate step 7 (photos) - minimum 5 photos required
-    if (step === 7) {
-      if (photos.length < 5) {
-        setError('Please upload at least 5 photos to complete your profile');
-        setLoading(false);
-        return;
-      }
-    } else {
-      // Original validation for step 6
-      if (interests.length < 3) {
-        setError('Please select at least 3 interests');
-        setLoading(false);
-        return;
-      }
-      if (qualities.length < 3) {
-        setError('Please select at least 3 interests you want in a partner');
-        setLoading(false);
-        return;
-      }
-      if (!smoking || !drinking || !children || !pets || !religion || !workLifeBalance || !worksOut) {
-        setError('Please fill in all lifestyle fields');
-        setLoading(false);
-        return;
-      }
+    if (photos.length < 5) {
+      setError('Please upload at least 5 photos to complete your profile');
+      setLoading(false);
+      return;
     }
     
     // Haptic feedback - vibrate when validation passes
@@ -1529,9 +1406,10 @@ export default function CreateProfileScreen() {
   };
 
   const renderStepIndicator = () => {
+    const steps = Array.from({ length: TOTAL_STEPS }, (_, i) => i + 1);
     return (
       <View style={styles.stepIndicator}>
-        {[1, 2, 3, 4, 5, 6].map((s) => (
+        {steps.map((s) => (
           <View
             key={s}
             style={[
@@ -1545,647 +1423,117 @@ export default function CreateProfileScreen() {
     );
   };
 
-  const renderStep1 = () => {
-    // Define the 6 cards for step 1
-    const step1Cards = [
-      {
-        id: 'firstName',
-        type: 'firstName',
-        enabled: true, // Always enabled (first card)
-      },
-      {
-        id: 'age',
-        type: 'age',
-        enabled: displayName.trim().length >= 2,
-      },
-      {
-        id: 'gender',
-        type: 'gender',
-        enabled: displayName.trim().length >= 2 && age.trim().length > 0 && parseInt(age) >= 18,
-      },
-      {
-        id: 'location',
-        type: 'location',
-        enabled: displayName.trim().length >= 2 && age.trim().length > 0 && parseInt(age) >= 18 && gender.trim().length > 0,
-      },
-      {
-        id: 'lookingFor',
-        type: 'lookingFor',
-        enabled: displayName.trim().length >= 2 && age.trim().length > 0 && parseInt(age) >= 18 && gender.trim().length > 0 && location.trim().length > 0,
-      },
-      {
-        id: 'bio',
-        type: 'bio',
-        enabled: displayName.trim().length >= 2 && age.trim().length > 0 && parseInt(age) >= 18 && gender.trim().length > 0 && location.trim().length > 0 && lookingFor.trim().length > 0,
-      },
-    ];
+  // Steps 1-6: One card per page (display name, age, gender, location, looking for, bio)
+  const basicInfoStepWrapper = (content: React.ReactNode) => (
+    <ScrollView style={styles.stepContent} contentContainerStyle={[styles.lifestyleScrollContent, { flexGrow: 1 }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      {content}
+    </ScrollView>
+  );
+  const renderStep1DisplayName = () => basicInfoStepWrapper(
+    <View style={[styles.focusedFirstNameSection, keyboardVisible && styles.focusedSectionWithKeyboard]}>
+      <Animated.View style={[{ transform: [{ scale: firstNameScale }], opacity: firstNameOpacity }]}>
+        <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.focusedFirstNameCard, keyboardVisible && styles.focusedCardWithKeyboard]}>
+          <Text style={[styles.focusedEmoji, keyboardVisible && styles.focusedEmojiSmall]}>👋</Text>
+          <Text style={[styles.focusedTitle, keyboardVisible && styles.focusedTitleCompact]}>Welcome to Mulligan!</Text>
+          <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleCompact]}>Let's start with your first name</Text>
+          <Animated.View style={[styles.focusedInputWrapper, { shadowOpacity: firstNameGlow.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.6] }), shadowRadius: firstNameGlow.interpolate({ inputRange: [0, 1], outputRange: [8, 20] }) }]}>
+            <TextInput ref={displayNameInputRef} style={[styles.focusedFirstNameInput, keyboardVisible && styles.focusedFirstNameInputKeyboard]} value={displayName} onChangeText={setDisplayName} placeholder="Your first name" placeholderTextColor="rgba(255, 255, 255, 0.6)" autoCapitalize="words" returnKeyType="next" />
+          </Animated.View>
+          {displayName.trim().length >= 2 && <Animated.View style={[styles.successIndicator, { opacity: firstNameOpacity }]}><Text style={styles.successText}>✓ Great! Tap Continue</Text></Animated.View>}
+        </LinearGradient>
+      </Animated.View>
+    </View>
+  );
 
-    // Render individual card
-    const renderCard = ({ item, index }: { item: typeof step1Cards[0]; index: number }) => {
+  const renderStep2Age = () => basicInfoStepWrapper(
+    <View style={[styles.focusedAgeSection, keyboardVisible && styles.focusedSectionWithKeyboard]}>
+      <Animated.View style={[{ transform: [{ scale: ageScale }], opacity: ageOpacity }]}>
+        <LinearGradient colors={['#f093fb', '#f5576c', '#4facfe']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.focusedAgeCard, keyboardVisible && styles.focusedCardWithKeyboard]}>
+          <Text style={[styles.focusedEmoji, keyboardVisible && styles.focusedEmojiSmall]}>🎂</Text>
+          <Text style={[styles.focusedTitle, keyboardVisible && styles.focusedTitleSmall]}>How old are you?</Text>
+          <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleSmall]}>We need to know your age</Text>
+          <Animated.View style={[styles.focusedInputWrapper, { shadowOpacity: ageGlow.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.6] }), shadowRadius: ageGlow.interpolate({ inputRange: [0, 1], outputRange: [8, 20] }) }]}>
+            <TextInput ref={ageInputRef} style={styles.focusedAgeInput} value={age} onChangeText={(t) => setAge(t.replace(/[^0-9]/g, ''))} placeholder="Your age" placeholderTextColor="rgba(255, 255, 255, 0.6)" keyboardType="number-pad" returnKeyType="done" />
+          </Animated.View>
+          {age.trim().length > 0 && parseInt(age) >= 18 && <Animated.View style={[styles.successIndicator, { opacity: ageOpacity }]}><Text style={styles.successText}>✓ Perfect! Tap Continue</Text></Animated.View>}
+        </LinearGradient>
+      </Animated.View>
+    </View>
+  );
 
-      switch (item.type) {
-        case 'firstName':
-          return (
-            <View style={[
-              styles.focusedFirstNameSection, 
-              keyboardVisible && styles.focusedSectionWithKeyboard
-            ]}>
-              <Animated.View
-                style={[
-                  styles.focusedFirstNameContainer,
-                  {
-                    transform: [{ scale: firstNameScale }],
-                    opacity: firstNameOpacity,
-                  },
-                ]}
-              >
-                <LinearGradient
-                  colors={['#667eea', '#764ba2', '#f093fb']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={[
-                    styles.focusedFirstNameCard,
-                    keyboardVisible && styles.focusedCardWithKeyboard
-                  ]}
-                >
-                  <Text style={[styles.focusedEmoji, keyboardVisible && styles.focusedEmojiSmall]}>👋</Text>
-                  <Text style={[styles.focusedTitle, keyboardVisible && styles.focusedTitleCompact]}>Welcome to Mulligan!</Text>
-                  <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleCompact]}>Let's start with your first name</Text>
-                  
-                  <Animated.View
-                    style={[
-                      styles.focusedInputWrapper,
-                      {
-                        shadowOpacity: firstNameGlow.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [0.2, 0.6],
-                        }),
-                        shadowRadius: firstNameGlow.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [8, 20],
-                        }),
-                      },
-                    ]}
-                  >
-                    <TextInput
-                      ref={displayNameInputRef}
-                      style={[
-                        styles.focusedFirstNameInput,
-                        keyboardVisible && styles.focusedFirstNameInputKeyboard
-                      ]}
-                      value={displayName}
-                      onChangeText={(text) => {
-                        setDisplayName(text);
-                        
-                        // Clear any existing timeout whenever user types
-                        if (displayNameTimeoutRef.current) {
-                          clearTimeout(displayNameTimeoutRef.current);
-                          displayNameTimeoutRef.current = null;
-                        }
-                        
-                        // Auto-advance only when name is reasonably complete and user has stopped typing
-                        // Require at least 3 characters and wait 3 seconds after user stops typing
-                        if (text.trim().length >= 3) {
-                          displayNameTimeoutRef.current = setTimeout(() => {
-                            // Blur the input first
-                            displayNameInputRef.current?.blur();
-                            // Then navigate to age card after a small delay
-                            setTimeout(() => {
-                              scrollToStep1Card(ageCardY, -40);
-                              // Focus the age input after scroll and layout settle
-                              setTimeout(() => {
-                                ageInputRef.current?.focus();
-                              }, 450);
-                            }, 300);
-                          }, 3000); // 3 second delay - gives user plenty of time to finish typing
-                        }
-                      }}
-                      placeholder="Your first name"
-                      placeholderTextColor="rgba(255, 255, 255, 0.6)"
-                      autoCapitalize="words"
-                      returnKeyType="next"
-                      onSubmitEditing={() => {
-                        // Clear timeout on submit
-                        if (displayNameTimeoutRef.current) {
-                          clearTimeout(displayNameTimeoutRef.current);
-                          displayNameTimeoutRef.current = null;
-                        }
-                        if (displayName.trim().length >= 2) {
-                          displayNameInputRef.current?.blur();
-                          // Auto-progress to age card
-                          setTimeout(() => {
-                            scrollToStep1Card(ageCardY, -40);
-                            setTimeout(() => {
-                              ageInputRef.current?.focus();
-                            }, 450);
-                          }, 300);
-                        } else {
-                          setError('Please enter at least 2 characters');
-                          setTimeout(() => setError(''), 3000);
-                        }
-                      }}
-                    />
-                  </Animated.View>
-                  
-                  {displayName.trim().length >= 2 && (
-                    <Animated.View
-                      style={[
-                        styles.successIndicator,
-                        {
-                          opacity: firstNameOpacity,
-                        },
-                      ]}
-                    >
-                      <Text style={styles.successText}>✓ Great! Let's continue...</Text>
-                    </Animated.View>
-                  )}
-                </LinearGradient>
-              </Animated.View>
-            </View>
-          );
+  const renderStep3Gender = () => basicInfoStepWrapper(
+    <View style={styles.focusedFieldSection}>
+      <Animated.View style={[{ transform: [{ scale: genderScale }], opacity: genderOpacity }]}>
+        <LinearGradient colors={['#764ba2', '#f093fb', '#f5576c']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.focusedFieldCard}>
+          <Text style={styles.focusedEmoji}>⚧️</Text>
+          <Text style={styles.focusedTitle}>What's your gender?</Text>
+          <Text style={styles.focusedSubtitle}>Help us match you with the right people</Text>
+          <View style={styles.focusedPickerWrapper}>
+            <Picker selectedValue={gender || ''} onValueChange={(v) => v && setGender(v)} style={styles.focusedPicker} itemStyle={Platform.OS === 'ios' ? styles.focusedPickerItem : undefined} mode={Platform.OS === 'android' ? 'dropdown' : 'dialog'}>
+              <Picker.Item label="Select gender" value="" />
+              {GENDER_OPTIONS.map(g => <Picker.Item key={g} label={g} value={g} />)}
+            </Picker>
+          </View>
+          {gender ? <Animated.View style={[styles.successIndicator, { opacity: genderOpacity }]}><Text style={styles.successText}>✓ Selected: {gender}</Text></Animated.View> : null}
+        </LinearGradient>
+      </Animated.View>
+    </View>
+  );
 
-        case 'age':
-          if (!item.enabled) return null;
-          return (
-            <View style={[
-              styles.focusedAgeSection, 
-              keyboardVisible && styles.focusedSectionWithKeyboard
-            ]}>
-              <Animated.View
-                style={[
-                  {
-                    transform: [{ scale: ageScale }],
-                    opacity: ageOpacity,
-                  },
-                ]}
-              >
-                <LinearGradient
-                  colors={['#f093fb', '#f5576c', '#4facfe']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={[
-                    styles.focusedAgeCard,
-                    keyboardVisible && styles.focusedCardWithKeyboard
-                  ]}
-                >
-                  <Text style={[styles.focusedEmoji, keyboardVisible && styles.focusedEmojiSmall]}>🎂</Text>
-                  <Text style={[styles.focusedTitle, keyboardVisible && styles.focusedTitleSmall]}>How old are you?</Text>
-                  <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleSmall]}>We need to know your age</Text>
-                  
-                  <Animated.View
-                    style={[
-                      styles.focusedInputWrapper,
-                      {
-                        shadowOpacity: ageGlow.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [0.2, 0.6],
-                        }),
-                        shadowRadius: ageGlow.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [8, 20],
-                        }),
-                      },
-                    ]}
-                  >
-                    <TextInput
-                      ref={ageInputRef}
-                      style={styles.focusedAgeInput}
-                      value={age}
-                      onChangeText={(text) => {
-                        const numericText = text.replace(/[^0-9]/g, '');
-                        setAge(numericText);
-                        
-                        const ageNum = parseInt(numericText);
-                        const isValid = numericText.length >= 2 && !isNaN(ageNum) && ageNum >= 18 && ageNum <= 120;
-                        
-                        if (isValid) {
-                          setTimeout(() => {
-                            ageInputRef.current?.blur();
-                            animateField(genderScale, genderOpacity, genderGlow);
-                          }, 300);
-                        }
-                      }}
-                      placeholder="Your age"
-                      placeholderTextColor="rgba(255, 255, 255, 0.6)"
-                      keyboardType="number-pad"
-                      returnKeyType="done"
-                      onSubmitEditing={() => {
-                        const ageNum = parseInt(age);
-                        if (age.trim().length > 0 && !isNaN(ageNum) && ageNum >= 18 && ageNum <= 120) {
-                          ageInputRef.current?.blur();
-                          triggerNextField('gender');
-                        } else {
-                          setError('Please enter a valid age (18-120)');
-                          setTimeout(() => setError(''), 3000);
-                        }
-                      }}
-                      onBlur={() => {
-                        const ageNum = parseInt(age);
-                        if (age.trim().length >= 2 && !isNaN(ageNum) && ageNum >= 18 && ageNum <= 120) {
-                          triggerNextField('gender');
-                        } else if (age.trim().length > 0 && (isNaN(ageNum) || ageNum < 18 || ageNum > 120)) {
-                          setError('Please enter a valid age (18-120)');
-                          setTimeout(() => setError(''), 3000);
-                        }
-                      }}
-                    />
-                  </Animated.View>
-                  
-                  {age.trim().length > 0 && parseInt(age) >= 18 && (
-                    <Animated.View
-                      style={[
-                        styles.successIndicator,
-                        {
-                          opacity: ageOpacity,
-                        },
-                      ]}
-                    >
-                      <Text style={styles.successText}>✓ Perfect! Let's continue...</Text>
-                    </Animated.View>
-                  )}
-                </LinearGradient>
-              </Animated.View>
-            </View>
-          );
+  const renderStep4Location = () => basicInfoStepWrapper(
+    <View style={[styles.focusedFieldSection, keyboardVisible && styles.focusedSectionWithKeyboard]}>
+      <Animated.View style={[{ transform: [{ scale: locationScale }], opacity: locationOpacity }]}>
+        <LinearGradient colors={['#f5576c', '#4facfe', '#00f2fe']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.focusedFieldCard, keyboardVisible && styles.focusedCardWithKeyboard]}>
+          <Text style={[styles.focusedEmoji, keyboardVisible && styles.focusedEmojiSmall]}>📍</Text>
+          <Text style={[styles.focusedTitle, keyboardVisible && styles.focusedTitleSmall]}>Where are you located?</Text>
+          <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleSmall]}>We'll help you find matches nearby</Text>
+          <Animated.View style={[styles.focusedInputWrapper, { shadowOpacity: locationGlow.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.6] }), shadowRadius: locationGlow.interpolate({ inputRange: [0, 1], outputRange: [8, 20] }) }]}>
+            <TextInput ref={locationInputRef} style={styles.focusedLocationInput} value={location} onChangeText={setLocation} placeholder="City, State" placeholderTextColor="rgba(255, 255, 255, 0.6)" editable={!detectingLocation} returnKeyType="next" />
+          </Animated.View>
+          <TouchableOpacity style={styles.focusedLocationButton} onPress={detectLocation} disabled={detectingLocation}>
+            {detectingLocation ? <ActivityIndicator color="#fff" /> : <Text style={styles.focusedLocationButtonText}>📍 Use My Location</Text>}
+          </TouchableOpacity>
+          {location.trim().length > 0 && <Animated.View style={[styles.successIndicator, { opacity: locationOpacity }]}><Text style={styles.successText}>✓ Location set! Tap Continue</Text></Animated.View>}
+        </LinearGradient>
+      </Animated.View>
+    </View>
+  );
 
-        case 'gender':
-          if (!item.enabled) return null;
-          return (
-            <View style={styles.focusedFieldSection}>
-              <Animated.View
-                ref={genderFieldRef}
-                style={[
-                  {
-                    transform: [{ scale: genderScale }],
-                    opacity: genderOpacity,
-                  },
-                ]}
-              >
-                <LinearGradient
-                  colors={['#764ba2', '#f093fb', '#f5576c']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.focusedFieldCard}
-                >
-                  <Text style={styles.focusedEmoji}>⚧️</Text>
-                  <Text style={styles.focusedTitle}>What's your gender?</Text>
-                  <Text style={styles.focusedSubtitle}>Help us match you with the right people</Text>
-                  
-                  <View style={styles.focusedPickerWrapper}>
-                    <Picker
-                      selectedValue={gender || ''}
-                      onValueChange={(itemValue) => {
-                        if (itemValue && itemValue !== '') {
-                          setGender(itemValue);
-                          setTimeout(() => {
-                            triggerNextField('location');
-                          }, 300);
-                        }
-                      }}
-                      style={styles.focusedPicker}
-                      itemStyle={Platform.OS === 'ios' ? styles.focusedPickerItem : undefined}
-                      mode={Platform.OS === 'android' ? 'dropdown' : 'dialog'}
-                    >
-                      <Picker.Item label="Select gender" value="" />
-                      {GENDER_OPTIONS.map(g => (
-                        <Picker.Item key={g} label={g} value={g} />
-                      ))}
-                    </Picker>
-                  </View>
-                  
-                  {gender ? (
-                    <Animated.View
-                      style={[
-                        styles.successIndicator,
-                        {
-                          opacity: genderOpacity,
-                        },
-                      ]}
-                    >
-                      <Text style={styles.successText}>✓ Selected: {gender}</Text>
-                    </Animated.View>
-                  ) : null}
-                </LinearGradient>
-              </Animated.View>
-            </View>
-          );
+  const renderStep5LookingFor = () => basicInfoStepWrapper(
+    <View style={styles.focusedFieldSection}>
+      <Animated.View style={[{ transform: [{ scale: lookingForScale }], opacity: lookingForOpacity }]}>
+        <LinearGradient colors={['#4facfe', '#667eea', '#764ba2']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.focusedFieldCard}>
+          <Text style={styles.focusedEmoji}>💕</Text>
+          <Text style={styles.focusedTitle}>What are you looking for?</Text>
+          <Text style={styles.focusedSubtitle}>Help us understand what you want</Text>
+          <View style={styles.focusedPickerWrapper}>
+            <Picker selectedValue={lookingFor} onValueChange={(v) => v && setLookingFor(v)} style={styles.focusedPicker} itemStyle={styles.focusedPickerItem}>
+              <Picker.Item label="Select an option" value="" enabled={false} />
+              {LOOKING_FOR_OPTIONS.map(opt => <Picker.Item key={opt} label={opt} value={opt} />)}
+            </Picker>
+          </View>
+          {lookingFor ? <Animated.View style={[styles.successIndicator, { opacity: lookingForOpacity }]}><Text style={styles.successText}>✓ Selected: {lookingFor}</Text></Animated.View> : null}
+        </LinearGradient>
+      </Animated.View>
+    </View>
+  );
 
-        case 'location':
-          if (!item.enabled) return null;
-          return (
-            <View style={[
-              styles.focusedFieldSection, 
-              keyboardVisible && styles.focusedSectionWithKeyboard
-            ]}>
-              <Animated.View
-                style={[
-                  {
-                    transform: [{ scale: locationScale }],
-                    opacity: locationOpacity,
-                  },
-                ]}
-              >
-                <LinearGradient
-                  colors={['#f5576c', '#4facfe', '#00f2fe']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={[
-                    styles.focusedFieldCard,
-                    keyboardVisible && styles.focusedCardWithKeyboard
-                  ]}
-                >
-                  <Text style={[styles.focusedEmoji, keyboardVisible && styles.focusedEmojiSmall]}>📍</Text>
-                  <Text style={[styles.focusedTitle, keyboardVisible && styles.focusedTitleSmall]}>Where are you located?</Text>
-                  <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleSmall]}>We'll help you find matches nearby</Text>
-                  
-                  <Animated.View
-                    style={[
-                      styles.focusedInputWrapper,
-                      {
-                        shadowOpacity: locationGlow.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [0.2, 0.6],
-                        }),
-                        shadowRadius: locationGlow.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [8, 20],
-                        }),
-                      },
-                    ]}
-                  >
-                    <TextInput
-                      ref={locationInputRef}
-                      style={styles.focusedLocationInput}
-                      value={location}
-                      onChangeText={(text) => {
-                        setLocation(text);
-                        if (text.trim().length >= 3) {
-                          setTimeout(() => {
-                            locationInputRef.current?.blur();
-                          }, 500);
-                        }
-                      }}
-                      placeholder="City, State"
-                      placeholderTextColor="rgba(255, 255, 255, 0.6)"
-                      editable={!detectingLocation}
-                      returnKeyType="next"
-                      onSubmitEditing={() => {
-                        if (location.trim().length > 0) {
-                          locationInputRef.current?.blur();
-                          triggerNextField('lookingFor');
-                        }
-                      }}
-                    />
-                  </Animated.View>
-                  
-                  <TouchableOpacity
-                    style={styles.focusedLocationButton}
-                    onPress={detectLocation}
-                    disabled={detectingLocation}
-                  >
-                    {detectingLocation ? (
-                      <ActivityIndicator color="#fff" />
-                    ) : (
-                      <Text style={styles.focusedLocationButtonText}>📍 Use My Location</Text>
-                    )}
-                  </TouchableOpacity>
-                  
-                  {location.trim().length > 0 && (
-                    <Animated.View
-                      style={[
-                        styles.successIndicator,
-                        {
-                          opacity: locationOpacity,
-                        },
-                      ]}
-                    >
-                      <Text style={styles.successText}>✓ Location set!</Text>
-                    </Animated.View>
-                  )}
-                </LinearGradient>
-              </Animated.View>
-            </View>
-          );
-
-        case 'lookingFor':
-          if (!item.enabled) return null;
-          return (
-            <View style={styles.focusedFieldSection}>
-              <Animated.View
-                style={[
-                  {
-                    transform: [{ scale: lookingForScale }],
-                    opacity: lookingForOpacity,
-                  },
-                ]}
-              >
-                <LinearGradient
-                  colors={['#4facfe', '#667eea', '#764ba2']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.focusedFieldCard}
-                >
-                  <Text style={styles.focusedEmoji}>💕</Text>
-                  <Text style={styles.focusedTitle}>What are you looking for?</Text>
-                  <Text style={styles.focusedSubtitle}>Help us understand what you want</Text>
-                  
-                  <View style={styles.focusedPickerWrapper}>
-                    <Picker
-                      selectedValue={lookingFor}
-                      onValueChange={(itemValue) => {
-                        if (itemValue !== undefined && itemValue !== '') {
-                          setLookingFor(itemValue);
-                          setTimeout(() => {
-                            triggerNextField('bio');
-                          }, 300);
-                        }
-                      }}
-                      style={styles.focusedPicker}
-                      itemStyle={styles.focusedPickerItem}
-                    >
-                      <Picker.Item label="Select an option" value="" enabled={false} />
-                      {LOOKING_FOR_OPTIONS.map(opt => (
-                        <Picker.Item key={opt} label={opt} value={opt} />
-                      ))}
-                    </Picker>
-                  </View>
-                  
-                  {lookingFor ? (
-                    <Animated.View
-                      style={[
-                        styles.successIndicator,
-                        {
-                          opacity: lookingForOpacity,
-                        },
-                      ]}
-                    >
-                      <Text style={styles.successText}>✓ Selected: {lookingFor}</Text>
-                    </Animated.View>
-                  ) : null}
-                </LinearGradient>
-              </Animated.View>
-            </View>
-          );
-
-        case 'bio':
-          if (!item.enabled) return null;
-          return (
-            <View style={[
-              styles.focusedFieldSection, 
-              keyboardVisible && styles.focusedSectionWithKeyboard
-            ]}>
-              <Animated.View
-                style={[
-                  {
-                    transform: [{ scale: bioScale }],
-                    opacity: bioOpacity,
-                  },
-                ]}
-              >
-                <LinearGradient
-                  colors={['#667eea', '#f093fb', '#f5576c']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={[
-                    styles.focusedFieldCard,
-                    keyboardVisible && styles.focusedCardWithKeyboard
-                  ]}
-                >
-                  <Text style={[styles.focusedEmoji, keyboardVisible && styles.focusedEmojiSmall]}>📝</Text>
-                  <Text style={[styles.focusedTitle, keyboardVisible && styles.focusedTitleSmall]}>Tell us about yourself</Text>
-                  <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleSmall]}>Share what makes you unique</Text>
-                  
-                  <Animated.View
-                    style={[
-                      styles.focusedInputWrapper,
-                      {
-                        shadowOpacity: bioGlow.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [0.2, 0.6],
-                        }),
-                        shadowRadius: bioGlow.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [8, 20],
-                        }),
-                      },
-                    ]}
-                  >
-                    <TextInput
-                      style={styles.focusedBioInput}
-                      value={bio}
-                      onChangeText={setBio}
-                      placeholder="Write a bit about yourself..."
-                      placeholderTextColor="rgba(255, 255, 255, 0.6)"
-                      multiline
-                      numberOfLines={6}
-                      maxLength={500}
-                      textAlignVertical="top"
-                      returnKeyType="done"
-                      blurOnSubmit={true}
-                    />
-                  </Animated.View>
-                  
-                  <View style={styles.focusedCharCountContainer}>
-                    <Text style={[styles.focusedCharCount, bio.length > 450 && styles.charCountWarning]}>
-                      {bio.length}/500 characters
-                    </Text>
-                  </View>
-                  
-                  {bio.trim().length >= 20 && (
-                    <Animated.View
-                      style={[
-                        styles.successIndicator,
-                        {
-                          opacity: bioOpacity,
-                        },
-                      ]}
-                    >
-                      <Text style={styles.successText}>✓ Great bio!</Text>
-                    </Animated.View>
-                  )}
-
-                  {/* Continue Button - always shown (bio is optional) */}
-                  <TouchableOpacity
-                    style={styles.focusedContinueButton}
-                    onPress={handleNext}
-                    disabled={loading}
-                    activeOpacity={0.8}
-                  >
-                    <LinearGradient
-                      colors={['rgba(255, 255, 255, 0.95)', 'rgba(255, 255, 255, 0.85)']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.focusedContinueButtonGradient}
-                    >
-                      <Text style={styles.focusedContinueButtonText}>Continue →</Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
-                </LinearGradient>
-              </Animated.View>
-            </View>
-          );
-
-        default:
-          return null;
-      }
-    };
-
-    // Determine which cards should be shown (progressive disclosure)
-    const shouldShowCard = (index: number) => {
-      if (index === 0) return true; // First card always visible
-      // Show next card when previous is completed
-      for (let i = 0; i < index; i++) {
-        if (!step1Cards[i].enabled) return false;
-      }
-      return true;
-    };
-
-    return (
-      <View style={[
-        styles.stepContent,
-        keyboardVisible && styles.stepContentWithKeyboard
-      ]}>
-        <ScrollView 
-          ref={step1ScrollViewRef}
-          style={styles.stepContent}
-          contentContainerStyle={styles.lifestyleScrollContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-        >
-          {step1Cards.map((item, index) => {
-            const isVisible = shouldShowCard(index);
-            if (!isVisible) return null;
-
-            return (
-              <View
-                key={item.id}
-                ref={
-                  item.type === 'firstName' ? displayNameCardRef :
-                  item.type === 'age' ? ageCardRef :
-                  item.type === 'gender' ? genderCardRef :
-                  item.type === 'location' ? locationCardRef :
-                  item.type === 'lookingFor' ? lookingForCardRef :
-                  item.type === 'bio' ? bioCardRef : null
-                }
-                onLayout={(event) => {
-                  const { y } = event.nativeEvent.layout;
-                  if (item.type === 'firstName') setDisplayNameCardY(y);
-                  else if (item.type === 'age') setAgeCardY(y);
-                  else if (item.type === 'gender') setGenderCardY(y);
-                  else if (item.type === 'location') setLocationCardY(y);
-                  else if (item.type === 'lookingFor') setLookingForCardY(y);
-                  else if (item.type === 'bio') setBioCardY(y);
-                }}
-              >
-                {renderCard({ item, index })}
-              </View>
-            );
-          })}
-        </ScrollView>
-      </View>
-    );
-  };
+  const renderStep6Bio = () => basicInfoStepWrapper(
+    <View style={[styles.focusedFieldSection, keyboardVisible && styles.focusedSectionWithKeyboard]}>
+      <Animated.View style={[{ transform: [{ scale: bioScale }], opacity: bioOpacity }]}>
+        <LinearGradient colors={['#667eea', '#f093fb', '#f5576c']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.focusedFieldCard, keyboardVisible && styles.focusedCardWithKeyboard]}>
+          <Text style={[styles.focusedEmoji, keyboardVisible && styles.focusedEmojiSmall]}>📝</Text>
+          <Text style={[styles.focusedTitle, keyboardVisible && styles.focusedTitleSmall]}>Tell us about yourself</Text>
+          <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleSmall]}>Share what makes you unique</Text>
+          <Animated.View style={[styles.focusedInputWrapper, { shadowOpacity: bioGlow.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.6] }), shadowRadius: bioGlow.interpolate({ inputRange: [0, 1], outputRange: [8, 20] }) }]}>
+            <TextInput style={styles.focusedBioInput} value={bio} onChangeText={setBio} placeholder="Write a bit about yourself..." placeholderTextColor="rgba(255, 255, 255, 0.6)" multiline numberOfLines={6} maxLength={500} textAlignVertical="top" returnKeyType="done" blurOnSubmit={true} />
+          </Animated.View>
+          <View style={styles.focusedCharCountContainer}><Text style={[styles.focusedCharCount, bio.length > 450 && styles.charCountWarning]}>{bio.length}/500 characters</Text></View>
+          {bio.trim().length >= 20 && <Animated.View style={[styles.successIndicator, { opacity: bioOpacity }]}><Text style={styles.successText}>✓ Great bio!</Text></Animated.View>}
+        </LinearGradient>
+      </Animated.View>
+    </View>
+  );
 
   const renderStep2 = () => (
     <View style={styles.stepContainer}>
@@ -2994,33 +2342,56 @@ export default function CreateProfileScreen() {
         end={{ x: 1, y: 1 }}
         style={[styles.header, { position: 'relative' }]}
       >
-        <TouchableOpacity
-          style={styles.exitButton}
-          onPress={() => {
-            (navigation as any).navigate('MainTabs', { screen: 'Browse' });
-          }}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.exitButtonText}>Exit</Text>
-        </TouchableOpacity>
+        {existingProfile ? (
+          <TouchableOpacity
+            style={styles.exitButton}
+            onPress={() => {
+              (navigation as any).navigate('MainTabs', { screen: 'Browse' });
+            }}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.exitButtonText}>Exit</Text>
+          </TouchableOpacity>
+        ) : null}
         <Text style={styles.title}>Create Your Profile</Text>
-        <Text style={styles.subtitle}>Step {step} of 7</Text>
+        <Text style={styles.subtitle}>Step {step} of {TOTAL_STEPS}</Text>
       </LinearGradient>
 
       {renderStepIndicator()}
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? (
+        <View style={styles.errorContainer}>
+          <Text style={styles.error}>{error}</Text>
+          {(error.toLowerCase().includes('session expired') || error.toLowerCase().includes('authentication') || error.toLowerCase().includes('log in again')) ? (
+            <TouchableOpacity
+              style={styles.reLoginButton}
+              onPress={async () => {
+                setError('');
+                await logout();
+                navigationRef.current?.reset({ index: 0, routes: [{ name: 'PhoneLogin' }] });
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.reLoginButtonText}>Log in again</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      ) : null}
 
-      {step === 1 && renderStep1()}
-      {step === 2 && renderStep2()}
-      {step === 3 && renderStep3()}
-      {step === 4 && renderStep4()}
-      {step === 5 && renderStep5()}
-      {step === 6 && renderStep6()}
-      {step === 7 && renderStep7()}
+      {step === 1 && renderStep1DisplayName()}
+      {step === 2 && renderStep2Age()}
+      {step === 3 && renderStep3Gender()}
+      {step === 4 && renderStep4Location()}
+      {step === 5 && renderStep5LookingFor()}
+      {step === 6 && renderStep6Bio()}
+      {step === 7 && renderStep2()}
+      {step === 8 && renderStep3()}
+      {step === 9 && renderStep4()}
+      {step === 10 && renderStep5()}
+      {step === 11 && renderStep6()}
+      {step === 12 && renderStep7()}
 
-      {step === 1 ? null : (
-        <View style={styles.actions}>
+      <View style={styles.actions}>
           {step > 1 ? (
             <TouchableOpacity 
               style={styles.modernBackButton} 
@@ -3040,7 +2411,7 @@ export default function CreateProfileScreen() {
             <View style={styles.modernBackButton} />
           )}
           
-          {step < 7 ? (
+          {step < TOTAL_STEPS ? (
             <TouchableOpacity
               style={styles.modernNextButton}
               onPress={handleNext}
@@ -3079,7 +2450,6 @@ export default function CreateProfileScreen() {
             </TouchableOpacity>
           )}
         </View>
-      )}
       
       {/* Profile Complete Celebration */}
       <ProfileCompleteCelebration
@@ -4452,6 +3822,23 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     marginTop: 8,
     borderRadius: 8,
+  },
+  errorContainer: {
+    marginHorizontal: 20,
+    marginTop: 8,
+  },
+  reLoginButton: {
+    marginTop: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    backgroundColor: '#8B1538',
+    borderRadius: 12,
+    alignSelf: 'center',
+  },
+  reLoginButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   errorText: {
     color: '#d32f2f',
