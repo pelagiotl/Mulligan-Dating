@@ -2263,9 +2263,10 @@ export default function CreateProfileScreen() {
       {/* Profile Complete Celebration */}
       <ProfileCompleteCelebration
         visible={showCelebration}
-        onClose={() => {
+        onClose={async () => {
           setShowCelebration(false);
-          // Navigate to MainTabs (Connect/Browse page)
+          // Ensure auth context has the new profile before navigating (fixes "Profile required" on Matches tab)
+          await refreshProfile();
           navigation.reset({
             index: 0,
             routes: [{ name: 'MainTabs' as never }],
