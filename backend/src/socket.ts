@@ -173,9 +173,10 @@ export function initializeSocket(server: HTTPServer) {
       // Don't mark sender's own messages as read - they should only be marked
       // as read when the recipient actually views them
 
-      // Create message object
+      // Create message object (include matchId for client routing)
       const message = {
         id: messageId,
+        matchId,
         content: content.trim(),
         senderId: userId,
         senderName: profile.display_name,
