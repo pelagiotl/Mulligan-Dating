@@ -272,6 +272,29 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
       });
     }
 
+    // Batch fetch game unlocks (token-unlocked games per match)
+    const gameUnlocksMap = new Map<string, { truth_or_dare: boolean; never_have_i_ever: boolean }>();
+    if (allMatchIds.length > 0) {
+      try {
+        const placeholders = allMatchIds.map(() => '?').join(',');
+        const unlocksResult = db
+          .prepare(
+            `SELECT match_id, game_type FROM game_unlocks WHERE match_id IN (${placeholders})`
+          )
+          .all(allMatchIds);
+        const unlocks = (unlocksResult instanceof Promise
+          ? await unlocksResult
+          : unlocksResult) as { match_id: string; game_type: string }[];
+        allMatchIds.forEach((mid) => {
+          const truth_or_dare = unlocks.some((u) => u.match_id === mid && u.game_type === 'truth_or_dare');
+          const never_have_i_ever = unlocks.some((u) => u.match_id === mid && u.game_type === 'never_have_i_ever');
+          gameUnlocksMap.set(mid, { truth_or_dare, never_have_i_ever });
+        });
+      } catch (e) {
+        // game_unlocks table might not exist in older DBs - ignore
+      }
+    }
+
     // Now format matches using the batch-fetched data
     const formattedMatches = matches.map((m) => {
       const isUser1 = m.user1_id === userId;
@@ -307,6 +330,7 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
       const values = otherProfileId ? (preferencesMap.get(otherProfileId) || []) : [];
       const partnerQualities = otherProfileId ? (partnerQualitiesMap.get(otherProfileId) || []) : [];
       const unreadMessageCount = unreadCountsMap.get(m.id) || 0;
+      const gameUnlocks = gameUnlocksMap.get(m.id) || { truth_or_dare: false, never_have_i_ever: false };
 
       // Only include full photos array for stage2; stage1 gets primary via photoUrl only
       const photos = m.stage === "stage2" && otherProfileId
@@ -325,6 +349,7 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
         userWantsReveal: m.userWantsReveal === 1,
         otherWantsReveal: m.otherWantsReveal === 1,
         unreadCount: unreadMessageCount,
+        gameUnlocks,
         otherUser: {
           ...otherUser,
           profileId: otherProfileId,
@@ -1361,6 +1386,67 @@ matchesRouter.post("/:matchId/reset-conversation", authenticateToken, rateLimitA
   }
 });
 
+// Unlock a game (Truth or Dare / Never Have I Ever) by spending 1 Mulligan token - alternative to 10 messages each
+matchesRouter.post("/:matchId/unlock-game", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { matchId } = req.params;
+    const { gameType } = req.body as { gameType?: string };
+
+    if (!gameType || (gameType !== 'truth_or_dare' && gameType !== 'never_have_i_ever')) {
+      return res.status(400).json({ error: "Invalid gameType. Must be 'truth_or_dare' or 'never_have_i_ever'." });
+    }
+
+    const matchResult = db
+      .prepare('SELECT user1_id, user2_id FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?) AND stage IN (\'stage1\', \'stage2\')')
+      .get([matchId, userId, userId]);
+    const match = (matchResult instanceof Promise
+      ? await matchResult
+      : matchResult) as { user1_id: string; user2_id: string } | undefined;
+
+    if (!match) {
+      return res.status(404).json({ error: "Match not found" });
+    }
+
+    // Check if already unlocked (idempotent - no token spent if already unlocked)
+    const existingUnlock = db
+      .prepare('SELECT 1 FROM game_unlocks WHERE match_id = ? AND game_type = ?')
+      .get([matchId, gameType]) as { 1?: number } | undefined;
+    if (existingUnlock) {
+      return res.json({ success: true, alreadyUnlocked: true, gameType });
+    }
+
+    // Spend 1 token
+    const tokensResult = db
+      .prepare('SELECT id FROM mulligan_tokens WHERE user_id = ? AND used_at IS NULL AND returned_at IS NULL ORDER BY granted_at ASC LIMIT 1')
+      .get(userId) as { id: string } | undefined;
+    if (!tokensResult) {
+      return res.status(400).json({ error: "No tokens available. Claim your weekly token!" });
+    }
+
+    db.prepare('UPDATE mulligan_tokens SET used_at = CURRENT_TIMESTAMP, match_id = ? WHERE id = ?').run(matchId, tokensResult.id);
+    db.prepare('INSERT INTO game_unlocks (match_id, game_type, unlocked_by_user_id) VALUES (?, ?, ?)').run([matchId, gameType, userId]);
+
+    // Notify both users so their match list can refresh (gameUnlocks changed)
+    try {
+      const { getIO } = await import('../socket.js');
+      const io = getIO();
+      if (io) {
+        io.to(`user:${match.user1_id}`).emit('game_unlocked', { matchId, gameType });
+        io.to(`user:${match.user2_id}`).emit('game_unlocked', { matchId, gameType });
+      }
+    } catch (e) {
+      console.warn('Socket emit for game_unlocked failed (non-critical):', e);
+    }
+
+    res.json({ success: true, gameType });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Unlock game error:", error);
+    res.status(500).json({ error: `Failed to unlock game: ${errorMessage}` });
+  }
+});
+
 // Game request: User A invites User B to play Truth or Dare or Never Have I Ever
 matchesRouter.post("/:matchId/game-request", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
   try {
@@ -1385,7 +1471,7 @@ matchesRouter.post("/:matchId/game-request", authenticateToken, rateLimitAPI, as
 
     const toUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
 
-    // Check for existing pending request from this user for this match+game
+    // If there's an existing pending request, cancel it and create a fresh one (avoids stale "pending" blocking new requests)
     const existingResult = db
       .prepare(
         `SELECT id FROM game_requests WHERE match_id = ? AND from_user_id = ? AND game_type = ? AND status = 'pending'`
@@ -1393,7 +1479,7 @@ matchesRouter.post("/:matchId/game-request", authenticateToken, rateLimitAPI, as
       .get([matchId, userId, gameType]) as { id: string } | undefined;
 
     if (existingResult) {
-      return res.status(400).json({ error: "You already have a pending request. Wait for them to respond." });
+      db.prepare(`UPDATE game_requests SET status = 'cancelled' WHERE id = ?`).run(existingResult.id);
     }
 
     const requestId = uuidv4();

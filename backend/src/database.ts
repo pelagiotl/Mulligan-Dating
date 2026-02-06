@@ -676,6 +676,19 @@ export async function initDatabase() {
     )
   `);
 
+  // Game unlocks: when a user spends a Mulligan token to unlock a game for a match (alternative to 10 messages each)
+  await execSQL(`
+    CREATE TABLE IF NOT EXISTS game_unlocks (
+      match_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      game_type ${usePostgres ? 'VARCHAR(50)' : 'TEXT'} NOT NULL,
+      unlocked_by_user_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      unlocked_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (match_id, game_type),
+      FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE,
+      FOREIGN KEY (unlocked_by_user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
   // Game requests: when User A invites User B to play Truth or Dare or Never Have I Ever
   await execSQL(`
     CREATE TABLE IF NOT EXISTS game_requests (
