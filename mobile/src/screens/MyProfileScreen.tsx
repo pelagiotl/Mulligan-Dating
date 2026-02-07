@@ -493,7 +493,7 @@ export default function MyProfileScreen() {
       sparkle2Anim.setValue(0);
       sparkle3Anim.setValue(0);
     }
-  }, [data]);
+  }, [data, isFocused]);
 
   useEffect(() => {
     // Only fetch data if user is authenticated
@@ -1659,6 +1659,7 @@ export default function MyProfileScreen() {
                 <View style={styles.statsRow}>
                   <Animated.View
                     style={[
+                      styles.statCardWrapper,
                       {
                         opacity: statCard1Anim,
                         transform: [{ scale: statCard1Anim.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) }],
@@ -1686,6 +1687,7 @@ export default function MyProfileScreen() {
 
                   <Animated.View
                     style={[
+                      styles.statCardWrapper,
                       {
                         opacity: statCard2Anim,
                         transform: [{ scale: statCard2Anim.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) }],
@@ -2240,6 +2242,9 @@ export default function MyProfileScreen() {
           <View style={styles.sectionTitleContainer}>
             <AnimatedEmoji emoji="🎯" delay={200} />
             <Text style={styles.sectionTitle}> My Interests</Text>
+            <TouchableOpacity style={styles.sectionEditTouchable} onPress={() => (navigation as any).navigate('CreateProfile', { initialStep: 7 })} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={styles.sectionEditLink}>Edit</Text>
+            </TouchableOpacity>
           </View>
           <View style={styles.tagsContainer}>
             {interests.map((interest, idx) => (
@@ -2278,6 +2283,9 @@ export default function MyProfileScreen() {
           <View style={styles.sectionTitleContainer}>
             <AnimatedEmoji emoji="🚫" delay={400} />
             <Text style={styles.sectionTitle}> My Dealbreakers</Text>
+            <TouchableOpacity style={styles.sectionEditTouchable} onPress={() => (navigation as any).navigate('CreateProfile', { initialStep: 8 })} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={styles.sectionEditLink}>Edit</Text>
+            </TouchableOpacity>
           </View>
           <View style={styles.tagsContainer}>
             {dealbreakers.map((db, idx) => (
@@ -2316,6 +2324,9 @@ export default function MyProfileScreen() {
           <View style={styles.sectionTitleContainer}>
             <AnimatedEmoji emoji="💕" delay={600} />
             <Text style={styles.sectionTitle}> What I'm Looking For</Text>
+            <TouchableOpacity style={styles.sectionEditTouchable} onPress={() => (navigation as any).navigate('CreateProfile', { initialStep: 9 })} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={styles.sectionEditLink}>Edit</Text>
+            </TouchableOpacity>
           </View>
           <View style={styles.tagsContainer}>
             {partnerQualities.map((q, idx) => (
@@ -2354,6 +2365,9 @@ export default function MyProfileScreen() {
           <View style={styles.sectionTitleContainer}>
             <AnimatedEmoji emoji="🌱" delay={800} />
             <Text style={styles.sectionTitle}> Lifestyle</Text>
+            <TouchableOpacity style={styles.sectionEditTouchable} onPress={() => (navigation as any).navigate('CreateProfile', { initialStep: 14 })} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={styles.sectionEditLink}>Edit</Text>
+            </TouchableOpacity>
           </View>
           <View style={styles.lifestyleContainer}>
             {lifestyle.smoking && (
@@ -3100,6 +3114,9 @@ const styles = StyleSheet.create({
     gap: 12,
     width: '100%',
   },
+  statCardWrapper: {
+    flex: 1,
+  },
   statCard: {
     flex: 1,
     paddingVertical: 16,
@@ -3344,6 +3361,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
+  },
+  sectionEditTouchable: {
+    marginLeft: 'auto',
+  },
+  sectionEditLink: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#667eea',
   },
   sectionTitle: {
     fontSize: 26,

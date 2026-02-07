@@ -183,7 +183,6 @@ export default function App() {
       // Dynamic import to avoid circular dependencies
       import('./src/utils/nativeModuleGuard').then(({ markAppInitialized }) => {
         markAppInitialized();
-        console.log('✅ App fully initialized - native modules can be called safely');
       });
     }, 2000); // 2 second delay after mount
 

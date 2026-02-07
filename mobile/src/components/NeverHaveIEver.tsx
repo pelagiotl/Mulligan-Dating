@@ -51,10 +51,14 @@ interface NeverHaveIEverProps {
   currentUserId: string;
   socket: any;
   onRequestGame?: () => void;
+  onUnlockWithToken?: () => Promise<void>;
   openForAccept?: boolean;
   onOpenedForAccept?: () => void;
+  gameUnlockedByToken?: boolean;
   compact?: boolean;
   square?: boolean;
+  /** When true, renders as a small icon-only button for header placement */
+  headerMode?: boolean;
 }
 
 export default function NeverHaveIEver({
@@ -63,10 +67,13 @@ export default function NeverHaveIEver({
   currentUserId,
   socket,
   onRequestGame,
+  onUnlockWithToken,
   openForAccept,
   onOpenedForAccept,
+  gameUnlockedByToken = false,
   compact = true,
   square = false,
+  headerMode = false,
 }: NeverHaveIEverProps) {
   const [modalVisible, setModalVisible] = useState(false);
   const [state, setState] = useState<GameState | null>(null);
@@ -76,7 +83,8 @@ export default function NeverHaveIEver({
 
   const ownCount = messages.filter((m) => m.senderId === currentUserId).length;
   const otherCount = messages.filter((m) => m.senderId !== currentUserId).length;
-  const isUnlocked = ownCount >= MIN_MESSAGES_EACH && otherCount >= MIN_MESSAGES_EACH;
+  const unlockedByMessages = ownCount >= MIN_MESSAGES_EACH && otherCount >= MIN_MESSAGES_EACH;
+  const isUnlocked = unlockedByMessages || gameUnlockedByToken;
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const emojiScale = useRef(new Animated.Value(1)).current;
@@ -163,10 +171,6 @@ export default function NeverHaveIEver({
   const handleOpen = () => {
     if (Platform.OS === 'ios' || Platform.OS === 'android') {
       Vibration.vibrate(50);
-    }
-    if (onRequestGame) {
-      onRequestGame();
-      return;
     }
     setModalVisible(true);
     setLoading(true);
@@ -275,24 +279,123 @@ export default function NeverHaveIEver({
     if (Platform.OS === 'ios' || Platform.OS === 'android') {
       Vibration.vibrate(30);
     }
-    const yourRemaining = Math.max(0, MIN_MESSAGES_EACH - ownCount);
-    const theirRemaining = Math.max(0, MIN_MESSAGES_EACH - otherCount);
-    
-    let message = '';
-    if (yourRemaining > 0 && theirRemaining > 0) {
-      message = `You need to send ${yourRemaining} more message${yourRemaining !== 1 ? 's' : ''} and they need to send ${theirRemaining} more message${theirRemaining !== 1 ? 's' : ''} to unlock this game.`;
-    } else if (yourRemaining > 0) {
-      message = `You need to send ${yourRemaining} more message${yourRemaining !== 1 ? 's' : ''} to unlock this game.`;
-    } else if (theirRemaining > 0) {
-      message = `Waiting for them to send ${theirRemaining} more message${theirRemaining !== 1 ? 's' : ''} to unlock this game.`;
+    if (onUnlockWithToken) {
+      Alert.alert(
+        '🙊 Never Have I Ever',
+        'Use 1 Mulligan token to play Never Have I Ever?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Use Token',
+            style: 'default',
+            onPress: async () => {
+              try {
+                await onUnlockWithToken();
+                handleOpen();
+              } catch (e: any) {
+                Alert.alert('Error', e?.message || 'Failed to unlock. You may need more tokens.');
+              }
+            },
+          },
+        ]
+      );
+    } else {
+      const yourRemaining = Math.max(0, MIN_MESSAGES_EACH - ownCount);
+      const theirRemaining = Math.max(0, MIN_MESSAGES_EACH - otherCount);
+      let message = '';
+      if (yourRemaining > 0 && theirRemaining > 0) {
+        message = `You need to send ${yourRemaining} more message${yourRemaining !== 1 ? 's' : ''} and they need to send ${theirRemaining} more message${theirRemaining !== 1 ? 's' : ''} to unlock this game.`;
+      } else if (yourRemaining > 0) {
+        message = `You need to send ${yourRemaining} more message${yourRemaining !== 1 ? 's' : ''} to unlock this game.`;
+      } else if (theirRemaining > 0) {
+        message = `Waiting for them to send ${theirRemaining} more message${theirRemaining !== 1 ? 's' : ''} to unlock this game.`;
+      }
+      Alert.alert('🙊 Never Have I Ever', message, [{ text: 'Got it', style: 'default' }]);
     }
-    
-    Alert.alert(
-      '🙊 Never Have I Ever',
-      `${message}\n\nBoth of you need to exchange ${MIN_MESSAGES_EACH} messages each before you can play!`,
-      [{ text: 'Got it', style: 'default' }]
-    );
   };
+
+  const headerButton = (
+    <TouchableOpacity
+      onPress={isUnlocked ? handleOpen : handleLockedPress}
+      activeOpacity={0.8}
+      style={[styles.headerIconButton, !isUnlocked && styles.headerIconButtonLocked]}
+    >
+      <Text style={styles.headerIconEmoji}>🙊</Text>
+    </TouchableOpacity>
+  );
+
+  // Modal is shared - needed for headerMode when User B accepts (openForAccept)
+  const gameModal = (
+    <Modal visible={modalVisible} transparent animationType="slide" onRequestClose={handleClose}>
+      <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={handleClose}>
+        <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={styles.modalContent}>
+          <LinearGradient colors={['#00b894', '#00cec9', '#00a896', '#55efc4', '#00cec9']} locations={[0, 0.2, 0.5, 0.8, 1]} style={styles.modalGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+            <LinearGradient colors={['rgba(255,255,255,0.25)', 'transparent', 'transparent']} locations={[0, 0.35, 1]} style={styles.modalGloss} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} />
+            <View style={styles.modalHeaderBar} />
+            <Text style={styles.modalTitle}>🙊 Never Have I Ever</Text>
+            {loading ? (
+              <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#fff" /><Text style={styles.loadingText}>Loading game...</Text></View>
+            ) : state?.phase === 'lobby' ? (
+              <View style={styles.lobbyContainer}>
+                <Text style={styles.lobbyTitle}>Both pick the same to play</Text>
+                <View style={styles.spiceRow}>
+                  <TouchableOpacity onPress={() => handleSetSpiceChoice('pg13')} style={[styles.spicePill, state.yourSpiceChoice === 'pg13' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, state.yourSpiceChoice === 'pg13' && styles.spicePillTextActive]}>PG-13</Text></TouchableOpacity>
+                  <TouchableOpacity onPress={() => handleSetSpiceChoice('ratedr')} style={[styles.spicePill, state.yourSpiceChoice === 'ratedr' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, state.yourSpiceChoice === 'ratedr' && styles.spicePillTextActive]}>Rated R</Text></TouchableOpacity>
+                  <TouchableOpacity onPress={() => handleSetSpiceChoice('spicy')} style={[styles.spicePill, state.yourSpiceChoice === 'spicy' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, state.yourSpiceChoice === 'spicy' && styles.spicePillTextActive]}>Spicy</Text></TouchableOpacity>
+                </View>
+                {state?.theirSpiceChoice ? <Text style={styles.lobbyHint}>They picked {state.theirSpiceChoice === 'pg13' ? 'PG-13' : state.theirSpiceChoice === 'ratedr' ? 'Rated R' : 'Spicy'}{state.spiceReady ? ' — Match! Ready to play' : ' — pick the same to play'}</Text> : <Text style={styles.lobbyHint}>Waiting for them to pick...</Text>}
+                {state?.spiceReady && <TouchableOpacity onPress={handleStartGame} style={styles.startButton} disabled={submitting} activeOpacity={0.8}><LinearGradient colors={['#00e676', '#00c853']} style={styles.startGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.startButtonText}>Start Game</Text></LinearGradient></TouchableOpacity>}
+              </View>
+            ) : state?.gameOver ? (
+              <View style={styles.gameOverContainer}>
+                <Text style={styles.gameOverTitle}>{state.winner === 'you' ? '🎉 You win!' : '😅 You lose!'}</Text>
+                <Text style={styles.gameOverSubtitle}>{state.winner === 'you' ? "They hit 10 strikes first!" : "You hit 10 strikes first!"}</Text>
+                <Text style={styles.scoreText}>Final: You {state.yourStrikes} • Them {state.theirStrikes}</Text>
+                <TouchableOpacity onPress={handleRestart} style={styles.restartButton} disabled={submitting} activeOpacity={0.8}><LinearGradient colors={['#00e676', '#00c853']} style={styles.restartGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.restartButtonText}>Play Again</Text></LinearGradient></TouchableOpacity>
+              </View>
+            ) : state ? (
+              <>
+                {state.spiceLevel && <View style={styles.promptSpiceBadge}><Text style={styles.promptSpiceText}>{state.spiceLevel === 'spicy' ? 'Spicy' : state.spiceLevel === 'ratedr' ? 'Rated R' : 'PG-13'}</Text></View>}
+                <View style={styles.scoreRow}>
+                  <View style={styles.scoreBox}><Text style={styles.scoreLabel}>You</Text><Text style={[styles.strikesText, state.yourStrikes >= 8 && styles.strikesWarning]}>{state.yourStrikes}/{STRIKES_TO_LOSE}</Text><Text style={styles.strikesSub}>strikes</Text></View>
+                  <Text style={styles.scoreVs}>vs</Text>
+                  <View style={styles.scoreBox}><Text style={styles.scoreLabel}>Them</Text><Text style={[styles.strikesText, state.theirStrikes >= 8 && styles.strikesWarning]}>{state.theirStrikes}/{STRIKES_TO_LOSE}</Text><Text style={styles.strikesSub}>strikes</Text></View>
+                </View>
+                <View style={styles.promptCard}><Text style={styles.promptText}>{state.prompt}</Text></View>
+                {state.bothAnswered ? (
+                  <View style={styles.resultsContainer}>
+                    <View style={styles.resultRow}><Text style={styles.resultLabel}>You:</Text><Text style={[styles.resultValue, state.yourAnswer === 'have' && styles.strikeText]}>{state.yourAnswer === 'have' ? "I have ✗" : "I haven't ✓"}</Text></View>
+                    <View style={styles.resultRow}><Text style={styles.resultLabel}>Them:</Text><Text style={[styles.resultValue, state.theirAnswer === 'have' && styles.strikeText]}>{state.theirAnswer === 'have' ? "I have ✗" : "I haven't ✓"}</Text></View>
+                    {(state.roundResult?.youStrike || state.roundResult?.themStrike) && <Text style={styles.roundResultText}>{state.roundResult.youStrike && state.roundResult.themStrike ? "Both get a strike!" : state.roundResult.youStrike ? "You get a strike!" : "They get a strike!"}</Text>}
+                    <TouchableOpacity onPress={handleNextRound} style={styles.nextButton} disabled={submitting} activeOpacity={0.8}><LinearGradient colors={['#00e676', '#00c853']} style={styles.nextGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.nextButtonText}>Next Round</Text></LinearGradient></TouchableOpacity>
+                  </View>
+                ) : state?.yourAnswer !== null ? (
+                  <View style={styles.waitingContainer}>
+                    <ActivityIndicator size="small" color="#fff" />
+                    <Text style={styles.waitingText}>Waiting for them to answer...</Text>
+                  </View>
+                ) : (
+                  <View style={styles.answerRow}>
+                    <TouchableOpacity onPress={() => handleAnswer('have')} style={styles.answerButton} disabled={submitting} activeOpacity={0.8}>
+                      <LinearGradient colors={['#e74c3c', '#c0392b']} style={styles.answerGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.answerButtonText}>I have</Text></LinearGradient>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => handleAnswer('havent')} style={styles.answerButton} disabled={submitting} activeOpacity={0.8}>
+                      <LinearGradient colors={['#27ae60', '#2ecc71']} style={styles.answerGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.answerButtonText}>I haven't</Text></LinearGradient>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </>
+            ) : null}
+            <TouchableOpacity onPress={handleClose} style={styles.closeButton} activeOpacity={0.8}><View style={styles.closeButtonInner}><Text style={styles.closeButtonText}>Close</Text></View></TouchableOpacity>
+          </LinearGradient>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
+  );
+
+  if (headerMode) {
+    return <>{headerButton}{gameModal}</>;
+  }
 
   if (!isUnlocked) {
     return (
@@ -347,260 +450,29 @@ export default function NeverHaveIEver({
         </Animated.View>
       </View>
 
-      <Modal
-        visible={modalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={handleClose}
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={handleClose}
-        >
-          <TouchableOpacity
-            activeOpacity={1}
-            onPress={(e) => e.stopPropagation()}
-            style={styles.modalContent}
-          >
-            <LinearGradient
-              colors={['#00b894', '#00cec9', '#00a896', '#55efc4', '#00cec9']}
-              locations={[0, 0.2, 0.5, 0.8, 1]}
-              style={styles.modalGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <LinearGradient
-                colors={['rgba(255,255,255,0.25)', 'transparent', 'transparent']}
-                locations={[0, 0.35, 1]}
-                style={styles.modalGloss}
-                start={{ x: 0.5, y: 0 }}
-                end={{ x: 0.5, y: 1 }}
-              />
-              <View style={styles.modalHeaderBar} />
-              <Text style={styles.modalTitle}>🙊 Never Have I Ever</Text>
-
-              {loading ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="large" color="#fff" />
-                  <Text style={styles.loadingText}>Loading game...</Text>
-                </View>
-              ) : state?.phase === 'lobby' ? (
-                <View style={styles.lobbyContainer}>
-                  <Text style={styles.lobbyTitle}>Both pick the same to play</Text>
-                  <View style={styles.spiceRow}>
-                    <TouchableOpacity
-                      onPress={() => handleSetSpiceChoice('pg13')}
-                      style={[styles.spicePill, state.yourSpiceChoice === 'pg13' && styles.spicePillActive]}
-                      disabled={submitting}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={[styles.spicePillText, state.yourSpiceChoice === 'pg13' && styles.spicePillTextActive]}>
-                        PG-13
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => handleSetSpiceChoice('ratedr')}
-                      style={[styles.spicePill, state.yourSpiceChoice === 'ratedr' && styles.spicePillActive]}
-                      disabled={submitting}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={[styles.spicePillText, state.yourSpiceChoice === 'ratedr' && styles.spicePillTextActive]}>
-                        Rated R
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => handleSetSpiceChoice('spicy')}
-                      style={[styles.spicePill, state.yourSpiceChoice === 'spicy' && styles.spicePillActive]}
-                      disabled={submitting}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={[styles.spicePillText, state.yourSpiceChoice === 'spicy' && styles.spicePillTextActive]}>
-                        Spicy
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                  {state.theirSpiceChoice ? (
-                    <Text style={styles.lobbyHint}>
-                      They picked {state.theirSpiceChoice === 'pg13' ? 'PG-13' : state.theirSpiceChoice === 'ratedr' ? 'Rated R' : 'Spicy'}
-                      {state.spiceReady ? ' — Match! Ready to play' : ' — pick the same to play'}
-                    </Text>
-                  ) : (
-                    <Text style={styles.lobbyHint}>Waiting for them to pick...</Text>
-                  )}
-                  {state.spiceReady && (
-                    <TouchableOpacity
-                      onPress={handleStartGame}
-                      style={styles.startButton}
-                      disabled={submitting}
-                      activeOpacity={0.8}
-                    >
-                      <LinearGradient
-                        colors={['#00e676', '#00c853']}
-                        style={styles.startGradient}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                      >
-                        <Text style={styles.startButtonText}>Start Game</Text>
-                      </LinearGradient>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              ) : state?.gameOver ? (
-                <View style={styles.gameOverContainer}>
-                  <Text style={styles.gameOverTitle}>
-                    {state.winner === 'you' ? '🎉 You win!' : '😅 You lose!'}
-                  </Text>
-                  <Text style={styles.gameOverSubtitle}>
-                    {state.winner === 'you'
-                      ? "They hit 10 strikes first!"
-                      : "You hit 10 strikes first!"}
-                  </Text>
-                  <Text style={styles.scoreText}>
-                    Final: You {state.yourStrikes} • Them {state.theirStrikes}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={handleRestart}
-                    style={styles.restartButton}
-                    disabled={submitting}
-                    activeOpacity={0.8}
-                  >
-                      <LinearGradient
-                        colors={['#00e676', '#00c853']}
-                        style={styles.restartGradient}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                    >
-                      <Text style={styles.restartButtonText}>Play Again</Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
-                </View>
-              ) : state ? (
-                <>
-                  {state.spiceLevel && (
-                    <View style={styles.promptSpiceBadge}>
-                      <Text style={styles.promptSpiceText}>
-                        {state.spiceLevel === 'spicy' ? 'Spicy' : state.spiceLevel === 'ratedr' ? 'Rated R' : 'PG-13'}
-                      </Text>
-                    </View>
-                  )}
-                  <View style={styles.scoreRow}>
-                    <View style={styles.scoreBox}>
-                      <Text style={styles.scoreLabel}>You</Text>
-                      <Text style={[styles.strikesText, state.yourStrikes >= 8 && styles.strikesWarning]}>
-                        {state.yourStrikes}/{STRIKES_TO_LOSE}
-                      </Text>
-                      <Text style={styles.strikesSub}>strikes</Text>
-                    </View>
-                    <Text style={styles.scoreVs}>vs</Text>
-                    <View style={styles.scoreBox}>
-                      <Text style={styles.scoreLabel}>Them</Text>
-                      <Text style={[styles.strikesText, state.theirStrikes >= 8 && styles.strikesWarning]}>
-                        {state.theirStrikes}/{STRIKES_TO_LOSE}
-                      </Text>
-                      <Text style={styles.strikesSub}>strikes</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.promptCard}>
-                    <Text style={styles.promptText}>{state.prompt}</Text>
-                  </View>
-
-                  {state.bothAnswered ? (
-                    <View style={styles.resultsContainer}>
-                      <View style={styles.resultRow}>
-                        <Text style={styles.resultLabel}>You:</Text>
-                        <Text style={[styles.resultValue, state.yourAnswer === 'have' && styles.strikeText]}>
-                          {state.yourAnswer === 'have' ? "I have ✗" : "I haven't ✓"}
-                        </Text>
-                      </View>
-                      <View style={styles.resultRow}>
-                        <Text style={styles.resultLabel}>Them:</Text>
-                        <Text style={[styles.resultValue, state.theirAnswer === 'have' && styles.strikeText]}>
-                          {state.theirAnswer === 'have' ? "I have ✗" : "I haven't ✓"}
-                        </Text>
-                      </View>
-                      {(state.roundResult?.youStrike || state.roundResult?.themStrike) && (
-                        <Text style={styles.roundResultText}>
-                          {state.roundResult.youStrike && state.roundResult.themStrike
-                            ? "Both get a strike!"
-                            : state.roundResult.youStrike
-                            ? "You get a strike!"
-                            : "They get a strike!"}
-                        </Text>
-                      )}
-                      <TouchableOpacity
-                        onPress={handleNextRound}
-                        style={styles.nextButton}
-                        disabled={submitting}
-                        activeOpacity={0.8}
-                      >
-                        <LinearGradient
-                          colors={['#00e676', '#00c853']}
-                          style={styles.nextGradient}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 1 }}
-                        >
-                          <Text style={styles.nextButtonText}>Next Round</Text>
-                        </LinearGradient>
-                      </TouchableOpacity>
-                    </View>
-                  ) : state.yourAnswer !== null ? (
-                    <View style={styles.waitingContainer}>
-                      <ActivityIndicator size="small" color="#fff" />
-                      <Text style={styles.waitingText}>Waiting for them to answer...</Text>
-                    </View>
-                  ) : (
-                    <View style={styles.answerRow}>
-                      <TouchableOpacity
-                        onPress={() => handleAnswer('have')}
-                        disabled={submitting}
-                        style={styles.answerButton}
-                        activeOpacity={0.8}
-                      >
-                        <LinearGradient
-                          colors={['#e74c3c', '#c0392b']}
-                          style={styles.answerGradient}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 1 }}
-                        >
-                          <Text style={styles.answerButtonText}>I have</Text>
-                        </LinearGradient>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => handleAnswer('havent')}
-                        disabled={submitting}
-                        style={styles.answerButton}
-                        activeOpacity={0.8}
-                      >
-                        <LinearGradient
-                          colors={['#27ae60', '#2ecc71']}
-                          style={styles.answerGradient}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 1 }}
-                        >
-                          <Text style={styles.answerButtonText}>I haven't</Text>
-                        </LinearGradient>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </>
-              ) : null}
-
-              <TouchableOpacity onPress={handleClose} style={styles.closeButton} activeOpacity={0.8}>
-                <View style={styles.closeButtonInner}>
-                  <Text style={styles.closeButtonText}>Close</Text>
-                </View>
-              </TouchableOpacity>
-            </LinearGradient>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
+      {gameModal}
     </>
   );
 }
 
 const styles = StyleSheet.create({
+  headerIconButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+  },
+  headerIconButtonLocked: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    opacity: 0.85,
+  },
+  headerIconEmoji: {
+    fontSize: 20,
+  },
   container: {
     marginVertical: 4,
     paddingHorizontal: 12,

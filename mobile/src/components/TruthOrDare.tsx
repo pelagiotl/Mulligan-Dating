@@ -156,10 +156,14 @@ interface TruthOrDareProps {
   socket: any;
   onSendToChat?: (text: string) => void;
   onRequestGame?: () => void;
+  onUnlockWithToken?: () => Promise<void>;
   openForAccept?: boolean;
   onOpenedForAccept?: () => void;
+  gameUnlockedByToken?: boolean;
   compact?: boolean;
   square?: boolean;
+  /** When true, renders as a small icon-only button for header placement */
+  headerMode?: boolean;
 }
 
 export default function TruthOrDare({
@@ -169,10 +173,13 @@ export default function TruthOrDare({
   socket,
   onSendToChat,
   onRequestGame,
+  onUnlockWithToken,
   openForAccept,
   onOpenedForAccept,
+  gameUnlockedByToken = false,
   compact = true,
   square = false,
+  headerMode = false,
 }: TruthOrDareProps) {
   const [modalVisible, setModalVisible] = useState(false);
   const [step, setStep] = useState<'lobby' | 'choose' | 'prompt'>('lobby');
@@ -185,7 +192,8 @@ export default function TruthOrDare({
 
   const ownCount = messages.filter((m) => m.senderId === currentUserId).length;
   const otherCount = messages.filter((m) => m.senderId !== currentUserId).length;
-  const isUnlocked = ownCount >= MIN_MESSAGES_EACH && otherCount >= MIN_MESSAGES_EACH;
+  const unlockedByMessages = ownCount >= MIN_MESSAGES_EACH && otherCount >= MIN_MESSAGES_EACH;
+  const isUnlocked = unlockedByMessages || gameUnlockedByToken;
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const emojiScale = useRef(new Animated.Value(1)).current;
@@ -296,10 +304,6 @@ export default function TruthOrDare({
     if (Platform.OS === 'ios' || Platform.OS === 'android') {
       Vibration.vibrate(50);
     }
-    if (onRequestGame) {
-      onRequestGame();
-      return;
-    }
     setStep('lobby');
     setPrompt('');
     setModalVisible(true);
@@ -377,24 +381,103 @@ export default function TruthOrDare({
     if (Platform.OS === 'ios' || Platform.OS === 'android') {
       Vibration.vibrate(30);
     }
-    const yourRemaining = Math.max(0, MIN_MESSAGES_EACH - ownCount);
-    const theirRemaining = Math.max(0, MIN_MESSAGES_EACH - otherCount);
-    
-    let message = '';
-    if (yourRemaining > 0 && theirRemaining > 0) {
-      message = `You need to send ${yourRemaining} more message${yourRemaining !== 1 ? 's' : ''} and they need to send ${theirRemaining} more message${theirRemaining !== 1 ? 's' : ''} to unlock this game.`;
-    } else if (yourRemaining > 0) {
-      message = `You need to send ${yourRemaining} more message${yourRemaining !== 1 ? 's' : ''} to unlock this game.`;
-    } else if (theirRemaining > 0) {
-      message = `Waiting for them to send ${theirRemaining} more message${theirRemaining !== 1 ? 's' : ''} to unlock this game.`;
+    if (onUnlockWithToken) {
+      Alert.alert(
+        '🎲 Truth or Dare',
+        'Use 1 Mulligan token to play Truth or Dare?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Use Token',
+            style: 'default',
+            onPress: async () => {
+              try {
+                await onUnlockWithToken();
+                handleOpen();
+              } catch (e: any) {
+                Alert.alert('Error', e?.message || 'Failed to unlock. You may need more tokens.');
+              }
+            },
+          },
+        ]
+      );
+    } else {
+      const yourRemaining = Math.max(0, MIN_MESSAGES_EACH - ownCount);
+      const theirRemaining = Math.max(0, MIN_MESSAGES_EACH - otherCount);
+      let message = '';
+      if (yourRemaining > 0 && theirRemaining > 0) {
+        message = `You need to send ${yourRemaining} more message${yourRemaining !== 1 ? 's' : ''} and they need to send ${theirRemaining} more message${theirRemaining !== 1 ? 's' : ''} to unlock this game.`;
+      } else if (yourRemaining > 0) {
+        message = `You need to send ${yourRemaining} more message${yourRemaining !== 1 ? 's' : ''} to unlock this game.`;
+      } else if (theirRemaining > 0) {
+        message = `Waiting for them to send ${theirRemaining} more message${theirRemaining !== 1 ? 's' : ''} to unlock this game.`;
+      }
+      Alert.alert('🎲 Truth or Dare', message, [{ text: 'Got it', style: 'default' }]);
     }
-    
-    Alert.alert(
-      '🎲 Truth or Dare',
-      `${message}\n\nBoth of you need to exchange ${MIN_MESSAGES_EACH} messages each before you can play!`,
-      [{ text: 'Got it', style: 'default' }]
-    );
   };
+
+  const headerButton = (
+    <TouchableOpacity
+      onPress={isUnlocked ? handleOpen : handleLockedPress}
+      activeOpacity={0.8}
+      style={[styles.headerIconButton, !isUnlocked && styles.headerIconButtonLocked]}
+    >
+      <Text style={styles.headerIconEmoji}>🎲</Text>
+    </TouchableOpacity>
+  );
+
+  if (headerMode) {
+    return (
+      <>
+        {headerButton}
+        <Modal visible={modalVisible} transparent animationType="slide" onRequestClose={handleClose}>
+          <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={handleClose}>
+            <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={styles.modalContent}>
+              <LinearGradient colors={['#ff0080', '#ff3399', '#cc0066', '#ff66b2', '#ff0080']} locations={[0, 0.2, 0.5, 0.8, 1]} style={styles.modalGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+                <View style={styles.modalHeaderBar} />
+                <Text style={styles.modalTitle}>{step === 'lobby' ? '🎲 Truth or Dare' : step === 'choose' ? 'Pick One' : promptType === 'truth' ? '✨ Truth' : '🔥 Dare'}</Text>
+                {loading ? (
+                  <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#fff" /><Text style={styles.loadingText}>Loading...</Text></View>
+                ) : step === 'lobby' ? (
+                  <View style={styles.lobbyContainer}>
+                    <Text style={styles.lobbyTitle}>Both pick the same to play</Text>
+                    <View style={styles.spicePills}>
+                      <TouchableOpacity onPress={() => handleSetSpiceChoice('pg13')} style={[styles.spicePill, gameState?.yourSpiceChoice === 'pg13' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.yourSpiceChoice === 'pg13' && styles.spicePillTextActive]}>PG-13</Text></TouchableOpacity>
+                      <TouchableOpacity onPress={() => handleSetSpiceChoice('ratedr')} style={[styles.spicePill, gameState?.yourSpiceChoice === 'ratedr' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.yourSpiceChoice === 'ratedr' && styles.spicePillTextActive]}>Rated R</Text></TouchableOpacity>
+                      <TouchableOpacity onPress={() => handleSetSpiceChoice('spicy')} style={[styles.spicePill, gameState?.yourSpiceChoice === 'spicy' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.yourSpiceChoice === 'spicy' && styles.spicePillTextActive]}>Spicy</Text></TouchableOpacity>
+                    </View>
+                    {gameState?.theirSpiceChoice ? <Text style={styles.lobbyHint}>They picked {gameState.theirSpiceChoice === 'pg13' ? 'PG-13' : gameState.theirSpiceChoice === 'ratedr' ? 'Rated R' : 'Spicy'}{gameState.spiceReady ? ' — Match! Ready to play' : ' — pick the same to play'}</Text> : <Text style={styles.lobbyHint}>Waiting for them to pick...</Text>}
+                  </View>
+                ) : step === 'choose' ? (
+                  <View style={styles.chooseContainer}>
+                    {gameState?.spiceLevel && <View style={styles.promptSpiceBadge}><Text style={styles.promptSpiceText}>{gameState.spiceLevel === 'spicy' ? 'Spicy' : gameState.spiceLevel === 'ratedr' ? 'Rated R' : 'PG-13'}</Text></View>}
+                    <View style={styles.chooseRow}>
+                      <TouchableOpacity onPress={() => handleChoose('truth')} style={styles.choiceButton} activeOpacity={0.8}><LinearGradient colors={['#7c4dff', '#b388ff', '#651fff']} style={styles.choiceGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.choiceEmoji}>✨</Text><Text style={styles.choiceText}>Truth</Text></LinearGradient></TouchableOpacity>
+                      <TouchableOpacity onPress={() => handleChoose('dare')} style={styles.choiceButton} activeOpacity={0.8}><LinearGradient colors={['#ff1744', '#ff4081', '#f50057']} style={styles.choiceGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.choiceEmoji}>🔥</Text><Text style={styles.choiceText}>Dare</Text></LinearGradient></TouchableOpacity>
+                    </View>
+                  </View>
+                ) : (
+                  <>
+                    {loading ? <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#fff" /><Text style={styles.loadingText}>Generating your prompt...</Text></View> : (
+                      <>
+                        <View style={styles.promptSpiceBadge}><Text style={styles.promptSpiceText}>{gameState?.spiceLevel === 'spicy' ? 'Spicy' : gameState?.spiceLevel === 'ratedr' ? 'Rated R' : 'PG-13'}</Text></View>
+                        <View style={styles.promptCard}><Text style={styles.promptText}>{prompt}</Text></View>
+                      </>
+                    )}
+                    <View style={styles.promptActions}>
+                      {onSendToChat && !loading && <TouchableOpacity onPress={handleSendToChat} style={styles.sendButton} activeOpacity={0.8}><LinearGradient colors={['#7c4dff', '#651fff']} style={styles.sendButtonGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.sendButtonText}>Send to Chat 💬</Text></LinearGradient></TouchableOpacity>}
+                      {!loading && <TouchableOpacity onPress={() => handleChoose(promptType)} style={styles.anotherButton} activeOpacity={0.8}><Text style={styles.anotherButtonText}>Another one ↻</Text></TouchableOpacity>}
+                    </View>
+                  </>
+                )}
+                <TouchableOpacity onPress={handleClose} style={styles.closeButton} activeOpacity={0.8}><View style={styles.closeButtonInner}><Text style={styles.closeButtonText}>Close</Text></View></TouchableOpacity>
+              </LinearGradient>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Modal>
+      </>
+    );
+  }
 
   if (!isUnlocked) {
     return (
@@ -638,6 +721,23 @@ export default function TruthOrDare({
 }
 
 const styles = StyleSheet.create({
+  headerIconButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+  },
+  headerIconButtonLocked: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    opacity: 0.85,
+  },
+  headerIconEmoji: {
+    fontSize: 20,
+  },
   container: {
     marginVertical: 4,
     paddingHorizontal: 12,

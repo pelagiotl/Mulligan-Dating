@@ -93,7 +93,9 @@ const TOTAL_STEPS = 15; // 1-6: basic info; 7: interests; 8: dealbreakers; 9: qu
 export default function CreateProfileScreen() {
   const navigation = useNavigation();
   const route = useRoute();
-  const startFromBeginning = (route.params as { startFromBeginning?: boolean } | undefined)?.startFromBeginning === true;
+  const routeParams = route.params as { startFromBeginning?: boolean; initialStep?: number } | undefined;
+  const startFromBeginning = routeParams?.startFromBeginning === true;
+  const initialStep = routeParams?.initialStep;
   const { refreshProfile, profile: existingProfile, logout } = useAuth();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -502,14 +504,17 @@ export default function CreateProfileScreen() {
             setWorkLifeBalance(data.lifestyle.work_life_balance || '');
             setWorksOut(data.lifestyle.works_out || '');
           }
-          // startFromBeginning: no scroll needed - each step is now its own page
+          // If navigating from Profile tab "Edit" on a section, jump to that step
+          if (initialStep && initialStep >= 1 && initialStep <= 15) {
+            setStep(initialStep);
+          }
         }
       } catch (err) {
         console.log('No existing profile found');
       }
     };
     loadProfile();
-  }, [startFromBeginning]);
+  }, [startFromBeginning, initialStep]);
 
   // Prefetch auth token on mount (handles AsyncStorage timing / cache sync after login)
   useEffect(() => {

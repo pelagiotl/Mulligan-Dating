@@ -50,6 +50,11 @@ interface Photo {
   isPrimary: boolean;
 }
 
+interface GameUnlocks {
+  truth_or_dare: boolean;
+  never_have_i_ever: boolean;
+}
+
 interface Match {
   id: string;
   stage: 'pending' | 'stage1' | 'stage2';
@@ -62,6 +67,7 @@ interface Match {
   userWantsReveal?: boolean;
   otherWantsReveal?: boolean;
   unreadCount?: number;
+  gameUnlocks?: GameUnlocks;
   otherUser: {
     userId: string;
     displayName: string;
@@ -97,10 +103,12 @@ const MessageBubble = React.memo(function MessageBubble({
   item,
   animValue,
   styles: s,
+  onImagePress,
 }: {
   item: Message;
   animValue: Animated.Value | null;
   styles: { [key: string]: any };
+  onImagePress?: (url: string) => void;
 }) {
   const formattedTime = useMemo(
     () => new Date(item.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -110,11 +118,25 @@ const MessageBubble = React.memo(function MessageBubble({
   const renderBubbleContent = (isOwn: boolean) => (
     <>
       {item.imageUrl ? (
-        <Image
-          source={{ uri: item.imageUrl }}
-          style={s.messageImage}
-          resizeMode="cover"
-        />
+        onImagePress ? (
+          <TouchableOpacity
+            onPress={() => onImagePress(item.imageUrl!)}
+            activeOpacity={0.9}
+            style={{ margin: 0, padding: 0 }}
+          >
+            <Image
+              source={{ uri: item.imageUrl }}
+              style={s.messageImage}
+              resizeMode="cover"
+            />
+          </TouchableOpacity>
+        ) : (
+          <Image
+            source={{ uri: item.imageUrl }}
+            style={s.messageImage}
+            resizeMode="cover"
+          />
+        )
       ) : null}
       {item.content ? (
         <Text style={isOwn ? s.messageTextOwn : s.messageTextOther}>{item.content}</Text>
@@ -837,11 +859,13 @@ function EmptyStateAnimated({ navigation }: { navigation: any }) {
 function MatchProfileModal({ 
   match, 
   visible, 
-  onClose 
+  onClose,
+  onPhotoPress,
 }: { 
   match: Match; 
   visible: boolean; 
   onClose: () => void;
+  onPhotoPress?: (url: string) => void;
 }) {
   const { otherUser } = match;
   const { user } = useAuth();
@@ -1365,11 +1389,21 @@ function MatchProfileModal({
                   }}
                 >
                   {profilePhotoUrl ? (
-                    <Image
-                      source={{ uri: profilePhotoUrl }}
-                      style={styles.modalPhoto}
-                      resizeMode="cover"
-                    />
+                    onPhotoPress ? (
+                      <TouchableOpacity onPress={() => onPhotoPress(profilePhotoUrl)} activeOpacity={0.9}>
+                        <Image
+                          source={{ uri: profilePhotoUrl }}
+                          style={styles.modalPhoto}
+                          resizeMode="cover"
+                        />
+                      </TouchableOpacity>
+                    ) : (
+                      <Image
+                        source={{ uri: profilePhotoUrl }}
+                        style={styles.modalPhoto}
+                        resizeMode="cover"
+                      />
+                    )
                   ) : (
                     <LinearGradient
                       colors={['#667eea', '#764ba2', '#f093fb']}
@@ -1568,26 +1602,36 @@ function MatchProfileModal({
                   style={styles.modalPhotosScroll}
                   contentContainerStyle={styles.modalPhotosContainer}
                 >
-                  {allPhotos.map((photo, idx) => (
-                    <Animated.View
-                      key={photo.id}
-                      style={{
-                        opacity: contentFade,
-                        transform: [{
-                          translateX: contentFade.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [50, 0],
-                          })
-                        }],
-                      }}
-                    >
+                  {allPhotos.map((photo, idx) => {
+                    const photoUrl = getPhotoUrl(photo.url);
+                    const thumb = (
                       <OptimizedImage
                         source={photo.url}
                         style={styles.modalPhotoThumbnail}
                         resizeMode="cover"
                       />
-                    </Animated.View>
-                  ))}
+                    );
+                    return (
+                      <Animated.View
+                        key={photo.id}
+                        style={{
+                          opacity: contentFade,
+                          transform: [{
+                            translateX: contentFade.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [50, 0],
+                            })
+                          }],
+                        }}
+                      >
+                        {onPhotoPress ? (
+                          <TouchableOpacity onPress={() => onPhotoPress(photoUrl)} activeOpacity={0.9}>
+                            {thumb}
+                          </TouchableOpacity>
+                        ) : thumb}
+                      </Animated.View>
+                    );
+                  })}
                 </ScrollView>
               </Animated.View>
             )}
@@ -1720,6 +1764,7 @@ export default function MatchesScreen() {
   const [stageInfoStage, setStageInfoStage] = useState<'stage1' | 'stage2' | null>(null);
   const [gameRequestToShow, setGameRequestToShow] = useState<PendingGameRequest | null>(null);
   const [openGameForAccept, setOpenGameForAccept] = useState<{ matchId: string; gameType: 'truth_or_dare' | 'never_have_i_ever' } | null>(null);
+  const [fullScreenImageUrl, setFullScreenImageUrl] = useState<string | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const messagesEndRef = useRef<FlatList>(null);
   const selectedMatchRef = useRef<Match | null>(null);
@@ -1776,16 +1821,19 @@ export default function MatchesScreen() {
     return () => clearInterval(interval);
   }, [matches]);
 
-  // Handle keyboard show/hide events
+  // Handle keyboard show/hide events - scroll to show most recent message when keyboard opens
   useEffect(() => {
     const keyboardWillShowListener = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
       (e) => {
         setKeyboardHeight(e.endCoordinates.height);
-        // Scroll to end when keyboard appears
-        setTimeout(() => {
+        // Scroll to end when keyboard appears - use multiple delays so layout has fully settled
+        const scrollToEnd = () => {
           messagesEndRef.current?.scrollToEnd({ animated: true });
-        }, 100);
+        };
+        setTimeout(scrollToEnd, 100);
+        setTimeout(scrollToEnd, 350);
+        setTimeout(scrollToEnd, 600);
       }
     );
     const keyboardWillHideListener = Keyboard.addListener(
@@ -1920,6 +1968,10 @@ export default function MatchesScreen() {
     messagesEndRef.current?.scrollToEnd({ animated: false });
   }, []);
 
+  const onImagePress = useCallback((url: string) => {
+    setFullScreenImageUrl(url);
+  }, []);
+
   // Memoized renderItem - only animates last N messages for performance
   const renderMessageItem = useCallback(
     ({ item, index }: { item: Message; index: number }) => {
@@ -1941,9 +1993,9 @@ export default function MatchesScreen() {
         animValue = messageAnimations[item.id];
       }
 
-      return <MessageBubble item={item} animValue={animValue} styles={styles} />;
+      return <MessageBubble item={item} animValue={animValue} styles={styles} onImagePress={onImagePress} />;
     },
-    [messages.length]
+    [messages.length, onImagePress]
   );
 
   // Prune old message animations when list changes (prevents memory leak)
@@ -1983,6 +2035,11 @@ export default function MatchesScreen() {
 
       socket.on('connect', () => {
         console.log('✅ Matches: Connected to WebSocket server');
+        // Re-join match room on reconnect so we receive real-time messages
+        const current = selectedMatchRef.current;
+        if (current?.id) {
+          socket.emit('join_match', current.id);
+        }
       });
 
       socket.on('disconnect', () => {
@@ -2053,11 +2110,13 @@ export default function MatchesScreen() {
               const hasTemp = prev.some(m => m.id.startsWith('temp-') && m.content === message.content && m.senderId === message.senderId);
               if (hasTemp) {
                 const filtered = prev.filter(m => !(m.id.startsWith('temp-') && m.content === message.content && m.senderId === message.senderId));
-                return [...filtered, { ...message, isOwn: message.senderId === user?.id }];
+                const next = [...filtered, { ...message, isOwn: message.senderId === user?.id }];
+                return next.sort((a, b) => new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime());
               }
               return prev;
             }
-            return [...prev, { ...message, isOwn: message.senderId === user?.id }];
+            const next = [...prev, { ...message, isOwn: message.senderId === user?.id }];
+            return next.sort((a, b) => new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime());
           });
         } else {
           // Message is for a different match - refresh matches list to show unread indicator
@@ -2077,6 +2136,12 @@ export default function MatchesScreen() {
           playMessageSound().catch(() => {
             // Non-critical - app works without sound
             console.log('Message sound not available');
+          });
+        }
+        // Scroll to show newest message when we receive one
+        if (isForCurrentMatch) {
+          InteractionManager.runAfterInteractions(() => {
+            setTimeout(() => messagesEndRef.current?.scrollToEnd({ animated: false }), 100);
           });
         }
       });
@@ -2126,6 +2191,20 @@ export default function MatchesScreen() {
           }
         }
       });
+
+      socket.on('game_unlocked', (data: { matchId: string; gameType: string }) => {
+        const gameKey = data.gameType === 'truth_or_dare' ? 'truth_or_dare' : 'never_have_i_ever';
+        setMatches(prev => prev.map(m => m.id === data.matchId ? {
+          ...m,
+          gameUnlocks: {
+            ...(m.gameUnlocks || { truth_or_dare: false, never_have_i_ever: false }),
+            [gameKey]: true,
+          },
+        } : m));
+        if (selectedMatchRef.current?.id === data.matchId) {
+          setSelectedMatch(prev => prev ? { ...prev, gameUnlocks: { ...(prev.gameUnlocks || { truth_or_dare: false, never_have_i_ever: false }), [gameKey]: true } } : null);
+        }
+      });
     };
 
     initSocket();
@@ -2138,6 +2217,7 @@ export default function MatchesScreen() {
           socketRef.current.off('stage_advanced');
           socketRef.current.off('game_request_received');
           socketRef.current.off('game_request_responded');
+          socketRef.current.off('game_unlocked');
           socketRef.current.disconnect();
         }
         if (typingTimeoutRef.current) {
@@ -2158,7 +2238,6 @@ export default function MatchesScreen() {
       const checkAuthAndFetch = async () => {
         const token = await AsyncStorage.getItem('token');
         if (token && user && isAuthenticated) {
-          console.log('✅ MatchesScreen: User authenticated, fetching matches...');
           await fetchMatches();
         } else {
           console.log('⚠️ MatchesScreen: Not authenticated or no token');
@@ -2222,6 +2301,17 @@ export default function MatchesScreen() {
     };
   }, [selectedMatch?.id, fetchMessages]);
 
+  // Poll for new messages when chat is open (fallback if socket misses an event)
+  useEffect(() => {
+    if (!selectedMatch || selectedMatch.stage === 'pending') return;
+    const interval = setInterval(() => {
+      if (selectedMatchRef.current?.id === selectedMatch.id) {
+        fetchMessages(selectedMatch.id);
+      }
+    }, 8000);
+    return () => clearInterval(interval);
+  }, [selectedMatch?.id, selectedMatch?.stage, fetchMessages]);
+
   // Handle route params and pending open (e.g. "Send message" on celebration, game request from push) when screen is focused
   useFocusEffect(
     useCallback(() => {
@@ -2231,8 +2321,8 @@ export default function MatchesScreen() {
       const routeParams = route.params as { matchId?: string; showGameRequest?: boolean } | undefined;
       const matchIdToOpen = pendingId ?? routeParams?.matchId;
 
-      const runPendingLogic = () => {
-        if (matchIdToOpen && !loading) {
+      const runPendingLogic = async () => {
+        if (matchIdToOpen) {
           const matchToSelect = matches.find(m => m.id === matchIdToOpen);
           if (matchToSelect) {
             setSelectedMatch(matchToSelect);
@@ -2242,9 +2332,9 @@ export default function MatchesScreen() {
               clearPendingGameRequest();
             }
           } else {
-            // Match not in list (e.g. just created) - clear cache and fetch immediately for fresh data
+            // Match not in list (e.g. just created, opened from notification) - clear cache and fetch for fresh data
             api.clearCache('/matches');
-            fetchMatches().then(() => {});
+            await fetchMatches();
           }
         } else if (pendingGame && matches.length > 0 && !loading) {
           const matchToSelect = matches.find(m => m.id === pendingGame.matchId);
@@ -2279,9 +2369,7 @@ export default function MatchesScreen() {
         return;
       }
       
-      console.log('✅ Token found, fetching matches...');
       const data = await api.get<{ matches: Match[] }>('/matches');
-      console.log('✅ Matches fetched successfully:', data.matches?.length || 0, 'matches');
       const fetchedMatches = data.matches || [];
       setMatches(fetchedMatches);
       
@@ -2329,10 +2417,9 @@ export default function MatchesScreen() {
   const fetchMessages = useCallback(async (matchId: string, retryCount = 0) => {
     const maxRetries = 3;
     try {
-      console.log(`📨 Fetching messages for match: ${matchId} (attempt ${retryCount + 1})`);
       const data = await api.get<{ messages: Message[] }>(`/matches/${matchId}/messages`, false);
-      const list = Array.isArray(data?.messages) ? data.messages : [];
-      console.log(`📨 Received ${list.length} messages for match: ${matchId}`);
+      const raw = Array.isArray(data?.messages) ? data.messages : [];
+      const list = [...raw].sort((a, b) => new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime());
       if (selectedMatchRef.current?.id === matchId) {
         lastFetchedMatchIdRef.current = matchId;
         setMessages(list);
@@ -2427,10 +2514,12 @@ export default function MatchesScreen() {
       if (response.message) {
         setMessages((prev) => {
           const filtered = prev.filter((m) => m.id !== tempMessage.id);
-          return [...filtered, { ...response.message, isOwn: response.message.senderId === user.id }];
+          const next = [...filtered, { ...response.message, isOwn: response.message.senderId === user.id }];
+          return next.sort((a, b) => new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime());
         });
         InteractionManager.runAfterInteractions(() => {
           setTimeout(() => messagesEndRef.current?.scrollToEnd({ animated: false }), 50);
+          setTimeout(() => messagesEndRef.current?.scrollToEnd({ animated: false }), 250);
         });
       } else {
         // If no message in response, keep temp message (socket will replace it, or it stays as fallback)
@@ -2666,7 +2755,6 @@ export default function MatchesScreen() {
   }
 
   if (!selectedMatch) {
-    console.log('📋 Rendering matches list view');
     return (
       <View style={styles.container}>
         <AnimatedHeaderGradient matchesCount={visibleMatches.length} gradientPos={headerGradientPos}>
@@ -2781,7 +2869,6 @@ export default function MatchesScreen() {
     );
   }
 
-  console.log('💬 Rendering chat view for match:', selectedMatch?.id);
   return (
     <View style={[styles.container, { width: windowWidth, maxWidth: windowWidth, overflow: 'hidden', alignSelf: 'center' }]}>
       <LinearGradient
@@ -2836,7 +2923,49 @@ export default function MatchesScreen() {
                   );
                 })()}
               </TouchableOpacity>
-              <Text style={styles.chatHeaderTitle}>{selectedMatch.otherUser.displayName}</Text>
+              <Text style={styles.chatHeaderTitle} numberOfLines={1} ellipsizeMode="tail">{selectedMatch.otherUser.displayName}</Text>
+              {selectedMatch.stage !== 'pending' && (
+                <View style={styles.chatHeaderActionsRow}>
+                  <TruthOrDare
+                    matchId={selectedMatch.id}
+                    messages={messages}
+                    currentUserId={user?.id || ''}
+                    socket={socketRef.current}
+                    onSendToChat={(text) => { setNewMessage(text); textInputRef.current?.focus(); }}
+                    onRequestGame={async () => {
+                      try {
+                        await api.post(`/matches/${selectedMatch.id}/game-request`, { gameType: 'truth_or_dare' });
+                        Alert.alert('Request sent!', 'Waiting for them to accept. You\'ll be notified when they do.');
+                      } catch (e: any) {
+                        Alert.alert('Error', e?.message || 'Failed to send game request');
+                      }
+                    }}
+                    onUnlockWithToken={async () => {
+                      await api.post(`/matches/${selectedMatch.id}/unlock-game`, { gameType: 'truth_or_dare' });
+                      api.clearCache('/matches');
+                    }}
+                    openForAccept={openGameForAccept?.gameType === 'truth_or_dare' && openGameForAccept?.matchId === selectedMatch.id}
+                    onOpenedForAccept={() => setOpenGameForAccept(null)}
+                    gameUnlockedByToken={selectedMatch.gameUnlocks?.truth_or_dare}
+                    headerMode
+                  />
+                  <NeverHaveIEver
+                    matchId={selectedMatch.id}
+                    messages={messages}
+                    currentUserId={user?.id || ''}
+                    socket={socketRef.current}
+                    onUnlockWithToken={async () => {
+                      await api.post(`/matches/${selectedMatch.id}/unlock-game`, { gameType: 'never_have_i_ever' });
+                      api.clearCache('/matches');
+                    }}
+                    openForAccept={openGameForAccept?.gameType === 'never_have_i_ever' && openGameForAccept?.matchId === selectedMatch.id}
+                    onOpenedForAccept={() => setOpenGameForAccept(null)}
+                    gameUnlockedByToken={selectedMatch.gameUnlocks?.never_have_i_ever}
+                    headerMode
+                  />
+                  <CompatibilityPulse matchId={selectedMatch.id} socket={socketRef.current} isFocused={isFocused} />
+                </View>
+              )}
             </View>
             <View style={styles.chatHeaderSubtitleRow}>
               <View style={styles.chatHeaderPillRow}>
@@ -2897,20 +3026,40 @@ export default function MatchesScreen() {
                   </View>
                 )}
               </View>
-              {selectedMatch.stage !== 'pending' && (
-                <CompatibilityPulse matchId={selectedMatch.id} socket={socketRef.current} isFocused={isFocused} />
-              )}
             </View>
           </View>
         </View>
       </LinearGradient>
       
+      {/* Full-screen image viewer (chat images) */}
+      <Modal
+        visible={!!fullScreenImageUrl}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setFullScreenImageUrl(null)}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center' }}
+          onPress={() => setFullScreenImageUrl(null)}
+        >
+          {fullScreenImageUrl ? (
+            <Image
+              source={{ uri: fullScreenImageUrl }}
+              style={{ width: windowWidth, height: windowHeight * 0.8, resizeMode: 'contain' }}
+              resizeMode="contain"
+            />
+          ) : null}
+        </TouchableOpacity>
+      </Modal>
+
       {/* Profile Modal */}
       {showProfileModal && selectedMatch && (
         <MatchProfileModal
           match={selectedMatch}
           visible={showProfileModal}
           onClose={() => setShowProfileModal(false)}
+          onPhotoPress={(url) => setFullScreenImageUrl(url)}
         />
       )}
 
@@ -2982,7 +3131,7 @@ export default function MatchesScreen() {
 
       {/* New Features: Mulligan Moments, Date Plan, Truth or Dare - fixed at top */}
       {selectedMatch && selectedMatch.stage !== 'pending' && (
-        <View style={[styles.featuresContainer, { maxHeight: Math.min(260, windowHeight * 0.42) }]}>
+        <View style={[styles.featuresContainer, { maxHeight: Math.min(200, windowHeight * 0.32) }]}>
           <MulliganMoments 
             matchId={selectedMatch.id} 
             socket={socketRef.current}
@@ -3000,52 +3149,6 @@ export default function MatchesScreen() {
                 matchId={selectedMatch.id} 
                 socket={socketRef.current}
                 currentUserId={user?.id || ''}
-              />
-            </View>
-          </View>
-          <View style={styles.gamesRow}>
-            <View style={styles.squareGameButton}>
-              <TruthOrDare
-                matchId={selectedMatch.id}
-                messages={messages}
-                currentUserId={user?.id || ''}
-                socket={socketRef.current}
-                onSendToChat={(text) => {
-                  setNewMessage(text);
-                  textInputRef.current?.focus();
-                }}
-                onRequestGame={async () => {
-                  try {
-                    await api.post(`/matches/${selectedMatch.id}/game-request`, { gameType: 'truth_or_dare' });
-                    Alert.alert('Request sent!', 'Waiting for them to accept. You\'ll be notified when they do.');
-                  } catch (e: any) {
-                    Alert.alert('Error', e?.message || 'Failed to send game request');
-                  }
-                }}
-                openForAccept={openGameForAccept?.gameType === 'truth_or_dare' && openGameForAccept?.matchId === selectedMatch.id}
-                onOpenedForAccept={() => setOpenGameForAccept(null)}
-                compact
-                square
-              />
-            </View>
-            <View style={styles.squareGameButton}>
-              <NeverHaveIEver
-                matchId={selectedMatch.id}
-                messages={messages}
-                currentUserId={user?.id || ''}
-                socket={socketRef.current}
-                onRequestGame={async () => {
-                  try {
-                    await api.post(`/matches/${selectedMatch.id}/game-request`, { gameType: 'never_have_i_ever' });
-                    Alert.alert('Request sent!', 'Waiting for them to accept. You\'ll be notified when they do.');
-                  } catch (e: any) {
-                    Alert.alert('Error', e?.message || 'Failed to send game request');
-                  }
-                }}
-                openForAccept={openGameForAccept?.gameType === 'never_have_i_ever' && openGameForAccept?.matchId === selectedMatch.id}
-                onOpenedForAccept={() => setOpenGameForAccept(null)}
-                compact
-                square
               />
             </View>
           </View>
@@ -3138,6 +3241,10 @@ export default function MatchesScreen() {
                 style={styles.input}
                 value={newMessage}
                 onChangeText={handleTextChange}
+                onFocus={() => {
+                  setTimeout(() => messagesEndRef.current?.scrollToEnd({ animated: true }), 100);
+                  setTimeout(() => messagesEndRef.current?.scrollToEnd({ animated: true }), 350);
+                }}
                 placeholder="Type a message..."
                 placeholderTextColor="#999"
                 multiline
@@ -3762,6 +3869,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     width: '100%',
+  },
+  chatHeaderActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginLeft: 8,
+    flexShrink: 0,
   },
   chatHeaderPillRow: {
     flexDirection: 'row',

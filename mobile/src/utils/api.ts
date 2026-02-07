@@ -97,16 +97,8 @@ async function request<T = any>(endpoint: string, options: RequestInit & { body?
   // Set Authorization header if we have a valid token
   if (hasValidToken) {
     headers['Authorization'] = `Bearer ${token.trim()}`;
-    console.log('✅ Token found for request to:', endpoint, 'Token length:', token.trim().length);
   } else {
     console.warn('⚠️ No valid token found in AsyncStorage for request to:', endpoint);
-    console.warn('   Token value:', token ? `"${token.substring(0, 20)}..." (${token.length} chars)` : 'null/undefined');
-    console.warn('   This will likely result in an authentication error');
-  }
-  
-  // Log headers for debugging (but not the full token value for security)
-  if (hasValidToken) {
-    console.log('📋 Request headers include Authorization:', !!headers['Authorization']);
   }
   
   // Prepare body - stringify JSON if not FormData
@@ -120,21 +112,32 @@ async function request<T = any>(endpoint: string, options: RequestInit & { body?
   const timeoutId = setTimeout(() => controller.abort(), 45000); // 45 second timeout
 
   const url = `${BASE_URL}${endpoint}`;
-  if (__DEV__) {
-    console.log('🌐 API:', options.method || 'GET', endpoint);
-  }
 
-  try {
-    // Build fetch options, ensuring headers are set correctly and Authorization is not overridden
+  const doRequest = async (): Promise<Response> => {
     const fetchOptions: RequestInit = {
       ...options,
-      headers, // Set headers after spreading options to ensure our Authorization header is used
+      headers,
       body,
       signal: controller.signal,
     };
-    
-    const response = await fetch(url, fetchOptions);
+    return fetch(url, fetchOptions);
+  };
+
+  try {
+    let response = await doRequest();
     clearTimeout(timeoutId);
+
+    // Retry GET on 502 (server cold start) - up to 3 attempts with backoff (only GET can safely retry)
+    if (response.status === 502 && isGetRequest) {
+      const maxRetries = 3;
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        const delay = attempt * 4000; // 4s, 8s, 12s
+        if (__DEV__) console.log(`⚠️ 502 received, retrying in ${delay / 1000}s (attempt ${attempt}/${maxRetries})`);
+        await new Promise(r => setTimeout(r, delay));
+        response = await doRequest();
+        if (response.status !== 502) break;
+      }
+    }
 
     // Check if response has content before trying to parse JSON
     const contentType = response.headers.get('content-type');
@@ -158,7 +161,10 @@ async function request<T = any>(endpoint: string, options: RequestInit & { body?
         const cacheKey = APICache.getCacheKey(endpoint);
         apiCache.clear(cacheKey);
       }
-      const errorMsg = data.error || `Request failed with status ${response.status}`;
+      let errorMsg = data.error || `Request failed with status ${response.status}`;
+      if (response.status === 502) {
+        errorMsg = 'Server is starting up. Please wait a moment and try again.';
+      }
       const errorMsgLower = errorMsg.toLowerCase();
       
       // Suppress logging for informational messages that are handled gracefully
@@ -218,7 +224,6 @@ async function request<T = any>(endpoint: string, options: RequestInit & { body?
         ttl = 15 * 1000; // 15 seconds for tokens (admin grants, claims, etc.)
       }
       apiCache.set(cacheKey, data, ttl);
-      if (__DEV__) console.log('💾 Cached for:', endpoint);
     }
 
     return data as T;

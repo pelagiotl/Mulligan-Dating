@@ -538,6 +538,7 @@ export default function PhoneLoginScreen() {
   const [step, setStep] = useState<'phone' | 'verify'>('phone');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
   const [referralCode, setReferralCode] = useState('');
   const codeInputRef = useRef<TextInput>(null);
   const navigation = useNavigation();
@@ -900,10 +901,14 @@ export default function PhoneLoginScreen() {
           <View style={styles.verifyActions}>
             <TouchableOpacity
               style={[styles.button, styles.resendButton]}
-              onPress={handlePhoneSubmit}
-              disabled={loading}
+              onPress={handleResendCode}
+              disabled={loading || resendLoading}
             >
-              <Text style={[styles.buttonText, styles.resendButtonText]}>Resend Code</Text>
+              {resendLoading ? (
+                <ActivityIndicator color="#8B1538" size="small" />
+              ) : (
+                <Text style={[styles.buttonText, styles.resendButtonText]}>Resend Code</Text>
+              )}
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.button, styles.secondaryButton]}

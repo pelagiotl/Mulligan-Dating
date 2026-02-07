@@ -157,7 +157,6 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
       }
       
       pushToken = tokenData.data;
-      console.log('✅ Expo push token obtained:', pushToken.substring(0, 30) + '...');
     } catch (tokenError: any) {
       // This is a native module call that can fail - prevent crash
       console.error('❌ Failed to get Expo push token (non-critical):', tokenError?.message || tokenError);
@@ -171,7 +170,6 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
     // Send token to backend - this is network-only, won't crash from native modules
     try {
       await api.post('/auth/push-token', { pushToken });
-      console.log('✅ Push token sent to backend successfully');
       return pushToken;
     } catch (error: any) {
       // Suppress error if route not found or backend unavailable (non-critical)

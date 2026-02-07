@@ -13,19 +13,16 @@ cd "$(dirname "$0")"
 echo "📁 Current directory: $(pwd)"
 echo ""
 
-# Check if EAS CLI is installed
-if ! command -v eas &> /dev/null; then
-    echo "⚠️  EAS CLI not found. Installing..."
-    npm install -g eas-cli
-    echo "✅ EAS CLI installed"
-    echo ""
-fi
+# Install dependencies (includes eas-cli as devDependency)
+echo "📦 Ensuring dependencies are installed (including EAS CLI)..."
+npm install
+echo ""
 
-# Check if logged in
+# Check if logged in (use npx so we use local eas-cli)
 echo "🔐 Checking EAS login status..."
-if ! eas whoami &> /dev/null; then
+if ! npx eas whoami &> /dev/null; then
     echo "⚠️  Not logged in. Please log in:"
-    eas login
+    npx eas login
     echo ""
 fi
 
@@ -33,8 +30,8 @@ echo "📦 Building iOS app for production..."
 echo "   This will take 15-30 minutes..."
 echo ""
 
-# Build the app
-eas build --platform ios --profile production
+# Build the app (use local eas-cli via npx)
+npx eas build --platform ios --profile production
 
 echo ""
 echo "✅ Build completed!"
@@ -43,7 +40,7 @@ echo "📤 Submitting to TestFlight..."
 echo ""
 
 # Submit to TestFlight
-eas submit --platform ios --profile production
+npx eas submit --platform ios --profile production
 
 echo ""
 echo "🎉 Submission complete!"

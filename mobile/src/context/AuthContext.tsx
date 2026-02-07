@@ -233,6 +233,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         attemptNavigation();
       }
 
+      // If it's a new match, navigate to that match
+      if (data?.type === 'new_match' && data?.matchId) {
+        console.log('🎉 Navigating to match from notification tap:', data.matchId);
+        const attemptNavigation = (attemptNumber: number = 0) => {
+          const maxAttempts = 10;
+          if (navigationRef.current?.isReady()) {
+            try {
+              navigationRef.current.navigate('MainTabs', {
+                screen: 'Matches',
+                params: { matchId: data.matchId },
+              });
+              console.log('✅ Navigated to match from notification tap');
+            } catch (error) {
+              console.error('❌ Error navigating to match:', error);
+            }
+          } else if (attemptNumber < maxAttempts) {
+            setTimeout(() => attemptNavigation(attemptNumber + 1), 500);
+          }
+        };
+        attemptNavigation();
+      }
+
       // If it's a message or date plan notification, navigate to that match
       if (data?.type === 'new_message' && data?.matchId) {
         console.log('💬 Navigating to match:', data.matchId);

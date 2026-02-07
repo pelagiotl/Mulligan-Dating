@@ -93,14 +93,14 @@ export default function DateBlueprint({ matchId, socket, currentUserId }: DateBl
   useEffect(() => {
     if (!socket) return;
 
-    const handlePlanGenerated = (data: { matchId: string; plan: DatePlan }) => {
-      if (data.matchId === matchId) {
+    const handlePlanGenerated = (data: { matchId?: string; plan?: DatePlan }) => {
+      if (data?.matchId === matchId && data?.plan && typeof data.plan === 'object' && 'id' in data.plan) {
         setPlan(data.plan);
       }
     };
 
-    const handlePlanUpdated = (data: { matchId: string; plan: DatePlan }) => {
-      if (data.matchId === matchId) {
+    const handlePlanUpdated = (data: { matchId?: string; plan?: DatePlan }) => {
+      if (data?.matchId === matchId && data?.plan && typeof data.plan === 'object' && 'id' in data.plan) {
         setPlan(data.plan);
       }
     };
@@ -312,10 +312,10 @@ export default function DateBlueprint({ matchId, socket, currentUserId }: DateBl
     );
   }
 
-  const isAccepted = plan.user1Accepted && plan.user2Accepted;
-  const userAccepted = plan.suggestedBy === currentUserId
-    ? (plan.user1Accepted || plan.user2Accepted)
-    : (plan.suggestedBy !== currentUserId ? (plan.user1Accepted || plan.user2Accepted) : false);
+  const isAccepted = plan?.user1Accepted && plan?.user2Accepted;
+  const userAccepted = plan?.suggestedBy === currentUserId
+    ? (plan?.user1Accepted || plan?.user2Accepted)
+    : (plan?.suggestedBy !== currentUserId ? (plan?.user1Accepted || plan?.user2Accepted) : false);
 
   // Always show compact preview, modal shows full details
   return (
@@ -342,10 +342,10 @@ export default function DateBlueprint({ matchId, socket, currentUserId }: DateBl
           <View style={styles.compactContent}>
             <Text style={styles.compactEmoji}>📅</Text>
             <View style={styles.compactTextContainer}>
-              <Text style={styles.compactTitle} numberOfLines={1}>{plan.title}</Text>
-              <Text style={styles.compactDescription} numberOfLines={1}>{plan.description}</Text>
-              {plan.venueName && (
-                <Text style={styles.compactVenue} numberOfLines={1}>📍 {plan.venueName}</Text>
+              <Text style={styles.compactTitle} numberOfLines={1}>{plan?.title ?? 'Date Plan'}</Text>
+              <Text style={styles.compactDescription} numberOfLines={1}>{plan?.description ?? ''}</Text>
+              {plan?.venueName && (
+                <Text style={styles.compactVenue} numberOfLines={1}>📍 {plan?.venueName}</Text>
               )}
             </View>
             <Text style={styles.expandIcon}>▶</Text>

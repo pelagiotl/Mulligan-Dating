@@ -1652,7 +1652,13 @@ export default function BrowseScreen() {
                 if (Platform.OS === 'ios') Vibration.vibrate([0, 30]);
                 else Vibration.vibrate(30);
                 performClaimRef.current?.({
-                  onSuccess: checkCanClaimTokens,
+                  onSuccess: () => {
+                    checkCanClaimTokens();
+                    // Reset to landing page so user can tap Connect and get a new profile
+                    setBrowseUnlocked(false);
+                    setCurrentProfile(null);
+                    setHasMore(true);
+                  },
                   successMessage: "Congrats! You've been officially reupped and are ready to start matching! 🎉",
                 });
               }}
@@ -3383,6 +3389,9 @@ const styles = StyleSheet.create({
     paddingRight: 32,
     alignItems: 'flex-end',
     pointerEvents: 'box-none',
+    // Ensure token stays fixed when ScrollView scrolls - overlay is outside scroll
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
   },
   tokenOverlayInner: {
     alignItems: 'flex-end',

@@ -8,7 +8,7 @@ import { NavigationContainerRef } from '@react-navigation/native';
 // Define types here to avoid importing from AppNavigator
 export type RootStackParamList = {
   PhoneLogin: undefined;
-  CreateProfile: undefined;
+  CreateProfile: { startFromBeginning?: boolean; initialStep?: number } | undefined;
   MainTabs: undefined;
   Terms: undefined;
   Privacy: undefined;
