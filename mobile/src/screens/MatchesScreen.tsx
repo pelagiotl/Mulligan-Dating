@@ -1955,17 +1955,52 @@ export default function MatchesScreen() {
     }
   }, [sendingMessage, selectedMatch, isTyping, emitTypingDebounced]);
 
-  // Debounced scroll to end - avoids rapid successive scrolls on content size changes
+  // Scroll to most recent message (bottom of list) - use scrollToIndex for reliable positioning with virtualized FlatList
+  const scrollToLatestMessage = useCallback(() => {
+    if (messages.length === 0) return;
+    const list = messagesEndRef.current;
+    if (!list) return;
+    const lastIndex = messages.length - 1;
+    // scrollToIndex ensures we reach the actual last item; scrollToEnd can be wrong with virtualization
+    list.scrollToIndex({ index: lastIndex, viewPosition: 1, animated: false });
+  }, [messages.length]);
+
+  const scrollToLatestMessageRef = useRef(scrollToLatestMessage);
+  scrollToLatestMessageRef.current = scrollToLatestMessage;
+
   const scrollToEndDebounced = useRef(
     debounce(() => {
       InteractionManager.runAfterInteractions(() => {
-        messagesEndRef.current?.scrollToEnd({ animated: false });
+        scrollToLatestMessageRef.current();
       });
     }, 80)
   ).current;
 
   const scrollToEndOnLayout = useCallback(() => {
-    messagesEndRef.current?.scrollToEnd({ animated: false });
+    scrollToLatestMessageRef.current();
+  }, []);
+
+  // Scroll to most recent message when opening a chat or when messages load - multiple attempts for layout timing
+  useEffect(() => {
+    if (!selectedMatch || messages.length === 0) return;
+    const scroll = () => scrollToLatestMessageRef.current();
+    const t1 = setTimeout(scroll, 0);
+    const t2 = setTimeout(scroll, 100);
+    const t3 = setTimeout(scroll, 350);
+    const t4 = setTimeout(scroll, 600);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+      clearTimeout(t4);
+    };
+  }, [selectedMatch?.id, messages.length]);
+
+  const onScrollToIndexFailed = useCallback((info: { index: number; highestMeasuredFrameIndex: number; averageItemLength: number }) => {
+    // Fallback: scroll to end if scrollToIndex fails (e.g. list not fully laid out)
+    setTimeout(() => {
+      messagesEndRef.current?.scrollToEnd({ animated: false });
+    }, 100);
   }, []);
 
   const onImagePress = useCallback((url: string) => {
@@ -2119,13 +2154,32 @@ export default function MatchesScreen() {
             return next.sort((a, b) => new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime());
           });
         } else {
-          // Message is for a different match - refresh matches list to show unread indicator
-          // Play message sound to notify user (only if message is from another user)
+          // Message is for a different match - show in-app notification (works without push)
           if (message.senderId !== user?.id) {
             playMessageSound().catch(() => {
-              // Non-critical - app works without sound
               console.log('Message sound not available');
             });
+            const senderName = message.senderName || 'Someone';
+            const preview = message.content?.substring(0, 50) || '📷 Photo';
+            const displayPreview = message.content && message.content.length > 50 ? preview + '...' : preview;
+            Alert.alert(
+              '💬 New Message',
+              `${senderName}: ${displayPreview}`,
+              [
+                {
+                  text: 'View',
+                  onPress: () => {
+                    const mid = message.matchId;
+                    if (mid) {
+                      const match = matchesRef.current?.find(m => m.id === mid);
+                      if (match) setSelectedMatch(match);
+                    }
+                    fetchMatches();
+                  },
+                },
+                { text: 'OK', style: 'cancel' },
+              ]
+            );
           }
           console.log('💬 New message received for different match, refreshing matches list');
           fetchMatches();
@@ -3180,6 +3234,7 @@ export default function MatchesScreen() {
           removeClippedSubviews={false}
           onContentSizeChange={scrollToEndDebounced}
           onLayout={scrollToEndOnLayout}
+          onScrollToIndexFailed={onScrollToIndexFailed}
           renderItem={renderMessageItem}
           extraData={messages.length}
           ListFooterComponent={listFooterComponent}

@@ -43,6 +43,10 @@ interface GameState {
   theirSpiceChoice: 'pg13' | 'ratedr' | 'spicy' | null;
   spiceReady: boolean;
   spiceLevel: 'pg13' | 'ratedr' | 'spicy' | null;
+  tokenUnlocked?: boolean;
+  needsSpiceChoiceFromUnlocker?: boolean;
+  currentTurnUserId?: string | null;
+  isYourTurn?: boolean;
 }
 
 interface NeverHaveIEverProps {
@@ -337,14 +341,29 @@ export default function NeverHaveIEver({
               <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#fff" /><Text style={styles.loadingText}>Loading game...</Text></View>
             ) : state?.phase === 'lobby' ? (
               <View style={styles.lobbyContainer}>
-                <Text style={styles.lobbyTitle}>Both pick the same to play</Text>
-                <View style={styles.spiceRow}>
-                  <TouchableOpacity onPress={() => handleSetSpiceChoice('pg13')} style={[styles.spicePill, state.yourSpiceChoice === 'pg13' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, state.yourSpiceChoice === 'pg13' && styles.spicePillTextActive]}>PG-13</Text></TouchableOpacity>
-                  <TouchableOpacity onPress={() => handleSetSpiceChoice('ratedr')} style={[styles.spicePill, state.yourSpiceChoice === 'ratedr' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, state.yourSpiceChoice === 'ratedr' && styles.spicePillTextActive]}>Rated R</Text></TouchableOpacity>
-                  <TouchableOpacity onPress={() => handleSetSpiceChoice('spicy')} style={[styles.spicePill, state.yourSpiceChoice === 'spicy' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, state.yourSpiceChoice === 'spicy' && styles.spicePillTextActive]}>Spicy</Text></TouchableOpacity>
-                </View>
-                {state?.theirSpiceChoice ? <Text style={styles.lobbyHint}>They picked {state.theirSpiceChoice === 'pg13' ? 'PG-13' : state.theirSpiceChoice === 'ratedr' ? 'Rated R' : 'Spicy'}{state.spiceReady ? ' — Match! Ready to play' : ' — pick the same to play'}</Text> : <Text style={styles.lobbyHint}>Waiting for them to pick...</Text>}
-                {state?.spiceReady && <TouchableOpacity onPress={handleStartGame} style={styles.startButton} disabled={submitting} activeOpacity={0.8}><LinearGradient colors={['#00e676', '#00c853']} style={styles.startGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.startButtonText}>Start Game</Text></LinearGradient></TouchableOpacity>}
+                {state?.needsSpiceChoiceFromUnlocker ? (
+                  <>
+                    <Text style={styles.lobbyTitle}>Pick a rating to unlock the game for both of you</Text>
+                    <View style={styles.spiceRow}>
+                      <TouchableOpacity onPress={() => handleSetSpiceChoice('pg13')} style={[styles.spicePill, state.yourSpiceChoice === 'pg13' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, state.yourSpiceChoice === 'pg13' && styles.spicePillTextActive]}>PG-13</Text></TouchableOpacity>
+                      <TouchableOpacity onPress={() => handleSetSpiceChoice('ratedr')} style={[styles.spicePill, state.yourSpiceChoice === 'ratedr' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, state.yourSpiceChoice === 'ratedr' && styles.spicePillTextActive]}>Rated R</Text></TouchableOpacity>
+                      <TouchableOpacity onPress={() => handleSetSpiceChoice('spicy')} style={[styles.spicePill, state.yourSpiceChoice === 'spicy' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, state.yourSpiceChoice === 'spicy' && styles.spicePillTextActive]}>Spicy</Text></TouchableOpacity>
+                    </View>
+                  </>
+                ) : state?.tokenUnlocked && !state?.spiceReady ? (
+                  <Text style={styles.lobbyHint}>Waiting for them to set the rating...</Text>
+                ) : (
+                  <>
+                    <Text style={styles.lobbyTitle}>Both pick the same to play</Text>
+                    <View style={styles.spiceRow}>
+                      <TouchableOpacity onPress={() => handleSetSpiceChoice('pg13')} style={[styles.spicePill, state.yourSpiceChoice === 'pg13' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, state.yourSpiceChoice === 'pg13' && styles.spicePillTextActive]}>PG-13</Text></TouchableOpacity>
+                      <TouchableOpacity onPress={() => handleSetSpiceChoice('ratedr')} style={[styles.spicePill, state.yourSpiceChoice === 'ratedr' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, state.yourSpiceChoice === 'ratedr' && styles.spicePillTextActive]}>Rated R</Text></TouchableOpacity>
+                      <TouchableOpacity onPress={() => handleSetSpiceChoice('spicy')} style={[styles.spicePill, state.yourSpiceChoice === 'spicy' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, state.yourSpiceChoice === 'spicy' && styles.spicePillTextActive]}>Spicy</Text></TouchableOpacity>
+                    </View>
+                    {state?.theirSpiceChoice ? <Text style={styles.lobbyHint}>They picked {state.theirSpiceChoice === 'pg13' ? 'PG-13' : state.theirSpiceChoice === 'ratedr' ? 'Rated R' : 'Spicy'}{state.spiceReady ? ' — Match! Ready to play' : ' — pick the same to play'}</Text> : <Text style={styles.lobbyHint}>Waiting for them to pick...</Text>}
+                    {state?.spiceReady && <TouchableOpacity onPress={handleStartGame} style={styles.startButton} disabled={submitting} activeOpacity={0.8}><LinearGradient colors={['#00e676', '#00c853']} style={styles.startGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.startButtonText}>Start Game</Text></LinearGradient></TouchableOpacity>}
+                  </>
+                )}
               </View>
             ) : state?.gameOver ? (
               <View style={styles.gameOverContainer}>
@@ -362,7 +381,23 @@ export default function NeverHaveIEver({
                   <View style={styles.scoreBox}><Text style={styles.scoreLabel}>Them</Text><Text style={[styles.strikesText, state.theirStrikes >= 8 && styles.strikesWarning]}>{state.theirStrikes}/{STRIKES_TO_LOSE}</Text><Text style={styles.strikesSub}>strikes</Text></View>
                 </View>
                 <View style={styles.promptCard}><Text style={styles.promptText}>{state.prompt}</Text></View>
-                {state.bothAnswered ? (
+                {state.tokenUnlocked && state.currentTurnUserId ? (
+                  state.isYourTurn ? (
+                    <View style={styles.answerRow}>
+                      <TouchableOpacity onPress={() => handleAnswer('have')} style={styles.answerButton} disabled={submitting} activeOpacity={0.8}>
+                        <LinearGradient colors={['#e74c3c', '#c0392b']} style={styles.answerGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.answerButtonText}>I have</Text></LinearGradient>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => handleAnswer('havent')} style={styles.answerButton} disabled={submitting} activeOpacity={0.8}>
+                        <LinearGradient colors={['#27ae60', '#2ecc71']} style={styles.answerGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.answerButtonText}>I haven't</Text></LinearGradient>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <View style={styles.waitingContainer}>
+                      <ActivityIndicator size="small" color="#fff" />
+                      <Text style={styles.waitingText}>Waiting for them to answer...</Text>
+                    </View>
+                  )
+                ) : state.bothAnswered ? (
                   <View style={styles.resultsContainer}>
                     <View style={styles.resultRow}><Text style={styles.resultLabel}>You:</Text><Text style={[styles.resultValue, state.yourAnswer === 'have' && styles.strikeText]}>{state.yourAnswer === 'have' ? "I have ✗" : "I haven't ✓"}</Text></View>
                     <View style={styles.resultRow}><Text style={styles.resultLabel}>Them:</Text><Text style={[styles.resultValue, state.theirAnswer === 'have' && styles.strikeText]}>{state.theirAnswer === 'have' ? "I have ✗" : "I haven't ✓"}</Text></View>
