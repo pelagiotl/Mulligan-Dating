@@ -213,7 +213,9 @@ app.use((req, res, next) => {
   next();
 });
 
-// Health check for Render / load balancers (GET and HEAD /)
+// Health check for Render / load balancers (no auth, no rate limit)
+// Use https://your-app.onrender.com/health for Render's health check path
+app.get("/health", (req, res) => res.status(200).json({ ok: true, service: "Mulligan API", timestamp: new Date().toISOString() }));
 app.get("/", (req, res) => res.status(200).json({ ok: true, service: "Mulligan API" }));
 app.head("/", (req, res) => res.status(200).end());
 

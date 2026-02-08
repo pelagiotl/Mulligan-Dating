@@ -611,6 +611,29 @@ function calculateLookingForMatch(
  * Generate weekly matches for a user based on mutual preferences
  * IMPROVED VERSION with dealbreakers, partner qualities, interests, and real geocoding
  */
+/**
+ * Calculate profile-based compatibility score for an existing match (0-100)
+ * Based on interests, partner qualities, looking for, lifestyle. Dealbreakers = 0.
+ */
+export async function calculateProfileCompatibilityScore(
+  userProfileId: string,
+  otherProfileId: string
+): Promise<number> {
+  // Dealbreakers: if either has dealbreakers violated, return 0
+  const dealbreakersPass = await checkDealbreakersUtil(userProfileId, otherProfileId);
+  if (!dealbreakersPass) return 0;
+
+  const interestsScore = calculateInterestsOverlap(userProfileId, otherProfileId);
+  const qualitiesScore = calculatePartnerQualitiesMatch(userProfileId, otherProfileId);
+  const lookingForScore = calculateLookingForMatch(userProfileId, otherProfileId);
+  const lifestyleScore = calculateLifestyleMatch(userProfileId, otherProfileId);
+
+  // Weighted average (same relative weights as matching: interests 30%, qualities 40%, looking for 20%, lifestyle 30%)
+  // Normalize each from 0-10 to 0-100 and combine
+  const total = (interestsScore * 3 + qualitiesScore * 4 + lookingForScore * 2 + lifestyleScore * 3) / 12;
+  return Math.round(Math.min(100, Math.max(0, total * 10)));
+}
+
 export async function generateWeeklyMatches(userId: string): Promise<{
   matchesCreated: number;
   matches: string[];

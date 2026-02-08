@@ -165,7 +165,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             {
               text: 'View',
               onPress: () => {
-                // Navigate to the match if matchId is available
+                // Navigate to the match if matchId is available (show MatchCelebration for User B)
                 if (data?.matchId) {
                   const attemptNavigation = (attemptNumber: number = 0) => {
                     const maxAttempts = 10; // Try for up to 5 seconds (10 attempts * 500ms)
@@ -174,7 +174,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                       try {
                         navigationRef.current.navigate('MainTabs', {
                           screen: 'Matches',
-                          params: { matchId: data.matchId },
+                          params: {
+                            matchId: data.matchId,
+                            showMatchCelebration: true,
+                            matchName: data.matchName || 'Someone',
+                          },
                         });
                         console.log('✅ Navigated to match from in-app notification');
                       } catch (error) {
@@ -233,7 +237,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         attemptNavigation();
       }
 
-      // If it's a new match, navigate to that match
+      // If it's a new match, navigate to that match and show MatchCelebration for User B
       if (data?.type === 'new_match' && data?.matchId) {
         console.log('🎉 Navigating to match from notification tap:', data.matchId);
         const attemptNavigation = (attemptNumber: number = 0) => {
@@ -242,7 +246,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             try {
               navigationRef.current.navigate('MainTabs', {
                 screen: 'Matches',
-                params: { matchId: data.matchId },
+                params: {
+                  matchId: data.matchId,
+                  showMatchCelebration: true,
+                  matchName: data.matchName || 'Someone',
+                },
               });
               console.log('✅ Navigated to match from notification tap');
             } catch (error) {

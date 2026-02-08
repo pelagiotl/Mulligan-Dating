@@ -62,7 +62,24 @@ export function initializeSocket(server: HTTPServer) {
     // Join user's personal room for notifications
     socket.join(`user:${userId}`);
 
-    // Join match rooms for real-time messaging
+    // Auto-join all active match rooms so user receives new_message for any match (in-app notification)
+    try {
+      const matches = db
+        .prepare(
+          `SELECT id FROM matches WHERE (user1_id = ? OR user2_id = ?) AND stage IN ('stage1', 'stage2')`
+        )
+        .all(userId, userId) as Array<{ id: string }>;
+      for (const m of matches) {
+        socket.join(`match:${m.id}`);
+      }
+      if (matches.length > 0) {
+        console.log(`✅ User ${userId} joined ${matches.length} match room(s)`);
+      }
+    } catch (err) {
+      console.warn('⚠️ Failed to auto-join match rooms:', err);
+    }
+
+    // Join match room (when user selects a chat - keeps typing/leave_match working)
     socket.on('join_match', (matchId: string) => {
       // Verify user is part of this match
       const match = db

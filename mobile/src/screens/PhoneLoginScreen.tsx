@@ -531,102 +531,128 @@ const AnimatedLogo = memo(function AnimatedLogo() {
   );
 });
 
+// Extract digits from string - minimal logic for fast validation
+function extractDigitsFast(value: string): string {
+  let digits = '';
+  for (let i = 0; i < value.length; i++) {
+    const c = value.charCodeAt(i);
+    if (c >= 48 && c <= 57) digits += value[i];
+  }
+  return digits;
+}
+
+function formatPhoneFast(value: string): string {
+  const digits = extractDigitsFast(value);
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
+}
+
+// Lightweight form - local state only, so keystrokes don't trigger parent (AnimatedLogo) re-renders.
+// This makes the "Send Verification Code" button enable immediately when the 10th digit is typed.
+const PhoneForm = memo(function PhoneForm({
+  loading,
+  error,
+  onSubmit,
+}: {
+  loading: boolean;
+  error: string;
+  onSubmit: (phoneNumber: string, referralCode: string) => void;
+}) {
+  const [phoneValue, setPhoneValue] = useState('');
+  const [referralCode, setReferralCode] = useState('');
+  const [showReferral, setShowReferral] = useState(false);
+
+  const digits = extractDigitsFast(phoneValue);
+  const isValid = digits.length >= 10;
+
+  const handleChange = useCallback((text: string) => {
+    setPhoneValue(formatPhoneFast(text));
+  }, []);
+
+  const handleSubmit = useCallback(() => {
+    if (!isValid || loading) return;
+    onSubmit(digits, referralCode.trim());
+  }, [isValid, loading, digits, referralCode, onSubmit]);
+
+  return (
+    <View style={styles.card}>
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+      <View style={styles.formGroup}>
+        <Text style={styles.label}>Phone Number</Text>
+        <View style={styles.inputWrapper}>
+          <Text style={styles.inputIcon}>📱</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="(555) 123-4567"
+            placeholderTextColor="#999"
+            value={phoneValue}
+            onChangeText={handleChange}
+            keyboardType="phone-pad"
+            maxLength={14}
+            editable={!loading}
+            returnKeyType="send"
+            onSubmitEditing={handleSubmit}
+            blurOnSubmit={false}
+          />
+        </View>
+      </View>
+      {showReferral ? (
+        <View style={styles.formGroup}>
+          <Text style={styles.label}>Referral Code (Optional)</Text>
+          <View style={styles.inputWrapper}>
+            <Text style={styles.inputIcon}>🎁</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="REF123"
+              placeholderTextColor="#999"
+              value={referralCode}
+              onChangeText={(t) => setReferralCode(t.toUpperCase())}
+              editable={!loading}
+            />
+          </View>
+        </View>
+      ) : (
+        <TouchableOpacity onPress={() => setShowReferral(true)} style={{ paddingVertical: 8 }}>
+          <Text style={{ color: '#667eea', fontSize: 14 }}>Have a referral code?</Text>
+        </TouchableOpacity>
+      )}
+      <TouchableOpacity
+        style={[styles.button, styles.primaryButton, (loading || !isValid) && styles.buttonDisabled]}
+        onPress={handleSubmit}
+        disabled={loading || !isValid}
+      >
+        {loading ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.buttonText}>Send Verification Code</Text>
+        )}
+      </TouchableOpacity>
+      <Text style={styles.footer}>
+        By continuing, you agree to our Terms of Service and Privacy Policy
+      </Text>
+    </View>
+  );
+});
+
 export default function PhoneLoginScreen() {
-  // Combine phone number and validation into single state to reduce re-renders
-  const [phoneState, setPhoneState] = useState({ value: '', isValid: false });
+  const [submittedPhone, setSubmittedPhone] = useState('');
+  const [submittedReferral, setSubmittedReferral] = useState('');
   const [code, setCode] = useState('');
   const [step, setStep] = useState<'phone' | 'verify'>('phone');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
-  const [referralCode, setReferralCode] = useState('');
   const codeInputRef = useRef<TextInput>(null);
   const navigation = useNavigation();
   const { phoneLogin } = useAuth();
-  
-  // Aliases for easier access
-  const phoneNumber = phoneState.value;
-  const isValidPhoneNumber = phoneState.isValid;
 
-  // Post-verify navigation is handled only in handleVerifySubmitWithCode using hasProfile from API.
-  // We avoid a redirect effect here so we don't race with verify flow and send existing users to CreateProfile.
-
-  // Ultra-fast digit extraction - count digits directly from input
-  const extractDigits = useCallback((value: string) => {
-    let digits = '';
-    for (let i = 0; i < value.length; i++) {
-      const code = value.charCodeAt(i);
-      if (code >= 48 && code <= 57) {
-        digits += value[i];
-      }
-    }
-    return digits;
-  }, []);
-
-  // Ultra-fast format function - optimized for minimal string operations
-  const formatPhoneInput = useCallback((value: string) => {
-    // Fast path: if already formatted correctly, return as-is
-    if (value.length === 14 && value[0] === '(' && value[4] === ')' && value[9] === '-') {
-      return value;
-    }
-    
-    // Extract digits using optimized function
-    const digits = extractDigits(value);
-    
-    // Format as (XXX) XXX-XXXX - optimized string building
-    if (digits.length <= 3) {
-      return digits;
-    } else if (digits.length <= 6) {
-      return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
-    } else {
-      return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
-    }
-  }, [extractDigits]);
-
-  // Ultra-fast validation function - optimized for immediate calculation
-  const calculateValidation = useCallback((formatted: string) => {
-    // Fastest path: complete formatted number is exactly 14 chars
-    if (formatted.length === 14) {
-      return true;
-    }
-    // For partial input, count digits efficiently
-    // Stop counting once we reach 10 digits (early exit optimization)
-    let digitCount = 0;
-    const len = formatted.length;
-    for (let i = 0; i < len; i++) {
-      const code = formatted.charCodeAt(i);
-      // Check if digit (48-57 are '0'-'9') - faster than string comparison
-      if (code >= 48 && code <= 57) {
-        digitCount++;
-        if (digitCount >= 10) return true; // Early exit
-      }
-    }
-    return false;
-  }, []);
-  
-  // Ultra-optimized onChange handler - single state update for minimal re-renders
-  // Validation calculated from raw input BEFORE formatting for instant button update
-  const handlePhoneNumberChange = useCallback((text: string) => {
-    // Extract digits FIRST for instant validation (no formatting delay)
-    const digits = extractDigits(text);
-    const isValid = digits.length >= 10;
-    
-    // Format phone number
-    const formatted = formatPhoneInput(text);
-    
-    // Single state update - React batches this, but it's still one update
-    // This reduces the number of re-renders compared to two separate updates
-    setPhoneState({ value: formatted, isValid });
-  }, [extractDigits, formatPhoneInput]);
-
-  const handlePhoneSubmit = async () => {
-    console.log('📱 handlePhoneSubmit called with phoneNumber:', phoneNumber);
+  const handlePhoneSubmit = useCallback(async (cleanPhoneNumber: string, referralCode: string) => {
+    console.log('📱 handlePhoneSubmit called with phoneNumber:', cleanPhoneNumber);
     setError('');
     setLoading(true);
 
     try {
-      // Clean phone number to just digits for API
-      const cleanPhoneNumber = extractDigits(phoneNumber);
       console.log('📱 Calling /sms/send-code with cleanPhoneNumber:', cleanPhoneNumber);
       const response = await api.post<{ message: string; phoneNumber: string; code?: string; smsSent: boolean }>('/sms/send-code', {
         phoneNumber: cleanPhoneNumber
@@ -644,6 +670,8 @@ export default function PhoneLoginScreen() {
         setError('SMS delivery may have failed. Check the alert above for your verification code.');
       }
 
+      setSubmittedPhone(cleanPhoneNumber);
+      setSubmittedReferral(referralCode);
       setStep('verify');
       setLoading(false);
     } catch (err: any) {
@@ -657,7 +685,7 @@ export default function PhoneLoginScreen() {
       setError(errorMsg);
       setLoading(false);
     }
-  };
+  }, []);
 
   const handleVerifySubmit = async () => {
     // Use current code state
@@ -676,9 +704,7 @@ export default function PhoneLoginScreen() {
     setLoading(true);
 
     try {
-      // Clean phone number to just digits for API
-      const cleanPhoneNumber = extractDigits(phoneNumber);
-      const { hasProfile } = await phoneLogin(cleanPhoneNumber, codeToUse, referralCode || undefined);
+      const { hasProfile } = await phoneLogin(submittedPhone, codeToUse, submittedReferral || undefined);
       
       // Use verify-code API hasProfile as source of truth. Don't rely on auth context here:
       // profile state may not have updated yet, and other effects must not override this navigation.
@@ -707,6 +733,20 @@ export default function PhoneLoginScreen() {
       }
     }
   };
+
+  const handleResendCode = useCallback(async () => {
+    setError('');
+    setResendLoading(true);
+    try {
+      await api.post('/sms/send-code', { phoneNumber: submittedPhone });
+      setError('');
+    } catch (err: any) {
+      const errorMsg = err?.response?.data?.error || err?.message || 'Failed to resend verification code';
+      setError(errorMsg);
+    } finally {
+      setResendLoading(false);
+    }
+  }, [submittedPhone]);
 
   // Auto-focus code input when step changes to verify
   useEffect(() => {
@@ -763,67 +803,7 @@ export default function PhoneLoginScreen() {
             <Text style={styles.subtitle}>Enter your phone number to get started</Text>
           </View>
 
-          <View style={styles.card}>
-            {error ? <Text style={styles.error}>{error}</Text> : null}
-            
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>Phone Number</Text>
-              <View style={styles.inputWrapper}>
-                <Text style={styles.inputIcon}>📱</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="(555) 123-4567"
-                  placeholderTextColor="#999"
-                  value={phoneNumber}
-                  onChangeText={handlePhoneNumberChange}
-                  keyboardType="phone-pad"
-                  maxLength={14}
-                  editable={!loading}
-                  returnKeyType="send"
-                  onSubmitEditing={() => {
-                    // Only submit if phone number is valid
-                    if (isValidPhoneNumber && !loading) {
-                      handlePhoneSubmit();
-                    }
-                  }}
-                  blurOnSubmit={false}
-                />
-              </View>
-            </View>
-
-            {referralCode ? (
-              <View style={styles.formGroup}>
-                <Text style={styles.label}>Referral Code (Optional)</Text>
-                <View style={styles.inputWrapper}>
-                  <Text style={styles.inputIcon}>🎁</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="REF123"
-                    placeholderTextColor="#999"
-                    value={referralCode}
-                    onChangeText={(text) => setReferralCode(text.toUpperCase())}
-                    editable={!loading}
-                  />
-                </View>
-              </View>
-            ) : null}
-
-            <TouchableOpacity
-              style={[styles.button, styles.primaryButton, (loading || !isValidPhoneNumber) && styles.buttonDisabled]}
-              onPress={handlePhoneSubmit}
-              disabled={loading || !isValidPhoneNumber}
-            >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.buttonText}>Send Verification Code</Text>
-              )}
-            </TouchableOpacity>
-
-            <Text style={styles.footer}>
-              By continuing, you agree to our Terms of Service and Privacy Policy
-            </Text>
-          </View>
+          <PhoneForm loading={loading} error={error} onSubmit={handlePhoneSubmit} />
           </ScrollView>
         </KeyboardAvoidingView>
       </View>
@@ -858,7 +838,7 @@ export default function PhoneLoginScreen() {
         <View style={styles.header}>
           <AnimatedLogo />
           <Text style={styles.title}>Verify Your Phone</Text>
-          <Text style={styles.subtitle}>We sent a 6-digit code to {phoneNumber}</Text>
+          <Text style={styles.subtitle}>We sent a 6-digit code to {formatPhoneFast(submittedPhone)}</Text>
         </View>
 
         <View style={styles.card}>

@@ -2,7 +2,7 @@ import { Router } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { db } from "../database.js";
 import { authenticateToken, AuthRequest } from "../middleware/auth.js";
-import { generateWeeklyMatches, generateMatchExplanation } from "../services/matching.js";
+import { generateWeeklyMatches, generateMatchExplanation, calculateProfileCompatibilityScore } from "../services/matching.js";
 import { recordSuccessSignal } from "../utils/successTracking.js";
 import { rateLimitAPI } from "../middleware/security.js";
 import { uploadChatImage } from "../middleware/upload.js";
@@ -997,16 +997,23 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
             ? (sanitizedContent ? sanitizedContent.substring(0, 50) + (sanitizedContent.length > 50 ? '...' : '') : '📷 Photo')
             : (sanitizedContent.length > 50 ? sanitizedContent.substring(0, 50) + '...' : sanitizedContent);
           
-          await sendMessagePushNotification(
+          const pushSent = await sendMessagePushNotification(
             otherUserPushTokenResult.push_token,
             senderName,
             messagePreview,
             matchId,
             userId
           );
-          console.log(`✅ Sent push notification for new message to user ${otherUserId}`);
+          if (pushSent) {
+            console.log(`✅ Sent push notification for new message to user ${otherUserId}`);
+          } else {
+            console.warn(`⚠️  Push notification failed for user ${otherUserId} (check expo-server-sdk and token validity)`);
+          }
         } else {
-          console.log(`ℹ️  No valid push token for user ${otherUserId}, skipping push notification`);
+          const reason = !otherUserPushTokenResult?.push_token
+            ? 'no push token (User B needs TestFlight build, not Expo Go)'
+            : 'invalid Expo push token format';
+          console.log(`ℹ️  Skipping push for user ${otherUserId}: ${reason}`);
         }
       }
     } catch (pushError) {
@@ -1277,6 +1284,33 @@ matchesRouter.get("/:matchId/compatibility", authenticateToken, async (req: Auth
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error("Compatibility score error:", error);
     res.status(500).json({ error: `Failed to get compatibility score: ${errorMessage}` });
+  }
+});
+
+// Get profile-based compatibility (interests, dealbreakers, looking for, etc.)
+matchesRouter.get("/:matchId/profile-compatibility", authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { matchId } = req.params;
+
+    const matchResult = db
+      .prepare('SELECT user1_id, user2_id FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?)')
+      .get([matchId, userId, userId]);
+    const match = (matchResult instanceof Promise ? await matchResult : matchResult) as { user1_id: string; user2_id: string } | undefined;
+    if (!match) return res.status(404).json({ error: "Match not found" });
+
+    const profileResult1 = db.prepare('SELECT id FROM profiles WHERE user_id = ?').get(match.user1_id);
+    const profileResult2 = db.prepare('SELECT id FROM profiles WHERE user_id = ?').get(match.user2_id);
+    const p1 = (profileResult1 instanceof Promise ? await profileResult1 : profileResult1) as { id: string } | undefined;
+    const p2 = (profileResult2 instanceof Promise ? await profileResult2 : profileResult2) as { id: string } | undefined;
+    if (!p1 || !p2) return res.json({ profileCompatibility: 50 });
+
+    const profileCompatibility = await calculateProfileCompatibilityScore(p1.id, p2.id);
+    res.json({ profileCompatibility });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Profile compatibility error:", error);
+    res.status(500).json({ error: `Failed to get profile compatibility: ${errorMessage}` });
   }
 });
 
@@ -1591,6 +1625,12 @@ matchesRouter.get("/:matchId/truth-or-dare/state", authenticateToken, async (req
     }
 
     const isUser1 = match.user1_id === userId;
+    const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
+
+    // Check if token-unlocked (User A unlocks, User A picks rating alone, User B goes first)
+    const unlockRow = db.prepare('SELECT unlocked_by_user_id FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'truth_or_dare']) as { unlocked_by_user_id: string } | undefined;
+    const tokenUnlocked = !!unlockRow;
+    const unlockedByUserId = unlockRow?.unlocked_by_user_id ?? null;
 
     // Get or create game state
     let gameResult = db.prepare('SELECT * FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
@@ -1598,18 +1638,38 @@ matchesRouter.get("/:matchId/truth-or-dare/state", authenticateToken, async (req
 
     if (!game) {
       db.prepare(`INSERT INTO truth_or_dare_games (match_id) VALUES (?)`).run([matchId]);
-      game = { match_id: matchId, user1_spice_choice: null, user2_spice_choice: null, spice_level: null };
+      game = { match_id: matchId, user1_spice_choice: null, user2_spice_choice: null, spice_level: null, current_turn_user_id: null };
     }
 
     const yourSpiceChoice = isUser1 ? game.user1_spice_choice : game.user2_spice_choice;
     const theirSpiceChoice = isUser1 ? game.user2_spice_choice : game.user1_spice_choice;
-    const spiceReady = yourSpiceChoice && theirSpiceChoice && yourSpiceChoice === theirSpiceChoice;
+    const bothPicked = yourSpiceChoice && theirSpiceChoice;
+    const spiceMatched = bothPicked && yourSpiceChoice === theirSpiceChoice;
+
+    // Token-unlocked: only unlocker picks rating, game ready when spice set, User B (non-unlocker) goes first
+    const spiceReady = tokenUnlocked
+      ? !!game.spice_level
+      : spiceMatched;
+
+    const isUnlocker = tokenUnlocked && unlockedByUserId === userId;
+    const needsSpiceChoiceFromUnlocker = tokenUnlocked && !game.spice_level && isUnlocker;
+    const currentTurnUserId = game.current_turn_user_id ?? (tokenUnlocked && game.spice_level ? otherUserId : null);
+    const isYourTurn = !!currentTurnUserId && currentTurnUserId === userId;
+    const currentPrompt = game.current_prompt ?? null;
+    const currentPromptType = (game.current_prompt_type === 'truth' || game.current_prompt_type === 'dare') ? game.current_prompt_type : null;
 
     res.json({
       yourSpiceChoice,
       theirSpiceChoice,
       spiceReady,
       spiceLevel: game.spice_level,
+      tokenUnlocked: !!tokenUnlocked,
+      unlockedByUserId,
+      needsSpiceChoiceFromUnlocker: !!needsSpiceChoiceFromUnlocker,
+      currentTurnUserId,
+      isYourTurn: !!isYourTurn,
+      currentPrompt,
+      currentPromptType,
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -1640,17 +1700,36 @@ matchesRouter.post("/:matchId/truth-or-dare/spice-choice", authenticateToken, ra
       return res.status(404).json({ error: "Match not found" });
     }
 
+    const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
     const isUser1 = match.user1_id === userId;
     const column = isUser1 ? 'user1_spice_choice' : 'user2_spice_choice';
 
-    // Upsert game state
-    const existingResult = db.prepare('SELECT match_id FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
-    const existing = existingResult instanceof Promise ? await existingResult : existingResult;
+    // Check if token-unlocked: unlocker alone sets spice, User B (non-unlocker) goes first
+    const unlockRow = db.prepare('SELECT unlocked_by_user_id FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'truth_or_dare']) as { unlocked_by_user_id: string } | undefined;
+    const isTokenUnlocked = !!unlockRow;
+    const isUnlocker = unlockRow?.unlocked_by_user_id === userId;
 
-    if (!existing) {
-      db.prepare(`INSERT INTO truth_or_dare_games (match_id, ${column}) VALUES (?, ?)`).run([matchId, choice]);
+    if (isTokenUnlocked) {
+      if (!isUnlocker) {
+        return res.status(400).json({ error: "Only the person who unlocked can set the rating." });
+      }
+      // Unlocker picks rating → set spice_level and current_turn = other user (User B goes first)
+      const existingResult = db.prepare('SELECT match_id FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
+      const existing = existingResult instanceof Promise ? await existingResult : existingResult;
+      if (!existing) {
+        db.prepare(`INSERT INTO truth_or_dare_games (match_id, spice_level, current_turn_user_id) VALUES (?, ?, ?)`).run([matchId, choice, otherUserId]);
+      } else {
+        db.prepare(`UPDATE truth_or_dare_games SET spice_level = ?, current_turn_user_id = ?, current_prompt = NULL, current_prompt_type = NULL, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?`).run([choice, otherUserId, matchId]);
+      }
     } else {
-      db.prepare(`UPDATE truth_or_dare_games SET ${column} = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?`).run([choice, matchId]);
+      // Message-unlocked: both pick, must match
+      const existingResult = db.prepare('SELECT match_id FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
+      const existing = existingResult instanceof Promise ? await existingResult : existingResult;
+      if (!existing) {
+        db.prepare(`INSERT INTO truth_or_dare_games (match_id, ${column}) VALUES (?, ?)`).run([matchId, choice]);
+      } else {
+        db.prepare(`UPDATE truth_or_dare_games SET ${column} = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?`).run([choice, matchId]);
+      }
     }
 
     // Get updated state
@@ -1659,11 +1738,15 @@ matchesRouter.post("/:matchId/truth-or-dare/spice-choice", authenticateToken, ra
 
     const yourSpiceChoice = isUser1 ? game.user1_spice_choice : game.user2_spice_choice;
     const theirSpiceChoice = isUser1 ? game.user2_spice_choice : game.user1_spice_choice;
-    const spiceReady = yourSpiceChoice && theirSpiceChoice && yourSpiceChoice === theirSpiceChoice;
+    const bothPicked = yourSpiceChoice && theirSpiceChoice;
+    const spiceMatched = bothPicked && yourSpiceChoice === theirSpiceChoice;
+    const spiceReady = isTokenUnlocked ? !!game.spice_level : spiceMatched;
 
-    // If both matched, set the spice level
-    if (spiceReady && !game.spice_level) {
+    if (!isTokenUnlocked && spiceMatched && !game.spice_level) {
       db.prepare('UPDATE truth_or_dare_games SET spice_level = ? WHERE match_id = ?').run([yourSpiceChoice, matchId]);
+    }
+    if (!isTokenUnlocked && bothPicked && !spiceMatched) {
+      db.prepare('UPDATE truth_or_dare_games SET spice_level = NULL, current_prompt = NULL, current_prompt_type = NULL WHERE match_id = ?').run([matchId]);
     }
 
     // Emit socket event to notify other user
@@ -1677,11 +1760,19 @@ matchesRouter.post("/:matchId/truth-or-dare/spice-choice", authenticateToken, ra
       console.warn('Socket emit failed:', e);
     }
 
+    const currentTurnUserId = game.current_turn_user_id ?? (spiceReady && !isTokenUnlocked ? null : otherUserId);
+    const isYourTurn = !!currentTurnUserId && currentTurnUserId === userId;
+
+    const unlockedByUserId = unlockRow?.unlocked_by_user_id ?? null;
     res.json({
-      yourSpiceChoice,
-      theirSpiceChoice,
+      yourSpiceChoice: isTokenUnlocked ? choice : yourSpiceChoice,
+      theirSpiceChoice: isTokenUnlocked ? null : theirSpiceChoice,
       spiceReady,
-      spiceLevel: spiceReady ? yourSpiceChoice : null,
+      spiceLevel: spiceReady ? (game.spice_level || choice) : null,
+      tokenUnlocked: isTokenUnlocked,
+      unlockedByUserId,
+      currentTurnUserId: spiceReady ? (game.current_turn_user_id ?? otherUserId) : null,
+      isYourTurn: !!spiceReady && isYourTurn,
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -1712,14 +1803,37 @@ matchesRouter.post("/:matchId/truth-or-dare", authenticateToken, rateLimitAPI, a
       return res.status(404).json({ error: "Match not found" });
     }
 
-    // Get agreed spice level from game state
-    const gameResult = db.prepare('SELECT spice_level FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
-    const game = (gameResult instanceof Promise ? await gameResult : gameResult) as { spice_level: string | null } | undefined;
-    
-    const level = (game?.spice_level === 'ratedr' ? 'ratedr' : game?.spice_level === 'spicy' ? 'spicy' : 'pg13') as 'pg13' | 'ratedr' | 'spicy';
+    const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
+
+    // Get game state
+    const gameResult = db.prepare('SELECT * FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
+    const game = (gameResult instanceof Promise ? await gameResult : gameResult) as { spice_level: string | null; current_turn_user_id: string | null } | undefined;
+
+    if (!game?.spice_level) {
+      return res.status(400).json({ error: "Game not ready. Set spice level first." });
+    }
+
+    // Token-unlocked: enforce turn order (User B goes first, then alternate)
+    const unlockRow = db.prepare('SELECT 1 FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'truth_or_dare']) as { 1?: number } | undefined;
+    if (unlockRow && game.current_turn_user_id && game.current_turn_user_id !== userId) {
+      return res.status(400).json({ error: "Not your turn. Wait for them to pick." });
+    }
+
+    const level = (game.spice_level === 'ratedr' ? 'ratedr' : game.spice_level === 'spicy' ? 'spicy' : 'pg13') as 'pg13' | 'ratedr' | 'spicy';
 
     const { generateTruthOrDarePrompt } = await import('../services/truthOrDare.js');
     const { prompt, fromAI } = await generateTruthOrDarePrompt(type, matchId, userId, level);
+
+    // Store prompt so both users see it; switch turn to other user (for token-unlocked games)
+    db.prepare('UPDATE truth_or_dare_games SET current_prompt = ?, current_prompt_type = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([prompt, type, matchId]);
+    if (unlockRow) {
+      db.prepare('UPDATE truth_or_dare_games SET current_turn_user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([otherUserId, matchId]);
+    }
+    try {
+      const { getIO } = await import('../socket.js');
+      const io = getIO();
+      if (io) io.to(`match:${matchId}`).emit('truth_or_dare_updated', { matchId });
+    } catch (e) { /* ignore */ }
 
     res.json({ prompt, fromAI, spiceLevel: level });
   } catch (error) {
@@ -1751,8 +1865,33 @@ matchesRouter.post("/:matchId/never-have-i-ever/spice-choice", authenticateToken
       return res.status(404).json({ error: "Match not found" });
     }
 
-    const { setSpiceChoice } = await import('../services/neverHaveIEver.js');
-    const state = await setSpiceChoice(matchId, userId, match, choice as 'pg13' | 'ratedr' | 'spicy');
+    // Token-unlocked: unlocker alone sets rating, game ready for both
+    const unlockRow = db.prepare('SELECT unlocked_by_user_id FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'never_have_i_ever']) as { unlocked_by_user_id: string } | undefined;
+    if (unlockRow && unlockRow.unlocked_by_user_id !== userId) {
+      return res.status(400).json({ error: "Only the person who unlocked can set the rating." });
+    }
+
+    const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
+
+    if (unlockRow) {
+      // Token-unlock: unlocker picks → set spice, current_turn = User B, generate first prompt (game starts)
+      const { generateNeverHaveIEverPrompt } = await import('../services/neverHaveIEver.js');
+      const prompt = await generateNeverHaveIEverPrompt(matchId, choice as 'pg13' | 'ratedr' | 'spicy');
+      const rowResult = db.prepare('SELECT match_id FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
+      const existing = rowResult instanceof Promise ? await rowResult : rowResult;
+      if (!existing) {
+        db.prepare(
+          `INSERT INTO never_have_i_ever_games (match_id, user1_spice_choice, user2_spice_choice, spice_level, current_prompt, current_turn_user_id, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
+        ).run([matchId, choice, choice, choice, prompt, otherUserId, new Date().toISOString()]);
+      } else {
+        db.prepare(
+          `UPDATE never_have_i_ever_games SET user1_spice_choice = ?, user2_spice_choice = ?, spice_level = ?, current_prompt = ?, current_turn_user_id = ?, updated_at = ? WHERE match_id = ?`
+        ).run([choice, choice, choice, prompt, otherUserId, new Date().toISOString(), matchId]);
+      }
+    }
+
+    const { setSpiceChoice, getGameState } = await import('../services/neverHaveIEver.js');
+    const state = unlockRow ? await getGameState(matchId, userId, match) : await setSpiceChoice(matchId, userId, match, choice as 'pg13' | 'ratedr' | 'spicy');
 
     try {
       const { getIO } = await import('../socket.js');
@@ -1764,7 +1903,7 @@ matchesRouter.post("/:matchId/never-have-i-ever/spice-choice", authenticateToken
       console.warn('⚠️  Socket.io not available for Never Have I Ever notification');
     }
 
-    res.json(state);
+    res.json({ ...state, tokenUnlocked: !!unlockRow, needsSpiceChoiceFromUnlocker: false });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error("Never Have I Ever spice choice error:", error);
@@ -1827,7 +1966,21 @@ matchesRouter.get("/:matchId/never-have-i-ever", authenticateToken, async (req: 
 
     const { getGameState } = await import('../services/neverHaveIEver.js');
     const state = await getGameState(matchId, userId, match);
-    res.json(state);
+
+    // Token-unlocked: unlocker alone sets rating
+    const unlockRow = db.prepare('SELECT unlocked_by_user_id FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'never_have_i_ever']) as { unlocked_by_user_id: string } | undefined;
+    if (unlockRow) {
+      const isUnlocker = unlockRow.unlocked_by_user_id === userId;
+      res.json({
+        ...state,
+        tokenUnlocked: true,
+        needsSpiceChoiceFromUnlocker: !state.spiceReady && isUnlocker,
+        currentTurnUserId: state.currentTurnUserId ?? null,
+        isYourTurn: state.isYourTurn ?? false,
+      });
+    } else {
+      res.json(state);
+    }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error("Never Have I Ever get error:", error);
@@ -1856,8 +2009,14 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
       return res.status(404).json({ error: "Match not found" });
     }
 
-    const { submitAnswer } = await import('../services/neverHaveIEver.js');
-    const { state, roundResult } = await submitAnswer(matchId, userId, match, answer as 'have' | 'havent');
+    const { submitAnswer, submitTurnAnswer } = await import('../services/neverHaveIEver.js');
+    const rowResult = db.prepare('SELECT current_turn_user_id FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
+    const row = (rowResult instanceof Promise ? await rowResult : rowResult) as { current_turn_user_id: string | null } | undefined;
+    const isTurnBased = !!row?.current_turn_user_id;
+
+    const { state, roundResult } = isTurnBased
+      ? await submitTurnAnswer(matchId, userId, match, answer as 'have' | 'havent')
+      : await submitAnswer(matchId, userId, match, answer as 'have' | 'havent');
 
     // Notify other user via socket
     try {
@@ -2147,6 +2306,40 @@ matchesRouter.post("/:matchId/date-plan/:planId/action", authenticateToken, rate
         // Push notifications are optional, don't fail date plan action if push fails
         console.warn('⚠️  Failed to send push notification for date plan acceptance (non-critical):', pushError);
       }
+    }
+
+    // Insert a small system-style message in chat so both users see the update
+    try {
+      const systemMessageId = uuidv4();
+      let systemContent = '';
+      if (action === 'accept') {
+        systemContent = `📅 ${currentUserName} accepted the date plan!`;
+      } else if (action === 'decline') {
+        systemContent = `📅 ${currentUserName} declined the date plan`;
+      } else if (action === 'modify') {
+        systemContent = `📅 ${currentUserName} suggested modifications to the date plan`;
+      }
+      if (systemContent) {
+        db.prepare(
+          `INSERT INTO messages (id, match_id, sender_id, content) VALUES (?, ?, ?, ?)`
+        ).run([systemMessageId, matchId, userId, systemContent]);
+        const { getIO } = await import('../socket.js');
+        const io = getIO();
+        if (io) {
+          io.to(`match:${matchId}`).emit('new_message', {
+            id: systemMessageId,
+            matchId,
+            content: systemContent,
+            imageUrl: null,
+            senderId: userId,
+            senderName: currentUserName,
+            sentAt: new Date().toISOString(),
+            readAt: null,
+          });
+        }
+      }
+    } catch (msgErr) {
+      console.warn('⚠️  Failed to insert date plan update message (non-critical):', msgErr);
     }
 
     // Notify via Socket.io

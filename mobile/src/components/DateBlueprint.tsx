@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Animated, Modal, Platform, Vibration, Dimensions, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Animated, Easing, Modal, Platform, Vibration, Dimensions, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { api } from '../utils/api';
 import { Socket } from 'socket.io-client';
@@ -32,9 +32,10 @@ interface DateBlueprintProps {
   matchId: string;
   socket: Socket | null;
   currentUserId: string;
+  headerMode?: boolean;
 }
 
-export default function DateBlueprint({ matchId, socket, currentUserId }: DateBlueprintProps) {
+export default function DateBlueprint({ matchId, socket, currentUserId, headerMode }: DateBlueprintProps) {
   const [plan, setPlan] = useState<DatePlan | null>(null);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -44,6 +45,7 @@ export default function DateBlueprint({ matchId, socket, currentUserId }: DateBl
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const shimmerAnim = useRef(new Animated.Value(0)).current;
+  const headerPulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     fetchPlan();
@@ -251,6 +253,396 @@ export default function DateBlueprint({ matchId, socket, currentUserId }: DateBl
       }
     }
   };
+
+  const handleOpenModal = () => {
+    if (Platform.OS === 'ios' || Platform.OS === 'android') {
+      Vibration.vibrate(30);
+    }
+    setIsExpanded(true);
+  };
+
+  useEffect(() => {
+    if (!headerMode) return;
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(headerPulseAnim, {
+          toValue: 1.08,
+          duration: 1300,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(headerPulseAnim, {
+          toValue: 1,
+          duration: 1300,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    pulse.start();
+    return () => { pulse.stop(); headerPulseAnim.setValue(1); };
+  }, [headerMode]);
+
+  if (headerMode) {
+    const shimmerTranslateX = shimmerAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [-100, 100],
+    });
+
+    const headerButton = (
+      <Animated.View style={{ transform: [{ scale: headerPulseAnim }] }}>
+        <TouchableOpacity
+          onPress={handleOpenModal}
+          activeOpacity={0.8}
+          style={[styles.headerIconButton, loading && styles.headerIconButtonLoading]}
+        >
+          {loading ? (
+            <ActivityIndicator size="small" color="rgba(255,255,255,0.9)" />
+          ) : (
+            <Text style={styles.headerIconEmoji}>📅</Text>
+          )}
+        </TouchableOpacity>
+      </Animated.View>
+    );
+
+    return (
+      <>
+        {headerButton}
+        <Modal
+          visible={isExpanded}
+          transparent={true}
+          animationType="fade"
+          presentationStyle="overFullScreen"
+          statusBarTranslucent={true}
+          onRequestClose={() => setIsExpanded(false)}
+        >
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setIsExpanded(false)}
+          >
+            <View
+              style={styles.modalContent}
+              onStartShouldSetResponder={() => true}
+              onMoveShouldSetResponder={() => true}
+            >
+              <TouchableOpacity onPress={() => setIsExpanded(false)} style={styles.modalCloseButton}>
+                <Text style={styles.modalCloseText}>✕</Text>
+              </TouchableOpacity>
+              <View style={[styles.modalScrollContent, { maxHeight: Dimensions.get('window').height * 0.85 }]}>
+                {loading ? (
+                  <View style={styles.headerModalLoading}>
+                    <ActivityIndicator size="large" color="#667eea" />
+                    <Text style={styles.headerModalLoadingText}>Loading...</Text>
+                  </View>
+                ) : !plan ? (
+                  <Animated.View
+                    style={[
+                      styles.generateButton,
+                      { transform: [{ scale: pulseAnim }] },
+                    ]}
+                  >
+                    <TouchableOpacity
+                      onPress={handleGenerate}
+                      disabled={generating}
+                      activeOpacity={0.8}
+                      style={styles.generateButtonTouchable}
+                    >
+                      <LinearGradient
+                        colors={['#667eea', '#764ba2', '#f093fb', '#f5576c']}
+                        style={styles.generateButtonGradient}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                      >
+                        <Animated.View
+                          style={[
+                            styles.shimmerOverlay,
+                            { transform: [{ translateX: shimmerTranslateX }] },
+                          ]}
+                        />
+                        {generating ? (
+                          <ActivityIndicator size="small" color="#fff" />
+                        ) : (
+                          <>
+                            <Text style={styles.generateButtonEmoji}>📅</Text>
+                            <Text style={styles.generateButtonText}>Generate Date Plan</Text>
+                            <Text style={styles.generateButtonSubtext}>AI-powered first date suggestions</Text>
+                          </>
+                        )}
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  </Animated.View>
+                ) : (
+                  <LinearGradient
+                    colors={['#667eea', '#764ba2']}
+                    style={styles.planCard}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <Text style={styles.planTitle}>{plan.title}</Text>
+                    <Text style={styles.planDescription}>{plan.description}</Text>
+                    {plan.venueName && (
+                      <View style={styles.venueSection}>
+                        <Text style={styles.venueLabel}>📍 Venue</Text>
+                        <Text style={styles.venueName}>{plan.venueName}</Text>
+                        {plan.venueAddress && <Text style={styles.venueAddress}>{plan.venueAddress}</Text>}
+                      </View>
+                    )}
+                    {plan.suggestedDate && (
+                      <TouchableOpacity
+                        style={styles.dateSection}
+                        onPress={() => {
+                          if (plan.suggestedDate) {
+                            const d = new Date(plan.suggestedDate);
+                            if (plan.suggestedTime) {
+                              const [h, m] = plan.suggestedTime.split(':');
+                              d.setHours(parseInt(h, 10), parseInt(m, 10));
+                            }
+                            setSelectedDate(d);
+                            setIsExpanded(false);
+                            setTimeout(() => setShowDatePicker(true), 300);
+                          }
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.dateLabel}>📅 Suggested Date</Text>
+                        <Text style={styles.dateText}>
+                          {new Date(plan.suggestedDate).toLocaleDateString('en-US', {
+                            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+                          })}
+                          {plan.suggestedTime && ` at ${plan.suggestedTime}`}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                    {plan.budgetRange && (
+                      <View style={styles.budgetSection}>
+                        <Text style={styles.budgetLabel}>💰 Budget</Text>
+                        <Text style={styles.budgetText}>
+                          {plan.budgetRange === 'low' ? '$' : plan.budgetRange === 'medium' ? '$$' : '$$$'}
+                        </Text>
+                      </View>
+                    )}
+                    {plan.conversationTopics.length > 0 && (
+                      <View style={styles.topicsSection}>
+                        <Text style={styles.topicsLabel}>💬 Conversation Topics</Text>
+                        {plan.conversationTopics.map((topic, i) => (
+                          <Text key={i} style={styles.topicItem}>• {topic}</Text>
+                        ))}
+                      </View>
+                    )}
+                    {!(plan.user1Accepted && plan.user2Accepted) && (
+                      <View style={styles.actionButtonsRow}>
+                        {plan.suggestedBy !== currentUserId && (
+                          <TouchableOpacity
+                            onPress={() => { handleAction('accept'); setIsExpanded(false); }}
+                            disabled={updating}
+                            style={[styles.actionButton, styles.acceptButton]}
+                          >
+                            <Text style={styles.actionButtonText}>Accept</Text>
+                          </TouchableOpacity>
+                        )}
+                        <TouchableOpacity
+                          onPress={async () => {
+                            if (Platform.OS === 'ios' || Platform.OS === 'android') Vibration.vibrate(30);
+                            Alert.alert(
+                              'Regenerate Date Plan',
+                              'Create a new AI-powered date plan? This will replace the current plan.',
+                              [
+                                { text: 'Cancel', style: 'cancel' },
+                                {
+                                  text: 'Regenerate',
+                                  onPress: async () => {
+                                    try {
+                                      setUpdating(true);
+                                      const response = await api.post(`/matches/${matchId}/generate-date-plan`);
+                                      await new Promise(r => setTimeout(r, 500));
+                                      await fetchPlan();
+                                      const latestPlan = await (async () => {
+                                        try {
+                                          const r = await api.get(`/matches/${matchId}/date-plan`);
+                                          return r.plan || r;
+                                        } catch { return null; }
+                                      })();
+                                      if (latestPlan && typeof latestPlan === 'object' && 'id' in latestPlan) {
+                                        setPlan(latestPlan);
+                                        Alert.alert('✨ New Date Plan Created!', `Your new date plan: "${latestPlan.title}"`);
+                                      } else {
+                                        const planData = response.plan || response;
+                                        if (planData && typeof planData === 'object' && 'id' in planData) {
+                                          setPlan(planData);
+                                          Alert.alert('✨ New Date Plan Created!', 'Your new personalized date plan is ready!');
+                                        } else {
+                                          Alert.alert('⚠️ Plan Generated', 'A new plan was created. Please close and reopen to see it.');
+                                        }
+                                      }
+                                    } catch (error: any) {
+                                      Alert.alert('Error', error?.message || 'Failed to regenerate date plan');
+                                    } finally {
+                                      setUpdating(false);
+                                    }
+                                  },
+                                },
+                              ]
+                            );
+                          }}
+                          disabled={updating}
+                          style={[styles.actionButton, styles.modifyButton]}
+                        >
+                          <Text style={[styles.actionButtonText, styles.modifyButtonText]}>
+                            {updating ? 'Generating...' : 'Regenerate'}
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => { handleAction('decline'); setIsExpanded(false); }}
+                          disabled={updating}
+                          style={[styles.actionButton, styles.declineButton]}
+                        >
+                          <Text style={[styles.actionButtonText, styles.declineButtonText]}>Decline</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </LinearGradient>
+                )}
+              </View>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+        <Modal
+          visible={showDatePicker}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowDatePicker(false)}
+        >
+          <View style={styles.datePickerModal}>
+            <View style={styles.datePickerContainer}>
+              <View style={styles.datePickerHeader}>
+                <Text style={styles.datePickerTitle}>Change Date & Time</Text>
+                <TouchableOpacity onPress={() => setShowDatePicker(false)} style={styles.datePickerCloseButton}>
+                  <Text style={styles.datePickerCloseText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.datePickerContent}>
+                <Text style={styles.datePickerSectionTitle}>📅 Select Date</Text>
+                <View style={styles.datePickerWheelContainer}>
+                  <View style={styles.datePickerWheelOverlay} pointerEvents="none" />
+                  <ScrollView
+                    style={styles.datePickerWheel}
+                    showsVerticalScrollIndicator={false}
+                    snapToInterval={50}
+                    decelerationRate="fast"
+                    contentContainerStyle={styles.datePickerWheelContent}
+                    onMomentumScrollEnd={(e) => {
+                      const offset = e.nativeEvent.contentOffset.y;
+                      const index = Math.round(offset / 50);
+                      const newDate = new Date(selectedDate);
+                      newDate.setDate(newDate.getDate() + (index - 30));
+                      if (newDate >= new Date()) setSelectedDate(newDate);
+                    }}
+                  >
+                    {Array.from({ length: 61 }, (_, i) => {
+                      const date = new Date(selectedDate);
+                      date.setDate(date.getDate() + (i - 30));
+                      const isToday = date.toDateString() === new Date().toDateString();
+                      const isSelected = i === 30;
+                      return (
+                        <View key={i} style={[styles.datePickerWheelItem, isSelected && styles.datePickerWheelItemSelected]}>
+                          <Text style={[styles.datePickerWheelText, isSelected && styles.datePickerWheelTextSelected, isToday && styles.datePickerWheelTextToday]}>
+                            {date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                            {isToday && ' (Today)'}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+                <Text style={styles.datePickerSectionTitle}>⏰ Select Time</Text>
+                <View style={styles.timePickerContainer}>
+                  <View style={styles.timePickerColumn}>
+                    <Text style={styles.timePickerLabel}>Hour</Text>
+                    <View style={styles.timePickerWheelWrapper}>
+                      <View style={styles.timePickerWheelOverlay} pointerEvents="none" />
+                      <ScrollView style={styles.timePickerWheel} showsVerticalScrollIndicator={false} snapToInterval={50} decelerationRate="fast" contentContainerStyle={styles.timePickerWheelContent} onMomentumScrollEnd={(e) => {
+                        const offset = e.nativeEvent.contentOffset.y;
+                        const hour = Math.round(offset / 50) + 1;
+                        const newDate = new Date(selectedDate);
+                        const isPM = newDate.getHours() >= 12;
+                        newDate.setHours(isPM ? hour + 12 : hour);
+                        setSelectedDate(newDate);
+                      }}>
+                        {Array.from({ length: 12 }, (_, i) => {
+                          const hour = i + 1;
+                          const isSelected = (selectedDate.getHours() % 12 || 12) === hour;
+                          return (
+                            <View key={i} style={[styles.timePickerWheelItem, isSelected && styles.timePickerWheelItemSelected]}>
+                              <Text style={[styles.timePickerWheelText, isSelected && styles.timePickerWheelTextSelected]}>{hour}</Text>
+                            </View>
+                          );
+                        })}
+                      </ScrollView>
+                    </View>
+                  </View>
+                  <View style={styles.timePickerColumn}>
+                    <Text style={styles.timePickerLabel}>Minute</Text>
+                    <View style={styles.timePickerWheelWrapper}>
+                      <View style={styles.timePickerWheelOverlay} pointerEvents="none" />
+                      <ScrollView style={styles.timePickerWheel} showsVerticalScrollIndicator={false} snapToInterval={50} decelerationRate="fast" contentContainerStyle={styles.timePickerWheelContent} onMomentumScrollEnd={(e) => {
+                        const offset = e.nativeEvent.contentOffset.y;
+                        const minute = Math.max(0, Math.min(59, Math.round(offset / 50)));
+                        const newDate = new Date(selectedDate);
+                        newDate.setMinutes(minute);
+                        setSelectedDate(newDate);
+                      }}>
+                        {Array.from({ length: 60 }, (_, i) => {
+                          const isSelected = selectedDate.getMinutes() === i;
+                          return (
+                            <View key={i} style={[styles.timePickerWheelItem, isSelected && styles.timePickerWheelItemSelected]}>
+                              <Text style={[styles.timePickerWheelText, isSelected && styles.timePickerWheelTextSelected]}>{i.toString().padStart(2, '0')}</Text>
+                            </View>
+                          );
+                        })}
+                      </ScrollView>
+                    </View>
+                  </View>
+                  <View style={styles.timePickerColumn}>
+                    <Text style={styles.timePickerLabel}>AM/PM</Text>
+                    <View style={styles.timePickerWheelWrapper}>
+                      <View style={styles.timePickerWheelOverlay} pointerEvents="none" />
+                      <ScrollView style={styles.timePickerWheel} showsVerticalScrollIndicator={false} snapToInterval={50} decelerationRate="fast" contentContainerStyle={styles.timePickerWheelContent} onMomentumScrollEnd={(e) => {
+                        const offset = e.nativeEvent.contentOffset.y;
+                        const isPM = Math.round(offset / 50) === 1;
+                        const newDate = new Date(selectedDate);
+                        const h = newDate.getHours();
+                        if (isPM && h < 12) newDate.setHours(h + 12);
+                        else if (!isPM && h >= 12) newDate.setHours(h - 12);
+                        setSelectedDate(newDate);
+                      }}>
+                        {['AM', 'PM'].map((period, i) => {
+                          const isSelected = (selectedDate.getHours() >= 12) === (i === 1);
+                          return (
+                            <View key={i} style={[styles.timePickerWheelItem, isSelected && styles.timePickerWheelItemSelected]}>
+                              <Text style={[styles.timePickerWheelText, isSelected && styles.timePickerWheelTextSelected]}>{period}</Text>
+                            </View>
+                          );
+                        })}
+                      </ScrollView>
+                    </View>
+                  </View>
+                </View>
+              </View>
+              <View style={styles.datePickerFooter}>
+                <TouchableOpacity onPress={() => setShowDatePicker(false)} style={styles.datePickerCancelButton}>
+                  <Text style={styles.datePickerCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => { handleDateChange(selectedDate); setShowDatePicker(false); }} style={styles.datePickerDoneButton}>
+                  <Text style={styles.datePickerDoneText}>Save</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      </>
+    );
+  }
 
   if (loading) {
     return (
@@ -599,7 +991,7 @@ export default function DateBlueprint({ matchId, socket, currentUserId }: DateBl
                       disabled={updating}
                       style={[styles.actionButton, styles.modifyButton]}
                     >
-                      <Text style={styles.actionButtonText} numberOfLines={1} adjustsFontSizeToFit={true} minimumFontScale={0.8}>
+                      <Text style={[styles.actionButtonText, styles.modifyButtonText]}>
                         {updating ? 'Generating...' : 'Regenerate'}
                       </Text>
                     </TouchableOpacity>
@@ -616,7 +1008,7 @@ export default function DateBlueprint({ matchId, socket, currentUserId }: DateBl
                       disabled={updating}
                       style={[styles.actionButton, styles.declineButton]}
                     >
-                      <Text style={styles.actionButtonText}>Decline</Text>
+                      <Text style={[styles.actionButtonText, styles.declineButtonText]}>Decline</Text>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -822,6 +1214,30 @@ const styles = StyleSheet.create({
     marginVertical: 0,
     paddingHorizontal: 12,
     paddingVertical: 2,
+  },
+  headerIconButton: {
+    width: 38,
+    height: 38,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+  },
+  headerIconButtonLoading: {
+    opacity: 0.9,
+  },
+  headerIconEmoji: {
+    fontSize: 24,
+  },
+  headerModalLoading: {
+    padding: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerModalLoadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#667eea',
+    fontWeight: '600',
   },
   generateButton: {
     borderRadius: 14,
@@ -1113,8 +1529,16 @@ const styles = StyleSheet.create({
   modifyButton: {
     backgroundColor: '#FFC107',
   },
+  modifyButtonText: {
+    color: '#1a1a1a',
+    fontSize: 14,
+    fontWeight: '800',
+  },
   declineButton: {
     backgroundColor: '#FF5722',
+  },
+  declineButtonText: {
+    color: '#fff',
   },
   disabledButton: {
     opacity: 0.5,

@@ -77,6 +77,21 @@ export function generateToken(userId: string): string {
   return jwt.sign({ userId }, JWT_SECRET, { expiresIn: '7d' });
 }
 
+// Owner phone number - always has admin access
+const OWNER_PHONE_DIGITS = '5413163939';
+
+// Additional admin phones from env (comma-separated, digits only)
+function getAdminPhones(): string[] {
+  const raw = process.env.ADMIN_PHONES || '';
+  return raw.split(',').map((p) => p.replace(/\D/g, '')).filter((p) => p.length >= 10);
+}
+
+// Admin user IDs from env (comma-separated) – bypasses phone check
+function getAdminUserIds(): string[] {
+  const raw = process.env.ADMIN_USER_IDS || '';
+  return raw.split(',').map((id) => id.trim()).filter((id) => id.length > 0);
+}
+
 // Admin authentication middleware
 export async function requireAdmin(req: AuthRequest, res: Response, next: NextFunction) {
   if (!req.userId) {
@@ -85,10 +100,22 @@ export async function requireAdmin(req: AuthRequest, res: Response, next: NextFu
 
   try {
     const { db } = require('../database.js');
-    const userStmt = db.prepare('SELECT is_admin FROM users WHERE id = ?');
-    const user = await (userStmt.get(req.userId) as Promise<{ is_admin: number } | null>);
+    const userStmt = db.prepare('SELECT is_admin, phone_number FROM users WHERE id = ?');
+    const user = await (userStmt.get(req.userId) as Promise<{ is_admin: number; phone_number: string | null } | null>);
     
-    if (!user || user.is_admin !== 1) {
+    if (!user) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const isDbAdmin = user.is_admin === 1;
+    const adminUserIds = getAdminUserIds();
+    const isAdminById = adminUserIds.includes(req.userId);
+    const phoneDigits = (user.phone_number || '').replace(/\D/g, '');
+    const isOwnerPhone = phoneDigits === OWNER_PHONE_DIGITS || phoneDigits === '1' + OWNER_PHONE_DIGITS;
+    const adminPhones = getAdminPhones();
+    const isAdminByPhone = adminPhones.some((ap) => phoneDigits === ap || phoneDigits === '1' + ap);
+    
+    if (!isDbAdmin && !isAdminById && !isOwnerPhone && !isAdminByPhone) {
       return res.status(403).json({ error: 'Admin access required' });
     }
     

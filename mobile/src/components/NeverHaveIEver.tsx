@@ -14,6 +14,7 @@ import {
   Vibration,
   ActivityIndicator,
   Animated,
+  Easing,
   Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -93,6 +94,29 @@ export default function NeverHaveIEver({
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const emojiScale = useRef(new Animated.Value(1)).current;
   const emojiRotate = useRef(new Animated.Value(0)).current;
+  const headerPulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (!headerMode) return;
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(headerPulseAnim, {
+          toValue: 1.08,
+          duration: 1400,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(headerPulseAnim, {
+          toValue: 1,
+          duration: 1400,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    pulse.start();
+    return () => { pulse.stop(); headerPulseAnim.setValue(1); };
+  }, [headerMode]);
 
   useEffect(() => {
     // Monkey wiggle + bounce: tilt -8deg to 8deg, scale 1 to 1.15
@@ -319,13 +343,15 @@ export default function NeverHaveIEver({
   };
 
   const headerButton = (
-    <TouchableOpacity
-      onPress={isUnlocked ? handleOpen : handleLockedPress}
-      activeOpacity={0.8}
-      style={[styles.headerIconButton, !isUnlocked && styles.headerIconButtonLocked]}
-    >
-      <Text style={styles.headerIconEmoji}>🙊</Text>
-    </TouchableOpacity>
+    <Animated.View style={{ transform: [{ scale: headerPulseAnim }] }}>
+      <TouchableOpacity
+        onPress={isUnlocked ? handleOpen : handleLockedPress}
+        activeOpacity={0.8}
+        style={[styles.headerIconButton, !isUnlocked && styles.headerIconButtonLocked]}
+      >
+        <Text style={styles.headerIconEmoji}>🙊</Text>
+      </TouchableOpacity>
+    </Animated.View>
   );
 
   // Modal is shared - needed for headerMode when User B accepts (openForAccept)
@@ -494,19 +520,15 @@ const styles = StyleSheet.create({
   headerIconButton: {
     width: 38,
     height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
+    backgroundColor: 'transparent',
   },
   headerIconButtonLocked: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     opacity: 0.85,
   },
   headerIconEmoji: {
-    fontSize: 20,
+    fontSize: 24,
   },
   container: {
     marginVertical: 4,

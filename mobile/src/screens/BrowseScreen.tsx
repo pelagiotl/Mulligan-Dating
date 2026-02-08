@@ -21,6 +21,7 @@ import Svg, { G, Path, Circle, Defs, LinearGradient as SvgLinearGradient, Stop, 
 import { useNavigation, useFocusEffect, useIsFocused, CommonActions } from '@react-navigation/native';
 import { setPendingOpenMatchId, clearPendingOpenMatchId } from '../utils/pendingMatchOpen';
 import { navigationRef } from '../navigation/navigationRef';
+import { playMessageSound, playMatchSound } from '../utils/sounds';
 import { io, Socket } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api, prefetchToken, ensureTokenPrefetched, clearTokenCache } from '../utils/api';
@@ -1268,6 +1269,7 @@ export default function BrowseScreen() {
         console.log('❌ Browse: Disconnected from WebSocket server');
       });
 
+      // In-app notification when User B gets a new match - show Alert from any tab (toast only visible when on Connect tab)
       socket.on('new_match', (data: {
         matchId: string;
         otherUserId: string;
@@ -1277,6 +1279,52 @@ export default function BrowseScreen() {
       }) => {
         setMatchNotification(data.message);
         setTimeout(() => setMatchNotification(null), 5000);
+        playMatchSound().catch(() => {});
+        Alert.alert(
+          '🎉 New Match!',
+          data.message,
+          [
+            {
+              text: 'View',
+              onPress: () => {
+                if (data.matchId && navigationRef.current?.isReady()) {
+                  navigationRef.current.navigate('MainTabs' as never, {
+                    screen: 'Matches',
+                    params: { matchId: data.matchId, showMatchCelebration: true, matchName: data.otherUserName || 'Someone' },
+                  } as never);
+                }
+              },
+            },
+            { text: 'OK', style: 'cancel' },
+          ]
+        );
+      });
+
+      // In-app notification when User B receives a message - show from any tab (BrowseScreen is always mounted in MainTabs)
+      socket.on('new_message', (data: { matchId?: string; senderId: string; senderName?: string; content?: string }) => {
+        if (data.senderId === user?.id) return; // Don't notify for own messages
+        playMessageSound().catch(() => {});
+        const senderName = data.senderName || 'Someone';
+        const preview = data.content?.substring(0, 50) || '📷 Photo';
+        const displayPreview = data.content && data.content.length > 50 ? preview + '...' : preview;
+        Alert.alert(
+          '💬 New Message',
+          `${senderName}: ${displayPreview}`,
+          [
+            {
+              text: 'View',
+              onPress: () => {
+                if (data.matchId && navigationRef.current?.isReady()) {
+                  navigationRef.current.navigate('MainTabs' as never, {
+                    screen: 'Matches',
+                    params: { matchId: data.matchId },
+                  } as never);
+                }
+              },
+            },
+            { text: 'OK', style: 'cancel' },
+          ]
+        );
       });
     };
 
@@ -1288,7 +1336,7 @@ export default function BrowseScreen() {
       }
       socketRef.current = null;
     };
-  }, [userProfile]);
+  }, [userProfile, user?.id]);
 
   // Show landing page when browsing is locked OR when auto-matching (to prevent UI flash)
   const showLandingPage = (browseUnlocked === false || isAutoMatching) && !needsProfile && !showMatchCelebration;

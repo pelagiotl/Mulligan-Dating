@@ -13,6 +13,7 @@ import {
   Animated,
   Platform,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { usePaymentSheet } from '@stripe/stripe-react-native';
@@ -48,7 +49,7 @@ interface ProfileData {
 }
 
 export default function SettingsScreen() {
-  const { logout, refreshProfile } = useAuth();
+  const { user, logout, refreshProfile } = useAuth();
   const navigation = useNavigation();
   const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
   const [settings, setSettings] = useState<SettingsData | null>(null);
@@ -473,6 +474,21 @@ export default function SettingsScreen() {
           <Text style={styles.sectionEmoji}>👤</Text>
           <Text style={styles.sectionTitle}>Account</Text>
         </View>
+
+        {user?.id ? (
+          <TouchableOpacity
+            style={styles.userIdRow}
+            onLongPress={async () => {
+              await Clipboard.setStringAsync(user.id);
+              Alert.alert('Copied', 'User ID copied to clipboard. Use ADMIN_USER_IDS=your-id in backend .env for admin access.');
+            }}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.userIdLabel}>User ID</Text>
+            <Text style={styles.userIdValue} numberOfLines={1} ellipsizeMode="middle">{user.id}</Text>
+            <Text style={styles.userIdHint}>Long-press to copy</Text>
+          </TouchableOpacity>
+        ) : null}
 
         {/* Account Stats Cards */}
         <View style={styles.statsRow}>
@@ -1231,6 +1247,30 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     gap: 12,
+  },
+  userIdRow: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  userIdLabel: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.7)',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  userIdValue: {
+    fontSize: 13,
+    color: '#fff',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  userIdHint: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.5)',
+    marginTop: 6,
   },
   statCard: {
     flex: 1,

@@ -191,6 +191,7 @@ interface GameRow {
   user2_spice_choice: string | null;
   spice_level: string | null;
   current_prompt: string | null;
+  current_turn_user_id: string | null;
   user1_answer: string | null;
   user2_answer: string | null;
 }
@@ -210,6 +211,9 @@ export interface GameState {
   theirSpiceChoice: 'pg13' | 'ratedr' | 'spicy' | null;
   spiceReady: boolean;
   spiceLevel: 'pg13' | 'ratedr' | 'spicy' | null;
+  tokenUnlocked?: boolean;
+  currentTurnUserId?: string | null;
+  isYourTurn?: boolean;
 }
 
 export async function getGameState(
@@ -283,6 +287,10 @@ export async function getGameState(
   const prompt = row.current_prompt || 'Never have I ever...';
   const level = (row.spice_level || 'pg13') as SpiceLevel;
 
+  // Turn-based (token-unlock): current_turn_user_id set
+  const currentTurnUserId = row.current_turn_user_id ?? null;
+  const isYourTurn = !!currentTurnUserId && currentTurnUserId === userId;
+
   return {
     prompt,
     yourStrikes,
@@ -297,6 +305,8 @@ export async function getGameState(
     theirSpiceChoice: theirSpiceChoice || null,
     spiceReady,
     spiceLevel: level,
+    currentTurnUserId,
+    isYourTurn,
   };
 }
 
@@ -417,6 +427,58 @@ export async function submitAnswer(
   const state = await getGameState(matchId, userId, match);
   state.roundResult = roundResult;
   return { state, roundResult };
+}
+
+/**
+ * Submit answer for turn-based mode (token-unlocked): only current turn user answers.
+ * If "have", add strike. Switch turn, generate new prompt.
+ */
+export async function submitTurnAnswer(
+  matchId: string,
+  userId: string,
+  match: { user1_id: string; user2_id: string },
+  answer: 'have' | 'havent'
+): Promise<{ state: GameState; roundResult?: { youStrike: boolean; themStrike: boolean } }> {
+  const isUser1 = userId === match.user1_id;
+  const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
+
+  const rowResult = db
+    .prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?')
+    .get([matchId]);
+  const row = (rowResult instanceof Promise ? await rowResult : rowResult) as GameRow | undefined;
+
+  if (!row || !row.current_turn_user_id || row.current_turn_user_id !== userId) {
+    return { state: await getGameState(matchId, userId, match) };
+  }
+
+  if (!row.spice_level || !row.current_prompt) {
+    return { state: await getGameState(matchId, userId, match) };
+  }
+
+  const youStrike = answer === 'have';
+  const newUser1Strikes = isUser1 ? row.user1_strikes + (youStrike ? 1 : 0) : row.user1_strikes;
+  const newUser2Strikes = isUser1 ? row.user2_strikes : row.user2_strikes + (youStrike ? 1 : 0);
+
+  const gameOver = newUser1Strikes >= STRIKES_TO_LOSE || newUser2Strikes >= STRIKES_TO_LOSE;
+  const spiceLevel = (row.spice_level || 'pg13') as SpiceLevel;
+
+  let newPrompt: string;
+  let nextTurnUserId: string | null;
+  if (gameOver) {
+    newPrompt = row.current_prompt!;
+    nextTurnUserId = null;
+  } else {
+    newPrompt = await generateNeverHaveIEverPrompt(matchId, spiceLevel);
+    nextTurnUserId = otherUserId;
+  }
+
+  db.prepare(
+    `UPDATE never_have_i_ever_games SET user1_strikes = ?, user2_strikes = ?, current_prompt = ?, current_turn_user_id = ?, user1_answer = NULL, user2_answer = NULL, updated_at = ? WHERE match_id = ?`
+  ).run([newUser1Strikes, newUser2Strikes, newPrompt, nextTurnUserId, new Date().toISOString(), matchId]);
+
+  const state = await getGameState(matchId, userId, match);
+  state.roundResult = { youStrike, themStrike: false };
+  return { state, roundResult: { youStrike, themStrike: false } };
 }
 
 export async function advanceToNextRound(

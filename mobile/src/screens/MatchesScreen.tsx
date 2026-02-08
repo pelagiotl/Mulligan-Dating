@@ -41,6 +41,7 @@ import TruthOrDare from '../components/TruthOrDare';
 import NeverHaveIEver from '../components/NeverHaveIEver';
 import OptimizedImage from '../components/OptimizedImage';
 import GameRequestModal from '../components/GameRequestModal';
+import MatchCelebration from '../components/MatchCelebration';
 import * as ImagePicker from 'expo-image-picker';
 
 interface Photo {
@@ -1776,6 +1777,8 @@ export default function MatchesScreen() {
   const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
   const [isTyping, setIsTyping] = useState(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [profileCompatibility, setProfileCompatibility] = useState<number | null>(null);
+  const [showAgeCardModal, setShowAgeCardModal] = useState(false);
   
   // Header animations
   const headerGradientPos = useRef(new Animated.Value(0)).current;
@@ -1809,6 +1812,25 @@ export default function MatchesScreen() {
     setPendingImageUri(null);
   }, [selectedMatch?.id]);
 
+  // Fetch profile compatibility when viewing a match (interests, dealbreakers, looking for, etc.)
+  useEffect(() => {
+    if (!selectedMatch || selectedMatch.stage === 'pending') {
+      setProfileCompatibility(null);
+      return;
+    }
+    const fetchCompat = async () => {
+      try {
+        const r = await api.get(`/matches/${selectedMatch.id}/profile-compatibility`);
+        const val = r.profileCompatibility;
+        if (typeof val === 'number') setProfileCompatibility(val);
+        else setProfileCompatibility(null);
+      } catch {
+        setProfileCompatibility(null);
+      }
+    };
+    fetchCompat();
+  }, [selectedMatch?.id, selectedMatch?.stage]);
+
   // Update current time for timer display — every second if any match has expiration (so expired matches disappear on the tick)
   useEffect(() => {
     const hasAnyExpiring = matches.some(m => m.expiresAt);
@@ -1827,13 +1849,11 @@ export default function MatchesScreen() {
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
       (e) => {
         setKeyboardHeight(e.endCoordinates.height);
-        // Scroll to end when keyboard appears - use multiple delays so layout has fully settled
-        const scrollToEnd = () => {
-          messagesEndRef.current?.scrollToEnd({ animated: true });
-        };
-        setTimeout(scrollToEnd, 100);
-        setTimeout(scrollToEnd, 350);
-        setTimeout(scrollToEnd, 600);
+        // Scroll to newest (index 0 in inverted list) when keyboard appears
+        const scrollToNewest = () => scrollToLatestMessageRef.current();
+        setTimeout(scrollToNewest, 100);
+        setTimeout(scrollToNewest, 350);
+        setTimeout(scrollToNewest, 600);
       }
     );
     const keyboardWillHideListener = Keyboard.addListener(
@@ -1955,14 +1975,15 @@ export default function MatchesScreen() {
     }
   }, [sendingMessage, selectedMatch, isTyping, emitTypingDebounced]);
 
-  // Scroll to most recent message (bottom of list) - use scrollToIndex for reliable positioning with virtualized FlatList
+  // Reversed for inverted FlatList: index 0 = newest (anchored at bottom near input)
+  const invertedMessages = useMemo(() => [...messages].reverse(), [messages]);
+
+  // Scroll to most recent message (index 0 in inverted list = newest at bottom)
   const scrollToLatestMessage = useCallback(() => {
     if (messages.length === 0) return;
     const list = messagesEndRef.current;
     if (!list) return;
-    const lastIndex = messages.length - 1;
-    // scrollToIndex ensures we reach the actual last item; scrollToEnd can be wrong with virtualization
-    list.scrollToIndex({ index: lastIndex, viewPosition: 1, animated: false });
+    list.scrollToIndex({ index: 0, viewPosition: 1, animated: false });
   }, [messages.length]);
 
   const scrollToLatestMessageRef = useRef(scrollToLatestMessage);
@@ -1997,9 +2018,9 @@ export default function MatchesScreen() {
   }, [selectedMatch?.id, messages.length]);
 
   const onScrollToIndexFailed = useCallback((info: { index: number; highestMeasuredFrameIndex: number; averageItemLength: number }) => {
-    // Fallback: scroll to end if scrollToIndex fails (e.g. list not fully laid out)
+    // Fallback: scrollToOffset 0 shows newest (index 0) in inverted list
     setTimeout(() => {
-      messagesEndRef.current?.scrollToEnd({ animated: false });
+      messagesEndRef.current?.scrollToOffset({ offset: 0, animated: false });
     }, 100);
   }, []);
 
@@ -2007,11 +2028,10 @@ export default function MatchesScreen() {
     setFullScreenImageUrl(url);
   }, []);
 
-  // Memoized renderItem - only animates last N messages for performance
+  // Memoized renderItem - with inverted list, index 0 = newest; animate last N (first N in reversed)
   const renderMessageItem = useCallback(
     ({ item, index }: { item: Message; index: number }) => {
-      const totalCount = messages.length;
-      const shouldAnimate = index >= totalCount - ANIMATE_LAST_N;
+      const shouldAnimate = index < ANIMATE_LAST_N;
 
       let animValue: Animated.Value | null = null;
       if (shouldAnimate) {
@@ -2041,7 +2061,8 @@ export default function MatchesScreen() {
     });
   }, [messages]);
 
-  const listFooterComponent = useMemo(
+  // In inverted FlatList: ListHeaderComponent appears at bottom (near input), ListFooterComponent at top
+  const listHeaderComponent = useMemo(
     () => (typingUsers.size > 0 ? <TypingIndicator /> : null),
     [typingUsers.size]
   );
@@ -2049,7 +2070,7 @@ export default function MatchesScreen() {
   const messagesContentStyle = useMemo(
     () => [
       styles.messagesContent,
-      { paddingBottom: keyboardHeight > 0 ? keyboardHeight + 80 : 160 },
+      { paddingTop: keyboardHeight > 0 ? keyboardHeight + 80 : 12 },
     ],
     [keyboardHeight]
   );
@@ -2154,34 +2175,7 @@ export default function MatchesScreen() {
             return next.sort((a, b) => new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime());
           });
         } else {
-          // Message is for a different match - show in-app notification (works without push)
-          if (message.senderId !== user?.id) {
-            playMessageSound().catch(() => {
-              console.log('Message sound not available');
-            });
-            const senderName = message.senderName || 'Someone';
-            const preview = message.content?.substring(0, 50) || '📷 Photo';
-            const displayPreview = message.content && message.content.length > 50 ? preview + '...' : preview;
-            Alert.alert(
-              '💬 New Message',
-              `${senderName}: ${displayPreview}`,
-              [
-                {
-                  text: 'View',
-                  onPress: () => {
-                    const mid = message.matchId;
-                    if (mid) {
-                      const match = matchesRef.current?.find(m => m.id === mid);
-                      if (match) setSelectedMatch(match);
-                    }
-                    fetchMatches();
-                  },
-                },
-                { text: 'OK', style: 'cancel' },
-              ]
-            );
-          }
-          console.log('💬 New message received for different match, refreshing matches list');
+          // Message is for a different match - BrowseScreen shows in-app Alert (any tab)
           fetchMatches();
         }
         
@@ -2192,28 +2186,16 @@ export default function MatchesScreen() {
             console.log('Message sound not available');
           });
         }
-        // Scroll to show newest message when we receive one
+        // Scroll to show newest message when we receive one (index 0 in inverted list)
         if (isForCurrentMatch) {
           InteractionManager.runAfterInteractions(() => {
-            setTimeout(() => messagesEndRef.current?.scrollToEnd({ animated: false }), 100);
+            setTimeout(() => scrollToLatestMessageRef.current(), 100);
           });
         }
       });
 
-      socket.on('new_match', (data: {
-        matchId: string;
-        otherUserId: string;
-        otherUserName: string;
-        message: string;
-        stage: string;
-      }) => {
-        // Play match notification sound
-        playMatchSound().catch(() => {
-          // Non-critical - app works without sound
-          console.log('Match sound not available');
-        });
-        
-        Alert.alert('🎉 New Match!', data.message);
+      // Match notification shown by BrowseScreen (always mounted) - just refresh list here
+      socket.on('new_match', () => {
         fetchMatches();
       });
 
@@ -2372,7 +2354,7 @@ export default function MatchesScreen() {
       if (!user || !isAuthenticated || authLoading) return;
       const pendingId = getPendingOpenMatchId();
       const pendingGame = getPendingGameRequest();
-      const routeParams = route.params as { matchId?: string; showGameRequest?: boolean } | undefined;
+      const routeParams = route.params as { matchId?: string; showGameRequest?: boolean; showMatchCelebration?: boolean; matchName?: string } | undefined;
       const matchIdToOpen = pendingId ?? routeParams?.matchId;
 
       const runPendingLogic = async () => {
@@ -2548,15 +2530,13 @@ export default function MatchesScreen() {
     }).start();
     setMessages((prev) => [...prev, tempMessage]);
 
-    const scrollToEndAfterLayout = () => {
+    const scrollToNewestAfterLayout = () => {
       InteractionManager.runAfterInteractions(() => {
-        setTimeout(() => {
-          messagesEndRef.current?.scrollToEnd({ animated: false });
-        }, 50);
+        setTimeout(() => scrollToLatestMessageRef.current(), 50);
       });
     };
-    scrollToEndAfterLayout();
-    setTimeout(scrollToEndAfterLayout, 200);
+    scrollToNewestAfterLayout();
+    setTimeout(scrollToNewestAfterLayout, 200);
 
     try {
       const response = await api.post<{ message: Message; stage?: string; autoAdvanced?: boolean }>(`/matches/${selectedMatch.id}/messages`, {
@@ -2572,8 +2552,8 @@ export default function MatchesScreen() {
           return next.sort((a, b) => new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime());
         });
         InteractionManager.runAfterInteractions(() => {
-          setTimeout(() => messagesEndRef.current?.scrollToEnd({ animated: false }), 50);
-          setTimeout(() => messagesEndRef.current?.scrollToEnd({ animated: false }), 250);
+          setTimeout(() => scrollToLatestMessageRef.current(), 50);
+          setTimeout(() => scrollToLatestMessageRef.current(), 250);
         });
       } else {
         // If no message in response, keep temp message (socket will replace it, or it stays as fallback)
@@ -2977,7 +2957,14 @@ export default function MatchesScreen() {
                   );
                 })()}
               </TouchableOpacity>
-              <Text style={styles.chatHeaderTitle} numberOfLines={1} ellipsizeMode="tail">{selectedMatch.otherUser.displayName}</Text>
+              <View style={styles.chatHeaderTitleRow}>
+                <Text style={styles.chatHeaderTitle} numberOfLines={1} ellipsizeMode="tail">{selectedMatch.otherUser.displayName}</Text>
+                {profileCompatibility != null && selectedMatch.stage !== 'pending' && (
+                  <View style={styles.chatHeaderCompatibilityBadge}>
+                    <Text style={styles.chatHeaderCompatibilityText}>{profileCompatibility}%</Text>
+                  </View>
+                )}
+              </View>
               {selectedMatch.stage !== 'pending' && (
                 <View style={styles.chatHeaderActionsRow}>
                   <TruthOrDare
@@ -2985,7 +2972,7 @@ export default function MatchesScreen() {
                     messages={messages}
                     currentUserId={user?.id || ''}
                     socket={socketRef.current}
-                    onSendToChat={(text) => { setNewMessage(text); textInputRef.current?.focus(); }}
+                    onSendToChat={(text) => { handleSendMessage(text); }}
                     onRequestGame={async () => {
                       try {
                         await api.post(`/matches/${selectedMatch.id}/game-request`, { gameType: 'truth_or_dare' });
@@ -3017,22 +3004,33 @@ export default function MatchesScreen() {
                     gameUnlockedByToken={selectedMatch.gameUnlocks?.never_have_i_ever}
                     headerMode
                   />
+                  <DateBlueprint
+                    matchId={selectedMatch.id}
+                    socket={socketRef.current}
+                    currentUserId={user?.id || ''}
+                    headerMode
+                  />
                   <CompatibilityPulse matchId={selectedMatch.id} socket={socketRef.current} isFocused={isFocused} />
                 </View>
               )}
             </View>
             <View style={styles.chatHeaderSubtitleRow}>
               <View style={styles.chatHeaderPillRow}>
-                <LinearGradient
-                  colors={['#667eea', '#764ba2', '#8b5cf6']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.chatHeaderAgePill}
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={() => setShowAgeCardModal(true)}
                 >
-                  <Text style={styles.chatHeaderAgePillIcon}>🎂</Text>
-                  <Text style={styles.chatHeaderAgePillText}>{selectedMatch.otherUser.age}</Text>
-                  <Text style={styles.chatHeaderAgePillLabel}>yrs</Text>
-                </LinearGradient>
+                  <LinearGradient
+                    colors={['#667eea', '#764ba2', '#8b5cf6']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.chatHeaderAgePill}
+                  >
+                    <Text style={styles.chatHeaderAgePillIcon}>🎂</Text>
+                    <Text style={styles.chatHeaderAgePillText}>{selectedMatch.otherUser.age}</Text>
+                    <Text style={styles.chatHeaderAgePillLabel}>yrs</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
                 {selectedMatch.stage === 'pending' ? (
                   <View style={styles.chatHeaderStagePillWrap}>
                     <LinearGradient
@@ -3085,6 +3083,36 @@ export default function MatchesScreen() {
         </View>
       </LinearGradient>
       
+      {/* Age card popup - fun message when tapping the age pill */}
+      <Modal
+        visible={showAgeCardModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowAgeCardModal(false)}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          style={styles.ageCardOverlay}
+          onPress={() => setShowAgeCardModal(false)}
+        >
+          <TouchableOpacity activeOpacity={1} onPress={() => setShowAgeCardModal(false)} style={styles.ageCardTouchable}>
+            <LinearGradient
+              colors={['#667eea', '#764ba2', '#f093fb', '#f5576c']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.ageCardGradient}
+            >
+              <Text style={styles.ageCardEmoji}>✨</Text>
+              <Text style={styles.ageCardTitle}>Age is just a number</Text>
+              <Text style={styles.ageCardBody}>
+                …but connection is timeless. Here's to finding someone who makes every moment count—whether you're sharing laughs, dreams, or the last slice of pizza.
+              </Text>
+              <Text style={styles.ageCardHint}>Tap anywhere to close</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
       {/* Full-screen image viewer (chat images) */}
       <Modal
         visible={!!fullScreenImageUrl}
@@ -3129,6 +3157,31 @@ export default function MatchesScreen() {
           setOpenGameForAccept({ matchId, gameType });
         }}
       />
+
+      {/* Match Celebration - when User B opens app from match notification (push or in-app) */}
+      {(() => {
+        const rp = route.params as { showMatchCelebration?: boolean; matchId?: string; matchName?: string } | undefined;
+        const celebrationMatchId = rp?.showMatchCelebration ? rp?.matchId : undefined;
+        const celebrationMatch = celebrationMatchId ? matches.find(m => m.id === celebrationMatchId) : null;
+        return celebrationMatchId ? (
+          <MatchCelebration
+            profileName={rp?.matchName || celebrationMatch?.otherUser?.displayName || 'Someone'}
+            photoUrl={
+              celebrationMatch?.otherUser?.photoUrl
+                ? getPhotoUrl(celebrationMatch.otherUser.photoUrl)
+                : celebrationMatch?.otherUser?.photos?.[0]?.url
+                ? getPhotoUrl(celebrationMatch.otherUser.photos[0].url)
+                : undefined
+            }
+            matchId={celebrationMatchId}
+            onClose={() => {
+              navigation.setParams({ matchId: undefined, showMatchCelebration: undefined, matchName: undefined });
+              const m = matches.find(x => x.id === celebrationMatchId);
+              if (m) setSelectedMatch(m);
+            }}
+          />
+        ) : null;
+      })()}
 
       {/* Stage Info Modal - explains Stage 1 / Stage 2 */}
       <Modal
@@ -3183,7 +3236,7 @@ export default function MatchesScreen() {
         </TouchableOpacity>
       </Modal>
 
-      {/* New Features: Mulligan Moments, Date Plan, Truth or Dare - fixed at top */}
+      {/* New Features: Mulligan Moments - fixed at top (Date Blueprint moved to header) */}
       {selectedMatch && selectedMatch.stage !== 'pending' && (
         <View style={[styles.featuresContainer, { maxHeight: Math.min(200, windowHeight * 0.32) }]}>
           <MulliganMoments 
@@ -3197,15 +3250,6 @@ export default function MatchesScreen() {
               }
             }}
           />
-          <View style={styles.featuresRow}>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <DateBlueprint 
-                matchId={selectedMatch.id} 
-                socket={socketRef.current}
-                currentUserId={user?.id || ''}
-              />
-            </View>
-          </View>
         </View>
       )}
 
@@ -3214,13 +3258,16 @@ export default function MatchesScreen() {
           styles.chatMessagesWrapper,
           {
             opacity: chatFadeAnim,
-            paddingBottom: Platform.OS === 'ios' ? 155 : 152,
+            paddingBottom: keyboardHeight > 0
+              ? keyboardHeight + 72
+              : (Platform.OS === 'ios' ? 56 + Math.round(insets.bottom * 0.5) : 56) + 72,
           },
         ]}
       >
         <FlatList
           ref={messagesEndRef}
-          data={messages}
+          data={invertedMessages}
+          inverted
           keyExtractor={(item) => item.id}
           style={styles.messagesList}
           contentContainerStyle={messagesContentStyle}
@@ -3237,7 +3284,7 @@ export default function MatchesScreen() {
           onScrollToIndexFailed={onScrollToIndexFailed}
           renderItem={renderMessageItem}
           extraData={messages.length}
-          ListFooterComponent={listFooterComponent}
+          ListHeaderComponent={listHeaderComponent}
         />
       </Animated.View>
 
@@ -3248,7 +3295,7 @@ export default function MatchesScreen() {
               position: 'absolute',
               bottom: keyboardHeight > 0 
                 ? keyboardHeight 
-                : Platform.OS === 'ios' ? 88 : 86,
+                : Platform.OS === 'ios' ? 56 + Math.round(insets.bottom * 0.5) : 56,
               left: 0,
               right: 0,
               width: windowWidth,
@@ -3297,8 +3344,8 @@ export default function MatchesScreen() {
                 value={newMessage}
                 onChangeText={handleTextChange}
                 onFocus={() => {
-                  setTimeout(() => messagesEndRef.current?.scrollToEnd({ animated: true }), 100);
-                  setTimeout(() => messagesEndRef.current?.scrollToEnd({ animated: true }), 350);
+                  setTimeout(() => scrollToLatestMessageRef.current(), 100);
+                  setTimeout(() => scrollToLatestMessageRef.current(), 350);
                 }}
                 placeholder="Type a message..."
                 placeholderTextColor="#999"
@@ -3877,9 +3924,9 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   chatHeaderPhoto: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     borderWidth: 2.5,
     borderColor: 'rgba(255, 255, 255, 0.3)',
     shadowColor: '#000',
@@ -3889,9 +3936,9 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   chatHeaderPhotoPlaceholder: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2.5,
@@ -3903,12 +3950,19 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   chatHeaderPhotoPlaceholderText: {
-    fontSize: 18,
+    fontSize: 20,
     color: '#fff',
     fontWeight: 'bold',
     textShadowColor: 'rgba(0, 0, 0, 0.3)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
+  },
+  chatHeaderTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    minWidth: 0,
+    gap: 8,
   },
   chatHeaderTitle: {
     fontSize: 20,
@@ -3918,6 +3972,19 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
     flex: 1,
+  },
+  chatHeaderCompatibilityBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+  },
+  chatHeaderCompatibilityText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#fff',
   },
   chatHeaderSubtitleRow: {
     flexDirection: 'row',
@@ -3970,6 +4037,50 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.95)',
     textTransform: 'uppercase',
     letterSpacing: 0.6,
+  },
+  ageCardOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  ageCardTouchable: {
+    width: '100%',
+    maxWidth: 320,
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  ageCardGradient: {
+    padding: 28,
+    alignItems: 'center',
+  },
+  ageCardEmoji: {
+    fontSize: 40,
+    marginBottom: 12,
+  },
+  ageCardTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#fff',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  ageCardBody: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: 'rgba(255,255,255,0.95)',
+    textAlign: 'center',
+  },
+  ageCardHint: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.7)',
+    marginTop: 16,
   },
   chatHeaderStagePillWrap: {
     marginLeft: 8,

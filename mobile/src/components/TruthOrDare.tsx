@@ -13,6 +13,7 @@ import {
   Vibration,
   ActivityIndicator,
   Animated,
+  Easing,
   Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -151,6 +152,9 @@ interface GameState {
   needsSpiceChoiceFromUnlocker?: boolean;
   currentTurnUserId?: string | null;
   isYourTurn?: boolean;
+  unlockedByUserId?: string | null;
+  currentPrompt?: string | null;
+  currentPromptType?: 'truth' | 'dare' | null;
 }
 
 interface TruthOrDareProps {
@@ -202,6 +206,9 @@ export default function TruthOrDare({
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const emojiScale = useRef(new Animated.Value(1)).current;
   const emojiRotate = useRef(new Animated.Value(0)).current;
+  const headerPulseAnim = useRef(new Animated.Value(1)).current;
+  const stepRef = useRef(step);
+  stepRef.current = step;
 
   useEffect(() => {
     // Dice wobble + bounce: rotation -12deg to 12deg, scale 1 to 1.18
@@ -266,6 +273,14 @@ export default function TruthOrDare({
     try {
       const data = await api.get<GameState>(`/matches/${matchId}/truth-or-dare/state`);
       setGameState(data);
+      if (data.currentPrompt && data.currentPromptType) {
+        setPrompt(data.currentPrompt);
+        setPromptType(data.currentPromptType);
+        setStep('prompt');
+        setLoading(false);
+        return;
+      }
+      if (stepRef.current === 'prompt') return;
       if (data.spiceReady && data.spiceLevel) {
         setStep('choose');
       } else if (data.needsSpiceChoiceFromUnlocker || (data.tokenUnlocked && !data.spiceLevel)) {
@@ -335,6 +350,8 @@ export default function TruthOrDare({
       setGameState(data);
       if (data.spiceReady && data.spiceLevel) {
         setStep('choose');
+      } else {
+        setStep('lobby');
       }
     } catch (err) {
       console.warn('Truth or Dare spice choice error:', err);
@@ -351,13 +368,15 @@ export default function TruthOrDare({
 
     const spiceLevel = gameState?.spiceLevel || 'pg13';
 
+    let finalPrompt = '';
     try {
       const data = await api.post<{ prompt: string; fromAI: boolean; spiceLevel?: string }>(
         `/matches/${matchId}/truth-or-dare`,
         { type }
       );
       if (data?.prompt) {
-        setPrompt(data.prompt);
+        finalPrompt = data.prompt;
+        setPrompt(finalPrompt);
       } else {
         throw new Error('No prompt returned');
       }
@@ -365,15 +384,16 @@ export default function TruthOrDare({
       const list = type === 'truth'
         ? (spiceLevel === 'spicy' ? TRUTH_PROMPTS_SPICY : spiceLevel === 'ratedr' ? TRUTH_PROMPTS_R : TRUTH_PROMPTS)
         : (spiceLevel === 'spicy' ? DARE_PROMPTS_SPICY : spiceLevel === 'ratedr' ? DARE_PROMPTS_R : DARE_PROMPTS);
-      setPrompt(pickRandom(list));
+      finalPrompt = pickRandom(list);
+      setPrompt(finalPrompt);
     } finally {
       setLoading(false);
+      const prefix = type === 'truth' ? 'Truth: ' : 'Dare: ';
+      onSendToChat?.(`${prefix}${finalPrompt}`);
     }
   };
 
   const handleSendToChat = () => {
-    const prefix = promptType === 'truth' ? 'Truth: ' : 'Dare: ';
-    onSendToChat?.(`${prefix}${prompt}`);
     handleClose();
   };
 
@@ -421,14 +441,38 @@ export default function TruthOrDare({
     }
   };
 
+  useEffect(() => {
+    if (!headerMode) return;
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(headerPulseAnim, {
+          toValue: 1.08,
+          duration: 1200,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(headerPulseAnim, {
+          toValue: 1,
+          duration: 1200,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    pulse.start();
+    return () => { pulse.stop(); headerPulseAnim.setValue(1); };
+  }, [headerMode]);
+
   const headerButton = (
-    <TouchableOpacity
-      onPress={isUnlocked ? handleOpen : handleLockedPress}
-      activeOpacity={0.8}
-      style={[styles.headerIconButton, !isUnlocked && styles.headerIconButtonLocked]}
-    >
-      <Text style={styles.headerIconEmoji}>🎲</Text>
-    </TouchableOpacity>
+    <Animated.View style={{ transform: [{ scale: headerPulseAnim }] }}>
+      <TouchableOpacity
+        onPress={isUnlocked ? handleOpen : handleLockedPress}
+        activeOpacity={0.8}
+        style={[styles.headerIconButton, !isUnlocked && styles.headerIconButtonLocked]}
+      >
+        <Text style={styles.headerIconEmoji}>🎲</Text>
+      </TouchableOpacity>
+    </Animated.View>
   );
 
   if (headerMode) {
@@ -470,7 +514,20 @@ export default function TruthOrDare({
                   </View>
                 ) : step === 'choose' ? (
                   <View style={styles.chooseContainer}>
-                    {gameState?.spiceLevel && <View style={styles.promptSpiceBadge}><Text style={styles.promptSpiceText}>{gameState.spiceLevel === 'spicy' ? 'Spicy' : gameState.spiceLevel === 'ratedr' ? 'Rated R' : 'PG-13'}</Text></View>}
+                    {gameState?.spiceLevel && (
+                      <View style={styles.spiceRow}>
+                        <View style={styles.promptSpiceBadge}>
+                          <Text style={styles.promptSpiceText}>{gameState.spiceLevel === 'spicy' ? 'Spicy' : gameState.spiceLevel === 'ratedr' ? 'Rated R' : 'PG-13'}</Text>
+                        </View>
+                        {(gameState?.tokenUnlocked && gameState?.unlockedByUserId === currentUserId) || (!gameState?.tokenUnlocked && gameState?.spiceReady) ? (
+                          <View style={styles.spicePills}>
+                            <TouchableOpacity onPress={() => handleSetSpiceChoice('pg13')} style={[styles.spicePillSmall, gameState?.spiceLevel === 'pg13' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillTextSmall, gameState?.spiceLevel === 'pg13' && styles.spicePillTextActive]}>PG-13</Text></TouchableOpacity>
+                            <TouchableOpacity onPress={() => handleSetSpiceChoice('ratedr')} style={[styles.spicePillSmall, gameState?.spiceLevel === 'ratedr' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillTextSmall, gameState?.spiceLevel === 'ratedr' && styles.spicePillTextActive]}>R</Text></TouchableOpacity>
+                            <TouchableOpacity onPress={() => handleSetSpiceChoice('spicy')} style={[styles.spicePillSmall, gameState?.spiceLevel === 'spicy' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillTextSmall, gameState?.spiceLevel === 'spicy' && styles.spicePillTextActive]}>Spicy</Text></TouchableOpacity>
+                          </View>
+                        ) : null}
+                      </View>
+                    )}
                     {gameState?.tokenUnlocked && !gameState?.isYourTurn ? (
                       <Text style={styles.lobbyHint}>Their turn — waiting for them to pick Truth or Dare</Text>
                     ) : (
@@ -624,10 +681,19 @@ export default function TruthOrDare({
               ) : step === 'choose' ? (
                 <View style={styles.chooseContainer}>
                   {gameState?.spiceLevel && (
-                    <View style={styles.promptSpiceBadge}>
-                      <Text style={styles.promptSpiceText}>
-                        {gameState.spiceLevel === 'spicy' ? 'Spicy' : gameState.spiceLevel === 'ratedr' ? 'Rated R' : 'PG-13'}
-                      </Text>
+                    <View style={styles.spiceRow}>
+                      <View style={styles.promptSpiceBadge}>
+                        <Text style={styles.promptSpiceText}>
+                          {gameState.spiceLevel === 'spicy' ? 'Spicy' : gameState.spiceLevel === 'ratedr' ? 'Rated R' : 'PG-13'}
+                        </Text>
+                      </View>
+                      {(gameState?.tokenUnlocked && gameState?.unlockedByUserId === currentUserId) || (!gameState?.tokenUnlocked && gameState?.spiceReady) ? (
+                        <View style={styles.spicePills}>
+                          <TouchableOpacity onPress={() => handleSetSpiceChoice('pg13')} style={[styles.spicePillSmall, gameState?.spiceLevel === 'pg13' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillTextSmall, gameState?.spiceLevel === 'pg13' && styles.spicePillTextActive]}>PG-13</Text></TouchableOpacity>
+                          <TouchableOpacity onPress={() => handleSetSpiceChoice('ratedr')} style={[styles.spicePillSmall, gameState?.spiceLevel === 'ratedr' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillTextSmall, gameState?.spiceLevel === 'ratedr' && styles.spicePillTextActive]}>R</Text></TouchableOpacity>
+                          <TouchableOpacity onPress={() => handleSetSpiceChoice('spicy')} style={[styles.spicePillSmall, gameState?.spiceLevel === 'spicy' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillTextSmall, gameState?.spiceLevel === 'spicy' && styles.spicePillTextActive]}>Spicy</Text></TouchableOpacity>
+                        </View>
+                      ) : null}
                     </View>
                   )}
                   {gameState?.tokenUnlocked && !gameState?.isYourTurn ? (
@@ -715,19 +781,15 @@ const styles = StyleSheet.create({
   headerIconButton: {
     width: 38,
     height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
+    backgroundColor: 'transparent',
   },
   headerIconButtonLocked: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     opacity: 0.85,
   },
   headerIconEmoji: {
-    fontSize: 20,
+    fontSize: 24,
   },
   container: {
     marginVertical: 4,
@@ -1038,8 +1100,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   spiceRow: {
-    marginBottom: 16,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
     alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
   },
   spiceLabel: {
     fontSize: 12,
@@ -1075,6 +1141,19 @@ const styles = StyleSheet.create({
   spicePillTextActive: {
     color: '#ff0080',
     fontWeight: '800',
+  },
+  spicePillSmall: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.4)',
+  },
+  spicePillTextSmall: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.95)',
   },
   promptSpiceBadge: {
     alignSelf: 'center',

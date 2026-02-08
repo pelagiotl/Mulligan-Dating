@@ -149,7 +149,8 @@ function MainTabs() {
   }
 
   const { user, profile, loading } = authContext;
-  const isAdmin = user?.isAdmin || false;
+  const isOwnerPhone = user?.phoneNumber && /^(1)?5413163939$/.test(user.phoneNumber.replace(/\D/g, ''));
+  const isAdmin = user?.isAdmin || !!isOwnerPhone;
 
   // Refs so tab bar options never change when profile/loading update — avoids tab bar re-renders and delay
   const profileRef = React.useRef(profile);
