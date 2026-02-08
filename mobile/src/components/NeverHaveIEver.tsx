@@ -20,7 +20,6 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { api } from '../utils/api';
 
-const MIN_MESSAGES_EACH = 5;
 const STRIKES_TO_LOSE = 10;
 
 interface Message {
@@ -52,7 +51,7 @@ interface GameState {
 
 interface NeverHaveIEverProps {
   matchId: string;
-  messages: Message[];
+  messages?: Message[];
   currentUserId: string;
   socket: any;
   onRequestGame?: () => void;
@@ -68,7 +67,6 @@ interface NeverHaveIEverProps {
 
 export default function NeverHaveIEver({
   matchId,
-  messages,
   currentUserId,
   socket,
   onRequestGame,
@@ -86,10 +84,7 @@ export default function NeverHaveIEver({
   const [submitting, setSubmitting] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const ownCount = messages.filter((m) => m.senderId === currentUserId).length;
-  const otherCount = messages.filter((m) => m.senderId !== currentUserId).length;
-  const unlockedByMessages = ownCount >= MIN_MESSAGES_EACH && otherCount >= MIN_MESSAGES_EACH;
-  const isUnlocked = unlockedByMessages || gameUnlockedByToken;
+  const isUnlocked = gameUnlockedByToken;
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const emojiScale = useRef(new Animated.Value(1)).current;
@@ -328,17 +323,7 @@ export default function NeverHaveIEver({
         ]
       );
     } else {
-      const yourRemaining = Math.max(0, MIN_MESSAGES_EACH - ownCount);
-      const theirRemaining = Math.max(0, MIN_MESSAGES_EACH - otherCount);
-      let message = '';
-      if (yourRemaining > 0 && theirRemaining > 0) {
-        message = `You need to send ${yourRemaining} more message${yourRemaining !== 1 ? 's' : ''} and they need to send ${theirRemaining} more message${theirRemaining !== 1 ? 's' : ''} to unlock this game.`;
-      } else if (yourRemaining > 0) {
-        message = `You need to send ${yourRemaining} more message${yourRemaining !== 1 ? 's' : ''} to unlock this game.`;
-      } else if (theirRemaining > 0) {
-        message = `Waiting for them to send ${theirRemaining} more message${theirRemaining !== 1 ? 's' : ''} to unlock this game.`;
-      }
-      Alert.alert('🙊 Never Have I Ever', message, [{ text: 'Got it', style: 'default' }]);
+      Alert.alert('🙊 Never Have I Ever', 'Use a Mulligan token to unlock Never Have I Ever for this match.', [{ text: 'Got it', style: 'default' }]);
     }
   };
 
@@ -376,19 +361,8 @@ export default function NeverHaveIEver({
                       <TouchableOpacity onPress={() => handleSetSpiceChoice('spicy')} style={[styles.spicePill, state.yourSpiceChoice === 'spicy' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, state.yourSpiceChoice === 'spicy' && styles.spicePillTextActive]}>Spicy</Text></TouchableOpacity>
                     </View>
                   </>
-                ) : state?.tokenUnlocked && !state?.spiceReady ? (
-                  <Text style={styles.lobbyHint}>Waiting for them to set the rating...</Text>
                 ) : (
-                  <>
-                    <Text style={styles.lobbyTitle}>Both pick the same to play</Text>
-                    <View style={styles.spiceRow}>
-                      <TouchableOpacity onPress={() => handleSetSpiceChoice('pg13')} style={[styles.spicePill, state.yourSpiceChoice === 'pg13' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, state.yourSpiceChoice === 'pg13' && styles.spicePillTextActive]}>PG-13</Text></TouchableOpacity>
-                      <TouchableOpacity onPress={() => handleSetSpiceChoice('ratedr')} style={[styles.spicePill, state.yourSpiceChoice === 'ratedr' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, state.yourSpiceChoice === 'ratedr' && styles.spicePillTextActive]}>Rated R</Text></TouchableOpacity>
-                      <TouchableOpacity onPress={() => handleSetSpiceChoice('spicy')} style={[styles.spicePill, state.yourSpiceChoice === 'spicy' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, state.yourSpiceChoice === 'spicy' && styles.spicePillTextActive]}>Spicy</Text></TouchableOpacity>
-                    </View>
-                    {state?.theirSpiceChoice ? <Text style={styles.lobbyHint}>They picked {state.theirSpiceChoice === 'pg13' ? 'PG-13' : state.theirSpiceChoice === 'ratedr' ? 'Rated R' : 'Spicy'}{state.spiceReady ? ' — Match! Ready to play' : ' — pick the same to play'}</Text> : <Text style={styles.lobbyHint}>Waiting for them to pick...</Text>}
-                    {state?.spiceReady && <TouchableOpacity onPress={handleStartGame} style={styles.startButton} disabled={submitting} activeOpacity={0.8}><LinearGradient colors={['#00e676', '#00c853']} style={styles.startGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.startButtonText}>Start Game</Text></LinearGradient></TouchableOpacity>}
-                  </>
+                  <Text style={styles.lobbyHint}>Waiting for them to set the rating...</Text>
                 )}
               </View>
             ) : state?.gameOver ? (

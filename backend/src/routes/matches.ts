@@ -1636,10 +1636,13 @@ matchesRouter.get("/:matchId/truth-or-dare/state", authenticateToken, async (req
     const isUser1 = match.user1_id === userId;
     const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
 
-    // Check if token-unlocked (User A unlocks, User A picks rating alone, User B goes first)
+    // Truth or Dare requires token unlock
     const unlockRow = db.prepare('SELECT unlocked_by_user_id FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'truth_or_dare']) as { unlocked_by_user_id: string } | undefined;
-    const tokenUnlocked = !!unlockRow;
-    const unlockedByUserId = unlockRow?.unlocked_by_user_id ?? null;
+    if (!unlockRow) {
+      return res.status(400).json({ error: "Truth or Dare must be unlocked with a Mulligan token to play." });
+    }
+    const tokenUnlocked = true;
+    const unlockedByUserId = unlockRow.unlocked_by_user_id;
 
     // Get or create game state
     let gameResult = db.prepare('SELECT * FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
@@ -1652,13 +1655,9 @@ matchesRouter.get("/:matchId/truth-or-dare/state", authenticateToken, async (req
 
     const yourSpiceChoice = isUser1 ? game.user1_spice_choice : game.user2_spice_choice;
     const theirSpiceChoice = isUser1 ? game.user2_spice_choice : game.user1_spice_choice;
-    const bothPicked = yourSpiceChoice && theirSpiceChoice;
-    const spiceMatched = bothPicked && yourSpiceChoice === theirSpiceChoice;
 
-    // Token-unlocked: only unlocker picks rating, game ready when spice set, User B (non-unlocker) goes first
-    const spiceReady = tokenUnlocked
-      ? !!game.spice_level
-      : spiceMatched;
+    // Unlocker picks rating, game ready when spice set, User B (non-unlocker) goes first
+    const spiceReady = !!game.spice_level;
 
     const isUnlocker = tokenUnlocked && unlockedByUserId === userId;
     const needsSpiceChoiceFromUnlocker = tokenUnlocked && !game.spice_level && isUnlocker;
@@ -1712,53 +1711,29 @@ matchesRouter.post("/:matchId/truth-or-dare/spice-choice", authenticateToken, ra
     }
 
     const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
-    const isUser1 = match.user1_id === userId;
-    const column = isUser1 ? 'user1_spice_choice' : 'user2_spice_choice';
 
-    // Check if token-unlocked: unlocker alone sets spice, User B (non-unlocker) goes first
+    // Truth or Dare requires token unlock; only unlocker can set spice
     const unlockRow = db.prepare('SELECT unlocked_by_user_id FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'truth_or_dare']) as { unlocked_by_user_id: string } | undefined;
-    const isTokenUnlocked = !!unlockRow;
-    const isUnlocker = unlockRow?.unlocked_by_user_id === userId;
+    if (!unlockRow) {
+      return res.status(400).json({ error: "Truth or Dare must be unlocked with a Mulligan token to play." });
+    }
+    if (unlockRow.unlocked_by_user_id !== userId) {
+      return res.status(400).json({ error: "Only the person who unlocked can set the rating." });
+    }
 
-    if (isTokenUnlocked) {
-      if (!isUnlocker) {
-        return res.status(400).json({ error: "Only the person who unlocked can set the rating." });
-      }
-      // Unlocker picks rating → set spice_level and current_turn = other user (User B goes first)
-      const existingResult = db.prepare('SELECT match_id FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
-      const existing = existingResult instanceof Promise ? await existingResult : existingResult;
-      if (!existing) {
-        db.prepare(`INSERT INTO truth_or_dare_games (match_id, spice_level, current_turn_user_id) VALUES (?, ?, ?)`).run([matchId, choice, otherUserId]);
-      } else {
-        db.prepare(`UPDATE truth_or_dare_games SET spice_level = ?, current_turn_user_id = ?, current_prompt = NULL, current_prompt_type = NULL, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?`).run([choice, otherUserId, matchId]);
-      }
+    // Unlocker picks rating → set spice_level and current_turn = other user (User B goes first)
+    const existingResult = db.prepare('SELECT match_id FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
+    const existing = existingResult instanceof Promise ? await existingResult : existingResult;
+    if (!existing) {
+      db.prepare(`INSERT INTO truth_or_dare_games (match_id, spice_level, current_turn_user_id) VALUES (?, ?, ?)`).run([matchId, choice, otherUserId]);
     } else {
-      // Message-unlocked: both pick, must match
-      const existingResult = db.prepare('SELECT match_id FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
-      const existing = existingResult instanceof Promise ? await existingResult : existingResult;
-      if (!existing) {
-        db.prepare(`INSERT INTO truth_or_dare_games (match_id, ${column}) VALUES (?, ?)`).run([matchId, choice]);
-      } else {
-        db.prepare(`UPDATE truth_or_dare_games SET ${column} = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?`).run([choice, matchId]);
-      }
+      db.prepare(`UPDATE truth_or_dare_games SET spice_level = ?, current_turn_user_id = ?, current_prompt = NULL, current_prompt_type = NULL, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?`).run([choice, otherUserId, matchId]);
     }
 
     // Get updated state
     const gameResult = db.prepare('SELECT * FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
     const game = (gameResult instanceof Promise ? await gameResult : gameResult) as any;
-
-    const yourSpiceChoice = isUser1 ? game.user1_spice_choice : game.user2_spice_choice;
-    const theirSpiceChoice = isUser1 ? game.user2_spice_choice : game.user1_spice_choice;
-    const bothPicked = yourSpiceChoice && theirSpiceChoice;
-    const spiceMatched = bothPicked && yourSpiceChoice === theirSpiceChoice;
-    const spiceReady = isTokenUnlocked ? !!game.spice_level : spiceMatched;
-
-    if (!isTokenUnlocked && spiceMatched && !game.spice_level) {
-      db.prepare('UPDATE truth_or_dare_games SET spice_level = ? WHERE match_id = ?').run([yourSpiceChoice, matchId]);
-    }
-    if (!isTokenUnlocked && bothPicked && !spiceMatched) {
-      db.prepare('UPDATE truth_or_dare_games SET spice_level = NULL, current_prompt = NULL, current_prompt_type = NULL WHERE match_id = ?').run([matchId]);
-    }
+    const spiceReady = !!game.spice_level;
 
     // Emit socket event to notify other user
     try {
@@ -1771,20 +1746,18 @@ matchesRouter.post("/:matchId/truth-or-dare/spice-choice", authenticateToken, ra
       console.warn('Socket emit failed:', e);
     }
 
-    // Fallback when current_turn_user_id is null: non-unlocker goes first (consistent for both users)
-    const nonUnlockerId = unlockRow?.unlocked_by_user_id ? (match.user1_id === unlockRow.unlocked_by_user_id ? match.user2_id : match.user1_id) : null;
-    const currentTurnUserId = game.current_turn_user_id ?? (spiceReady && isTokenUnlocked ? nonUnlockerId : (spiceReady && !isTokenUnlocked ? null : otherUserId));
+    const nonUnlockerId = match.user1_id === unlockRow.unlocked_by_user_id ? match.user2_id : match.user1_id;
+    const currentTurnUserId = spiceReady ? (game.current_turn_user_id ?? nonUnlockerId) : null;
     const isYourTurn = !!currentTurnUserId && currentTurnUserId === userId;
 
-    const unlockedByUserId = unlockRow?.unlocked_by_user_id ?? null;
     res.json({
-      yourSpiceChoice: isTokenUnlocked ? choice : yourSpiceChoice,
-      theirSpiceChoice: isTokenUnlocked ? null : theirSpiceChoice,
+      yourSpiceChoice: choice,
+      theirSpiceChoice: null,
       spiceReady,
       spiceLevel: spiceReady ? (game.spice_level || choice) : null,
-      tokenUnlocked: isTokenUnlocked,
-      unlockedByUserId,
-      currentTurnUserId: spiceReady ? (game.current_turn_user_id ?? otherUserId) : null,
+      tokenUnlocked: true,
+      unlockedByUserId: unlockRow.unlocked_by_user_id,
+      currentTurnUserId,
       isYourTurn: !!spiceReady && isYourTurn,
     });
   } catch (error) {
@@ -1822,13 +1795,16 @@ matchesRouter.post("/:matchId/truth-or-dare", authenticateToken, rateLimitAPI, a
     const gameResult = db.prepare('SELECT * FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
     const game = (gameResult instanceof Promise ? await gameResult : gameResult) as { spice_level: string | null; current_turn_user_id: string | null } | undefined;
 
+    const unlockRow = db.prepare('SELECT 1 FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'truth_or_dare']) as { 1?: number } | undefined;
+    if (!unlockRow) {
+      return res.status(400).json({ error: "Truth or Dare must be unlocked with a Mulligan token to play." });
+    }
     if (!game?.spice_level) {
       return res.status(400).json({ error: "Game not ready. Set spice level first." });
     }
 
-    // Token-unlocked: enforce turn order (User B goes first, then alternate)
-    const unlockRow = db.prepare('SELECT 1 FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'truth_or_dare']) as { 1?: number } | undefined;
-    if (unlockRow && game.current_turn_user_id && game.current_turn_user_id !== userId) {
+    // Enforce turn order (User B goes first, then alternate)
+    if (game.current_turn_user_id && game.current_turn_user_id !== userId) {
       return res.status(400).json({ error: "Not your turn. Wait for them to pick." });
     }
 
@@ -1837,11 +1813,9 @@ matchesRouter.post("/:matchId/truth-or-dare", authenticateToken, rateLimitAPI, a
     const { generateTruthOrDarePrompt } = await import('../services/truthOrDare.js');
     const { prompt, fromAI } = await generateTruthOrDarePrompt(type, matchId, userId, level);
 
-    // Store prompt so both users see it; switch turn to other user (for token-unlocked games)
+    // Store prompt so both users see it; switch turn to other user
     db.prepare('UPDATE truth_or_dare_games SET current_prompt = ?, current_prompt_type = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([prompt, type, matchId]);
-    if (unlockRow) {
-      db.prepare('UPDATE truth_or_dare_games SET current_turn_user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([otherUserId, matchId]);
-    }
+    db.prepare('UPDATE truth_or_dare_games SET current_turn_user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([otherUserId, matchId]);
     try {
       const { getIO } = await import('../socket.js');
       const io = getIO();
@@ -1878,16 +1852,18 @@ matchesRouter.post("/:matchId/never-have-i-ever/spice-choice", authenticateToken
       return res.status(404).json({ error: "Match not found" });
     }
 
-    // Token-unlocked: unlocker alone sets rating, game ready for both
+    // Never Have I Ever requires token unlock
     const unlockRow = db.prepare('SELECT unlocked_by_user_id FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'never_have_i_ever']) as { unlocked_by_user_id: string } | undefined;
-    if (unlockRow && unlockRow.unlocked_by_user_id !== userId) {
+    if (!unlockRow) {
+      return res.status(400).json({ error: "Never Have I Ever must be unlocked with a Mulligan token to play." });
+    }
+    if (unlockRow.unlocked_by_user_id !== userId) {
       return res.status(400).json({ error: "Only the person who unlocked can set the rating." });
     }
 
     const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
 
-    if (unlockRow) {
-      // Token-unlock: unlocker picks → set spice, current_turn = User B, generate first prompt (game starts)
+    // Unlocker picks → set spice, current_turn = User B, generate first prompt (game starts)
       const { generateNeverHaveIEverPrompt } = await import('../services/neverHaveIEver.js');
       const prompt = await generateNeverHaveIEverPrompt(matchId, choice as 'pg13' | 'ratedr' | 'spicy');
       const rowResult = db.prepare('SELECT match_id FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
@@ -1903,8 +1879,8 @@ matchesRouter.post("/:matchId/never-have-i-ever/spice-choice", authenticateToken
       }
     }
 
-    const { setSpiceChoice, getGameState } = await import('../services/neverHaveIEver.js');
-    const state = unlockRow ? await getGameState(matchId, userId, match) : await setSpiceChoice(matchId, userId, match, choice as 'pg13' | 'ratedr' | 'spicy');
+    const { getGameState } = await import('../services/neverHaveIEver.js');
+    const state = await getGameState(matchId, userId, match);
 
     try {
       const { getIO } = await import('../socket.js');
@@ -1916,7 +1892,7 @@ matchesRouter.post("/:matchId/never-have-i-ever/spice-choice", authenticateToken
       console.warn('⚠️  Socket.io not available for Never Have I Ever notification');
     }
 
-    res.json({ ...state, tokenUnlocked: !!unlockRow, needsSpiceChoiceFromUnlocker: false });
+    res.json({ ...state, tokenUnlocked: true, needsSpiceChoiceFromUnlocker: false });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error("Never Have I Ever spice choice error:", error);
@@ -1938,6 +1914,11 @@ matchesRouter.post("/:matchId/never-have-i-ever/start", authenticateToken, rateL
 
     if (!match) {
       return res.status(404).json({ error: "Match not found" });
+    }
+
+    const unlockRow = db.prepare('SELECT 1 FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'never_have_i_ever']) as { 1?: number } | undefined;
+    if (!unlockRow) {
+      return res.status(400).json({ error: "Never Have I Ever must be unlocked with a Mulligan token to play." });
     }
 
     const { startGame } = await import('../services/neverHaveIEver.js');
@@ -1977,23 +1958,23 @@ matchesRouter.get("/:matchId/never-have-i-ever", authenticateToken, async (req: 
       return res.status(404).json({ error: "Match not found" });
     }
 
+    // Never Have I Ever requires token unlock
+    const unlockRow = db.prepare('SELECT unlocked_by_user_id FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'never_have_i_ever']) as { unlocked_by_user_id: string } | undefined;
+    if (!unlockRow) {
+      return res.status(400).json({ error: "Never Have I Ever must be unlocked with a Mulligan token to play." });
+    }
+
     const { getGameState } = await import('../services/neverHaveIEver.js');
     const state = await getGameState(matchId, userId, match);
 
-    // Token-unlocked: unlocker alone sets rating
-    const unlockRow = db.prepare('SELECT unlocked_by_user_id FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'never_have_i_ever']) as { unlocked_by_user_id: string } | undefined;
-    if (unlockRow) {
-      const isUnlocker = unlockRow.unlocked_by_user_id === userId;
-      res.json({
-        ...state,
-        tokenUnlocked: true,
-        needsSpiceChoiceFromUnlocker: !state.spiceReady && isUnlocker,
-        currentTurnUserId: state.currentTurnUserId ?? null,
-        isYourTurn: state.isYourTurn ?? false,
-      });
-    } else {
-      res.json(state);
-    }
+    const isUnlocker = unlockRow.unlocked_by_user_id === userId;
+    res.json({
+      ...state,
+      tokenUnlocked: true,
+      needsSpiceChoiceFromUnlocker: !state.spiceReady && isUnlocker,
+      currentTurnUserId: state.currentTurnUserId ?? null,
+      isYourTurn: state.isYourTurn ?? false,
+    });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error("Never Have I Ever get error:", error);
@@ -2020,6 +2001,11 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
 
     if (!match) {
       return res.status(404).json({ error: "Match not found" });
+    }
+
+    const unlockRow = db.prepare('SELECT 1 FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'never_have_i_ever']) as { 1?: number } | undefined;
+    if (!unlockRow) {
+      return res.status(400).json({ error: "Never Have I Ever must be unlocked with a Mulligan token to play." });
     }
 
     const { submitAnswer, submitTurnAnswer } = await import('../services/neverHaveIEver.js');

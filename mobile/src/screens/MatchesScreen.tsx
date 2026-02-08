@@ -658,7 +658,7 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
                       >
                         <Text style={styles.stageEmoji}>{getStageEmoji(item.stage)}</Text>
                         <Text style={[styles.stageText, item.stage === 'stage2' && { color: '#fff' }, item.stage === 'stage1' && styles.stageTextStage1]}>
-                          {item.stage === 'stage1' ? 'Stage 1' : 'Stage 2'}
+                          {item.stage === 'stage1' ? 'Stage 1' : 'Level 2'}
                         </Text>
                       </LinearGradient>
                     </TouchableOpacity>
@@ -672,7 +672,7 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
                     >
                       <Text style={styles.stageEmoji}>{getStageEmoji(item.stage)}</Text>
                       <Text style={[styles.stageText, item.stage === 'stage2' && { color: '#fff' }, item.stage === 'stage1' && styles.stageTextStage1]}>
-                        {item.stage === 'pending' ? 'Pending' : item.stage === 'stage1' ? 'Stage 1' : 'Stage 2'}
+                        {item.stage === 'pending' ? 'Pending' : item.stage === 'stage1' ? 'Stage 1' : 'Level 2'}
                       </Text>
                     </LinearGradient>
                   )}
@@ -1857,23 +1857,35 @@ export default function MatchesScreen() {
     return () => clearInterval(interval);
   }, [matches]);
 
+  // When keyboardHeight changes, scroll after layout updates so newest messages stay anchored
+  useEffect(() => {
+    if (keyboardHeight > 0 && messages.length > 0) {
+      const t1 = setTimeout(() => scrollToLatestMessageRef.current(), 100);
+      const t2 = setTimeout(() => scrollToLatestMessageRef.current(), 300);
+      return () => { clearTimeout(t1); clearTimeout(t2); };
+    }
+  }, [keyboardHeight, messages.length]);
+
   // Handle keyboard show/hide events - scroll to show most recent message when keyboard opens
   useEffect(() => {
     const keyboardWillShowListener = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
       (e) => {
         setKeyboardHeight(e.endCoordinates.height);
-        // Scroll to newest (index 0 in inverted list) when keyboard appears
+        // Scroll to newest after layout settles (contentContainerStyle + wrapper padding update, then FlatList relayouts)
         const scrollToNewest = () => scrollToLatestMessageRef.current();
-        setTimeout(scrollToNewest, 100);
+        setTimeout(scrollToNewest, 50);
+        setTimeout(scrollToNewest, 150);
         setTimeout(scrollToNewest, 350);
-        setTimeout(scrollToNewest, 600);
+        setTimeout(scrollToNewest, 550);
       }
     );
     const keyboardWillHideListener = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
       () => {
         setKeyboardHeight(0);
+        // Scroll to newest when keyboard dismisses so messages stay anchored
+        setTimeout(() => scrollToLatestMessageRef.current(), 100);
       }
     );
 
@@ -2082,11 +2094,8 @@ export default function MatchesScreen() {
   );
 
   const messagesContentStyle = useMemo(
-    () => [
-      styles.messagesContent,
-      { paddingTop: keyboardHeight > 0 ? keyboardHeight + 80 : 12 },
-    ],
-    [keyboardHeight]
+    () => [styles.messagesContent],
+    []
   );
 
   // Initialize WebSocket connection
@@ -2884,7 +2893,7 @@ export default function MatchesScreen() {
                   <Text style={styles.stageInfoBigEmoji}>{stageInfoStage === 'stage1' ? '💖' : '💕'}</Text>
                 </View>
                 <Text style={styles.stageInfoTitle}>
-                  {stageInfoStage === 'stage1' ? 'Stage 1' : 'Stage 2'}
+                  {stageInfoStage === 'stage1' ? 'Stage 1' : 'Level 2'}
                 </Text>
                 <Text style={styles.stageInfoSubtitle}>
                   {stageInfoStage === 'stage1' ? 'Primary photo revealed' : 'All photos unlocked'}
@@ -2892,7 +2901,7 @@ export default function MatchesScreen() {
                 <View style={styles.stageInfoDivider} />
                 <Text style={styles.stageInfoBody}>
                   {stageInfoStage === 'stage1'
-                    ? 'You can see each other\'s primary profile picture. Chat and send at least 2 messages each to unlock Stage 2 and see all photos.'
+                    ? 'You can see each other\'s primary profile picture. Chat and send at least 2 messages each to unlock Level 2 and see all photos.'
                     : 'You\'ve both sent 2+ messages! All profile photos are now visible to each other.'}
                 </Text>
                 <TouchableOpacity
@@ -2926,57 +2935,138 @@ export default function MatchesScreen() {
         style={styles.chatHeaderGradient}
       >
         <View style={styles.chatHeader}>
-          <TouchableOpacity 
-            onPress={() => {
-              console.log('🔙 Back button TOUCHED');
-              console.log('   Current selectedMatch before clear:', selectedMatch?.id);
-              // Clear route params to prevent auto-selection from re-triggering
-              navigation.setParams({ matchId: undefined });
-              // Clear messages and selectedMatch directly
-              setMessages([]);
-              setSelectedMatch(null);
-              console.log('   State cleared - selectedMatch set to null, route params cleared');
-            }}
-            style={styles.backButtonContainer}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.backButton}>← Back</Text>
-          </TouchableOpacity>
-          <View style={styles.chatHeaderInfo}>
-            <View style={styles.chatHeaderNameRow}>
+          {/* Top row: Back | Photo | Name */}
+          <View style={styles.chatHeaderTopRow}>
+            <TouchableOpacity
+              onPress={() => {
+                console.log('🔙 Back button TOUCHED');
+                navigation.setParams({ matchId: undefined });
+                setMessages([]);
+                setSelectedMatch(null);
+              }}
+              style={styles.chatHeaderBackTouch}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.backButton}>← Back</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setShowProfileModal(true)}
+              activeOpacity={0.8}
+              style={styles.chatHeaderPhotoTouch}
+            >
+              {(() => {
+                const chatPhotoUrl = getMatchPhoto(selectedMatch);
+                return chatPhotoUrl ? (
+                  <Image
+                    source={{ uri: chatPhotoUrl }}
+                    style={styles.chatHeaderPhoto}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <LinearGradient
+                    colors={['#667eea', '#764ba2', '#f093fb']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.chatHeaderPhotoPlaceholder}
+                  >
+                    <Text style={styles.chatHeaderPhotoPlaceholderText}>
+                      {selectedMatch.otherUser.displayName.charAt(0).toUpperCase()}
+                    </Text>
+                  </LinearGradient>
+                );
+              })()}
+            </TouchableOpacity>
+            <Text style={styles.chatHeaderTitle} numberOfLines={1} ellipsizeMode="tail">{selectedMatch.otherUser.displayName}</Text>
+          </View>
+          {/* Bottom row: pills + game icons */}
+          <View style={styles.chatHeaderBottomRow}>
+            <View style={styles.chatHeaderPillRow}>
               <TouchableOpacity
-                onPress={() => setShowProfileModal(true)}
-                activeOpacity={0.8}
-                style={styles.chatHeaderPhotoTouch}
+                activeOpacity={0.85}
+                onPress={() => setShowAgeCardModal(true)}
               >
-                {(() => {
-                  const chatPhotoUrl = getMatchPhoto(selectedMatch);
-                  return chatPhotoUrl ? (
-                    <Image
-                      source={{ uri: chatPhotoUrl }}
-                      style={styles.chatHeaderPhoto}
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <LinearGradient
-                      colors={['#667eea', '#764ba2', '#f093fb']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.chatHeaderPhotoPlaceholder}
-                    >
-                      <Text style={styles.chatHeaderPhotoPlaceholderText}>
-                        {selectedMatch.otherUser.displayName.charAt(0).toUpperCase()}
-                      </Text>
-                    </LinearGradient>
-                  );
-                })()}
+                <LinearGradient
+                  colors={['#667eea', '#764ba2', '#8b5cf6']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.chatHeaderAgePill}
+                >
+                  <Text style={styles.chatHeaderAgePillIcon}>🎂</Text>
+                  <Text style={styles.chatHeaderAgePillText}>{selectedMatch.otherUser.age}</Text>
+                  <Text style={styles.chatHeaderAgePillLabel}>yrs</Text>
+                </LinearGradient>
               </TouchableOpacity>
-              <View style={styles.chatHeaderTitleRow}>
-                <Text style={styles.chatHeaderTitle} numberOfLines={1} ellipsizeMode="tail">{selectedMatch.otherUser.displayName}</Text>
-              </View>
-              {selectedMatch.stage !== 'pending' && (
-                <View style={styles.chatHeaderActionsRow}>
-                  <TruthOrDare
+              {selectedMatch.stage === 'pending' ? (
+                <View style={styles.chatHeaderStagePillWrap}>
+                  <LinearGradient
+                    colors={['rgba(255,255,255,0.25)', 'rgba(255,255,255,0.12)']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.chatHeaderStagePill}
+                  >
+                    <Text style={styles.chatHeaderStagePillText}>Pending</Text>
+                  </LinearGradient>
+                </View>
+              ) : (selectedMatch.stage === 'stage1' || selectedMatch.stage === 'stage2') ? (
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={() => handleStageInfoPress(selectedMatch.stage as 'stage1' | 'stage2')}
+                  style={[styles.chatHeaderStagePillWrap, selectedMatch.stage === 'stage1' && styles.chatHeaderStagePillWrapStage1]}
+                >
+                  <LinearGradient
+                    colors={selectedMatch.stage === 'stage2' ? ['#ff85b3', '#ff4d94'] : ['#ff80ab', '#ff4081', '#ff80ab']}
+                    locations={selectedMatch.stage === 'stage1' ? [0, 0.5, 1] : undefined}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={[styles.chatHeaderStagePill, selectedMatch.stage === 'stage2' && styles.chatHeaderStagePillStage2, selectedMatch.stage === 'stage1' && styles.chatHeaderStagePillStage1]}
+                  >
+                    {selectedMatch.stage === 'stage1' && (
+                      <LinearGradient
+                        colors={['rgba(255,255,255,0.35)', 'rgba(255,255,255,0)']}
+                        style={styles.chatHeaderStagePillGloss}
+                        start={{ x: 0.5, y: 0 }}
+                        end={{ x: 0.5, y: 1 }}
+                      />
+                    )}
+                    <Text style={styles.chatHeaderStagePillEmoji}>{selectedMatch.stage === 'stage1' ? '💖' : '💕'}</Text>
+                    <Text style={[styles.chatHeaderStagePillText, selectedMatch.stage === 'stage2' && styles.chatHeaderStagePillTextStage2, selectedMatch.stage === 'stage1' && styles.chatHeaderStagePillTextStage1]}>
+                      {selectedMatch.stage === 'stage1' ? 'Stage 1' : 'Level 2'}
+                    </Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.chatHeaderStagePillWrap}>
+                  <LinearGradient colors={['#ff85b3', '#ff4d94']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.chatHeaderStagePill, styles.chatHeaderStagePillStage2]}>
+                    <Text style={styles.chatHeaderStagePillEmoji}>💕</Text>
+                    <Text style={[styles.chatHeaderStagePillText, styles.chatHeaderStagePillTextStage2]}>Level 2</Text>
+                  </LinearGradient>
+                </View>
+              )}
+              {profileCompatibility != null && selectedMatch.stage !== 'pending' && (
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={() => setShowCompatibilityCardModal(true)}
+                  style={styles.chatHeaderCompatibilityBadgeWrap}
+                >
+                  <LinearGradient
+                    colors={
+                      profileCompatibility >= 80 ? ['#ff6b9d', '#c44569', '#f093fb'] :
+                      profileCompatibility >= 60 ? ['#667eea', '#764ba2', '#a855f7'] :
+                      ['#6366f1', '#8b5cf6', '#a78bfa']
+                    }
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.chatHeaderCompatibilityBadge}
+                  >
+                    <Text style={styles.chatHeaderCompatibilityIcon}>💕</Text>
+                    <Text style={styles.chatHeaderCompatibilityText}>{profileCompatibility}%</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              )}
+            </View>
+            {selectedMatch.stage !== 'pending' && (
+              <View style={styles.chatHeaderActionsRow}>
+                <TruthOrDare
                     matchId={selectedMatch.id}
                     messages={messages}
                     currentUserId={user?.id || ''}
@@ -3020,96 +3110,8 @@ export default function MatchesScreen() {
                     headerMode
                   />
                   <CompatibilityPulse matchId={selectedMatch.id} socket={socketRef.current} isFocused={isFocused} />
-                </View>
-              )}
-            </View>
-            <View style={styles.chatHeaderSubtitleRow}>
-              <View style={styles.chatHeaderPillRow}>
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  onPress={() => setShowAgeCardModal(true)}
-                >
-                  <LinearGradient
-                    colors={['#667eea', '#764ba2', '#8b5cf6']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.chatHeaderAgePill}
-                  >
-                    <Text style={styles.chatHeaderAgePillIcon}>🎂</Text>
-                    <Text style={styles.chatHeaderAgePillText}>{selectedMatch.otherUser.age}</Text>
-                    <Text style={styles.chatHeaderAgePillLabel}>yrs</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-                {selectedMatch.stage === 'pending' ? (
-                  <View style={styles.chatHeaderStagePillWrap}>
-                    <LinearGradient
-                      colors={['rgba(255,255,255,0.25)', 'rgba(255,255,255,0.12)']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.chatHeaderStagePill}
-                    >
-                      <Text style={styles.chatHeaderStagePillText}>Pending</Text>
-                    </LinearGradient>
-                  </View>
-                ) : (selectedMatch.stage === 'stage1' || selectedMatch.stage === 'stage2') ? (
-                  <TouchableOpacity
-                    activeOpacity={0.85}
-                    onPress={() => handleStageInfoPress(selectedMatch.stage as 'stage1' | 'stage2')}
-                    style={[styles.chatHeaderStagePillWrap, selectedMatch.stage === 'stage1' && styles.chatHeaderStagePillWrapStage1]}
-                  >
-                    <LinearGradient
-                      colors={selectedMatch.stage === 'stage2' ? ['#ff85b3', '#ff4d94'] : ['#ff80ab', '#ff4081', '#ff80ab']}
-                      locations={selectedMatch.stage === 'stage1' ? [0, 0.5, 1] : undefined}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={[styles.chatHeaderStagePill, selectedMatch.stage === 'stage2' && styles.chatHeaderStagePillStage2, selectedMatch.stage === 'stage1' && styles.chatHeaderStagePillStage1]}
-                    >
-                      {selectedMatch.stage === 'stage1' && (
-                        <LinearGradient
-                          colors={['rgba(255,255,255,0.35)', 'rgba(255,255,255,0)']}
-                          style={styles.chatHeaderStagePillGloss}
-                          start={{ x: 0.5, y: 0 }}
-                          end={{ x: 0.5, y: 1 }}
-                        />
-                      )}
-                      <Text style={styles.chatHeaderStagePillEmoji}>{selectedMatch.stage === 'stage1' ? '💖' : '💕'}</Text>
-                      <Text style={[styles.chatHeaderStagePillText, selectedMatch.stage === 'stage2' && styles.chatHeaderStagePillTextStage2, selectedMatch.stage === 'stage1' && styles.chatHeaderStagePillTextStage1]}>
-                        {selectedMatch.stage === 'stage1' ? 'Stage 1' : 'Stage 2'}
-                      </Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
-                ) : (
-                  <View style={styles.chatHeaderStagePillWrap}>
-                    <LinearGradient colors={['#ff85b3', '#ff4d94']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.chatHeaderStagePill, styles.chatHeaderStagePillStage2]}>
-                      <Text style={styles.chatHeaderStagePillEmoji}>💕</Text>
-                      <Text style={[styles.chatHeaderStagePillText, styles.chatHeaderStagePillTextStage2]}>Stage 2</Text>
-                    </LinearGradient>
-                  </View>
-                )}
               </View>
-              {profileCompatibility != null && selectedMatch.stage !== 'pending' && (
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  onPress={() => setShowCompatibilityCardModal(true)}
-                  style={styles.chatHeaderCompatibilityBadgeWrap}
-                >
-                  <LinearGradient
-                    colors={
-                      profileCompatibility >= 80 ? ['#ff6b9d', '#c44569', '#f093fb'] :
-                      profileCompatibility >= 60 ? ['#667eea', '#764ba2', '#a855f7'] :
-                      ['#6366f1', '#8b5cf6', '#a78bfa']
-                    }
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.chatHeaderCompatibilityBadge}
-                  >
-                    <Text style={styles.chatHeaderCompatibilityIcon}>💕</Text>
-                    <Text style={styles.chatHeaderCompatibilityText}>{profileCompatibility}%</Text>
-                    <Text style={styles.chatHeaderCompatibilityLabel}>match</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              )}
-            </View>
+            )}
           </View>
         </View>
       </LinearGradient>
@@ -3276,7 +3278,7 @@ export default function MatchesScreen() {
         ) : null;
       })()}
 
-      {/* Stage Info Modal - explains Stage 1 / Stage 2 */}
+      {/* Stage Info Modal - explains Stage 1 / Level 2 */}
       <Modal
         visible={stageInfoModalVisible}
         animationType="fade"
@@ -3299,7 +3301,7 @@ export default function MatchesScreen() {
                 <Text style={styles.stageInfoBigEmoji}>{stageInfoStage === 'stage1' ? '💖' : '💕'}</Text>
               </View>
               <Text style={styles.stageInfoTitle}>
-                {stageInfoStage === 'stage1' ? 'Stage 1' : 'Stage 2'}
+                {stageInfoStage === 'stage1' ? 'Stage 1' : 'Level 2'}
               </Text>
               <Text style={styles.stageInfoSubtitle}>
                 {stageInfoStage === 'stage1' ? 'Primary photo revealed' : 'All photos unlocked'}
@@ -3307,7 +3309,7 @@ export default function MatchesScreen() {
               <View style={styles.stageInfoDivider} />
               <Text style={styles.stageInfoBody}>
                 {stageInfoStage === 'stage1'
-                  ? 'You can see each other\'s primary profile picture. Chat and send at least 2 messages each to unlock Stage 2 and see all photos.'
+                  ? 'You can see each other\'s primary profile picture. Chat and send at least 2 messages each to unlock Level 2 and see all photos.'
                   : 'You\'ve both sent 2+ messages! All profile photos are now visible to each other.'}
               </Text>
               <TouchableOpacity
@@ -3989,12 +3991,16 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   chatHeader: {
+    flexDirection: 'column',
+    padding: 16,
+    paddingBottom: 14,
+  },
+  chatHeaderTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    paddingBottom: 18,
+    marginBottom: 10,
   },
-  backButtonContainer: {
+  chatHeaderBackTouch: {
     marginRight: 12,
   },
   backButton: {
@@ -4005,21 +4011,14 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
-  chatHeaderInfo: {
-    flex: 1,
-  },
-  chatHeaderNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
   chatHeaderPhotoTouch: {
     marginRight: 12,
+    flexShrink: 0,
   },
   chatHeaderPhoto: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     borderWidth: 2.5,
     borderColor: 'rgba(255, 255, 255, 0.3)',
     shadowColor: '#000',
@@ -4029,9 +4028,9 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   chatHeaderPhotoPlaceholder: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2.5,
@@ -4050,25 +4049,18 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
-  chatHeaderTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    minWidth: 0,
-    gap: 8,
-  },
   chatHeaderTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
     color: '#fff',
     textShadowColor: 'rgba(0, 0, 0, 0.2)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
     flex: 1,
+    minWidth: 0,
   },
   chatHeaderCompatibilityBadgeWrap: {
-    marginLeft: 12,
-    flexShrink: 0,
+    marginLeft: 8,
   },
   chatHeaderCompatibilityBadge: {
     flexDirection: 'row',
@@ -4193,23 +4185,26 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 12,
   },
-  chatHeaderSubtitleRow: {
+  chatHeaderBottomRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 10,
     justifyContent: 'space-between',
-    width: '100%',
   },
   chatHeaderActionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginLeft: 8,
     flexShrink: 0,
   },
   chatHeaderPillRow: {
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
+    gap: 8,
+    flex: 1,
+    minWidth: 0,
   },
   chatHeaderAgePill: {
     flexDirection: 'row',

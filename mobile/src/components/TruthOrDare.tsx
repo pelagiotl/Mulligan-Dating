@@ -1,5 +1,5 @@
 /**
- * Truth or Dare - Unlocked when both users have sent 10+ messages each
+ * Truth or Dare - Unlocked with a Mulligan token
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -18,8 +18,6 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { api } from '../utils/api';
-
-const MIN_MESSAGES_EACH = 10;
 
 // Slightly spicy but tasteful — flirty, playful, PG-13
 const TRUTH_PROMPTS = [
@@ -159,7 +157,7 @@ interface GameState {
 
 interface TruthOrDareProps {
   matchId: string;
-  messages: Message[];
+  messages?: Message[];
   currentUserId: string;
   socket: any;
   onSendToChat?: (text: string) => void;
@@ -176,7 +174,6 @@ interface TruthOrDareProps {
 
 export default function TruthOrDare({
   matchId,
-  messages,
   currentUserId,
   socket,
   onSendToChat,
@@ -198,10 +195,7 @@ export default function TruthOrDare({
   const [gameState, setGameState] = useState<GameState | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const ownCount = messages.filter((m) => m.senderId === currentUserId).length;
-  const otherCount = messages.filter((m) => m.senderId !== currentUserId).length;
-  const unlockedByMessages = ownCount >= MIN_MESSAGES_EACH && otherCount >= MIN_MESSAGES_EACH;
-  const isUnlocked = unlockedByMessages || gameUnlockedByToken;
+  const isUnlocked = gameUnlockedByToken;
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const emojiScale = useRef(new Animated.Value(1)).current;
@@ -427,17 +421,7 @@ export default function TruthOrDare({
         ]
       );
     } else {
-      const yourRemaining = Math.max(0, MIN_MESSAGES_EACH - ownCount);
-      const theirRemaining = Math.max(0, MIN_MESSAGES_EACH - otherCount);
-      let message = '';
-      if (yourRemaining > 0 && theirRemaining > 0) {
-        message = `You need to send ${yourRemaining} more message${yourRemaining !== 1 ? 's' : ''} and they need to send ${theirRemaining} more message${theirRemaining !== 1 ? 's' : ''} to unlock this game.`;
-      } else if (yourRemaining > 0) {
-        message = `You need to send ${yourRemaining} more message${yourRemaining !== 1 ? 's' : ''} to unlock this game.`;
-      } else if (theirRemaining > 0) {
-        message = `Waiting for them to send ${theirRemaining} more message${theirRemaining !== 1 ? 's' : ''} to unlock this game.`;
-      }
-      Alert.alert('🎲 Truth or Dare', message, [{ text: 'Got it', style: 'default' }]);
+      Alert.alert('🎲 Truth or Dare', 'Use a Mulligan token to unlock Truth or Dare for this match.', [{ text: 'Got it', style: 'default' }]);
     }
   };
 
@@ -498,18 +482,8 @@ export default function TruthOrDare({
                           <TouchableOpacity onPress={() => handleSetSpiceChoice('spicy')} style={[styles.spicePill, gameState?.yourSpiceChoice === 'spicy' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.yourSpiceChoice === 'spicy' && styles.spicePillTextActive]}>Spicy</Text></TouchableOpacity>
                         </View>
                       </>
-                    ) : gameState?.tokenUnlocked && !gameState?.spiceLevel ? (
-                      <Text style={styles.lobbyHint}>Waiting for them to set the rating...</Text>
                     ) : (
-                      <>
-                        <Text style={styles.lobbyTitle}>Both pick the same to play</Text>
-                        <View style={styles.spicePills}>
-                          <TouchableOpacity onPress={() => handleSetSpiceChoice('pg13')} style={[styles.spicePill, gameState?.yourSpiceChoice === 'pg13' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.yourSpiceChoice === 'pg13' && styles.spicePillTextActive]}>PG-13</Text></TouchableOpacity>
-                          <TouchableOpacity onPress={() => handleSetSpiceChoice('ratedr')} style={[styles.spicePill, gameState?.yourSpiceChoice === 'ratedr' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.yourSpiceChoice === 'ratedr' && styles.spicePillTextActive]}>Rated R</Text></TouchableOpacity>
-                          <TouchableOpacity onPress={() => handleSetSpiceChoice('spicy')} style={[styles.spicePill, gameState?.yourSpiceChoice === 'spicy' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.yourSpiceChoice === 'spicy' && styles.spicePillTextActive]}>Spicy</Text></TouchableOpacity>
-                        </View>
-                        {gameState?.theirSpiceChoice ? <Text style={styles.lobbyHint}>They picked {gameState.theirSpiceChoice === 'pg13' ? 'PG-13' : gameState.theirSpiceChoice === 'ratedr' ? 'Rated R' : 'Spicy'}{gameState.spiceReady ? ' — Match! Ready to play' : ' — pick the same to play'}</Text> : <Text style={styles.lobbyHint}>Waiting for them to pick...</Text>}
-                      </>
+                      <Text style={styles.lobbyHint}>Waiting for them to set the rating...</Text>
                     )}
                   </View>
                 ) : step === 'choose' ? (
@@ -519,7 +493,7 @@ export default function TruthOrDare({
                         <View style={styles.promptSpiceBadge}>
                           <Text style={styles.promptSpiceText}>{gameState.spiceLevel === 'spicy' ? 'Spicy' : gameState.spiceLevel === 'ratedr' ? 'Rated R' : 'PG-13'}</Text>
                         </View>
-                        {(gameState?.tokenUnlocked && gameState?.unlockedByUserId === currentUserId) || (!gameState?.tokenUnlocked && gameState?.spiceReady) ? (
+                        {gameState?.tokenUnlocked && gameState?.unlockedByUserId === currentUserId ? (
                           <View style={styles.spicePills}>
                             <TouchableOpacity onPress={() => handleSetSpiceChoice('pg13')} style={[styles.spicePillSmall, gameState?.spiceLevel === 'pg13' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillTextSmall, gameState?.spiceLevel === 'pg13' && styles.spicePillTextActive]}>PG-13</Text></TouchableOpacity>
                             <TouchableOpacity onPress={() => handleSetSpiceChoice('ratedr')} style={[styles.spicePillSmall, gameState?.spiceLevel === 'ratedr' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillTextSmall, gameState?.spiceLevel === 'ratedr' && styles.spicePillTextActive]}>R</Text></TouchableOpacity>
@@ -529,7 +503,15 @@ export default function TruthOrDare({
                       </View>
                     )}
                     {gameState?.tokenUnlocked && !gameState?.isYourTurn ? (
-                      <Text style={styles.lobbyHint}>Their turn — waiting for them to pick Truth or Dare</Text>
+                      <>
+                        <Text style={styles.lobbyHint}>Their turn — waiting for them to pick Truth or Dare</Text>
+                        <Text style={styles.changeSpiceHint}>Change level:</Text>
+                        <View style={styles.spicePills}>
+                          <TouchableOpacity onPress={() => handleSetSpiceChoice('pg13')} style={[styles.spicePill, gameState?.spiceLevel === 'pg13' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.spiceLevel === 'pg13' && styles.spicePillTextActive]}>PG-13</Text></TouchableOpacity>
+                          <TouchableOpacity onPress={() => handleSetSpiceChoice('ratedr')} style={[styles.spicePill, gameState?.spiceLevel === 'ratedr' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.spiceLevel === 'ratedr' && styles.spicePillTextActive]}>Rated R</Text></TouchableOpacity>
+                          <TouchableOpacity onPress={() => handleSetSpiceChoice('spicy')} style={[styles.spicePill, gameState?.spiceLevel === 'spicy' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.spiceLevel === 'spicy' && styles.spicePillTextActive]}>Spicy</Text></TouchableOpacity>
+                        </View>
+                      </>
                     ) : (
                       <View style={styles.chooseRow}>
                         <TouchableOpacity onPress={() => handleChoose('truth')} style={styles.choiceButton} activeOpacity={0.8}><LinearGradient colors={['#7c4dff', '#b388ff', '#651fff']} style={styles.choiceGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.choiceEmoji}>✨</Text><Text style={styles.choiceText}>Truth</Text></LinearGradient></TouchableOpacity>
@@ -664,18 +646,8 @@ export default function TruthOrDare({
                         <TouchableOpacity onPress={() => handleSetSpiceChoice('spicy')} style={[styles.spicePill, gameState?.yourSpiceChoice === 'spicy' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.yourSpiceChoice === 'spicy' && styles.spicePillTextActive]}>Spicy</Text></TouchableOpacity>
                       </View>
                     </>
-                  ) : gameState?.tokenUnlocked && !gameState?.spiceLevel ? (
-                    <Text style={styles.lobbyHint}>Waiting for them to set the rating...</Text>
                   ) : (
-                    <>
-                      <Text style={styles.lobbyTitle}>Both pick the same to play</Text>
-                      <View style={styles.spicePills}>
-                        <TouchableOpacity onPress={() => handleSetSpiceChoice('pg13')} style={[styles.spicePill, gameState?.yourSpiceChoice === 'pg13' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.yourSpiceChoice === 'pg13' && styles.spicePillTextActive]}>PG-13</Text></TouchableOpacity>
-                        <TouchableOpacity onPress={() => handleSetSpiceChoice('ratedr')} style={[styles.spicePill, gameState?.yourSpiceChoice === 'ratedr' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.yourSpiceChoice === 'ratedr' && styles.spicePillTextActive]}>Rated R</Text></TouchableOpacity>
-                        <TouchableOpacity onPress={() => handleSetSpiceChoice('spicy')} style={[styles.spicePill, gameState?.yourSpiceChoice === 'spicy' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.yourSpiceChoice === 'spicy' && styles.spicePillTextActive]}>Spicy</Text></TouchableOpacity>
-                      </View>
-                      {gameState?.theirSpiceChoice ? <Text style={styles.lobbyHint}>They picked {gameState.theirSpiceChoice === 'pg13' ? 'PG-13' : gameState.theirSpiceChoice === 'ratedr' ? 'Rated R' : 'Spicy'}{gameState.spiceReady ? ' — Match! Ready to play' : ' — pick the same to play'}</Text> : <Text style={styles.lobbyHint}>Waiting for them to pick...</Text>}
-                    </>
+                    <Text style={styles.lobbyHint}>Waiting for them to set the rating...</Text>
                   )}
                 </View>
               ) : step === 'choose' ? (
@@ -687,7 +659,7 @@ export default function TruthOrDare({
                           {gameState.spiceLevel === 'spicy' ? 'Spicy' : gameState.spiceLevel === 'ratedr' ? 'Rated R' : 'PG-13'}
                         </Text>
                       </View>
-                      {(gameState?.tokenUnlocked && gameState?.unlockedByUserId === currentUserId) || (!gameState?.tokenUnlocked && gameState?.spiceReady) ? (
+                      {gameState?.tokenUnlocked && gameState?.unlockedByUserId === currentUserId ? (
                         <View style={styles.spicePills}>
                           <TouchableOpacity onPress={() => handleSetSpiceChoice('pg13')} style={[styles.spicePillSmall, gameState?.spiceLevel === 'pg13' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillTextSmall, gameState?.spiceLevel === 'pg13' && styles.spicePillTextActive]}>PG-13</Text></TouchableOpacity>
                           <TouchableOpacity onPress={() => handleSetSpiceChoice('ratedr')} style={[styles.spicePillSmall, gameState?.spiceLevel === 'ratedr' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillTextSmall, gameState?.spiceLevel === 'ratedr' && styles.spicePillTextActive]}>R</Text></TouchableOpacity>
@@ -697,7 +669,15 @@ export default function TruthOrDare({
                     </View>
                   )}
                   {gameState?.tokenUnlocked && !gameState?.isYourTurn ? (
-                    <Text style={styles.lobbyHint}>Their turn — waiting for them to pick Truth or Dare</Text>
+                    <>
+                      <Text style={styles.lobbyHint}>Their turn — waiting for them to pick Truth or Dare</Text>
+                      <Text style={styles.changeSpiceHint}>Change level:</Text>
+                      <View style={styles.spicePills}>
+                        <TouchableOpacity onPress={() => handleSetSpiceChoice('pg13')} style={[styles.spicePill, gameState?.spiceLevel === 'pg13' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.spiceLevel === 'pg13' && styles.spicePillTextActive]}>PG-13</Text></TouchableOpacity>
+                        <TouchableOpacity onPress={() => handleSetSpiceChoice('ratedr')} style={[styles.spicePill, gameState?.spiceLevel === 'ratedr' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.spiceLevel === 'ratedr' && styles.spicePillTextActive]}>Rated R</Text></TouchableOpacity>
+                        <TouchableOpacity onPress={() => handleSetSpiceChoice('spicy')} style={[styles.spicePill, gameState?.spiceLevel === 'spicy' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.spiceLevel === 'spicy' && styles.spicePillTextActive]}>Spicy</Text></TouchableOpacity>
+                      </View>
+                    </>
                   ) : (
                     <View style={styles.chooseRow}>
                       <TouchableOpacity onPress={() => handleChoose('truth')} style={styles.choiceButton} activeOpacity={0.8}>
@@ -1097,6 +1077,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: 'rgba(255,255,255,0.9)',
     marginTop: 12,
+    textAlign: 'center',
+  },
+  changeSpiceHint: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 14,
+    marginBottom: 6,
     textAlign: 'center',
   },
   spiceRow: {
