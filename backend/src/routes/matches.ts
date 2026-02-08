@@ -1777,6 +1777,7 @@ matchesRouter.get("/:matchId/truth-or-dare/state", authenticateToken, async (req
       isYourTurn: !!isYourTurn,
       currentPrompt,
       currentPromptType,
+      unlockedUntil: unlockRow.unlocked_until ?? null,
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -1830,11 +1831,11 @@ matchesRouter.post("/:matchId/truth-or-dare/spice-choice", authenticateToken, ra
       return res.status(400).json({ error: "Wait for them to set the rating first." });
     }
 
-    // Set or update spice_level; when unlocker picks initially, set current_turn = other user (User B goes first)
+    // Set or update spice_level; when unlocker picks initially, unlocker goes first (so they can play immediately)
     if (!existing) {
-      db.prepare(`INSERT INTO truth_or_dare_games (match_id, spice_level, current_turn_user_id) VALUES (?, ?, ?)`).run([matchId, choice, otherUserId]);
+      db.prepare(`INSERT INTO truth_or_dare_games (match_id, spice_level, current_turn_user_id) VALUES (?, ?, ?)`).run([matchId, choice, userId]);
     } else if (!hasSpiceAlready) {
-      db.prepare(`UPDATE truth_or_dare_games SET spice_level = ?, current_turn_user_id = ?, current_prompt = NULL, current_prompt_type = NULL, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?`).run([choice, otherUserId, matchId]);
+      db.prepare(`UPDATE truth_or_dare_games SET spice_level = ?, current_turn_user_id = ?, current_prompt = NULL, current_prompt_type = NULL, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?`).run([choice, userId, matchId]);
     } else {
       // Both users can change spice when game is already running
       db.prepare(`UPDATE truth_or_dare_games SET spice_level = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?`).run([choice, matchId]);
@@ -1975,9 +1976,16 @@ matchesRouter.post("/:matchId/truth-or-dare", authenticateToken, rateLimitAPI, a
     }
 
     const level = (game.spice_level === 'ratedr' ? 'ratedr' : game.spice_level === 'spicy' ? 'spicy' : 'pg13') as 'pg13' | 'ratedr' | 'spicy';
+    const currentPrompt = (game as any).current_prompt ?? null;
 
     const { generateTruthOrDarePrompt } = await import('../services/truthOrDare.js');
-    const { prompt, fromAI } = await generateTruthOrDarePrompt(type, matchId, userId, level);
+    const { prompt, fromAI } = await generateTruthOrDarePrompt(
+      type,
+      matchId,
+      userId,
+      level,
+      anotherOne ? currentPrompt : undefined
+    );
 
     // Store prompt so both users see it; switch turn only when not "Another one"
     db.prepare('UPDATE truth_or_dare_games SET current_prompt = ?, current_prompt_type = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([prompt, type, matchId]);

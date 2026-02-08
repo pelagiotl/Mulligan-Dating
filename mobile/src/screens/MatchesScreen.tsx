@@ -3118,6 +3118,8 @@ export default function MatchesScreen() {
                     onUnlockWithToken={async () => {
                       await api.post(`/matches/${selectedMatch.id}/unlock-game`, { gameType: 'truth_or_dare' });
                       api.clearCache('/matches');
+                      setSelectedMatch(prev => prev ? { ...prev, gameUnlocks: { ...(prev.gameUnlocks || { truth_or_dare: false, never_have_i_ever: false }), truth_or_dare: true } } : null);
+                      setMatches(prev => prev.map(m => m.id === selectedMatch.id ? { ...m, gameUnlocks: { ...(m.gameUnlocks || { truth_or_dare: false, never_have_i_ever: false }), truth_or_dare: true } } : m));
                     }}
                     openForAccept={openGameForAccept?.gameType === 'truth_or_dare' && openGameForAccept?.matchId === selectedMatch.id}
                     onOpenedForAccept={() => setOpenGameForAccept(null)}
@@ -3132,6 +3134,8 @@ export default function MatchesScreen() {
                     onUnlockWithToken={async () => {
                       await api.post(`/matches/${selectedMatch.id}/unlock-game`, { gameType: 'never_have_i_ever' });
                       api.clearCache('/matches');
+                      setSelectedMatch(prev => prev ? { ...prev, gameUnlocks: { ...(prev.gameUnlocks || { truth_or_dare: false, never_have_i_ever: false }), never_have_i_ever: true } } : null);
+                      setMatches(prev => prev.map(m => m.id === selectedMatch.id ? { ...m, gameUnlocks: { ...(m.gameUnlocks || { truth_or_dare: false, never_have_i_ever: false }), never_have_i_ever: true } } : m));
                     }}
                     openForAccept={openGameForAccept?.gameType === 'never_have_i_ever' && openGameForAccept?.matchId === selectedMatch.id}
                     onOpenedForAccept={() => setOpenGameForAccept(null)}
@@ -3282,8 +3286,13 @@ export default function MatchesScreen() {
         onClose={() => setGameRequestToShow(null)}
         onAccepted={(matchId, gameType) => {
           setGameRequestToShow(null);
+          const gameKey = gameType === 'truth_or_dare' ? 'truth_or_dare' : 'never_have_i_ever';
           const m = matches.find(x => x.id === matchId);
-          if (m) setSelectedMatch(m);
+          if (m) {
+            const updated = { ...m, gameUnlocks: { ...(m.gameUnlocks || { truth_or_dare: false, never_have_i_ever: false }), [gameKey]: true } };
+            setSelectedMatch(updated);
+            setMatches(prev => prev.map(x => x.id === matchId ? updated : x));
+          }
           setOpenGameForAccept({ matchId, gameType });
         }}
       />

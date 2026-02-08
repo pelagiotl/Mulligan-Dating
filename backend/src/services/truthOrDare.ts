@@ -116,8 +116,9 @@ const DARE_FALLBACKS_SPICY = [
   "Send a pic with a caption that flirts without saying it outright",
 ];
 
-function pickRandom<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
+function pickRandom<T>(arr: T[], exclude?: T): T {
+  const filtered = exclude && arr.length > 1 ? arr.filter((x) => x !== exclude) : arr;
+  return filtered[Math.floor(Math.random() * filtered.length)];
 }
 
 export type SpiceLevel = 'pg13' | 'ratedr' | 'spicy';
@@ -126,7 +127,8 @@ export async function generateTruthOrDarePrompt(
   type: 'truth' | 'dare',
   matchId: string,
   userId: string,
-  spiceLevel: SpiceLevel = 'pg13'
+  spiceLevel: SpiceLevel = 'pg13',
+  excludePrompt?: string | null
 ): Promise<{ prompt: string; fromAI: boolean }> {
   const openaiApiKey = process.env.OPENAI_API_KEY;
   const isR = spiceLevel === 'ratedr';
@@ -137,7 +139,7 @@ export async function generateTruthOrDarePrompt(
     const list = type === 'truth'
       ? (isSpicy ? TRUTH_FALLBACKS_SPICY : isR ? TRUTH_FALLBACKS_R : TRUTH_FALLBACKS)
       : (isSpicy ? DARE_FALLBACKS_SPICY : isR ? DARE_FALLBACKS_R : DARE_FALLBACKS);
-    return { prompt: pickRandom(list), fromAI: false };
+    return { prompt: pickRandom(list, excludePrompt || undefined), fromAI: false };
   }
 
   try {
@@ -192,11 +194,13 @@ export async function generateTruthOrDarePrompt(
       ? 'Make it bolder and more suggestive — but keep it tasteful and app-store safe.'
       : 'Playfully flirty, spark chemistry without going too far.';
 
+    const excludeHint = excludePrompt ? `\n\nIMPORTANT: Do NOT use this prompt (they already saw it): "${excludePrompt}". Generate a different one.` : '';
+
     const userPrompt = `Generate one unique ${typeLabel} prompt for two people playing on a dating app.${interestsContext}
 
 Spice level: ${spiceLabel}. ${spiceHint}
 
-Requirements: ${typeInstruction}
+Requirements: ${typeInstruction}${excludeHint}
 
 Return ONLY the prompt:`;
 
@@ -218,8 +222,12 @@ Return ONLY the prompt:`;
       // Basic sanity check - ensure it's not an error message
       const badStarts = ['I ', 'Sorry', 'I\'m', 'I cannot', 'As an AI', 'Here\'s', 'Sure,'];
       const isBad = badStarts.some((s) => content.startsWith(s));
-      if (!isBad) {
-        return { prompt: content.replace(/^["']|["']$/g, ''), fromAI: true };
+      const cleaned = content.replace(/^["']|["']$/g, '');
+      if (!isBad && (!excludePrompt || cleaned.toLowerCase() !== excludePrompt.toLowerCase())) {
+        return { prompt: cleaned, fromAI: true };
+      }
+      if (excludePrompt && cleaned.toLowerCase() === excludePrompt.toLowerCase()) {
+        throw new Error('AI returned same prompt');
       }
     }
 
@@ -229,6 +237,6 @@ Return ONLY the prompt:`;
     const list = type === 'truth'
       ? (isSpicy ? TRUTH_FALLBACKS_SPICY : isR ? TRUTH_FALLBACKS_R : TRUTH_FALLBACKS)
       : (isSpicy ? DARE_FALLBACKS_SPICY : isR ? DARE_FALLBACKS_R : DARE_FALLBACKS);
-    return { prompt: pickRandom(list), fromAI: false };
+    return { prompt: pickRandom(list, excludePrompt || undefined), fromAI: false };
   }
 }

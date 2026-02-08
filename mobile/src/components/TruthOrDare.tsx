@@ -153,6 +153,7 @@ interface GameState {
   unlockedByUserId?: string | null;
   currentPrompt?: string | null;
   currentPromptType?: 'truth' | 'dare' | null;
+  unlockedUntil?: string | null;
 }
 
 interface TruthOrDareProps {
@@ -193,9 +194,16 @@ export default function TruthOrDare({
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [gameState, setGameState] = useState<GameState | null>(null);
+  const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const isUnlocked = gameUnlockedByToken;
+
+  const formatTimeRemaining = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const emojiScale = useRef(new Animated.Value(1)).current;
@@ -313,6 +321,27 @@ export default function TruthOrDare({
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (!modalVisible || !gameState?.unlockedUntil) {
+      setSecondsRemaining(null);
+      return;
+    }
+    const tick = () => {
+      const until = new Date(gameState!.unlockedUntil!);
+      const now = new Date();
+      const secs = Math.max(0, Math.floor((until.getTime() - now.getTime()) / 1000));
+      setSecondsRemaining(secs);
+      if (secs <= 0 && pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+        fetchState();
+      }
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [modalVisible, gameState?.unlockedUntil, fetchState]);
 
   const handleOpen = () => {
     if (Platform.OS === 'ios' || Platform.OS === 'android') {
@@ -477,7 +506,15 @@ export default function TruthOrDare({
               <LinearGradient colors={['#ff0080', '#ff3399', '#cc0066', '#ff66b2', '#ff0080']} locations={[0, 0.2, 0.5, 0.8, 1]} style={styles.modalGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
                 <View style={styles.modalHeaderBar} />
                 <Text style={styles.modalTitle}>{step === 'lobby' ? '🎲 Truth or Dare' : step === 'choose' ? 'Pick One' : promptType === 'truth' ? '✨ Truth' : '🔥 Dare'}</Text>
-                {loading ? (
+                {gameState?.unlockedUntil && secondsRemaining !== null && secondsRemaining > 0 && (
+                  <View style={styles.timerBadge}><Text style={styles.timerText}>⏱ {formatTimeRemaining(secondsRemaining)} left</Text></View>
+                )}
+                {gameState?.tokenUnlocked && secondsRemaining !== null && secondsRemaining <= 0 ? (
+                  <View style={styles.sessionExpiredContainer}>
+                    <Text style={styles.sessionExpiredTitle}>Session expired</Text>
+                    <Text style={styles.sessionExpiredText}>Use another Mulligan token to play another 7-minute round.</Text>
+                  </View>
+                ) : loading ? (
                   <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#fff" /><Text style={styles.loadingText}>Loading...</Text></View>
                 ) : step === 'lobby' ? (
                   <View style={styles.lobbyContainer}>
@@ -646,8 +683,15 @@ export default function TruthOrDare({
               <Text style={styles.modalTitle}>
                 {step === 'lobby' ? '🎲 Truth or Dare' : step === 'choose' ? 'Pick One' : promptType === 'truth' ? '✨ Truth' : '🔥 Dare'}
               </Text>
-
-              {loading ? (
+              {gameState?.unlockedUntil && secondsRemaining !== null && secondsRemaining > 0 && (
+                <View style={styles.timerBadge}><Text style={styles.timerText}>⏱ {formatTimeRemaining(secondsRemaining)} left</Text></View>
+              )}
+              {gameState?.tokenUnlocked && secondsRemaining !== null && secondsRemaining <= 0 ? (
+                <View style={styles.sessionExpiredContainer}>
+                  <Text style={styles.sessionExpiredTitle}>Session expired</Text>
+                  <Text style={styles.sessionExpiredText}>Use another Mulligan token to play another 7-minute round.</Text>
+                </View>
+              ) : loading ? (
                 <View style={styles.loadingContainer}>
                   <ActivityIndicator size="large" color="#fff" />
                   <Text style={styles.loadingText}>Loading...</Text>
@@ -1045,6 +1089,36 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0,0,0,0.2)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 6,
+  },
+  timerBadge: {
+    alignSelf: 'center',
+    marginBottom: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    borderRadius: 20,
+  },
+  timerText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  sessionExpiredContainer: {
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+  },
+  sessionExpiredTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#fff',
+    marginBottom: 8,
+  },
+  sessionExpiredText: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.95)',
+    textAlign: 'center',
+    lineHeight: 20,
   },
   chooseRow: {
     flexDirection: 'row',
