@@ -1250,7 +1250,7 @@ export default function BrowseScreen() {
 
     const initSocket = async () => {
       const token = await AsyncStorage.getItem('token');
-      if (!token || !userProfile) return;
+      if (!token || !user?.id) return;
 
       const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://mulligan-backend.onrender.com';
       socket = io(API_URL, {
@@ -1302,6 +1302,10 @@ export default function BrowseScreen() {
       // In-app notification when User B receives a message - show from any tab (BrowseScreen is always mounted in MainTabs)
       socket.on('new_message', (data: { matchId?: string; senderId: string; senderName?: string; content?: string }) => {
         if (data.senderId === user?.id) return; // Don't notify for own messages
+        // Don't show Alert if user is already viewing this match's chat (MatchesScreen handles that case)
+        const route = navigationRef.current?.getCurrentRoute?.();
+        const matchParams = (route?.params as { matchId?: string })?.matchId;
+        if (data.matchId && matchParams === data.matchId) return;
         playMessageSound().catch(() => {});
         const senderName = data.senderName || 'Someone';
         const preview = data.content?.substring(0, 50) || '📷 Photo';
@@ -1330,12 +1334,11 @@ export default function BrowseScreen() {
     initSocket();
 
     return () => {
-      if (socket) {
-        socket.disconnect();
-      }
+      const s = socketRef.current;
+      if (s) s.disconnect();
       socketRef.current = null;
     };
-  }, [userProfile, user?.id]);
+  }, [user?.id]);
 
   // Show landing page when browsing is locked OR when auto-matching (to prevent UI flash)
   const showLandingPage = (browseUnlocked === false || isAutoMatching) && !needsProfile && !showMatchCelebration;
