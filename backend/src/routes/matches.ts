@@ -1877,7 +1877,6 @@ matchesRouter.post("/:matchId/never-have-i-ever/spice-choice", authenticateToken
           `UPDATE never_have_i_ever_games SET user1_spice_choice = ?, user2_spice_choice = ?, spice_level = ?, current_prompt = ?, current_turn_user_id = ?, updated_at = ? WHERE match_id = ?`
         ).run([choice, choice, choice, prompt, otherUserId, new Date().toISOString(), matchId]);
       }
-    }
 
     const { getGameState } = await import('../services/neverHaveIEver.js');
     const state = await getGameState(matchId, userId, match);
