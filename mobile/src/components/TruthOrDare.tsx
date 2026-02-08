@@ -196,6 +196,7 @@ export default function TruthOrDare({
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastAnotherOneAtRef = useRef<number>(0);
 
   const isUnlocked = gameUnlockedByToken;
 
@@ -275,13 +276,16 @@ export default function TruthOrDare({
     try {
       const data = await api.get<GameState>(`/matches/${matchId}/truth-or-dare/state`);
       setGameState(data);
-      if (data.currentPrompt && data.currentPromptType) {
+      // Don't overwrite prompt for 2s after "Another one" so our new prompt from the API response sticks
+      const recentlyRequestedAnother = Date.now() - lastAnotherOneAtRef.current < 2000;
+      if (data.currentPrompt && data.currentPromptType && !recentlyRequestedAnother) {
         setPrompt(data.currentPrompt);
         setPromptType(data.currentPromptType);
         setStep('prompt');
         setLoading(false);
         return;
       }
+      if (stepRef.current === 'prompt' && recentlyRequestedAnother) return;
       if (stepRef.current === 'prompt') return;
       if (data.spiceReady && data.spiceLevel) {
         setStep('choose');
@@ -384,6 +388,7 @@ export default function TruthOrDare({
   };
 
   const handleChoose = async (type: 'truth' | 'dare', anotherOne = false) => {
+    if (anotherOne) lastAnotherOneAtRef.current = Date.now();
     setPromptType(type);
     setStep('prompt');
     setLoading(true);
@@ -533,35 +538,26 @@ export default function TruthOrDare({
                   </View>
                 ) : step === 'choose' ? (
                   <View style={styles.chooseContainer}>
-                    {gameState?.spiceLevel && (
-                      <View style={styles.spiceRow}>
-                        <View style={styles.promptSpiceBadge}>
-                          <Text style={styles.promptSpiceText}>{gameState.spiceLevel === 'spicy' ? 'Spicy' : gameState.spiceLevel === 'ratedr' ? 'Rated R' : 'PG-13'}</Text>
-                        </View>
-                        {gameState?.tokenUnlocked && gameState?.unlockedByUserId === currentUserId ? (
-                          <View style={styles.spicePills}>
-                            <TouchableOpacity onPress={() => handleSetSpiceChoice('pg13')} style={[styles.spicePillSmall, gameState?.spiceLevel === 'pg13' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillTextSmall, gameState?.spiceLevel === 'pg13' && styles.spicePillTextActive]}>PG-13</Text></TouchableOpacity>
-                            <TouchableOpacity onPress={() => handleSetSpiceChoice('ratedr')} style={[styles.spicePillSmall, gameState?.spiceLevel === 'ratedr' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillTextSmall, gameState?.spiceLevel === 'ratedr' && styles.spicePillTextActive]}>R</Text></TouchableOpacity>
-                            <TouchableOpacity onPress={() => handleSetSpiceChoice('spicy')} style={[styles.spicePillSmall, gameState?.spiceLevel === 'spicy' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillTextSmall, gameState?.spiceLevel === 'spicy' && styles.spicePillTextActive]}>Spicy</Text></TouchableOpacity>
-                          </View>
-                        ) : null}
-                      </View>
-                    )}
-                    {gameState?.tokenUnlocked && !gameState?.isYourTurn ? (
+                    {gameState?.spiceLevel ? (
                       <>
-                        <Text style={styles.lobbyHint}>Their turn — waiting for them to pick Truth or Dare</Text>
-                        <Text style={styles.changeSpiceHint}>Change level:</Text>
+                        <Text style={styles.versionLabel}>Version</Text>
                         <View style={styles.spicePills}>
                           <TouchableOpacity onPress={() => handleSetSpiceChoice('pg13')} style={[styles.spicePill, gameState?.spiceLevel === 'pg13' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.spiceLevel === 'pg13' && styles.spicePillTextActive]}>PG-13</Text></TouchableOpacity>
                           <TouchableOpacity onPress={() => handleSetSpiceChoice('ratedr')} style={[styles.spicePill, gameState?.spiceLevel === 'ratedr' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.spiceLevel === 'ratedr' && styles.spicePillTextActive]}>Rated R</Text></TouchableOpacity>
                           <TouchableOpacity onPress={() => handleSetSpiceChoice('spicy')} style={[styles.spicePill, gameState?.spiceLevel === 'spicy' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.spiceLevel === 'spicy' && styles.spicePillTextActive]}>Spicy</Text></TouchableOpacity>
                         </View>
                       </>
+                    ) : null}
+                    {gameState?.tokenUnlocked && !gameState?.isYourTurn ? (
+                      <Text style={styles.lobbyHint}>Their turn — waiting for them to pick Truth or Dare</Text>
                     ) : (
-                      <View style={styles.chooseRow}>
-                        <TouchableOpacity onPress={() => handleChoose('truth')} style={styles.choiceButton} activeOpacity={0.8}><LinearGradient colors={['#7c4dff', '#b388ff', '#651fff']} style={styles.choiceGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.choiceEmoji}>✨</Text><Text style={styles.choiceText}>Truth</Text></LinearGradient></TouchableOpacity>
-                        <TouchableOpacity onPress={() => handleChoose('dare')} style={styles.choiceButton} activeOpacity={0.8}><LinearGradient colors={['#ff1744', '#ff4081', '#f50057']} style={styles.choiceGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.choiceEmoji}>🔥</Text><Text style={styles.choiceText}>Dare</Text></LinearGradient></TouchableOpacity>
-                      </View>
+                      <>
+                        <Text style={styles.chooseSubtitle}>Then pick Truth or Dare</Text>
+                        <View style={styles.chooseRow}>
+                          <TouchableOpacity onPress={() => handleChoose('truth')} style={styles.choiceButton} activeOpacity={0.8}><LinearGradient colors={['#7c4dff', '#b388ff', '#651fff']} style={styles.choiceGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.choiceEmoji}>✨</Text><Text style={styles.choiceText}>Truth</Text></LinearGradient></TouchableOpacity>
+                          <TouchableOpacity onPress={() => handleChoose('dare')} style={styles.choiceButton} activeOpacity={0.8}><LinearGradient colors={['#ff1744', '#ff4081', '#f50057']} style={styles.choiceGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.choiceEmoji}>🔥</Text><Text style={styles.choiceText}>Dare</Text></LinearGradient></TouchableOpacity>
+                        </View>
+                      </>
                     )}
                   </View>
                 ) : (
@@ -569,14 +565,12 @@ export default function TruthOrDare({
                     {loading ? <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#fff" /><Text style={styles.loadingText}>Generating your prompt...</Text></View> : (
                       <>
                         <View style={styles.spiceRow}>
-                          <View style={styles.promptSpiceBadge}><Text style={styles.promptSpiceText}>{gameState?.spiceLevel === 'spicy' ? 'Spicy' : gameState?.spiceLevel === 'ratedr' ? 'Rated R' : 'PG-13'}</Text></View>
-                          {gameState?.tokenUnlocked && gameState?.unlockedByUserId === currentUserId && (
-                            <View style={styles.spicePills}>
-                              <TouchableOpacity onPress={() => handleSetSpiceChoice('pg13')} style={[styles.spicePillSmall, gameState?.spiceLevel === 'pg13' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillTextSmall, gameState?.spiceLevel === 'pg13' && styles.spicePillTextActive]}>PG-13</Text></TouchableOpacity>
-                              <TouchableOpacity onPress={() => handleSetSpiceChoice('ratedr')} style={[styles.spicePillSmall, gameState?.spiceLevel === 'ratedr' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillTextSmall, gameState?.spiceLevel === 'ratedr' && styles.spicePillTextActive]}>R</Text></TouchableOpacity>
-                              <TouchableOpacity onPress={() => handleSetSpiceChoice('spicy')} style={[styles.spicePillSmall, gameState?.spiceLevel === 'spicy' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillTextSmall, gameState?.spiceLevel === 'spicy' && styles.spicePillTextActive]}>Spicy</Text></TouchableOpacity>
-                            </View>
-                          )}
+                          <Text style={styles.versionLabel}>Version</Text>
+                          <View style={styles.spicePills}>
+                            <TouchableOpacity onPress={() => handleSetSpiceChoice('pg13')} style={[styles.spicePillSmall, gameState?.spiceLevel === 'pg13' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillTextSmall, gameState?.spiceLevel === 'pg13' && styles.spicePillTextActive]}>PG-13</Text></TouchableOpacity>
+                            <TouchableOpacity onPress={() => handleSetSpiceChoice('ratedr')} style={[styles.spicePillSmall, gameState?.spiceLevel === 'ratedr' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillTextSmall, gameState?.spiceLevel === 'ratedr' && styles.spicePillTextActive]}>R</Text></TouchableOpacity>
+                            <TouchableOpacity onPress={() => handleSetSpiceChoice('spicy')} style={[styles.spicePillSmall, gameState?.spiceLevel === 'spicy' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillTextSmall, gameState?.spiceLevel === 'spicy' && styles.spicePillTextActive]}>Spicy</Text></TouchableOpacity>
+                          </View>
                         </View>
                         <View style={styles.promptCard}><Text style={styles.promptText}>{prompt}</Text></View>
                       </>
@@ -713,47 +707,36 @@ export default function TruthOrDare({
                 </View>
               ) : step === 'choose' ? (
                 <View style={styles.chooseContainer}>
-                  {gameState?.spiceLevel && (
-                    <View style={styles.spiceRow}>
-                      <View style={styles.promptSpiceBadge}>
-                        <Text style={styles.promptSpiceText}>
-                          {gameState.spiceLevel === 'spicy' ? 'Spicy' : gameState.spiceLevel === 'ratedr' ? 'Rated R' : 'PG-13'}
-                        </Text>
-                      </View>
-                      {gameState?.tokenUnlocked && gameState?.unlockedByUserId === currentUserId ? (
-                        <View style={styles.spicePills}>
-                          <TouchableOpacity onPress={() => handleSetSpiceChoice('pg13')} style={[styles.spicePillSmall, gameState?.spiceLevel === 'pg13' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillTextSmall, gameState?.spiceLevel === 'pg13' && styles.spicePillTextActive]}>PG-13</Text></TouchableOpacity>
-                          <TouchableOpacity onPress={() => handleSetSpiceChoice('ratedr')} style={[styles.spicePillSmall, gameState?.spiceLevel === 'ratedr' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillTextSmall, gameState?.spiceLevel === 'ratedr' && styles.spicePillTextActive]}>R</Text></TouchableOpacity>
-                          <TouchableOpacity onPress={() => handleSetSpiceChoice('spicy')} style={[styles.spicePillSmall, gameState?.spiceLevel === 'spicy' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillTextSmall, gameState?.spiceLevel === 'spicy' && styles.spicePillTextActive]}>Spicy</Text></TouchableOpacity>
-                        </View>
-                      ) : null}
-                    </View>
-                  )}
-                  {gameState?.tokenUnlocked && !gameState?.isYourTurn ? (
+                  {gameState?.spiceLevel ? (
                     <>
-                      <Text style={styles.lobbyHint}>Their turn — waiting for them to pick Truth or Dare</Text>
-                      <Text style={styles.changeSpiceHint}>Change level:</Text>
+                      <Text style={styles.versionLabel}>Version</Text>
                       <View style={styles.spicePills}>
                         <TouchableOpacity onPress={() => handleSetSpiceChoice('pg13')} style={[styles.spicePill, gameState?.spiceLevel === 'pg13' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.spiceLevel === 'pg13' && styles.spicePillTextActive]}>PG-13</Text></TouchableOpacity>
                         <TouchableOpacity onPress={() => handleSetSpiceChoice('ratedr')} style={[styles.spicePill, gameState?.spiceLevel === 'ratedr' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.spiceLevel === 'ratedr' && styles.spicePillTextActive]}>Rated R</Text></TouchableOpacity>
                         <TouchableOpacity onPress={() => handleSetSpiceChoice('spicy')} style={[styles.spicePill, gameState?.spiceLevel === 'spicy' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.spiceLevel === 'spicy' && styles.spicePillTextActive]}>Spicy</Text></TouchableOpacity>
                       </View>
                     </>
+                  ) : null}
+                  {gameState?.tokenUnlocked && !gameState?.isYourTurn ? (
+                    <Text style={styles.lobbyHint}>Their turn — waiting for them to pick Truth or Dare</Text>
                   ) : (
-                    <View style={styles.chooseRow}>
-                      <TouchableOpacity onPress={() => handleChoose('truth')} style={styles.choiceButton} activeOpacity={0.8}>
-                        <LinearGradient colors={['#7c4dff', '#b388ff', '#651fff']} style={styles.choiceGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-                          <Text style={styles.choiceEmoji}>✨</Text>
-                          <Text style={styles.choiceText}>Truth</Text>
-                        </LinearGradient>
-                      </TouchableOpacity>
-                      <TouchableOpacity onPress={() => handleChoose('dare')} style={styles.choiceButton} activeOpacity={0.8}>
-                        <LinearGradient colors={['#ff1744', '#ff4081', '#f50057']} style={styles.choiceGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-                          <Text style={styles.choiceEmoji}>🔥</Text>
-                          <Text style={styles.choiceText}>Dare</Text>
-                        </LinearGradient>
-                      </TouchableOpacity>
-                    </View>
+                    <>
+                      <Text style={styles.chooseSubtitle}>Then pick Truth or Dare</Text>
+                      <View style={styles.chooseRow}>
+                        <TouchableOpacity onPress={() => handleChoose('truth')} style={styles.choiceButton} activeOpacity={0.8}>
+                          <LinearGradient colors={['#7c4dff', '#b388ff', '#651fff']} style={styles.choiceGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+                            <Text style={styles.choiceEmoji}>✨</Text>
+                            <Text style={styles.choiceText}>Truth</Text>
+                          </LinearGradient>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => handleChoose('dare')} style={styles.choiceButton} activeOpacity={0.8}>
+                          <LinearGradient colors={['#ff1744', '#ff4081', '#f50057']} style={styles.choiceGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+                            <Text style={styles.choiceEmoji}>🔥</Text>
+                            <Text style={styles.choiceText}>Dare</Text>
+                          </LinearGradient>
+                        </TouchableOpacity>
+                      </View>
+                    </>
                   )}
                 </View>
               ) : (
@@ -766,18 +749,12 @@ export default function TruthOrDare({
                   ) : (
                     <>
                       <View style={styles.spiceRow}>
-                        <View style={styles.promptSpiceBadge}>
-                          <Text style={styles.promptSpiceText}>
-                            {gameState?.spiceLevel === 'spicy' ? 'Spicy' : gameState?.spiceLevel === 'ratedr' ? 'Rated R' : 'PG-13'}
-                          </Text>
+                        <Text style={styles.versionLabel}>Version</Text>
+                        <View style={styles.spicePills}>
+                          <TouchableOpacity onPress={() => handleSetSpiceChoice('pg13')} style={[styles.spicePillSmall, gameState?.spiceLevel === 'pg13' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillTextSmall, gameState?.spiceLevel === 'pg13' && styles.spicePillTextActive]}>PG-13</Text></TouchableOpacity>
+                          <TouchableOpacity onPress={() => handleSetSpiceChoice('ratedr')} style={[styles.spicePillSmall, gameState?.spiceLevel === 'ratedr' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillTextSmall, gameState?.spiceLevel === 'ratedr' && styles.spicePillTextActive]}>R</Text></TouchableOpacity>
+                          <TouchableOpacity onPress={() => handleSetSpiceChoice('spicy')} style={[styles.spicePillSmall, gameState?.spiceLevel === 'spicy' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillTextSmall, gameState?.spiceLevel === 'spicy' && styles.spicePillTextActive]}>Spicy</Text></TouchableOpacity>
                         </View>
-                        {gameState?.tokenUnlocked && gameState?.unlockedByUserId === currentUserId && (
-                          <View style={styles.spicePills}>
-                            <TouchableOpacity onPress={() => handleSetSpiceChoice('pg13')} style={[styles.spicePillSmall, gameState?.spiceLevel === 'pg13' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillTextSmall, gameState?.spiceLevel === 'pg13' && styles.spicePillTextActive]}>PG-13</Text></TouchableOpacity>
-                            <TouchableOpacity onPress={() => handleSetSpiceChoice('ratedr')} style={[styles.spicePillSmall, gameState?.spiceLevel === 'ratedr' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillTextSmall, gameState?.spiceLevel === 'ratedr' && styles.spicePillTextActive]}>R</Text></TouchableOpacity>
-                            <TouchableOpacity onPress={() => handleSetSpiceChoice('spicy')} style={[styles.spicePillSmall, gameState?.spiceLevel === 'spicy' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillTextSmall, gameState?.spiceLevel === 'spicy' && styles.spicePillTextActive]}>Spicy</Text></TouchableOpacity>
-                          </View>
-                        )}
                       </View>
                       <View style={styles.promptCard}>
                         <Text style={styles.promptText}>{prompt}</Text>
@@ -1153,6 +1130,21 @@ const styles = StyleSheet.create({
   },
   chooseContainer: {
     alignItems: 'center',
+  },
+  versionLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.95)',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 10,
+  },
+  chooseSubtitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.9)',
+    marginTop: 8,
+    marginBottom: 12,
   },
   loadingContainer: {
     paddingVertical: 32,

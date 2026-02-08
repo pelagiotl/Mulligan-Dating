@@ -17,6 +17,9 @@ web-build/
 .env
 .env.local
 
+# Google Service Account key (never commit)
+google-play-service-account.json
+
 
 
 

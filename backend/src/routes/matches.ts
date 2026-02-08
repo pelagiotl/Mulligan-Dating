@@ -1515,6 +1515,14 @@ matchesRouter.post("/:matchId/unlock-game", authenticateToken, rateLimitAPI, asy
         .run([matchId, gameType, userId, unlockedUntil.toISOString()]);
     }
 
+    // Clear previous round's prompt so both users see choice after unlock
+    if (gameType === 'truth_or_dare') {
+      db.prepare('UPDATE truth_or_dare_games SET current_prompt = NULL, current_prompt_type = NULL, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([matchId]);
+    }
+    if (gameType === 'never_have_i_ever') {
+      db.prepare('UPDATE never_have_i_ever_games SET current_prompt = NULL, user1_answer = NULL, user2_answer = NULL, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([matchId]);
+    }
+
     // Notify both users so their match list can refresh (gameUnlocks changed)
     try {
       const { getIO } = await import('../socket.js');
@@ -1576,6 +1584,9 @@ matchesRouter.post("/:matchId/game-request", authenticateToken, rateLimitAPI, as
       db.prepare('UPDATE mulligan_tokens SET used_at = CURRENT_TIMESTAMP, match_id = ? WHERE id = ?').run(matchId, tokensResult.id);
       db.prepare('INSERT INTO game_unlocks (match_id, game_type, unlocked_by_user_id, unlocked_until) VALUES (?, ?, ?, ?)')
         .run([matchId, gameType, userId, unlockedUntil.toISOString()]);
+      if (gameType === 'truth_or_dare') {
+        db.prepare('UPDATE truth_or_dare_games SET current_prompt = NULL, current_prompt_type = NULL, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([matchId]);
+      }
       try {
         const { getIO } = await import('../socket.js');
         const io = getIO();
@@ -1596,6 +1607,9 @@ matchesRouter.post("/:matchId/game-request", authenticateToken, rateLimitAPI, as
         db.prepare('UPDATE mulligan_tokens SET used_at = CURRENT_TIMESTAMP, match_id = ? WHERE id = ?').run(matchId, tokensResult.id);
         db.prepare('UPDATE game_unlocks SET unlocked_until = ?, unlocked_at = CURRENT_TIMESTAMP WHERE match_id = ? AND game_type = ?')
           .run([unlockedUntil.toISOString(), matchId, gameType]);
+        if (gameType === 'truth_or_dare') {
+          db.prepare('UPDATE truth_or_dare_games SET current_prompt = NULL, current_prompt_type = NULL, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([matchId]);
+        }
         try {
           const { getIO } = await import('../socket.js');
           const io = getIO();
@@ -2057,31 +2071,29 @@ matchesRouter.post("/:matchId/never-have-i-ever/spice-choice", authenticateToken
       return res.status(404).json({ error: "Match not found" });
     }
 
-    // Never Have I Ever requires token unlock
+    // Never Have I Ever requires token unlock; either user can set or change the version
     const unlockRow = db.prepare('SELECT unlocked_by_user_id FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'never_have_i_ever']) as { unlocked_by_user_id: string } | undefined;
     if (!unlockRow) {
       return res.status(400).json({ error: "Never Have I Ever must be unlocked with a Mulligan token to play." });
     }
-    if (unlockRow.unlocked_by_user_id !== userId) {
-      return res.status(400).json({ error: "Only the person who unlocked can set the rating." });
-    }
 
     const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
 
-    // Unlocker picks → set spice, current_turn = User B, generate first prompt (game starts)
-      const { generateNeverHaveIEverPrompt } = await import('../services/neverHaveIEver.js');
-      const prompt = await generateNeverHaveIEverPrompt(matchId, choice as 'pg13' | 'ratedr' | 'spicy');
-      const rowResult = db.prepare('SELECT match_id FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
-      const existing = rowResult instanceof Promise ? await rowResult : rowResult;
-      if (!existing) {
-        db.prepare(
-          `INSERT INTO never_have_i_ever_games (match_id, user1_spice_choice, user2_spice_choice, spice_level, current_prompt, current_turn_user_id, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
-        ).run([matchId, choice, choice, choice, prompt, otherUserId, new Date().toISOString()]);
-      } else {
-        db.prepare(
-          `UPDATE never_have_i_ever_games SET user1_spice_choice = ?, user2_spice_choice = ?, spice_level = ?, current_prompt = ?, current_turn_user_id = ?, updated_at = ? WHERE match_id = ?`
-        ).run([choice, choice, choice, prompt, otherUserId, new Date().toISOString(), matchId]);
-      }
+    const { generateNeverHaveIEverPrompt } = await import('../services/neverHaveIEver.js');
+    const prompt = await generateNeverHaveIEverPrompt(matchId, choice as 'pg13' | 'ratedr' | 'spicy');
+    const rowResult = db.prepare('SELECT match_id FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
+    const existing = rowResult instanceof Promise ? await rowResult : rowResult;
+    if (!existing) {
+      // First time: unlocker sets initial version and we generate first prompt
+      db.prepare(
+        `INSERT INTO never_have_i_ever_games (match_id, user1_spice_choice, user2_spice_choice, spice_level, current_prompt, current_turn_user_id, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
+      ).run([matchId, choice, choice, choice, prompt, otherUserId, new Date().toISOString()]);
+    } else {
+      // Either user can set/change version; update spice_level and new prompt
+      db.prepare(
+        `UPDATE never_have_i_ever_games SET user1_spice_choice = ?, user2_spice_choice = ?, spice_level = ?, current_prompt = ?, updated_at = ? WHERE match_id = ?`
+      ).run([choice, choice, choice, prompt, new Date().toISOString(), matchId]);
+    }
 
     const { getGameState } = await import('../services/neverHaveIEver.js');
     const state = await getGameState(matchId, userId, match);
@@ -2171,11 +2183,11 @@ matchesRouter.get("/:matchId/never-have-i-ever", authenticateToken, async (req: 
     const { getGameState } = await import('../services/neverHaveIEver.js');
     const state = await getGameState(matchId, userId, match);
 
-    const isUnlocker = unlockRow.unlocked_by_user_id === userId;
     res.json({
       ...state,
       tokenUnlocked: true,
-      needsSpiceChoiceFromUnlocker: !state.spiceReady && isUnlocker,
+      needsSpiceChoiceFromUnlocker: !state.spiceReady,
+      unlockedByUserId: unlockRow.unlocked_by_user_id ?? null,
       currentTurnUserId: state.currentTurnUserId ?? null,
       isYourTurn: state.isYourTurn ?? false,
     });
@@ -2300,6 +2312,81 @@ matchesRouter.post("/:matchId/never-have-i-ever/restart", authenticateToken, rat
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error("Never Have I Ever restart error:", error);
     res.status(500).json({ error: `Failed to restart game: ${errorMessage}` });
+  }
+});
+
+// Simplified: get another prompt (no turns, no strikes). Either user can call.
+matchesRouter.post("/:matchId/never-have-i-ever/another", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { matchId } = req.params;
+
+    const matchResult = db
+      .prepare('SELECT user1_id, user2_id FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?)')
+      .get([matchId, userId, userId]);
+    const match = (matchResult instanceof Promise
+      ? await matchResult
+      : matchResult) as { user1_id: string; user2_id: string } | undefined;
+
+    if (!match) {
+      return res.status(404).json({ error: "Match not found" });
+    }
+
+    const unlockRow = db.prepare('SELECT 1 FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'never_have_i_ever']) as { 1?: number } | undefined;
+    if (!unlockRow) {
+      return res.status(400).json({ error: "Never Have I Ever must be unlocked with a Mulligan token to play." });
+    }
+
+    const rowResult = db.prepare('SELECT spice_level, current_prompt FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
+    const row = (rowResult instanceof Promise ? await rowResult : rowResult) as { spice_level: string | null; current_prompt: string | null } | undefined;
+    if (!row?.spice_level) {
+      return res.status(400).json({ error: "Set the version (PG-13 / R / Spicy) first." });
+    }
+
+    const { generateNeverHaveIEverPrompt } = await import('../services/neverHaveIEver.js');
+    const spiceLevel = (row.spice_level === 'ratedr' ? 'ratedr' : row.spice_level === 'spicy' ? 'spicy' : 'pg13') as 'pg13' | 'ratedr' | 'spicy';
+    const prompt = await generateNeverHaveIEverPrompt(matchId, spiceLevel);
+    db.prepare('UPDATE never_have_i_ever_games SET current_prompt = ?, user1_answer = NULL, user2_answer = NULL, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([prompt, matchId]);
+
+    try {
+      const { getIO } = await import('../socket.js');
+      const io = getIO();
+      if (io) io.to(`match:${matchId}`).emit('never_have_i_ever_updated', { matchId });
+    } catch (e) { /* ignore */ }
+
+    res.json({ prompt });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Never Have I Ever another error:", error);
+    res.status(500).json({ error: `Failed to get another prompt: ${errorMessage}` });
+  }
+});
+
+// Simplified: send current prompt to chat (frontend sends the message; this just notifies)
+matchesRouter.post("/:matchId/never-have-i-ever/send-to-chat", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { matchId } = req.params;
+
+    const matchResult = db
+      .prepare('SELECT user1_id, user2_id FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?)')
+      .get([matchId, userId, userId]);
+    const match = (matchResult instanceof Promise ? await matchResult : matchResult) as { user1_id: string; user2_id: string } | undefined;
+    if (!match) return res.status(404).json({ error: "Match not found" });
+
+    const unlockRow = db.prepare('SELECT 1 FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'never_have_i_ever']) as { 1?: number } | undefined;
+    if (!unlockRow) return res.status(400).json({ error: "Never Have I Ever must be unlocked to play." });
+
+    try {
+      const { getIO } = await import('../socket.js');
+      const io = getIO();
+      if (io) io.to(`match:${matchId}`).emit('never_have_i_ever_updated', { matchId });
+    } catch (e) { /* ignore */ }
+    res.json({ ok: true });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Never Have I Ever send-to-chat error:", error);
+    res.status(500).json({ error: errorMessage });
   }
 });
 

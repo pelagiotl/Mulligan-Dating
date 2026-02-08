@@ -2421,6 +2421,8 @@ export default function MatchesScreen() {
           if (matchToSelect) {
             setSelectedMatch(matchToSelect);
             if (pendingId) clearPendingOpenMatchId();
+            // Refetch matches so gameUnlocks (e.g. Truth or Dare) is fresh for the other user
+            fetchMatches();
             if (pendingGame && (routeParams?.showGameRequest || pendingGame.matchId === matchIdToOpen)) {
               setGameRequestToShow(pendingGame);
               clearPendingGameRequest();
@@ -2495,6 +2497,7 @@ export default function MatchesScreen() {
   }, [route.params]);
 
   // Auto-select match when matches load and we have pending or route param (e.g. celebration "Send message")
+  // When matches refresh (e.g. after fetchMatches), re-set selectedMatch from fresh list so gameUnlocks is up to date
   useEffect(() => {
     const pendingId = getPendingOpenMatchId();
     const routeParams = route.params as { matchId?: string } | undefined;
@@ -2505,8 +2508,14 @@ export default function MatchesScreen() {
         setSelectedMatch(matchToSelect);
         if (pendingId) clearPendingOpenMatchId();
       }
+    } else if (selectedMatch?.id && matches.length > 0) {
+      // Keep selectedMatch in sync with fresh matches (e.g. gameUnlocks after the other user unlocked)
+      const updated = matches.find(m => m.id === selectedMatch.id);
+      if (updated && (updated.gameUnlocks?.truth_or_dare !== selectedMatch.gameUnlocks?.truth_or_dare || updated.gameUnlocks?.never_have_i_ever !== selectedMatch.gameUnlocks?.never_have_i_ever)) {
+        setSelectedMatch(updated);
+      }
     }
-  }, [matches, route.params, loading]);
+  }, [matches, route.params, loading, selectedMatch?.id, selectedMatch?.gameUnlocks?.truth_or_dare, selectedMatch?.gameUnlocks?.never_have_i_ever]);
 
   const fetchMessages = useCallback(async (matchId: string, retryCount = 0) => {
     const maxRetries = 3;
@@ -2602,10 +2611,10 @@ export default function MatchesScreen() {
         ...(imageUrlToSend ? { imageUrl: imageUrlToSend } : {}),
       });
       
-      // Replace temp message with real message from server
+      // Replace temp message with real message from server (dedupe: socket may have already added it)
       if (response.message) {
         setMessages((prev) => {
-          const filtered = prev.filter((m) => m.id !== tempMessage.id);
+          const filtered = prev.filter((m) => m.id !== tempMessage.id && m.id !== response.message!.id);
           const next = [...filtered, { ...response.message, isOwn: response.message.senderId === user.id }];
           return next.sort((a, b) => new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime());
         });
@@ -3131,6 +3140,7 @@ export default function MatchesScreen() {
                     messages={messages}
                     currentUserId={user?.id || ''}
                     socket={socketRef.current}
+                    onSendToChat={(text) => handleSendMessage(text)}
                     onUnlockWithToken={async () => {
                       await api.post(`/matches/${selectedMatch.id}/unlock-game`, { gameType: 'never_have_i_ever' });
                       api.clearCache('/matches');
