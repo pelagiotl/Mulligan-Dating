@@ -1288,6 +1288,7 @@ matchesRouter.get("/:matchId/compatibility", authenticateToken, async (req: Auth
 });
 
 // Get profile-based compatibility (interests, dealbreakers, looking for, etc.)
+// Also returns match explanation (reasons, sharedInterests, sharedValues) for the detail card
 matchesRouter.get("/:matchId/profile-compatibility", authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
@@ -1303,10 +1304,18 @@ matchesRouter.get("/:matchId/profile-compatibility", authenticateToken, async (r
     const profileResult2 = db.prepare('SELECT id FROM profiles WHERE user_id = ?').get(match.user2_id);
     const p1 = (profileResult1 instanceof Promise ? await profileResult1 : profileResult1) as { id: string } | undefined;
     const p2 = (profileResult2 instanceof Promise ? await profileResult2 : profileResult2) as { id: string } | undefined;
-    if (!p1 || !p2) return res.json({ profileCompatibility: 50 });
+    if (!p1 || !p2) return res.json({ profileCompatibility: 50, reasons: [], sharedInterests: [], sharedValues: 0 });
 
-    const profileCompatibility = await calculateProfileCompatibilityScore(p1.id, p2.id);
-    res.json({ profileCompatibility });
+    const [profileCompatibility, explanation] = await Promise.all([
+      calculateProfileCompatibilityScore(p1.id, p2.id),
+      generateMatchExplanation(p1.id, p2.id),
+    ]);
+    res.json({
+      profileCompatibility,
+      reasons: explanation.reasons,
+      sharedInterests: explanation.sharedInterests,
+      sharedValues: explanation.sharedValues,
+    });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error("Profile compatibility error:", error);

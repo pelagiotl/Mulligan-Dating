@@ -1778,7 +1778,9 @@ export default function MatchesScreen() {
   const [isTyping, setIsTyping] = useState(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [profileCompatibility, setProfileCompatibility] = useState<number | null>(null);
+  const [compatibilityDetails, setCompatibilityDetails] = useState<{ reasons: string[]; sharedInterests: string[]; sharedValues: number } | null>(null);
   const [showAgeCardModal, setShowAgeCardModal] = useState(false);
+  const [showCompatibilityCardModal, setShowCompatibilityCardModal] = useState(false);
   
   // Header animations
   const headerGradientPos = useRef(new Animated.Value(0)).current;
@@ -1816,17 +1818,28 @@ export default function MatchesScreen() {
   useEffect(() => {
     if (!selectedMatch || selectedMatch.stage === 'pending') {
       setProfileCompatibility(null);
+      setCompatibilityDetails(null);
       return;
     }
     const fetchCompat = async () => {
       try {
         const r = await api.get(`/matches/${selectedMatch.id}/profile-compatibility`, false);
         const val = r.profileCompatibility;
-        if (typeof val === 'number') setProfileCompatibility(val);
-        else setProfileCompatibility(null);
+        if (typeof val === 'number') {
+          setProfileCompatibility(val);
+          setCompatibilityDetails({
+            reasons: Array.isArray(r.reasons) ? r.reasons : [],
+            sharedInterests: Array.isArray(r.sharedInterests) ? r.sharedInterests : [],
+            sharedValues: typeof r.sharedValues === 'number' ? r.sharedValues : 0,
+          });
+        } else {
+          setProfileCompatibility(null);
+          setCompatibilityDetails(null);
+        }
       } catch (e) {
         if (__DEV__) console.warn('Profile compatibility fetch failed:', e);
         setProfileCompatibility(null);
+        setCompatibilityDetails(null);
       }
     };
     fetchCompat();
@@ -2960,11 +2973,6 @@ export default function MatchesScreen() {
               </TouchableOpacity>
               <View style={styles.chatHeaderTitleRow}>
                 <Text style={styles.chatHeaderTitle} numberOfLines={1} ellipsizeMode="tail">{selectedMatch.otherUser.displayName}</Text>
-                {profileCompatibility != null && selectedMatch.stage !== 'pending' && (
-                  <View style={styles.chatHeaderCompatibilityBadge}>
-                    <Text style={styles.chatHeaderCompatibilityText}>{profileCompatibility}%</Text>
-                  </View>
-                )}
               </View>
               {selectedMatch.stage !== 'pending' && (
                 <View style={styles.chatHeaderActionsRow}>
@@ -3079,6 +3087,28 @@ export default function MatchesScreen() {
                   </View>
                 )}
               </View>
+              {profileCompatibility != null && selectedMatch.stage !== 'pending' && (
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={() => setShowCompatibilityCardModal(true)}
+                  style={styles.chatHeaderCompatibilityBadgeWrap}
+                >
+                  <LinearGradient
+                    colors={
+                      profileCompatibility >= 80 ? ['#ff6b9d', '#c44569', '#f093fb'] :
+                      profileCompatibility >= 60 ? ['#667eea', '#764ba2', '#a855f7'] :
+                      ['#6366f1', '#8b5cf6', '#a78bfa']
+                    }
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.chatHeaderCompatibilityBadge}
+                  >
+                    <Text style={styles.chatHeaderCompatibilityIcon}>💕</Text>
+                    <Text style={styles.chatHeaderCompatibilityText}>{profileCompatibility}%</Text>
+                    <Text style={styles.chatHeaderCompatibilityLabel}>match</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         </View>
@@ -3108,6 +3138,68 @@ export default function MatchesScreen() {
               <Text style={styles.ageCardBody}>
                 …but connection is timeless. Here's to finding someone who makes every moment count—whether you're sharing laughs, dreams, or the last slice of pizza.
               </Text>
+              <Text style={styles.ageCardHint}>Tap anywhere to close</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Compatibility card popup - tap the % badge to see why you match */}
+      <Modal
+        visible={showCompatibilityCardModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowCompatibilityCardModal(false)}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          style={styles.ageCardOverlay}
+          onPress={() => setShowCompatibilityCardModal(false)}
+        >
+          <TouchableOpacity activeOpacity={1} onPress={() => setShowCompatibilityCardModal(false)} style={styles.compatCardTouchable}>
+            <LinearGradient
+              colors={profileCompatibility != null && profileCompatibility >= 80
+                ? ['#ff6b9d', '#c44569', '#f093fb', '#ff8a80']
+                : ['#667eea', '#764ba2', '#a855f7', '#8b5cf6']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.compatCardGradient}
+            >
+              <Text style={styles.compatCardEmoji}>💕</Text>
+              <Text style={styles.compatCardTitle}>
+                {profileCompatibility != null ? `${profileCompatibility}%` : ''} Profile Match
+              </Text>
+              <Text style={styles.compatCardSubtitle}>
+                Based on interests, values, lifestyle & what you're looking for
+              </Text>
+              {(compatibilityDetails?.reasons?.length ?? 0) > 0 && (
+                <View style={styles.compatCardReasons}>
+                  {compatibilityDetails!.reasons.map((reason, i) => (
+                    <View key={i} style={styles.compatCardReasonRow}>
+                      <Text style={styles.compatCardReasonBullet}>✓</Text>
+                      <Text style={styles.compatCardReasonText}>{reason}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+              {(compatibilityDetails?.sharedInterests?.length ?? 0) > 0 && (
+                <View style={styles.compatCardSection}>
+                  <Text style={styles.compatCardSectionTitle}>Shared interests</Text>
+                  <Text style={styles.compatCardSectionText}>
+                    {compatibilityDetails!.sharedInterests.join(', ')}
+                  </Text>
+                </View>
+              )}
+              {(compatibilityDetails?.sharedValues ?? 0) > 0 && (
+                <Text style={styles.compatCardValues}>
+                  {compatibilityDetails!.sharedValues} shared value{compatibilityDetails!.sharedValues !== 1 ? 's' : ''}
+                </Text>
+              )}
+              {(!compatibilityDetails?.reasons?.length && !compatibilityDetails?.sharedInterests?.length && !(compatibilityDetails?.sharedValues ?? 0)) && (
+                <Text style={styles.compatCardEmpty}>
+                  You're a solid match based on your profiles—keep the conversation going!
+                </Text>
+              )}
               <Text style={styles.ageCardHint}>Tap anywhere to close</Text>
             </LinearGradient>
           </TouchableOpacity>
@@ -3925,9 +4017,9 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   chatHeaderPhoto: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     borderWidth: 2.5,
     borderColor: 'rgba(255, 255, 255, 0.3)',
     shadowColor: '#000',
@@ -3937,9 +4029,9 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   chatHeaderPhotoPlaceholder: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2.5,
@@ -3974,18 +4066,132 @@ const styles = StyleSheet.create({
     textShadowRadius: 2,
     flex: 1,
   },
+  chatHeaderCompatibilityBadgeWrap: {
+    marginLeft: 12,
+    flexShrink: 0,
+  },
   chatHeaderCompatibilityBadge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.6)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  chatHeaderCompatibilityIcon: {
+    fontSize: 12,
+    marginRight: 4,
   },
   chatHeaderCompatibilityText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#fff',
+    marginRight: 3,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  chatHeaderCompatibilityLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: 'rgba(255, 255, 255, 0.95)',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  compatCardTouchable: {
+    width: '100%',
+    maxWidth: 340,
+    borderRadius: 24,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  compatCardGradient: {
+    padding: 24,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+  },
+  compatCardEmoji: {
+    fontSize: 40,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  compatCardTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#fff',
+    textAlign: 'center',
+    marginBottom: 4,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  compatCardSubtitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.9)',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  compatCardReasons: {
+    marginBottom: 12,
+  },
+  compatCardReasonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  compatCardReasonBullet: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: 'rgba(255, 255, 255, 0.95)',
+    marginRight: 8,
+  },
+  compatCardReasonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.95)',
+    flex: 1,
+  },
+  compatCardSection: {
+    marginBottom: 12,
+  },
+  compatCardSectionTitle: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#fff',
+    color: 'rgba(255, 255, 255, 0.85)',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginBottom: 4,
+  },
+  compatCardSectionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.95)',
+  },
+  compatCardValues: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginBottom: 12,
+  },
+  compatCardEmpty: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginBottom: 12,
   },
   chatHeaderSubtitleRow: {
     flexDirection: 'row',

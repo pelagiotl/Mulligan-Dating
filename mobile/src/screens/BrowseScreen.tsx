@@ -13,7 +13,6 @@ import {
   Platform,
   Vibration,
   Modal,
-  InteractionManager,
 } from 'react-native';
 import { TouchableOpacity as GestureTouchable } from 'react-native-gesture-handler';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -1475,28 +1474,27 @@ export default function BrowseScreen() {
     return () => stopConnectButtonAnimations();
   }, [currentProfile, showLandingPage, needsProfile, loading, stopConnectButtonAnimations]);
 
-  // Restart Connect button animations when returning to Connect tab — useFocusEffect ensures we run after tab is visible
+  // Restart Connect button animations when returning to Connect tab — useEffect on isFocused is more reliable than useFocusEffect + InteractionManager
   const shouldShowConnectButton = currentProfile && !showLandingPage && !needsProfile && !loading;
-  useFocusEffect(
-    useCallback(() => {
-      if (!shouldShowConnectButton) {
-        stopConnectButtonAnimations();
-        return;
-      }
+  useEffect(() => {
+    if (!isFocused) {
       stopConnectButtonAnimations();
-      let timeoutId: ReturnType<typeof setTimeout> | null = null;
-      const task = InteractionManager.runAfterInteractions(() => {
-        timeoutId = setTimeout(() => {
-          startConnectButtonAnimations();
-        }, 350);
-      });
-      return () => {
-        task.cancel();
-        if (timeoutId) clearTimeout(timeoutId);
-        stopConnectButtonAnimations();
-      };
-    }, [shouldShowConnectButton, startConnectButtonAnimations, stopConnectButtonAnimations])
-  );
+      return;
+    }
+    if (!shouldShowConnectButton) {
+      stopConnectButtonAnimations();
+      return;
+    }
+    // Delay so native view is attached before starting animations (avoids "native view detached" issues when remounting)
+    const timeoutId = setTimeout(() => {
+      stopConnectButtonAnimations();
+      startConnectButtonAnimations();
+    }, 150);
+    return () => {
+      clearTimeout(timeoutId);
+      stopConnectButtonAnimations();
+    };
+  }, [isFocused, shouldShowConnectButton, startConnectButtonAnimations, stopConnectButtonAnimations]);
 
   const handleConnect = useCallback((profile: Profile, expandSlot?: boolean) => {
     setError('');
