@@ -106,30 +106,31 @@ class DatabaseWrapper {
     let paramIndex = 1;
     const pgSql = sql.replace(/\?/g, () => `$${paramIndex++}`);
     
-    // Helper to normalize params (handle both single value and array)
-    const normalizeParams = (params: any): any[] => {
-      if (params === undefined || params === null) {
-        return [];
+    // Helper to normalize params (SQLite .get/.run/.all accept multiple args: .all(a, b) or .all([a,b]))
+    const normalizeParams = (...args: any[]): any[] => {
+      if (args.length === 0) return [];
+      if (args.length === 1) {
+        const p = args[0];
+        if (p === undefined || p === null) return [];
+        if (Array.isArray(p)) return p;
+        return [p];
       }
-      if (Array.isArray(params)) {
-        return params;
-      }
-      return [params];
+      return args;
     };
     
     return {
-      get: async (params?: any) => {
-        const normalizedParams = normalizeParams(params);
+      get: async (...args: any[]) => {
+        const normalizedParams = normalizeParams(...args);
         const result = await pgPool!.query(pgSql, normalizedParams);
         return result.rows[0] || null;
       },
-      run: async (params?: any) => {
-        const normalizedParams = normalizeParams(params);
+      run: async (...args: any[]) => {
+        const normalizedParams = normalizeParams(...args);
         await pgPool!.query(pgSql, normalizedParams);
         return { lastInsertRowid: 0, changes: 0 };
       },
-      all: async (params?: any) => {
-        const normalizedParams = normalizeParams(params);
+      all: async (...args: any[]) => {
+        const normalizedParams = normalizeParams(...args);
         const result = await pgPool!.query(pgSql, normalizedParams);
         return result.rows;
       }

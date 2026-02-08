@@ -58,7 +58,7 @@ export function initializeSocket(server: HTTPServer) {
     }
   });
 
-  io.on('connection', (socket: AuthenticatedSocket) => {
+  io.on('connection', async (socket: AuthenticatedSocket) => {
     const userId = socket.userId!;
     console.log(`✅ User ${userId} connected via WebSocket`);
 
@@ -67,16 +67,17 @@ export function initializeSocket(server: HTTPServer) {
 
     // Auto-join all active match rooms so user receives new_message for any match (in-app notification)
     try {
-      const matches = db
+      const matchesRaw = await db
         .prepare(
           `SELECT id FROM matches WHERE (user1_id = ? OR user2_id = ?) AND stage IN ('stage1', 'stage2')`
         )
-        .all(userId, userId) as Array<{ id: string }>;
-      for (const m of matches) {
+        .all(userId, userId);
+      const list = Array.isArray(matchesRaw) ? matchesRaw : [];
+      for (const m of list) {
         socket.join(`match:${m.id}`);
       }
-      if (matches.length > 0) {
-        console.log(`✅ User ${userId} joined ${matches.length} match room(s)`);
+      if (list.length > 0) {
+        console.log(`✅ User ${userId} joined ${list.length} match room(s)`);
       }
     } catch (err) {
       console.warn('⚠️ Failed to auto-join match rooms:', err);
