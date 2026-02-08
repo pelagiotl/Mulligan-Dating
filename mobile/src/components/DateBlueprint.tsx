@@ -201,56 +201,54 @@ export default function DateBlueprint({ matchId, socket, currentUserId, headerMo
     }
   };
 
-  const handleAction = async (action: 'accept' | 'decline' | 'modify') => {
+  const handleAction = async (action: 'accept') => {
     if (!plan) return;
-
-    if (action === 'modify') {
-      Alert.prompt(
-        'Modify Date Plan',
-        'Enter your suggested modifications:',
-        async (modifications) => {
-          if (modifications) {
-            try {
-              setUpdating(true);
-              const response = await api.post(
-                `/matches/${matchId}/date-plan/${plan.id}/action`,
-                { action: 'modify', modifications }
-              );
-              // API utility returns data directly
-              const planData = response.plan || response;
-              if (planData && typeof planData === 'object' && 'id' in planData) {
-                setPlan(planData);
-              }
-            } catch (error: any) {
-              Alert.alert('Error', error?.message || 'Failed to update date plan');
-            } finally {
-              setUpdating(false);
-            }
-          }
-        }
+    try {
+      setUpdating(true);
+      const response = await api.post(
+        `/matches/${matchId}/date-plan/${plan.id}/action`,
+        { action }
       );
-    } else {
-      try {
-        setUpdating(true);
-        const response = await api.post(
-          `/matches/${matchId}/date-plan/${plan.id}/action`,
-          { action }
-        );
-        // API utility returns data directly
+      const planData = response.plan || response;
+      if (planData && typeof planData === 'object' && 'id' in planData) {
+        setPlan(planData);
+      }
+      Alert.alert('✅ Accepted!', 'The other person will be notified.');
+    } catch (error: any) {
+      Alert.alert('Error', error?.message || 'Failed to update date plan');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleRegenerate = async () => {
+    try {
+      setUpdating(true);
+      const response = await api.post(`/matches/${matchId}/generate-date-plan`);
+      await new Promise(r => setTimeout(r, 500));
+      await fetchPlan();
+      const latestPlan = await (async () => {
+        try {
+          const r = await api.get(`/matches/${matchId}/date-plan`);
+          return r.plan || r;
+        } catch { return null; }
+      })();
+      if (latestPlan && typeof latestPlan === 'object' && 'id' in latestPlan) {
+        setPlan(latestPlan);
+        Alert.alert('✨ New Date Plan Created!', `Your new date plan: "${latestPlan.title}"`);
+      } else {
         const planData = response.plan || response;
         if (planData && typeof planData === 'object' && 'id' in planData) {
           setPlan(planData);
-        }
-        if (action === 'accept') {
-          Alert.alert('✅ Accepted!', 'The other person will be notified.');
+          Alert.alert('✨ New Date Plan Created!', 'Your new personalized date plan is ready!');
         } else {
-          Alert.alert('Date Plan Declined', 'You can generate a new plan anytime.');
+          Alert.alert('✨ New Date Plan Created!', 'A new plan was generated. Take a look!');
         }
-      } catch (error: any) {
-        Alert.alert('Error', error?.message || 'Failed to update date plan');
-      } finally {
-        setUpdating(false);
       }
+    } catch (error: any) {
+      Alert.alert('Error', error?.message || 'Failed to regenerate date plan');
+    } finally {
+      setUpdating(false);
     }
   };
 
@@ -442,62 +440,15 @@ export default function DateBlueprint({ matchId, socket, currentUserId, headerMo
                           </TouchableOpacity>
                         )}
                         <TouchableOpacity
-                          onPress={async () => {
-                            if (Platform.OS === 'ios' || Platform.OS === 'android') Vibration.vibrate(30);
-                            Alert.alert(
-                              'Regenerate Date Plan',
-                              'Create a new AI-powered date plan? This will replace the current plan.',
-                              [
-                                { text: 'Cancel', style: 'cancel' },
-                                {
-                                  text: 'Regenerate',
-                                  onPress: async () => {
-                                    try {
-                                      setUpdating(true);
-                                      const response = await api.post(`/matches/${matchId}/generate-date-plan`);
-                                      await new Promise(r => setTimeout(r, 500));
-                                      await fetchPlan();
-                                      const latestPlan = await (async () => {
-                                        try {
-                                          const r = await api.get(`/matches/${matchId}/date-plan`);
-                                          return r.plan || r;
-                                        } catch { return null; }
-                                      })();
-                                      if (latestPlan && typeof latestPlan === 'object' && 'id' in latestPlan) {
-                                        setPlan(latestPlan);
-                                        Alert.alert('✨ New Date Plan Created!', `Your new date plan: "${latestPlan.title}"`);
-                                      } else {
-                                        const planData = response.plan || response;
-                                        if (planData && typeof planData === 'object' && 'id' in planData) {
-                                          setPlan(planData);
-                                          Alert.alert('✨ New Date Plan Created!', 'Your new personalized date plan is ready!');
-                                        } else {
-                                          Alert.alert('⚠️ Plan Generated', 'A new plan was created. Please close and reopen to see it.');
-                                        }
-                                      }
-                                    } catch (error: any) {
-                                      Alert.alert('Error', error?.message || 'Failed to regenerate date plan');
-                                    } finally {
-                                      setUpdating(false);
-                                    }
-                                  },
-                                },
-                              ]
-                            );
-                          }}
+                          onPress={handleRegenerate}
                           disabled={updating}
-                          style={[styles.actionButton, styles.modifyButton]}
+                          style={[styles.actionButton, styles.regenerateButton]}
                         >
-                          <Text style={[styles.actionButtonText, styles.modifyButtonText]}>
-                            {updating ? 'Generating...' : 'Regenerate'}
-                          </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          onPress={() => { handleAction('decline'); setIsExpanded(false); }}
-                          disabled={updating}
-                          style={[styles.actionButton, styles.declineButton]}
-                        >
-                          <Text style={[styles.actionButtonText, styles.declineButtonText]}>Decline</Text>
+                          <View style={styles.actionButtonInner}>
+                            <Text style={styles.regenerateButtonText} numberOfLines={1}>
+                              {updating ? 'Generating...' : 'Regenerate new date plan'}
+                            </Text>
+                          </View>
                         </TouchableOpacity>
                       </View>
                     )}
@@ -906,11 +857,7 @@ export default function DateBlueprint({ matchId, socket, currentUserId, headerMo
                   <View style={styles.actionsContainer}>
                     <TouchableOpacity
                       onPress={() => {
-                        if (Platform.OS === 'ios') {
-                          Vibration.vibrate(50);
-                        } else {
-                          Vibration.vibrate(50);
-                        }
+                        if (Platform.OS === 'ios' || Platform.OS === 'android') Vibration.vibrate(50);
                         handleAction('accept');
                         setIsExpanded(false);
                       }}
@@ -922,93 +869,15 @@ export default function DateBlueprint({ matchId, socket, currentUserId, headerMo
                       </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      onPress={async () => {
-                        if (Platform.OS === 'ios') {
-                          Vibration.vibrate(50);
-                        } else {
-                          Vibration.vibrate(50);
-                        }
-                        // Regenerate a new date plan
-                        Alert.alert(
-                          'Regenerate Date Plan',
-                          'Create a new AI-powered date plan? This will replace the current plan.',
-                          [
-                            { text: 'Cancel', style: 'cancel' },
-                            {
-                              text: 'Regenerate',
-                              onPress: async () => {
-                                try {
-                                  setUpdating(true);
-                                  console.log('📅 Starting date plan regeneration...');
-                                  const response = await api.post(`/matches/${matchId}/generate-date-plan`);
-                                  console.log('📅 Regenerated date plan response:', JSON.stringify(response, null, 2));
-                                  
-                                  // Wait a moment for the database to be updated
-                                  await new Promise(resolve => setTimeout(resolve, 500));
-                                  
-                                  // Always fetch the latest plan from the database to ensure we get the newest one
-                                  console.log('📅 Fetching latest plan from database...');
-                                  await fetchPlan();
-                                  
-                                  // Check if the plan was updated
-                                  const latestPlan = await (async () => {
-                                    try {
-                                      const fetchResponse = await api.get(`/matches/${matchId}/date-plan`);
-                                      return fetchResponse.plan || fetchResponse;
-                                    } catch (e) {
-                                      return null;
-                                    }
-                                  })();
-                                  
-                                  if (latestPlan && typeof latestPlan === 'object' && 'id' in latestPlan) {
-                                    console.log('📅 Latest plan fetched:', latestPlan.title, latestPlan.venueName);
-                                    setPlan(latestPlan);
-                                    Alert.alert('✨ New Date Plan Created!', `Your new date plan: "${latestPlan.title}"`);
-                                  } else {
-                                    // Fallback: use the response plan if available
-                                    const planData = response.plan || response;
-                                    if (planData && typeof planData === 'object' && 'id' in planData) {
-                                      console.log('📅 Using response plan:', planData.title, planData.venueName);
-                                      setPlan(planData);
-                                      Alert.alert('✨ New Date Plan Created!', 'Your new personalized date plan is ready!');
-                                    } else {
-                                      console.error('❌ No plan in response or fetch:', response);
-                                      Alert.alert('⚠️ Plan Generated', 'A new plan was created. Please close and reopen to see it.');
-                                    }
-                                  }
-                                } catch (error: any) {
-                                  console.error('❌ Regenerate date plan error:', error);
-                                  const errorMessage = error?.response?.data?.error || error?.message || 'Failed to regenerate date plan';
-                                  Alert.alert('Error', errorMessage);
-                                } finally {
-                                  setUpdating(false);
-                                }
-                              },
-                            },
-                          ]
-                        );
-                      }}
+                      onPress={handleRegenerate}
                       disabled={updating}
-                      style={[styles.actionButton, styles.modifyButton]}
+                      style={[styles.actionButton, styles.regenerateButton]}
                     >
-                      <Text style={[styles.actionButtonText, styles.modifyButtonText]}>
-                        {updating ? 'Generating...' : 'Regenerate'}
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => {
-                        if (Platform.OS === 'ios') {
-                          Vibration.vibrate(50);
-                        } else {
-                          Vibration.vibrate(50);
-                        }
-                        handleAction('decline');
-                        setIsExpanded(false);
-                      }}
-                      disabled={updating}
-                      style={[styles.actionButton, styles.declineButton]}
-                    >
-                      <Text style={[styles.actionButtonText, styles.declineButtonText]}>Decline</Text>
+                      <View style={styles.actionButtonInner}>
+                        <Text style={styles.regenerateButtonText} numberOfLines={1}>
+                          {updating ? 'Generating...' : 'Regenerate new date plan'}
+                        </Text>
+                      </View>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -1502,6 +1371,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
   },
+  actionButtonsRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 6,
+    justifyContent: 'space-between',
+    alignItems: 'stretch',
+  },
   actionsContainer: {
     flexDirection: 'row',
     gap: 6,
@@ -1517,28 +1393,31 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
     minWidth: 90,
+    overflow: 'visible',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 4,
   },
+  actionButtonInner: {
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 20,
+  },
   acceptButton: {
     backgroundColor: '#4CAF50',
   },
-  modifyButton: {
+  regenerateButton: {
     backgroundColor: '#FFC107',
   },
-  modifyButtonText: {
-    color: '#1a1a1a',
+  regenerateButtonText: {
+    color: '#000000',
     fontSize: 14,
     fontWeight: '800',
-  },
-  declineButton: {
-    backgroundColor: '#FF5722',
-  },
-  declineButtonText: {
-    color: '#fff',
+    textAlign: 'center',
+    includeFontPadding: false,
   },
   disabledButton: {
     opacity: 0.5,

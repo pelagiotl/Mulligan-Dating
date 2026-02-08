@@ -163,9 +163,10 @@ export async function saveCompatibilityScore(
     ? await existingResult
     : existingResult) as { id: string } | undefined;
 
-  // Try to save the score - handle both INTEGER and DECIMAL column types
-  // First, try with decimal value (if column is DECIMAL, this works)
-  // If that fails with integer error, round the score and try again
+  // response_time_avg and message_length_avg columns are INT - must pass strict integers
+  const responseTimeAvgInt = parseInt(String(Math.round(scoreData.responseTimeAvg)), 10) || 0;
+  const messageLengthAvgInt = parseInt(String(Math.round(scoreData.messageLengthAvg)), 10) || 0;
+
   const saveScore = async (scoreValue: number) => {
     if (existing) {
       const updateSql = `UPDATE compatibility_scores 
@@ -176,8 +177,8 @@ export async function saveCompatibilityScore(
         .prepare(updateSql)
         .run([
           scoreValue,
-          scoreData.responseTimeAvg,
-          scoreData.messageLengthAvg,
+          responseTimeAvgInt,
+          messageLengthAvgInt,
           scoreData.engagementLevel,
           matchId,
         ]) as Promise<any>);
@@ -194,32 +195,26 @@ export async function saveCompatibilityScore(
           user1Id,
           user2Id,
           scoreValue,
-          scoreData.responseTimeAvg,
-          scoreData.messageLengthAvg,
+          responseTimeAvgInt,
+          messageLengthAvgInt,
           scoreData.engagementLevel,
         ]) as Promise<any>);
     }
   };
 
   try {
-    // Try with decimal value first
     await saveScore(scoreData.score);
   } catch (error: any) {
     const errorMsg = String(error?.message || error || '');
     const errorString = String(error || '');
-    
-    // Check if it's an integer type error - check both message and string representation
     const isIntegerError = errorMsg.includes('integer') || 
                           errorMsg.includes('invalid input syntax') || 
-                          errorMsg.includes('36.67') ||
                           errorString.includes('integer') ||
-                          errorString.includes('invalid input syntax') ||
-                          errorString.includes('36.67');
+                          errorString.includes('invalid input syntax');
     
     if (isIntegerError) {
-      console.warn('⚠️ Score column is still INTEGER, rounding score to integer:', Math.round(scoreData.score));
+      console.warn('⚠️ Score column expects INTEGER, rounding:', Math.round(scoreData.score));
       try {
-        // Try again with rounded integer value
         await saveScore(Math.round(scoreData.score));
       } catch (retryError: any) {
         console.error('❌ Error saving compatibility score (even with rounded value):', retryError);

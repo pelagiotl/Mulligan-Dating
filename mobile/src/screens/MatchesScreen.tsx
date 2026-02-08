@@ -1820,11 +1820,12 @@ export default function MatchesScreen() {
     }
     const fetchCompat = async () => {
       try {
-        const r = await api.get(`/matches/${selectedMatch.id}/profile-compatibility`);
+        const r = await api.get(`/matches/${selectedMatch.id}/profile-compatibility`, false);
         const val = r.profileCompatibility;
         if (typeof val === 'number') setProfileCompatibility(val);
         else setProfileCompatibility(null);
-      } catch {
+      } catch (e) {
+        if (__DEV__) console.warn('Profile compatibility fetch failed:', e);
         setProfileCompatibility(null);
       }
     };

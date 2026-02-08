@@ -222,13 +222,13 @@ async function checkDealbreakers(userProfileId: string, candidateProfileId: stri
  * Calculate lifestyle compatibility score
  * Returns score 0-10 based on how well lifestyles match
  */
-function calculateLifestyleMatch(
+async function calculateLifestyleMatch(
   userProfileId: string,
   candidateProfileId: string
-): number {
-  const userLifestyle = db
+): Promise<number> {
+  const userLifestyle = await (db
     .prepare("SELECT * FROM lifestyle WHERE profile_id = ?")
-    .get(userProfileId) as {
+    .get(userProfileId) as Promise<{
       smoking: string | null;
       drinking: string | null;
       children: string | null;
@@ -236,11 +236,11 @@ function calculateLifestyleMatch(
       religion: string | null;
       work_life_balance: string | null;
       works_out: string | null;
-    } | undefined;
+    } | undefined>);
 
-  const candidateLifestyle = db
+  const candidateLifestyle = await (db
     .prepare("SELECT * FROM lifestyle WHERE profile_id = ?")
-    .get(candidateProfileId) as {
+    .get(candidateProfileId) as Promise<{
       smoking: string | null;
       drinking: string | null;
       children: string | null;
@@ -248,7 +248,7 @@ function calculateLifestyleMatch(
       religion: string | null;
       work_life_balance: string | null;
       works_out: string | null;
-    } | undefined;
+    } | undefined>);
 
   if (!userLifestyle || !candidateLifestyle) {
     return 5; // Neutral score if no lifestyle data
@@ -446,36 +446,35 @@ function calculateLifestyleMatch(
 /**
  * Calculate partner qualities match score
  */
-function calculatePartnerQualitiesMatch(
+async function calculatePartnerQualitiesMatch(
   userProfileId: string,
   candidateProfileId: string
-): number {
-  // Get user's desired partner qualities
-  const userQualities = db
+): Promise<number> {
+  const userQualitiesRaw = await (db
     .prepare("SELECT quality, importance FROM partner_qualities WHERE profile_id = ?")
-    .all(userProfileId) as { quality: string; importance: number }[];
+    .all(userProfileId) as Promise<{ quality: string; importance: number }[]>);
+  const userQualities = Array.isArray(userQualitiesRaw) ? userQualitiesRaw : [];
   
   if (userQualities.length === 0) return 5; // Neutral score if no qualities specified
   
-  // Get candidate's profile info
-  const candidateProfile = db
+  const candidateProfile = await (db
     .prepare("SELECT * FROM profiles WHERE id = ?")
-    .get(candidateProfileId) as ProfileRow | undefined;
+    .get(candidateProfileId) as Promise<ProfileRow | undefined>);
   
   if (!candidateProfile) return 0;
   
-  // Get candidate's actual partner qualities (not just interests)
-  const candidateQualities = db
+  const candidateQualitiesRaw = await (db
     .prepare("SELECT quality FROM partner_qualities WHERE profile_id = ?")
-    .all(candidateProfileId) as { quality: string }[];
+    .all(candidateProfileId) as Promise<{ quality: string }[]>);
+  const candidateQualities = Array.isArray(candidateQualitiesRaw) ? candidateQualitiesRaw : [];
   
   const candidateQualityNames = candidateQualities.map(q => q.quality);
   const candidateQualityNamesLower = new Set(candidateQualityNames.map(q => q.toLowerCase()));
   
-  // Also check bio and interests as fallback (some qualities might be mentioned there)
-  const candidateInterests = db
+  const candidateInterestsRaw = await (db
     .prepare("SELECT name FROM interests WHERE profile_id = ?")
-    .all(candidateProfileId) as { name: string }[];
+    .all(candidateProfileId) as Promise<{ name: string }[]>);
+  const candidateInterests = Array.isArray(candidateInterestsRaw) ? candidateInterestsRaw : [];
   
   const candidateText = `${candidateProfile.bio || ''} ${candidateInterests.map(i => i.name).join(' ')}`.toLowerCase();
   
@@ -515,17 +514,33 @@ function calculatePartnerQualitiesMatch(
  * Calculate interests overlap score using weighted Jaccard similarity
  * More sophisticated than simple Jaccard - accounts for interest importance
  */
-function calculateInterestsOverlap(
+/** Ensure we get an array of { name: string } from DB result (handles .all() vs .get(), pg rows, etc.) */
+function ensureInterestArray(val: unknown): { name: string }[] {
+  if (Array.isArray(val)) {
+    return val.filter((i): i is { name: string } => i != null && typeof i === 'object' && typeof (i as any).name === 'string');
+  }
+  if (val && typeof val === 'object' && 'rows' in val && Array.isArray((val as any).rows)) {
+    return ensureInterestArray((val as any).rows);
+  }
+  if (val && typeof val === 'object' && 'name' in val && typeof (val as any).name === 'string') {
+    return [val as { name: string }];
+  }
+  return [];
+}
+
+async function calculateInterestsOverlap(
   userProfileId: string,
   candidateProfileId: string
-): number {
-  const userInterests = db
+): Promise<number> {
+  const userInterestsRaw = await (db
     .prepare("SELECT name FROM interests WHERE profile_id = ?")
-    .all(userProfileId) as { name: string }[];
+    .all(userProfileId) as Promise<unknown>);
+  const userInterests = ensureInterestArray(userInterestsRaw);
 
-  const candidateInterests = db
+  const candidateInterestsRaw = await (db
     .prepare("SELECT name FROM interests WHERE profile_id = ?")
-    .all(candidateProfileId) as { name: string }[];
+    .all(candidateProfileId) as Promise<unknown>);
+  const candidateInterests = ensureInterestArray(candidateInterestsRaw);
 
   if (userInterests.length === 0 && candidateInterests.length === 0) return 5; // Neutral
 
@@ -553,18 +568,17 @@ function calculateInterestsOverlap(
  * Calculate "looking for" compatibility score using TF-IDF cosine similarity
  * State-of-the-art text matching instead of simple keyword overlap
  */
-function calculateLookingForMatch(
+async function calculateLookingForMatch(
   userProfileId: string,
   candidateProfileId: string
-): number {
-  // Get both profiles with their "looking_for" and bio fields
-  const userProfile = db
+): Promise<number> {
+  const userProfile = await (db
     .prepare("SELECT looking_for, bio FROM profiles WHERE id = ?")
-    .get(userProfileId) as { looking_for: string | null; bio: string | null } | undefined;
+    .get(userProfileId) as Promise<{ looking_for: string | null; bio: string | null } | undefined>);
 
-  const candidateProfile = db
+  const candidateProfile = await (db
     .prepare("SELECT looking_for, bio FROM profiles WHERE id = ?")
-    .get(candidateProfileId) as { looking_for: string | null; bio: string | null } | undefined;
+    .get(candidateProfileId) as Promise<{ looking_for: string | null; bio: string | null } | undefined>);
 
   if (!userProfile || !candidateProfile) return 5; // Neutral if missing
 
@@ -623,10 +637,10 @@ export async function calculateProfileCompatibilityScore(
   const dealbreakersPass = await checkDealbreakersUtil(userProfileId, otherProfileId);
   if (!dealbreakersPass) return 0;
 
-  const interestsScore = calculateInterestsOverlap(userProfileId, otherProfileId);
-  const qualitiesScore = calculatePartnerQualitiesMatch(userProfileId, otherProfileId);
-  const lookingForScore = calculateLookingForMatch(userProfileId, otherProfileId);
-  const lifestyleScore = calculateLifestyleMatch(userProfileId, otherProfileId);
+  const interestsScore = await calculateInterestsOverlap(userProfileId, otherProfileId);
+  const qualitiesScore = await calculatePartnerQualitiesMatch(userProfileId, otherProfileId);
+  const lookingForScore = await calculateLookingForMatch(userProfileId, otherProfileId);
+  const lifestyleScore = await calculateLifestyleMatch(userProfileId, otherProfileId);
 
   // Weighted average (same relative weights as matching: interests 30%, qualities 40%, looking for 20%, lifestyle 30%)
   // Normalize each from 0-10 to 0-100 and combine
@@ -751,22 +765,22 @@ export async function generateWeeklyMatches(userId: string): Promise<{
     }
 
     // NEW: Calculate interests overlap
-    const sharedInterests = calculateInterestsOverlap(userProfile.id, candidate.id);
+    const sharedInterests = await calculateInterestsOverlap(userProfile.id, candidate.id);
 
     // NEW: Calculate partner qualities match
-    const partnerQualitiesMatch = calculatePartnerQualitiesMatch(
+    const partnerQualitiesMatch = await calculatePartnerQualitiesMatch(
       userProfile.id,
       candidate.id
     );
 
     // NEW: Calculate "looking for" compatibility
-    const lookingForMatch = calculateLookingForMatch(
+    const lookingForMatch = await calculateLookingForMatch(
       userProfile.id,
       candidate.id
     );
 
     // NEW: Calculate lifestyle compatibility
-    const lifestyleMatch = calculateLifestyleMatch(
+    const lifestyleMatch = await calculateLifestyleMatch(
       userProfile.id,
       candidate.id
     );
@@ -1011,35 +1025,37 @@ export async function generateMatchExplanation(
   sharedValues: number;
 }> {
   // Get shared interests
-  const userInterests = db
+  const userInterestsRaw = await (db
     .prepare("SELECT name FROM interests WHERE profile_id = ?")
-    .all(userProfileId) as { name: string }[];
-  const candidateInterests = db
+    .all(userProfileId) as Promise<unknown>);
+  const userInterests = ensureInterestArray(userInterestsRaw);
+  const candidateInterestsRaw = await (db
     .prepare("SELECT name FROM interests WHERE profile_id = ?")
-    .all(candidateProfileId) as { name: string }[];
+    .all(candidateProfileId) as Promise<unknown>);
+  const candidateInterests = ensureInterestArray(candidateInterestsRaw);
 
   const userInterestNames = new Set(userInterests.map(i => i.name.toLowerCase()));
   const candidateInterestNames = new Set(candidateInterests.map(i => i.name.toLowerCase()));
   const sharedInterests = [...userInterestNames].filter(name => candidateInterestNames.has(name));
 
   // Get shared values
-  const userProfile = db
+  const userProfile = await (db
     .prepare("SELECT * FROM profiles WHERE id = ?")
-    .get(userProfileId) as ProfileRow | undefined;
-  const candidateProfile = db
+    .get(userProfileId) as Promise<ProfileRow | undefined>);
+  const candidateProfile = await (db
     .prepare("SELECT * FROM profiles WHERE id = ?")
-    .get(candidateProfileId) as ProfileRow | undefined;
+    .get(candidateProfileId) as Promise<ProfileRow | undefined>);
 
   if (!userProfile || !candidateProfile) {
     return { reasons: [], sharedInterests: [], sharedValues: 0 };
   }
 
-  const userPrefs = db
+  const userPrefs = await (db
     .prepare("SELECT values FROM preferences WHERE profile_id = ?")
-    .get(userProfileId) as { values: string | null } | undefined;
-  const candidatePrefs = db
+    .get(userProfileId) as Promise<{ values: string | null } | undefined>);
+  const candidatePrefs = await (db
     .prepare("SELECT values FROM preferences WHERE profile_id = ?")
-    .get(candidateProfileId) as { values: string | null } | undefined;
+    .get(candidateProfileId) as Promise<{ values: string | null } | undefined>);
 
   const userValues = parseJsonArray(userPrefs?.values || null);
   const candidateValues = parseJsonArray(candidatePrefs?.values || null);
@@ -1067,13 +1083,13 @@ export async function generateMatchExplanation(
   }
 
   // Partner qualities match
-  const qualitiesMatch = calculatePartnerQualitiesMatch(userProfileId, candidateProfileId);
+  const qualitiesMatch = await calculatePartnerQualitiesMatch(userProfileId, candidateProfileId);
   if (qualitiesMatch >= 7) {
     reasons.push(`They match what you're looking for`);
   }
 
   // Lifestyle compatibility
-  const lifestyleMatch = calculateLifestyleMatch(userProfileId, candidateProfileId);
+  const lifestyleMatch = await calculateLifestyleMatch(userProfileId, candidateProfileId);
   if (lifestyleMatch >= 7) {
     reasons.push(`Similar lifestyle preferences`);
   }
@@ -1102,7 +1118,7 @@ export async function generateMatchExplanation(
   }
 
   // Looking for compatibility
-  const lookingForMatch = calculateLookingForMatch(userProfileId, candidateProfileId);
+  const lookingForMatch = await calculateLookingForMatch(userProfileId, candidateProfileId);
   if (lookingForMatch >= 7 && userProfile.looking_for && candidateProfile.looking_for) {
     reasons.push(`Looking for the same thing`);
   }
