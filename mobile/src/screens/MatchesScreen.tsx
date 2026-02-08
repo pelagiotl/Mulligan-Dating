@@ -33,6 +33,7 @@ import { getPhotoUrl } from '../utils/photoUrl';
 import { getPendingOpenMatchId, clearPendingOpenMatchId } from '../utils/pendingMatchOpen';
 import { getPendingGameRequest, clearPendingGameRequest, type PendingGameRequest } from '../utils/pendingGameRequest';
 import { playMatchSound, playMessageSound } from '../utils/sounds';
+import { navigationRef } from '../navigation/navigationRef';
 import LegalFooter from '../components/LegalFooter';
 import CompatibilityPulse from '../components/CompatibilityPulse';
 import MulliganMoments from '../components/MulliganMoments';
@@ -2198,7 +2199,31 @@ export default function MatchesScreen() {
             return next.sort((a, b) => new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime());
           });
         } else {
-          // Message is for a different match - BrowseScreen shows in-app Alert (any tab)
+          // Message is for a different match - show in-app Alert and refresh list
+          if (message.senderId !== user?.id) {
+            playMessageSound().catch(() => {});
+            const senderName = message.senderName || 'Someone';
+            const preview = message.content?.substring(0, 50) || (message.imageUrl ? '📷 Photo' : 'New message');
+            const displayPreview = message.content && message.content.length > 50 ? preview + '...' : preview;
+            Alert.alert(
+              '💬 New Message',
+              `${senderName}: ${displayPreview}`,
+              [
+                {
+                  text: 'View',
+                  onPress: () => {
+                    if (message.matchId && navigationRef.current?.isReady()) {
+                      navigationRef.current.navigate('MainTabs' as never, {
+                        screen: 'Matches',
+                        params: { matchId: message.matchId },
+                      } as never);
+                    }
+                  },
+                },
+                { text: 'OK', style: 'cancel' },
+              ]
+            );
+          }
           fetchMatches();
         }
         
@@ -2273,6 +2298,8 @@ export default function MatchesScreen() {
           socketRef.current.off('user_typing');
           socketRef.current.off('typing_stopped');
           socketRef.current.off('messages_read');
+          socketRef.current.off('new_message');
+          socketRef.current.off('new_match');
           socketRef.current.off('stage_advanced');
           socketRef.current.off('game_request_received');
           socketRef.current.off('game_request_responded');

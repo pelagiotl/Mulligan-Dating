@@ -1046,6 +1046,8 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
         };
         
         io.to(`match:${matchId}`).emit('new_message', message);
+        // Also emit to recipient's user room (reliable delivery - user room always joined on connect)
+        io.to(`user:${otherUserId}`).emit('new_message', message);
         console.log(`✅ Emitted socket event for new message in match ${matchId}`);
       }
     } catch (socketError) {
@@ -1712,28 +1714,83 @@ matchesRouter.post("/:matchId/truth-or-dare/spice-choice", authenticateToken, ra
 
     const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
 
-    // Truth or Dare requires token unlock; only unlocker can set spice
+    // Truth or Dare requires token unlock
     const unlockRow = db.prepare('SELECT unlocked_by_user_id FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'truth_or_dare']) as { unlocked_by_user_id: string } | undefined;
     if (!unlockRow) {
       return res.status(400).json({ error: "Truth or Dare must be unlocked with a Mulligan token to play." });
     }
-    if (unlockRow.unlocked_by_user_id !== userId) {
-      return res.status(400).json({ error: "Only the person who unlocked can set the rating." });
+
+    const isUnlocker = unlockRow.unlocked_by_user_id === userId;
+
+    // Unlocker sets initial spice; both users can change spice later
+    const existingResult = db.prepare('SELECT match_id, spice_level FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
+    const existing = existingResult instanceof Promise ? await existingResult : existingResult;
+    const hasSpiceAlready = !!existing && !!(existing as any).spice_level;
+
+    if (!hasSpiceAlready && !isUnlocker) {
+      return res.status(400).json({ error: "Wait for them to set the rating first." });
     }
 
-    // Unlocker picks rating → set spice_level and current_turn = other user (User B goes first)
-    const existingResult = db.prepare('SELECT match_id FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
-    const existing = existingResult instanceof Promise ? await existingResult : existingResult;
+    // Set or update spice_level; when unlocker picks initially, set current_turn = other user (User B goes first)
     if (!existing) {
       db.prepare(`INSERT INTO truth_or_dare_games (match_id, spice_level, current_turn_user_id) VALUES (?, ?, ?)`).run([matchId, choice, otherUserId]);
-    } else {
+    } else if (!hasSpiceAlready) {
       db.prepare(`UPDATE truth_or_dare_games SET spice_level = ?, current_turn_user_id = ?, current_prompt = NULL, current_prompt_type = NULL, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?`).run([choice, otherUserId, matchId]);
+    } else {
+      // Both users can change spice when game is already running
+      db.prepare(`UPDATE truth_or_dare_games SET spice_level = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?`).run([choice, matchId]);
     }
 
     // Get updated state
     const gameResult = db.prepare('SELECT * FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
     const game = (gameResult instanceof Promise ? await gameResult : gameResult) as any;
     const spiceReady = !!game.spice_level;
+
+    // When unlocker selects spice initially, add chat notification for User B
+    if (!hasSpiceAlready && isUnlocker && spiceReady) {
+      try {
+        const notifyMsgId = uuidv4();
+        const notifyContent = '🎲 Truth or Dare is starting! Tap the 🎲 button to play.';
+        db.prepare(
+          `INSERT INTO messages (id, match_id, sender_id, content) VALUES (?, ?, ?, ?)`
+        ).run([notifyMsgId, matchId, userId, notifyContent]);
+
+        const senderProfile = db.prepare('SELECT display_name FROM profiles WHERE user_id = ?').get([userId]) as { display_name: string } | undefined;
+        const senderName = senderProfile?.display_name || 'Someone';
+
+        const { getIO } = await import('../socket.js');
+        const io = getIO();
+        if (io) {
+          io.to(`match:${matchId}`).emit('new_message', {
+            id: notifyMsgId,
+            matchId,
+            content: notifyContent,
+            imageUrl: null,
+            senderId: userId,
+            senderName,
+            sentAt: new Date().toISOString(),
+            readAt: null,
+          });
+        }
+
+        // Push notification to User B
+        const { sendMessagePushNotification, isPushNotificationConfigured, isExpoPushToken } = await import('../services/pushNotifications.js');
+        if (isPushNotificationConfigured()) {
+          const otherTokenRow = db.prepare('SELECT push_token FROM users WHERE id = ?').get([otherUserId]) as { push_token: string | null } | undefined;
+          if (otherTokenRow?.push_token && isExpoPushToken(otherTokenRow.push_token)) {
+            await sendMessagePushNotification(
+              otherTokenRow.push_token,
+              senderName,
+              notifyContent,
+              matchId,
+              userId
+            );
+          }
+        }
+      } catch (e) {
+        console.warn('Truth or Dare chat notification failed:', e);
+      }
+    }
 
     // Emit socket event to notify other user
     try {

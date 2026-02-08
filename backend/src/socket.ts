@@ -19,12 +19,15 @@ export function initializeSocket(server: HTTPServer) {
   const io = new SocketIOServer(server, {
     cors: {
       origin: (origin, callback) => {
-        // Allow localhost and ngrok URLs in development
-        if (!origin || origin.includes('localhost') || origin.includes('ngrok')) {
-          callback(null, true);
-        } else {
-          callback(new Error('Not allowed by CORS'));
-        }
+        // Allow: no origin (mobile/native apps), localhost, ngrok, or production
+        const allowed =
+          !origin ||
+          origin.includes('localhost') ||
+          origin.includes('ngrok') ||
+          origin === 'null' ||
+          origin.includes('render.com') ||
+          origin.includes('expo');
+        callback(null, allowed);
       },
       credentials: true,
     },
@@ -204,6 +207,8 @@ export function initializeSocket(server: HTTPServer) {
 
       // Emit to all users in the match room (including sender)
       io.to(`match:${matchId}`).emit('new_message', message);
+      // Also emit to recipient's user room (reliable delivery - user room always joined on connect)
+      io.to(`user:${otherUserId}`).emit('new_message', message);
 
       // Send push notification to the other user (if they're not in the app)
       try {
