@@ -10,6 +10,8 @@ Mulligan is a full-stack dating application that helps people find meaningful co
 - **Rich Profiles** - Express yourself with interests, hobbies, and photos
 - **Preferences & Dealbreakers** - Be honest about what you want
 - **Smart Matching** - Find people who share your values
+- **In-app message notifications** - Reliable notifications when you receive new messages
+- **Truth or Dare** - Icebreaker game with a 7-minute timer
 - **Beautiful UI** - A delightful experience on every device
 
 ## Tech Stack
