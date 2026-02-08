@@ -17,6 +17,8 @@ interface OptimizedImageProps {
   onError?: () => void;
   // Cache control
   cache?: 'default' | 'reload' | 'force-cache' | 'only-if-cached';
+  /** Show loading spinner overlay while image loads. Default true. Set false for match list thumbnails. */
+  showLoadingIndicator?: boolean;
 }
 
 /**
@@ -36,6 +38,7 @@ export default function OptimizedImage({
   onLoadEnd,
   onError,
   cache = 'default',
+  showLoadingIndicator = true,
 }: OptimizedImageProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -78,7 +81,7 @@ export default function OptimizedImage({
   if (!imageUri) {
     return (
       <View style={[style, placeholderStyle, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f0f0' }]}>
-        <ActivityIndicator size="small" color="#8B1538" />
+        {showLoadingIndicator ? <ActivityIndicator size="small" color="#8B1538" /> : null}
       </View>
     );
   }
@@ -105,7 +108,7 @@ export default function OptimizedImage({
         // React Native Image automatically caches images
         // The cache prop controls HTTP cache headers
       />
-      {loading && (
+      {loading && showLoadingIndicator && (
         <View
           style={{
             position: 'absolute',

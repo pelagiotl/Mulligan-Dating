@@ -70,6 +70,7 @@ interface Match {
   otherWantsReveal?: boolean;
   unreadCount?: number;
   gameUnlocks?: GameUnlocks;
+  compatibilityScore?: number | null;
   otherUser: {
     userId: string;
     displayName: string;
@@ -569,7 +570,7 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
             {photoUrl ? (
               <Animated.View style={{ transform: [{ scale: photoScaleAnim }] }}>
                 <View style={styles.photoContainer}>
-                  <OptimizedImage source={photoUrl} style={styles.matchPhoto} />
+                  <OptimizedImage source={photoUrl} style={styles.matchPhoto} showLoadingIndicator={false} />
                   <LinearGradient
                     colors={['transparent', 'rgba(0,0,0,0.1)']}
                     style={styles.photoGradientOverlay}
@@ -643,6 +644,12 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
               </Text>
             ) : null}
             <View style={styles.badgesRow}>
+              {item.compatibilityScore != null && item.stage !== 'pending' && (
+                <View style={styles.matchCardCompatibilityBadge}>
+                  <Text style={styles.matchCardCompatibilityIcon}>💕</Text>
+                  <Text style={styles.matchCardCompatibilityText}>{item.compatibilityScore}%</Text>
+                </View>
+              )}
               <View style={styles.stageContainer}>
                 <Animated.View style={item.stage === 'stage2' ? { transform: [{ scale: pulseAnim }] } : undefined}>
                   {(item.stage === 'stage1' || item.stage === 'stage2') && onStagePress ? (
@@ -659,7 +666,7 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
                       >
                         <Text style={styles.stageEmoji}>{getStageEmoji(item.stage)}</Text>
                         <Text style={[styles.stageText, item.stage === 'stage2' && { color: '#fff' }, item.stage === 'stage1' && styles.stageTextStage1]}>
-                          {item.stage === 'stage1' ? 'Stage 1' : 'Level 2'}
+                          {item.stage === 'stage1' ? 'Level 1' : 'Level 2'}
                         </Text>
                       </LinearGradient>
                     </TouchableOpacity>
@@ -673,7 +680,7 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
                     >
                       <Text style={styles.stageEmoji}>{getStageEmoji(item.stage)}</Text>
                       <Text style={[styles.stageText, item.stage === 'stage2' && { color: '#fff' }, item.stage === 'stage1' && styles.stageTextStage1]}>
-                        {item.stage === 'pending' ? 'Pending' : item.stage === 'stage1' ? 'Stage 1' : 'Level 2'}
+                        {item.stage === 'pending' ? 'Pending' : item.stage === 'stage1' ? 'Level 1' : 'Level 2'}
                       </Text>
                     </LinearGradient>
                   )}
@@ -708,6 +715,7 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
     prevProps.item.unreadCount === nextProps.item.unreadCount &&
     prevProps.item.stage === nextProps.item.stage &&
     prevProps.item.expiresAt === nextProps.item.expiresAt &&
+    prevProps.item.compatibilityScore === nextProps.item.compatibilityScore &&
     prevProps.photoUrl === nextProps.photoUrl
   );
 });
@@ -2897,7 +2905,7 @@ export default function MatchesScreen() {
             }}
           />
         )}
-        {/* Stage Info Modal - also in list view so tapping Stage 1/2 on a card shows it */}
+        {/* Stage Info Modal - also in list view so tapping Level 1/2 on a card shows it */}
         <Modal
           visible={stageInfoModalVisible}
           animationType="fade"
@@ -2920,7 +2928,7 @@ export default function MatchesScreen() {
                   <Text style={styles.stageInfoBigEmoji}>{stageInfoStage === 'stage1' ? '💖' : '💕'}</Text>
                 </View>
                 <Text style={styles.stageInfoTitle}>
-                  {stageInfoStage === 'stage1' ? 'Stage 1' : 'Level 2'}
+                  {stageInfoStage === 'stage1' ? 'Level 1' : 'Level 2'}
                 </Text>
                 <Text style={styles.stageInfoSubtitle}>
                   {stageInfoStage === 'stage1' ? 'Primary photo revealed' : 'All photos unlocked'}
@@ -3057,7 +3065,7 @@ export default function MatchesScreen() {
                     )}
                     <Text style={styles.chatHeaderStagePillEmoji}>{selectedMatch.stage === 'stage1' ? '💖' : '💕'}</Text>
                     <Text style={[styles.chatHeaderStagePillText, selectedMatch.stage === 'stage2' && styles.chatHeaderStagePillTextStage2, selectedMatch.stage === 'stage1' && styles.chatHeaderStagePillTextStage1]}>
-                      {selectedMatch.stage === 'stage1' ? 'Stage 1' : 'Level 2'}
+                      {selectedMatch.stage === 'stage1' ? 'Level 1' : 'Level 2'}
                     </Text>
                   </LinearGradient>
                 </TouchableOpacity>
@@ -3305,7 +3313,7 @@ export default function MatchesScreen() {
         ) : null;
       })()}
 
-      {/* Stage Info Modal - explains Stage 1 / Level 2 */}
+      {/* Stage Info Modal - explains Level 1 / Level 2 */}
       <Modal
         visible={stageInfoModalVisible}
         animationType="fade"
@@ -3328,7 +3336,7 @@ export default function MatchesScreen() {
                 <Text style={styles.stageInfoBigEmoji}>{stageInfoStage === 'stage1' ? '💖' : '💕'}</Text>
               </View>
               <Text style={styles.stageInfoTitle}>
-                {stageInfoStage === 'stage1' ? 'Stage 1' : 'Level 2'}
+                {stageInfoStage === 'stage1' ? 'Level 1' : 'Level 2'}
               </Text>
               <Text style={styles.stageInfoSubtitle}>
                 {stageInfoStage === 'stage1' ? 'Primary photo revealed' : 'All photos unlocked'}
@@ -3882,6 +3890,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 6,
     gap: 6,
+  },
+  matchCardCompatibilityBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    backgroundColor: 'rgba(139, 21, 56, 0.08)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(139, 21, 56, 0.25)',
+  },
+  matchCardCompatibilityIcon: {
+    fontSize: 12,
+    marginRight: 4,
+  },
+  matchCardCompatibilityText: {
+    fontSize: 12,
+    color: '#8B1538',
+    fontWeight: '700',
   },
   matchLocationContainer: {
     flexDirection: 'row',

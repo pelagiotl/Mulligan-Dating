@@ -698,11 +698,15 @@ export async function initDatabase() {
       game_type ${usePostgres ? 'VARCHAR(50)' : 'TEXT'} NOT NULL,
       unlocked_by_user_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
       unlocked_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP,
+      unlocked_until ${usePostgres ? 'TIMESTAMP' : 'DATETIME'},
       PRIMARY KEY (match_id, game_type),
       FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE,
       FOREIGN KEY (unlocked_by_user_id) REFERENCES users(id) ON DELETE CASCADE
     )
   `);
+  try {
+    await execSQL(`ALTER TABLE game_unlocks ADD COLUMN unlocked_until ${usePostgres ? 'TIMESTAMP' : 'DATETIME'}`);
+  } catch (e) { /* exists */ }
 
   // Game requests: when User A invites User B to play Truth or Dare or Never Have I Ever
   await execSQL(`
