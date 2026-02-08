@@ -1662,7 +1662,9 @@ matchesRouter.get("/:matchId/truth-or-dare/state", authenticateToken, async (req
 
     const isUnlocker = tokenUnlocked && unlockedByUserId === userId;
     const needsSpiceChoiceFromUnlocker = tokenUnlocked && !game.spice_level && isUnlocker;
-    const currentTurnUserId = game.current_turn_user_id ?? (tokenUnlocked && game.spice_level ? otherUserId : null);
+    // Fallback when current_turn_user_id is null: non-unlocker goes first (same ID for both users, unlike otherUserId which varies per requester)
+    const nonUnlockerId = unlockedByUserId ? (match.user1_id === unlockedByUserId ? match.user2_id : match.user1_id) : null;
+    const currentTurnUserId = game.current_turn_user_id ?? (tokenUnlocked && game.spice_level ? nonUnlockerId : null);
     const isYourTurn = !!currentTurnUserId && currentTurnUserId === userId;
     const currentPrompt = game.current_prompt ?? null;
     const currentPromptType = (game.current_prompt_type === 'truth' || game.current_prompt_type === 'dare') ? game.current_prompt_type : null;
@@ -1769,7 +1771,9 @@ matchesRouter.post("/:matchId/truth-or-dare/spice-choice", authenticateToken, ra
       console.warn('Socket emit failed:', e);
     }
 
-    const currentTurnUserId = game.current_turn_user_id ?? (spiceReady && !isTokenUnlocked ? null : otherUserId);
+    // Fallback when current_turn_user_id is null: non-unlocker goes first (consistent for both users)
+    const nonUnlockerId = unlockRow?.unlocked_by_user_id ? (match.user1_id === unlockRow.unlocked_by_user_id ? match.user2_id : match.user1_id) : null;
+    const currentTurnUserId = game.current_turn_user_id ?? (spiceReady && isTokenUnlocked ? nonUnlockerId : (spiceReady && !isTokenUnlocked ? null : otherUserId));
     const isYourTurn = !!currentTurnUserId && currentTurnUserId === userId;
 
     const unlockedByUserId = unlockRow?.unlocked_by_user_id ?? null;
