@@ -166,8 +166,8 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
 
     // Store so api client can send on every request (fallback if POST fails)
     setStoredPushToken(pushToken);
+    console.log('📲 Push: Got Expo token — will send with every request so backend can save it.');
     // Send token to backend (retry on failure so message notifications work)
-    console.log('📲 Push: Got token, sending to backend (auth required).');
     const maxRetries = 3;
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {

@@ -12,6 +12,7 @@ export const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://mulligan-back
 const BASE_URL = `${API_URL}/api`;
 
 let tokenCache: string | null | undefined = undefined;
+let pushTokenHeaderLogged = false;
 
 export function clearTokenCache() {
   tokenCache = undefined;
@@ -106,6 +107,10 @@ async function request<T = any>(endpoint: string, options: RequestInit & { body?
   const pushToken = getStoredPushToken();
   if (pushToken && typeof pushToken === 'string' && pushToken.trim().length > 0) {
     headers['X-Push-Token'] = pushToken.trim();
+    if (__DEV__ && !pushTokenHeaderLogged) {
+      pushTokenHeaderLogged = true;
+      console.log('📲 X-Push-Token sent with request — backend will save for outside-app notifications');
+    }
   }
   
   // Prepare body - stringify JSON if not FormData

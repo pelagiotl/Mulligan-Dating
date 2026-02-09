@@ -1043,10 +1043,16 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
     try {
       const { sendMessagePushNotification, isPushNotificationConfigured, isExpoPushToken } = await import('../services/pushNotifications.js');
       const hasExpoToken = !!process.env.EXPO_ACCESS_TOKEN;
-      const otherUserPushTokenResult = db
+      let otherUserPushTokenResult = db
         .prepare("SELECT push_token FROM users WHERE id = ?")
         .get([otherUserId]) as { push_token: string | null } | undefined;
-      const token = otherUserPushTokenResult?.push_token ?? null;
+      let token = otherUserPushTokenResult?.push_token ?? null;
+      // If no token yet, recipient may have a request in flight that just saved it; retry once after a short delay
+      if ((!token || !token.trim()) && isPushNotificationConfigured()) {
+        await new Promise((r) => setTimeout(r, 1200));
+        otherUserPushTokenResult = db.prepare("SELECT push_token FROM users WHERE id = ?").get([otherUserId]) as { push_token: string | null } | undefined;
+        token = otherUserPushTokenResult?.push_token ?? null;
+      }
       const tokenValid = !!(token && isExpoPushToken(token));
       console.log(`📲 Push (message HTTP): recipient=${otherUserId} hasToken=${!!token} validFormat=${tokenValid} expoConfigured=${isPushNotificationConfigured()} EXPO_ACCESS_TOKEN=${hasExpoToken ? 'set' : 'NOT SET'}`);
       if (isPushNotificationConfigured()) {

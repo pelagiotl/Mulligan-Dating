@@ -492,6 +492,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       if (token) {
         setTokenCache(token);
+        // Start push registration immediately (don't await) so token may be ready for first API calls
+        registerForPushNotificationsAsync().catch((e) => {
+          console.warn('⚠️ Push register on auth (non-critical):', e?.message || e);
+        });
         await fetchUser();
       } else {
         // No token found - show login screen
@@ -560,14 +564,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Run this asynchronously after a delay to ensure app is fully initialized
       // This prevents any native module errors from crashing the app during startup
       if (data.user) {
-        // Defer push registration so native modules are ready; run soon so token is saved
+        // Second registration attempt after fetchUser (native modules should be ready by now)
         setTimeout(async () => {
           try {
             await registerForPushNotificationsAsync();
           } catch (pushError) {
             console.warn('⚠️  Push registration failed:', pushError);
           }
-        }, 1500);
+        }, 500);
       }
     } catch (error: any) {
       console.error('Fetch user error:', error);
