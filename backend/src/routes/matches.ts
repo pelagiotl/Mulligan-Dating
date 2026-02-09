@@ -1046,12 +1046,18 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
       let otherUserPushTokenResult = db.prepare("SELECT push_token FROM users WHERE id = ?").get([otherUserId]);
       if (otherUserPushTokenResult instanceof Promise) otherUserPushTokenResult = await otherUserPushTokenResult;
       let token = (otherUserPushTokenResult as { push_token: string | null } | undefined)?.push_token ?? null;
-      // If no token yet, recipient may have a request in flight that just saved it; retry once after a short delay
+      // If no token yet, recipient may have a request in flight that just saved it; retry with longer waits
       if ((!token || !token.trim()) && isPushNotificationConfigured()) {
-        await new Promise((r) => setTimeout(r, 1200));
+        await new Promise((r) => setTimeout(r, 2500));
         let retryResult = db.prepare("SELECT push_token FROM users WHERE id = ?").get([otherUserId]);
         if (retryResult instanceof Promise) retryResult = await retryResult;
         token = (retryResult as { push_token: string | null } | undefined)?.push_token ?? null;
+        if ((!token || !token.trim()) && isPushNotificationConfigured()) {
+          await new Promise((r) => setTimeout(r, 1500));
+          let retry2 = db.prepare("SELECT push_token FROM users WHERE id = ?").get([otherUserId]);
+          if (retry2 instanceof Promise) retry2 = await retry2;
+          token = (retry2 as { push_token: string | null } | undefined)?.push_token ?? null;
+        }
       }
       const tokenValid = !!(token && isExpoPushToken(token));
       console.log(`📲 Push (message HTTP): recipient=${otherUserId} hasToken=${!!token} validFormat=${tokenValid} expoConfigured=${isPushNotificationConfigured()} EXPO_ACCESS_TOKEN=${hasExpoToken ? 'set' : 'NOT SET'}`);
@@ -1078,18 +1084,25 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
 
       if (isPushNotificationConfigured()) {
         if (tokenValid) {
-          const pushSent = await sendMessagePushNotification(token!, senderName, messagePreview, matchId, userId);
+          let pushSent = await sendMessagePushNotification(token!, senderName, messagePreview, matchId, userId);
           if (pushSent) {
             console.log(`✅ Push (message HTTP) sent to ${otherUserId}`);
           } else {
             console.warn(`⚠️  Push (message HTTP) to ${otherUserId} failed (see Expo error above)`);
+            // One retry after 3s for transient Expo/network failures
+            setTimeout(async () => {
+              try {
+                const retrySent = await sendMessagePushNotification(token!, senderName, messagePreview, matchId, userId);
+                if (retrySent) console.log(`✅ Push (message HTTP) sent to ${otherUserId} (send retry)`);
+              } catch (e) { console.warn('⚠️  Push send retry failed:', e); }
+            }, 3000);
           }
         } else {
           const reason = !token ? 'no push token (recipient: use TestFlight/real device, allow notifications)' : 'invalid Expo push token format';
           console.warn(`⚠️  Skipping push for user ${otherUserId}: ${reason}`);
-          // Delayed retry: recipient may open app after socket and we save token from their request; re-check at 3s and 8s
+          // Delayed retry: recipient may open app later; re-check at 3s, 8s, and 18s
           if (!token) {
-            const tryDelayedPush = async () => {
+            const tryDelayedPush = async (): Promise<boolean> => {
               let retryRow = db.prepare("SELECT push_token FROM users WHERE id = ?").get([otherUserId]);
               if (retryRow instanceof Promise) retryRow = await retryRow;
               const retryToken = (retryRow as { push_token: string | null } | undefined)?.push_token ?? null;
@@ -1100,14 +1113,11 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
               }
               return false;
             };
-            setTimeout(async () => {
-              try {
-                if (await tryDelayedPush()) return;
-                setTimeout(async () => { try { await tryDelayedPush(); } catch (e) { console.warn('⚠️  Delayed push retry 2 failed:', e); } }, 5000);
-              } catch (e) {
-                console.warn('⚠️  Delayed push retry failed:', e);
-              }
-            }, 3000);
+            [3000, 8000, 18000].forEach((delayMs) => {
+              setTimeout(() => {
+                tryDelayedPush().catch((e) => console.warn('⚠️  Delayed push retry failed:', e));
+              }, delayMs);
+            });
           }
         }
       }

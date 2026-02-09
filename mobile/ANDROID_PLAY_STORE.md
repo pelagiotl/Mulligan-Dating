@@ -1,5 +1,7 @@
 # Submit Mulligan to Google Play Store (Android)
 
+**Quick path:** See **[SUBMIT_TO_ANDROID.md](./SUBMIT_TO_ANDROID.md)** for the full workflow, or run **`./SUBMIT_TO_ANDROID.sh`** to build and submit in one go.
+
 ## Prerequisites
 - ✅ Google Play Console developer account ($25 one-time)
 - ✅ EAS CLI (use `npx eas-cli` if not installed globally)
