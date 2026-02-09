@@ -6,6 +6,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { io, Socket } from 'socket.io-client';
 import { api, clearTokenCache, setTokenCache } from '../utils/api';
 import { User, Profile } from '../types';
 import { registerForPushNotificationsAsync, clearPushToken } from '../utils/pushNotifications';
@@ -32,10 +33,90 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const notificationListener = useRef<any>(null);
   const responseListener = useRef<any>(null);
+  const messageNotificationSocketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
     checkAuth();
   }, []);
+
+  // Dedicated socket for in-app message notifications (always active when logged in, like match notification)
+  // Backend emits new_message to user:${userId}, so we receive it regardless of which tab is focused
+  useEffect(() => {
+    if (!user?.id) {
+      if (messageNotificationSocketRef.current) {
+        messageNotificationSocketRef.current.disconnect();
+        messageNotificationSocketRef.current = null;
+      }
+      return;
+    }
+
+    let cancelled = false;
+
+    const initMessageNotificationSocket = async () => {
+      const token = await AsyncStorage.getItem('token');
+      if (!token || cancelled) return;
+
+      const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://mulligan-backend.onrender.com';
+      const socket = io(API_URL, {
+        auth: { token },
+        transports: ['websocket', 'polling'],
+      });
+      if (cancelled) {
+        socket.disconnect();
+        return;
+      }
+      messageNotificationSocketRef.current = socket;
+
+      socket.on('connect', () => {
+        if (!cancelled) console.log('✅ AuthContext: Message notification socket connected');
+      });
+
+      socket.on('new_message', (data: { matchId?: string; senderId: string; senderName?: string; content?: string }) => {
+        if (data.senderId === user?.id) return;
+        // Don't show if user is already viewing this match's chat
+        try {
+          const route = navigationRef.current?.getCurrentRoute?.();
+          const state = navigationRef.current?.getState?.();
+          const matchParams = (route?.params as { matchId?: string })?.matchId
+            ?? (state?.routes?.[state?.index ?? 0] as any)?.state?.params?.matchId;
+          if (data.matchId && matchParams === data.matchId) return;
+        } catch (_) {}
+        playMessageSound().catch(() => {});
+        const senderName = data.senderName || 'Someone';
+        const preview = (data.content ?? '').substring(0, 50) || '📷 Photo';
+        const displayPreview = data.content && data.content.length > 50 ? preview + '...' : preview;
+        Alert.alert(
+          '💬 New Message',
+          `${senderName}: ${displayPreview}`,
+          [
+            {
+              text: 'View',
+              onPress: () => {
+                if (data.matchId && navigationRef.current?.isReady()) {
+                  navigationRef.current.navigate('MainTabs' as never, {
+                    screen: 'Matches',
+                    params: { matchId: data.matchId },
+                  } as never);
+                }
+              },
+            },
+            { text: 'OK', style: 'cancel' },
+          ]
+        );
+      });
+    };
+
+    initMessageNotificationSocket();
+
+    return () => {
+      cancelled = true;
+      if (messageNotificationSocketRef.current) {
+        messageNotificationSocketRef.current.off('new_message');
+        messageNotificationSocketRef.current.disconnect();
+        messageNotificationSocketRef.current = null;
+      }
+    };
+  }, [user?.id]);
 
   // Set up notification listeners for incoming push notifications
   useEffect(() => {

@@ -1001,7 +1001,7 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
       await recordSuccessSignal(match.user2_id, match.user1_id, matchId, "stage_advanced");
     }
 
-    // Send push notification to the other user
+    // Send push notification to the other user (always send - OS shows it when app is backgrounded/closed, with sound)
     try {
       const { sendMessagePushNotification, isPushNotificationConfigured, isExpoPushToken } = await import('../services/pushNotifications.js');
       
@@ -1515,9 +1515,9 @@ matchesRouter.post("/:matchId/unlock-game", authenticateToken, rateLimitAPI, asy
         .run([matchId, gameType, userId, unlockedUntil.toISOString()]);
     }
 
-    // Clear previous round's prompt so both users see choice after unlock
+    // Clear previous round's prompt and used-prompt history so both users see choice after unlock
     if (gameType === 'truth_or_dare') {
-      db.prepare('UPDATE truth_or_dare_games SET current_prompt = NULL, current_prompt_type = NULL, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([matchId]);
+      db.prepare('UPDATE truth_or_dare_games SET current_prompt = NULL, current_prompt_type = NULL, used_prompts = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run(['[]', matchId]);
     }
     if (gameType === 'never_have_i_ever') {
       db.prepare('UPDATE never_have_i_ever_games SET current_prompt = NULL, user1_answer = NULL, user2_answer = NULL, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([matchId]);
@@ -1585,7 +1585,7 @@ matchesRouter.post("/:matchId/game-request", authenticateToken, rateLimitAPI, as
       db.prepare('INSERT INTO game_unlocks (match_id, game_type, unlocked_by_user_id, unlocked_until) VALUES (?, ?, ?, ?)')
         .run([matchId, gameType, userId, unlockedUntil.toISOString()]);
       if (gameType === 'truth_or_dare') {
-        db.prepare('UPDATE truth_or_dare_games SET current_prompt = NULL, current_prompt_type = NULL, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([matchId]);
+        db.prepare('UPDATE truth_or_dare_games SET current_prompt = NULL, current_prompt_type = NULL, used_prompts = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run(['[]', matchId]);
       }
       try {
         const { getIO } = await import('../socket.js');
@@ -1608,7 +1608,7 @@ matchesRouter.post("/:matchId/game-request", authenticateToken, rateLimitAPI, as
         db.prepare('UPDATE game_unlocks SET unlocked_until = ?, unlocked_at = CURRENT_TIMESTAMP WHERE match_id = ? AND game_type = ?')
           .run([unlockedUntil.toISOString(), matchId, gameType]);
         if (gameType === 'truth_or_dare') {
-          db.prepare('UPDATE truth_or_dare_games SET current_prompt = NULL, current_prompt_type = NULL, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([matchId]);
+          db.prepare('UPDATE truth_or_dare_games SET current_prompt = NULL, current_prompt_type = NULL, used_prompts = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run(['[]', matchId]);
         }
         try {
           const { getIO } = await import('../socket.js');
@@ -1991,18 +1991,37 @@ matchesRouter.post("/:matchId/truth-or-dare", authenticateToken, rateLimitAPI, a
 
     const level = (game.spice_level === 'ratedr' ? 'ratedr' : game.spice_level === 'spicy' ? 'spicy' : 'pg13') as 'pg13' | 'ratedr' | 'spicy';
     const currentPrompt = (game as any).current_prompt ?? null;
+    let usedPrompts: string[] = [];
+    try {
+      const raw = (game as any).used_prompts;
+      if (raw && typeof raw === 'string') usedPrompts = JSON.parse(raw);
+      else if (Array.isArray(raw)) usedPrompts = raw;
+    } catch {
+      usedPrompts = [];
+    }
+    const excludePrompts = [...usedPrompts];
+    if (currentPrompt && currentPrompt.trim()) excludePrompts.push(currentPrompt);
 
     const { generateTruthOrDarePrompt } = await import('../services/truthOrDare.js');
-    const { prompt, fromAI } = await generateTruthOrDarePrompt(
-      type,
-      matchId,
-      userId,
-      level,
-      anotherOne ? currentPrompt : undefined
-    );
 
-    // Store prompt so both users see it; switch turn only when not "Another one"
-    db.prepare('UPDATE truth_or_dare_games SET current_prompt = ?, current_prompt_type = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([prompt, type, matchId]);
+    const normalize = (s: string) => s.toLowerCase().trim().replace(/\s+/g, ' ');
+    let prompt: string;
+    let fromAI: boolean;
+    const maxTries = 3;
+    for (let attempt = 0; attempt < maxTries; attempt++) {
+      const result = await generateTruthOrDarePrompt(type, matchId, userId, level, excludePrompts);
+      prompt = result.prompt;
+      fromAI = result.fromAI;
+      const isDuplicate = excludePrompts.some((p) => normalize(p) === normalize(prompt));
+      if (!isDuplicate) break;
+      if (attempt === maxTries - 1) {
+        prompt = prompt + (prompt.endsWith('?') ? ' (pick a new angle)' : '?');
+      }
+    }
+
+    const newUsedPrompts = [...usedPrompts, prompt];
+    // Store prompt and append to session's used list so it won't appear again this game
+    db.prepare('UPDATE truth_or_dare_games SET current_prompt = ?, current_prompt_type = ?, used_prompts = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([prompt, type, JSON.stringify(newUsedPrompts), matchId]);
     if (anotherOne) {
       // Keep turn as requester - they're still deciding
       db.prepare('UPDATE truth_or_dare_games SET current_turn_user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([userId, matchId]);
@@ -2229,7 +2248,12 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
       console.warn('⚠️  Socket.io not available for Never Have I Ever notification');
     }
 
-    res.json({ ...state, roundResult });
+    res.json({
+      ...state,
+      roundResult,
+      yourPoints: state.yourStrikes ?? 0,
+      theirPoints: state.theirStrikes ?? 0,
+    });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error("Never Have I Ever answer error:", error);

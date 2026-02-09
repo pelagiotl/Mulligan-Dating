@@ -164,6 +164,8 @@ interface TruthOrDareProps {
   onSendToChat?: (text: string) => void;
   onRequestGame?: () => void;
   onUnlockWithToken?: () => Promise<void>;
+  /** If provided, called when user taps locked game. Return true if game is already unlocked (other user unlocked); then we open without prompting for token. */
+  onBeforeUnlockPrompt?: () => Promise<boolean>;
   openForAccept?: boolean;
   onOpenedForAccept?: () => void;
   gameUnlockedByToken?: boolean;
@@ -180,6 +182,7 @@ export default function TruthOrDare({
   onSendToChat,
   onRequestGame,
   onUnlockWithToken,
+  onBeforeUnlockPrompt,
   openForAccept,
   onOpenedForAccept,
   gameUnlockedByToken = false,
@@ -195,8 +198,11 @@ export default function TruthOrDare({
   const [submitting, setSubmitting] = useState(false);
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
+  const [headerTimerSecs, setHeaderTimerSecs] = useState<number | null>(null);
+  const lastUnlockedUntilRef = useRef<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastAnotherOneAtRef = useRef<number>(0);
+  const lastSpiceChoiceAtRef = useRef<number>(0);
 
   const isUnlocked = gameUnlockedByToken;
 
@@ -275,9 +281,15 @@ export default function TruthOrDare({
   const fetchState = useCallback(async () => {
     try {
       const data = await api.get<GameState>(`/matches/${matchId}/truth-or-dare/state`);
-      setGameState(data);
-      // Don't overwrite prompt for 2s after "Another one" so our new prompt from the API response sticks
-      const recentlyRequestedAnother = Date.now() - lastAnotherOneAtRef.current < 2000;
+      const recentlySetSpice = Date.now() - lastSpiceChoiceAtRef.current < 3000;
+      setGameState((prev) => {
+        if (recentlySetSpice && prev?.spiceLevel) {
+          return { ...data, spiceLevel: prev.spiceLevel, spiceReady: true };
+        }
+        return data;
+      });
+      // Don't overwrite prompt for 3s after we received one (Truth/Dare click or "Another one") so it doesn't get replaced by a stale fetch
+      const recentlyRequestedAnother = Date.now() - lastAnotherOneAtRef.current < 3000;
       const onLobbyOrChoose = stepRef.current === 'lobby' || stepRef.current === 'choose';
       // Never auto-show a prompt when user is on lobby/choose: always show Truth or Dare choice first
       if (data.currentPrompt && data.currentPromptType && !recentlyRequestedAnother && !onLobbyOrChoose) {
@@ -329,25 +341,35 @@ export default function TruthOrDare({
   }, []);
 
   useEffect(() => {
-    if (!modalVisible || !gameState?.unlockedUntil) {
+    const untilStr = gameState?.unlockedUntil ?? lastUnlockedUntilRef.current;
+    if (gameState?.unlockedUntil) lastUnlockedUntilRef.current = gameState.unlockedUntil;
+
+    if (!modalVisible && !untilStr) {
       setSecondsRemaining(null);
       return;
     }
+    if (!modalVisible) {
+      setSecondsRemaining(null);
+    }
     const tick = () => {
-      const until = new Date(gameState!.unlockedUntil!);
+      if (!untilStr) return;
+      const until = new Date(untilStr);
       const now = new Date();
       const secs = Math.max(0, Math.floor((until.getTime() - now.getTime()) / 1000));
-      setSecondsRemaining(secs);
+      if (modalVisible) setSecondsRemaining(secs);
+      if (isUnlocked && headerMode) setHeaderTimerSecs(secs);
       if (secs <= 0 && pollRef.current) {
         clearInterval(pollRef.current);
         pollRef.current = null;
+        lastUnlockedUntilRef.current = null;
+        setHeaderTimerSecs(0);
         fetchState();
       }
     };
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [modalVisible, gameState?.unlockedUntil, fetchState]);
+  }, [modalVisible, gameState?.unlockedUntil, isUnlocked, headerMode, fetchState]);
 
   const handleOpen = () => {
     if (Platform.OS === 'ios' || Platform.OS === 'android') {
@@ -373,7 +395,9 @@ export default function TruthOrDare({
   };
 
   const handleSetSpiceChoice = async (choice: 'pg13' | 'ratedr' | 'spicy') => {
+    lastSpiceChoiceAtRef.current = Date.now();
     setSubmitting(true);
+    setGameState((prev) => (prev ? { ...prev, spiceLevel: choice, spiceReady: true } : prev));
     try {
       const data = await api.post<GameState>(`/matches/${matchId}/truth-or-dare/spice-choice`, { choice });
       setGameState(data);
@@ -390,11 +414,20 @@ export default function TruthOrDare({
   };
 
   const handleChoose = async (type: 'truth' | 'dare', anotherOne = false) => {
-    if (anotherOne) lastAnotherOneAtRef.current = Date.now();
-    setPromptType(type);
-    setStep('prompt');
-    setLoading(true);
-    setPrompt('');
+    if (anotherOne) {
+      lastAnotherOneAtRef.current = Date.now();
+      setPromptType(type);
+      setStep('prompt');
+      setLoading(true);
+      setPrompt('');
+      // Let React commit the clear/loading state so the UI shows "Generating..." instead of the old prompt
+      await new Promise((r) => setTimeout(r, 0));
+    } else {
+      setPromptType(type);
+      setStep('prompt');
+      setLoading(true);
+      setPrompt('');
+    }
 
     const spiceLevel = gameState?.spiceLevel || 'pg13';
 
@@ -407,6 +440,7 @@ export default function TruthOrDare({
       if (data?.prompt) {
         finalPrompt = data.prompt;
         setPrompt(finalPrompt);
+        lastAnotherOneAtRef.current = Date.now();
       } else {
         throw new Error('No prompt returned');
       }
@@ -416,6 +450,7 @@ export default function TruthOrDare({
         : (spiceLevel === 'spicy' ? DARE_PROMPTS_SPICY : spiceLevel === 'ratedr' ? DARE_PROMPTS_R : DARE_PROMPTS);
       finalPrompt = pickRandom(list);
       setPrompt(finalPrompt);
+      lastAnotherOneAtRef.current = Date.now();
     } finally {
       setLoading(false);
       // Only send to chat when user explicitly clicks "Send to Chat", never on "Another one"
@@ -440,14 +475,21 @@ export default function TruthOrDare({
     outputRange: ['-12deg', '12deg'],
   });
 
-  const handleLockedPress = () => {
+  const handleLockedPress = async () => {
     if (Platform.OS === 'ios' || Platform.OS === 'android') {
       Vibration.vibrate(30);
+    }
+    if (onBeforeUnlockPrompt) {
+      const alreadyUnlocked = await onBeforeUnlockPrompt();
+      if (alreadyUnlocked) {
+        handleOpen();
+        return;
+      }
     }
     if (onUnlockWithToken) {
       Alert.alert(
         '🎲 Truth or Dare',
-        'Use 1 Mulligan token to play Truth or Dare?',
+        'Use 1 Mulligan token to play Truth or Dare? (Session lasts 7 minutes for both of you.)',
         [
           { text: 'Cancel', style: 'cancel' },
           {
@@ -468,6 +510,12 @@ export default function TruthOrDare({
       Alert.alert('🎲 Truth or Dare', 'Use a Mulligan token to unlock Truth or Dare for this match.', [{ text: 'Got it', style: 'default' }]);
     }
   };
+
+  useEffect(() => {
+    if (headerMode && isUnlocked && !lastUnlockedUntilRef.current) {
+      fetchState();
+    }
+  }, [headerMode, isUnlocked, fetchState]);
 
   useEffect(() => {
     if (!headerMode) return;
@@ -492,15 +540,22 @@ export default function TruthOrDare({
   }, [headerMode]);
 
   const headerButton = (
-    <Animated.View style={{ transform: [{ scale: headerPulseAnim }] }}>
-      <TouchableOpacity
-        onPress={isUnlocked ? handleOpen : handleLockedPress}
-        activeOpacity={0.8}
-        style={[styles.headerIconButton, !isUnlocked && styles.headerIconButtonLocked]}
-      >
-        <Text style={styles.headerIconEmoji}>🎲</Text>
-      </TouchableOpacity>
-    </Animated.View>
+    <View style={styles.headerButtonWithTimer}>
+      <Animated.View style={{ transform: [{ scale: headerPulseAnim }] }}>
+        <TouchableOpacity
+          onPress={isUnlocked ? handleOpen : handleLockedPress}
+          activeOpacity={0.8}
+          style={[styles.headerIconButton, !isUnlocked && styles.headerIconButtonLocked]}
+        >
+          <Text style={styles.headerIconEmoji}>🎲</Text>
+        </TouchableOpacity>
+      </Animated.View>
+      {isUnlocked && headerTimerSecs !== null && headerTimerSecs > 0 && (
+        <View style={styles.headerTimerBadge}>
+          <Text style={styles.headerTimerText}>⏱ {formatTimeRemaining(headerTimerSecs)}</Text>
+        </View>
+      )}
+    </View>
   );
 
   if (headerMode) {
@@ -514,7 +569,7 @@ export default function TruthOrDare({
                 <View style={styles.modalHeaderBar} />
                 <Text style={styles.modalTitle}>{step === 'lobby' ? '🎲 Truth or Dare' : step === 'choose' ? 'Pick One' : promptType === 'truth' ? '✨ Truth' : '🔥 Dare'}</Text>
                 {gameState?.unlockedUntil && secondsRemaining !== null && secondsRemaining > 0 && (
-                  <View style={styles.timerBadge}><Text style={styles.timerText}>⏱ {formatTimeRemaining(secondsRemaining)} left</Text></View>
+                  <View style={styles.timerBadge}><Text style={styles.timerLabel}>Session time left</Text><Text style={styles.timerText}>⏱ {formatTimeRemaining(secondsRemaining)}</Text></View>
                 )}
                 {gameState?.tokenUnlocked && secondsRemaining !== null && secondsRemaining <= 0 ? (
                   <View style={styles.sessionExpiredContainer}>
@@ -680,7 +735,7 @@ export default function TruthOrDare({
                 {step === 'lobby' ? '🎲 Truth or Dare' : step === 'choose' ? 'Pick One' : promptType === 'truth' ? '✨ Truth' : '🔥 Dare'}
               </Text>
               {gameState?.unlockedUntil && secondsRemaining !== null && secondsRemaining > 0 && (
-                <View style={styles.timerBadge}><Text style={styles.timerText}>⏱ {formatTimeRemaining(secondsRemaining)} left</Text></View>
+                <View style={styles.timerBadge}><Text style={styles.timerLabel}>Session time left</Text><Text style={styles.timerText}>⏱ {formatTimeRemaining(secondsRemaining)}</Text></View>
               )}
               {gameState?.tokenUnlocked && secondsRemaining !== null && secondsRemaining <= 0 ? (
                 <View style={styles.sessionExpiredContainer}>
@@ -1069,17 +1124,42 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 6,
   },
+  headerButtonWithTimer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  headerTimerBadge: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    backgroundColor: 'rgba(255,255,255,0.28)',
+    borderRadius: 12,
+  },
+  headerTimerText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#fff',
+  },
   timerBadge: {
     alignSelf: 'center',
-    marginBottom: 12,
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    backgroundColor: 'rgba(255,255,255,0.25)',
+    marginBottom: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    backgroundColor: 'rgba(255,255,255,0.28)',
     borderRadius: 20,
+    alignItems: 'center',
+  },
+  timerLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.9)',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginBottom: 2,
   },
   timerText: {
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '800',
     color: '#fff',
   },
   sessionExpiredContainer: {

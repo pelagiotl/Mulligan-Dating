@@ -1,6 +1,6 @@
 /**
  * Never Have I Ever - Tally mode: no chat. Both answer each prompt; points = "I have" count.
- * Unlock with token → pick version → see prompt → I have / I haven't (submitted to server) → tally shown → Another one.
+ * Prompt only changes after BOTH users have selected "I have" or "I haven't"; then points are added (only for "I have") and a new prompt is auto-generated. No "Another one" button.
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -52,6 +52,8 @@ interface NeverHaveIEverProps {
   socket: any;
   onRequestGame?: () => void;
   onUnlockWithToken?: () => Promise<void>;
+  /** If provided, called when user taps locked game. Return true if game is already unlocked (other user unlocked); then we open without prompting for token. */
+  onBeforeUnlockPrompt?: () => Promise<boolean>;
   openForAccept?: boolean;
   onOpenedForAccept?: () => void;
   gameUnlockedByToken?: boolean;
@@ -67,6 +69,7 @@ export default function NeverHaveIEver({
   socket,
   onRequestGame,
   onUnlockWithToken,
+  onBeforeUnlockPrompt,
   openForAccept,
   onOpenedForAccept,
   gameUnlockedByToken = false,
@@ -79,7 +82,6 @@ export default function NeverHaveIEver({
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [prompt, setPrompt] = useState('');
-  const lastAnotherAtRef = useRef(0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const isUnlocked = gameUnlockedByToken;
@@ -193,9 +195,7 @@ export default function NeverHaveIEver({
         winner: data.winner ?? null,
       };
       setState(simple);
-      if (Date.now() - lastAnotherAtRef.current > 2000) {
-        setPrompt(simple.prompt || '');
-      }
+      setPrompt(simple.prompt || '');
     } catch (err) {
       console.warn('Never Have I Ever fetch error:', err);
     }
@@ -301,41 +301,22 @@ export default function NeverHaveIEver({
     }
   };
 
-  const handleAnotherOne = async () => {
-    if (submitting || !state?.spiceLevel) return;
-    lastAnotherAtRef.current = Date.now();
-    setSubmitting(true);
-    setPrompt('');
-    try {
-      const data = await api.post<{ prompt: string }>(`/matches/${matchId}/never-have-i-ever/another`, {});
-      if (data?.prompt) {
-        setPrompt(data.prompt);
-        setState(prev => prev ? { ...prev, prompt: data.prompt, yourAnswer: null, theirAnswer: null, bothAnswered: false } : null);
-      } else {
-        await fetchState();
-      }
-    } catch (err) {
-      console.warn('Never Have I Ever another error:', err);
-      fetchState();
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   const handleSubmitAnswer = async (answer: 'have' | 'havent') => {
     if (submitting || state?.yourAnswer != null) return;
     setSubmitting(true);
     try {
       const data = await api.post<any>(`/matches/${matchId}/never-have-i-ever/answer`, { answer });
+      const yourPts = typeof data.yourPoints === 'number' ? data.yourPoints : (data.yourStrikes ?? state?.yourPoints ?? 0);
+      const theirPts = typeof data.theirPoints === 'number' ? data.theirPoints : (data.theirStrikes ?? state?.theirPoints ?? 0);
       setState(prev => prev ? {
         ...prev,
         yourAnswer: answer,
         theirAnswer: data.theirAnswer ?? prev.theirAnswer,
         bothAnswered: !!data.bothAnswered,
-        yourPoints: typeof data.yourPoints === 'number' ? data.yourPoints : (data.yourStrikes ?? prev.yourPoints),
-        theirPoints: typeof data.theirPoints === 'number' ? data.theirPoints : (data.theirStrikes ?? prev.theirPoints),
+        yourPoints: yourPts,
+        theirPoints: theirPts,
       } : null);
-      if (!data.bothAnswered) await fetchState();
+      await fetchState();
     } catch (err) {
       console.warn('Never Have I Ever answer error:', err);
       fetchState();
@@ -349,9 +330,16 @@ export default function NeverHaveIEver({
     outputRange: ['-8deg', '8deg'],
   });
 
-  const handleLockedPress = () => {
+  const handleLockedPress = async () => {
     if (Platform.OS === 'ios' || Platform.OS === 'android') {
       Vibration.vibrate(30);
+    }
+    if (onBeforeUnlockPrompt) {
+      const alreadyUnlocked = await onBeforeUnlockPrompt();
+      if (alreadyUnlocked) {
+        handleOpen();
+        return;
+      }
     }
     if (onUnlockWithToken) {
       Alert.alert(
@@ -468,9 +456,6 @@ export default function NeverHaveIEver({
                           >
                             <LinearGradient colors={['#27ae60', '#2ecc71']} style={styles.answerGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.answerButtonText}>I haven't</Text></LinearGradient>
                           </TouchableOpacity>
-                        </View>
-                        <View style={styles.promptActions}>
-                          <TouchableOpacity onPress={handleAnotherOne} style={styles.anotherButton} disabled={submitting} activeOpacity={0.8}><Text style={styles.anotherButtonText}>Another one ↻</Text></TouchableOpacity>
                         </View>
                       </>
                     )}
@@ -864,11 +849,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: 'rgba(255,255,255,0.95)',
   },
-  promptActions: {
-    width: '100%',
-    gap: 14,
-    marginBottom: 18,
-  },
   sendButton: {
     borderRadius: 18,
     overflow: 'hidden',
@@ -886,15 +866,6 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '800',
     color: '#fff',
-  },
-  anotherButton: {
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  anotherButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.95)',
   },
   answerButtonActive: {
     opacity: 1,

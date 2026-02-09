@@ -690,6 +690,9 @@ export async function initDatabase() {
   try {
     await execSQL(`ALTER TABLE truth_or_dare_games ADD COLUMN current_prompt_type ${usePostgres ? 'VARCHAR(20)' : 'TEXT'}`);
   } catch (e) { /* exists */ }
+  try {
+    await execSQL(`ALTER TABLE truth_or_dare_games ADD COLUMN used_prompts ${usePostgres ? 'TEXT' : 'TEXT'}`);
+  } catch (e) { /* exists */ }
 
   // Game unlocks: when a user spends a Mulligan token to unlock a game for a match (alternative to 10 messages each)
   await execSQL(`

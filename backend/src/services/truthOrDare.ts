@@ -121,6 +121,18 @@ function pickRandom<T>(arr: T[], exclude?: T): T {
   return filtered[Math.floor(Math.random() * filtered.length)];
 }
 
+function normalizePrompt(s: string): string {
+  return s.toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
+function pickRandomExcluding(list: string[], excludePrompts: string[]): string {
+  if (excludePrompts.length === 0) return list[Math.floor(Math.random() * list.length)];
+  const set = new Set(excludePrompts.map(normalizePrompt));
+  const filtered = list.filter((p) => !set.has(normalizePrompt(p)));
+  if (filtered.length === 0) return list[Math.floor(Math.random() * list.length)];
+  return filtered[Math.floor(Math.random() * filtered.length)];
+}
+
 export type SpiceLevel = 'pg13' | 'ratedr' | 'spicy';
 
 export async function generateTruthOrDarePrompt(
@@ -128,18 +140,19 @@ export async function generateTruthOrDarePrompt(
   matchId: string,
   userId: string,
   spiceLevel: SpiceLevel = 'pg13',
-  excludePrompt?: string | null
+  excludePrompts?: string[] | null
 ): Promise<{ prompt: string; fromAI: boolean }> {
+  const toExclude = (excludePrompts ?? []).filter((p) => p && p.trim().length > 0);
   const openaiApiKey = process.env.OPENAI_API_KEY;
   const isR = spiceLevel === 'ratedr';
   const isSpicy = spiceLevel === 'spicy';
 
-  // Fallback when no OpenAI
+  // Prefer OpenAI every time when key is set (unbounded variety). Fallback only when key is missing or API fails.
   if (!openaiApiKey) {
     const list = type === 'truth'
       ? (isSpicy ? TRUTH_FALLBACKS_SPICY : isR ? TRUTH_FALLBACKS_R : TRUTH_FALLBACKS)
       : (isSpicy ? DARE_FALLBACKS_SPICY : isR ? DARE_FALLBACKS_R : DARE_FALLBACKS);
-    return { prompt: pickRandom(list, excludePrompt || undefined), fromAI: false };
+    return { prompt: pickRandomExcluding(list, toExclude), fromAI: false };
   }
 
   try {
@@ -194,7 +207,9 @@ export async function generateTruthOrDarePrompt(
       ? 'Make it bolder and more suggestive — but keep it tasteful and app-store safe.'
       : 'Playfully flirty, spark chemistry without going too far.';
 
-    const excludeHint = excludePrompt ? `\n\nIMPORTANT: Do NOT use this prompt (they already saw it): "${excludePrompt}". Generate a different one.` : '';
+    const excludeHint = toExclude.length > 0
+      ? `\n\nIMPORTANT: Do NOT use any of these prompts (already shown this game): ${toExclude.map((p) => `"${p}"`).join(', ')}. Generate a different one.`
+      : '';
 
     const userPrompt = `Generate one unique ${typeLabel} prompt for two people playing on a dating app.${interestsContext}
 
@@ -223,11 +238,13 @@ Return ONLY the prompt:`;
       const badStarts = ['I ', 'Sorry', 'I\'m', 'I cannot', 'As an AI', 'Here\'s', 'Sure,'];
       const isBad = badStarts.some((s) => content.startsWith(s));
       const cleaned = content.replace(/^["']|["']$/g, '');
-      if (!isBad && (!excludePrompt || cleaned.toLowerCase() !== excludePrompt.toLowerCase())) {
+      const normalizedCleaned = normalizePrompt(cleaned);
+      const isDuplicate = toExclude.some((p) => normalizePrompt(p) === normalizedCleaned);
+      if (!isBad && !isDuplicate) {
         return { prompt: cleaned, fromAI: true };
       }
-      if (excludePrompt && cleaned.toLowerCase() === excludePrompt.toLowerCase()) {
-        throw new Error('AI returned same prompt');
+      if (isDuplicate) {
+        throw new Error('AI returned duplicate prompt');
       }
     }
 
@@ -237,6 +254,6 @@ Return ONLY the prompt:`;
     const list = type === 'truth'
       ? (isSpicy ? TRUTH_FALLBACKS_SPICY : isR ? TRUTH_FALLBACKS_R : TRUTH_FALLBACKS)
       : (isSpicy ? DARE_FALLBACKS_SPICY : isR ? DARE_FALLBACKS_R : DARE_FALLBACKS);
-    return { prompt: pickRandom(list, excludePrompt || undefined), fromAI: false };
+    return { prompt: pickRandomExcluding(list, toExclude), fromAI: false };
   }
 }

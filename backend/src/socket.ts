@@ -211,7 +211,7 @@ export function initializeSocket(server: HTTPServer) {
       // Also emit to recipient's user room (reliable delivery - user room always joined on connect)
       io.to(`user:${otherUserId}`).emit('new_message', message);
 
-      // Send push notification to the other user (if they're not in the app)
+      // Send push notification to the other user (always send - OS shows it when app is backgrounded/closed, with sound)
       try {
         const { sendPushNotification, isPushNotificationConfigured, isExpoPushToken } = await import('./services/pushNotifications.js');
         

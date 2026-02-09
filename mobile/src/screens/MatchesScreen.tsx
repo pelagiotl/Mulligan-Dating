@@ -2207,31 +2207,7 @@ export default function MatchesScreen() {
             return next.sort((a, b) => new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime());
           });
         } else {
-          // Message is for a different match - show in-app Alert and refresh list
-          if (message.senderId !== user?.id) {
-            playMessageSound().catch(() => {});
-            const senderName = message.senderName || 'Someone';
-            const preview = message.content?.substring(0, 50) || (message.imageUrl ? '📷 Photo' : 'New message');
-            const displayPreview = message.content && message.content.length > 50 ? preview + '...' : preview;
-            Alert.alert(
-              '💬 New Message',
-              `${senderName}: ${displayPreview}`,
-              [
-                {
-                  text: 'View',
-                  onPress: () => {
-                    if (message.matchId && navigationRef.current?.isReady()) {
-                      navigationRef.current.navigate('MainTabs' as never, {
-                        screen: 'Matches',
-                        params: { matchId: message.matchId },
-                      } as never);
-                    }
-                  },
-                },
-                { text: 'OK', style: 'cancel' },
-              ]
-            );
-          }
+          // Message is for a different match - AuthContext shows in-app Alert + sound; just refresh list
           fetchMatches();
         }
         
@@ -2460,13 +2436,13 @@ export default function MatchesScreen() {
         console.error('❌ No token found in AsyncStorage');
         setMatches([]);
         setLoading(false);
-        return;
+        return [];
       }
       
       const data = await api.get<{ matches: Match[] }>('/matches');
       const fetchedMatches = data.matches || [];
       setMatches(fetchedMatches);
-      
+
       // Auto-select match from pending (celebration "Send message") or route params
       const pendingId = getPendingOpenMatchId();
       const routeParams = route.params as { matchId?: string } | undefined;
@@ -2478,6 +2454,7 @@ export default function MatchesScreen() {
           if (pendingId) clearPendingOpenMatchId();
         }
       }
+      return fetchedMatches;
     } catch (error: any) {
       console.error('❌ Failed to fetch matches:', error);
       
@@ -2489,6 +2466,7 @@ export default function MatchesScreen() {
       } else {
         setMatches([]);
       }
+      return [];
     } finally {
       setLoading(false);
     }
@@ -3123,6 +3101,15 @@ export default function MatchesScreen() {
                         Alert.alert('Error', e?.message || 'Failed to send game request');
                       }
                     }}
+                    onBeforeUnlockPrompt={async () => {
+                      const matches = await fetchMatches();
+                      const m = matches.find(mm => mm.id === selectedMatch.id);
+                      if (m?.gameUnlocks?.truth_or_dare) {
+                        setSelectedMatch(m);
+                        return true;
+                      }
+                      return false;
+                    }}
                     onUnlockWithToken={async () => {
                       await api.post(`/matches/${selectedMatch.id}/unlock-game`, { gameType: 'truth_or_dare' });
                       api.clearCache('/matches');
@@ -3139,6 +3126,15 @@ export default function MatchesScreen() {
                     messages={messages}
                     currentUserId={user?.id || ''}
                     socket={socketRef.current}
+                    onBeforeUnlockPrompt={async () => {
+                      const matches = await fetchMatches();
+                      const m = matches.find(mm => mm.id === selectedMatch.id);
+                      if (m?.gameUnlocks?.never_have_i_ever) {
+                        setSelectedMatch(m);
+                        return true;
+                      }
+                      return false;
+                    }}
                     onUnlockWithToken={async () => {
                       await api.post(`/matches/${selectedMatch.id}/unlock-game`, { gameType: 'never_have_i_ever' });
                       api.clearCache('/matches');

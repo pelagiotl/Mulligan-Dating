@@ -20,7 +20,7 @@ import Svg, { G, Path, Circle, Defs, LinearGradient as SvgLinearGradient, Stop, 
 import { useNavigation, useFocusEffect, useIsFocused, CommonActions } from '@react-navigation/native';
 import { setPendingOpenMatchId, clearPendingOpenMatchId } from '../utils/pendingMatchOpen';
 import { navigationRef } from '../navigation/navigationRef';
-import { playMessageSound, playMatchSound } from '../utils/sounds';
+import { playMatchSound } from '../utils/sounds';
 import { io, Socket } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api, prefetchToken, ensureTokenPrefetched, clearTokenCache } from '../utils/api';
@@ -1299,36 +1299,8 @@ export default function BrowseScreen() {
         );
       });
 
-      // In-app notification when User B receives a message - show from any tab (BrowseScreen is always mounted in MainTabs)
-      socket.on('new_message', (data: { matchId?: string; senderId: string; senderName?: string; content?: string }) => {
-        if (data.senderId === user?.id) return; // Don't notify for own messages
-        // Don't show Alert if user is already viewing this match's chat (MatchesScreen handles that case)
-        const route = navigationRef.current?.getCurrentRoute?.();
-        const matchParams = (route?.params as { matchId?: string })?.matchId;
-        if (data.matchId && matchParams === data.matchId) return;
-        playMessageSound().catch(() => {});
-        const senderName = data.senderName || 'Someone';
-        const preview = data.content?.substring(0, 50) || '📷 Photo';
-        const displayPreview = data.content && data.content.length > 50 ? preview + '...' : preview;
-        Alert.alert(
-          '💬 New Message',
-          `${senderName}: ${displayPreview}`,
-          [
-            {
-              text: 'View',
-              onPress: () => {
-                if (data.matchId && navigationRef.current?.isReady()) {
-                  navigationRef.current.navigate('MainTabs' as never, {
-                    screen: 'Matches',
-                    params: { matchId: data.matchId },
-                  } as never);
-                }
-              },
-            },
-            { text: 'OK', style: 'cancel' },
-          ]
-        );
-      });
+      // In-app message notification (Alert + sound) is handled by AuthContext's dedicated socket
+      // so it works from any tab. No handler needed here.
     };
 
     initSocket();
