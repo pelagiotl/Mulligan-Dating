@@ -278,7 +278,9 @@ export default function TruthOrDare({
       setGameState(data);
       // Don't overwrite prompt for 2s after "Another one" so our new prompt from the API response sticks
       const recentlyRequestedAnother = Date.now() - lastAnotherOneAtRef.current < 2000;
-      if (data.currentPrompt && data.currentPromptType && !recentlyRequestedAnother) {
+      const onLobbyOrChoose = stepRef.current === 'lobby' || stepRef.current === 'choose';
+      // Never auto-show a prompt when user is on lobby/choose: always show Truth or Dare choice first
+      if (data.currentPrompt && data.currentPromptType && !recentlyRequestedAnother && !onLobbyOrChoose) {
         setPrompt(data.currentPrompt);
         setPromptType(data.currentPromptType);
         setStep('prompt');
@@ -286,7 +288,7 @@ export default function TruthOrDare({
         return;
       }
       if (stepRef.current === 'prompt' && recentlyRequestedAnother) return;
-      if (stepRef.current === 'prompt') return;
+      if (stepRef.current === 'prompt' && onLobbyOrChoose === false) return;
       if (data.spiceReady && data.spiceLevel) {
         setStep('choose');
       } else if (data.needsSpiceChoiceFromUnlocker || (data.tokenUnlocked && !data.spiceLevel)) {

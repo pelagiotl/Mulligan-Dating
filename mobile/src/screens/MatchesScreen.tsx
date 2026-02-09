@@ -2367,6 +2367,8 @@ export default function MatchesScreen() {
     if (!selectedMatch) return;
 
     if (selectedMatch.stage !== 'pending') {
+      // Refetch matches immediately so gameUnlocks (Truth or Dare, etc.) is fresh for the other user
+      fetchMatches();
       setNewMessage(''); // clear input so Mulligan Moment starter doesn't carry over to another match
       // Only clear messages when switching to a *different* match (avoids clearing on effect re-run for same match)
       const matchId = selectedMatch.id;
@@ -2382,10 +2384,6 @@ export default function MatchesScreen() {
         socketRef.current.emit('join_match', selectedMatch.id);
         socketRef.current.emit('mark_read', { matchId: selectedMatch.id });
       }
-      // Refresh matches list to update unread counts after marking as read
-      setTimeout(() => {
-        fetchMatches();
-      }, 500);
     }
 
     return () => {
