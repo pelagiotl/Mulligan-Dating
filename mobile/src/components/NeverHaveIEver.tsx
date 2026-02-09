@@ -306,17 +306,28 @@ export default function NeverHaveIEver({
     setSubmitting(true);
     try {
       const data = await api.post<any>(`/matches/${matchId}/never-have-i-ever/answer`, { answer });
-      const yourPts = typeof data.yourPoints === 'number' ? data.yourPoints : (data.yourStrikes ?? state?.yourPoints ?? 0);
-      const theirPts = typeof data.theirPoints === 'number' ? data.theirPoints : (data.theirStrikes ?? state?.theirPoints ?? 0);
-      setState(prev => prev ? {
-        ...prev,
-        yourAnswer: answer,
-        theirAnswer: data.theirAnswer ?? prev.theirAnswer,
-        bothAnswered: !!data.bothAnswered,
-        yourPoints: yourPts,
-        theirPoints: theirPts,
-      } : null);
-      await fetchState();
+      const serverYourPts = typeof data.yourPoints === 'number' ? data.yourPoints : (data.yourStrikes ?? 0);
+      const serverTheirPts = typeof data.theirPoints === 'number' ? data.theirPoints : (data.theirStrikes ?? 0);
+      setState(prev => {
+        if (!prev) return null;
+        const baseYou = prev.yourPoints ?? 0;
+        const baseThem = prev.theirPoints ?? 0;
+        // Use server points when round is complete (bothAnswered) or server has newer data (e.g. turn-based); otherwise optimistic "You" +1 when current user said "I have"
+        const useServerYou = data.bothAnswered || (typeof serverYourPts === 'number' && serverYourPts > baseYou);
+        const useServerThem = data.bothAnswered || (typeof serverTheirPts === 'number' && serverTheirPts > baseThem);
+        const yourPts = useServerYou ? serverYourPts : (answer === 'have' ? baseYou + 1 : baseYou);
+        const theirPts = useServerThem ? serverTheirPts : (typeof data.theirPoints === 'number' ? data.theirPoints : (typeof data.theirStrikes === 'number' ? data.theirStrikes : baseThem));
+        return {
+          ...prev,
+          yourAnswer: answer,
+          theirAnswer: data.theirAnswer ?? prev.theirAnswer,
+          bothAnswered: !!data.bothAnswered,
+          yourPoints: yourPts,
+          theirPoints: theirPts,
+        };
+      });
+      if (data.prompt) setPrompt(data.prompt);
+      if (data.bothAnswered) await fetchState();
     } catch (err) {
       console.warn('Never Have I Ever answer error:', err);
       fetchState();

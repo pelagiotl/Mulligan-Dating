@@ -4,7 +4,7 @@
  */
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
-import { Alert } from 'react-native';
+import { Alert, AppState, AppStateStatus } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { io, Socket } from 'socket.io-client';
 import { api, clearTokenCache, setTokenCache } from '../utils/api';
@@ -69,6 +69,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       socket.on('connect', () => {
         if (!cancelled) console.log('✅ AuthContext: Message notification socket connected');
+      });
+
+      socket.on('connect_error', (err) => {
+        if (!cancelled) console.warn('⚠️ AuthContext: Message notification socket connect_error:', err?.message || err);
+      });
+
+      socket.on('disconnect', (reason) => {
+        if (!cancelled && reason !== 'io client disconnect') {
+          console.warn('⚠️ AuthContext: Message notification socket disconnected:', reason);
+        }
       });
 
       socket.on('new_message', (data: { matchId?: string; senderId: string; senderName?: string; content?: string }) => {
@@ -387,6 +397,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         Notifications.removeNotificationSubscription(responseListener.current);
       }
     };
+  }, [user]);
+
+  // Re-register push when app comes to foreground (ensures token is saved if initial registration failed or was delayed)
+  const lastPushRegisterRef = useRef<number>(0);
+  const PUSH_REREGISTER_DEBOUNCE_MS = 60000; // at most once per minute when foregrounding
+  useEffect(() => {
+    if (!user) return;
+    const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      if (nextState !== 'active') return;
+      const now = Date.now();
+      if (now - lastPushRegisterRef.current < PUSH_REREGISTER_DEBOUNCE_MS) return;
+      lastPushRegisterRef.current = now;
+      registerForPushNotificationsAsync().catch((e) => {
+        console.warn('⚠️ Push re-register on foreground (non-critical):', e?.message || e);
+      });
+    });
+    return () => subscription.remove();
   }, [user]);
 
   const checkAuth = async () => {

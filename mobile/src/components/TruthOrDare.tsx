@@ -288,19 +288,23 @@ export default function TruthOrDare({
         }
         return data;
       });
-      // Don't overwrite prompt for 3s after we received one (Truth/Dare click or "Another one") so it doesn't get replaced by a stale fetch
       const recentlyRequestedAnother = Date.now() - lastAnotherOneAtRef.current < 3000;
       const onLobbyOrChoose = stepRef.current === 'lobby' || stepRef.current === 'choose';
-      // Never auto-show a prompt when user is on lobby/choose: always show Truth or Dare choice first
-      if (data.currentPrompt && data.currentPromptType && !recentlyRequestedAnother && !onLobbyOrChoose) {
+      const alreadyShowingPrompt = stepRef.current === 'prompt';
+      // Never overwrite the displayed prompt from fetch unless we're syncing after "Another one" or we're not on prompt step
+      const shouldApplyPromptFromServer =
+        data.currentPrompt &&
+        data.currentPromptType &&
+        !onLobbyOrChoose &&
+        (recentlyRequestedAnother || !alreadyShowingPrompt);
+      if (shouldApplyPromptFromServer) {
         setPrompt(data.currentPrompt);
         setPromptType(data.currentPromptType);
         setStep('prompt');
         setLoading(false);
         return;
       }
-      if (stepRef.current === 'prompt' && recentlyRequestedAnother) return;
-      if (stepRef.current === 'prompt' && onLobbyOrChoose === false) return;
+      if (alreadyShowingPrompt) return;
       if (data.spiceReady && data.spiceLevel) {
         setStep('choose');
       } else if (data.needsSpiceChoiceFromUnlocker || (data.tokenUnlocked && !data.spiceLevel)) {

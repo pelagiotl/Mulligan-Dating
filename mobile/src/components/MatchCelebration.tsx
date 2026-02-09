@@ -251,32 +251,31 @@ export default function MatchCelebration({
   const handleContinue = () => {
     const idToOpen = matchId ?? null;
     try {
+      onClose();
       if (idToOpen) {
         setPendingOpenMatchId(idToOpen);
-        // Navigate to Matches tab with matchId - use root nav for reliable tab + params
         if (navigationRef.current?.isReady()) {
           navigationRef.current.dispatch(
             CommonActions.navigate({
               name: 'MainTabs',
               params: {
                 screen: 'Matches',
-                params: { matchId: idToOpen },
+                params: { matchId: idToOpen, showMatchCelebration: false },
               },
             })
           );
         } else {
-          navigation.navigate('Matches' as never, { matchId: idToOpen } as never);
+          navigation.navigate('Matches' as never, { matchId: idToOpen, showMatchCelebration: false } as never);
         }
       } else {
         if (navigationRef.current?.isReady()) {
           navigationRef.current.dispatch(
-            CommonActions.navigate({ name: 'MainTabs', params: { screen: 'Matches' } })
+            CommonActions.navigate({ name: 'MainTabs', params: { screen: 'Matches', params: { showMatchCelebration: false } } })
           );
         } else {
           navigation.navigate('Matches' as never);
         }
       }
-      onClose();
     } catch (error) {
       console.error('❌ Error in handleContinue:', error);
       onClose();

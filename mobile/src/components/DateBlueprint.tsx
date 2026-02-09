@@ -33,9 +33,11 @@ interface DateBlueprintProps {
   socket: Socket | null;
   currentUserId: string;
   headerMode?: boolean;
+  /** Send date plan as a chat message (Invite button) */
+  onInviteToChat?: (message: string) => void;
 }
 
-export default function DateBlueprint({ matchId, socket, currentUserId, headerMode }: DateBlueprintProps) {
+export default function DateBlueprint({ matchId, socket, currentUserId, headerMode, onInviteToChat }: DateBlueprintProps) {
   const [plan, setPlan] = useState<DatePlan | null>(null);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -225,22 +227,20 @@ export default function DateBlueprint({ matchId, socket, currentUserId, headerMo
     try {
       setUpdating(true);
       const response = await api.post(`/matches/${matchId}/generate-date-plan`);
-      await new Promise(r => setTimeout(r, 500));
-      await fetchPlan();
-      const latestPlan = await (async () => {
-        try {
-          const r = await api.get(`/matches/${matchId}/date-plan`);
-          return r.plan || r;
-        } catch { return null; }
-      })();
-      if (latestPlan && typeof latestPlan === 'object' && 'id' in latestPlan) {
-        setPlan(latestPlan);
-        Alert.alert('✨ New Date Plan Created!', `Your new date plan: "${latestPlan.title}"`);
+      const planData = response.plan || response;
+      if (planData && typeof planData === 'object' && 'id' in planData) {
+        setPlan(planData);
+        Alert.alert('✨ New Date Plan Created!', `Your new date plan: "${planData.title}"`);
       } else {
-        const planData = response.plan || response;
-        if (planData && typeof planData === 'object' && 'id' in planData) {
-          setPlan(planData);
-          Alert.alert('✨ New Date Plan Created!', 'Your new personalized date plan is ready!');
+        const latestPlan = await (async () => {
+          try {
+            const r = await api.get(`/matches/${matchId}/date-plan`);
+            return r.plan || r;
+          } catch { return null; }
+        })();
+        if (latestPlan && typeof latestPlan === 'object' && 'id' in latestPlan) {
+          setPlan(latestPlan);
+          Alert.alert('✨ New Date Plan Created!', `Your new date plan: "${latestPlan.title}"`);
         } else {
           Alert.alert('✨ New Date Plan Created!', 'A new plan was generated. Take a look!');
         }
@@ -450,6 +450,21 @@ export default function DateBlueprint({ matchId, socket, currentUserId, headerMo
                             </Text>
                           </View>
                         </TouchableOpacity>
+                        {onInviteToChat && (
+                          <TouchableOpacity
+                            onPress={() => {
+                              const parts = [`📅 ${plan.title}`, plan.description];
+                              if (plan.venueName) parts.push(`📍 ${plan.venueName}`);
+                              if (plan.venueAddress) parts.push(plan.venueAddress);
+                              if (plan.suggestedDate) parts.push(`📆 ${new Date(plan.suggestedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}${plan.suggestedTime ? ` at ${plan.suggestedTime}` : ''}`);
+                              onInviteToChat(parts.join('\n\n'));
+                              setIsExpanded(false);
+                            }}
+                            style={[styles.actionButton, styles.inviteButton]}
+                          >
+                            <Text style={styles.inviteButtonText}>Invite to chat</Text>
+                          </TouchableOpacity>
+                        )}
                       </View>
                     )}
                   </LinearGradient>
@@ -879,6 +894,21 @@ export default function DateBlueprint({ matchId, socket, currentUserId, headerMo
                         </Text>
                       </View>
                     </TouchableOpacity>
+                    {onInviteToChat && plan && (
+                      <TouchableOpacity
+                        onPress={() => {
+                          const parts = [`📅 ${plan.title}`, plan.description];
+                          if (plan.venueName) parts.push(`📍 ${plan.venueName}`);
+                          if (plan.venueAddress) parts.push(plan.venueAddress);
+                          if (plan.suggestedDate) parts.push(`📆 ${new Date(plan.suggestedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}${plan.suggestedTime ? ` at ${plan.suggestedTime}` : ''}`);
+                          onInviteToChat(parts.join('\n\n'));
+                          setIsExpanded(false);
+                        }}
+                        style={[styles.actionButton, styles.inviteButton]}
+                      >
+                        <Text style={styles.inviteButtonText}>Invite to chat</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 )}
               </LinearGradient>
@@ -1111,6 +1141,7 @@ const styles = StyleSheet.create({
   generateButton: {
     borderRadius: 14,
     overflow: 'hidden',
+    backgroundColor: 'transparent',
     shadowColor: '#667eea',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
@@ -1120,6 +1151,7 @@ const styles = StyleSheet.create({
   generateButtonTouchable: {
     borderRadius: 14,
     overflow: 'hidden',
+    backgroundColor: 'transparent',
   },
   generateButtonGradient: {
     paddingHorizontal: 10,
@@ -1415,9 +1447,14 @@ const styles = StyleSheet.create({
   regenerateButtonText: {
     color: '#000000',
     fontSize: 14,
-    fontWeight: '800',
-    textAlign: 'center',
-    includeFontPadding: false,
+  },
+  inviteButton: {
+    backgroundColor: '#667eea',
+  },
+  inviteButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   disabledButton: {
     opacity: 0.5,

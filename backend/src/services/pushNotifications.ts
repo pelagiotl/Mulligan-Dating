@@ -18,9 +18,14 @@ try {
 let expo: any = null;
 
 // Initialize Expo client (optional dependency)
+// EXPO_ACCESS_TOKEN is recommended for reliable delivery (create at https://expo.dev/accounts/[account]/settings/access-tokens)
 try {
   if (Expo) {
-    expo = new Expo();
+    const accessToken = process.env.EXPO_ACCESS_TOKEN;
+    expo = accessToken ? new Expo({ accessToken }) : new Expo();
+    if (!accessToken) {
+      console.warn('⚠️  EXPO_ACCESS_TOKEN not set. Set it for reliable push delivery.');
+    }
   }
 } catch (error) {
   console.warn('⚠️  Failed to initialize Expo client:', error);

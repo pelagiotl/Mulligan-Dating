@@ -674,6 +674,7 @@ export default function BrowseScreen() {
   const connectButtonShimmer = useRef(new Animated.Value(0)).current;
   const connectButtonScale = useRef(new Animated.Value(1)).current;
   const connectButtonLoopsRef = useRef<{ pulseLoop: Animated.CompositeAnimation; shimmerLoop: Animated.CompositeAnimation } | null>(null);
+  const shouldShowConnectButtonRef = useRef(false);
   const connectSpinnerOpacity = useRef(new Animated.Value(0)).current;
   const connectTextOpacity = useRef(new Animated.Value(1)).current;
   const connectOverlayOpacity = useRef(new Animated.Value(0)).current;
@@ -1449,26 +1450,34 @@ export default function BrowseScreen() {
     return () => stopConnectButtonAnimations();
   }, [currentProfile, showLandingPage, needsProfile, loading, stopConnectButtonAnimations]);
 
-  // Restart Connect button animations when returning to Connect tab — useEffect on isFocused is more reliable than useFocusEffect + InteractionManager
+  // Restart Connect button animations when returning to Connect tab. Use ref so delayed callback sees current visibility (avoids re-renders from checkCanClaimTokens etc. cancelling the start).
   const shouldShowConnectButton = currentProfile && !showLandingPage && !needsProfile && !loading;
+  shouldShowConnectButtonRef.current = shouldShowConnectButton;
+
+  // When tab gains focus and Connect button is visible, ensure animations are running (content stays mounted when unfocused so they keep running)
+  useFocusEffect(
+    useCallback(() => {
+      const timeoutId = setTimeout(() => {
+        if (shouldShowConnectButtonRef.current) {
+          stopConnectButtonAnimations();
+          startConnectButtonAnimations();
+        }
+      }, 100);
+      return () => clearTimeout(timeoutId);
+    }, [startConnectButtonAnimations, stopConnectButtonAnimations])
+  );
+
   useEffect(() => {
-    if (!isFocused) {
-      stopConnectButtonAnimations();
-      return;
-    }
+    if (!isFocused) return;
     if (!shouldShowConnectButton) {
       stopConnectButtonAnimations();
       return;
     }
-    // Delay so native view is attached before starting animations (avoids "native view detached" issues when remounting)
     const timeoutId = setTimeout(() => {
       stopConnectButtonAnimations();
       startConnectButtonAnimations();
     }, 150);
-    return () => {
-      clearTimeout(timeoutId);
-      stopConnectButtonAnimations();
-    };
+    return () => clearTimeout(timeoutId);
   }, [isFocused, shouldShowConnectButton, startConnectButtonAnimations, stopConnectButtonAnimations]);
 
   const handleConnect = useCallback((profile: Profile, expandSlot?: boolean) => {
@@ -1616,11 +1625,7 @@ export default function BrowseScreen() {
     }
   }, [isFocused]);
 
-  // When tab not focused: always render minimal view so leaving is instant. When we return, full content (including Connect button) mounts fresh and onLayout starts animations.
-  if (!isFocused) {
-    return <View style={{ flex: 1 }} />;
-  }
-
+  // When tab not focused: keep full content mounted but hidden so Connect button animations keep running; when we return they're still active.
   const showConnectButton = currentProfile && !showLandingPage && !needsProfile && !loading;
 
   // Only show initial loading screen if we're not auto-matching (auto-matching should show landing page)
@@ -1645,6 +1650,7 @@ export default function BrowseScreen() {
       style={[
         styles.container,
         showLandingPage && { backgroundColor: 'transparent' },
+        !isFocused && { opacity: 0, pointerEvents: 'none' as const },
       ]}
     >
       {/* Beautiful gradient background (matching web version) - full screen behind everything */}

@@ -167,19 +167,30 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
       return null; // Don't crash - just return null
     }
 
-    // Send token to backend - this is network-only, won't crash from native modules
-    try {
-      await api.post('/auth/push-token', { pushToken });
-      return pushToken;
-    } catch (error: any) {
-      // Suppress error if route not found or backend unavailable (non-critical)
-      if (error?.status === 404 || error?.message?.includes('Route not found')) {
-        console.warn('⚠️  Push token route not available (backend may need update). This is non-critical.');
-      } else {
-        console.warn('⚠️  Failed to send push token to backend (non-critical):', error?.message || error);
+    // Send token to backend (retry on failure so message notifications work)
+    const maxRetries = 3;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        await api.post('/auth/push-token', { pushToken });
+        if (__DEV__) console.log('✅ Push token saved to backend');
+        return pushToken;
+      } catch (error: any) {
+        const is404 = error?.status === 404 || error?.message?.includes('Route not found');
+        if (is404) {
+          console.warn('⚠️  Push token route not available (backend may need update). This is non-critical.');
+          return pushToken;
+        }
+        if (attempt < maxRetries) {
+          const delayMs = attempt * 2000;
+          if (__DEV__) console.warn(`⚠️  Push token save failed (attempt ${attempt}/${maxRetries}), retrying in ${delayMs / 1000}s...`);
+          await new Promise((r) => setTimeout(r, delayMs));
+        } else {
+          console.warn('⚠️  Failed to send push token to backend after retries (non-critical):', error?.message || error);
+          return pushToken;
+        }
       }
-      return pushToken; // Still return token even if backend update fails
     }
+    return pushToken;
   }, 'PushNotifications', {
     maxWaitMs: 10000, // Wait up to 10 seconds for app initialization
     fallbackValue: null,

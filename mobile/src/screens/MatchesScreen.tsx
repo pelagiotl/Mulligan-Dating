@@ -3151,6 +3151,7 @@ export default function MatchesScreen() {
                     socket={socketRef.current}
                     currentUserId={user?.id || ''}
                     headerMode
+                    onInviteToChat={(text) => handleSendMessage(text)}
                   />
                   <CompatibilityPulse matchId={selectedMatch.id} socket={socketRef.current} isFocused={isFocused} />
               </View>
