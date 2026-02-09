@@ -307,7 +307,7 @@ export default function Browse() {
           const apiErr = err as Error & { status: number; code?: string; canExpand?: boolean; currentLimit?: number; newLimit?: number };
           // Check if at match limit - offer to expand slot with extra token
           if (apiErr.status === 400 && apiErr.code === 'AT_MATCH_LIMIT' && apiErr.canExpand) {
-            const currentLimit = apiErr.currentLimit ?? 7;
+            const currentLimit = apiErr.currentLimit ?? 20;
             const newLimit = apiErr.newLimit ?? 8;
             setConnecting(false);
             const ok = window.confirm(

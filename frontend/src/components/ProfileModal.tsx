@@ -93,7 +93,7 @@ export default function ProfileModal({ profile, onClose, onConnect }: ProfileMod
       if (err instanceof Error && "status" in err) {
         const apiErr = err as Error & { status: number; code?: string; canExpand?: boolean; currentLimit?: number; newLimit?: number };
         if (apiErr.status === 400 && apiErr.code === "AT_MATCH_LIMIT" && apiErr.canExpand) {
-          const currentLimit = apiErr.currentLimit ?? 7;
+          const currentLimit = apiErr.currentLimit ?? 20;
           const newLimit = apiErr.newLimit ?? 8;
           setLoading(false);
           const ok = window.confirm(

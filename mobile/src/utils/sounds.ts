@@ -260,3 +260,63 @@ export async function playMatchSound() {
   }
 }
 
+/**
+ * Play message notification sound.
+ * Uses same pattern as playMatchSound but for message-sound asset.
+ * Gracefully no-ops if asset not available (e.g. Expo Go).
+ */
+export async function playMessageSound() {
+  if (!messageSoundModule) return;
+
+  try {
+    await Audio.setAudioModeAsync({
+      allowsRecordingIOS: false,
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: false,
+      shouldDuckAndroid: true,
+      interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_MIX_WITH_OTHERS,
+      interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DO_NOT_MIX,
+      playThroughEarpieceAndroid: false,
+    });
+
+    if (messageSound) {
+      try {
+        await messageSound.unloadAsync();
+      } catch (_) {}
+      messageSound = null;
+    }
+
+    let soundSource: any = messageSoundModule;
+    if (typeof messageSoundModule === 'object' && messageSoundModule !== null) {
+      soundSource = messageSoundModule.localUri
+        ? { uri: messageSoundModule.localUri }
+        : messageSoundModule.uri
+          ? { uri: messageSoundModule.uri }
+          : messageSoundModule.default || messageSoundModule;
+    } else if (typeof messageSoundModule === 'number') {
+      soundSource = messageSoundModule;
+    }
+
+    const { sound } = await Audio.Sound.createAsync(soundSource, {
+      shouldPlay: false,
+      volume: 1.0,
+      isLooping: false,
+      isMuted: false,
+    });
+    messageSound = sound;
+    sound.setOnPlaybackStatusUpdate((status) => {
+      try {
+        if (status.isLoaded && status.didJustFinish) {
+          sound.unloadAsync().catch(() => {});
+          messageSound = null;
+        }
+      } catch (_) {}
+    });
+    await sound.setVolumeAsync(1.0);
+    await sound.setIsMutedAsync(false);
+    await sound.playAsync();
+  } catch (_) {
+    // Non-critical; no need to log or fallback
+  }
+}
+

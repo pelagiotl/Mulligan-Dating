@@ -2188,12 +2188,11 @@ export default function BrowseScreen() {
             <Text style={styles.matchLimitEmoji}>🎯</Text>
             <Text style={styles.matchLimitTitle}>Match limit reached</Text>
             <Text style={styles.matchLimitBody}>
-              You already have 7 matches. To connect with more people, you can:
+              You've reached your limit of 20 matches. To connect with more people:
             </Text>
             <View style={styles.matchLimitBullets}>
               <Text style={styles.matchLimitBullet}>• Unmatch with someone to free a slot</Text>
               <Text style={styles.matchLimitBullet}>• Wait for a match to expire (7-day limit)</Text>
-              <Text style={styles.matchLimitBullet}>• Use 2 Mulligan tokens to get an 8th match (1 for the match + 1 for the extra slot)</Text>
             </View>
             {matchLimitCanExpand && matchLimitProfile && (
               <Text style={styles.matchLimitExpand}>

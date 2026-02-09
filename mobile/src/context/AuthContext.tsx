@@ -4,7 +4,9 @@
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
-import { Alert, AppState, AppStateStatus, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Alert, AppState, AppStateStatus, View, Text, TouchableOpacity, StyleSheet, Animated, Platform } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { io, Socket } from 'socket.io-client';
 import { api, clearTokenCache, setTokenCache } from '../utils/api';
@@ -16,15 +18,20 @@ import { playMessageSound, playMatchSound } from '../utils/sounds';
 import { setPendingGameRequest } from '../utils/pendingGameRequest';
 import { currentMatchIdRef } from '../utils/currentMatchView';
 
-export type MessageNotification = { senderName: string; preview: string; matchId: string } | null;
+export type MessageNotificationItem = { id: string; senderName: string; preview: string; matchId: string };
+/** @deprecated Use messageNotifications (array); kept for compatibility as first item or null */
+export type MessageNotification = MessageNotificationItem | null;
 
 interface AuthContextType {
   user: User | null;
   profile: Profile | null;
   loading: boolean;
   isAuthenticated: boolean;
+  /** Stack of in-app message notifications (newest first). */
+  messageNotifications: MessageNotificationItem[];
+  /** Single notification for backward compat; first in stack or null. */
   messageNotification: MessageNotification;
-  clearMessageNotification: () => void;
+  clearMessageNotification: (id?: string) => void;
   phoneLogin: (phoneNumber: string, code: string, referralCode?: string) => Promise<{ hasProfile: boolean }>;
   logout: () => void;
   refreshProfile: () => Promise<void>;
@@ -33,32 +40,45 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 const MESSAGE_NOTIFICATION_DURATION_MS = 5000;
+const MAX_STACKED_MESSAGE_NOTIFICATIONS = 5;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [messageNotification, setMessageNotificationState] = useState<MessageNotification>(null);
-  const messageNotificationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [messageNotifications, setMessageNotifications] = useState<MessageNotificationItem[]>([]);
+  const messageNotificationTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const notificationListener = useRef<any>(null);
   const responseListener = useRef<any>(null);
   const messageNotificationSocketRef = useRef<Socket | null>(null);
 
-  const clearMessageNotification = useCallback(() => {
-    if (messageNotificationTimeoutRef.current) {
-      clearTimeout(messageNotificationTimeoutRef.current);
-      messageNotificationTimeoutRef.current = null;
+  const clearMessageNotification = useCallback((id?: string) => {
+    if (id) {
+      const t = messageNotificationTimeoutsRef.current.get(id);
+      if (t) {
+        clearTimeout(t);
+        messageNotificationTimeoutsRef.current.delete(id);
+      }
+      setMessageNotifications((prev) => prev.filter((n) => n.id !== id));
+    } else {
+      messageNotificationTimeoutsRef.current.forEach((t) => clearTimeout(t));
+      messageNotificationTimeoutsRef.current.clear();
+      setMessageNotifications([]);
     }
-    setMessageNotificationState(null);
   }, []);
 
   const showMessageNotification = useCallback((senderName: string, preview: string, matchId: string) => {
-    if (messageNotificationTimeoutRef.current) clearTimeout(messageNotificationTimeoutRef.current);
-    setMessageNotificationState({ senderName, preview, matchId });
-    messageNotificationTimeoutRef.current = setTimeout(() => {
-      messageNotificationTimeoutRef.current = null;
-      setMessageNotificationState(null);
+    const id = `${Date.now()}-${matchId}-${Math.random().toString(36).slice(2, 9)}`;
+    const item: MessageNotificationItem = { id, senderName, preview, matchId };
+    setMessageNotifications((prev) => {
+      const next = [item, ...prev].slice(0, MAX_STACKED_MESSAGE_NOTIFICATIONS);
+      return next;
+    });
+    const timeoutId = setTimeout(() => {
+      messageNotificationTimeoutsRef.current.delete(id);
+      setMessageNotifications((prev) => prev.filter((n) => n.id !== id));
     }, MESSAGE_NOTIFICATION_DURATION_MS);
+    messageNotificationTimeoutsRef.current.set(id, timeoutId);
   }, []);
 
   useEffect(() => {
@@ -135,24 +155,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (data.matchId) showMessageNotification(senderName, displayPreview, data.matchId);
           playMessageSound().catch(() => {});
           if (__DEV__) console.log('💬 In-app new message alert:', senderName, displayPreview.substring(0, 30));
-          Alert.alert(
-            '💬 New Message',
-            `${senderName}: ${displayPreview}`,
-            [
-              {
-                text: 'View',
-                onPress: () => {
-                  if (data.matchId && navigationRef.current?.isReady()) {
-                    navigationRef.current.navigate('MainTabs' as never, {
-                      screen: 'Matches',
-                      params: { matchId: data.matchId },
-                    } as never);
-                  }
-                },
-              },
-              { text: 'OK', style: 'cancel' },
-            ]
-          );
         } catch (err) {
           console.warn('⚠️ AuthContext new_message handler error:', err);
         }
@@ -196,45 +198,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         playMessageSound().catch(() => {
           console.log('Message sound not available');
         });
-        Alert.alert(
-          '💬 New Message',
-          `${senderName}: ${messagePreview}`,
-          [
-            {
-              text: 'View',
-              onPress: () => {
-                // Navigate to the match if matchId is available
-                if (data?.matchId) {
-                  const attemptNavigation = (attemptNumber: number = 0) => {
-                    const maxAttempts = 10; // Try for up to 5 seconds (10 attempts * 500ms)
-                    
-                    if (navigationRef.current?.isReady()) {
-                      try {
-                        navigationRef.current.navigate('MainTabs', {
-                          screen: 'Matches',
-                          params: { matchId: data.matchId },
-                        });
-                        console.log('✅ Navigated to message from in-app notification');
-                      } catch (error) {
-                        console.error('❌ Error navigating to match from notification:', error);
-                      }
-                    } else if (attemptNumber < maxAttempts) {
-                      console.warn(`⚠️ Navigation not ready yet (attempt ${attemptNumber + 1}/${maxAttempts}), retrying...`);
-                      setTimeout(() => {
-                        attemptNavigation(attemptNumber + 1);
-                      }, 500);
-                    } else {
-                      console.error('❌ Failed to navigate after max attempts');
-                    }
-                  };
-                  
-                  attemptNavigation();
-                }
-              },
-            },
-            { text: 'OK', style: 'cancel' },
-          ]
-        );
       }
       
       // Show in-app notification for game request
@@ -605,14 +568,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
-    // Clear push token from backend before logout
+    clearMessageNotification();
     try {
       await clearPushToken();
     } catch (pushError) {
-      // Non-critical error, continue with logout
       console.warn('⚠️  Failed to clear push token (non-critical):', pushError);
     }
-    
     clearTokenCache();
     await AsyncStorage.removeItem('token');
     setUser(null);
@@ -623,6 +584,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await fetchUser();
   };
 
+  const insets = useSafeAreaInsets();
+  const messageSlideAnim = useRef(new Animated.Value(-120)).current;
+  const hasNotifications = messageNotifications.length > 0;
+  const messageNotification = hasNotifications ? messageNotifications[0] : null;
+
+  useEffect(() => {
+    if (hasNotifications) {
+      messageSlideAnim.setValue(-120);
+      Animated.spring(messageSlideAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 72,
+        friction: 12,
+      }).start();
+    } else {
+      messageSlideAnim.setValue(-120);
+    }
+  }, [hasNotifications, messageSlideAnim]);
+
   return (
     <AuthContext.Provider
       value={{
@@ -630,6 +610,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         profile,
         loading,
         isAuthenticated: !!user,
+        messageNotifications,
         messageNotification,
         clearMessageNotification,
         phoneLogin,
@@ -637,24 +618,61 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         refreshProfile,
       }}
     >
-      {messageNotification && (
-        <TouchableOpacity
-          style={messageNotificationStyles.banner}
-          onPress={() => {
-            clearMessageNotification();
-            if (messageNotification.matchId && navigationRef.current?.isReady()) {
-              navigationRef.current.navigate('MainTabs' as never, {
-                screen: 'Matches',
-                params: { matchId: messageNotification.matchId },
-              } as never);
-            }
-          }}
-          activeOpacity={0.9}
+      {hasNotifications && (
+        <Animated.View
+          style={[
+            messageNotificationStyles.bannerWrap,
+            { paddingTop: Math.max(insets.top, 8) },
+          ]}
+          pointerEvents="box-none"
         >
-          <Text style={messageNotificationStyles.bannerText} numberOfLines={2}>
-            💬 {messageNotification.senderName}: {messageNotification.preview}
-          </Text>
-        </TouchableOpacity>
+          <Animated.View style={[messageNotificationStyles.stack, { transform: [{ translateY: messageSlideAnim }] }]}>
+            {messageNotifications.map((item, index) => (
+              <TouchableOpacity
+                key={item.id}
+                activeOpacity={0.92}
+                onPress={() => {
+                  clearMessageNotification(item.id);
+                  if (item.matchId && navigationRef.current?.isReady()) {
+                    navigationRef.current.navigate('MainTabs' as never, {
+                      screen: 'Matches',
+                      params: { matchId: item.matchId },
+                    } as never);
+                  }
+                }}
+                style={[
+                  messageNotificationStyles.bannerTouchable,
+                  index > 0 && messageNotificationStyles.bannerTouchableStacked,
+                ]}
+              >
+                <LinearGradient
+                  colors={['#8b5cf6', '#a855f7', '#c026d3', '#be185d']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={messageNotificationStyles.gradient}
+                >
+                  <View style={messageNotificationStyles.bannerContent}>
+                    <View style={messageNotificationStyles.iconCircle}>
+                      <Text style={messageNotificationStyles.iconText}>💬</Text>
+                    </View>
+                    <View style={messageNotificationStyles.textBlock}>
+                      <Text style={messageNotificationStyles.label}>New message</Text>
+                      <Text style={messageNotificationStyles.senderName} numberOfLines={1}>
+                        {item.senderName}
+                      </Text>
+                      <Text style={messageNotificationStyles.preview} numberOfLines={1}>
+                        {item.preview}
+                      </Text>
+                    </View>
+                    <View style={messageNotificationStyles.viewPill}>
+                      <Text style={messageNotificationStyles.viewPillText}>View</Text>
+                    </View>
+                  </View>
+                </LinearGradient>
+              </TouchableOpacity>
+            ))}
+          </Animated.View>
+        </Animated.View>
       )}
       {children}
     </AuthContext.Provider>
@@ -662,26 +680,87 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 }
 
 const messageNotificationStyles = StyleSheet.create({
-  banner: {
+  bannerWrap: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#10b981',
+    zIndex: 9999,
+    elevation: 12,
+    paddingHorizontal: 12,
+    paddingBottom: 8,
+  },
+  stack: {},
+  bannerTouchable: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.28,
+        shadowRadius: 10,
+      },
+      android: { elevation: 10 },
+    }),
+  },
+  bannerTouchableStacked: {
+    marginTop: 8,
+  },
+  gradient: {
     paddingVertical: 14,
     paddingHorizontal: 16,
-    zIndex: 9999,
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    borderRadius: 16,
   },
-  bannerText: {
-    color: '#fff',
-    fontSize: 15,
+  bannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  iconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  iconText: {
+    fontSize: 22,
+  },
+  textBlock: {
+    flex: 1,
+    minWidth: 0,
+  },
+  label: {
+    fontSize: 11,
     fontWeight: '600',
-    textAlign: 'center',
+    color: 'rgba(255,255,255,0.85)',
+    letterSpacing: 0.8,
+    marginBottom: 2,
+    textTransform: 'uppercase',
+  },
+  senderName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 1,
+  },
+  preview: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.9)',
+  },
+  viewPill: {
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    marginLeft: 10,
+  },
+  viewPillText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#7c3aed',
   },
 });
 

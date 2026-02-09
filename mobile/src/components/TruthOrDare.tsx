@@ -203,6 +203,7 @@ export default function TruthOrDare({
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastAnotherOneAtRef = useRef<number>(0);
   const lastSpiceChoiceAtRef = useRef<number>(0);
+  const lastSpiceChoiceRef = useRef<'pg13' | 'ratedr' | 'spicy' | null>(null);
 
   const isUnlocked = gameUnlockedByToken;
 
@@ -282,9 +283,10 @@ export default function TruthOrDare({
     try {
       const data = await api.get<GameState>(`/matches/${matchId}/truth-or-dare/state`);
       const recentlySetSpice = Date.now() - lastSpiceChoiceAtRef.current < 3000;
+      const intendedSpice = lastSpiceChoiceRef.current;
       setGameState((prev) => {
-        if (recentlySetSpice && prev?.spiceLevel) {
-          return { ...data, spiceLevel: prev.spiceLevel, spiceReady: true };
+        if (recentlySetSpice && (intendedSpice ?? prev?.spiceLevel)) {
+          return { ...data, spiceLevel: intendedSpice ?? prev?.spiceLevel ?? data.spiceLevel, spiceReady: true };
         }
         return data;
       });
@@ -400,18 +402,21 @@ export default function TruthOrDare({
 
   const handleSetSpiceChoice = async (choice: 'pg13' | 'ratedr' | 'spicy') => {
     lastSpiceChoiceAtRef.current = Date.now();
+    lastSpiceChoiceRef.current = choice;
     setSubmitting(true);
     setGameState((prev) => (prev ? { ...prev, spiceLevel: choice, spiceReady: true } : prev));
     try {
       const data = await api.post<GameState>(`/matches/${matchId}/truth-or-dare/spice-choice`, { choice });
-      setGameState(data);
-      if (data.spiceReady && data.spiceLevel) {
+      lastSpiceChoiceRef.current = null;
+      setGameState((prev) => (prev ? { ...prev, ...data, spiceLevel: data.spiceLevel ?? choice } : data));
+      if (data.spiceReady && (data.spiceLevel ?? choice)) {
         setStep('choose');
       } else {
         setStep('lobby');
       }
     } catch (err) {
       console.warn('Truth or Dare spice choice error:', err);
+      lastSpiceChoiceRef.current = null;
     } finally {
       setSubmitting(false);
     }

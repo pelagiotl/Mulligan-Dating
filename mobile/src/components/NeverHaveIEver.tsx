@@ -83,6 +83,7 @@ export default function NeverHaveIEver({
   const [submitting, setSubmitting] = useState(false);
   const [prompt, setPrompt] = useState('');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastRoundCompletedAtRef = useRef<number>(0);
 
   const isUnlocked = gameUnlockedByToken;
   const displayPrompt = prompt || state?.prompt || '';
@@ -173,7 +174,10 @@ export default function NeverHaveIEver({
     return () => pulse.stop();
   }, [isUnlocked, pulseAnim]);
 
-  const fetchState = useCallback(async () => {
+  const fetchState = useCallback(async (skipIfRecentRound = false) => {
+    if (skipIfRecentRound && Date.now() - lastRoundCompletedAtRef.current < 4000) {
+      return;
+    }
     try {
       const data = await api.get<any>(`/matches/${matchId}/never-have-i-ever`);
       const simple: GameState = {
@@ -206,7 +210,7 @@ export default function NeverHaveIEver({
       setModalVisible(true);
       setLoading(true);
       fetchState().finally(() => setLoading(false));
-      pollRef.current = setInterval(fetchState, 3000);
+      pollRef.current = setInterval(() => fetchState(true), 3000);
       onOpenedForAccept?.();
     }
   }, [openForAccept]);
@@ -219,8 +223,8 @@ export default function NeverHaveIEver({
     setLoading(true);
     fetchState().finally(() => setLoading(false));
 
-    // Poll every 3s while modal is open (to catch when other player answers)
-    pollRef.current = setInterval(fetchState, 3000);
+    // Poll every 3s while modal is open (to catch when other player answers); skip if we just completed a round to avoid overwriting
+    pollRef.current = setInterval(() => fetchState(true), 3000);
   };
 
   const handleClose = () => {
@@ -237,7 +241,7 @@ export default function NeverHaveIEver({
     if (!modalVisible) return;
     const onUpdate = () => {
       api.clearCache(`/matches/${matchId}/never-have-i-ever`);
-      fetchState();
+      fetchState(true);
     };
     socket?.on?.('never_have_i_ever_updated', onUpdate);
     return () => {
@@ -315,14 +319,13 @@ export default function NeverHaveIEver({
         if (!prev) return null;
         const baseYou = prev.yourPoints ?? 0;
         const baseThem = prev.theirPoints ?? 0;
-        // Use server points when round is complete (bothAnswered) or server has newer data (e.g. turn-based); otherwise optimistic "You" +1 when current user said "I have"
         const useServerYou = data.bothAnswered || (typeof serverYourPts === 'number' && serverYourPts > baseYou);
         const useServerThem = data.bothAnswered || (typeof serverTheirPts === 'number' && serverTheirPts > baseThem);
         const yourPts = useServerYou ? serverYourPts : (answer === 'have' ? baseYou + 1 : baseYou);
         const theirPts = useServerThem ? serverTheirPts : (typeof data.theirPoints === 'number' ? data.theirPoints : (typeof data.theirStrikes === 'number' ? data.theirStrikes : baseThem));
         return {
           ...prev,
-          yourAnswer: answer,
+          yourAnswer: data.yourAnswer ?? answer,
           theirAnswer: data.theirAnswer ?? prev.theirAnswer,
           bothAnswered: !!data.bothAnswered,
           yourPoints: yourPts,
@@ -334,8 +337,20 @@ export default function NeverHaveIEver({
         setPrompt(data.prompt);
       }
       if (data.bothAnswered) {
+        lastRoundCompletedAtRef.current = Date.now();
         api.clearCache(`/matches/${matchId}/never-have-i-ever`);
-        await fetchState();
+        setState(prev => prev ? {
+          ...prev,
+          yourPoints: typeof data.yourPoints === 'number' ? data.yourPoints : (data.yourStrikes ?? 0),
+          theirPoints: typeof data.theirPoints === 'number' ? data.theirPoints : (data.theirStrikes ?? 0),
+          yourAnswer: data.yourAnswer ?? null,
+          theirAnswer: data.theirAnswer ?? null,
+          bothAnswered: !!data.bothAnswered,
+          prompt: data.prompt ?? prev.prompt,
+          gameOver: !!data.gameOver,
+          winner: data.winner ?? null,
+        } : null);
+        if (data.prompt) setPrompt(data.prompt);
       }
     } catch (err) {
       console.warn('Never Have I Ever answer error:', err);

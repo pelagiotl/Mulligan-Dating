@@ -50,15 +50,15 @@ matchesRouter.get("/count", authenticateToken, async (req: AuthRequest, res) => 
     const count = Math.floor(Number(countRow?.count ?? 0));
 
     const limitResult = db
-      .prepare("SELECT COALESCE(match_slot_limit, 7) as slot_limit FROM users WHERE id = ?")
+      .prepare("SELECT COALESCE(match_slot_limit, 20) as slot_limit FROM users WHERE id = ?")
       .get([userId]);
     const limitRow = (limitResult instanceof Promise ? await limitResult : limitResult) as { slot_limit: number | string } | undefined;
-    const slotLimit = Math.floor(Number(limitRow?.slot_limit ?? 7));
+    const slotLimit = Math.floor(Number(limitRow?.slot_limit ?? 20));
 
     res.json({ count, slotLimit });
   } catch (error) {
     console.error('Matches count error:', error);
-    res.status(500).json({ error: 'Failed to get match count', count: 0, slotLimit: 7 });
+    res.status(500).json({ error: 'Failed to get match count', count: 0, slotLimit: 20 });
   }
 });
 
@@ -99,9 +99,14 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
          LEFT JOIN profiles p2 ON p2.user_id = m.user2_id
          LEFT JOIN users u1 ON u1.id = m.user1_id
          LEFT JOIN users u2 ON u2.id = m.user2_id
+         LEFT JOIN (
+           SELECT match_id, MAX(sent_at) as last_message_at
+           FROM messages
+           GROUP BY match_id
+         ) msg ON msg.match_id = m.id
          WHERE (m.user1_id = ? OR m.user2_id = ?)
          AND m.stage != 'expired'
-         ORDER BY m.created_at DESC`
+         ORDER BY COALESCE(msg.last_message_at, m.created_at) DESC`
       )
       .all([userId, userId]);
     const matches = (matchesResult instanceof Promise
@@ -400,7 +405,7 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
 });
 
 // Send a match request (use a token) - AUTOMATIC MATCH
-// Match limit: default 7, can expand to 8/9/10 by spending extra token(s). Max 10.
+// Match limit: default 20 per user. Tokens stay at 7 (weekly claim, max 7).
 matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
   const userId = req.userId!;
   const { targetUserId, expandSlot } = req.body;
@@ -482,7 +487,7 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
       return res.status(400).json({ error: "Target user profile not found" });
     }
 
-    // Match limit: max 7 by default, can expand to 8/9/10 with extra tokens. Absolute max 10.
+    // Match limit: 20 per user (no expansion beyond 20).
     const activeMatchCountResult = db
       .prepare(
         `SELECT COUNT(*) as count FROM matches 
@@ -495,26 +500,26 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
     const count = Math.floor(Number(activeMatchCount?.count ?? 0));
 
     const userRowResult = db
-      .prepare("SELECT COALESCE(match_slot_limit, 7) as slot_limit FROM users WHERE id = ?")
+      .prepare("SELECT COALESCE(match_slot_limit, 20) as slot_limit FROM users WHERE id = ?")
       .get([userId]);
     const userRow = (userRowResult instanceof Promise ? await userRowResult : userRowResult) as { slot_limit: number | string } | undefined;
-    const slotLimit = Math.floor(Number(userRow?.slot_limit ?? 7));
+    const slotLimit = Math.floor(Number(userRow?.slot_limit ?? 20));
 
-    if (count >= 10) {
+    if (count >= 20) {
       return res.status(400).json({
-        error: "You've reached the maximum of 10 matches. Unmatch with someone to free up a slot.",
+        error: "You've reached the maximum of 20 matches. Unmatch with someone to free up a slot.",
         code: "MAX_MATCHES_REACHED",
       });
     }
 
     if (count >= slotLimit && !expandSlot) {
       return res.status(400).json({
-        error: `You've reached your match limit (${slotLimit}). You need 2 tokens to connect (1 for the match + 1 for the extra slot). Spend 2 tokens?`,
+        error: `You've reached your match limit (${slotLimit}). Unmatch with someone or wait for a match to expire to free a slot.`,
         code: "AT_MATCH_LIMIT",
-        canExpand: slotLimit < 10,
+        canExpand: false,
         currentLimit: slotLimit,
-        newLimit: Math.min(slotLimit + 1, 10),
-        tokensNeeded: 2,
+        newLimit: slotLimit,
+        tokensNeeded: 1,
       });
     }
 
@@ -534,8 +539,7 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
     //   });
     // }
 
-    // Get available token(s) - need 2 if expanding slot
-    const tokensNeeded = expandSlot === true && count >= slotLimit && slotLimit < 10 ? 2 : 1;
+    const tokensNeeded = 1;
     const tokenResult = db
       .prepare(
         `SELECT * FROM mulligan_tokens 
@@ -547,14 +551,6 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
     const token = tokens[0];
 
     if (!token || tokens.length < tokensNeeded) {
-      if (tokensNeeded === 2 && tokens.length === 1) {
-        return res.status(400).json({
-          error: "You need 2 tokens: 1 to open a new slot and 1 to connect. Claim your weekly token!",
-          code: "NO_TOKENS",
-          canExpand: true,
-          tokensNeeded: 2,
-        });
-      }
       // Check if user can claim weekly tokens
       const allTokensResult = db
         .prepare(
@@ -585,22 +581,6 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
       });
     }
 
-    // If expanding slot, consume the second token and increment limit
-    if (tokensNeeded === 2 && tokens[1]) {
-      const expandTokenResult = db.prepare(
-        `UPDATE mulligan_tokens SET used_at = CURRENT_TIMESTAMP, match_id = NULL WHERE id = ?`
-      ).run([tokens[1].id]);
-      if (expandTokenResult instanceof Promise) {
-        await expandTokenResult;
-      }
-      const updateLimitResult = db.prepare(
-        `UPDATE users SET match_slot_limit = COALESCE(match_slot_limit, 7) + 1 WHERE id = ?`
-      ).run([userId]);
-      if (updateLimitResult instanceof Promise) {
-        await updateLimitResult;
-      }
-    }
-
     // Final safety check: re-verify count before creating match (prevents race conditions)
     const recheckCountResult = db
       .prepare(
@@ -610,15 +590,14 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
       .get([userId, userId]);
     const recheckRow = (recheckCountResult instanceof Promise ? await recheckCountResult : recheckCountResult) as { count: number | string };
     const recheckCount = Math.floor(Number(recheckRow?.count ?? 0));
-    const effectiveLimit = expandSlot === true && slotLimit < 10 ? slotLimit + 1 : slotLimit;
-    if (recheckCount >= effectiveLimit) {
+    if (recheckCount >= slotLimit) {
       return res.status(400).json({
-        error: `You've reached your match limit (${effectiveLimit}). Unmatch with someone, wait for a match to expire, or use 2 Mulligan tokens (1 for the match + 1 for the extra slot) to connect.`,
+        error: `You've reached your match limit (${slotLimit}). Unmatch with someone or wait for a match to expire to connect.`,
         code: "AT_MATCH_LIMIT",
-        canExpand: effectiveLimit < 10,
-        currentLimit: effectiveLimit,
-        newLimit: Math.min(effectiveLimit + 1, 10),
-        tokensNeeded: 2,
+        canExpand: false,
+        currentLimit: slotLimit,
+        newLimit: slotLimit,
+        tokensNeeded: 1,
       });
     }
 
@@ -2185,6 +2164,10 @@ matchesRouter.get("/:matchId/never-have-i-ever", authenticateToken, async (req: 
     const { getGameState } = await import('../services/neverHaveIEver.js');
     const state = await getGameState(matchId, userId, match);
 
+    if (state.phase === 'playing') {
+      console.log(`🙊 Never Have I Ever GET state: match=${matchId} yourStrikes=${state.yourStrikes} theirStrikes=${state.theirStrikes} bothAnswered=${state.bothAnswered} promptLen=${state.prompt?.length ?? 0}`);
+    }
+
     res.json({
       ...state,
       tokenUnlocked: true,
@@ -2237,6 +2220,8 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
     const { state, roundResult } = isTurnBased
       ? await submitTurnAnswer(matchId, userId, match, answer as 'have' | 'havent')
       : await submitAnswer(matchId, userId, match, answer as 'have' | 'havent');
+
+    console.log(`🙊 Never Have I Ever answer: match=${matchId} user=${userId} answer=${answer} bothAnswered=${state.bothAnswered} yourStrikes=${state.yourStrikes} theirStrikes=${state.theirStrikes} promptLen=${state.prompt?.length ?? 0}`);
 
     // Notify other user via socket
     try {
