@@ -232,7 +232,7 @@ export async function getGameState(
   const rowResult = db
     .prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?')
     .get([matchId]);
-  const row = (rowResult instanceof Promise ? await rowResult : rowResult) as GameRow | undefined;
+  let row = (rowResult instanceof Promise ? await rowResult : rowResult) as GameRow | undefined;
 
   const yourSpiceChoice = (isUser1 ? row?.user1_spice_choice : row?.user2_spice_choice) as 'pg13' | 'ratedr' | 'spicy' | null;
   const theirSpiceChoice = (isUser1 ? row?.user2_spice_choice : row?.user1_spice_choice) as 'pg13' | 'ratedr' | 'spicy' | null;
