@@ -465,6 +465,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.remove();
   }, [user]);
 
+  // Second push registration attempt on cold start (5s after user is set). The first is at 1.5s in fetchUser;
+  // if native modules weren't ready, this gives the recipient's device another chance to save the token.
+  useEffect(() => {
+    if (!user) return;
+    const t = setTimeout(() => {
+      registerForPushNotificationsAsync().catch((e) => {
+        console.warn('⚠️ Push re-register on cold start (non-critical):', e?.message || e);
+      });
+    }, 5000);
+    return () => clearTimeout(t);
+  }, [user?.id]);
+
   const checkAuth = async () => {
     try {
       // Wrap AsyncStorage in try-catch in case it fails to initialize
@@ -539,6 +551,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: data.user.email,
         phoneNumber: data.user.phoneNumber,
         isAdmin: data.user.isAdmin || false,
+        hasPushToken: data.user.hasPushToken ?? false,
       });
       setProfile(data.profile || null);
       
@@ -547,16 +560,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Run this asynchronously after a delay to ensure app is fully initialized
       // This prevents any native module errors from crashing the app during startup
       if (data.user) {
-        // Use setTimeout to defer push notification registration even more
-        // The nativeModuleGuard will also wait for app initialization
+        // Defer push registration so native modules are ready; run soon so token is saved
         setTimeout(async () => {
           try {
             await registerForPushNotificationsAsync();
           } catch (pushError) {
-            // Non-critical error, don't fail user fetch if push registration fails
-            console.warn('⚠️  Failed to register for push notifications (non-critical):', pushError);
+            console.warn('⚠️  Push registration failed:', pushError);
           }
-        }, 3000); // Increased to 3 seconds delay + nativeModuleGuard will wait further if needed
+        }, 1500);
       }
     } catch (error: any) {
       console.error('Fetch user error:', error);

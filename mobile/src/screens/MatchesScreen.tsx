@@ -45,6 +45,7 @@ import OptimizedImage from '../components/OptimizedImage';
 import GameRequestModal from '../components/GameRequestModal';
 import MatchCelebration from '../components/MatchCelebration';
 import * as ImagePicker from 'expo-image-picker';
+import { Video, Audio } from 'expo-av';
 
 interface Photo {
   id: string;
@@ -93,11 +94,48 @@ interface Message {
   id: string;
   content: string;
   imageUrl?: string | null;
+  videoUrl?: string | null;
+  audioUrl?: string | null;
   senderId: string;
   senderName: string;
   sentAt: string;
   readAt?: string | null;
   isOwn: boolean;
+}
+
+// Voice message play button + playback
+function VoiceMessagePlayer({ uri }: { uri: string }) {
+  const [playing, setPlaying] = useState(false);
+  const soundRef = useRef<Audio.Sound | null>(null);
+  const play = useCallback(async () => {
+    try {
+      if (soundRef.current) {
+        await soundRef.current.replayAsync();
+        setPlaying(true);
+        soundRef.current.setOnPlaybackStatusUpdate((s) => {
+          if (s.isLoaded && s.didJustFinishAndNotReset) setPlaying(false);
+        });
+        return;
+      }
+      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: false, shouldDuckAndroid: true, playThroughEarpieceAndroid: false });
+      const { sound } = await Audio.Sound.createAsync({ uri });
+      soundRef.current = sound;
+      setPlaying(true);
+      sound.setOnPlaybackStatusUpdate((s) => {
+        if (s.isLoaded && s.didJustFinishAndNotReset) setPlaying(false);
+      });
+      await sound.playAsync();
+    } catch (e) {
+      setPlaying(false);
+    }
+  }, [uri]);
+  useEffect(() => () => { soundRef.current?.unloadAsync?.(); }, []);
+  return (
+    <TouchableOpacity onPress={play} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 12, backgroundColor: 'rgba(0,0,0,0.06)', borderRadius: 20, gap: 8 }}>
+      <Text style={{ fontSize: 18 }}>{playing ? '⏸' : '▶️'}</Text>
+      <Text style={{ fontSize: 14, color: '#333' }}>Voice message</Text>
+    </TouchableOpacity>
+  );
 }
 
 // Memoized message bubble - prevents re-renders when parent state changes (typing, keyboard, etc.)
@@ -141,6 +179,18 @@ const MessageBubble = React.memo(function MessageBubble({
             resizeMode="cover"
           />
         )
+      ) : null}
+      {item.videoUrl ? (
+        <Video
+          source={{ uri: item.videoUrl }}
+          style={{ width: 220, height: 220, borderRadius: 12 }}
+          useNativeControls
+          resizeMode="contain"
+          isLooping={false}
+        />
+      ) : null}
+      {item.audioUrl ? (
+        <VoiceMessagePlayer uri={item.audioUrl} />
       ) : null}
       {item.content ? (
         <Text style={isOwn ? s.messageTextOwn : s.messageTextOther}>{item.content}</Text>
@@ -1769,7 +1819,12 @@ export default function MatchesScreen() {
   const [loading, setLoading] = useState(true);
   const [sendingMessage, setSendingMessage] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
+  const [uploadingAudio, setUploadingAudio] = useState(false);
   const [pendingImageUri, setPendingImageUri] = useState<string | null>(null);
+  const [pendingVideoUri, setPendingVideoUri] = useState<string | null>(null);
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  const recordingRef = useRef<Audio.Recording | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [stageInfoModalVisible, setStageInfoModalVisible] = useState(false);
   const [stageInfoStage, setStageInfoStage] = useState<'stage1' | 'stage2' | null>(null);
@@ -2539,11 +2594,13 @@ export default function MatchesScreen() {
     setSelectedMatch(null);
   }, [selectedMatch, fetchMatches]);
 
-  const handleSendMessage = async (messageToSend?: string, imageUrlToSend?: string) => {
+  const handleSendMessage = async (messageToSend?: string, imageUrlToSend?: string, videoUrlToSend?: string, audioUrlToSend?: string) => {
     const messageContent = (messageToSend ?? newMessage).trim();
     const hasContent = messageContent.length > 0;
     const hasImage = !!imageUrlToSend;
-    if ((!hasContent && !hasImage) || !selectedMatch || sendingMessage || !user) return;
+    const hasVideo = !!videoUrlToSend;
+    const hasAudio = !!audioUrlToSend;
+    if ((!hasContent && !hasImage && !hasVideo && !hasAudio) || !selectedMatch || sendingMessage || !user) return;
 
     // Stop typing indicator
     if (isTyping && selectedMatch.id) {
@@ -2563,8 +2620,10 @@ export default function MatchesScreen() {
 
     const tempMessage: Message = {
       id: `temp-${Date.now()}`,
-      content: hasImage && !hasContent ? '' : messageContent,
+      content: (hasImage || hasVideo || hasAudio) && !hasContent ? '' : messageContent,
       imageUrl: imageUrlToSend || null,
+      videoUrl: videoUrlToSend || null,
+      audioUrl: audioUrlToSend || null,
       senderId: user.id,
       senderName: user.displayName || 'You',
       sentAt: new Date().toISOString(),
@@ -2592,6 +2651,8 @@ export default function MatchesScreen() {
       const response = await api.post<{ message: Message; stage?: string; autoAdvanced?: boolean }>(`/matches/${selectedMatch.id}/messages`, {
         content: messageContent || '',
         ...(imageUrlToSend ? { imageUrl: imageUrlToSend } : {}),
+        ...(videoUrlToSend ? { videoUrl: videoUrlToSend } : {}),
+        ...(audioUrlToSend ? { audioUrl: audioUrlToSend } : {}),
       });
       
       // Replace temp message with real message from server (dedupe: socket may have already added it)
@@ -2624,10 +2685,10 @@ export default function MatchesScreen() {
   };
 
   const handleSendPhoto = useCallback(async () => {
-    if (!selectedMatch || sendingMessage || uploadingImage || !user) return;
+    if (!selectedMatch || sendingMessage || uploadingImage || uploadingVideo || uploadingAudio || !user) return;
     Alert.alert(
-      'Send Photo',
-      'Choose a photo to send',
+      'Send photo, video, or voice',
+      undefined,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -2648,10 +2709,34 @@ export default function MatchesScreen() {
                 maxHeight: 1024,
               });
               if (!result.canceled && result.assets[0]) {
+                setPendingVideoUri(null);
                 setPendingImageUri(result.assets[0].uri);
               }
             } catch (err: any) {
               Alert.alert('Error', err?.message || 'Failed to take photo');
+            }
+          },
+        },
+        {
+          text: 'Take Video',
+          onPress: async () => {
+            try {
+              const { status } = await ImagePicker.requestCameraPermissionsAsync();
+              if (status !== 'granted') {
+                Alert.alert('Permission needed', 'Please grant camera access in Settings to record video.');
+                return;
+              }
+              const result = await ImagePicker.launchCameraAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+                videoMaxDuration: 60,
+                quality: 0.7,
+              });
+              if (!result.canceled && result.assets[0]) {
+                setPendingImageUri(null);
+                setPendingVideoUri(result.assets[0].uri);
+              }
+            } catch (err: any) {
+              Alert.alert('Error', err?.message || 'Failed to record video');
             }
           },
         },
@@ -2673,6 +2758,7 @@ export default function MatchesScreen() {
                 maxHeight: 1024,
               });
               if (!result.canceled && result.assets[0]) {
+                setPendingVideoUri(null);
                 setPendingImageUri(result.assets[0].uri);
               }
             } catch (err: any) {
@@ -2680,9 +2766,49 @@ export default function MatchesScreen() {
             }
           },
         },
+        {
+          text: 'Video Library',
+          onPress: async () => {
+            try {
+              const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+              if (status !== 'granted') {
+                Alert.alert('Permission needed', 'Please grant library access in Settings.');
+                return;
+              }
+              const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+                videoMaxDuration: 60,
+              });
+              if (!result.canceled && result.assets[0]) {
+                setPendingImageUri(null);
+                setPendingVideoUri(result.assets[0].uri);
+              }
+            } catch (err: any) {
+              Alert.alert('Error', err?.message || 'Failed to pick video');
+            }
+          },
+        },
+        {
+          text: 'Record Voice',
+          onPress: async () => {
+            try {
+              const { status } = await Audio.requestPermissionsAsync();
+              if (status !== 'granted') {
+                Alert.alert('Permission needed', 'Please grant microphone access in Settings to record voice messages.');
+                return;
+              }
+              await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true, staysActiveInBackground: false, shouldDuckAndroid: true, playThroughEarpieceAndroid: false });
+              const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+              recordingRef.current = recording;
+              setIsRecordingVoice(true);
+            } catch (err: any) {
+              Alert.alert('Error', err?.message || 'Failed to start recording');
+            }
+          },
+        },
       ]
     );
-  }, [selectedMatch, sendingMessage, uploadingImage, user]);
+  }, [selectedMatch, sendingMessage, uploadingImage, uploadingVideo, uploadingAudio, user]);
 
   const uploadAndSendImage = async (uri: string) => {
     if (!selectedMatch || !user) return;
@@ -2729,6 +2855,87 @@ export default function MatchesScreen() {
       setUploadingImage(false);
     }
   };
+
+  const uploadAndSendVideo = async (uri: string) => {
+    if (!selectedMatch || !user) return;
+    setUploadingVideo(true);
+    try {
+      const token = await getToken();
+      if (!token?.trim()) throw new Error('Session expired. Please log in again.');
+      const filename = uri.split('/').pop() || 'video.mp4';
+      const formData = new FormData();
+      formData.append('video', { uri, type: 'video/mp4', name: filename } as any);
+      const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://mulligan-backend.onrender.com';
+      const response = await fetch(`${API_URL}/api/matches/${selectedMatch.id}/messages/upload-video`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || `Upload failed: ${response.status}`);
+      }
+      const { videoUrl } = await response.json();
+      if (videoUrl) await handleSendMessage('', undefined, videoUrl);
+      else throw new Error('No video URL returned');
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Failed to upload video');
+    } finally {
+      setUploadingVideo(false);
+    }
+  };
+
+  const uploadAndSendAudio = async (uri: string) => {
+    if (!selectedMatch || !user) return;
+    setUploadingAudio(true);
+    try {
+      const token = await getToken();
+      if (!token?.trim()) throw new Error('Session expired. Please log in again.');
+      const filename = uri.split('/').pop() || 'voice.m4a';
+      const formData = new FormData();
+      formData.append('audio', { uri, type: 'audio/mp4', name: filename } as any);
+      const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://mulligan-backend.onrender.com';
+      const response = await fetch(`${API_URL}/api/matches/${selectedMatch.id}/messages/upload-audio`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || `Upload failed: ${response.status}`);
+      }
+      const { audioUrl } = await response.json();
+      if (audioUrl) await handleSendMessage('', undefined, undefined, audioUrl);
+      else throw new Error('No audio URL returned');
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Failed to upload voice message');
+    } finally {
+      setUploadingAudio(false);
+    }
+  };
+
+  const stopVoiceRecordingAndSend = useCallback(async () => {
+    const rec = recordingRef.current;
+    recordingRef.current = null;
+    setIsRecordingVoice(false);
+    if (!rec) return;
+    try {
+      await rec.stopAndUnloadAsync();
+      const uri = rec.getURI();
+      if (uri) await uploadAndSendAudio(uri);
+    } catch (e) {
+      Alert.alert('Error', 'Failed to save recording');
+    }
+  }, [selectedMatch, user]);
+
+  const cancelVoiceRecording = useCallback(async () => {
+    const rec = recordingRef.current;
+    recordingRef.current = null;
+    setIsRecordingVoice(false);
+    if (rec) {
+      try { await rec.stopAndUnloadAsync(); } catch (_) {}
+    }
+  }, []);
 
   const handleUnmatch = useCallback(async (matchId: string) => {
     Alert.alert(
@@ -3425,10 +3632,10 @@ export default function MatchesScreen() {
           keyboardShouldPersistTaps="always"
           keyboardDismissMode="interactive"
           scrollEnabled={true}
-          maxToRenderPerBatch={15}
+          maxToRenderPerBatch={50}
           updateCellsBatchingPeriod={50}
-          initialNumToRender={15}
-          windowSize={10}
+          initialNumToRender={50}
+          windowSize={15}
           removeClippedSubviews={false}
           onContentSizeChange={scrollToEndDebounced}
           onLayout={scrollToEndOnLayout}
@@ -3460,11 +3667,36 @@ export default function MatchesScreen() {
           pointerEvents="box-none"
           collapsable={false}
         >
+          {isRecordingVoice ? (
+            <View style={[styles.pendingImagePreview, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12 }]}>
+              <Text style={{ color: '#666', fontSize: 14 }}>Recording... Tap Stop to send</Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TouchableOpacity onPress={cancelVoiceRecording} style={{ paddingVertical: 6, paddingHorizontal: 10 }}>
+                  <Text style={{ color: '#e53e3e', fontWeight: '600' }}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={stopVoiceRecordingAndSend} style={{ paddingVertical: 6, paddingHorizontal: 10, backgroundColor: '#667eea', borderRadius: 8 }}>
+                  <Text style={{ color: '#fff', fontWeight: '600' }}>Stop & Send</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : null}
           {pendingImageUri ? (
             <View style={styles.pendingImagePreview}>
               <Image source={{ uri: pendingImageUri }} style={styles.pendingImageThumb} />
               <TouchableOpacity
                 onPress={() => setPendingImageUri(null)}
+                style={styles.pendingImageRemove}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Text style={styles.pendingImageRemoveText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+          {pendingVideoUri ? (
+            <View style={styles.pendingImagePreview}>
+              <Text style={{ color: '#667eea', fontSize: 14 }}>Video attached</Text>
+              <TouchableOpacity
+                onPress={() => setPendingVideoUri(null)}
                 style={styles.pendingImageRemove}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
@@ -3479,11 +3711,11 @@ export default function MatchesScreen() {
             <View style={styles.inputWrapper}>
               <TouchableOpacity
                 onPress={handleSendPhoto}
-                disabled={sendingMessage || uploadingImage}
+                disabled={sendingMessage || uploadingImage || uploadingVideo || uploadingAudio}
                 style={styles.photoButton}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                {uploadingImage ? (
+                {uploadingImage || uploadingVideo || uploadingAudio ? (
                   <ActivityIndicator size="small" color="#667eea" />
                 ) : (
                   <Text style={styles.photoButtonIcon}>📷</Text>
@@ -3515,22 +3747,26 @@ export default function MatchesScreen() {
           </TouchableWithoutFeedback>
           <TouchableOpacity
             onPress={async () => {
-              if (sendingMessage || uploadingImage) return;
+              if (sendingMessage || uploadingImage || uploadingVideo || uploadingAudio) return;
               if (pendingImageUri) {
                 const uri = pendingImageUri;
                 setPendingImageUri(null);
                 await uploadAndSendImage(uri);
+              } else if (pendingVideoUri) {
+                const uri = pendingVideoUri;
+                setPendingVideoUri(null);
+                await uploadAndSendVideo(uri);
               } else if (newMessage.trim()) {
                 handleSendMessage(newMessage.trim());
               }
             }}
-            disabled={sendingMessage || uploadingImage || (!newMessage.trim() && !pendingImageUri)}
+            disabled={sendingMessage || uploadingImage || uploadingVideo || uploadingAudio || (!newMessage.trim() && !pendingImageUri && !pendingVideoUri)}
             style={styles.sendButtonContainer}
             activeOpacity={0.7}
             hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
           >
             <LinearGradient
-              colors={sendingMessage || (!newMessage.trim() && !pendingImageUri) ? ['#a0aec0', '#718096'] : ['#667eea', '#764ba2', '#f093fb']}
+              colors={sendingMessage || (!newMessage.trim() && !pendingImageUri && !pendingVideoUri) ? ['#a0aec0', '#718096'] : ['#667eea', '#764ba2', '#f093fb']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.sendButton}

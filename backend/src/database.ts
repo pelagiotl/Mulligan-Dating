@@ -478,6 +478,13 @@ export async function initDatabase() {
   } catch (e) {
     // Column already exists, ignore
   }
+  // Add video_url and audio_url for chat video/voice
+  try {
+    await execSQL(`ALTER TABLE messages ADD COLUMN video_url ${usePostgres ? 'TEXT' : 'TEXT'}`);
+  } catch (e) { /* ignore */ }
+  try {
+    await execSQL(`ALTER TABLE messages ADD COLUMN audio_url ${usePostgres ? 'TEXT' : 'TEXT'}`);
+  } catch (e) { /* ignore */ }
 
   // Blocks table - users blocking other users
   await execSQL(`

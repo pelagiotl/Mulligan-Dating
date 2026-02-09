@@ -130,6 +130,50 @@ export async function uploadToCloudinary(
 }
 
 /**
+ * Upload a non-image file (video or raw/audio) to Cloudinary
+ */
+export async function uploadToCloudinaryMedia(
+  buffer: Buffer,
+  folder: string,
+  resourceType: 'video' | 'raw' = 'video',
+  publicId?: string
+): Promise<string> {
+  if (!isCloudinaryConfigured()) {
+    throw new Error('Cloudinary is not properly configured.');
+  }
+  if (!buffer || buffer.length === 0) {
+    throw new Error('Invalid buffer');
+  }
+  const maxSize = resourceType === 'video' ? 100 * 1024 * 1024 : 25 * 1024 * 1024; // 100MB video, 25MB audio
+  if (buffer.length > maxSize) {
+    throw new Error(`File too large (max ${maxSize / (1024 * 1024)}MB)`);
+  }
+  return new Promise((resolve, reject) => {
+    const uploadOptions: any = {
+      folder,
+      resource_type: resourceType,
+      timeout: 300000,
+    };
+    if (publicId) uploadOptions.public_id = publicId;
+    const uploadStream = cloudinary.uploader.upload_stream(
+      uploadOptions,
+      (error: any, result: any) => {
+        if (error) {
+          reject(new Error(error.message || 'Upload failed'));
+          return;
+        }
+        if (result?.secure_url) resolve(result.secure_url);
+        else reject(new Error('No URL returned'));
+      }
+    );
+    const readableStream = new Readable();
+    readableStream.push(buffer);
+    readableStream.push(null);
+    readableStream.pipe(uploadStream);
+  });
+}
+
+/**
  * Delete a file from Cloudinary by URL
  * @param url - The Cloudinary URL of the file to delete
  * @returns Promise<boolean> - true if deleted successfully

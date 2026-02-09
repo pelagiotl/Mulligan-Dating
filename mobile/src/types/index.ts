@@ -8,6 +8,8 @@ export interface User {
   email?: string | null;
   phoneNumber?: string | null;
   isAdmin?: boolean;
+  /** True if backend has a push token for this user (message/match notifications when app is closed). */
+  hasPushToken?: boolean;
 }
 
 export interface Profile {

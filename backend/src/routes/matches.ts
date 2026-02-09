@@ -5,8 +5,8 @@ import { authenticateToken, AuthRequest } from "../middleware/auth.js";
 import { generateWeeklyMatches, generateMatchExplanation, calculateProfileCompatibilityScore } from "../services/matching.js";
 import { recordSuccessSignal } from "../utils/successTracking.js";
 import { rateLimitAPI } from "../middleware/security.js";
-import { uploadChatImage } from "../middleware/upload.js";
-import { uploadToCloudinary, isCloudinaryConfigured } from "../services/cloudinary.js";
+import { uploadChatImage, uploadChatVideo, uploadChatAudio } from "../middleware/upload.js";
+import { uploadToCloudinary, uploadToCloudinaryMedia, isCloudinaryConfigured } from "../services/cloudinary.js";
 
 export const matchesRouter = Router();
 
@@ -798,15 +798,20 @@ matchesRouter.get("/:matchId/messages", authenticateToken, async (req: AuthReque
       return res.status(404).json({ error: "Match not found or not yet mutual" });
     }
 
+    // Return the most recent messages; cap at 5000 per match so responses stay bounded
+    const MESSAGES_LIMIT = 5000;
     const messagesResult = db
       .prepare(
-        `SELECT m.*, COALESCE(p.display_name, 'Unknown User') as sender_name
-         FROM messages m
-         LEFT JOIN profiles p ON p.user_id = m.sender_id
-         WHERE m.match_id = ?
-         ORDER BY m.sent_at ASC`
+        `SELECT * FROM (
+           SELECT m.*, COALESCE(p.display_name, 'Unknown User') as sender_name
+           FROM messages m
+           LEFT JOIN profiles p ON p.user_id = m.sender_id
+           WHERE m.match_id = ?
+           ORDER BY m.sent_at DESC
+           LIMIT ?
+         ) ORDER BY sent_at ASC`
       )
-      .all([matchId]);
+      .all([matchId, MESSAGES_LIMIT]);
     const messages = (messagesResult instanceof Promise
       ? await messagesResult
       : messagesResult) as any[];
@@ -827,6 +832,8 @@ matchesRouter.get("/:matchId/messages", authenticateToken, async (req: AuthReque
         id: m.id,
         content: m.content,
         imageUrl: m.image_url || null,
+        videoUrl: m.video_url || null,
+        audioUrl: m.audio_url || null,
         senderId: m.sender_id,
         senderName: m.sender_name,
         sentAt: m.sent_at,
@@ -882,18 +889,72 @@ matchesRouter.post("/:matchId/messages/upload-image", authenticateToken, rateLim
   }
 });
 
+// Upload chat video (returns videoUrl for use in send message)
+matchesRouter.post("/:matchId/messages/upload-video", authenticateToken, rateLimitAPI, (req: AuthRequest, res, next) => {
+  uploadChatVideo(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err instanceof Error ? err.message : "Video upload failed" });
+    next();
+  });
+}, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { matchId } = req.params;
+    const file = (req as any).file;
+    if (!file || !file.buffer) return res.status(400).json({ error: "No video file received" });
+    const matchResult = db.prepare(
+      `SELECT * FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?) AND stage IN ('stage1', 'stage2')`
+    ).get([matchId, userId, userId]);
+    const match = (matchResult instanceof Promise ? await matchResult : matchResult) as MatchRow | undefined;
+    if (!match) return res.status(404).json({ error: "Match not found or not yet mutual" });
+    if (!isCloudinaryConfigured()) return res.status(503).json({ error: "Video upload is not configured" });
+    const videoUrl = await uploadToCloudinaryMedia(file.buffer, 'chat-videos', 'video');
+    res.json({ videoUrl });
+  } catch (error) {
+    console.error("Chat video upload error:", error);
+    res.status(500).json({ error: error instanceof Error ? error.message : "Failed to upload video" });
+  }
+});
+
+// Upload chat audio / voice message (returns audioUrl for use in send message)
+matchesRouter.post("/:matchId/messages/upload-audio", authenticateToken, rateLimitAPI, (req: AuthRequest, res, next) => {
+  uploadChatAudio(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err instanceof Error ? err.message : "Audio upload failed" });
+    next();
+  });
+}, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { matchId } = req.params;
+    const file = (req as any).file;
+    if (!file || !file.buffer) return res.status(400).json({ error: "No audio file received" });
+    const matchResult = db.prepare(
+      `SELECT * FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?) AND stage IN ('stage1', 'stage2')`
+    ).get([matchId, userId, userId]);
+    const match = (matchResult instanceof Promise ? await matchResult : matchResult) as MatchRow | undefined;
+    if (!match) return res.status(404).json({ error: "Match not found or not yet mutual" });
+    if (!isCloudinaryConfigured()) return res.status(503).json({ error: "Audio upload is not configured" });
+    const audioUrl = await uploadToCloudinaryMedia(file.buffer, 'chat-audio', 'raw');
+    res.json({ audioUrl });
+  } catch (error) {
+    console.error("Chat audio upload error:", error);
+    res.status(500).json({ error: error instanceof Error ? error.message : "Failed to upload audio" });
+  }
+});
+
 // Send a message
 matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
     const { matchId } = req.params;
-    const { content, imageUrl } = req.body;
+    const { content, imageUrl, videoUrl, audioUrl } = req.body;
 
     const hasContent = content != null && typeof content === 'string' && content.trim().length > 0;
     const hasImage = imageUrl != null && typeof imageUrl === 'string' && imageUrl.trim().length > 0;
+    const hasVideo = videoUrl != null && typeof videoUrl === 'string' && videoUrl.trim().length > 0;
+    const hasAudio = audioUrl != null && typeof audioUrl === 'string' && audioUrl.trim().length > 0;
 
-    if (!hasContent && !hasImage) {
-      return res.status(400).json({ error: "Message content or image required" });
+    if (!hasContent && !hasImage && !hasVideo && !hasAudio) {
+      return res.status(400).json({ error: "Message content, image, video, or audio required" });
     }
 
     const { sanitizeText } = await import('../middleware/security.js');
@@ -904,8 +965,12 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
     }
 
     const finalImageUrl = hasImage ? imageUrl.trim() : null;
-    if (finalImageUrl && !/^https?:\/\//.test(finalImageUrl)) {
-      return res.status(400).json({ error: "Invalid image URL" });
+    const finalVideoUrl = hasVideo ? videoUrl.trim() : null;
+    const finalAudioUrl = hasAudio ? audioUrl.trim() : null;
+    for (const url of [finalImageUrl, finalVideoUrl, finalAudioUrl].filter(Boolean)) {
+      if (url && !/^https?:\/\//.test(url)) {
+        return res.status(400).json({ error: "Invalid attachment URL" });
+      }
     }
 
     // Verify user is part of this match and it's mutual
@@ -924,8 +989,8 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
 
     const messageId = uuidv4();
     const insertMessageResult = db.prepare(
-      `INSERT INTO messages (id, match_id, sender_id, content, image_url) VALUES (?, ?, ?, ?, ?)`
-    ).run([messageId, matchId, userId, sanitizedContent, finalImageUrl]);
+      `INSERT INTO messages (id, match_id, sender_id, content, image_url, video_url, audio_url) VALUES (?, ?, ?, ?, ?, ?, ?)`
+    ).run([messageId, matchId, userId, sanitizedContent, finalImageUrl, finalVideoUrl || null, finalAudioUrl || null]);
     if (insertMessageResult instanceof Promise) {
       await insertMessageResult;
     }
@@ -993,9 +1058,19 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
           : senderProfileResult) as { display_name: string } | undefined;
         const senderName = senderProfile?.display_name || 'Someone';
         if (tokenValid) {
-          const messagePreview = finalImageUrl
-            ? (sanitizedContent ? sanitizedContent.substring(0, 50) + (sanitizedContent.length > 50 ? '...' : '') : '📷 Photo')
-            : (sanitizedContent.length > 50 ? sanitizedContent.substring(0, 50) + '...' : sanitizedContent);
+          // Build a non-empty preview so the OS always shows the notification (empty body can hide it)
+          let messagePreview: string;
+          if (sanitizedContent && sanitizedContent.length > 0) {
+            messagePreview = sanitizedContent.length > 50 ? sanitizedContent.substring(0, 50) + '...' : sanitizedContent;
+          } else if (finalImageUrl) {
+            messagePreview = '📷 Photo';
+          } else if (finalVideoUrl) {
+            messagePreview = 'Video';
+          } else if (finalAudioUrl) {
+            messagePreview = 'Voice message';
+          } else {
+            messagePreview = 'New message';
+          }
           const pushSent = await sendMessagePushNotification(token!, senderName, messagePreview, matchId, userId);
           if (pushSent) {
             console.log(`✅ Push (message HTTP) sent to ${otherUserId}`);
@@ -1030,6 +1105,8 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
           matchId,
           content: sanitizedContent,
           imageUrl: finalImageUrl,
+          videoUrl: finalVideoUrl || null,
+          audioUrl: finalAudioUrl || null,
           senderId: userId,
           senderName: senderProfile?.display_name || 'Someone',
           sentAt: new Date().toISOString(),
@@ -1056,6 +1133,8 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
         id: messageId,
         content: sanitizedContent,
         imageUrl: finalImageUrl,
+        videoUrl: finalVideoUrl || null,
+        audioUrl: finalAudioUrl || null,
         senderId: userId,
         senderName: senderProfile?.display_name || 'Someone',
         sentAt: new Date().toISOString(),
@@ -1685,7 +1764,17 @@ matchesRouter.post("/:matchId/game-request/:requestId/respond", authenticateToke
   }
 });
 
-// Get Truth or Dare game state (spice level lobby)
+// Helper: more conservative of two spice choices (no turn logic)
+function moreConservativeSpice(a: string | null, b: string | null): 'pg13' | 'ratedr' | 'spicy' | null {
+  if (!a || !b) return null;
+  const order: Record<string, number> = { pg13: 1, ratedr: 2, spicy: 3 };
+  const oa = order[a] ?? 1;
+  const ob = order[b] ?? 1;
+  const level = oa <= ob ? a : b;
+  return level === 'ratedr' ? 'ratedr' : level === 'spicy' ? 'spicy' : 'pg13';
+}
+
+// Get Truth or Dare game state — both users pick version; no turns
 matchesRouter.get("/:matchId/truth-or-dare/state", authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
@@ -1703,9 +1792,7 @@ matchesRouter.get("/:matchId/truth-or-dare/state", authenticateToken, async (req
     }
 
     const isUser1 = match.user1_id === userId;
-    const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
 
-    // Truth or Dare requires token unlock (valid for 7 minutes per token)
     const unlockRow = db.prepare('SELECT unlocked_by_user_id, unlocked_until FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'truth_or_dare']) as { unlocked_by_user_id: string; unlocked_until: string | null } | undefined;
     if (!unlockRow) {
       return res.status(400).json({ error: "Truth or Dare must be unlocked with a Mulligan token to play." });
@@ -1714,43 +1801,29 @@ matchesRouter.get("/:matchId/truth-or-dare/state", authenticateToken, async (req
     if (until && until <= new Date()) {
       return res.status(400).json({ error: "Your Truth or Dare session expired. Use another token to play for 7 more minutes." });
     }
-    const tokenUnlocked = true;
-    const unlockedByUserId = unlockRow.unlocked_by_user_id;
 
-    // Get or create game state
     let gameResult = db.prepare('SELECT * FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
     let game = (gameResult instanceof Promise ? await gameResult : gameResult) as any;
 
     if (!game) {
       db.prepare(`INSERT INTO truth_or_dare_games (match_id) VALUES (?)`).run([matchId]);
-      game = { match_id: matchId, user1_spice_choice: null, user2_spice_choice: null, spice_level: null, current_turn_user_id: null };
+      game = { match_id: matchId, user1_spice_choice: null, user2_spice_choice: null, spice_level: null };
     }
 
-    const yourSpiceChoice = isUser1 ? game.user1_spice_choice : game.user2_spice_choice;
-    const theirSpiceChoice = isUser1 ? game.user2_spice_choice : game.user1_spice_choice;
-
-    // Unlocker picks rating, game ready when spice set, User B (non-unlocker) goes first
-    const spiceReady = !!game.spice_level;
-
-    const isUnlocker = tokenUnlocked && unlockedByUserId === userId;
-    const needsSpiceChoiceFromUnlocker = tokenUnlocked && !game.spice_level && isUnlocker;
-    // Fallback when current_turn_user_id is null: non-unlocker goes first (same ID for both users, unlike otherUserId which varies per requester)
-    const nonUnlockerId = unlockedByUserId ? (match.user1_id === unlockedByUserId ? match.user2_id : match.user1_id) : null;
-    const currentTurnUserId = game.current_turn_user_id ?? (tokenUnlocked && game.spice_level ? nonUnlockerId : null);
-    const isYourTurn = !!currentTurnUserId && currentTurnUserId === userId;
+    const yourSpiceChoice = (isUser1 ? game.user1_spice_choice : game.user2_spice_choice) as 'pg13' | 'ratedr' | 'spicy' | null;
+    const theirSpiceChoice = (isUser1 ? game.user2_spice_choice : game.user1_spice_choice) as 'pg13' | 'ratedr' | 'spicy' | null;
+    const spiceReady = !!(yourSpiceChoice && theirSpiceChoice);
+    const spiceLevel = spiceReady ? moreConservativeSpice(game.user1_spice_choice, game.user2_spice_choice) : (game.spice_level as 'pg13' | 'ratedr' | 'spicy' | null);
     const currentPrompt = game.current_prompt ?? null;
     const currentPromptType = (game.current_prompt_type === 'truth' || game.current_prompt_type === 'dare') ? game.current_prompt_type : null;
 
     res.json({
-      yourSpiceChoice,
-      theirSpiceChoice,
+      yourSpiceChoice: yourSpiceChoice ?? null,
+      theirSpiceChoice: theirSpiceChoice ?? null,
       spiceReady,
-      spiceLevel: game.spice_level,
-      tokenUnlocked: !!tokenUnlocked,
-      unlockedByUserId,
-      needsSpiceChoiceFromUnlocker: !!needsSpiceChoiceFromUnlocker,
-      currentTurnUserId,
-      isYourTurn: !!isYourTurn,
+      spiceLevel,
+      tokenUnlocked: true,
+      needsSpiceChoiceFromUnlocker: false,
       currentPrompt,
       currentPromptType,
       unlockedUntil: unlockRow.unlocked_until ?? null,
@@ -1762,7 +1835,7 @@ matchesRouter.get("/:matchId/truth-or-dare/state", authenticateToken, async (req
   }
 });
 
-// Set Truth or Dare spice choice
+// Set Truth or Dare spice choice — both users pick; when both have chosen, game is ready
 matchesRouter.post("/:matchId/truth-or-dare/spice-choice", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
@@ -1785,8 +1858,8 @@ matchesRouter.post("/:matchId/truth-or-dare/spice-choice", authenticateToken, ra
     }
 
     const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
+    const isUser1 = match.user1_id === userId;
 
-    // Truth or Dare requires token unlock (valid for 7 minutes per token)
     const unlockRow = db.prepare('SELECT unlocked_by_user_id, unlocked_until FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'truth_or_dare']) as { unlocked_by_user_id: string; unlocked_until: string | null } | undefined;
     if (!unlockRow) {
       return res.status(400).json({ error: "Truth or Dare must be unlocked with a Mulligan token to play." });
@@ -1796,71 +1869,42 @@ matchesRouter.post("/:matchId/truth-or-dare/spice-choice", authenticateToken, ra
       return res.status(400).json({ error: "Your Truth or Dare session expired. Use another token to play for 7 more minutes." });
     }
 
-    const isUnlocker = unlockRow.unlocked_by_user_id === userId;
+    let gameResult = db.prepare('SELECT * FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
+    let game = (gameResult instanceof Promise ? await gameResult : gameResult) as any;
 
-    // Unlocker sets initial spice; both users can change spice later
-    const existingResult = db.prepare('SELECT match_id, spice_level FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
-    const existing = existingResult instanceof Promise ? await existingResult : existingResult;
-    const hasSpiceAlready = !!existing && !!(existing as any).spice_level;
-
-    if (!hasSpiceAlready && !isUnlocker) {
-      return res.status(400).json({ error: "Wait for them to set the rating first." });
-    }
-
-    // Set or update spice_level; when unlocker picks initially, unlocker goes first (so they can play immediately)
-    if (!existing) {
-      db.prepare(`INSERT INTO truth_or_dare_games (match_id, spice_level, current_turn_user_id) VALUES (?, ?, ?)`).run([matchId, choice, userId]);
-    } else if (!hasSpiceAlready) {
-      db.prepare(`UPDATE truth_or_dare_games SET spice_level = ?, current_turn_user_id = ?, current_prompt = NULL, current_prompt_type = NULL, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?`).run([choice, userId, matchId]);
+    if (!game) {
+      db.prepare(
+        `INSERT INTO truth_or_dare_games (match_id, user1_spice_choice, user2_spice_choice, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)`
+      ).run([matchId, isUser1 ? choice : null, isUser1 ? null : choice]);
     } else {
-      // Both users can change spice when game is already running
-      db.prepare(`UPDATE truth_or_dare_games SET spice_level = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?`).run([choice, matchId]);
+      db.prepare(
+        `UPDATE truth_or_dare_games SET ${isUser1 ? 'user1_spice_choice' : 'user2_spice_choice'} = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?`
+      ).run([choice, matchId]);
     }
 
-    // Get updated state
-    const gameResult = db.prepare('SELECT * FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
-    const game = (gameResult instanceof Promise ? await gameResult : gameResult) as any;
-    const spiceReady = !!game.spice_level;
-
-    // When unlocker selects spice initially, add chat notification for User B
-    if (!hasSpiceAlready && isUnlocker && spiceReady) {
+    gameResult = db.prepare('SELECT * FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
+    game = (gameResult instanceof Promise ? await gameResult : gameResult) as any;
+    const c1 = game.user1_spice_choice as string | null;
+    const c2 = game.user2_spice_choice as string | null;
+    const spiceReady = !!(c1 && c2);
+    if (spiceReady) {
+      const level = moreConservativeSpice(c1, c2);
+      db.prepare(`UPDATE truth_or_dare_games SET spice_level = ?, current_prompt = NULL, current_prompt_type = NULL, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?`).run([level, matchId]);
+      game.spice_level = level;
       try {
         const notifyMsgId = uuidv4();
-        const notifyContent = '🎲 Truth or Dare is starting! Tap the 🎲 button to play.';
-        db.prepare(
-          `INSERT INTO messages (id, match_id, sender_id, content) VALUES (?, ?, ?, ?)`
-        ).run([notifyMsgId, matchId, userId, notifyContent]);
-
+        const notifyContent = '🎲 Truth or Dare is ready! Pick Truth or Dare anytime.';
+        db.prepare(`INSERT INTO messages (id, match_id, sender_id, content) VALUES (?, ?, ?, ?)`).run([notifyMsgId, matchId, userId, notifyContent]);
         const senderProfile = db.prepare('SELECT display_name FROM profiles WHERE user_id = ?').get([userId]) as { display_name: string } | undefined;
         const senderName = senderProfile?.display_name || 'Someone';
-
         const { getIO } = await import('../socket.js');
         const io = getIO();
-        if (io) {
-          io.to(`match:${matchId}`).emit('new_message', {
-            id: notifyMsgId,
-            matchId,
-            content: notifyContent,
-            imageUrl: null,
-            senderId: userId,
-            senderName,
-            sentAt: new Date().toISOString(),
-            readAt: null,
-          });
-        }
-
-        // Push notification to User B
+        if (io) io.to(`match:${matchId}`).emit('new_message', { id: notifyMsgId, matchId, content: notifyContent, imageUrl: null, senderId: userId, senderName, sentAt: new Date().toISOString(), readAt: null });
         const { sendMessagePushNotification, isPushNotificationConfigured, isExpoPushToken } = await import('../services/pushNotifications.js');
         if (isPushNotificationConfigured()) {
           const otherTokenRow = db.prepare('SELECT push_token FROM users WHERE id = ?').get([otherUserId]) as { push_token: string | null } | undefined;
           if (otherTokenRow?.push_token && isExpoPushToken(otherTokenRow.push_token)) {
-            await sendMessagePushNotification(
-              otherTokenRow.push_token,
-              senderName,
-              notifyContent,
-              matchId,
-              userId
-            );
+            await sendMessagePushNotification(otherTokenRow.push_token, senderName, notifyContent, matchId, userId);
           }
         }
       } catch (e) {
@@ -1868,30 +1912,25 @@ matchesRouter.post("/:matchId/truth-or-dare/spice-choice", authenticateToken, ra
       }
     }
 
-    // Emit socket event to notify other user
     try {
       const { getIO } = await import('../socket.js');
       const io = getIO();
-      if (io) {
-        io.to(`match:${matchId}`).emit('truth_or_dare_updated', { matchId });
-      }
+      if (io) io.to(`match:${matchId}`).emit('truth_or_dare_updated', { matchId });
     } catch (e) {
       console.warn('Socket emit failed:', e);
     }
 
-    const nonUnlockerId = match.user1_id === unlockRow.unlocked_by_user_id ? match.user2_id : match.user1_id;
-    const currentTurnUserId = spiceReady ? (game.current_turn_user_id ?? nonUnlockerId) : null;
-    const isYourTurn = !!currentTurnUserId && currentTurnUserId === userId;
+    const yourSpiceChoice = choice as 'pg13' | 'ratedr' | 'spicy';
+    const theirSpiceChoice = (isUser1 ? game.user2_spice_choice : game.user1_spice_choice) as 'pg13' | 'ratedr' | 'spicy' | null;
+    const spiceLevel = spiceReady ? moreConservativeSpice(game.user1_spice_choice, game.user2_spice_choice) : null;
 
     res.json({
-      yourSpiceChoice: choice,
-      theirSpiceChoice: null,
+      yourSpiceChoice,
+      theirSpiceChoice: theirSpiceChoice ?? null,
       spiceReady,
-      spiceLevel: spiceReady ? (game.spice_level || choice) : null,
+      spiceLevel,
       tokenUnlocked: true,
-      unlockedByUserId: unlockRow.unlocked_by_user_id,
-      currentTurnUserId,
-      isYourTurn: !!spiceReady && isYourTurn,
+      needsSpiceChoiceFromUnlocker: false,
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -1922,11 +1961,8 @@ matchesRouter.post("/:matchId/truth-or-dare", authenticateToken, rateLimitAPI, a
       return res.status(404).json({ error: "Match not found" });
     }
 
-    const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
-
-    // Get game state
     const gameResult = db.prepare('SELECT * FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
-    const game = (gameResult instanceof Promise ? await gameResult : gameResult) as { spice_level: string | null; current_turn_user_id: string | null } | undefined;
+    const game = (gameResult instanceof Promise ? await gameResult : gameResult) as { spice_level: string | null } | undefined;
 
     const unlockRowToD = db.prepare('SELECT unlocked_until FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'truth_or_dare']) as { unlocked_until: string | null } | undefined;
     if (!unlockRowToD) {
@@ -1937,18 +1973,7 @@ matchesRouter.post("/:matchId/truth-or-dare", authenticateToken, rateLimitAPI, a
       return res.status(400).json({ error: "Your Truth or Dare session expired. Use another token to play for 7 more minutes." });
     }
     if (!game?.spice_level) {
-      return res.status(400).json({ error: "Game not ready. Set spice level first." });
-    }
-
-    // Enforce turn order - except "Another one" allows same user to get a new prompt without switching
-    if (!anotherOne) {
-      if (game.current_turn_user_id && game.current_turn_user_id !== userId) {
-        return res.status(400).json({ error: "Not your turn. Wait for them to pick." });
-      }
-    } else {
-      // "Another one": must be the user who just got a prompt (current turn is other user - we switched after first prompt)
-      // Allow requester to get another prompt; we'll keep turn as requester so they can keep trying
-      // No turn check - "another one" means "give me another option"
+      return res.status(400).json({ error: "Game not ready. Both of you need to pick a version first." });
     }
 
     const level = (game.spice_level === 'ratedr' ? 'ratedr' : game.spice_level === 'spicy' ? 'spicy' : 'pg13') as 'pg13' | 'ratedr' | 'spicy';
@@ -1989,14 +2014,7 @@ matchesRouter.post("/:matchId/truth-or-dare", authenticateToken, rateLimitAPI, a
     }
 
     const newUsedPrompts = [...usedPrompts, prompt];
-    // Store prompt and append to session's used list so it won't appear again this game
     db.prepare('UPDATE truth_or_dare_games SET current_prompt = ?, current_prompt_type = ?, used_prompts = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([prompt, type, JSON.stringify(newUsedPrompts), matchId]);
-    if (anotherOne) {
-      // Keep turn as requester - they're still deciding
-      db.prepare('UPDATE truth_or_dare_games SET current_turn_user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([userId, matchId]);
-    } else {
-      db.prepare('UPDATE truth_or_dare_games SET current_turn_user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([otherUserId, matchId]);
-    }
     try {
       const { getIO } = await import('../socket.js');
       const io = getIO();
@@ -2011,7 +2029,6 @@ matchesRouter.post("/:matchId/truth-or-dare", authenticateToken, rateLimitAPI, a
   }
 });
 
-// Switch turn when user sends prompt to chat (so the other user can pick next)
 matchesRouter.post("/:matchId/truth-or-dare/send-to-chat", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
@@ -2022,8 +2039,6 @@ matchesRouter.post("/:matchId/truth-or-dare/send-to-chat", authenticateToken, ra
     const match = (matchResult instanceof Promise ? await matchResult : matchResult) as { user1_id: string; user2_id: string } | undefined;
     if (!match) return res.status(404).json({ error: "Match not found" });
 
-    const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
-    db.prepare('UPDATE truth_or_dare_games SET current_turn_user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([otherUserId, matchId]);
     try {
       const { getIO } = await import('../socket.js');
       const io = getIO();
@@ -2196,15 +2211,22 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
       return res.status(404).json({ error: "Match not found" });
     }
 
-    const unlockRow = db.prepare('SELECT 1 FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'never_have_i_ever']) as { 1?: number } | undefined;
+    const unlockRow = db.prepare('SELECT unlocked_by_user_id FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'never_have_i_ever']) as { unlocked_by_user_id?: string } | undefined;
     if (!unlockRow) {
       return res.status(400).json({ error: "Never Have I Ever must be unlocked with a Mulligan token to play." });
     }
 
     const { submitAnswer, submitTurnAnswer } = await import('../services/neverHaveIEver.js');
-    const rowResult = db.prepare('SELECT current_turn_user_id FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
-    const row = (rowResult instanceof Promise ? await rowResult : rowResult) as { current_turn_user_id: string | null } | undefined;
-    const isTurnBased = !!row?.current_turn_user_id;
+    const rowResult = db.prepare('SELECT spice_level, current_prompt, current_turn_user_id FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
+    let row = (rowResult instanceof Promise ? await rowResult : rowResult) as { spice_level: string | null; current_prompt: string | null; current_turn_user_id: string | null } | undefined;
+    let isTurnBased = !!row?.current_turn_user_id;
+    if (!isTurnBased && row?.spice_level && row?.current_prompt) {
+      const firstTurnUserId = unlockRow.unlocked_by_user_id
+        ? (match.user1_id === unlockRow.unlocked_by_user_id ? match.user2_id : match.user1_id)
+        : match.user1_id;
+      db.prepare('UPDATE never_have_i_ever_games SET current_turn_user_id = ?, updated_at = ? WHERE match_id = ?').run([firstTurnUserId, new Date().toISOString(), matchId]);
+      isTurnBased = true;
+    }
 
     const { state, roundResult } = isTurnBased
       ? await submitTurnAnswer(matchId, userId, match, answer as 'have' | 'havent')

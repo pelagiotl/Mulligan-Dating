@@ -129,16 +129,21 @@ export async function generateDatePlan(
   const user1Id = match.user1_id;
   const user2Id = match.user2_id;
 
-  // Get user locations
+  // Get user locations (both users' areas so we pull venues from either local area)
   const user1Location = await getUserLocation(user1Id);
   const user2Location = await getUserLocation(user2Id);
 
-  // Determine meeting location (prefer midpoint or user1's location)
-  const meetingLocation = user1Location
-    ? `${user1Location.city}, ${user1Location.state}`
-    : user2Location
-    ? `${user2Location.city}, ${user2Location.state}`
-    : 'your area';
+  // Use both users' areas: when both have locations, pick one at random this time so over time we pull from both
+  const meetingLocation: string = (() => {
+    if (user1Location && user2Location) {
+      const loc1 = `${user1Location.city}, ${user1Location.state}`;
+      const loc2 = `${user2Location.city}, ${user2Location.state}`;
+      return loc1 === loc2 ? loc1 : [loc1, loc2][Math.floor(Math.random() * 2)];
+    }
+    if (user1Location) return `${user1Location.city}, ${user1Location.state}`;
+    if (user2Location) return `${user2Location.city}, ${user2Location.state}`;
+    return 'your area';
+  })();
 
   // Search for venues based on shared interests
   // Add variation: try different interests or generic searches to get different venues
@@ -151,52 +156,67 @@ export async function generateDatePlan(
     priceLevel?: number;
   }> = [];
 
-  // Get existing plans to avoid suggesting the same venue
+  // Get existing plans to avoid suggesting the same venue and to tell AI what not to repeat
   const existingPlansResult = db
-    .prepare('SELECT venue_name FROM date_plans WHERE match_id = ? AND venue_name IS NOT NULL ORDER BY created_at DESC LIMIT 5')
+    .prepare('SELECT title, venue_name FROM date_plans WHERE match_id = ? ORDER BY created_at DESC LIMIT 10')
     .all([matchId]);
   const existingPlans = (existingPlansResult instanceof Promise
     ? await existingPlansResult
-    : existingPlansResult) as Array<{ venue_name: string }>;
-  const existingVenueNames = new Set(existingPlans.map(p => p.venue_name.toLowerCase()));
+    : existingPlansResult) as Array<{ title: string | null; venue_name: string | null }>;
+  const existingVenueNames = new Set(
+    existingPlans.filter(p => p.venue_name).map(p => (p.venue_name as string).toLowerCase())
+  );
+  const existingTitles = existingPlans.filter(p => p.title).map(p => (p.title as string).trim()).slice(0, 8);
 
-  // Try multiple interest-based searches to get variety
+  // Venue type keywords: wholesome variety (no bars). Park, bookstore, coffee, etc.
+  const genericKeywords = [
+    'restaurant', 'cafe', 'coffee shop', 'park', 'museum', 'activity', 'entertainment',
+    'arcade', 'mini golf', 'bookstore', 'art gallery', 'comedy club',
+    'farmers market', 'food truck', 'hiking trail', 'beach', 'bowling', 'ice skating',
+    'brunch spot', 'botanical garden', 'aquarium', 'tea house', 'juice bar',
+    'playground', 'scenic overlook', 'nature center', 'library', 'board game cafe',
+    'pottery studio', 'art class', 'cooking class', 'outdoor movie', 'food hall',
+  ];
+
+  // Try interest-based searches first when both users have shared interests
   if (sharedInterests.length > 0) {
-    // Shuffle interests to try different ones each time
     const shuffledInterests = [...sharedInterests].sort(() => Math.random() - 0.5);
     for (const interest of shuffledInterests) {
       const interestVenues = await searchVenues(meetingLocation, interest);
-      // Filter out venues we've already suggested
       const newVenues = interestVenues.filter(v => !existingVenueNames.has(v.name.toLowerCase()));
       if (newVenues.length > 0) {
         venues = newVenues;
         break;
       }
     }
-    
-    // If still no new venues, try generic searches with different keywords
-    if (venues.length === 0) {
-      const genericKeywords = ['restaurant', 'cafe', 'park', 'museum', 'activity', 'entertainment'];
-      for (const keyword of genericKeywords.sort(() => Math.random() - 0.5)) {
-        const keywordVenues = await searchVenues(meetingLocation, keyword);
-        const newVenues = keywordVenues.filter(v => !existingVenueNames.has(v.name.toLowerCase()));
-        if (newVenues.length > 0) {
-          venues = newVenues;
-          break;
-        }
+  }
+
+  // If no venues yet, try diverse generic types (park, bookstore, coffee, etc.) so we get variety
+  if (venues.length === 0) {
+    for (const keyword of genericKeywords.sort(() => Math.random() - 0.5)) {
+      const keywordVenues = await searchVenues(meetingLocation, keyword);
+      const newVenues = keywordVenues.filter(v => !existingVenueNames.has(v.name.toLowerCase()));
+      if (newVenues.length > 0) {
+        venues = newVenues;
+        break;
       }
     }
   }
 
-  // If still no venues found, try generic search
+  // Last resort: single generic "activities" search
   if (venues.length === 0) {
     const genericVenues = await searchVenues(meetingLocation);
     venues = genericVenues.filter(v => !existingVenueNames.has(v.name.toLowerCase()));
-    // If all venues were already used, just use any venue
     if (venues.length === 0) {
       venues = genericVenues;
     }
   }
+
+  // Pick ONE venue for this plan and use it for both the AI prompt and the saved plan
+  // (Previously we told AI about venues[0] but saved a random venue → description didn't match.)
+  const selectedVenueForPlan = venues.length > 0
+    ? venues[Math.floor(Math.random() * Math.min(venues.length, 5))]
+    : null;
 
   // Generate date plan using AI
   const openaiApiKey = process.env.OPENAI_API_KEY;
@@ -210,40 +230,69 @@ export async function generateDatePlan(
       const { default: OpenAI } = await import('openai');
       const openai = new OpenAI({ apiKey: openaiApiKey });
 
-      const venueInfo = venues.length > 0
-        ? `Suggested venue: ${venues[0].name} at ${venues[0].address}`
-        : 'No specific venue found, suggest a general activity';
+      const venueInfo = selectedVenueForPlan
+        ? `THE date must be at this exact venue. Use ONLY this venue in the description and do not mention any other place: ${selectedVenueForPlan.name} at ${selectedVenueForPlan.address}`
+        : 'No specific venue found, suggest a general activity (do not invent a specific venue name).';
 
       const interestsText = sharedInterests.length > 0
         ? `Shared interests: ${sharedInterests.join(', ')}`
         : 'No specific shared interests listed';
 
-      // Add variation to the prompt to ensure different plans each time
+      const avoidText = existingTitles.length > 0
+        ? `\nCRITICAL: Do NOT suggest anything similar to these recent plans for this couple: ${existingTitles.join(' | ')}. Pick a completely different type of date (different activity, vibe, and title).\n`
+        : '';
+
+      // Many wholesome date-type hints for boundless variety (no bars/alcohol focus)
       const variationHints = [
-        'Make this plan unique and different from typical first dates.',
-        'Think of creative, unexpected activities that stand out.',
-        'Focus on experiences that create memorable moments.',
-        'Suggest something that allows for genuine conversation and connection.',
-        'Consider outdoor activities if weather permits, or cozy indoor spaces.',
+        'Suggest a low-key activity like mini golf, arcade, or bowling — fun and casual.',
+        'Suggest something creative: pottery class, paint-and-sip, or a craft workshop.',
+        'Suggest a food-focused date: food hall, food trucks, or a cooking class.',
+        'Suggest an outdoor date: picnic, botanical garden, farmers market, or scenic walk.',
+        'Suggest a cultural date: museum, gallery, indie cinema, or live comedy.',
+        'Suggest a cozy date: bookstore café, brunch spot, or tea house with a view.',
+        'Suggest an active date: hiking, bike ride, ice skating, or beach day.',
+        'Suggest something playful: escape room, trivia night, or board game café.',
+        'Suggest a romantic-but-casual date: sunset spot, stargazing, or waterfront walk.',
+        'Suggest a niche interest date: record store, vintage market, or flea market.',
+        'Suggest a sweet-tooth date: dessert café, chocolate tasting, or donut tour.',
+        'Suggest a nature date: aquarium, zoo, or nature center.',
+        'Suggest a local-discovery date: neighborhood walk, hidden gems, or street art tour.',
+        'Suggest a morning date: sunrise coffee, breakfast spot, or morning market.',
+        'Suggest a competitive-but-fun date: axe throwing, go-karts, or batting cages.',
+        'Suggest a chill-and-talk date: tea house, juice bar, or quiet café.',
+        'Suggest a music date: vinyl listening, open mic, or small concert (no bar focus).',
+        'Suggest a seasonal date: holiday market, outdoor movie, or fall foliage walk.',
+        'Suggest something unexpected: trampoline park, karaoke, or a themed pop-up.',
+        'Suggest a learning date: cooking class, art class, or dance lesson.',
+        'Suggest a scenic date: scenic overlook, lakeside, or garden.',
+        'Suggest a cozy indoor date: library, board game café, or bookstore.',
+        'Suggest an active outdoor date: kayaking, paddleboarding, or bike trail.',
+        'Suggest a food adventure: food hall, food trucks, or tasting tour (non-alcoholic).',
+        'Suggest a creative date: DIY workshop, craft fair, or maker space.',
+        'Suggest a relaxed date: park bench, waterfront bench, or café patio.',
       ];
       const randomVariation = variationHints[Math.floor(Math.random() * variationHints.length)];
 
-      const prompt = `Create a FIRST DATE plan for a dating app. This should be DIFFERENT and UNIQUE from other date plans.
+      const prompt = `Create a FIRST DATE plan for a dating app. This must be DIFFERENT from any plan suggested before for this couple.
 ${interestsText}
 Location: ${meetingLocation}
 ${venueInfo}
+${avoidText}
 
-${randomVariation}
+This time: ${randomVariation}
+
+Keep the date wholesome: do NOT suggest bars, wine bars, breweries, or alcohol-focused venues. Prefer coffee, food, activities, outdoors, and low-key spots.
+
+There is no limit to date ideas — be wildly creative and vary the type every time (outdoor, creative, food, culture, activity, cozy, etc.).
 
 Generate a creative, engaging first date plan that:
 - Is appropriate for a first meeting (public, safe, not too intimate)
 - References shared interests if available, but be creative
-- Includes 3-5 conversation topics to help break the ice (make them unique and interesting)
+- Includes 3-5 conversation topics to help break the ice (make them unique)
 - Suggests a budget range (low/medium/high)
 - Is specific and actionable
-- Is DIFFERENT from typical coffee dates or dinner dates - be creative!
-
-IMPORTANT: Make this plan unique. If you've suggested similar plans before, think of something different this time.
+- Has a short, catchy title that is NOT the same idea as the recent plans listed above
+- If a specific venue was provided above, the description MUST describe the date at THAT venue only — do not mention or suggest any other business or place name.
 
 Return ONLY a JSON object with this exact format:
 {
@@ -304,10 +353,8 @@ Return ONLY a JSON object with this exact format:
 
   // Create date plan
   const planId = uuidv4();
-  // Select a random venue from the available venues (not always the first one)
-  const selectedVenue = venues.length > 0 
-    ? venues[Math.floor(Math.random() * Math.min(venues.length, 5))] // Pick from first 5 venues randomly
-    : null;
+  // Use the same venue we already chose for the AI prompt so description and venue always match
+  const selectedVenue = selectedVenueForPlan;
 
   // Suggest date/time (7 days from now, 7 PM)
   const suggestedDate = new Date();

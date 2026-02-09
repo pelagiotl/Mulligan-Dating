@@ -446,7 +446,7 @@ export default function DateBlueprint({ matchId, socket, currentUserId, headerMo
                         >
                           <View style={styles.actionButtonInner}>
                             <Text style={styles.regenerateButtonText} numberOfLines={1}>
-                              {updating ? 'Generating...' : 'Regenerate new date plan'}
+                              {updating ? 'Generating...' : 'New date plan'}
                             </Text>
                           </View>
                         </TouchableOpacity>
@@ -890,7 +890,7 @@ export default function DateBlueprint({ matchId, socket, currentUserId, headerMo
                     >
                       <View style={styles.actionButtonInner}>
                         <Text style={styles.regenerateButtonText} numberOfLines={1}>
-                          {updating ? 'Generating...' : 'Regenerate new date plan'}
+                          {updating ? 'Generating...' : 'New date plan'}
                         </Text>
                       </View>
                     </TouchableOpacity>

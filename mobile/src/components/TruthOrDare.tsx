@@ -148,9 +148,6 @@ interface GameState {
   spiceLevel: 'pg13' | 'ratedr' | 'spicy' | null;
   tokenUnlocked?: boolean;
   needsSpiceChoiceFromUnlocker?: boolean;
-  currentTurnUserId?: string | null;
-  isYourTurn?: boolean;
-  unlockedByUserId?: string | null;
   currentPrompt?: string | null;
   currentPromptType?: 'truth' | 'dare' | null;
   unlockedUntil?: string | null;
@@ -292,13 +289,7 @@ export default function TruthOrDare({
       });
       const recentlyRequestedAnother = Date.now() - lastAnotherOneAtRef.current < 3000;
       const alreadyShowingPrompt = stepRef.current === 'prompt';
-      // Only apply server prompt when (1) we asked for "another one" or (2) it's the other player's prompt (not our turn)
-      // When it's our turn we must stay on 'choose' so the user can pick Truth or Dare; don't overwrite with stale prompt
-      const shouldApplyPromptFromServer =
-        data.currentPrompt &&
-        data.currentPromptType &&
-        (recentlyRequestedAnother || (!alreadyShowingPrompt && !data.isYourTurn));
-      if (shouldApplyPromptFromServer) {
+      if (recentlyRequestedAnother && data.currentPrompt && data.currentPromptType) {
         setPrompt(data.currentPrompt);
         setPromptType(data.currentPromptType);
         setStep('prompt');
@@ -308,8 +299,6 @@ export default function TruthOrDare({
       if (alreadyShowingPrompt) return;
       if (data.spiceReady && data.spiceLevel) {
         setStep('choose');
-      } else if (data.needsSpiceChoiceFromUnlocker || (data.tokenUnlocked && !data.spiceLevel)) {
-        setStep('lobby');
       } else {
         setStep('lobby');
       }
@@ -592,9 +581,9 @@ export default function TruthOrDare({
                   <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#fff" /><Text style={styles.loadingText}>Loading...</Text></View>
                 ) : step === 'lobby' ? (
                   <View style={styles.lobbyContainer}>
-                    {gameState?.needsSpiceChoiceFromUnlocker ? (
+                    {!gameState?.yourSpiceChoice ? (
                       <>
-                        <Text style={styles.lobbyTitle}>Pick a rating to unlock the game for both of you</Text>
+                        <Text style={styles.lobbyTitle}>Pick a version</Text>
                         <View style={styles.spicePills}>
                           <TouchableOpacity onPress={() => handleSetSpiceChoice('pg13')} style={[styles.spicePill, gameState?.yourSpiceChoice === 'pg13' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.yourSpiceChoice === 'pg13' && styles.spicePillTextActive]}>PG-13</Text></TouchableOpacity>
                           <TouchableOpacity onPress={() => handleSetSpiceChoice('ratedr')} style={[styles.spicePill, gameState?.yourSpiceChoice === 'ratedr' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.yourSpiceChoice === 'ratedr' && styles.spicePillTextActive]}>Rated R</Text></TouchableOpacity>
@@ -602,7 +591,7 @@ export default function TruthOrDare({
                         </View>
                       </>
                     ) : (
-                      <Text style={styles.lobbyHint}>Waiting for them to set the rating...</Text>
+                      <Text style={styles.lobbyHint}>Waiting for them to pick a version...</Text>
                     )}
                   </View>
                 ) : step === 'choose' ? (
@@ -617,17 +606,11 @@ export default function TruthOrDare({
                         </View>
                       </>
                     ) : null}
-                    {gameState?.tokenUnlocked && !gameState?.isYourTurn ? (
-                      <Text style={styles.lobbyHint}>Their turn — waiting for them to pick Truth or Dare</Text>
-                    ) : (
-                      <>
-                        <Text style={styles.chooseSubtitle}>Then pick Truth or Dare</Text>
-                        <View style={styles.chooseRow}>
-                          <TouchableOpacity onPress={() => handleChoose('truth')} style={styles.choiceButton} activeOpacity={0.8}><LinearGradient colors={['#7c4dff', '#b388ff', '#651fff']} style={styles.choiceGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.choiceEmoji}>✨</Text><Text style={styles.choiceText}>Truth</Text></LinearGradient></TouchableOpacity>
-                          <TouchableOpacity onPress={() => handleChoose('dare')} style={styles.choiceButton} activeOpacity={0.8}><LinearGradient colors={['#ff1744', '#ff4081', '#f50057']} style={styles.choiceGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.choiceEmoji}>🔥</Text><Text style={styles.choiceText}>Dare</Text></LinearGradient></TouchableOpacity>
-                        </View>
-                      </>
-                    )}
+                    <Text style={styles.chooseSubtitle}>Pick Truth or Dare</Text>
+                    <View style={styles.chooseRow}>
+                      <TouchableOpacity onPress={() => handleChoose('truth')} style={styles.choiceButton} activeOpacity={0.8}><LinearGradient colors={['#7c4dff', '#b388ff', '#651fff']} style={styles.choiceGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.choiceEmoji}>✨</Text><Text style={styles.choiceText}>Truth</Text></LinearGradient></TouchableOpacity>
+                      <TouchableOpacity onPress={() => handleChoose('dare')} style={styles.choiceButton} activeOpacity={0.8}><LinearGradient colors={['#ff1744', '#ff4081', '#f50057']} style={styles.choiceGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.choiceEmoji}>🔥</Text><Text style={styles.choiceText}>Dare</Text></LinearGradient></TouchableOpacity>
+                    </View>
                   </View>
                 ) : (
                   <>
@@ -761,9 +744,9 @@ export default function TruthOrDare({
                 </View>
               ) : step === 'lobby' ? (
                 <View style={styles.lobbyContainer}>
-                  {gameState?.needsSpiceChoiceFromUnlocker ? (
+                  {!gameState?.yourSpiceChoice ? (
                     <>
-                      <Text style={styles.lobbyTitle}>Pick a rating to unlock the game for both of you</Text>
+                      <Text style={styles.lobbyTitle}>Pick a version</Text>
                       <View style={styles.spicePills}>
                         <TouchableOpacity onPress={() => handleSetSpiceChoice('pg13')} style={[styles.spicePill, gameState?.yourSpiceChoice === 'pg13' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.yourSpiceChoice === 'pg13' && styles.spicePillTextActive]}>PG-13</Text></TouchableOpacity>
                         <TouchableOpacity onPress={() => handleSetSpiceChoice('ratedr')} style={[styles.spicePill, gameState?.yourSpiceChoice === 'ratedr' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.yourSpiceChoice === 'ratedr' && styles.spicePillTextActive]}>Rated R</Text></TouchableOpacity>
@@ -771,7 +754,7 @@ export default function TruthOrDare({
                       </View>
                     </>
                   ) : (
-                    <Text style={styles.lobbyHint}>Waiting for them to set the rating...</Text>
+                    <Text style={styles.lobbyHint}>Waiting for them to pick a version...</Text>
                   )}
                 </View>
               ) : step === 'choose' ? (
@@ -786,27 +769,21 @@ export default function TruthOrDare({
                       </View>
                     </>
                   ) : null}
-                  {gameState?.tokenUnlocked && !gameState?.isYourTurn ? (
-                    <Text style={styles.lobbyHint}>Their turn — waiting for them to pick Truth or Dare</Text>
-                  ) : (
-                    <>
-                      <Text style={styles.chooseSubtitle}>Then pick Truth or Dare</Text>
-                      <View style={styles.chooseRow}>
-                        <TouchableOpacity onPress={() => handleChoose('truth')} style={styles.choiceButton} activeOpacity={0.8}>
-                          <LinearGradient colors={['#7c4dff', '#b388ff', '#651fff']} style={styles.choiceGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-                            <Text style={styles.choiceEmoji}>✨</Text>
-                            <Text style={styles.choiceText}>Truth</Text>
-                          </LinearGradient>
-                        </TouchableOpacity>
-                        <TouchableOpacity onPress={() => handleChoose('dare')} style={styles.choiceButton} activeOpacity={0.8}>
-                          <LinearGradient colors={['#ff1744', '#ff4081', '#f50057']} style={styles.choiceGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-                            <Text style={styles.choiceEmoji}>🔥</Text>
-                            <Text style={styles.choiceText}>Dare</Text>
-                          </LinearGradient>
-                        </TouchableOpacity>
-                      </View>
-                    </>
-                  )}
+                  <Text style={styles.chooseSubtitle}>Pick Truth or Dare</Text>
+                  <View style={styles.chooseRow}>
+                    <TouchableOpacity onPress={() => handleChoose('truth')} style={styles.choiceButton} activeOpacity={0.8}>
+                      <LinearGradient colors={['#7c4dff', '#b388ff', '#651fff']} style={styles.choiceGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+                        <Text style={styles.choiceEmoji}>✨</Text>
+                        <Text style={styles.choiceText}>Truth</Text>
+                      </LinearGradient>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => handleChoose('dare')} style={styles.choiceButton} activeOpacity={0.8}>
+                      <LinearGradient colors={['#ff1744', '#ff4081', '#f50057']} style={styles.choiceGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+                        <Text style={styles.choiceEmoji}>🔥</Text>
+                        <Text style={styles.choiceText}>Dare</Text>
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               ) : (
                 <>

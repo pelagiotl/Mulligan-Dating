@@ -216,8 +216,8 @@ authRouter.post('/login', rateLimitAuth, async (req, res) => {
 // Get current user
 authRouter.get('/me', authenticateToken, async (req: AuthRequest, res) => {
   try {
-    const stmt = db.prepare('SELECT id, email, phone_number, is_admin, created_at FROM users WHERE id = ?');
-    const user = await (stmt.get(req.userId) as Promise<{ id: string; email: string | null; phone_number: string | null; is_admin: number; created_at: string } | null>);
+    const stmt = db.prepare('SELECT id, email, phone_number, is_admin, created_at, push_token FROM users WHERE id = ?');
+    const user = await (stmt.get(req.userId) as Promise<{ id: string; email: string | null; phone_number: string | null; is_admin: number; created_at: string; push_token: string | null } | null>);
     
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
@@ -232,6 +232,8 @@ authRouter.get('/me', authenticateToken, async (req: AuthRequest, res) => {
       // Don't fail the request if profile query fails, just return null
       profile = null;
     }
+
+    const hasPushToken = !!(user.push_token && typeof user.push_token === 'string' && user.push_token.trim().length > 0);
     
     res.json({ 
       user: {
@@ -239,7 +241,8 @@ authRouter.get('/me', authenticateToken, async (req: AuthRequest, res) => {
         email: user.email,
         phoneNumber: user.phone_number,
         isAdmin: user.is_admin === 1,
-        createdAt: user.created_at
+        createdAt: user.created_at,
+        hasPushToken, // so app can show "Push registered" and debug message notifications
       }, 
       profile 
     });
@@ -257,6 +260,7 @@ authRouter.post('/push-token', authenticateToken, async (req: AuthRequest, res) 
   try {
     const { pushToken } = req.body;
     const userId = req.userId!;
+    console.log(`📲 POST /auth/push-token: user=${userId} hasToken=${!!pushToken} type=${typeof pushToken} len=${typeof pushToken === 'string' ? pushToken.length : 0}`);
 
     // Validate push token format (Expo push tokens start with "ExponentPushToken[")
     if (pushToken && typeof pushToken === 'string' && pushToken.length > 0) {
@@ -264,7 +268,7 @@ authRouter.post('/push-token', authenticateToken, async (req: AuthRequest, res) 
       const updateStmt = db.prepare('UPDATE users SET push_token = ? WHERE id = ?');
       await (updateStmt.run([pushToken, userId]) as Promise<any>);
       
-      console.log(`✅ Push token updated for user ${userId}`);
+      console.log(`✅ Push token saved for user ${userId} (prefix: ${pushToken.substring(0, 28)}...)`);
       res.json({ message: 'Push token updated successfully' });
     } else if (pushToken === null || pushToken === '') {
       // Remove push token if explicitly cleared

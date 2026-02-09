@@ -74,11 +74,16 @@ To get **system** message notifications when the app is in the background or clo
    - Open the app at least once after login and **allow notifications** so the push token is saved.
 
 3. **Verify in Render logs**  
-   When someone sends a message, look for:  
-   - `📲 Push (message): recipient=… hasToken=true validFormat=true EXPO_ACCESS_TOKEN=set` → push was attempted.  
-   - `✅ Push (message) sent to …` → Expo accepted it.  
-   - If you see `hasToken=false` → recipient needs to open the app on a real device and allow notifications.  
+   Message push uses the **same** pipeline as match and date-plan notifications (same token, same Expo config). When someone sends a chat message, look for:  
+   - `📲 Push (message HTTP): recipient=… hasToken=true validFormat=true EXPO_ACCESS_TOKEN=set` → push was attempted.  
+   - `✅ Push (message HTTP) sent to …` → Expo accepted it.  
+   - If you see `hasToken=false` → the **recipient** (person who should get the notification) must open the app on a real device (TestFlight/EAS build), allow notifications, and have the app register their token at least once.  
+   - If you see `⚠️ Skipping push for user …: no push token` → same as above: that user needs to open the app and allow notifications so their token is saved.  
    - If you see `EXPO_ACCESS_TOKEN=NOT SET` → set the token on Render and redeploy.
+
+4. **If the recipient has a real build and allowed notifications but still has no token**  
+   - The app now retries push registration at 1.5s and 5s after load (and when they background/foreground). Have them fully close the app, open it again, and wait ~10 seconds; then check Render logs for `POST /auth/push-token: user=<recipient-id> hasToken=true` and `✅ Push token saved for user …`.  
+   - You can also confirm whether the backend has a token for a user: `GET /auth/me` returns `user.hasPushToken: true/false`. If the recipient logs in and still sees `hasPushToken: false`, the client never successfully sent the token (check device logs for "Push: No projectId" or "Push token save failed").
 
 ### Project Structure
 

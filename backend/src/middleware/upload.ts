@@ -133,6 +133,50 @@ export const uploadSingle = upload.single('photo');
 // Single image upload for chat messages
 export const uploadChatImage = upload.single('image');
 
+// Video filter for chat
+const videoMimes = ['video/mp4', 'video/quicktime', 'video/x-m4v'];
+const videoFilter: multer.Options['fileFilter'] = (req, file, cb) => {
+  if (file.originalname.includes('..') || file.originalname.includes('/')) {
+    return cb(new Error('Invalid file name'));
+  }
+  if (videoMimes.includes(file.mimetype)) return cb(null, true);
+  cb(new Error(`Invalid type. Allowed: ${videoMimes.join(', ')}`));
+};
+export const uploadChatVideo = multer({
+  storage: useCloudinary ? multer.memoryStorage() : multer.diskStorage({
+    destination: (req, file, cb) => {
+      const dir = path.join(process.cwd(), 'uploads');
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      cb(null, dir);
+    },
+    filename: (req, file, cb) => cb(null, `${uuidv4()}${path.extname(file.originalname)}`),
+  }),
+  limits: { fileSize: 100 * 1024 * 1024 },
+  fileFilter: videoFilter,
+}).single('video');
+
+// Audio filter for chat (voice messages)
+const audioMimes = ['audio/mpeg', 'audio/mp4', 'audio/x-m4a', 'audio/aac', 'audio/mp3'];
+const audioFilter: multer.Options['fileFilter'] = (req, file, cb) => {
+  if (file.originalname.includes('..') || file.originalname.includes('/')) {
+    return cb(new Error('Invalid file name'));
+  }
+  if (audioMimes.includes(file.mimetype)) return cb(null, true);
+  cb(new Error(`Invalid type. Allowed: ${audioMimes.join(', ')}`));
+};
+export const uploadChatAudio = multer({
+  storage: useCloudinary ? multer.memoryStorage() : multer.diskStorage({
+    destination: (req, file, cb) => {
+      const dir = path.join(process.cwd(), 'uploads');
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      cb(null, dir);
+    },
+    filename: (req, file, cb) => cb(null, `${uuidv4()}${path.extname(file.originalname)}`),
+  }),
+  limits: { fileSize: 25 * 1024 * 1024 },
+  fileFilter: audioFilter,
+}).single('audio');
+
 // Multiple files upload (up to 6 photos)
 export const uploadMultiple = upload.array('photos', 6);
 

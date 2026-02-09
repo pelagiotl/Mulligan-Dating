@@ -108,7 +108,7 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
     }
     
     if (finalStatus !== 'granted') {
-      console.warn('⚠️  Push notification permissions not granted');
+      console.warn('⚠️  Push notification permissions not granted — outside-app notifications will not work.');
       return null;
     }
 
@@ -136,11 +136,7 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
     }
     
     if (!projectId) {
-      console.warn('⚠️  No Expo projectId found. Push notifications will not work in Expo Go.');
-      console.warn('   This is expected - projectId will be automatically set when building with EAS.');
-      console.warn('   Push notifications will work in TestFlight/production builds.');
-      // Skip push token registration if no projectId (Expo Go scenario)
-      // projectId will be available in EAS builds automatically
+      console.warn('⚠️  Push: No projectId — token not requested. (Expo Go has no projectId; use a new EAS/TestFlight build.)');
       return null;
     }
     
@@ -168,24 +164,28 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
     }
 
     // Send token to backend (retry on failure so message notifications work)
+    console.log('📲 Push: Got token, sending to backend (auth required).');
     const maxRetries = 3;
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         await api.post('/auth/push-token', { pushToken });
-        if (__DEV__) console.log('✅ Push token saved to backend');
+        console.log('✅ Push token saved to backend — outside-app notifications enabled.');
         return pushToken;
       } catch (error: any) {
-        const is404 = error?.status === 404 || error?.message?.includes('Route not found');
+        const status = error?.status ?? error?.response?.status;
+        const msg = error?.message || String(error);
+        console.warn(`⚠️  Push token save failed (attempt ${attempt}/${maxRetries}): status=${status} message=${msg}`);
+        const is404 = status === 404 || msg.includes('Route not found');
         if (is404) {
-          console.warn('⚠️  Push token route not available (backend may need update). This is non-critical.');
           return pushToken;
+        }
+        if (status === 401 || msg.includes('unauthorized') || msg.includes('token')) {
+          console.warn('⚠️  Push: Backend rejected (auth). Ensure you are logged in and try again.');
         }
         if (attempt < maxRetries) {
           const delayMs = attempt * 2000;
-          if (__DEV__) console.warn(`⚠️  Push token save failed (attempt ${attempt}/${maxRetries}), retrying in ${delayMs / 1000}s...`);
           await new Promise((r) => setTimeout(r, delayMs));
         } else {
-          console.warn('⚠️  Failed to send push token to backend after retries (non-critical):', error?.message || error);
           return pushToken;
         }
       }
