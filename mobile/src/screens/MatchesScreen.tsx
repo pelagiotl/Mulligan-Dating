@@ -2814,8 +2814,9 @@ export default function MatchesScreen() {
     return <View style={{ flex: 1 }} />;
   }
 
-  // Show loading while auth is initializing or matches are loading
-  if (authLoading || loading) {
+  // Show loading while auth is initializing or matches are loading (only when not in a conversation—
+  // when selectedMatch is set, refetches run in background and must not hide chat/input)
+  if (authLoading || (loading && !selectedMatch)) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#667eea" />
@@ -3138,7 +3139,6 @@ export default function MatchesScreen() {
                     messages={messages}
                     currentUserId={user?.id || ''}
                     socket={socketRef.current}
-                    onSendToChat={(text) => handleSendMessage(text)}
                     onUnlockWithToken={async () => {
                       await api.post(`/matches/${selectedMatch.id}/unlock-game`, { gameType: 'never_have_i_ever' });
                       api.clearCache('/matches');

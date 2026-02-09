@@ -2077,26 +2077,8 @@ matchesRouter.post("/:matchId/never-have-i-ever/spice-choice", authenticateToken
       return res.status(400).json({ error: "Never Have I Ever must be unlocked with a Mulligan token to play." });
     }
 
-    const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
-
-    const { generateNeverHaveIEverPrompt } = await import('../services/neverHaveIEver.js');
-    const prompt = await generateNeverHaveIEverPrompt(matchId, choice as 'pg13' | 'ratedr' | 'spicy');
-    const rowResult = db.prepare('SELECT match_id FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
-    const existing = rowResult instanceof Promise ? await rowResult : rowResult;
-    if (!existing) {
-      // First time: unlocker sets initial version and we generate first prompt
-      db.prepare(
-        `INSERT INTO never_have_i_ever_games (match_id, user1_spice_choice, user2_spice_choice, spice_level, current_prompt, current_turn_user_id, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
-      ).run([matchId, choice, choice, choice, prompt, otherUserId, new Date().toISOString()]);
-    } else {
-      // Either user can set/change version; update spice_level and new prompt
-      db.prepare(
-        `UPDATE never_have_i_ever_games SET user1_spice_choice = ?, user2_spice_choice = ?, spice_level = ?, current_prompt = ?, updated_at = ? WHERE match_id = ?`
-      ).run([choice, choice, choice, prompt, new Date().toISOString(), matchId]);
-    }
-
-    const { getGameState } = await import('../services/neverHaveIEver.js');
-    const state = await getGameState(matchId, userId, match);
+    const { setMySpiceChoice } = await import('../services/neverHaveIEver.js');
+    const state = await setMySpiceChoice(matchId, userId, match, choice as 'pg13' | 'ratedr' | 'spicy');
 
     try {
       const { getIO } = await import('../socket.js');
@@ -2190,6 +2172,9 @@ matchesRouter.get("/:matchId/never-have-i-ever", authenticateToken, async (req: 
       unlockedByUserId: unlockRow.unlocked_by_user_id ?? null,
       currentTurnUserId: state.currentTurnUserId ?? null,
       isYourTurn: state.isYourTurn ?? false,
+      // Tally: points = number of "I have" (same as strikes in DB)
+      yourPoints: state.yourStrikes ?? 0,
+      theirPoints: state.theirStrikes ?? 0,
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);

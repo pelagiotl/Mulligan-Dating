@@ -1,6 +1,6 @@
 /**
- * Never Have I Ever - Simplified: one prompt at a time, no scoring.
- * Unlock with token → pick version (PG-13 / R / Spicy) → see prompt → I have / I haven't → Another one or Send to Chat.
+ * Never Have I Ever - Tally mode: no chat. Both answer each prompt; points = "I have" count.
+ * Unlock with token → pick version → see prompt → I have / I haven't (submitted to server) → tally shown → Another one.
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -36,6 +36,13 @@ interface GameState {
   tokenUnlocked?: boolean;
   needsSpiceChoiceFromUnlocker?: boolean;
   unlockedByUserId?: string | null;
+  yourPoints: number;
+  theirPoints: number;
+  yourAnswer: 'have' | 'havent' | null;
+  theirAnswer: 'have' | 'havent' | null;
+  bothAnswered: boolean;
+  gameOver: boolean;
+  winner: 'you' | 'them' | null;
 }
 
 interface NeverHaveIEverProps {
@@ -45,7 +52,6 @@ interface NeverHaveIEverProps {
   socket: any;
   onRequestGame?: () => void;
   onUnlockWithToken?: () => Promise<void>;
-  onSendToChat?: (text: string) => void;
   openForAccept?: boolean;
   onOpenedForAccept?: () => void;
   gameUnlockedByToken?: boolean;
@@ -61,7 +67,6 @@ export default function NeverHaveIEver({
   socket,
   onRequestGame,
   onUnlockWithToken,
-  onSendToChat,
   openForAccept,
   onOpenedForAccept,
   gameUnlockedByToken = false,
@@ -73,7 +78,6 @@ export default function NeverHaveIEver({
   const [state, setState] = useState<GameState | null>(null);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [myAnswer, setMyAnswer] = useState<'have' | 'havent' | null>(null);
   const [prompt, setPrompt] = useState('');
   const lastAnotherAtRef = useRef(0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -180,6 +184,13 @@ export default function NeverHaveIEver({
         tokenUnlocked: !!data.tokenUnlocked,
         needsSpiceChoiceFromUnlocker: !!data.needsSpiceChoiceFromUnlocker,
         unlockedByUserId: data.unlockedByUserId ?? null,
+        yourPoints: typeof data.yourPoints === 'number' ? data.yourPoints : (data.yourStrikes ?? 0),
+        theirPoints: typeof data.theirPoints === 'number' ? data.theirPoints : (data.theirStrikes ?? 0),
+        yourAnswer: data.yourAnswer ?? null,
+        theirAnswer: data.theirAnswer ?? null,
+        bothAnswered: !!data.bothAnswered,
+        gameOver: !!data.gameOver,
+        winner: data.winner ?? null,
       };
       setState(simple);
       if (Date.now() - lastAnotherAtRef.current > 2000) {
@@ -216,7 +227,6 @@ export default function NeverHaveIEver({
     setModalVisible(false);
     setState(null);
     setPrompt('');
-    setMyAnswer(null);
     if (pollRef.current) {
       clearInterval(pollRef.current);
       pollRef.current = null;
@@ -242,11 +252,50 @@ export default function NeverHaveIEver({
     setSubmitting(true);
     try {
       const data = await api.post<any>(`/matches/${matchId}/never-have-i-ever/spice-choice`, { choice });
-      setState(prev => prev ? { ...prev, spiceReady: true, spiceLevel: choice, prompt: data.prompt || '', phase: 'playing', needsSpiceChoiceFromUnlocker: false } : null);
-      setPrompt(data.prompt || '');
-      setMyAnswer(null);
+      const next: GameState = {
+        prompt: data.prompt || '',
+        phase: data.spiceReady && (data.prompt || data.spiceLevel) ? 'playing' : 'lobby',
+        yourSpiceChoice: data.yourSpiceChoice ?? choice,
+        theirSpiceChoice: data.theirSpiceChoice ?? null,
+        spiceReady: !!data.spiceReady,
+        spiceLevel: data.spiceLevel ?? null,
+        yourPoints: typeof data.yourPoints === 'number' ? data.yourPoints : (data.yourStrikes ?? 0),
+        theirPoints: typeof data.theirPoints === 'number' ? data.theirPoints : (data.theirStrikes ?? 0),
+        yourAnswer: data.yourAnswer ?? null,
+        theirAnswer: data.theirAnswer ?? null,
+        bothAnswered: !!data.bothAnswered,
+        gameOver: !!data.gameOver,
+        winner: data.winner ?? null,
+      };
+      setState(next);
+      if (next.prompt) setPrompt(next.prompt);
     } catch (err) {
       console.warn('Never Have I Ever spice choice error:', err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleRestart = async () => {
+    setSubmitting(true);
+    try {
+      const data = await api.post<any>(`/matches/${matchId}/never-have-i-ever/restart`);
+      setState(prev => prev ? {
+        ...prev,
+        yourPoints: 0,
+        theirPoints: 0,
+        yourAnswer: null,
+        theirAnswer: null,
+        bothAnswered: false,
+        gameOver: false,
+        winner: null,
+        prompt: data.prompt || prev.prompt,
+      } : null);
+      setPrompt(data.prompt || '');
+      await fetchState();
+    } catch (err) {
+      console.warn('Never Have I Ever restart error:', err);
+      fetchState();
     } finally {
       setSubmitting(false);
     }
@@ -257,12 +306,13 @@ export default function NeverHaveIEver({
     lastAnotherAtRef.current = Date.now();
     setSubmitting(true);
     setPrompt('');
-    setMyAnswer(null);
     try {
       const data = await api.post<{ prompt: string }>(`/matches/${matchId}/never-have-i-ever/another`, {});
       if (data?.prompt) {
         setPrompt(data.prompt);
-        setState(prev => prev ? { ...prev, prompt: data.prompt } : null);
+        setState(prev => prev ? { ...prev, prompt: data.prompt, yourAnswer: null, theirAnswer: null, bothAnswered: false } : null);
+      } else {
+        await fetchState();
       }
     } catch (err) {
       console.warn('Never Have I Ever another error:', err);
@@ -272,17 +322,26 @@ export default function NeverHaveIEver({
     }
   };
 
-  const handleSendToChat = async () => {
-    if (!displayPrompt || !onSendToChat) return;
-    const answerText = myAnswer === 'have' ? 'I have' : myAnswer === 'havent' ? "I haven't" : '';
-    const text = answerText ? `${displayPrompt} — ${answerText}` : displayPrompt;
-    onSendToChat(text);
+  const handleSubmitAnswer = async (answer: 'have' | 'havent') => {
+    if (submitting || state?.yourAnswer != null) return;
+    setSubmitting(true);
     try {
-      await api.post(`/matches/${matchId}/never-have-i-ever/send-to-chat`);
-    } catch (e) {
-      console.warn('Never Have I Ever send-to-chat error:', e);
+      const data = await api.post<any>(`/matches/${matchId}/never-have-i-ever/answer`, { answer });
+      setState(prev => prev ? {
+        ...prev,
+        yourAnswer: answer,
+        theirAnswer: data.theirAnswer ?? prev.theirAnswer,
+        bothAnswered: !!data.bothAnswered,
+        yourPoints: typeof data.yourPoints === 'number' ? data.yourPoints : (data.yourStrikes ?? prev.yourPoints),
+        theirPoints: typeof data.theirPoints === 'number' ? data.theirPoints : (data.theirStrikes ?? prev.theirPoints),
+      } : null);
+      if (!data.bothAnswered) await fetchState();
+    } catch (err) {
+      console.warn('Never Have I Ever answer error:', err);
+      fetchState();
+    } finally {
+      setSubmitting(false);
     }
-    handleClose();
   };
 
   const monkeyRotateInterp = emojiRotate.interpolate({
@@ -344,45 +403,77 @@ export default function NeverHaveIEver({
               <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#fff" /><Text style={styles.loadingText}>Loading...</Text></View>
             ) : state?.phase === 'lobby' ? (
               <View style={styles.lobbyContainer}>
-                {state?.needsSpiceChoiceFromUnlocker ? (
-                  <>
-                    <Text style={styles.lobbyTitle}>Pick a version to unlock the game for both of you</Text>
-                    <Text style={styles.versionLabel}>Version</Text>
-                    <View style={styles.spicePills}>
-                      <TouchableOpacity onPress={() => handleSetSpiceChoice('pg13')} style={[styles.spicePill, state.yourSpiceChoice === 'pg13' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, state.yourSpiceChoice === 'pg13' && styles.spicePillTextActive]}>PG-13</Text></TouchableOpacity>
-                      <TouchableOpacity onPress={() => handleSetSpiceChoice('ratedr')} style={[styles.spicePill, state.yourSpiceChoice === 'ratedr' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, state.yourSpiceChoice === 'ratedr' && styles.spicePillTextActive]}>Rated R</Text></TouchableOpacity>
-                      <TouchableOpacity onPress={() => handleSetSpiceChoice('spicy')} style={[styles.spicePill, state.yourSpiceChoice === 'spicy' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, state.yourSpiceChoice === 'spicy' && styles.spicePillTextActive]}>Spicy</Text></TouchableOpacity>
-                    </View>
-                  </>
-                ) : (
-                  <Text style={styles.lobbyHint}>Waiting for them to set the version...</Text>
-                )}
+                <Text style={styles.lobbyTitle}>Pick your version (no waiting—they pick theirs too)</Text>
+                <Text style={styles.versionLabel}>Your choice</Text>
+                <View style={styles.spicePills}>
+                  <TouchableOpacity onPress={() => handleSetSpiceChoice('pg13')} style={[styles.spicePill, state.yourSpiceChoice === 'pg13' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, state.yourSpiceChoice === 'pg13' && styles.spicePillTextActive]}>PG-13</Text></TouchableOpacity>
+                  <TouchableOpacity onPress={() => handleSetSpiceChoice('ratedr')} style={[styles.spicePill, state.yourSpiceChoice === 'ratedr' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, state.yourSpiceChoice === 'ratedr' && styles.spicePillTextActive]}>Rated R</Text></TouchableOpacity>
+                  <TouchableOpacity onPress={() => handleSetSpiceChoice('spicy')} style={[styles.spicePill, state.yourSpiceChoice === 'spicy' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, state.yourSpiceChoice === 'spicy' && styles.spicePillTextActive]}>Spicy</Text></TouchableOpacity>
+                </View>
+                <Text style={styles.lobbyHint}>
+                  {state.theirSpiceChoice ? `They chose: ${state.theirSpiceChoice === 'ratedr' ? 'Rated R' : state.theirSpiceChoice === 'pg13' ? 'PG-13' : 'Spicy'}` : 'Waiting for them to choose…'}
+                </Text>
               </View>
             ) : state?.phase === 'playing' && state.spiceLevel ? (
               <>
-                <Text style={styles.versionLabel}>Version</Text>
-                <View style={styles.spicePills}>
-                  <TouchableOpacity onPress={() => handleSetSpiceChoice('pg13')} style={[styles.spicePillSmall, state.spiceLevel === 'pg13' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillTextSmall, state.spiceLevel === 'pg13' && styles.spicePillTextActive]}>PG-13</Text></TouchableOpacity>
-                  <TouchableOpacity onPress={() => handleSetSpiceChoice('ratedr')} style={[styles.spicePillSmall, state.spiceLevel === 'ratedr' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillTextSmall, state.spiceLevel === 'ratedr' && styles.spicePillTextActive]}>R</Text></TouchableOpacity>
-                  <TouchableOpacity onPress={() => handleSetSpiceChoice('spicy')} style={[styles.spicePillSmall, state.spiceLevel === 'spicy' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillTextSmall, state.spiceLevel === 'spicy' && styles.spicePillTextActive]}>Spicy</Text></TouchableOpacity>
-                </View>
-                {submitting && !displayPrompt ? (
-                  <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#fff" /><Text style={styles.loadingText}>Getting prompt...</Text></View>
+                {state.gameOver ? (
+                  <View style={styles.gameOverContainer}>
+                    <Text style={styles.gameOverTitle}>{state.winner === 'you' ? "You lose!" : "They lose!"}</Text>
+                    <Text style={styles.gameOverSubtitle}>First to 10 points loses. You: {state.yourPoints} — Them: {state.theirPoints}</Text>
+                    <TouchableOpacity onPress={handleRestart} style={styles.restartButton} disabled={submitting} activeOpacity={0.8}>
+                      <LinearGradient colors={['#00b894', '#00cec9']} style={styles.restartGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+                        <Text style={styles.restartButtonText}>Play again</Text>
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  </View>
                 ) : (
                   <>
-                    <View style={styles.promptCard}><Text style={styles.promptText}>{displayPrompt || 'Never have I ever...'}</Text></View>
-                    <View style={styles.answerRow}>
-                      <TouchableOpacity onPress={() => setMyAnswer('have')} style={[styles.answerButton, myAnswer === 'have' && styles.answerButtonActive]} disabled={submitting} activeOpacity={0.8}>
-                        <LinearGradient colors={['#e74c3c', '#c0392b']} style={styles.answerGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.answerButtonText}>I have</Text></LinearGradient>
-                      </TouchableOpacity>
-                      <TouchableOpacity onPress={() => setMyAnswer('havent')} style={[styles.answerButton, myAnswer === 'havent' && styles.answerButtonActive]} disabled={submitting} activeOpacity={0.8}>
-                        <LinearGradient colors={['#27ae60', '#2ecc71']} style={styles.answerGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.answerButtonText}>I haven't</Text></LinearGradient>
-                      </TouchableOpacity>
+                    <Text style={styles.firstToLoseHint}>First to 10 points loses</Text>
+                    <View style={styles.tallyRow}>
+                      <View style={styles.tallyBox}>
+                        <Text style={styles.tallyLabel}>You</Text>
+                        <Text style={styles.tallyValue}>{state.yourPoints}</Text>
+                      </View>
+                      <Text style={styles.tallyVs}>vs</Text>
+                      <View style={styles.tallyBox}>
+                        <Text style={styles.tallyLabel}>Them</Text>
+                        <Text style={styles.tallyValue}>{state.theirPoints}</Text>
+                      </View>
                     </View>
-                    <View style={styles.promptActions}>
-                      {onSendToChat && <TouchableOpacity onPress={handleSendToChat} style={styles.sendButton} activeOpacity={0.8}><LinearGradient colors={['#00b894', '#00cec9']} style={styles.sendButtonGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.sendButtonText}>Send to Chat 💬</Text></LinearGradient></TouchableOpacity>}
-                      <TouchableOpacity onPress={handleAnotherOne} style={styles.anotherButton} disabled={submitting} activeOpacity={0.8}><Text style={styles.anotherButtonText}>Another one ↻</Text></TouchableOpacity>
-                    </View>
+                    <Text style={styles.versionLabel}>Playing at: {state.spiceLevel === 'ratedr' ? 'R' : state.spiceLevel === 'pg13' ? 'PG-13' : 'Spicy'}</Text>
+                    {submitting && !displayPrompt ? (
+                      <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#fff" /><Text style={styles.loadingText}>Getting prompt...</Text></View>
+                    ) : (
+                      <>
+                        <View style={styles.promptCard}><Text style={styles.promptText}>{displayPrompt || 'Never have I ever...'}</Text></View>
+                        {state.bothAnswered && state.theirAnswer != null ? (
+                          <View style={styles.roundResultWrap}>
+                            <Text style={styles.roundResultText}>They said: {state.theirAnswer === 'have' ? 'I have' : "I haven't"}</Text>
+                          </View>
+                        ) : null}
+                        <View style={styles.answerRow}>
+                          <TouchableOpacity
+                            onPress={() => handleSubmitAnswer('have')}
+                            style={[styles.answerButton, state.yourAnswer === 'have' && styles.answerButtonActive]}
+                            disabled={submitting || state.yourAnswer != null}
+                            activeOpacity={0.8}
+                          >
+                            <LinearGradient colors={['#e74c3c', '#c0392b']} style={styles.answerGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.answerButtonText}>I have</Text></LinearGradient>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => handleSubmitAnswer('havent')}
+                            style={[styles.answerButton, state.yourAnswer === 'havent' && styles.answerButtonActive]}
+                            disabled={submitting || state.yourAnswer != null}
+                            activeOpacity={0.8}
+                          >
+                            <LinearGradient colors={['#27ae60', '#2ecc71']} style={styles.answerGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.answerButtonText}>I haven't</Text></LinearGradient>
+                          </TouchableOpacity>
+                        </View>
+                        <View style={styles.promptActions}>
+                          <TouchableOpacity onPress={handleAnotherOne} style={styles.anotherButton} disabled={submitting} activeOpacity={0.8}><Text style={styles.anotherButtonText}>Another one ↻</Text></TouchableOpacity>
+                        </View>
+                      </>
+                    )}
                   </>
                 )}
               </>
@@ -705,6 +796,52 @@ const styles = StyleSheet.create({
   spicePillTextActive: {
     color: '#00b894',
     fontWeight: '800',
+  },
+  firstToLoseHint: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.9)',
+    marginBottom: 8,
+  },
+  tallyRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 16,
+  },
+  tallyBox: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    alignItems: 'center',
+    minWidth: 72,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  tallyLabel: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.9)',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  tallyValue: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#fff',
+  },
+  tallyVs: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.8)',
+  },
+  roundResultWrap: {
+    marginBottom: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 12,
   },
   versionLabel: {
     fontSize: 13,

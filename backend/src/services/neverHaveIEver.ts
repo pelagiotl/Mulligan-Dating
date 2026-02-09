@@ -10,6 +10,12 @@ const STRIKES_TO_LOSE = 10;
 
 export type SpiceLevel = 'pg13' | 'ratedr' | 'spicy';
 
+/** Use the more conservative of the two choices for prompt generation (no one is pushed past their comfort level). */
+function moreConservative(a: SpiceLevel, b: SpiceLevel): SpiceLevel {
+  const order: Record<SpiceLevel, number> = { pg13: 1, ratedr: 2, spicy: 3 };
+  return order[a] <= order[b] ? a : b;
+}
+
 const FALLBACK_PROMPTS = [
   'kissed on a first date',
   'gone on a blind date',
@@ -230,10 +236,10 @@ export async function getGameState(
 
   const yourSpiceChoice = (isUser1 ? row?.user1_spice_choice : row?.user2_spice_choice) as 'pg13' | 'ratedr' | 'spicy' | null;
   const theirSpiceChoice = (isUser1 ? row?.user2_spice_choice : row?.user1_spice_choice) as 'pg13' | 'ratedr' | 'spicy' | null;
-  const c1 = row?.user1_spice_choice;
-  const c2 = row?.user2_spice_choice;
-  const spiceReady = !!c1 && !!c2 && c1 === c2;
-  const spiceLevel = spiceReady ? (c1 as 'pg13' | 'ratedr' | 'spicy') : null;
+  const c1 = row?.user1_spice_choice as SpiceLevel | null | undefined;
+  const c2 = row?.user2_spice_choice as SpiceLevel | null | undefined;
+  const spiceReady = !!(c1 && c2);
+  const spiceLevel = spiceReady && c1 && c2 ? moreConservative(c1, c2) : null;
 
   if (!row) {
     return {
@@ -253,7 +259,7 @@ export async function getGameState(
     };
   }
 
-  const inLobby = !row.spice_level && !row.current_prompt;
+  const inLobby = !spiceReady;
   if (inLobby) {
     return {
       prompt: '',
@@ -285,7 +291,7 @@ export async function getGameState(
   }
 
   const prompt = row.current_prompt || 'Never have I ever...';
-  const level = (row.spice_level || 'pg13') as SpiceLevel;
+  const level = (spiceLevel || row.spice_level || 'pg13') as SpiceLevel;
 
   // Turn-based (token-unlock): current_turn_user_id set
   const currentTurnUserId = row.current_turn_user_id ?? null;
@@ -337,6 +343,45 @@ export async function setSpiceChoice(
       )
       .run([choice, new Date().toISOString(), matchId]);
     if (updateResult instanceof Promise) await updateResult;
+  }
+
+  return getGameState(matchId, userId, match);
+}
+
+/** Each user sets their own spice choice; no waiting. When both have chosen, effective level = more conservative, and first prompt is generated. */
+export async function setMySpiceChoice(
+  matchId: string,
+  userId: string,
+  match: { user1_id: string; user2_id: string },
+  choice: 'pg13' | 'ratedr' | 'spicy'
+): Promise<GameState> {
+  const isUser1 = userId === match.user1_id;
+  const now = new Date().toISOString();
+
+  const rowResult = db
+    .prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?')
+    .get([matchId]);
+  let row = (rowResult instanceof Promise ? await rowResult : rowResult) as GameRow | undefined;
+
+  if (!row) {
+    db.prepare(
+      `INSERT INTO never_have_i_ever_games (match_id, user1_spice_choice, user2_spice_choice, updated_at) VALUES (?, ?, ?, ?)`
+    ).run([matchId, isUser1 ? choice : null, isUser1 ? null : choice, now]);
+  } else {
+    db.prepare(
+      `UPDATE never_have_i_ever_games SET ${isUser1 ? 'user1_spice_choice' : 'user2_spice_choice'} = ?, updated_at = ? WHERE match_id = ?`
+    ).run([choice, now, matchId]);
+  }
+
+  row = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]) as GameRow;
+  const c1 = row.user1_spice_choice as SpiceLevel | null;
+  const c2 = row.user2_spice_choice as SpiceLevel | null;
+  if (c1 && c2 && !row.current_prompt) {
+    const effectiveLevel = moreConservative(c1, c2);
+    const prompt = await generateNeverHaveIEverPrompt(matchId, effectiveLevel);
+    db.prepare(
+      `UPDATE never_have_i_ever_games SET spice_level = ?, current_prompt = ?, updated_at = ? WHERE match_id = ?`
+    ).run([effectiveLevel, prompt, now, matchId]);
   }
 
   return getGameState(matchId, userId, match);
@@ -418,10 +463,22 @@ export async function submitAnswer(
       themStrike: isUser1 ? user2Strike : user1Strike,
     };
 
-    // Update strikes only; keep answers visible until "Next round" is tapped
+    const gameOver = newUser1Strikes >= STRIKES_TO_LOSE || newUser2Strikes >= STRIKES_TO_LOSE;
+    const ts = new Date().toISOString();
+
     db.prepare(
       `UPDATE never_have_i_ever_games SET user1_strikes = ?, user2_strikes = ?, updated_at = ? WHERE match_id = ?`
-    ).run([newUser1Strikes, newUser2Strikes, new Date().toISOString(), matchId]);
+    ).run([newUser1Strikes, newUser2Strikes, ts, matchId]);
+
+    if (!gameOver) {
+      const c1 = row.user1_spice_choice as SpiceLevel | null;
+      const c2 = row.user2_spice_choice as SpiceLevel | null;
+      const effectiveLevel = (c1 && c2 ? moreConservative(c1, c2) : (row.spice_level as SpiceLevel)) || 'pg13';
+      const nextPrompt = await generateNeverHaveIEverPrompt(matchId, effectiveLevel);
+      db.prepare(
+        `UPDATE never_have_i_ever_games SET current_prompt = ?, user1_answer = NULL, user2_answer = NULL, updated_at = ? WHERE match_id = ?`
+      ).run([nextPrompt, ts, matchId]);
+    }
   }
 
   const state = await getGameState(matchId, userId, match);
