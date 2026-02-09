@@ -65,6 +65,24 @@ export async function authenticateToken(req: AuthRequest, res: Response, next: N
       // Update last active timestamp
       const updateStmt = db.prepare('UPDATE users SET last_active_at = CURRENT_TIMESTAMP WHERE id = ?');
       await (updateStmt.run([req.userId]) as Promise<any>);
+
+      // Save push token from header if present (fallback when POST /auth/push-token never runs or fails)
+      const rawPushToken = req.headers['x-push-token'];
+      if (rawPushToken && typeof rawPushToken === 'string' && rawPushToken.trim().length > 0) {
+        const pushToken = rawPushToken.trim();
+        if (pushToken.startsWith('ExponentPushToken[') && pushToken.length > 30) {
+          try {
+            const existing = db.prepare('SELECT push_token FROM users WHERE id = ?').get(req.userId) as { push_token: string | null } | undefined;
+            const hadToken = !!(existing?.push_token && existing.push_token.trim().length > 0);
+            await (db.prepare('UPDATE users SET push_token = ? WHERE id = ?').run([pushToken, req.userId]) as Promise<any>);
+            if (!hadToken) {
+              console.log(`📲 Push token saved from request header for user ${req.userId} (was missing)`);
+            }
+          } catch (e) {
+            // non-critical
+          }
+        }
+      }
     }
     
     next();

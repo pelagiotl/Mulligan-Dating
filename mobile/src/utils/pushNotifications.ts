@@ -8,6 +8,7 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { api } from './api';
 import { safeNativeModuleCall } from './nativeModuleGuard';
+import { setStoredPushToken } from './pushTokenStore';
 
 // Flag to track if notification handler has been initialized
 let notificationHandlerInitialized = false;
@@ -163,6 +164,8 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
       return null; // Don't crash - just return null
     }
 
+    // Store so api client can send on every request (fallback if POST fails)
+    setStoredPushToken(pushToken);
     // Send token to backend (retry on failure so message notifications work)
     console.log('📲 Push: Got token, sending to backend (auth required).');
     const maxRetries = 3;
@@ -186,10 +189,12 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
           const delayMs = attempt * 2000;
           await new Promise((r) => setTimeout(r, delayMs));
         } else {
+          setStoredPushToken(pushToken); // still send on future requests so backend can save
           return pushToken;
         }
       }
     }
+    setStoredPushToken(pushToken);
     return pushToken;
   }, 'PushNotifications', {
     maxWaitMs: 10000, // Wait up to 10 seconds for app initialization
@@ -204,6 +209,7 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
  * Clear push token from backend (call on logout)
  */
 export async function clearPushToken(): Promise<void> {
+  setStoredPushToken(null);
   try {
     await api.post('/auth/push-token', { pushToken: null });
     console.log('✅ Push token cleared from backend');
