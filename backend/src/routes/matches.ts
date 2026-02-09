@@ -2005,8 +2005,8 @@ matchesRouter.post("/:matchId/truth-or-dare", authenticateToken, rateLimitAPI, a
     const { generateTruthOrDarePrompt } = await import('../services/truthOrDare.js');
 
     const normalize = (s: string) => s.toLowerCase().trim().replace(/\s+/g, ' ');
-    let prompt: string;
-    let fromAI: boolean;
+    let prompt = '';
+    let fromAI = false;
     const maxTries = 3;
     for (let attempt = 0; attempt < maxTries; attempt++) {
       const result = await generateTruthOrDarePrompt(type, matchId, userId, level, excludePrompts);
