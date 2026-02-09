@@ -1087,16 +1087,22 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
         } else {
           const reason = !token ? 'no push token (recipient: use TestFlight/real device, allow notifications)' : 'invalid Expo push token format';
           console.warn(`⚠️  Skipping push for user ${otherUserId}: ${reason}`);
-          // Delayed retry: recipient may open app after socket and we save token from their request; re-check in 3s and send push
+          // Delayed retry: recipient may open app after socket and we save token from their request; re-check at 3s and 8s
           if (!token) {
+            const tryDelayedPush = async () => {
+              const retryRow = db.prepare("SELECT push_token FROM users WHERE id = ?").get([otherUserId]) as { push_token: string | null } | undefined;
+              const retryToken = retryRow?.push_token ?? null;
+              if (retryToken && retryToken.trim() && isExpoPushToken(retryToken)) {
+                const sent = await sendMessagePushNotification(retryToken, senderName, messagePreview, matchId, userId);
+                if (sent) console.log(`✅ Push (message HTTP) sent to ${otherUserId} (delayed retry)`);
+                return true;
+              }
+              return false;
+            };
             setTimeout(async () => {
               try {
-                const retryRow = db.prepare("SELECT push_token FROM users WHERE id = ?").get([otherUserId]) as { push_token: string | null } | undefined;
-                const retryToken = retryRow?.push_token ?? null;
-                if (retryToken && retryToken.trim() && isExpoPushToken(retryToken)) {
-                  const sent = await sendMessagePushNotification(retryToken, senderName, messagePreview, matchId, userId);
-                  if (sent) console.log(`✅ Push (message HTTP) sent to ${otherUserId} (delayed retry)`);
-                }
+                if (await tryDelayedPush()) return;
+                setTimeout(async () => { try { await tryDelayedPush(); } catch (e) { console.warn('⚠️  Delayed push retry 2 failed:', e); } }, 5000);
               } catch (e) {
                 console.warn('⚠️  Delayed push retry failed:', e);
               }
