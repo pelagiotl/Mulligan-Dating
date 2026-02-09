@@ -733,6 +733,7 @@ export default function BrowseScreen() {
   const [photoCount, setPhotoCount] = useState<number | null>(null); // User's photo count (for 5-photo minimum)
   const [photoCountLoading, setPhotoCountLoading] = useState(false); // True while fetching count so we don't briefly show wrong state
   const socketRef = useRef<Socket | null>(null);
+  const matchIdFromConnectRef = useRef<string | null>(null);
   const openTokenModalRef = useRef<(() => void) | null>(null);
   const performClaimRef = useRef<((opts?: { onSuccess?: () => void; successMessage?: string }) => Promise<void>) | null>(null);
   
@@ -1269,7 +1270,8 @@ export default function BrowseScreen() {
         console.log('❌ Browse: Disconnected from WebSocket server');
       });
 
-      // In-app notification when User B gets a new match - show Alert from any tab (toast only visible when on Connect tab)
+      // In-app notification when the other user gets a new match (User B). Skip if we're the connect initiator
+      // — we already show "It's a match! You matched with X" via MatchCelebration; avoid duplicate "New match! X matched with you".
       socket.on('new_match', (data: {
         matchId: string;
         otherUserId: string;
@@ -1277,6 +1279,7 @@ export default function BrowseScreen() {
         message: string;
         stage: string;
       }) => {
+        if (matchIdFromConnectRef.current === data.matchId) return;
         setMatchNotification(data.message);
         setTimeout(() => setMatchNotification(null), 5000);
         playMatchSound().catch(() => {});
@@ -1525,6 +1528,7 @@ export default function BrowseScreen() {
         setCurrentProfile(null);
         setMatchedProfile(profile);
         setMatchId(result.matchId);
+        matchIdFromConnectRef.current = result.matchId;
         setMatchExplanation(result.explanation ?? null);
         setShowMatchCelebration(true);
       })
@@ -1599,6 +1603,7 @@ export default function BrowseScreen() {
     setShowMatchCelebration(false);
     setMatchedProfile(null);
     setMatchId(null);
+    matchIdFromConnectRef.current = null;
     setMatchExplanation(null);
     setIsAutoMatching(false);
     clearPendingOpenMatchId(); // Ensure no stale pending match when user chooses Keep Browsing

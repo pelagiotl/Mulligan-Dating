@@ -235,7 +235,10 @@ export default function NeverHaveIEver({
 
   useEffect(() => {
     if (!modalVisible) return;
-    const onUpdate = () => fetchState();
+    const onUpdate = () => {
+      api.clearCache(`/matches/${matchId}/never-have-i-ever`);
+      fetchState();
+    };
     socket?.on?.('never_have_i_ever_updated', onUpdate);
     return () => {
       socket?.off?.('never_have_i_ever_updated', onUpdate);
@@ -324,10 +327,16 @@ export default function NeverHaveIEver({
           bothAnswered: !!data.bothAnswered,
           yourPoints: yourPts,
           theirPoints: theirPts,
+          prompt: data.prompt ?? prev.prompt,
         };
       });
-      if (data.prompt) setPrompt(data.prompt);
-      if (data.bothAnswered) await fetchState();
+      if (data.prompt) {
+        setPrompt(data.prompt);
+      }
+      if (data.bothAnswered) {
+        api.clearCache(`/matches/${matchId}/never-have-i-ever`);
+        await fetchState();
+      }
     } catch (err) {
       console.warn('Never Have I Ever answer error:', err);
       fetchState();

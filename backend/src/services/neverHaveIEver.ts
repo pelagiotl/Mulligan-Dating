@@ -278,8 +278,8 @@ export async function getGameState(
     };
   }
 
-  const yourStrikes = isUser1 ? row.user1_strikes : row.user2_strikes;
-  const theirStrikes = isUser1 ? row.user2_strikes : row.user1_strikes;
+  const yourStrikes = Number(isUser1 ? row.user1_strikes : row.user2_strikes) || 0;
+  const theirStrikes = Number(isUser1 ? row.user2_strikes : row.user1_strikes) || 0;
   const yourAnswer = (isUser1 ? row.user1_answer : row.user2_answer) as 'have' | 'havent' | null;
   const theirAnswer = (isUser1 ? row.user2_answer : row.user1_answer) as 'have' | 'havent' | null;
 
@@ -454,9 +454,10 @@ export async function submitAnswer(
   if (user1Answer !== null && user2Answer !== null) {
     const user1Strike = user1Answer === 'have';
     const user2Strike = user2Answer === 'have';
-
-    const newUser1Strikes = row.user1_strikes + (user1Strike ? 1 : 0);
-    const newUser2Strikes = row.user2_strikes + (user2Strike ? 1 : 0);
+    const s1 = Number(row.user1_strikes) || 0;
+    const s2 = Number(row.user2_strikes) || 0;
+    const newUser1Strikes = s1 + (user1Strike ? 1 : 0);
+    const newUser2Strikes = s2 + (user2Strike ? 1 : 0);
 
     roundResult = {
       youStrike: isUser1 ? user1Strike : user2Strike,
@@ -513,8 +514,10 @@ export async function submitTurnAnswer(
   }
 
   const youStrike = answer === 'have';
-  const newUser1Strikes = isUser1 ? row.user1_strikes + (youStrike ? 1 : 0) : row.user1_strikes;
-  const newUser2Strikes = isUser1 ? row.user2_strikes : row.user2_strikes + (youStrike ? 1 : 0);
+  const s1 = Number(row.user1_strikes) || 0;
+  const s2 = Number(row.user2_strikes) || 0;
+  const newUser1Strikes = isUser1 ? s1 + (youStrike ? 1 : 0) : s1;
+  const newUser2Strikes = isUser1 ? s2 : s2 + (youStrike ? 1 : 0);
 
   const gameOver = newUser1Strikes >= STRIKES_TO_LOSE || newUser2Strikes >= STRIKES_TO_LOSE;
   const spiceLevel = (row.spice_level || 'pg13') as SpiceLevel;

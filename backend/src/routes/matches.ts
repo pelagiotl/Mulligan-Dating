@@ -721,6 +721,8 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
           ? await targetPushTokenResult
           : targetPushTokenResult) as { push_token: string | null } | undefined;
 
+        // Only send push to the target (person who was matched with). The connect initiator
+        // already sees "It's a match! You matched with X" in-app; avoid duplicate "New match! X matched with you".
         if (targetPushToken?.push_token) {
           await sendMatchPushNotification(
             targetPushToken.push_token,
@@ -728,14 +730,6 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
             matchId
           );
           console.log(`✅ Sent push notification to ${targetUserId} (User B)`);
-        }
-        if (userPushToken?.push_token) {
-          await sendMatchPushNotification(
-            userPushToken.push_token,
-            targetDisplayName?.display_name || 'Someone',
-            matchId
-          );
-          console.log(`✅ Sent push notification to ${userId} (User A)`);
         }
       } catch (notifErr) {
         console.warn('⚠️  Match notifications failed (non-critical):', notifErr);
@@ -1991,6 +1985,13 @@ matchesRouter.post("/:matchId/truth-or-dare", authenticateToken, rateLimitAPI, a
 
     const level = (game.spice_level === 'ratedr' ? 'ratedr' : game.spice_level === 'spicy' ? 'spicy' : 'pg13') as 'pg13' | 'ratedr' | 'spicy';
     const currentPrompt = (game as any).current_prompt ?? null;
+    const currentPromptType = (game as any).current_prompt_type ?? null;
+
+    // If there's already a prompt of this type and user didn't click "Another one", return it (don't regenerate)
+    if (!anotherOne && currentPrompt && currentPrompt.trim() && currentPromptType === type) {
+      return res.json({ prompt: currentPrompt, fromAI: false, spiceLevel: level });
+    }
+
     let usedPrompts: string[] = [];
     try {
       const raw = (game as any).used_prompts;

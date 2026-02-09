@@ -3,8 +3,8 @@
  * Converted from web version - uses AsyncStorage instead of localStorage
  */
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
-import { Alert, AppState, AppStateStatus } from 'react-native';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
+import { Alert, AppState, AppStateStatus, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { io, Socket } from 'socket.io-client';
 import { api, clearTokenCache, setTokenCache } from '../utils/api';
@@ -14,12 +14,17 @@ import * as Notifications from 'expo-notifications';
 import { navigationRef } from '../navigation/navigationRef';
 import { playMessageSound, playMatchSound } from '../utils/sounds';
 import { setPendingGameRequest } from '../utils/pendingGameRequest';
+import { currentMatchIdRef } from '../utils/currentMatchView';
+
+export type MessageNotification = { senderName: string; preview: string; matchId: string } | null;
 
 interface AuthContextType {
   user: User | null;
   profile: Profile | null;
   loading: boolean;
   isAuthenticated: boolean;
+  messageNotification: MessageNotification;
+  clearMessageNotification: () => void;
   phoneLogin: (phoneNumber: string, code: string, referralCode?: string) => Promise<{ hasProfile: boolean }>;
   logout: () => void;
   refreshProfile: () => Promise<void>;
@@ -27,13 +32,34 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+const MESSAGE_NOTIFICATION_DURATION_MS = 5000;
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [messageNotification, setMessageNotificationState] = useState<MessageNotification>(null);
+  const messageNotificationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const notificationListener = useRef<any>(null);
   const responseListener = useRef<any>(null);
   const messageNotificationSocketRef = useRef<Socket | null>(null);
+
+  const clearMessageNotification = useCallback(() => {
+    if (messageNotificationTimeoutRef.current) {
+      clearTimeout(messageNotificationTimeoutRef.current);
+      messageNotificationTimeoutRef.current = null;
+    }
+    setMessageNotificationState(null);
+  }, []);
+
+  const showMessageNotification = useCallback((senderName: string, preview: string, matchId: string) => {
+    if (messageNotificationTimeoutRef.current) clearTimeout(messageNotificationTimeoutRef.current);
+    setMessageNotificationState({ senderName, preview, matchId });
+    messageNotificationTimeoutRef.current = setTimeout(() => {
+      messageNotificationTimeoutRef.current = null;
+      setMessageNotificationState(null);
+    }, MESSAGE_NOTIFICATION_DURATION_MS);
+  }, []);
 
   useEffect(() => {
     checkAuth();
@@ -51,6 +77,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     let cancelled = false;
+    let connectRetryCount = 0;
+    const MAX_CONNECT_RETRIES = 1;
 
     const initMessageNotificationSocket = async () => {
       const token = await AsyncStorage.getItem('token');
@@ -72,7 +100,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       socket.on('connect_error', (err) => {
-        if (!cancelled) console.warn('⚠️ AuthContext: Message notification socket connect_error:', err?.message || err);
+        if (!cancelled) {
+          console.warn('⚠️ AuthContext: Message notification socket connect_error:', err?.message || err);
+          if (connectRetryCount < MAX_CONNECT_RETRIES) {
+            connectRetryCount++;
+            setTimeout(() => {
+              if (!cancelled && messageNotificationSocketRef.current === socket) {
+                socket.disconnect();
+                messageNotificationSocketRef.current = null;
+                initMessageNotificationSocket();
+              }
+            }, 2000);
+          }
+        }
       });
 
       socket.on('disconnect', (reason) => {
@@ -82,37 +122,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       socket.on('new_message', (data: { matchId?: string; senderId: string; senderName?: string; content?: string }) => {
-        if (data.senderId === user?.id) return;
-        // Don't show if user is already viewing this match's chat
         try {
-          const route = navigationRef.current?.getCurrentRoute?.();
-          const state = navigationRef.current?.getState?.();
-          const matchParams = (route?.params as { matchId?: string })?.matchId
-            ?? (state?.routes?.[state?.index ?? 0] as any)?.state?.params?.matchId;
-          if (data.matchId && matchParams === data.matchId) return;
-        } catch (_) {}
-        playMessageSound().catch(() => {});
-        const senderName = data.senderName || 'Someone';
-        const preview = (data.content ?? '').substring(0, 50) || '📷 Photo';
-        const displayPreview = data.content && data.content.length > 50 ? preview + '...' : preview;
-        Alert.alert(
-          '💬 New Message',
-          `${senderName}: ${displayPreview}`,
-          [
-            {
-              text: 'View',
-              onPress: () => {
-                if (data.matchId && navigationRef.current?.isReady()) {
-                  navigationRef.current.navigate('MainTabs' as never, {
-                    screen: 'Matches',
-                    params: { matchId: data.matchId },
-                  } as never);
-                }
+          if (data.senderId === user?.id) return;
+          // Don't show if user is already viewing this match's chat (MatchesScreen keeps currentMatchIdRef in sync)
+          if (data.matchId && currentMatchIdRef.current === data.matchId) {
+            if (__DEV__) console.log('💬 In-app notification skipped: already viewing this chat');
+            return;
+          }
+          const senderName = data.senderName || 'Someone';
+          const preview = (data.content ?? '').substring(0, 50) || '📷 Photo';
+          const displayPreview = data.content && data.content.length > 50 ? preview + '...' : preview;
+          if (data.matchId) showMessageNotification(senderName, displayPreview, data.matchId);
+          playMessageSound().catch(() => {});
+          if (__DEV__) console.log('💬 In-app new message alert:', senderName, displayPreview.substring(0, 30));
+          Alert.alert(
+            '💬 New Message',
+            `${senderName}: ${displayPreview}`,
+            [
+              {
+                text: 'View',
+                onPress: () => {
+                  if (data.matchId && navigationRef.current?.isReady()) {
+                    navigationRef.current.navigate('MainTabs' as never, {
+                      screen: 'Matches',
+                      params: { matchId: data.matchId },
+                    } as never);
+                  }
+                },
               },
-            },
-            { text: 'OK', style: 'cancel' },
-          ]
-        );
+              { text: 'OK', style: 'cancel' },
+            ]
+          );
+        } catch (err) {
+          console.warn('⚠️ AuthContext new_message handler error:', err);
+        }
       });
     };
 
@@ -126,7 +169,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         messageNotificationSocketRef.current = null;
       }
     };
-  }, [user?.id]);
+  }, [user?.id, showMessageNotification]);
 
   // Set up notification listeners for incoming push notifications
   useEffect(() => {
@@ -140,22 +183,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log('📬 Notification received (foreground):', notification);
       const data = notification.request.content.data;
       
-      // Show in-app notification for new messages
+      // Show in-app notification for new messages (same as match: banner + sound + Alert)
       if (data?.type === 'new_message') {
         console.log('💬 New message notification:', {
           senderName: data.senderName,
           matchId: data.matchId,
           preview: notification.request.content.body,
         });
-        
-        // Play message sound
+        const senderName = data.senderName || 'Someone';
+        const messagePreview = notification.request.content.body || 'sent you a message';
+        if (data?.matchId) showMessageNotification(senderName, messagePreview, data.matchId);
         playMessageSound().catch(() => {
           console.log('Message sound not available');
         });
-        
-        // Show in-app alert
-        const senderName = data.senderName || 'Someone';
-        const messagePreview = notification.request.content.body || 'sent you a message';
         Alert.alert(
           '💬 New Message',
           `${senderName}: ${messagePreview}`,
@@ -397,7 +437,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         Notifications.removeNotificationSubscription(responseListener.current);
       }
     };
-  }, [user]);
+  }, [user, showMessageNotification]);
 
   // Re-register push when app comes to foreground (ensures token is saved if initial registration failed or was delayed)
   const lastPushRegisterRef = useRef<number>(0);
@@ -590,15 +630,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         profile,
         loading,
         isAuthenticated: !!user,
+        messageNotification,
+        clearMessageNotification,
         phoneLogin,
         logout,
         refreshProfile,
       }}
     >
+      {messageNotification && (
+        <TouchableOpacity
+          style={messageNotificationStyles.banner}
+          onPress={() => {
+            clearMessageNotification();
+            if (messageNotification.matchId && navigationRef.current?.isReady()) {
+              navigationRef.current.navigate('MainTabs' as never, {
+                screen: 'Matches',
+                params: { matchId: messageNotification.matchId },
+              } as never);
+            }
+          }}
+          activeOpacity={0.9}
+        >
+          <Text style={messageNotificationStyles.bannerText} numberOfLines={2}>
+            💬 {messageNotification.senderName}: {messageNotification.preview}
+          </Text>
+        </TouchableOpacity>
+      )}
       {children}
     </AuthContext.Provider>
   );
 }
+
+const messageNotificationStyles = StyleSheet.create({
+  banner: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#10b981',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    zIndex: 9999,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  bannerText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+});
 
 export function useAuth() {
   const context = useContext(AuthContext);

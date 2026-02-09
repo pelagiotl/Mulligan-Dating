@@ -30,7 +30,7 @@ const DARE_FALLBACKS = [
   "Send a selfie with your best 'I'm into you' look",
   "Send a voice note saying 'I have a crush on you' in a funny accent",
   "Describe your ideal first date in 3 emojis",
-  "Send a pic of your current view and rate it as a date spot 1-10",
+  "Send a pic of your coffee or snack and rate the vibe 1-10",
   "Reply with the cheesiest pick-up line you'd actually use",
   "Send a selfie making a silly face — bonus points if it's flirty",
   "Describe what you find attractive in someone using only emojis",
@@ -176,13 +176,13 @@ export async function generateTruthOrDarePrompt(
     const typeLabel = type === 'truth' ? 'Truth' : 'Dare';
 
     const pg13Truth = 'a playfully flirty question about attraction, dating, romance, or chemistry. Hint at romance without being crude. Think: what they find attractive, love languages, first impressions, green flags, dream dates. Tasteful PG-13 vibe.';
-    const pg13Dare = 'a fun, slightly flirty challenge they can complete in chat (voice note, selfie, emoji). Can hint at romance (e.g. "best smile", "describe your type in 3 words") but stay tasteful. Doable via text/voice/image in a dating app.';
+    const pg13Dare = 'a fun, slightly flirty challenge they can complete in chat (voice note, selfie, emoji). Can hint at romance (e.g. "best smile", "describe your type in 3 words") but stay tasteful. Doable via text/voice/image in a dating app. Do NOT mention travel, vacation, "where you are", scenic views, or location in the background — assume they are at home or somewhere ordinary.';
 
     const rTruth = 'a spicier, more suggestive question about physical attraction, chemistry, kissing, what turns them on, romantic boldness, or physical preferences. Still tasteful and app-store safe — no explicit sexual content. Think: turn-ons, first kiss, making moves, what they find irresistible. Rated R vibe = bold and flirty.';
-    const rDare = 'a bolder, more suggestive challenge they can complete in chat. Can be flirtier: suggestive selfies, voice notes with romantic tension, describing physical attraction, etc. Still tasteful — no explicit content. Doable via text/voice/image. Rated R = make them blush.';
+    const rDare = 'a bolder, more suggestive challenge they can complete in chat. Can be flirtier: suggestive selfies, voice notes with romantic tension, describing physical attraction, etc. Still tasteful — no explicit content. Doable via text/voice/image. Rated R = make them blush. Do NOT mention travel, vacation, scenic views, or "where you are" — assume they are at home or somewhere ordinary.';
 
     const spicyTruth = 'the boldest, most provocative question — fantasies, secret turn-ons, what would make them lose their cool, impulsive romantic moves, what they\'d never admit in person. Push boundaries. Make them blush. Still tasteful and app-store safe — NO explicit sexual content.';
-    const spicyDare = 'the boldest challenge they can complete in chat — suggestive voice notes, steamy selfies, describing attraction boldly, flirty captions. Make them blush. Tasteful but provocative. Doable via text/voice/image. No explicit content.';
+    const spicyDare = 'the boldest challenge they can complete in chat — suggestive voice notes, steamy selfies, describing attraction boldly, flirty captions. Make them blush. Tasteful but provocative. Doable via text/voice/image. No explicit content. Do NOT mention travel, vacation, scenic views, or location — assume they are at home or somewhere ordinary.';
 
     const typeInstruction = type === 'truth'
       ? (isSpicy ? spicyTruth : isR ? rTruth : pg13Truth)
@@ -195,10 +195,14 @@ export async function generateTruthOrDarePrompt(
       ? `SPICE LEVEL: Rated R — bolder, more suggestive, flirtier. Can touch on physical attraction, chemistry, kissing, turn-ons, romantic boldness. Still tasteful and app-store safe. NEVER explicit sexual content.`
       : `SPICE LEVEL: PG-13 — playfully flirty, romantic undertones. Never crude, sexual, or invasive.`;
 
+    const noTravelNote = type === 'dare'
+      ? '\n- Do NOT use travel, vacation, "where you are", scenic views, or location in the background. Users are often at home (e.g. on the couch). Keep dares doable from wherever they are.'
+      : '';
+
     const systemPrompt = `You generate ${type} prompts for a dating app's "Truth or Dare" game. ${systemSpice}
 
 - Concise: one sentence, under 100 characters.
-- Specific to ${type}: ${typeInstruction}
+- Specific to ${type}: ${typeInstruction}${noTravelNote}
 - Output ONLY the prompt text, nothing else. No quotes, no numbering, no explanation.`;
 
     const spiceHint = isSpicy

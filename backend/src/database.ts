@@ -91,8 +91,8 @@ class DatabaseWrapper {
     // Convert DATETIME to TIMESTAMP
     pgSql = pgSql.replace(/DATETIME/g, 'TIMESTAMP');
     
-    // Convert TEXT to VARCHAR(255) for PostgreSQL
-    pgSql = pgSql.replace(/\bTEXT\b/g, 'VARCHAR(255)');
+    // Keep TEXT as TEXT in PostgreSQL (unlimited length). Do NOT convert to VARCHAR(255)
+    // or long content (prompts, messages, JSON) will fail with "value too long".
     
     // Handle IF NOT EXISTS - PostgreSQL supports it
     // Keep it as is
@@ -933,6 +933,24 @@ export async function initDatabase() {
   console.log("✅ Connection Quality Score and Match Memory Bank tables created");
   } catch (e) {
     console.warn("⚠️  Some indexes may already exist or failed to create:", e);
+  }
+
+  // Migration: ensure long-content columns are TEXT not VARCHAR(255) (fixes "value too long" on prompts/messages)
+  if (usePostgres && pgPool) {
+    const alterToText = async (table: string, column: string) => {
+      try {
+        await pgPool!.query(`ALTER TABLE ${table} ALTER COLUMN ${column} TYPE TEXT`);
+        console.log(`✅ Migration: ${table}.${column} -> TEXT`);
+      } catch (e: any) {
+        if (e?.code !== '42701' && !e?.message?.includes('already')) {
+          console.warn(`⚠️  Migration ${table}.${column}:`, e?.message || e);
+        }
+      }
+    };
+    await alterToText('messages', 'content');
+    await alterToText('truth_or_dare_games', 'current_prompt');
+    await alterToText('truth_or_dare_games', 'used_prompts');
+    await alterToText('never_have_i_ever_games', 'current_prompt');
   }
 
   console.log("✅ Database initialized");

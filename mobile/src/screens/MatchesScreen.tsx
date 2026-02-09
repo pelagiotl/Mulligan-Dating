@@ -32,6 +32,7 @@ import { useAuth } from '../context/AuthContext';
 import { getPhotoUrl } from '../utils/photoUrl';
 import { getPendingOpenMatchId, clearPendingOpenMatchId } from '../utils/pendingMatchOpen';
 import { getPendingGameRequest, clearPendingGameRequest, type PendingGameRequest } from '../utils/pendingGameRequest';
+import { currentMatchIdRef } from '../utils/currentMatchView';
 import { playMatchSound, playMessageSound } from '../utils/sounds';
 import { navigationRef } from '../navigation/navigationRef';
 import LegalFooter from '../components/LegalFooter';
@@ -2323,9 +2324,15 @@ export default function MatchesScreen() {
     return () => clearTimeout(timer);
   }, [user, isAuthenticated, authLoading]);
 
+  // Expose currently viewed match so AuthContext can avoid showing in-app alert when user is in this chat
+  useEffect(() => {
+    currentMatchIdRef.current = selectedMatch?.id ?? null;
+    return () => { currentMatchIdRef.current = null; };
+  }, [selectedMatch?.id]);
+
   useEffect(() => {
     selectedMatchRef.current = selectedMatch;
-    
+
     // Chat transition: fade only (no translateX so messages/input stay on screen)
     if (selectedMatch) {
       chatSlideAnim.setValue(0);
