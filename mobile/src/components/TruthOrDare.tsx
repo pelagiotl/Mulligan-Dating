@@ -292,11 +292,12 @@ export default function TruthOrDare({
       });
       const recentlyRequestedAnother = Date.now() - lastAnotherOneAtRef.current < 3000;
       const alreadyShowingPrompt = stepRef.current === 'prompt';
-      // If server has a prompt (other user already picked), always show it so User B sees it instead of "Their turn"
+      // Only apply server prompt when (1) we asked for "another one" or (2) it's the other player's prompt (not our turn)
+      // When it's our turn we must stay on 'choose' so the user can pick Truth or Dare; don't overwrite with stale prompt
       const shouldApplyPromptFromServer =
         data.currentPrompt &&
         data.currentPromptType &&
-        (recentlyRequestedAnother || !alreadyShowingPrompt);
+        (recentlyRequestedAnother || (!alreadyShowingPrompt && !data.isYourTurn));
       if (shouldApplyPromptFromServer) {
         setPrompt(data.currentPrompt);
         setPromptType(data.currentPromptType);

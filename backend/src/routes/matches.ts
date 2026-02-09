@@ -974,48 +974,37 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
       await recordSuccessSignal(match.user2_id, match.user1_id, matchId, "stage_advanced");
     }
 
-    // Send push notification to the other user (always send - OS shows it when app is backgrounded/closed, with sound)
+    // Send push notification to the other user (OS shows when app is backgrounded/closed)
     try {
       const { sendMessagePushNotification, isPushNotificationConfigured, isExpoPushToken } = await import('../services/pushNotifications.js');
-      
+      const hasExpoToken = !!process.env.EXPO_ACCESS_TOKEN;
+      const otherUserPushTokenResult = db
+        .prepare("SELECT push_token FROM users WHERE id = ?")
+        .get([otherUserId]) as { push_token: string | null } | undefined;
+      const token = otherUserPushTokenResult?.push_token ?? null;
+      const tokenValid = !!(token && isExpoPushToken(token));
+      console.log(`📲 Push (message HTTP): recipient=${otherUserId} hasToken=${!!token} validFormat=${tokenValid} expoConfigured=${isPushNotificationConfigured()} EXPO_ACCESS_TOKEN=${hasExpoToken ? 'set' : 'NOT SET'}`);
       if (isPushNotificationConfigured()) {
-        // Get sender's profile name
         const senderProfileResult = db
           .prepare("SELECT display_name FROM profiles WHERE user_id = ?")
           .get([userId]);
         const senderProfile = (senderProfileResult instanceof Promise
           ? await senderProfileResult
           : senderProfileResult) as { display_name: string } | undefined;
-        
         const senderName = senderProfile?.display_name || 'Someone';
-        
-        // Get the other user's push token
-        const otherUserPushTokenResult = db
-          .prepare("SELECT push_token FROM users WHERE id = ?")
-          .get([otherUserId]) as { push_token: string | null } | undefined;
-        
-        if (otherUserPushTokenResult?.push_token && isExpoPushToken(otherUserPushTokenResult.push_token)) {
+        if (tokenValid) {
           const messagePreview = finalImageUrl
             ? (sanitizedContent ? sanitizedContent.substring(0, 50) + (sanitizedContent.length > 50 ? '...' : '') : '📷 Photo')
             : (sanitizedContent.length > 50 ? sanitizedContent.substring(0, 50) + '...' : sanitizedContent);
-          
-          const pushSent = await sendMessagePushNotification(
-            otherUserPushTokenResult.push_token,
-            senderName,
-            messagePreview,
-            matchId,
-            userId
-          );
+          const pushSent = await sendMessagePushNotification(token!, senderName, messagePreview, matchId, userId);
           if (pushSent) {
-            console.log(`✅ Sent push notification for new message to user ${otherUserId}`);
+            console.log(`✅ Push (message HTTP) sent to ${otherUserId}`);
           } else {
-            console.warn(`⚠️  Push notification failed for user ${otherUserId} (check expo-server-sdk and token validity)`);
+            console.warn(`⚠️  Push (message HTTP) to ${otherUserId} failed (see Expo error above)`);
           }
         } else {
-          const reason = !otherUserPushTokenResult?.push_token
-            ? 'no push token (User B needs TestFlight build, not Expo Go)'
-            : 'invalid Expo push token format';
-          console.log(`ℹ️  Skipping push for user ${otherUserId}: ${reason}`);
+          const reason = !token ? 'no push token (recipient: use TestFlight/real device, allow notifications)' : 'invalid Expo push token format';
+          console.warn(`⚠️  Skipping push for user ${otherUserId}: ${reason}`);
         }
       }
     } catch (pushError) {

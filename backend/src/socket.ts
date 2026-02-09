@@ -211,36 +211,33 @@ export function initializeSocket(server: HTTPServer) {
       // Also emit to recipient's user room (reliable delivery - user room always joined on connect)
       io.to(`user:${otherUserId}`).emit('new_message', message);
 
-      // Send push notification to the other user (always send - OS shows it when app is backgrounded/closed, with sound)
+      // Send push notification to the other user (OS shows it when app is backgrounded/closed)
       try {
-        const { sendPushNotification, isPushNotificationConfigured, isExpoPushToken } = await import('./services/pushNotifications.js');
-        
+        const { isPushNotificationConfigured, isExpoPushToken } = await import('./services/pushNotifications.js');
+        const hasExpoToken = !!process.env.EXPO_ACCESS_TOKEN;
+        const otherUserPushTokenResult = db
+          .prepare("SELECT push_token FROM users WHERE id = ?")
+          .get(otherUserId) as { push_token: string | null } | undefined;
+        const token = otherUserPushTokenResult?.push_token ?? null;
+        const tokenValid = !!(token && isExpoPushToken(token));
+        console.log(`📲 Push (message): recipient=${otherUserId} hasToken=${!!token} validFormat=${tokenValid} expoConfigured=${isPushNotificationConfigured()} EXPO_ACCESS_TOKEN=${hasExpoToken ? 'set' : 'NOT SET'}`);
         if (!isPushNotificationConfigured()) {
-          console.warn('⚠️  Push notification service not configured, skipping message notification');
-        } else {
-          // Get the other user's push token
-          const otherUserPushTokenResult = db
-            .prepare("SELECT push_token FROM users WHERE id = ?")
-            .get(otherUserId) as { push_token: string | null } | undefined;
-          
-          if (otherUserPushTokenResult?.push_token && isExpoPushToken(otherUserPushTokenResult.push_token)) {
-            const messagePreview = content.trim().length > 50 ? content.trim().substring(0, 50) + '...' : content.trim();
-            const { sendMessagePushNotification } = await import('./services/pushNotifications.js');
-            await sendMessagePushNotification(
-              otherUserPushTokenResult.push_token,
-              profile.display_name,
-              messagePreview,
-              matchId,
-              userId
-            );
-            console.log(`✅ Sent push notification with message sound to ${otherUserId}`);
+          console.warn('⚠️  Push notification service not configured (install expo-server-sdk and set EXPO_ACCESS_TOKEN on Render)');
+        } else if (tokenValid) {
+          const messagePreview = content.trim().length > 50 ? content.trim().substring(0, 50) + '...' : content.trim();
+          const { sendMessagePushNotification } = await import('./services/pushNotifications.js');
+          const ok = await sendMessagePushNotification(token!, profile.display_name, messagePreview, matchId, userId);
+          if (ok) {
+            console.log(`✅ Push (message) sent to ${otherUserId}`);
           } else {
-            console.warn(`⚠️  No valid push token for user ${otherUserId}, skipping message notification`);
+            console.warn(`⚠️  Push (message) to ${otherUserId} failed (check Render logs above for Expo error)`);
           }
+        } else {
+          if (!token) console.warn(`⚠️  No push_token for user ${otherUserId} — they need to open the app on a real device (TestFlight/dev build) and allow notifications.`);
+          else console.warn(`⚠️  Invalid Expo push token format for user ${otherUserId}`);
         }
-      } catch (pushError) {
-        // Push notifications are optional, don't fail message sending if push fails
-        console.warn('⚠️  Failed to send push notification for message (non-critical):', pushError);
+      } catch (pushError: any) {
+        console.warn('⚠️  Push (message) exception:', pushError?.message || pushError);
       }
 
       // Don't mark messages as read here - they should only be marked as read

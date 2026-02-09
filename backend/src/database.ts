@@ -945,7 +945,8 @@ export async function initDatabase() {
   if (usePostgres && pgPool) {
     const alterToText = async (table: string, column: string) => {
       try {
-        await pgPool!.query(`ALTER TABLE ${table} ALTER COLUMN ${column} TYPE TEXT`);
+        // USING ensures varchar(255) etc. cast correctly to TEXT
+        await pgPool!.query(`ALTER TABLE ${table} ALTER COLUMN ${column} TYPE TEXT USING ${column}::TEXT`);
         console.log(`✅ Migration: ${table}.${column} -> TEXT`);
       } catch (e: any) {
         if (e?.code !== '42701' && !e?.message?.includes('already')) {
@@ -958,8 +959,10 @@ export async function initDatabase() {
     await alterToText('truth_or_dare_games', 'used_prompts');
     await alterToText('never_have_i_ever_games', 'current_prompt');
     await alterToText('date_plans', 'title');
+    await alterToText('date_plans', 'description');
     await alterToText('date_plans', 'venue_name');
     await alterToText('date_plans', 'venue_address');
+    await alterToText('date_plans', 'conversation_topics');
   }
 
   console.log("✅ Database initialized");

@@ -51,6 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const notificationListener = useRef<any>(null);
   const responseListener = useRef<any>(null);
   const messageNotificationSocketRef = useRef<Socket | null>(null);
+  const lastMessageDedupeRef = useRef<{ matchId: string; at: number } | null>(null);
 
   const clearMessageNotification = useCallback((id?: string) => {
     if (id) {
@@ -141,7 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       });
 
-      socket.on('new_message', (data: { matchId?: string; senderId: string; senderName?: string; content?: string }) => {
+      socket.on('new_message', (data: { matchId?: string; senderId: string; senderName?: string; content?: string; id?: string }) => {
         try {
           if (data.senderId === user?.id) return;
           // Don't show if user is already viewing this match's chat (MatchesScreen keeps currentMatchIdRef in sync)
@@ -149,6 +150,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (__DEV__) console.log('💬 In-app notification skipped: already viewing this chat');
             return;
           }
+          // Dedupe: backend emits to both match room and user room, so we can get the same message twice
+          const now = Date.now();
+          const last = lastMessageDedupeRef.current;
+          if (data.matchId && last?.matchId === data.matchId && now - last.at < 2500) {
+            if (__DEV__) console.log('💬 In-app notification skipped: duplicate (same match within 2.5s)');
+            return;
+          }
+          if (data.matchId) lastMessageDedupeRef.current = { matchId: data.matchId, at: now };
           const senderName = data.senderName || 'Someone';
           const preview = (data.content ?? '').substring(0, 50) || '📷 Photo';
           const displayPreview = data.content && data.content.length > 50 ? preview + '...' : preview;

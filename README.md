@@ -61,6 +61,25 @@ For accurate distance calculations in matching, set up a  geocoding API key. The
 
 The app will automatically use the best available provider.
 
+### Push notifications (mobile – outside-app)
+
+To get **system** message notifications when the app is in the background or closed:
+
+1. **Backend (Render)**  
+   - Set `EXPO_ACCESS_TOKEN` in the Render service environment (create at [expo.dev → Access Tokens](https://expo.dev/accounts/[account]/settings/access-tokens)).  
+   - On deploy you should see in logs: `Push: Expo SDK loaded. EXPO_ACCESS_TOKEN is set (push delivery enabled)`.
+
+2. **Recipient device**  
+   - Use a **real device** (e.g. TestFlight or EAS dev build). Push when the app is killed often does **not** work in the iOS Simulator or in Expo Go.  
+   - Open the app at least once after login and **allow notifications** so the push token is saved.
+
+3. **Verify in Render logs**  
+   When someone sends a message, look for:  
+   - `📲 Push (message): recipient=… hasToken=true validFormat=true EXPO_ACCESS_TOKEN=set` → push was attempted.  
+   - `✅ Push (message) sent to …` → Expo accepted it.  
+   - If you see `hasToken=false` → recipient needs to open the app on a real device and allow notifications.  
+   - If you see `EXPO_ACCESS_TOKEN=NOT SET` → set the token on Render and redeploy.
+
 ### Project Structure
 
 ```
