@@ -1043,15 +1043,15 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
     try {
       const { sendMessagePushNotification, isPushNotificationConfigured, isExpoPushToken } = await import('../services/pushNotifications.js');
       const hasExpoToken = !!process.env.EXPO_ACCESS_TOKEN;
-      let otherUserPushTokenResult = db
-        .prepare("SELECT push_token FROM users WHERE id = ?")
-        .get([otherUserId]) as { push_token: string | null } | undefined;
-      let token = otherUserPushTokenResult?.push_token ?? null;
+      let otherUserPushTokenResult = db.prepare("SELECT push_token FROM users WHERE id = ?").get([otherUserId]);
+      if (otherUserPushTokenResult instanceof Promise) otherUserPushTokenResult = await otherUserPushTokenResult;
+      let token = (otherUserPushTokenResult as { push_token: string | null } | undefined)?.push_token ?? null;
       // If no token yet, recipient may have a request in flight that just saved it; retry once after a short delay
       if ((!token || !token.trim()) && isPushNotificationConfigured()) {
         await new Promise((r) => setTimeout(r, 1200));
-        otherUserPushTokenResult = db.prepare("SELECT push_token FROM users WHERE id = ?").get([otherUserId]) as { push_token: string | null } | undefined;
-        token = otherUserPushTokenResult?.push_token ?? null;
+        let retryResult = db.prepare("SELECT push_token FROM users WHERE id = ?").get([otherUserId]);
+        if (retryResult instanceof Promise) retryResult = await retryResult;
+        token = (retryResult as { push_token: string | null } | undefined)?.push_token ?? null;
       }
       const tokenValid = !!(token && isExpoPushToken(token));
       console.log(`📲 Push (message HTTP): recipient=${otherUserId} hasToken=${!!token} validFormat=${tokenValid} expoConfigured=${isPushNotificationConfigured()} EXPO_ACCESS_TOKEN=${hasExpoToken ? 'set' : 'NOT SET'}`);
@@ -1090,8 +1090,9 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
           // Delayed retry: recipient may open app after socket and we save token from their request; re-check at 3s and 8s
           if (!token) {
             const tryDelayedPush = async () => {
-              const retryRow = db.prepare("SELECT push_token FROM users WHERE id = ?").get([otherUserId]) as { push_token: string | null } | undefined;
-              const retryToken = retryRow?.push_token ?? null;
+              let retryRow = db.prepare("SELECT push_token FROM users WHERE id = ?").get([otherUserId]);
+              if (retryRow instanceof Promise) retryRow = await retryRow;
+              const retryToken = (retryRow as { push_token: string | null } | undefined)?.push_token ?? null;
               if (retryToken && retryToken.trim() && isExpoPushToken(retryToken)) {
                 const sent = await sendMessagePushNotification(retryToken, senderName, messagePreview, matchId, userId);
                 if (sent) console.log(`✅ Push (message HTTP) sent to ${otherUserId} (delayed retry)`);
@@ -1724,10 +1725,12 @@ matchesRouter.post("/:matchId/game-request", authenticateToken, rateLimitAPI, as
     try {
       const { sendGameRequestPushNotification, isPushNotificationConfigured, isExpoPushToken } = await import('../services/pushNotifications.js');
       if (isPushNotificationConfigured()) {
-        const toUserTokenResult = db.prepare('SELECT push_token FROM users WHERE id = ?').get(toUserId) as { push_token: string | null } | undefined;
-        if (toUserTokenResult?.push_token && isExpoPushToken(toUserTokenResult.push_token)) {
+        let toUserTokenResult = db.prepare('SELECT push_token FROM users WHERE id = ?').get(toUserId);
+        if (toUserTokenResult instanceof Promise) toUserTokenResult = await toUserTokenResult;
+        const toUserToken = (toUserTokenResult as { push_token: string | null } | undefined)?.push_token;
+        if (toUserToken && isExpoPushToken(toUserToken)) {
           await sendGameRequestPushNotification(
-            toUserTokenResult.push_token,
+            toUserToken,
             fromUserName,
             gameType as 'truth_or_dare' | 'never_have_i_ever',
             matchId,
@@ -1930,9 +1933,11 @@ matchesRouter.post("/:matchId/truth-or-dare/spice-choice", authenticateToken, ra
         if (io) io.to(`match:${matchId}`).emit('new_message', { id: notifyMsgId, matchId, content: notifyContent, imageUrl: null, senderId: userId, senderName, sentAt: new Date().toISOString(), readAt: null });
         const { sendMessagePushNotification, isPushNotificationConfigured, isExpoPushToken } = await import('../services/pushNotifications.js');
         if (isPushNotificationConfigured()) {
-          const otherTokenRow = db.prepare('SELECT push_token FROM users WHERE id = ?').get([otherUserId]) as { push_token: string | null } | undefined;
-          if (otherTokenRow?.push_token && isExpoPushToken(otherTokenRow.push_token)) {
-            await sendMessagePushNotification(otherTokenRow.push_token, senderName, notifyContent, matchId, userId);
+          let otherTokenRow = db.prepare('SELECT push_token FROM users WHERE id = ?').get([otherUserId]);
+          if (otherTokenRow instanceof Promise) otherTokenRow = await otherTokenRow;
+          const otherToken = (otherTokenRow as { push_token: string | null } | undefined)?.push_token;
+          if (otherToken && isExpoPushToken(otherToken)) {
+            await sendMessagePushNotification(otherToken, senderName, notifyContent, matchId, userId);
           }
         }
       } catch (e) {

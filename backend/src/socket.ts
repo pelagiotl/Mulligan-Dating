@@ -215,10 +215,9 @@ export function initializeSocket(server: HTTPServer) {
       try {
         const { isPushNotificationConfigured, isExpoPushToken } = await import('./services/pushNotifications.js');
         const hasExpoToken = !!process.env.EXPO_ACCESS_TOKEN;
-        const otherUserPushTokenResult = db
-          .prepare("SELECT push_token FROM users WHERE id = ?")
-          .get(otherUserId) as { push_token: string | null } | undefined;
-        const token = otherUserPushTokenResult?.push_token ?? null;
+        let otherUserPushTokenResult = db.prepare("SELECT push_token FROM users WHERE id = ?").get(otherUserId);
+        if (otherUserPushTokenResult instanceof Promise) otherUserPushTokenResult = await otherUserPushTokenResult;
+        const token = (otherUserPushTokenResult as { push_token: string | null } | undefined)?.push_token ?? null;
         const tokenValid = !!(token && isExpoPushToken(token));
         console.log(`📲 Push (message): recipient=${otherUserId} hasToken=${!!token} validFormat=${tokenValid} expoConfigured=${isPushNotificationConfigured()} EXPO_ACCESS_TOKEN=${hasExpoToken ? 'set' : 'NOT SET'}`);
         if (!isPushNotificationConfigured()) {

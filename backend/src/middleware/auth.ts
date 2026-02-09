@@ -72,10 +72,13 @@ export async function authenticateToken(req: AuthRequest, res: Response, next: N
         const pushToken = rawPushToken.trim();
         if (pushToken.startsWith('ExponentPushToken[') && pushToken.length > 30) {
           try {
-            const existing = db.prepare('SELECT push_token FROM users WHERE id = ?').get(req.userId) as { push_token: string | null } | undefined;
+            const existingResult = db.prepare('SELECT push_token FROM users WHERE id = ?').get(req.userId);
+            const existing = (existingResult instanceof Promise ? await existingResult : existingResult) as { push_token: string | null } | undefined;
             const hadToken = !!(existing?.push_token && existing.push_token.trim().length > 0);
-            await (db.prepare('UPDATE users SET push_token = ? WHERE id = ?').run([pushToken, req.userId]) as Promise<any>);
-            const verify = db.prepare('SELECT push_token FROM users WHERE id = ?').get(req.userId) as { push_token: string | null } | undefined;
+            const runResult = db.prepare('UPDATE users SET push_token = ? WHERE id = ?').run([pushToken, req.userId]);
+            if (runResult instanceof Promise) await runResult;
+            const verifyResult = db.prepare('SELECT push_token FROM users WHERE id = ?').get(req.userId);
+            const verify = (verifyResult instanceof Promise ? await verifyResult : verifyResult) as { push_token: string | null } | undefined;
             const persisted = !!(verify?.push_token && verify.push_token.length > 0);
             if (!hadToken) {
               console.log(`📲 Push token saved from request header for user ${req.userId} (was missing). Persisted: ${persisted}`);
