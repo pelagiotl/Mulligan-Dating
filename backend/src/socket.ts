@@ -455,9 +455,9 @@ export function initializeSocket(server: HTTPServer) {
       }
     });
 
-    // Handle disconnection
+    // Handle disconnection (normal: app closed, backgrounded, network change, or reconnect)
     socket.on('disconnect', () => {
-      console.log(`❌ User ${userId} disconnected from WebSocket`);
+      console.log(`🔌 User ${userId} disconnected from WebSocket`);
       
       // Clean up typing indicators for all matches this user was in
       typingUsers.forEach((userSet, matchId) => {

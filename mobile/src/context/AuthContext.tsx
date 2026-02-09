@@ -492,10 +492,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       if (token) {
         setTokenCache(token);
-        // Start push registration immediately (don't await) so token may be ready for first API calls
-        registerForPushNotificationsAsync().catch((e) => {
+        // Wait for push token (or short timeout) before first API call so /auth/me includes X-Push-Token.
+        // Otherwise if user opens app and closes before any other request, backend never gets token and
+        // outside-app notifications won't work until they open the app again and make a request.
+        const pushReady = Promise.race([
+          registerForPushNotificationsAsync(),
+          new Promise<void>((r) => setTimeout(r, 6000)),
+        ]).catch((e) => {
           console.warn('⚠️ Push register on auth (non-critical):', e?.message || e);
         });
+        await pushReady;
         await fetchUser();
       } else {
         // No token found - show login screen
