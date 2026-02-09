@@ -733,17 +733,17 @@ export async function initDatabase() {
     )
   `);
 
-  // Date Blueprint: Store AI-generated date plans
+  // Date Blueprint: Store AI-generated date plans (title/venue can be long from AI)
   await execSQL(`
     CREATE TABLE IF NOT EXISTS date_plans (
       id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} PRIMARY KEY,
       match_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
       suggested_by ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
       plan_type ${usePostgres ? 'VARCHAR(50)' : 'TEXT'} DEFAULT 'first_date',
-      title ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      title ${usePostgres ? 'TEXT' : 'TEXT'} NOT NULL,
       description ${usePostgres ? 'TEXT' : 'TEXT'} NOT NULL,
-      venue_name ${usePostgres ? 'VARCHAR(255)' : 'TEXT'},
-      venue_address ${usePostgres ? 'VARCHAR(500)' : 'TEXT'},
+      venue_name ${usePostgres ? 'TEXT' : 'TEXT'},
+      venue_address ${usePostgres ? 'TEXT' : 'TEXT'},
       venue_lat ${usePostgres ? 'DECIMAL(10,8)' : 'REAL'},
       venue_lng ${usePostgres ? 'DECIMAL(11,8)' : 'REAL'},
       suggested_date ${usePostgres ? 'DATE' : 'DATE'},
@@ -957,6 +957,9 @@ export async function initDatabase() {
     await alterToText('truth_or_dare_games', 'current_prompt');
     await alterToText('truth_or_dare_games', 'used_prompts');
     await alterToText('never_have_i_ever_games', 'current_prompt');
+    await alterToText('date_plans', 'title');
+    await alterToText('date_plans', 'venue_name');
+    await alterToText('date_plans', 'venue_address');
   }
 
   console.log("✅ Database initialized");

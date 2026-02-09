@@ -282,7 +282,7 @@ export default function TruthOrDare({
   const fetchState = useCallback(async () => {
     try {
       const data = await api.get<GameState>(`/matches/${matchId}/truth-or-dare/state`);
-      const recentlySetSpice = Date.now() - lastSpiceChoiceAtRef.current < 3000;
+      const recentlySetSpice = Date.now() - lastSpiceChoiceAtRef.current < 5000;
       const intendedSpice = lastSpiceChoiceRef.current;
       setGameState((prev) => {
         if (recentlySetSpice && (intendedSpice ?? prev?.spiceLevel)) {
@@ -291,13 +291,11 @@ export default function TruthOrDare({
         return data;
       });
       const recentlyRequestedAnother = Date.now() - lastAnotherOneAtRef.current < 3000;
-      const onLobbyOrChoose = stepRef.current === 'lobby' || stepRef.current === 'choose';
       const alreadyShowingPrompt = stepRef.current === 'prompt';
-      // Never overwrite the displayed prompt from fetch unless we're syncing after "Another one" or we're not on prompt step
+      // If server has a prompt (other user already picked), always show it so User B sees it instead of "Their turn"
       const shouldApplyPromptFromServer =
         data.currentPrompt &&
         data.currentPromptType &&
-        !onLobbyOrChoose &&
         (recentlyRequestedAnother || !alreadyShowingPrompt);
       if (shouldApplyPromptFromServer) {
         setPrompt(data.currentPrompt);
@@ -390,6 +388,7 @@ export default function TruthOrDare({
   };
 
   const handleClose = () => {
+    lastSpiceChoiceRef.current = null;
     setModalVisible(false);
     setStep('lobby');
     setPrompt('');
@@ -407,13 +406,16 @@ export default function TruthOrDare({
     setGameState((prev) => (prev ? { ...prev, spiceLevel: choice, spiceReady: true } : prev));
     try {
       const data = await api.post<GameState>(`/matches/${matchId}/truth-or-dare/spice-choice`, { choice });
-      lastSpiceChoiceRef.current = null;
       setGameState((prev) => (prev ? { ...prev, ...data, spiceLevel: data.spiceLevel ?? choice } : data));
       if (data.spiceReady && (data.spiceLevel ?? choice)) {
         setStep('choose');
       } else {
         setStep('lobby');
       }
+      // Clear ref after delay so any socket/poll fetchState in the next 5s still sees intendedSpice and doesn't overwrite with stale GET
+      setTimeout(() => {
+        lastSpiceChoiceRef.current = null;
+      }, 5000);
     } catch (err) {
       console.warn('Truth or Dare spice choice error:', err);
       lastSpiceChoiceRef.current = null;

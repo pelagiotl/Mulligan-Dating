@@ -185,20 +185,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log('📬 Notification received (foreground):', notification);
       const data = notification.request.content.data;
       
-      // Show in-app notification for new messages (same as match: banner + sound + Alert)
-      if (data?.type === 'new_message') {
-        console.log('💬 New message notification:', {
-          senderName: data.senderName,
-          matchId: data.matchId,
-          preview: notification.request.content.body,
-        });
-        const senderName = data.senderName || 'Someone';
-        const messagePreview = notification.request.content.body || 'sent you a message';
-        if (data?.matchId) showMessageNotification(senderName, messagePreview, data.matchId);
-        playMessageSound().catch(() => {
-          console.log('Message sound not available');
-        });
-      }
+      // Do NOT show in-app banner/sound for new_message when in foreground - the socket already
+      // delivered new_message and we showed the banner once. Showing here too caused duplicate notifications.
+      // Push is for when app is backgrounded/closed (OS shows it); when foreground we rely on socket only.
       
       // Show in-app notification for game request
       if (data?.type === 'game_request') {
@@ -401,6 +390,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     };
   }, [user, showMessageNotification]);
+
+  // Handle cold start: app opened by tapping a notification (e.g. message when app was closed)
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (cancelled || !response) return;
+      const data = response.notification.request.content.data;
+      const attemptNavigation = (attempt: number = 0) => {
+        if (attempt >= 15) return;
+        if (!navigationRef.current?.isReady()) {
+          setTimeout(() => attemptNavigation(attempt + 1), 400);
+          return;
+        }
+        try {
+          if (data?.type === 'new_message' && data?.matchId) {
+            navigationRef.current.navigate('MainTabs' as never, {
+              screen: 'Matches',
+              params: { matchId: data.matchId },
+            } as never);
+          } else if (data?.type === 'new_match' && data?.matchId) {
+            navigationRef.current.navigate('MainTabs' as never, {
+              screen: 'Matches',
+              params: {
+                matchId: data.matchId,
+                showMatchCelebration: true,
+                matchName: data.matchName || 'Someone',
+              },
+            } as never);
+          } else if (data?.type === 'game_request' && data?.matchId && data?.requestId) {
+            setPendingGameRequest({
+              requestId: data.requestId,
+              matchId: data.matchId,
+              fromUserId: data.fromUserId || '',
+              fromUserName: data.fromUserName || 'Someone',
+              gameType: data.gameType || 'truth_or_dare',
+            });
+            navigationRef.current.navigate('MainTabs' as never, {
+              screen: 'Matches',
+              params: { matchId: data.matchId, showGameRequest: true },
+            } as never);
+          }
+        } catch (_) {}
+      };
+      setTimeout(() => attemptNavigation(), 500);
+    });
+    return () => { cancelled = true; };
+  }, [user]);
 
   // Re-register push when app comes to foreground (ensures token is saved if initial registration failed or was delayed)
   const lastPushRegisterRef = useRef<number>(0);
