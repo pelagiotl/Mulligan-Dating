@@ -1055,28 +1055,29 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
       }
       const tokenValid = !!(token && isExpoPushToken(token));
       console.log(`📲 Push (message HTTP): recipient=${otherUserId} hasToken=${!!token} validFormat=${tokenValid} expoConfigured=${isPushNotificationConfigured()} EXPO_ACCESS_TOKEN=${hasExpoToken ? 'set' : 'NOT SET'}`);
+
+      const senderProfileResult = db
+        .prepare("SELECT display_name FROM profiles WHERE user_id = ?")
+        .get([userId]);
+      const senderProfile = (senderProfileResult instanceof Promise
+        ? await senderProfileResult
+        : senderProfileResult) as { display_name: string } | undefined;
+      const senderName = senderProfile?.display_name || 'Someone';
+      let messagePreview: string;
+      if (sanitizedContent && sanitizedContent.length > 0) {
+        messagePreview = sanitizedContent.length > 50 ? sanitizedContent.substring(0, 50) + '...' : sanitizedContent;
+      } else if (finalImageUrl) {
+        messagePreview = '📷 Photo';
+      } else if (finalVideoUrl) {
+        messagePreview = 'Video';
+      } else if (finalAudioUrl) {
+        messagePreview = 'Voice message';
+      } else {
+        messagePreview = 'New message';
+      }
+
       if (isPushNotificationConfigured()) {
-        const senderProfileResult = db
-          .prepare("SELECT display_name FROM profiles WHERE user_id = ?")
-          .get([userId]);
-        const senderProfile = (senderProfileResult instanceof Promise
-          ? await senderProfileResult
-          : senderProfileResult) as { display_name: string } | undefined;
-        const senderName = senderProfile?.display_name || 'Someone';
         if (tokenValid) {
-          // Build a non-empty preview so the OS always shows the notification (empty body can hide it)
-          let messagePreview: string;
-          if (sanitizedContent && sanitizedContent.length > 0) {
-            messagePreview = sanitizedContent.length > 50 ? sanitizedContent.substring(0, 50) + '...' : sanitizedContent;
-          } else if (finalImageUrl) {
-            messagePreview = '📷 Photo';
-          } else if (finalVideoUrl) {
-            messagePreview = 'Video';
-          } else if (finalAudioUrl) {
-            messagePreview = 'Voice message';
-          } else {
-            messagePreview = 'New message';
-          }
           const pushSent = await sendMessagePushNotification(token!, senderName, messagePreview, matchId, userId);
           if (pushSent) {
             console.log(`✅ Push (message HTTP) sent to ${otherUserId}`);
@@ -1086,6 +1087,21 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
         } else {
           const reason = !token ? 'no push token (recipient: use TestFlight/real device, allow notifications)' : 'invalid Expo push token format';
           console.warn(`⚠️  Skipping push for user ${otherUserId}: ${reason}`);
+          // Delayed retry: recipient may open app after socket and we save token from their request; re-check in 3s and send push
+          if (!token) {
+            setTimeout(async () => {
+              try {
+                const retryRow = db.prepare("SELECT push_token FROM users WHERE id = ?").get([otherUserId]) as { push_token: string | null } | undefined;
+                const retryToken = retryRow?.push_token ?? null;
+                if (retryToken && retryToken.trim() && isExpoPushToken(retryToken)) {
+                  const sent = await sendMessagePushNotification(retryToken, senderName, messagePreview, matchId, userId);
+                  if (sent) console.log(`✅ Push (message HTTP) sent to ${otherUserId} (delayed retry)`);
+                }
+              } catch (e) {
+                console.warn('⚠️  Delayed push retry failed:', e);
+              }
+            }, 3000);
+          }
         }
       }
     } catch (pushError) {
