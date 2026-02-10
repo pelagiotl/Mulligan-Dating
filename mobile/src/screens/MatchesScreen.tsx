@@ -939,7 +939,20 @@ function MatchProfileModal({
   const allPhotos = match.stage === 'stage1'
     ? (primaryPhoto ? [primaryPhoto] : [])
     : (otherUser.photos || []);
-  
+  const canSwipePhotos = match.stage === 'stage2' && allPhotos.length > 1;
+
+  // Current index for main avatar when Level 2 has multiple photos (tap left/right to cycle)
+  const [mainPhotoIndex, setMainPhotoIndex] = useState(0);
+  useEffect(() => {
+    if (!visible) setMainPhotoIndex(0);
+  }, [visible, match.id]);
+
+  const mainPhotoUrl = canSwipePhotos && allPhotos[mainPhotoIndex]
+    ? getPhotoUrl(allPhotos[mainPhotoIndex].url)
+    : profilePhotoUrl;
+  const goPrevPhoto = () => setMainPhotoIndex((i) => (i <= 0 ? allPhotos.length - 1 : i - 1));
+  const goNextPhoto = () => setMainPhotoIndex((i) => (i >= allPhotos.length - 1 ? 0 : i + 1));
+
   // Fetch current user's interests when modal opens
   useEffect(() => {
     if (visible && user) {
@@ -1377,8 +1390,9 @@ function MatchProfileModal({
                   },
                 ]}
               >
-                {/* Animated pulsing orb behind rings */}
+                {/* Animated pulsing orb behind rings - pointerEvents none so photo tap works */}
                 <Animated.View
+                  pointerEvents="none"
                   style={[
                     styles.modalPhotoOrb,
                     {
@@ -1391,8 +1405,9 @@ function MatchProfileModal({
                   ]}
                 />
                 
-                {/* Animated rings around photo */}
+                {/* Animated rings around photo - pointerEvents none so photo tap works */}
                 <Animated.View
+                  pointerEvents="none"
                   style={[
                     styles.modalPhotoRing3,
                     {
@@ -1405,6 +1420,7 @@ function MatchProfileModal({
                   ]}
                 />
                 <Animated.View
+                  pointerEvents="none"
                   style={[
                     styles.modalPhotoRing2,
                     {
@@ -1417,6 +1433,7 @@ function MatchProfileModal({
                   ]}
                 />
                 <Animated.View
+                  pointerEvents="none"
                   style={[
                     styles.modalPhotoRing1,
                     {
@@ -1429,8 +1446,9 @@ function MatchProfileModal({
                   ]}
                 />
                 
-                {/* Glow effect with pulse */}
+                {/* Glow effect with pulse - pointerEvents none so photo tap works */}
                 <Animated.View
+                  pointerEvents="none"
                   style={[
                     styles.modalPhotoGlow,
                     {
@@ -1443,27 +1461,31 @@ function MatchProfileModal({
                   ]}
                 />
                 
-                {/* Avatar with breathing effect */}
+                {/* Avatar with breathing effect - tappable to open full-screen; Level 2: tap left/right to cycle photos */}
                 <Animated.View
                   style={{
                     transform: [{ scale: avatarBreath }],
                   }}
                 >
-                  {profilePhotoUrl ? (
-                    onPhotoPress ? (
-                      <TouchableOpacity onPress={() => onPhotoPress(profilePhotoUrl)} activeOpacity={0.9}>
-                        <Image
-                          source={{ uri: profilePhotoUrl }}
-                          style={styles.modalPhoto}
-                          resizeMode="cover"
-                        />
+                  {mainPhotoUrl ? (
+                    canSwipePhotos ? (
+                      <View style={styles.modalPhotoSwipeContainer}>
+                        <TouchableOpacity style={styles.modalPhotoSwipeSide} onPress={goPrevPhoto} activeOpacity={1} accessibilityLabel="Previous photo" />
+                        <TouchableOpacity
+                          style={styles.modalPhotoSwipeCenter}
+                          onPress={() => onPhotoPress?.(mainPhotoUrl)}
+                          activeOpacity={0.9}
+                        >
+                          <Image source={{ uri: mainPhotoUrl }} style={styles.modalPhoto} resizeMode="cover" />
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.modalPhotoSwipeSide} onPress={goNextPhoto} activeOpacity={1} accessibilityLabel="Next photo" />
+                      </View>
+                    ) : onPhotoPress ? (
+                      <TouchableOpacity onPress={() => onPhotoPress(mainPhotoUrl)} activeOpacity={0.9}>
+                        <Image source={{ uri: mainPhotoUrl }} style={styles.modalPhoto} resizeMode="cover" />
                       </TouchableOpacity>
                     ) : (
-                      <Image
-                        source={{ uri: profilePhotoUrl }}
-                        style={styles.modalPhoto}
-                        resizeMode="cover"
-                      />
+                      <Image source={{ uri: mainPhotoUrl }} style={styles.modalPhoto} resizeMode="cover" />
                     )
                   ) : (
                     <LinearGradient
@@ -1479,8 +1501,9 @@ function MatchProfileModal({
                   )}
                 </Animated.View>
                 
-                {/* Floating sparkles */}
+                {/* Floating sparkles - pointerEvents none so photo tap works */}
                 <Animated.Text
+                  pointerEvents="none"
                   style={[
                     styles.modalPhotoSparkle1,
                     {
@@ -1494,6 +1517,7 @@ function MatchProfileModal({
                   ✨
                 </Animated.Text>
                 <Animated.Text
+                  pointerEvents="none"
                   style={[
                     styles.modalPhotoSparkle2,
                     {
@@ -1507,6 +1531,7 @@ function MatchProfileModal({
                   ✨
                 </Animated.Text>
                 <Animated.Text
+                  pointerEvents="none"
                   style={[
                     styles.modalPhotoSparkle3,
                     {
@@ -3711,6 +3736,14 @@ export default function MatchesScreen() {
               </TouchableOpacity>
             </View>
           ) : null}
+          {(uploadingImage || uploadingVideo || uploadingAudio) ? (
+            <View style={styles.sendingMediaBar}>
+              <ActivityIndicator size="small" color="#667eea" />
+              <Text style={styles.sendingMediaText}>
+                {uploadingImage ? 'Sending photo...' : uploadingVideo ? 'Sending video...' : 'Sending voice...'}
+              </Text>
+            </View>
+          ) : null}
           <TouchableWithoutFeedback
             onPress={() => textInputRef.current?.focus()}
             accessible={false}
@@ -4975,6 +5008,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  sendingMediaBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    gap: 8,
+  },
+  sendingMediaText: {
+    fontSize: 13,
+    color: '#667eea',
+    fontWeight: '600',
+  },
   inputWrapper: {
     flex: 1,
     flexDirection: 'row',
@@ -5280,6 +5326,20 @@ const styles = StyleSheet.create({
     shadowRadius: 24,
     elevation: 16,
     zIndex: 3,
+  },
+  modalPhotoSwipeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 200,
+  },
+  modalPhotoSwipeSide: {
+    width: 56,
+    height: 200,
+  },
+  modalPhotoSwipeCenter: {
+    width: 200,
+    height: 200,
   },
   modalPhotoPlaceholder: {
     width: 200,

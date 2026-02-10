@@ -1025,8 +1025,8 @@ export default function MyProfileScreen() {
       const newOrder = [...photos];
       const [draggedPhoto] = newOrder.splice(draggingIndex, 1);
       newOrder.splice(newIndex, 0, draggedPhoto);
-      
-      // Update display order
+      // Optimistic update: first slot is primary so badge shows correctly immediately
+      setPhotos(newOrder.map((p, i) => ({ ...p, isPrimary: i === 0 })));
       const photoIds = newOrder.map(p => p.id);
       handleReorderPhotos(photoIds);
     }
@@ -2173,8 +2173,9 @@ export default function MyProfileScreen() {
                       source={photo.url}
                       style={styles.photo}
                       resizeMode="cover"
+                      showLoadingIndicator={false}
                     />
-                    {photo.isPrimary && (
+                    {index === 0 && (
                       <View style={styles.primaryBadge}>
                         <Text style={styles.primaryBadgeText}>Primary</Text>
                       </View>
@@ -2550,7 +2551,7 @@ export default function MyProfileScreen() {
                   style={styles.photoGalleryAddButton}
                   onPress={async () => {
                     try {
-                      await handlePickImage(); // no slot - gallery add
+                      await handlePickImage(photos.length); // next empty slot shows spinner
                       if (Platform.OS === 'ios') {
                         Vibration.vibrate([0, 50]);
                       } else {

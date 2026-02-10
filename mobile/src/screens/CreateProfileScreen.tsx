@@ -1216,7 +1216,7 @@ export default function CreateProfileScreen() {
     }
   };
 
-  const handlePickPhoto = async () => {
+  const handlePickPhoto = async (slotIndex: number) => {
     try {
       // Check if we can upload more photos
       if (photos.length >= 6) {
@@ -1257,8 +1257,8 @@ export default function CreateProfileScreen() {
             return;
           }
         }
-        // Upload immediately without confirmation - seamless experience
-        await uploadPhoto(asset.uri, photos.length);
+        // Upload immediately - use the slot that was tapped so only that slot shows spinner
+        await uploadPhoto(asset.uri, slotIndex);
       }
     } catch (error: any) {
       console.error('Error picking photo:', error);
@@ -2088,6 +2088,7 @@ export default function CreateProfileScreen() {
                         source={photo.url || photo.uri}
                         style={styles.photoImage}
                         resizeMode="cover"
+                        showLoadingIndicator={false}
                       />
                       <TouchableOpacity
                         style={styles.removePhotoButton}
@@ -2107,7 +2108,7 @@ export default function CreateProfileScreen() {
                         styles.addPhotoButton,
                         isRequired && photos.length < 5 && styles.addPhotoButtonRequired
                       ]}
-                      onPress={canAddMore ? handlePickPhoto : undefined}
+                      onPress={canAddMore ? () => handlePickPhoto(slotIndex) : undefined}
                       disabled={!canAddMore || uploadingSlotIndex !== null}
                     >
                       <LinearGradient

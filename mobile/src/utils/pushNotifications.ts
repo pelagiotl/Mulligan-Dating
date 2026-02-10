@@ -206,6 +206,27 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
 }
 
 /**
+ * Refresh push token and send to backend (e.g. when app goes to background).
+ * Ensures the server has the latest token so subsequent message pushes are delivered
+ * even if the token was refreshed by FCM/APNs while the app was in foreground.
+ */
+export async function refreshAndSendPushTokenOnBackground(): Promise<void> {
+  try {
+    const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
+    if (!projectId) return;
+    const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+    const pushToken = tokenData?.data;
+    if (!pushToken?.trim()) return;
+    setStoredPushToken(pushToken);
+    await api.post('/auth/push-token', { pushToken });
+    if (__DEV__) console.log('📲 Push token refreshed and sent on background');
+  } catch (e) {
+    // Non-critical: stored token may still be valid
+    if (__DEV__) console.warn('⚠️  Push refresh on background (non-critical):', (e as Error)?.message ?? e);
+  }
+}
+
+/**
  * Clear push token from backend (call on logout)
  */
 export async function clearPushToken(): Promise<void> {

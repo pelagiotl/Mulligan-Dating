@@ -221,6 +221,7 @@ export async function sendGameRequestPushNotification(
 
 /**
  * Send push notification for a new message
+ * @param messageId - Optional; include so each push has a unique id (Android shows separate notifications instead of collapsing)
  * @returns PushResult - { sent, invalidToken } so route can clear DB when token is dead
  */
 export async function sendMessagePushNotification(
@@ -228,7 +229,8 @@ export async function sendMessagePushNotification(
   senderName: string,
   messagePreview: string,
   matchId: string,
-  senderId: string
+  senderId: string,
+  messageId?: string
 ): Promise<PushResult> {
   return sendPushNotification(
     pushToken,
@@ -239,6 +241,7 @@ export async function sendMessagePushNotification(
       matchId,
       senderId,
       senderName,
+      ...(messageId ? { messageId } : {}),
     },
     'message-sound'
   );

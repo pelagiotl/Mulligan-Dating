@@ -11,7 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { io, Socket } from 'socket.io-client';
 import { api, clearTokenCache, setTokenCache } from '../utils/api';
 import { User, Profile } from '../types';
-import { registerForPushNotificationsAsync, clearPushToken } from '../utils/pushNotifications';
+import { registerForPushNotificationsAsync, clearPushToken, refreshAndSendPushTokenOnBackground } from '../utils/pushNotifications';
 import { getStoredPushToken } from '../utils/pushTokenStore';
 import * as Notifications from 'expo-notifications';
 import { navigationRef } from '../navigation/navigationRef';
@@ -456,6 +456,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user) return;
     const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      if (nextState === 'background') {
+        // Refresh and send push token when leaving app so backend has latest token;
+        // avoids second+ message pushes failing after ~10s when FCM/OS may have refreshed the token.
+        refreshAndSendPushTokenOnBackground().catch(() => {});
+        return;
+      }
       if (nextState !== 'active') return;
       const now = Date.now();
       // On first foreground after launch, send stored token to backend so outside-app notifications work even if cold start missed

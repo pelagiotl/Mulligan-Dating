@@ -1095,7 +1095,7 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
 
       if (isPushNotificationConfigured()) {
         if (tokenValid) {
-          const result = await sendMessagePushNotification(token!, senderName, messagePreview, matchId, userId);
+          const result = await sendMessagePushNotification(token!, senderName, messagePreview, matchId, userId, messageId);
           if (result.invalidToken) {
             await clearRecipientPushToken();
             console.log(`📲 PUSH_MSG_SKIP recipient=${otherUserId} reason=invalid_token_cleared`);
@@ -1110,7 +1110,7 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
                 if (retryTokenRow instanceof Promise) retryTokenRow = await retryTokenRow;
                 const retryToken = (retryTokenRow as { push_token: string | null } | undefined)?.push_token ?? null;
                 if (!retryToken || !isExpoPushToken(retryToken)) return;
-                const retryResult = await sendMessagePushNotification(retryToken, senderName, messagePreview, matchId, userId);
+                const retryResult = await sendMessagePushNotification(retryToken, senderName, messagePreview, matchId, userId, messageId);
                 if (retryResult.invalidToken) await clearRecipientPushToken();
                 else if (retryResult.sent) console.log(`📲 PUSH_MSG_SENT recipient=${otherUserId} (send retry)`);
               } catch (e) { console.warn('⚠️  Push send retry failed:', e); }
@@ -1126,7 +1126,7 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
               if (retryRow instanceof Promise) retryRow = await retryRow;
               const retryToken = (retryRow as { push_token: string | null } | undefined)?.push_token ?? null;
               if (retryToken && retryToken.trim() && isExpoPushToken(retryToken)) {
-                const res = await sendMessagePushNotification(retryToken, senderName, messagePreview, matchId, userId);
+                const res = await sendMessagePushNotification(retryToken, senderName, messagePreview, matchId, userId, messageId);
                 if (res.invalidToken) await clearRecipientPushToken();
                 else if (res.sent) {
                   console.log(`📲 PUSH_MSG_SENT recipient=${otherUserId} (delayed retry)`);

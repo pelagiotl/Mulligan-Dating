@@ -266,7 +266,7 @@ function MainTabs() {
       borderTopRightRadius: 24,
       position: 'absolute' as const,
       // Android: lift tab bar above system nav/gesture area so tabs stay tappable
-      ...(Platform.OS === 'android' ? { marginBottom: 20 } : {}),
+      ...(Platform.OS === 'android' ? { marginBottom: 32 } : {}),
     },
     tabBarItemStyle: {
       paddingHorizontal: 2,

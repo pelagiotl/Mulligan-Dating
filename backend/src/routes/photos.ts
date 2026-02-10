@@ -694,11 +694,19 @@ photosRouter.put("/reorder", authenticateToken, async (req: AuthRequest, res) =>
       return res.status(404).json({ error: "Profile not found" });
     }
 
-    // Update display order - PostgreSQL doesn't support transactions the same way
-    // So we'll do it sequentially
+    // Update display order and set first photo as primary
     const stmt = db.prepare("UPDATE photos SET display_order = ? WHERE id = ? AND profile_id = ?");
     for (let i = 0; i < photoIds.length; i++) {
       await (stmt.run([i, photoIds[i], profile.id]) as Promise<any>);
+    }
+    // First photo in new order becomes primary
+    if (photoIds.length > 0) {
+      await (db.prepare("UPDATE photos SET is_primary = 0 WHERE profile_id = ?").run([profile.id]) as Promise<any>);
+      await (db.prepare("UPDATE photos SET is_primary = 1 WHERE id = ? AND profile_id = ?").run([photoIds[0], profile.id]) as Promise<any>);
+      const primaryRow = await (db.prepare("SELECT url FROM photos WHERE id = ? AND profile_id = ?").get([photoIds[0], profile.id]) as Promise<{ url: string } | undefined>);
+      if (primaryRow) {
+        await (db.prepare("UPDATE profiles SET photo_url = ? WHERE id = ?").run([primaryRow.url, profile.id]) as Promise<any>);
+      }
     }
 
     res.json({ message: "Photos reordered successfully" });
