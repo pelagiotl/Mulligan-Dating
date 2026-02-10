@@ -1931,6 +1931,11 @@ export default function MatchesScreen() {
     }
   }, [keyboardHeight, messages.length]);
 
+  // Android: extra offset so input bar and messages stay visible above keyboard (avoids keyboard covering text)
+  const effectiveKeyboardHeight = keyboardHeight > 0 && Platform.OS === 'android'
+    ? keyboardHeight + 40
+    : keyboardHeight;
+
   // Handle keyboard show/hide events - scroll to show most recent message when keyboard opens
   useEffect(() => {
     const keyboardWillShowListener = Keyboard.addListener(
@@ -3327,6 +3332,7 @@ export default function MatchesScreen() {
                     onUnlockWithToken={async () => {
                       await api.post(`/matches/${selectedMatch.id}/unlock-game`, { gameType: 'truth_or_dare' });
                       api.clearCache('/matches');
+                      api.clearCache('/tokens');
                       setSelectedMatch(prev => prev ? { ...prev, gameUnlocks: { ...(prev.gameUnlocks || { truth_or_dare: false, never_have_i_ever: false }), truth_or_dare: true } } : null);
                       setMatches(prev => prev.map(m => m.id === selectedMatch.id ? { ...m, gameUnlocks: { ...(m.gameUnlocks || { truth_or_dare: false, never_have_i_ever: false }), truth_or_dare: true } } : m));
                     }}
@@ -3352,6 +3358,7 @@ export default function MatchesScreen() {
                     onUnlockWithToken={async () => {
                       await api.post(`/matches/${selectedMatch.id}/unlock-game`, { gameType: 'never_have_i_ever' });
                       api.clearCache('/matches');
+                      api.clearCache('/tokens');
                       setSelectedMatch(prev => prev ? { ...prev, gameUnlocks: { ...(prev.gameUnlocks || { truth_or_dare: false, never_have_i_ever: false }), never_have_i_ever: true } } : null);
                       setMatches(prev => prev.map(m => m.id === selectedMatch.id ? { ...m, gameUnlocks: { ...(m.gameUnlocks || { truth_or_dare: false, never_have_i_ever: false }), never_have_i_ever: true } } : m));
                     }}
@@ -3616,8 +3623,8 @@ export default function MatchesScreen() {
           styles.chatMessagesWrapper,
           {
             opacity: chatFadeAnim,
-            paddingBottom: keyboardHeight > 0
-              ? keyboardHeight + 72
+            paddingBottom: effectiveKeyboardHeight > 0
+              ? effectiveKeyboardHeight + 72
               : (Platform.OS === 'ios' ? 56 + Math.round(insets.bottom * 0.5) : 56) + 72,
           },
         ]}
@@ -3651,8 +3658,8 @@ export default function MatchesScreen() {
             styles.inputContainer,
             {
               position: 'absolute',
-              bottom: keyboardHeight > 0 
-                ? keyboardHeight 
+              bottom: effectiveKeyboardHeight > 0 
+                ? effectiveKeyboardHeight 
                 : Platform.OS === 'ios' ? 56 + Math.round(insets.bottom * 0.5) : 56,
               left: 0,
               right: 0,

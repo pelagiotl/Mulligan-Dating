@@ -89,6 +89,75 @@ function ConfettiParticleComponent({ particle }: { particle: ConfettiParticle })
   );
 }
 
+// Loading state shown before match reveal: "Finding your curated match..." with animation
+function FindingMatchLoading() {
+  const dot1 = useRef(new Animated.Value(0)).current;
+  const dot2 = useRef(new Animated.Value(0)).current;
+  const dot3 = useRef(new Animated.Value(0)).current;
+  const pulse = useRef(new Animated.Value(0.9)).current;
+
+  useEffect(() => {
+    const bounce = (anim: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(anim, {
+            toValue: 1,
+            duration: 280,
+            useNativeDriver: true,
+          }),
+          Animated.timing(anim, {
+            toValue: 0,
+            duration: 280,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+    const a1 = bounce(dot1, 0);
+    const a2 = bounce(dot2, 160);
+    const a3 = bounce(dot3, 320);
+    a1.start();
+    a2.start();
+    a3.start();
+
+    const pulseLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1.08, duration: 800, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0.92, duration: 800, useNativeDriver: true }),
+      ])
+    );
+    pulseLoop.start();
+
+    return () => {
+      a1.stop();
+      a2.stop();
+      a3.stop();
+      pulseLoop.stop();
+    };
+  }, []);
+
+  const translateY1 = dot1.interpolate({ inputRange: [0, 1], outputRange: [0, -12] });
+  const translateY2 = dot2.interpolate({ inputRange: [0, 1], outputRange: [0, -12] });
+  const translateY3 = dot3.interpolate({ inputRange: [0, 1], outputRange: [0, -12] });
+
+  return (
+    <View style={styles.loadingCard}>
+      <Animated.View style={[styles.loadingHeartWrap, { transform: [{ scale: pulse }] }]}>
+        <Text style={styles.loadingHeart}>💕</Text>
+      </Animated.View>
+      <Text style={styles.loadingTitle}>Finding your curated match</Text>
+      <View style={styles.loadingDotsRow}>
+        <Animated.View style={[styles.loadingDot, { transform: [{ translateY: translateY1 }] }]} />
+        <Animated.View style={[styles.loadingDot, { transform: [{ translateY: translateY2 }] }]} />
+        <Animated.View style={[styles.loadingDot, { transform: [{ translateY: translateY3 }] }]} />
+      </View>
+      <Text style={styles.loadingSubtext}>Good things take a moment...</Text>
+    </View>
+  );
+}
+
+const REVEAL_DELAY_MS = 2500;
+
 export default function MatchCelebration({
   profileName,
   photoUrl,
@@ -97,6 +166,7 @@ export default function MatchCelebration({
   matchId,
 }: MatchCelebrationProps) {
   const navigation = useNavigation();
+  const [revealed, setRevealed] = useState(false);
   const [showContent, setShowContent] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [showButton, setShowButton] = useState(false);
@@ -125,7 +195,16 @@ export default function MatchCelebration({
   const buttonScaleAnim = useRef(new Animated.Value(0)).current;
   const buttonPulseAnim = useRef(new Animated.Value(1)).current;
 
+  // Show loading state for a few seconds, then reveal the match
   useEffect(() => {
+    const t = setTimeout(() => setRevealed(true), REVEAL_DELAY_MS);
+    return () => clearTimeout(t);
+  }, []);
+
+  // When revealed, run celebration (haptic, sound, animations)
+  useEffect(() => {
+    if (!revealed) return;
+
     // Strong haptic on reveal - satisfying "thunk" when match card appears
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
@@ -246,7 +325,7 @@ export default function MatchCelebration({
       heartBeatLoop.stop();
       buttonPulseLoop.stop();
     };
-  }, []);
+  }, [revealed]);
 
   const handleContinue = () => {
     const idToOpen = matchId ?? null;
@@ -350,8 +429,13 @@ export default function MatchCelebration({
           style={StyleSheet.absoluteFill}
         />
         
+        {/* Loading state: "Finding your curated match..." */}
+        {!revealed && (
+          <FindingMatchLoading />
+        )}
+
         {/* Confetti particles */}
-        {showConfetti && (
+        {revealed && showConfetti && (
           <View style={styles.confettiContainer} pointerEvents="none">
             {confettiParticles.map((particle) => (
               <ConfettiParticleComponent key={particle.id} particle={particle} />
@@ -359,7 +443,8 @@ export default function MatchCelebration({
           </View>
         )}
 
-        {/* Main celebration content */}
+        {/* Main celebration content (after reveal) */}
+        {revealed && (
         <Animated.View
           style={[
             styles.container,
@@ -546,6 +631,7 @@ export default function MatchCelebration({
           {/* Floating Hearts */}
           <FloatingHeartsComponent />
         </Animated.View>
+        )}
       </View>
     </Modal>
   );
@@ -793,6 +879,52 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.7)', // Slightly more transparent to show gradient
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  loadingCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 28,
+    paddingVertical: 44,
+    paddingHorizontal: 36,
+    alignItems: 'center',
+    maxWidth: '88%',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.9)',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.4,
+    shadowRadius: 24,
+    elevation: 16,
+  },
+  loadingHeartWrap: {
+    marginBottom: 20,
+  },
+  loadingHeart: {
+    fontSize: 52,
+  },
+  loadingTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#2d3748',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  loadingDotsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    marginBottom: 16,
+  },
+  loadingDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#f5576c',
+  },
+  loadingSubtext: {
+    fontSize: 15,
+    color: '#718096',
+    fontStyle: 'italic',
   },
   confettiContainer: {
     position: 'absolute',

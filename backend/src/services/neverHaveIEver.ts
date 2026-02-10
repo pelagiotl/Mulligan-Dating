@@ -278,16 +278,6 @@ export async function getGameState(
     };
   }
 
-  // One-time fix: games started before we set current_turn_user_id need it for turn-based strikes
-  if (row.spice_level && row.current_prompt && row.current_turn_user_id == null) {
-    const unlockRow = db.prepare('SELECT unlocked_by_user_id FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'never_have_i_ever']) as { unlocked_by_user_id: string } | undefined;
-    const firstTurnUserId = unlockRow
-      ? (match.user1_id === unlockRow.unlocked_by_user_id ? match.user2_id : match.user1_id)
-      : match.user1_id;
-    db.prepare('UPDATE never_have_i_ever_games SET current_turn_user_id = ?, updated_at = ? WHERE match_id = ?').run([firstTurnUserId, new Date().toISOString(), matchId]);
-    row = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]) as GameRow;
-  }
-
   const yourStrikes = Number(isUser1 ? row.user1_strikes : row.user2_strikes) || 0;
   const theirStrikes = Number(isUser1 ? row.user2_strikes : row.user1_strikes) || 0;
   const yourAnswer = (isUser1 ? row.user1_answer : row.user2_answer) as 'have' | 'havent' | null;
@@ -389,13 +379,10 @@ export async function setMySpiceChoice(
   if (c1 && c2 && !row.current_prompt) {
     const effectiveLevel = moreConservative(c1, c2);
     const prompt = await generateNeverHaveIEverPrompt(matchId, effectiveLevel);
-    const unlockRow = db.prepare('SELECT unlocked_by_user_id FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'never_have_i_ever']) as { unlocked_by_user_id: string } | undefined;
-    const firstTurnUserId = unlockRow
-      ? (match.user1_id === unlockRow.unlocked_by_user_id ? match.user2_id : match.user1_id)
-      : match.user1_id;
+    // No current_turn_user_id: both users answer each prompt, then we generate the next (tally mode)
     db.prepare(
-      `UPDATE never_have_i_ever_games SET spice_level = ?, current_prompt = ?, current_turn_user_id = ?, updated_at = ? WHERE match_id = ?`
-    ).run([effectiveLevel, prompt, firstTurnUserId, now, matchId]);
+      `UPDATE never_have_i_ever_games SET spice_level = ?, current_prompt = ?, current_turn_user_id = NULL, updated_at = ? WHERE match_id = ?`
+    ).run([effectiveLevel, prompt, now, matchId]);
   }
 
   return getGameState(matchId, userId, match);
@@ -417,13 +404,10 @@ export async function startGame(
 
   const spiceLevel = row.user1_spice_choice as SpiceLevel;
   const prompt = await generateNeverHaveIEverPrompt(matchId, spiceLevel);
-  const unlockRow = db.prepare('SELECT unlocked_by_user_id FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'never_have_i_ever']) as { unlocked_by_user_id: string } | undefined;
-  const firstTurnUserId = unlockRow
-    ? (match.user1_id === unlockRow.unlocked_by_user_id ? match.user2_id : match.user1_id)
-    : match.user1_id;
+  // No current_turn_user_id: both users answer each prompt, then we generate the next (tally mode)
   db.prepare(
-    `UPDATE never_have_i_ever_games SET spice_level = ?, current_prompt = ?, current_turn_user_id = ?, updated_at = ? WHERE match_id = ?`
-  ).run([spiceLevel, prompt, firstTurnUserId, new Date().toISOString(), matchId]);
+    `UPDATE never_have_i_ever_games SET spice_level = ?, current_prompt = ?, current_turn_user_id = NULL, updated_at = ? WHERE match_id = ?`
+  ).run([spiceLevel, prompt, new Date().toISOString(), matchId]);
 
   return getGameState(matchId, userId, match);
 }

@@ -12,6 +12,7 @@ import { io, Socket } from 'socket.io-client';
 import { api, clearTokenCache, setTokenCache } from '../utils/api';
 import { User, Profile } from '../types';
 import { registerForPushNotificationsAsync, clearPushToken } from '../utils/pushNotifications';
+import { getStoredPushToken } from '../utils/pushTokenStore';
 import * as Notifications from 'expo-notifications';
 import { navigationRef } from '../navigation/navigationRef';
 import { playMessageSound, playMatchSound } from '../utils/sounds';
@@ -450,12 +451,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Re-register push when app comes to foreground (ensures token is saved if initial registration failed or was delayed)
   const lastPushRegisterRef = useRef<number>(0);
+  const pushTokenSentOnForegroundRef = useRef<boolean>(false);
   const PUSH_REREGISTER_DEBOUNCE_MS = 60000; // at most once per minute when foregrounding
   useEffect(() => {
     if (!user) return;
     const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
       if (nextState !== 'active') return;
       const now = Date.now();
+      // On first foreground after launch, send stored token to backend so outside-app notifications work even if cold start missed
+      if (!pushTokenSentOnForegroundRef.current) {
+        pushTokenSentOnForegroundRef.current = true;
+        const stored = getStoredPushToken();
+        if (stored && stored.trim()) {
+          api.post('/auth/push-token', { pushToken: stored }).then(() => {
+            if (__DEV__) console.log('📲 Push token sent to backend on first foreground');
+          }).catch(() => {});
+        }
+      }
       if (now - lastPushRegisterRef.current < PUSH_REREGISTER_DEBOUNCE_MS) return;
       lastPushRegisterRef.current = now;
       registerForPushNotificationsAsync().catch((e) => {

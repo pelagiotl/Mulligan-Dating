@@ -1437,7 +1437,7 @@ export default function CreateProfileScreen() {
           <Text style={[styles.focusedTitle, keyboardVisible && styles.focusedTitleCompact, { fontSize: keyboardVisible ? rs.titleSizeCompact : rs.titleSize, marginBottom: keyboardVisible ? 8 : rs.titleMargin }]}>Welcome to Mulligan!</Text>
           <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleCompact, { fontSize: keyboardVisible ? rs.subtitleSizeCompact : rs.subtitleSize, marginBottom: keyboardVisible ? 20 : rs.subtitleMargin }]}>Let's start with your first name</Text>
           <Animated.View style={[styles.focusedInputWrapper, { shadowOpacity: firstNameGlow.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.6] }), shadowRadius: firstNameGlow.interpolate({ inputRange: [0, 1], outputRange: [8, 20] }) }]}>
-            <TextInput ref={displayNameInputRef} style={[styles.focusedFirstNameInput, keyboardVisible && styles.focusedFirstNameInputKeyboard]} value={displayName} onChangeText={setDisplayName} placeholder="Your first name" placeholderTextColor="rgba(255, 255, 255, 0.6)" autoCapitalize="words" returnKeyType="next" />
+            <TextInput ref={displayNameInputRef} style={[styles.focusedFirstNameInput, keyboardVisible && styles.focusedFirstNameInputKeyboard]} value={displayName} onChangeText={setDisplayName} placeholder="Your first name" placeholderTextColor="#4a5568" autoCapitalize="words" returnKeyType="next" />
           </Animated.View>
           {displayName.trim().length >= 2 && <Animated.View style={[styles.successIndicator, { opacity: firstNameOpacity }]}><Text style={styles.successText}>✓ Great! Tap Continue</Text></Animated.View>}
         </LinearGradient>
@@ -1522,7 +1522,7 @@ export default function CreateProfileScreen() {
     <View style={[styles.focusedFieldSection, keyboardVisible && styles.focusedSectionWithKeyboard, { minHeight: rs.sectionMinHeight, paddingHorizontal: rs.sectionPaddingH, paddingVertical: rs.sectionPaddingV }]}>
       <Animated.View style={[{ transform: [{ scale: bioScale }], opacity: bioOpacity }]}>
         <LinearGradient colors={['#667eea', '#f093fb', '#f5576c']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.focusedFieldCard, keyboardVisible && styles.focusedCardWithKeyboard, { padding: keyboardVisible ? rs.cardPaddingKeyboard : rs.cardPadding }]}>
-          <Text style={[styles.focusedEmoji, keyboardVisible && styles.focusedEmojiSmall, { fontSize: keyboardVisible ? rs.emojiSizeSmall : rs.emojiSize, marginBottom: keyboardVisible ? 8 : 20 }]}>📝</Text>
+          <Text style={[styles.focusedEmoji, keyboardVisible && styles.focusedEmojiSmall, { fontSize: keyboardVisible ? rs.emojiSizeSmall : rs.emojiSize, marginBottom: keyboardVisible ? 8 : 20 }]}>✨</Text>
           <Text style={[styles.focusedTitle, keyboardVisible && styles.focusedTitleSmall, { fontSize: rs.titleSizeSmall, marginBottom: keyboardVisible ? 6 : rs.titleMargin }]}>Tell us about yourself</Text>
           <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleSmall, { fontSize: rs.subtitleSizeSmall, marginBottom: keyboardVisible ? 16 : rs.subtitleMargin }]}>Share what makes you unique</Text>
           <Animated.View style={[styles.focusedInputWrapper, { shadowOpacity: bioGlow.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.6] }), shadowRadius: bioGlow.interpolate({ inputRange: [0, 1], outputRange: [8, 20] }) }]}>

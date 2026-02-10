@@ -18,59 +18,59 @@ interface ProfileCompleteCelebrationProps {
   onClose: () => void;
 }
 
-interface ConfettiParticle {
-  id: number;
-  left: number;
-  delay: number;
-  color: string;
-}
+const HEART_EMOJIS = ['❤️', '💕', '💖', '💗', '💓', '💝', '💘'];
 
-// Animated confetti particle
-function ConfettiParticleComponent({ particle }: { particle: ConfettiParticle }) {
-  const translateY = useRef(new Animated.Value(-10)).current;
-  const rotate = useRef(new Animated.Value(0)).current;
-  const opacity = useRef(new Animated.Value(1)).current;
+// Single heart that falls continuously in a loop (resets to top when it reaches bottom)
+function FallingHeart({ index, visible }: { index: number; visible: boolean }) {
+  const translateY = useRef(new Animated.Value(0)).current;
+  const leftPercent = useRef(5 + Math.random() * 90).current;
+  const duration = useRef(3500 + Math.random() * 2500).current;
+  const heart = useRef(HEART_EMOJIS[index % HEART_EMOJIS.length]).current;
+  const delay = useRef(Math.random() * 2000).current;
+  const fontSize = useRef(22 + (index % 7) * 4).current; // 22–46px variety
+  const running = useRef(true);
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(translateY, {
-        toValue: SCREEN_HEIGHT + 20,
-        duration: 3000 + Math.random() * 2000,
-        delay: particle.delay * 1000,
-        useNativeDriver: true,
-      }),
-      Animated.timing(rotate, {
-        toValue: 1,
-        duration: 3000 + Math.random() * 2000,
-        delay: particle.delay * 1000,
-        useNativeDriver: true,
-      }),
-      Animated.timing(opacity, {
-        toValue: 0,
-        duration: 500,
-        delay: 2500 + Math.random() * 1000,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, []);
+    if (!visible) {
+      running.current = false;
+      return;
+    }
+    running.current = true;
 
-  const rotation = rotate.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '360deg'],
-  });
+    const runFall = () => {
+      if (!running.current) return;
+      translateY.setValue(0);
+      Animated.timing(translateY, {
+        toValue: SCREEN_HEIGHT + 60,
+        duration,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (finished && running.current) runFall();
+      });
+    };
+
+    const startTimer = setTimeout(runFall, delay);
+    return () => {
+      running.current = false;
+      clearTimeout(startTimer);
+    };
+  }, [visible]);
+
+  if (!visible) return null;
 
   return (
     <Animated.View
       style={[
-        styles.confettiParticle,
+        styles.fallingHeart,
         {
-          left: `${particle.left}%`,
-          backgroundColor: particle.color,
-          transform: [{ translateY }, { rotate: rotation }],
-          opacity,
+          left: `${leftPercent}%`,
+          transform: [{ translateY }],
         },
       ]}
-    />
+      pointerEvents="none"
+    >
+      <Text style={[styles.fallingHeartEmoji, { fontSize }]}>{heart}</Text>
+    </Animated.View>
   );
 }
 
@@ -79,17 +79,9 @@ export default function ProfileCompleteCelebration({
   onClose,
 }: ProfileCompleteCelebrationProps) {
   const [showContent, setShowContent] = useState(false);
-  const [showConfetti, setShowConfetti] = useState(false);
+  const [showHearts, setShowHearts] = useState(false);
   const [showButton, setShowButton] = useState(false);
-  const [confettiParticles] = useState<ConfettiParticle[]>(() => {
-    const colors = ['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe', '#00f2fe', '#ffd700', '#ff6b6b'];
-    return Array.from({ length: 50 }, (_, i) => ({
-      id: i,
-      left: Math.random() * 100,
-      delay: Math.random() * 0.5,
-      color: colors[Math.floor(Math.random() * colors.length)],
-    }));
-  });
+  const HEART_COUNT = 22;
 
   const scale = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(0)).current;
@@ -150,12 +142,12 @@ export default function ProfileCompleteCelebration({
       titleOpacity.setValue(0);
       subtitleOpacity.setValue(0);
       setShowContent(false);
-      setShowConfetti(false);
+      setShowHearts(false);
       setShowButton(false);
 
       // Start animations
       setTimeout(() => {
-        setShowConfetti(true);
+        setShowHearts(true);
         setShowContent(true);
 
         // Main card animation
@@ -234,11 +226,11 @@ export default function ProfileCompleteCelebration({
       onRequestClose={handleContinue}
     >
       <View style={styles.overlay}>
-        {/* Confetti */}
-        {showConfetti && (
-          <View style={styles.confettiContainer} pointerEvents="none">
-            {confettiParticles.map((particle) => (
-              <ConfettiParticleComponent key={particle.id} particle={particle} />
+        {/* Falling hearts - loop until user taps "Start Connecting" */}
+        {showHearts && (
+          <View style={styles.heartsContainer} pointerEvents="none">
+            {Array.from({ length: HEART_COUNT }, (_, i) => (
+              <FallingHeart key={i} index={i} visible={visible} />
             ))}
           </View>
         )}
@@ -337,19 +329,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  confettiContainer: {
+  heartsContainer: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
     zIndex: 1,
+    overflow: 'hidden',
   },
-  confettiParticle: {
+  fallingHeart: {
     position: 'absolute',
-    width: 12,
-    height: 12,
-    borderRadius: 2,
+    top: -40,
+  },
+  fallingHeartEmoji: {
+    fontSize: 28,
   },
   cardContainer: {
     width: SCREEN_WIDTH * 0.85,

@@ -259,13 +259,17 @@ export default function NeverHaveIEver({
     setSubmitting(true);
     try {
       const data = await api.post<any>(`/matches/${matchId}/never-have-i-ever/spice-choice`, { choice });
+      // Use agreed level only when it matches the choice we just made (so UI doesn't revert to previous level)
+      const displayLevel = (data.spiceReady && data.spiceLevel != null && data.spiceLevel === choice)
+        ? data.spiceLevel
+        : (data.yourSpiceChoice ?? choice);
       const next: GameState = {
         prompt: data.prompt || '',
         phase: data.spiceReady && (data.prompt || data.spiceLevel) ? 'playing' : 'lobby',
         yourSpiceChoice: data.yourSpiceChoice ?? choice,
         theirSpiceChoice: data.theirSpiceChoice ?? null,
         spiceReady: !!data.spiceReady,
-        spiceLevel: data.spiceLevel ?? null,
+        spiceLevel: displayLevel,
         yourPoints: typeof data.yourPoints === 'number' ? data.yourPoints : (data.yourStrikes ?? 0),
         theirPoints: typeof data.theirPoints === 'number' ? data.theirPoints : (data.theirStrikes ?? 0),
         yourAnswer: data.yourAnswer ?? null,

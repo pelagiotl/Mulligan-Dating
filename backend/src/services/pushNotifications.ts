@@ -47,14 +47,11 @@ export function isExpoPushToken(token: string): boolean {
   return Expo.isExpoPushToken(token);
 }
 
+export type PushResult = { sent: boolean; invalidToken?: boolean };
+
 /**
  * Send push notification to a single user
- * @param pushToken - Expo push token
- * @param title - Notification title
- * @param body - Notification body
- * @param data - Optional data payload
- * @param sound - Optional custom sound name (defaults to 'default')
- * @returns Promise<boolean> - true if sent successfully
+ * @returns PushResult - { sent, invalidToken } so callers can clear DB when token is dead
  */
 export async function sendPushNotification(
   pushToken: string,
@@ -62,65 +59,59 @@ export async function sendPushNotification(
   body: string,
   data?: any,
   sound?: string
-): Promise<boolean> {
+): Promise<PushResult> {
   if (!expo) {
     console.warn('⚠️  Expo Push Notification service not initialized. Skipping push notification.');
-    return false;
+    return { sent: false };
   }
 
   if (!isExpoPushToken(pushToken)) {
     console.error('❌ Invalid Expo push token:', pushToken);
-    return false;
+    return { sent: false };
   }
 
   try {
     const message: any = {
       to: pushToken,
-      sound: sound || 'default', // Use custom sound if provided, otherwise system default
+      sound: sound || 'default',
       title,
       body,
       data: data || {},
-      badge: 1, // Show badge on app icon
-      priority: 'high', // High priority ensures sound plays
-      channelId: 'default', // Android notification channel
+      badge: 1,
+      priority: 'high',
+      channelId: 'default',
     };
 
     const chunks = expo.chunkPushNotifications([message]);
-    const tickets = [];
+    const tickets: any[] = [];
 
-    // Send all chunks
     for (const chunk of chunks) {
       try {
         const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
         tickets.push(...ticketChunk);
       } catch (error: any) {
         console.error('❌ Error sending push notification chunk:', error.message);
-        return false;
+        return { sent: false };
       }
     }
 
-    // Check ticket errors
     for (const ticket of tickets) {
       if (ticket.status === 'error') {
-        console.error('❌ Push notification error:', ticket.message);
-        if (ticket.details?.error) {
-          console.error('   Error details:', ticket.details.error);
-          
-          // If token is invalid, we should remove it from the database
-          if (ticket.details.error === 'DeviceNotRegistered') {
-            console.warn(`⚠️  Push token is invalid (DeviceNotRegistered): ${pushToken.substring(0, 20)}...`);
-            // Note: You might want to remove this token from the database here
-          }
+        const err = ticket.details?.error;
+        console.error('❌ Push notification error:', ticket.message, err ? `(${err})` : '');
+        if (err === 'DeviceNotRegistered') {
+          console.warn(`⚠️  Push token invalid (DeviceNotRegistered): ${pushToken.substring(0, 28)}... — caller should clear this token`);
+          return { sent: false, invalidToken: true };
         }
-        return false;
+        return { sent: false };
       }
     }
 
-    console.log(`✅ Push notification sent successfully to ${pushToken.substring(0, 20)}...`);
-    return true;
+    console.log(`✅ Push notification sent successfully to ${pushToken.substring(0, 28)}...`);
+    return { sent: true };
   } catch (error: any) {
     console.error('❌ Failed to send push notification:', error.message);
-    return false;
+    return { sent: false };
   }
 }
 
@@ -211,7 +202,7 @@ export async function sendGameRequestPushNotification(
 ): Promise<boolean> {
   const gameLabel = gameType === 'truth_or_dare' ? 'Truth or Dare' : 'Never Have I Ever';
   const emoji = gameType === 'truth_or_dare' ? '🎲' : '🙊';
-  return sendPushNotification(
+  const result = await sendPushNotification(
     pushToken,
     `${emoji} Game invite`,
     `${fromUserName} wants to play ${gameLabel} with you!`,
@@ -225,16 +216,12 @@ export async function sendGameRequestPushNotification(
     },
     'message-sound'
   );
+  return result.sent;
 }
 
 /**
  * Send push notification for a new message
- * @param pushToken - Expo push token
- * @param senderName - Name of the person who sent the message
- * @param messagePreview - Preview of the message content
- * @param matchId - Match ID
- * @param senderId - Sender user ID
- * @returns Promise<boolean> - true if sent successfully
+ * @returns PushResult - { sent, invalidToken } so route can clear DB when token is dead
  */
 export async function sendMessagePushNotification(
   pushToken: string,
@@ -242,9 +229,7 @@ export async function sendMessagePushNotification(
   messagePreview: string,
   matchId: string,
   senderId: string
-): Promise<boolean> {
-  // Use 'message-sound' for messages (different from match sound)
-  // Make sure message-sound.mp3 is in mobile/assets/ directory
+): Promise<PushResult> {
   return sendPushNotification(
     pushToken,
     senderName,
@@ -255,7 +240,7 @@ export async function sendMessagePushNotification(
       senderId,
       senderName,
     },
-    'message-sound' // Custom message sound (message-sound.mp3 in app bundle)
+    'message-sound'
   );
 }
 

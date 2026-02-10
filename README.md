@@ -92,19 +92,88 @@ mulligan/
 ├── backend/           # Express.js API server
 │   ├── src/
 │   │   ├── routes/    # API routes
-│   │   ├── models/    # Data models
 │   │   ├── middleware/# Auth & validation
-│   │   └── index.ts   # Entry point
+│   │   ├── services/  # Push, matching, games
+│   │   └── database.ts
 │   └── package.json
-├── frontend/          # React application
+├── frontend/          # React (Vite) web app
+├── mobile/            # React Native (Expo) app
 │   ├── src/
-│   │   ├── components/# Reusable components
-│   │   ├── pages/     # Page components
-│   │   ├── hooks/     # Custom hooks
-│   │   └── App.tsx    # Root component
-│   └── package.json
-└── package.json       # Root workspace config
+│   │   ├── components/# TruthOrDare, NeverHaveIEver, etc.
+│   │   ├── screens/   # Matches, Browse, Settings
+│   │   └── utils/     # api.ts, pushNotifications
+│   └── app.json
+└── package.json
 ```
+
+---
+
+## Code at a glance
+
+Snippets from the repo so you can see the style and structure in Cursor.
+
+**Backend – auth middleware** (`backend/src/middleware/auth.ts`)
+
+```ts
+export async function authenticateToken(req: AuthRequest, res: Response, next: NextFunction) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+    req.userId = decoded.userId;
+    // ... update last_active_at, save push token from X-Push-Token header
+    next();
+  } catch (error) {
+    return res.status(403).json({ error: 'Invalid or expired token' });
+  }
+}
+```
+
+**Backend – Postgres wrapper** (`backend/src/database.ts`)  
+Same API as SQLite so routes can use `db.prepare(...).get()` / `.run()` / `.all()`; with Postgres these return Promises and must be awaited.
+
+```ts
+return {
+  get: async (...args: any[]) => {
+    const normalizedParams = normalizeParams(...args);
+    const result = await pgPool!.query(pgSql, normalizedParams);
+    return result.rows[0] || null;
+  },
+  run: async (...args: any[]) => {
+    const normalizedParams = normalizeParams(...args);
+    await pgPool!.query(pgSql, normalizedParams);
+    return { lastInsertRowid: 0, changes: 0 };
+  },
+  all: async (...args: any[]) => { /* ... */ }
+};
+```
+
+**Mobile – API client** (`mobile/src/utils/api.ts`)
+
+```ts
+export const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://mulligan-backend.onrender.com';
+const BASE_URL = `${API_URL}/api`;
+
+export async function getToken(): Promise<string | null> {
+  if (tokenCache !== undefined) return tokenCache;
+  tokenCache = await AsyncStorage.getItem('token');
+  return tokenCache;
+}
+
+// Every request sends auth header + optional X-Push-Token so backend can save for push notifications
+headers['Authorization'] = `Bearer ${token}`;
+if (pushToken) headers['X-Push-Token'] = pushToken.trim();
+```
+
+**Mobile – push token on requests**  
+The app sends the Expo push token on authenticated requests so the backend can store it and send outside-app message notifications.
+
+---
 
 ## License
 

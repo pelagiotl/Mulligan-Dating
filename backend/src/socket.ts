@@ -225,10 +225,17 @@ export function initializeSocket(server: HTTPServer) {
         } else if (tokenValid) {
           const messagePreview = content.trim().length > 50 ? content.trim().substring(0, 50) + '...' : content.trim();
           const { sendMessagePushNotification } = await import('./services/pushNotifications.js');
-          const ok = await sendMessagePushNotification(token!, profile.display_name, messagePreview, matchId, userId);
-          if (ok) {
+          const result = await sendMessagePushNotification(token!, profile.display_name, messagePreview, matchId, userId);
+          if (result.invalidToken) {
+            try {
+              const run = db.prepare('UPDATE users SET push_token = NULL WHERE id = ?').run(otherUserId);
+              if (run instanceof Promise) await run;
+              console.log(`📲 Push: cleared invalid token for user ${otherUserId}`);
+            } catch (_) {}
+          }
+          if (result.sent) {
             console.log(`✅ Push (message) sent to ${otherUserId}`);
-          } else {
+          } else if (!result.invalidToken) {
             console.warn(`⚠️  Push (message) to ${otherUserId} failed (check Render logs above for Expo error)`);
           }
         } else {

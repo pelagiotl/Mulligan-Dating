@@ -1060,7 +1060,8 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
         }
       }
       const tokenValid = !!(token && isExpoPushToken(token));
-      console.log(`📲 Push (message HTTP): recipient=${otherUserId} hasToken=${!!token} validFormat=${tokenValid} expoConfigured=${isPushNotificationConfigured()} EXPO_ACCESS_TOKEN=${hasExpoToken ? 'set' : 'NOT SET'}`);
+      const tokenPreview = token ? `${token.substring(0, 28)}...` : 'null';
+      console.log(`📲 Push (message): recipient=${otherUserId} hasToken=${!!token} validFormat=${tokenValid} tokenPreview=${tokenPreview} EXPO_ACCESS_TOKEN=${hasExpoToken ? 'set' : 'NOT SET'}`);
 
       const senderProfileResult = db
         .prepare("SELECT display_name FROM profiles WHERE user_id = ?")
@@ -1082,38 +1083,59 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
         messagePreview = 'New message';
       }
 
+      const clearRecipientPushToken = async () => {
+        try {
+          const run = db.prepare('UPDATE users SET push_token = NULL WHERE id = ?').run([otherUserId]);
+          if (run instanceof Promise) await run;
+          console.log(`📲 Push: cleared invalid token for recipient ${otherUserId} (next app open will re-register)`);
+        } catch (e) {
+          console.warn('⚠️  Failed to clear push token for', otherUserId, e);
+        }
+      };
+
       if (isPushNotificationConfigured()) {
         if (tokenValid) {
-          let pushSent = await sendMessagePushNotification(token!, senderName, messagePreview, matchId, userId);
-          if (pushSent) {
-            console.log(`✅ Push (message HTTP) sent to ${otherUserId}`);
+          const result = await sendMessagePushNotification(token!, senderName, messagePreview, matchId, userId);
+          if (result.invalidToken) {
+            await clearRecipientPushToken();
+            console.log(`📲 PUSH_MSG_SKIP recipient=${otherUserId} reason=invalid_token_cleared`);
+          } else if (result.sent) {
+            console.log(`📲 PUSH_MSG_SENT recipient=${otherUserId}`);
           } else {
-            console.warn(`⚠️  Push (message HTTP) to ${otherUserId} failed (see Expo error above)`);
-            // One retry after 3s for transient Expo/network failures
+            console.warn(`📲 PUSH_MSG_SKIP recipient=${otherUserId} reason=expo_send_failed`);
+            // One retry after 3s for transient Expo/network failures (don't retry if token was invalid)
             setTimeout(async () => {
               try {
-                const retrySent = await sendMessagePushNotification(token!, senderName, messagePreview, matchId, userId);
-                if (retrySent) console.log(`✅ Push (message HTTP) sent to ${otherUserId} (send retry)`);
+                let retryTokenRow = db.prepare("SELECT push_token FROM users WHERE id = ?").get([otherUserId]);
+                if (retryTokenRow instanceof Promise) retryTokenRow = await retryTokenRow;
+                const retryToken = (retryTokenRow as { push_token: string | null } | undefined)?.push_token ?? null;
+                if (!retryToken || !isExpoPushToken(retryToken)) return;
+                const retryResult = await sendMessagePushNotification(retryToken, senderName, messagePreview, matchId, userId);
+                if (retryResult.invalidToken) await clearRecipientPushToken();
+                else if (retryResult.sent) console.log(`📲 PUSH_MSG_SENT recipient=${otherUserId} (send retry)`);
               } catch (e) { console.warn('⚠️  Push send retry failed:', e); }
             }, 3000);
           }
         } else {
-          const reason = !token ? 'no push token (recipient: use TestFlight/real device, allow notifications)' : 'invalid Expo push token format';
-          console.warn(`⚠️  Skipping push for user ${otherUserId}: ${reason}`);
-          // Delayed retry: recipient may open app later; re-check at 3s, 8s, and 18s
+          const reason = !token ? 'RECIPIENT_HAS_NO_TOKEN' : 'invalid_expo_token_format';
+          console.warn(`📲 PUSH_MSG_SKIP recipient=${otherUserId} reason=${reason}`);
+          // Delayed retry: recipient may open app later; re-check at 3s, 8s, 18s, 30s
           if (!token) {
             const tryDelayedPush = async (): Promise<boolean> => {
               let retryRow = db.prepare("SELECT push_token FROM users WHERE id = ?").get([otherUserId]);
               if (retryRow instanceof Promise) retryRow = await retryRow;
               const retryToken = (retryRow as { push_token: string | null } | undefined)?.push_token ?? null;
               if (retryToken && retryToken.trim() && isExpoPushToken(retryToken)) {
-                const sent = await sendMessagePushNotification(retryToken, senderName, messagePreview, matchId, userId);
-                if (sent) console.log(`✅ Push (message HTTP) sent to ${otherUserId} (delayed retry)`);
-                return true;
+                const res = await sendMessagePushNotification(retryToken, senderName, messagePreview, matchId, userId);
+                if (res.invalidToken) await clearRecipientPushToken();
+                else if (res.sent) {
+                  console.log(`📲 PUSH_MSG_SENT recipient=${otherUserId} (delayed retry)`);
+                  return true;
+                }
               }
               return false;
             };
-            [3000, 8000, 18000].forEach((delayMs) => {
+            [3000, 8000, 18000, 30000].forEach((delayMs) => {
               setTimeout(() => {
                 tryDelayedPush().catch((e) => console.warn('⚠️  Delayed push retry failed:', e));
               }, delayMs);
@@ -1122,8 +1144,7 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
         }
       }
     } catch (pushError) {
-      // Push notifications are optional, don't fail message sending if push fails
-      console.warn('⚠️  Failed to send push notification for message (non-critical):', pushError);
+      console.warn('⚠️  Push notification error (non-critical):', pushError);
     }
 
     // Emit socket event to notify all users in the match (for real-time updates)
@@ -1577,14 +1598,17 @@ matchesRouter.post("/:matchId/unlock-game", authenticateToken, rateLimitAPI, asy
     }
 
     // Spend 1 token
-    const tokensResult = db
+    let tokensResult = db
       .prepare('SELECT id FROM mulligan_tokens WHERE user_id = ? AND used_at IS NULL AND returned_at IS NULL ORDER BY granted_at ASC LIMIT 1')
-      .get(userId) as { id: string } | undefined;
-    if (!tokensResult) {
+      .get(userId);
+    if (tokensResult instanceof Promise) tokensResult = await tokensResult;
+    const tokenRow = tokensResult as { id: string } | undefined;
+    if (!tokenRow?.id) {
       return res.status(400).json({ error: "No tokens available. Claim your weekly token!" });
     }
 
-    db.prepare('UPDATE mulligan_tokens SET used_at = CURRENT_TIMESTAMP, match_id = ? WHERE id = ?').run(matchId, tokensResult.id);
+    const runUpdate = db.prepare('UPDATE mulligan_tokens SET used_at = CURRENT_TIMESTAMP, match_id = ? WHERE id = ?').run(matchId, tokenRow.id);
+    if (runUpdate instanceof Promise) await runUpdate;
 
     if (existingUnlock) {
       // Extend expired unlock with another 7 minutes
@@ -1601,6 +1625,34 @@ matchesRouter.post("/:matchId/unlock-game", authenticateToken, rateLimitAPI, asy
     }
     if (gameType === 'never_have_i_ever') {
       db.prepare('UPDATE never_have_i_ever_games SET current_prompt = NULL, user1_answer = NULL, user2_answer = NULL, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([matchId]);
+    }
+
+    // When Truth or Dare is unlocked, send a chat message so both see "Truth or Dare is ready!"
+    if (gameType === 'truth_or_dare') {
+      try {
+        const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
+        const notifyMsgId = uuidv4();
+        const notifyContent = '🎲 Truth or Dare is ready! Pick Truth or Dare anytime.';
+        const runInsert = db.prepare('INSERT INTO messages (id, match_id, sender_id, content) VALUES (?, ?, ?, ?)').run([notifyMsgId, matchId, userId, notifyContent]);
+        if (runInsert instanceof Promise) await runInsert;
+        const senderProfileResult = db.prepare('SELECT display_name FROM profiles WHERE user_id = ?').get([userId]);
+        const senderProfile = (senderProfileResult instanceof Promise ? await senderProfileResult : senderProfileResult) as { display_name: string } | undefined;
+        const senderName = senderProfile?.display_name || 'Someone';
+        const { getIO } = await import('../socket.js');
+        const io = getIO();
+        if (io) io.to(`match:${matchId}`).emit('new_message', { id: notifyMsgId, matchId, content: notifyContent, imageUrl: null, senderId: userId, senderName, sentAt: new Date().toISOString(), readAt: null });
+        const { sendMessagePushNotification, isPushNotificationConfigured, isExpoPushToken } = await import('../services/pushNotifications.js');
+        if (isPushNotificationConfigured()) {
+          let otherTokenRow = db.prepare('SELECT push_token FROM users WHERE id = ?').get([otherUserId]);
+          if (otherTokenRow instanceof Promise) otherTokenRow = await otherTokenRow;
+          const otherToken = (otherTokenRow as { push_token: string | null } | undefined)?.push_token;
+          if (otherToken && isExpoPushToken(otherToken)) {
+            await sendMessagePushNotification(otherToken, senderName, notifyContent, matchId, userId);
+          }
+        }
+      } catch (e) {
+        console.warn('Truth or Dare unlock chat notification failed (non-critical):', e);
+      }
     }
 
     // Notify both users so their match list can refresh (gameUnlocks changed)
@@ -1655,15 +1707,19 @@ matchesRouter.post("/:matchId/game-request", authenticateToken, rateLimitAPI, as
       .prepare('SELECT unlocked_until FROM game_unlocks WHERE match_id = ? AND game_type = ?')
       .get([matchId, gameType]) as { unlocked_until: string | null } | undefined;
     if (!existingUnlock) {
-      const tokensResult = db
+      let tokensResult = db
         .prepare('SELECT id FROM mulligan_tokens WHERE user_id = ? AND used_at IS NULL AND returned_at IS NULL ORDER BY granted_at ASC LIMIT 1')
-        .get(userId) as { id: string } | undefined;
-      if (!tokensResult) {
+        .get(userId);
+      if (tokensResult instanceof Promise) tokensResult = await tokensResult;
+      const tokenRow = tokensResult as { id: string } | undefined;
+      if (!tokenRow?.id) {
         return res.status(400).json({ error: "No tokens available. Use a token to invite them to play!" });
       }
-      db.prepare('UPDATE mulligan_tokens SET used_at = CURRENT_TIMESTAMP, match_id = ? WHERE id = ?').run(matchId, tokensResult.id);
-      db.prepare('INSERT INTO game_unlocks (match_id, game_type, unlocked_by_user_id, unlocked_until) VALUES (?, ?, ?, ?)')
+      const runUpd = db.prepare('UPDATE mulligan_tokens SET used_at = CURRENT_TIMESTAMP, match_id = ? WHERE id = ?').run(matchId, tokenRow.id);
+      if (runUpd instanceof Promise) await runUpd;
+      const runIns = db.prepare('INSERT INTO game_unlocks (match_id, game_type, unlocked_by_user_id, unlocked_until) VALUES (?, ?, ?, ?)')
         .run([matchId, gameType, userId, unlockedUntil.toISOString()]);
+      if (runIns instanceof Promise) await runIns;
       if (gameType === 'truth_or_dare') {
         db.prepare('UPDATE truth_or_dare_games SET current_prompt = NULL, current_prompt_type = NULL, used_prompts = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run(['[]', matchId]);
       }
@@ -1678,15 +1734,19 @@ matchesRouter.post("/:matchId/game-request", authenticateToken, rateLimitAPI, as
     } else {
       const until = existingUnlock.unlocked_until ? new Date(existingUnlock.unlocked_until) : null;
       if (until && until <= new Date()) {
-        const tokensResult = db
+        let tokensResult = db
           .prepare('SELECT id FROM mulligan_tokens WHERE user_id = ? AND used_at IS NULL AND returned_at IS NULL ORDER BY granted_at ASC LIMIT 1')
-          .get(userId) as { id: string } | undefined;
-        if (!tokensResult) {
+          .get(userId);
+        if (tokensResult instanceof Promise) tokensResult = await tokensResult;
+        const tokenRow = tokensResult as { id: string } | undefined;
+        if (!tokenRow?.id) {
           return res.status(400).json({ error: "Your game session expired. Use a token to invite them again!" });
         }
-        db.prepare('UPDATE mulligan_tokens SET used_at = CURRENT_TIMESTAMP, match_id = ? WHERE id = ?').run(matchId, tokensResult.id);
-        db.prepare('UPDATE game_unlocks SET unlocked_until = ?, unlocked_at = CURRENT_TIMESTAMP WHERE match_id = ? AND game_type = ?')
+        const runUpd = db.prepare('UPDATE mulligan_tokens SET used_at = CURRENT_TIMESTAMP, match_id = ? WHERE id = ?').run(matchId, tokenRow.id);
+        if (runUpd instanceof Promise) await runUpd;
+        const runExt = db.prepare('UPDATE game_unlocks SET unlocked_until = ?, unlocked_at = CURRENT_TIMESTAMP WHERE match_id = ? AND game_type = ?')
           .run([unlockedUntil.toISOString(), matchId, gameType]);
+        if (runExt instanceof Promise) await runExt;
         if (gameType === 'truth_or_dare') {
           db.prepare('UPDATE truth_or_dare_games SET current_prompt = NULL, current_prompt_type = NULL, used_prompts = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run(['[]', matchId]);
         }
@@ -1932,27 +1992,6 @@ matchesRouter.post("/:matchId/truth-or-dare/spice-choice", authenticateToken, ra
       const level = moreConservativeSpice(c1, c2);
       db.prepare(`UPDATE truth_or_dare_games SET spice_level = ?, current_prompt = NULL, current_prompt_type = NULL, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?`).run([level, matchId]);
       game.spice_level = level;
-      try {
-        const notifyMsgId = uuidv4();
-        const notifyContent = '🎲 Truth or Dare is ready! Pick Truth or Dare anytime.';
-        db.prepare(`INSERT INTO messages (id, match_id, sender_id, content) VALUES (?, ?, ?, ?)`).run([notifyMsgId, matchId, userId, notifyContent]);
-        const senderProfile = db.prepare('SELECT display_name FROM profiles WHERE user_id = ?').get([userId]) as { display_name: string } | undefined;
-        const senderName = senderProfile?.display_name || 'Someone';
-        const { getIO } = await import('../socket.js');
-        const io = getIO();
-        if (io) io.to(`match:${matchId}`).emit('new_message', { id: notifyMsgId, matchId, content: notifyContent, imageUrl: null, senderId: userId, senderName, sentAt: new Date().toISOString(), readAt: null });
-        const { sendMessagePushNotification, isPushNotificationConfigured, isExpoPushToken } = await import('../services/pushNotifications.js');
-        if (isPushNotificationConfigured()) {
-          let otherTokenRow = db.prepare('SELECT push_token FROM users WHERE id = ?').get([otherUserId]);
-          if (otherTokenRow instanceof Promise) otherTokenRow = await otherTokenRow;
-          const otherToken = (otherTokenRow as { push_token: string | null } | undefined)?.push_token;
-          if (otherToken && isExpoPushToken(otherToken)) {
-            await sendMessagePushNotification(otherToken, senderName, notifyContent, matchId, userId);
-          }
-        }
-      } catch (e) {
-        console.warn('Truth or Dare chat notification failed:', e);
-      }
     }
 
     try {
@@ -2261,15 +2300,9 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
 
     const { submitAnswer, submitTurnAnswer } = await import('../services/neverHaveIEver.js');
     const rowResult = db.prepare('SELECT spice_level, current_prompt, current_turn_user_id FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
-    let row = (rowResult instanceof Promise ? await rowResult : rowResult) as { spice_level: string | null; current_prompt: string | null; current_turn_user_id: string | null } | undefined;
-    let isTurnBased = !!row?.current_turn_user_id;
-    if (!isTurnBased && row?.spice_level && row?.current_prompt) {
-      const firstTurnUserId = unlockRow.unlocked_by_user_id
-        ? (match.user1_id === unlockRow.unlocked_by_user_id ? match.user2_id : match.user1_id)
-        : match.user1_id;
-      db.prepare('UPDATE never_have_i_ever_games SET current_turn_user_id = ?, updated_at = ? WHERE match_id = ?').run([firstTurnUserId, new Date().toISOString(), matchId]);
-      isTurnBased = true;
-    }
+    const row = (rowResult instanceof Promise ? await rowResult : rowResult) as { spice_level: string | null; current_prompt: string | null; current_turn_user_id: string | null } | undefined;
+    // When current_turn_user_id is null, both users answer each prompt then we generate the next (tally mode)
+    const isTurnBased = !!row?.current_turn_user_id;
 
     const { state, roundResult } = isTurnBased
       ? await submitTurnAnswer(matchId, userId, match, answer as 'have' | 'havent')

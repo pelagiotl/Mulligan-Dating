@@ -396,7 +396,11 @@ export default function TruthOrDare({
     setGameState((prev) => (prev ? { ...prev, spiceLevel: choice, spiceReady: true } : prev));
     try {
       const data = await api.post<GameState>(`/matches/${matchId}/truth-or-dare/spice-choice`, { choice });
-      setGameState((prev) => (prev ? { ...prev, ...data, spiceLevel: data.spiceLevel ?? choice } : data));
+      // Use agreed level only when it matches the choice we just made (so UI doesn't revert to previous level)
+      const displayLevel = (data.spiceReady && data.spiceLevel != null && data.spiceLevel === choice)
+        ? data.spiceLevel
+        : (data.yourSpiceChoice ?? choice);
+      setGameState((prev) => (prev ? { ...prev, ...data, spiceLevel: displayLevel } : { ...data, spiceLevel: displayLevel }));
       if (data.spiceReady && (data.spiceLevel ?? choice)) {
         setStep('choose');
       } else {
