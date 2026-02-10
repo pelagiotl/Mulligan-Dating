@@ -36,8 +36,8 @@ import { useAuth } from '../context/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import OptimizedImage from '../components/OptimizedImage';
 
-const GENDER_OPTIONS = ['Man', 'Woman', 'Other', 'Prefer not to say'];
-const PREFERRED_GENDER_OPTIONS = ['Man', 'Woman']; // For step 5 preferences
+const GENDER_OPTIONS = ['Man', 'Woman', 'Other'];
+const PREFERRED_GENDER_OPTIONS = ['Man', 'Woman', 'Everyone']; // Everyone = match all genders
 const LOOKING_FOR_OPTIONS = ['Relationship', 'Something casual', 'Friendship', 'Not sure yet'];
 
 const INTEREST_OPTIONS = [
@@ -488,11 +488,15 @@ export default function CreateProfileScreen() {
             setMaxDistance(data.preferences.max_distance ?? 50);
             if (data.preferences.preferred_genders) {
               try {
-                const genders = JSON.parse(data.preferences.preferred_genders);
-                setPreferredGenders(genders);
+                const genders = JSON.parse(data.preferences.preferred_genders) as string[];
+                const allGenders = ['Man', 'Woman', 'Other'];
+                const isEveryone = genders.length === 0 || (genders.length === 3 && allGenders.every(g => genders.includes(g)));
+                setPreferredGenders(isEveryone ? ['Everyone'] : genders);
               } catch {
-                setPreferredGenders([]);
+                setPreferredGenders(['Everyone']);
               }
+            } else {
+              setPreferredGenders(['Everyone']);
             }
           }
           if (data.lifestyle) {
@@ -620,7 +624,7 @@ export default function CreateProfileScreen() {
               await api.put('/profile/preferences', {
                 minAge,
                 maxAge: maxAge >= minAge && maxAge <= 120 ? maxAge : null,
-                preferredGenders: preferredGenders.length > 0 ? preferredGenders : null,
+                preferredGenders: (preferredGenders.includes('Everyone') || preferredGenders.length === 0) ? null : preferredGenders,
                 maxDistance,
                 relationshipType: lookingFor || null
               });
@@ -1345,7 +1349,7 @@ export default function CreateProfileScreen() {
       await api.put('/profile/preferences', {
         minAge,
         maxAge: maxAge >= minAge && maxAge <= 120 ? maxAge : null,
-        preferredGenders: preferredGenders.length > 0 ? preferredGenders : null,
+        preferredGenders: (preferredGenders.includes('Everyone') || preferredGenders.length === 0) ? null : preferredGenders,
         maxDistance,
         relationshipType: lookingFor || null
       });
@@ -1398,6 +1402,14 @@ export default function CreateProfileScreen() {
   };
 
   const togglePreferredGender = (gender: string) => {
+    if (gender === 'Everyone') {
+      setPreferredGenders(preferredGenders.includes('Everyone') ? [] : ['Everyone']);
+      return;
+    }
+    if (preferredGenders.includes('Everyone')) {
+      setPreferredGenders([gender]);
+      return;
+    }
     if (preferredGenders.includes(gender)) {
       setPreferredGenders(preferredGenders.filter(g => g !== gender));
     } else {
@@ -1889,7 +1901,7 @@ export default function CreateProfileScreen() {
               );
             })}
           </View>
-          {preferredGenders.length > 0 && <Animated.View style={[styles.successIndicator, { opacity: preferredGendersOpacity }]}><Text style={styles.successText}>✓ {preferredGenders.length} selected</Text></Animated.View>}
+          {preferredGenders.length > 0 && <Animated.View style={[styles.successIndicator, { opacity: preferredGendersOpacity }]}><Text style={styles.successText}>✓ {preferredGenders.includes('Everyone') ? 'Everyone' : `${preferredGenders.length} selected`}</Text></Animated.View>}
         </LinearGradient>
       </Animated.View>
     </View>

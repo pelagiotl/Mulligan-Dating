@@ -196,11 +196,14 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
         try {
           const preferredGenders = JSON.parse(userPrefs.preferred_genders) as string[];
           console.log('🔍 Gender filter:', { preferredGenders, raw: userPrefs.preferred_genders });
-          if (preferredGenders.length > 0) {
+          const isEveryone = preferredGenders.includes('Everyone');
+          if (preferredGenders.length > 0 && !isEveryone) {
             const placeholders = preferredGenders.map(() => '?').join(',');
             query += ` AND p.gender IN (${placeholders})`;
             params.push(...preferredGenders);
             console.log('✅ Applied gender filter:', preferredGenders);
+          } else if (isEveryone) {
+            console.log('ℹ️  Preferred genders is "Everyone" - showing all genders');
           } else {
             console.log('⚠️  Preferred genders array is empty - showing all genders');
           }
@@ -714,7 +717,8 @@ usersRouter.get('/diagnose/:targetUserId', authenticateToken, async (req: AuthRe
     if (userPrefs?.preferred_genders) {
       try {
         const preferredGenders = JSON.parse(userPrefs.preferred_genders) as string[];
-        if (preferredGenders.length > 0 && !preferredGenders.includes(targetProfile.gender)) {
+        const isEveryone = preferredGenders.includes('Everyone');
+        if (preferredGenders.length > 0 && !isEveryone && !preferredGenders.includes(targetProfile.gender)) {
           genderFilterPass = false;
           genderFilterReason = `Target gender (${targetProfile.gender}) is not in your preferred genders (${preferredGenders.join(', ')})`;
         }

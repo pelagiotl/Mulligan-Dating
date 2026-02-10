@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { api } from '../utils/api'
 import { useAuth } from '../context/AuthContext'
 
-const GENDER_OPTIONS = ['Man', 'Woman', 'Non-binary', 'Other', 'Prefer not to say']
+const GENDER_OPTIONS = ['Man', 'Woman', 'Other']
+const PREFERRED_GENDER_OPTIONS = ['Man', 'Woman', 'Everyone']
 const LOOKING_FOR_OPTIONS = ['Relationship', 'Something casual', 'Friendship', 'Not sure yet']
 
 const INTEREST_OPTIONS = [
@@ -220,10 +221,14 @@ export default function CreateProfile() {
             if (data.preferences.preferred_genders) {
               try {
                 const genders = JSON.parse(data.preferences.preferred_genders) as string[]
-                setPreferredGenders(genders)
+                const allGenders = ['Man', 'Woman', 'Other']
+                const isEveryone = genders.length === 0 || (genders.length === 3 && allGenders.every(g => genders.includes(g)))
+                setPreferredGenders(isEveryone ? ['Everyone'] : genders)
               } catch {
-                setPreferredGenders([])
+                setPreferredGenders(['Everyone'])
               }
+            } else {
+              setPreferredGenders(['Everyone'])
             }
           }
           
@@ -411,7 +416,7 @@ export default function CreateProfile() {
       await api.put('/profile/preferences', {
         minAge,
         maxAge: null, // No maximum age limit
-        preferredGenders: preferredGenders.length > 0 ? preferredGenders : null,
+        preferredGenders: (preferredGenders.includes('Everyone') || preferredGenders.length === 0) ? null : preferredGenders,
         maxDistance,
         relationshipType: lookingFor || null
       })
@@ -772,13 +777,17 @@ export default function CreateProfile() {
               <div className="form-group">
                 <label className="form-label">Preferred Genders</label>
                 <div className="interests-grid" style={{ maxHeight: '200px' }}>
-                  {GENDER_OPTIONS.map(gender => (
+                  {PREFERRED_GENDER_OPTIONS.map(gender => (
                     <label key={gender} className="interest-checkbox">
                       <input
                         type="checkbox"
                         checked={preferredGenders.includes(gender)}
                         onChange={() => {
-                          if (preferredGenders.includes(gender)) {
+                          if (gender === 'Everyone') {
+                            setPreferredGenders(preferredGenders.includes('Everyone') ? [] : ['Everyone'])
+                          } else if (preferredGenders.includes('Everyone')) {
+                            setPreferredGenders([gender])
+                          } else if (preferredGenders.includes(gender)) {
                             setPreferredGenders(preferredGenders.filter(g => g !== gender))
                           } else {
                             setPreferredGenders([...preferredGenders, gender])

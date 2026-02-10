@@ -709,12 +709,14 @@ export async function generateWeeklyMatches(userId: string): Promise<{
       continue; // Age mismatch
     }
 
-    // Check mutual gender preferences
+    // Check mutual gender preferences ("Everyone" or empty = open to all)
     const userWantsCandidate =
       userPreferredGenders.length === 0 ||
+      userPreferredGenders.includes('Everyone') ||
       userPreferredGenders.includes(candidate.gender);
     const candidateWantsUser =
       candidatePreferredGenders.length === 0 ||
+      candidatePreferredGenders.includes('Everyone') ||
       candidatePreferredGenders.includes(userProfile.gender);
 
     if (!userWantsCandidate || !candidateWantsUser) {
