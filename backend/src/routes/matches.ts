@@ -2044,7 +2044,7 @@ matchesRouter.post("/:matchId/truth-or-dare", authenticateToken, rateLimitAPI, a
     }
 
     const gameResult = db.prepare('SELECT * FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
-    const game = (gameResult instanceof Promise ? await gameResult : gameResult) as { spice_level: string | null } | undefined;
+    const game = (gameResult instanceof Promise ? await gameResult : gameResult) as { spice_level: string | null; user1_spice_choice: string | null; user2_spice_choice: string | null } | undefined;
 
     const unlockRowToD = db.prepare('SELECT unlocked_until FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'truth_or_dare']) as { unlocked_until: string | null } | undefined;
     if (!unlockRowToD) {
@@ -2054,17 +2054,20 @@ matchesRouter.post("/:matchId/truth-or-dare", authenticateToken, rateLimitAPI, a
     if (todUntil && todUntil <= new Date()) {
       return res.status(400).json({ error: "Your Truth or Dare session expired. Use another token to play for 7 more minutes." });
     }
-    if (!game?.spice_level) {
-      return res.status(400).json({ error: "Game not ready. Both of you need to pick a version first." });
+    const isUser1 = match.user1_id === userId;
+    const yourChoice = game ? (isUser1 ? game.user1_spice_choice : game.user2_spice_choice) : null;
+    const agreedLevel = game?.spice_level ?? null;
+    if (!agreedLevel && !yourChoice) {
+      return res.status(400).json({ error: "Pick a version (PG-13, Rated R, or Spicy) first." });
     }
-
-    const level = (game.spice_level === 'ratedr' ? 'ratedr' : game.spice_level === 'spicy' ? 'spicy' : 'pg13') as 'pg13' | 'ratedr' | 'spicy';
+    const level = (agreedLevel || yourChoice) as string;
+    const levelNorm = (level === 'ratedr' ? 'ratedr' : level === 'spicy' ? 'spicy' : 'pg13') as 'pg13' | 'ratedr' | 'spicy';
     const currentPrompt = (game as any).current_prompt ?? null;
     const currentPromptType = (game as any).current_prompt_type ?? null;
 
     // If there's already a prompt of this type and user didn't click "Another one", return it (don't regenerate)
     if (!anotherOne && currentPrompt && currentPrompt.trim() && currentPromptType === type) {
-      return res.json({ prompt: currentPrompt, fromAI: false, spiceLevel: level });
+      return res.json({ prompt: currentPrompt, fromAI: false, spiceLevel: levelNorm });
     }
 
     let usedPrompts: string[] = [];
@@ -2085,7 +2088,7 @@ matchesRouter.post("/:matchId/truth-or-dare", authenticateToken, rateLimitAPI, a
     let fromAI = false;
     const maxTries = 3;
     for (let attempt = 0; attempt < maxTries; attempt++) {
-      const result = await generateTruthOrDarePrompt(type, matchId, userId, level, excludePrompts);
+      const result = await generateTruthOrDarePrompt(type, matchId, userId, levelNorm, excludePrompts);
       prompt = result.prompt;
       fromAI = result.fromAI;
       const isDuplicate = excludePrompts.some((p) => normalize(p) === normalize(prompt));
@@ -2103,7 +2106,7 @@ matchesRouter.post("/:matchId/truth-or-dare", authenticateToken, rateLimitAPI, a
       if (io) io.to(`match:${matchId}`).emit('truth_or_dare_updated', { matchId });
     } catch (e) { /* ignore */ }
 
-    res.json({ prompt, fromAI, spiceLevel: level });
+    res.json({ prompt, fromAI, spiceLevel: levelNorm });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error("Truth or Dare error:", error);

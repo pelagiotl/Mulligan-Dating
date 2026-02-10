@@ -969,7 +969,7 @@ export default function MyProfileScreen() {
     try {
       setReordering(true);
       await api.put('/photos/reorder', { photoIds: newOrder });
-      await fetchPhotos();
+      await Promise.all([fetchPhotos(), fetchProfile()]);
       // Haptic feedback
       if (Platform.OS === 'ios') {
         Vibration.vibrate([0, 50]);
@@ -1302,7 +1302,8 @@ export default function MyProfileScreen() {
                 />
                 
                 <Animated.Image
-                  source={{ uri: profilePhotoUrl }}
+                  key={profilePhotoUrl ?? 'no-photo'}
+                  source={{ uri: profilePhotoUrl ?? undefined }}
                   style={[
                     styles.avatar,
                     {

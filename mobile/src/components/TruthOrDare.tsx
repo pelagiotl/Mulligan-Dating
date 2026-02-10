@@ -285,6 +285,9 @@ export default function TruthOrDare({
         if (recentlySetSpice && (intendedSpice ?? prev?.spiceLevel)) {
           return { ...data, spiceLevel: intendedSpice ?? prev?.spiceLevel ?? data.spiceLevel, spiceReady: true };
         }
+        if (data.yourSpiceChoice && !data.spiceReady) {
+          return { ...data, spiceLevel: data.yourSpiceChoice, spiceReady: true };
+        }
         return data;
       });
       const recentlyRequestedAnother = Date.now() - lastAnotherOneAtRef.current < 3000;
@@ -298,6 +301,8 @@ export default function TruthOrDare({
       }
       if (alreadyShowingPrompt) return;
       if (data.spiceReady && data.spiceLevel) {
+        setStep('choose');
+      } else if (data.yourSpiceChoice) {
         setStep('choose');
       } else {
         setStep('lobby');
@@ -400,12 +405,8 @@ export default function TruthOrDare({
       const displayLevel = (data.spiceReady && data.spiceLevel != null && data.spiceLevel === choice)
         ? data.spiceLevel
         : (data.yourSpiceChoice ?? choice);
-      setGameState((prev) => (prev ? { ...prev, ...data, spiceLevel: displayLevel } : { ...data, spiceLevel: displayLevel }));
-      if (data.spiceReady && (data.spiceLevel ?? choice)) {
-        setStep('choose');
-      } else {
-        setStep('lobby');
-      }
+      setGameState((prev) => (prev ? { ...prev, ...data, spiceLevel: displayLevel, spiceReady: true } : { ...data, spiceLevel: displayLevel, spiceReady: true }));
+      setStep('choose');
       // Clear ref after delay so any socket/poll fetchState in the next 5s still sees intendedSpice and doesn't overwrite with stale GET
       setTimeout(() => {
         lastSpiceChoiceRef.current = null;
