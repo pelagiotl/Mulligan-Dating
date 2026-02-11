@@ -143,6 +143,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       });
 
+      socket.on('new_match', () => {
+        playMatchSound().catch(() => {});
+      });
+
       socket.on('new_message', (data: { matchId?: string; senderId: string; senderName?: string; content?: string; id?: string }) => {
         try {
           if (data.senderId === user?.id) return;
@@ -176,6 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
       if (messageNotificationSocketRef.current) {
+        messageNotificationSocketRef.current.off('new_match');
         messageNotificationSocketRef.current.off('new_message');
         messageNotificationSocketRef.current.disconnect();
         messageNotificationSocketRef.current = null;

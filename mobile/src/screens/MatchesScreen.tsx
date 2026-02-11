@@ -2312,7 +2312,7 @@ export default function MatchesScreen() {
         }
       });
 
-      // Match notification shown by BrowseScreen (always mounted) - just refresh list here
+      // Match notification: refresh list (match sound played by AuthContext for both users)
       socket.on('new_match', () => {
         fetchMatches();
       });

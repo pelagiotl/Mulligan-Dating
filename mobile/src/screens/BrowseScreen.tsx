@@ -1282,7 +1282,6 @@ export default function BrowseScreen() {
         if (matchIdFromConnectRef.current === data.matchId) return;
         setMatchNotification(data.message);
         setTimeout(() => setMatchNotification(null), 5000);
-        playMatchSound().catch(() => {});
         Alert.alert(
           '🎉 New Match!',
           data.message,

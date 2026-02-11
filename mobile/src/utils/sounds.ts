@@ -28,7 +28,7 @@ if (!isExpoGo) {
     }
   }
   
-  // Load message sound
+  // Load message sound (message-sound.mp3 or message-sound.wav)
   try {
     messageSoundModule = require('../assets/message-sound.mp3');
     console.log('🎵 ✅ Message sound module loaded successfully (MP3)');

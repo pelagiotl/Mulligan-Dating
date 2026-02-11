@@ -1,7 +1,7 @@
 /**
- * Generate a cool match celebration sound
- * Two punchy hits + fast rise + big peak bloom + sparkle tail
- * Run with: node scripts/generate-match-sound.js
+ * Generate a cool message notification sound
+ * Quick three-note rise + tiny sparkle - distinct from match, still short
+ * Run with: node scripts/generate-message-sound.js
  */
 
 const fs = require('fs');
@@ -9,23 +9,18 @@ const path = require('path');
 
 const TAU = 2 * Math.PI;
 
-function generateWavFile(sampleRate = 44100, duration = 1.85) {
+function generateWavFile(sampleRate = 44100, duration = 1.15) {
   const numChannels = 1;
   const bitsPerSample = 16;
   const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
   const blockAlign = numChannels * (bitsPerSample / 8);
 
+  // Quick three-note rise (E5, G#5, B5) + high sparkle
   const tones = [
-    { freq: 659.25, start: 0, duration: 0.2, gain: 0.38, decay: 16, attack: 80 },
-    { freq: 329.63, start: 0, duration: 0.18, gain: 0.12, decay: 12, attack: 60 },
-    { freq: 987.77, start: 0.09, duration: 0.2, gain: 0.36, decay: 14, attack: 80 },
-    { freq: 880, start: 0.3, duration: 0.15, gain: 0.3, decay: 10, attack: 50 },
-    { freq: 1108.73, start: 0.38, duration: 0.15, gain: 0.3, decay: 9, attack: 50 },
-    { freq: 1318.51, start: 0.46, duration: 0.58, gain: 0.34, decay: 3.5, attack: 40 },
-    { freq: 1975.53, start: 0.46, duration: 0.4, gain: 0.12, decay: 6, attack: 30 },
-    { freq: 1760, start: 0.6, duration: 0.5, gain: 0.22, decay: 6, attack: 35 },
-    { freq: 2093, start: 0.68, duration: 0.4, gain: 0.15, decay: 7, attack: 35 },
-    { freq: 2637, start: 0.74, duration: 0.28, gain: 0.08, decay: 9, attack: 40 },
+    { freq: 659.25, start: 0, duration: 0.2, gain: 0.32, decay: 12, attack: 55 },
+    { freq: 830.61, start: 0.12, duration: 0.2, gain: 0.3, decay: 10, attack: 50 },
+    { freq: 987.77, start: 0.24, duration: 0.32, gain: 0.3, decay: 7, attack: 45 },
+    { freq: 1318.51, start: 0.4, duration: 0.28, gain: 0.2, decay: 9, attack: 50 },
   ];
 
   const samples = [];
@@ -37,14 +32,11 @@ function generateWavFile(sampleRate = 44100, duration = 1.85) {
       if (time >= tone.start && time < tone.start + tone.duration) {
         const t = time - tone.start;
         const d = tone.duration;
-        const attack = Math.min(1, t * (tone.attack || 50));
+        const attack = Math.min(1, t * (tone.attack || 40));
         const env = attack * Math.exp(-t * tone.decay) * (1 - 0.12 * (t / d));
         sample += Math.sin(TAU * tone.freq * time) * env * tone.gain;
-        if (tone.freq >= 1000 && tone.freq < 2500) {
-          sample += 0.055 * Math.sin(TAU * tone.freq * 2.5 * time) * env;
-        }
-        if (tone.freq >= 2500) {
-          sample += 0.04 * Math.sin(TAU * tone.freq * 1.5 * time) * env;
+        if (tone.freq >= 800) {
+          sample += 0.05 * Math.sin(TAU * tone.freq * 2.5 * time) * env;
         }
       }
     });
@@ -73,11 +65,11 @@ function generateWavFile(sampleRate = 44100, duration = 1.85) {
   return Buffer.concat([header, Buffer.from(samples)]);
 }
 
-const wavPath = path.join(__dirname, '../assets/match-sound.wav');
+const wavPath = path.join(__dirname, '../assets/message-sound.wav');
 try {
   fs.writeFileSync(wavPath, generateWavFile());
-  console.log('✅ Match sound generated → mobile/assets/match-sound.wav');
-  console.log('   Punchy hits + rise + peak bloom + sparkle tail');
+  console.log('✅ Message sound generated → mobile/assets/message-sound.wav');
+  console.log('   Style: three-note rise + sparkle');
 } catch (err) {
   console.error('Error:', err);
   process.exit(1);

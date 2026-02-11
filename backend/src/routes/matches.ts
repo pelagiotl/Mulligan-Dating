@@ -700,15 +700,22 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
           ? await targetPushTokenResult
           : targetPushTokenResult) as { push_token: string | null } | undefined;
 
-        // Only send push to the target (person who was matched with). The connect initiator
-        // already sees "It's a match! You matched with X" in-app; avoid duplicate "New match! X matched with you".
+        // Send match push to BOTH users so each hears/gets the celebration in-app or outside-app
         if (targetPushToken?.push_token) {
           await sendMatchPushNotification(
             targetPushToken.push_token,
             userDisplayName?.display_name || 'Someone',
             matchId
           );
-          console.log(`✅ Sent push notification to ${targetUserId} (User B)`);
+          console.log(`✅ Sent match push to ${targetUserId} (User B)`);
+        }
+        if (userPushToken?.push_token) {
+          await sendMatchPushNotification(
+            userPushToken.push_token,
+            targetDisplayName?.display_name || 'Someone',
+            matchId
+          );
+          console.log(`✅ Sent match push to ${userId} (User A)`);
         }
       } catch (notifErr) {
         console.warn('⚠️  Match notifications failed (non-critical):', notifErr);
