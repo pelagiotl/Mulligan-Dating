@@ -175,6 +175,8 @@ export default function MyProfileScreen() {
   const [updatingActiveStatus, setUpdatingActiveStatus] = useState(false);
   const [reordering, setReordering] = useState(false);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // Bump when photos change so the header avatar reloads (avoids stale image cache after upload/reorder/delete)
+  const [avatarVersion, setAvatarVersion] = useState(0);
   
   // Animation for header elements
   const headerFade = useRef(new Animated.Value(0)).current;
@@ -590,7 +592,10 @@ export default function MyProfileScreen() {
     try {
       // Skip cache so photos uploaded in Create Profile appear immediately when opening Profile tab
       const data = await api.get<{ photos: Photo[] }>('/photos/me', false);
-      setPhotos(data.photos || []);
+      const nextPhotos = data.photos || [];
+      setPhotos(nextPhotos);
+      // Force header avatar to reload when photo list changes (e.g. after upload)
+      setAvatarVersion((v) => v + 1);
     } catch (err) {
       // Only log error if it's not an auth error
       if (err && typeof err === 'object' && 'message' in err && err.message !== 'Authentication required') {
@@ -919,7 +924,8 @@ export default function MyProfileScreen() {
       
       console.log('✅ Upload successful:', result);
 
-      // Refresh photos and profile
+      // Clear cache so fetchPhotos gets fresh list; then refresh photos and profile
+      api.clearCache('/photos/me');
       await Promise.all([
         fetchPhotos(),
         fetchProfile(),
@@ -1025,8 +1031,9 @@ export default function MyProfileScreen() {
       const newOrder = [...photos];
       const [draggedPhoto] = newOrder.splice(draggingIndex, 1);
       newOrder.splice(newIndex, 0, draggedPhoto);
-      // Optimistic update: first slot is primary so badge shows correctly immediately
+      // Optimistic update: first slot is primary so badge and header avatar update immediately
       setPhotos(newOrder.map((p, i) => ({ ...p, isPrimary: i === 0 })));
+      setAvatarVersion((v) => v + 1);
       const photoIds = newOrder.map(p => p.id);
       handleReorderPhotos(photoIds);
     }
@@ -1043,8 +1050,9 @@ export default function MyProfileScreen() {
     const wasCurrentIndex = currentPhotoIndex;
     const previousLength = photos.length;
 
-    // Optimistic update: remove photo from UI immediately
+    // Optimistic update: remove photo from UI immediately so header avatar updates
     setPhotos((prev) => prev.filter((p) => p.id !== photoId));
+    setAvatarVersion((v) => v + 1);
     if (wasInGallery) {
       if (previousLength <= 1) {
         setShowPhotoGallery(false);
@@ -1302,8 +1310,8 @@ export default function MyProfileScreen() {
                 />
                 
                 <Animated.Image
-                  key={profilePhotoUrl ?? 'no-photo'}
-                  source={{ uri: profilePhotoUrl ?? undefined }}
+                  key={`${profilePhotoUrl ?? 'no-photo'}-v${avatarVersion}`}
+                  source={{ uri: profilePhotoUrl ? `${profilePhotoUrl}${profilePhotoUrl.includes('?') ? '&' : '?'}v=${avatarVersion}` : undefined }}
                   style={[
                     styles.avatar,
                     {
