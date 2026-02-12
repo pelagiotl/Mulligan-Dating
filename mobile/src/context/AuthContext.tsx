@@ -33,7 +33,7 @@ interface AuthContextType {
   /** Single notification for backward compat; first in stack or null. */
   messageNotification: MessageNotification;
   clearMessageNotification: (id?: string) => void;
-  phoneLogin: (phoneNumber: string, code: string, referralCode?: string) => Promise<{ hasProfile: boolean }>;
+  phoneLogin: (phoneNumber: string, code: string) => Promise<{ hasProfile: boolean }>;
   logout: () => void;
   refreshProfile: () => Promise<void>;
 }
@@ -145,6 +145,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       socket.on('new_match', () => {
         playMatchSound().catch(() => {});
+        api.clearCache('/tokens');
       });
 
       socket.on('new_message', (data: { matchId?: string; senderId: string; senderName?: string; content?: string; id?: string }) => {
@@ -610,18 +611,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const phoneLogin = async (phoneNumber: string, code: string, referralCode?: string) => {
+  const phoneLogin = async (phoneNumber: string, code: string) => {
     try {
       const data: {
         token: string;
         userId: string;
         hasProfile: boolean;
         isNewUser: boolean;
-        referralCode?: string;
       } = await api.post('/sms/verify-code', {
         phoneNumber,
         code,
-        referralCode: referralCode || undefined,
         acceptTerms: true,
         acceptPrivacy: true,
       });

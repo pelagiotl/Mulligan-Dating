@@ -535,7 +535,7 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
                         end={{ x: 1, y: 1 }}
                         style={styles.buyButtonGradient}
                       >
-                        <Text style={styles.buyButtonText}>💳 Buy More Tokens</Text>
+                        <Text style={styles.buyButtonText}>💳 Cop some more</Text>
                       </LinearGradient>
                     </TouchableOpacity>
                   </View>
@@ -722,7 +722,7 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
             fetchPackages();
           }}
         >
-          <Text style={styles.claimButtonText}>💳 Buy More Tokens</Text>
+          <Text style={styles.claimButtonText}>💳 Cop some more</Text>
         </TouchableOpacity>
       )}
 

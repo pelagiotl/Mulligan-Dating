@@ -557,11 +557,9 @@ const PhoneForm = memo(function PhoneForm({
 }: {
   loading: boolean;
   error: string;
-  onSubmit: (phoneNumber: string, referralCode: string) => void;
+  onSubmit: (phoneNumber: string) => void;
 }) {
   const [phoneValue, setPhoneValue] = useState('');
-  const [referralCode, setReferralCode] = useState('');
-  const [showReferral, setShowReferral] = useState(false);
 
   const digits = extractDigitsFast(phoneValue);
   const isValid = digits.length >= 10;
@@ -572,8 +570,8 @@ const PhoneForm = memo(function PhoneForm({
 
   const handleSubmit = useCallback(() => {
     if (!isValid || loading) return;
-    onSubmit(digits, referralCode.trim());
-  }, [isValid, loading, digits, referralCode, onSubmit]);
+    onSubmit(digits);
+  }, [isValid, loading, digits, onSubmit]);
 
   return (
     <View style={styles.card}>
@@ -597,26 +595,6 @@ const PhoneForm = memo(function PhoneForm({
           />
         </View>
       </View>
-      {showReferral ? (
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>Referral Code (Optional)</Text>
-          <View style={styles.inputWrapper}>
-            <Text style={styles.inputIcon}>🎁</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="REF123"
-              placeholderTextColor="#999"
-              value={referralCode}
-              onChangeText={(t) => setReferralCode(t.toUpperCase())}
-              editable={!loading}
-            />
-          </View>
-        </View>
-      ) : (
-        <TouchableOpacity onPress={() => setShowReferral(true)} style={{ paddingVertical: 8 }}>
-          <Text style={{ color: '#667eea', fontSize: 14 }}>Have a referral code?</Text>
-        </TouchableOpacity>
-      )}
       <TouchableOpacity
         style={[styles.button, styles.primaryButton, (loading || !isValid) && styles.buttonDisabled]}
         onPress={handleSubmit}
@@ -637,7 +615,6 @@ const PhoneForm = memo(function PhoneForm({
 
 export default function PhoneLoginScreen() {
   const [submittedPhone, setSubmittedPhone] = useState('');
-  const [submittedReferral, setSubmittedReferral] = useState('');
   const [code, setCode] = useState('');
   const [step, setStep] = useState<'phone' | 'verify'>('phone');
   const [error, setError] = useState('');
@@ -647,7 +624,7 @@ export default function PhoneLoginScreen() {
   const navigation = useNavigation();
   const { phoneLogin } = useAuth();
 
-  const handlePhoneSubmit = useCallback(async (cleanPhoneNumber: string, referralCode: string) => {
+  const handlePhoneSubmit = useCallback(async (cleanPhoneNumber: string) => {
     console.log('📱 handlePhoneSubmit called with phoneNumber:', cleanPhoneNumber);
     setError('');
     setLoading(true);
@@ -671,7 +648,6 @@ export default function PhoneLoginScreen() {
       }
 
       setSubmittedPhone(cleanPhoneNumber);
-      setSubmittedReferral(referralCode);
       setStep('verify');
       setLoading(false);
     } catch (err: any) {
@@ -704,7 +680,7 @@ export default function PhoneLoginScreen() {
     setLoading(true);
 
     try {
-      const { hasProfile } = await phoneLogin(submittedPhone, codeToUse, submittedReferral || undefined);
+      const { hasProfile } = await phoneLogin(submittedPhone, codeToUse);
       
       // Use verify-code API hasProfile as source of truth. Don't rely on auth context here:
       // profile state may not have updated yet, and other effects must not override this navigation.

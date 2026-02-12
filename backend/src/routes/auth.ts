@@ -4,7 +4,6 @@ import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
 import { db } from '../database.js';
 import { generateToken, authenticateToken, AuthRequest } from '../middleware/auth.js';
-import { getUserByReferralCode, getOrCreateReferralCode, grantReferralToken } from '../utils/referrals.js';
 import { sanitizeText, rateLimitAuth, rateLimitSignup } from '../middleware/security.js';
 
 export const authRouter = Router();
@@ -26,9 +25,6 @@ const signupSchema = z.object({
       (pwd) => /[0-9]/.test(pwd),
       'Password must contain at least one number'
     ),
-  referralCode: z.string()
-    .max(50, 'Referral code must be at most 50 characters')
-    .optional(),
   acceptTerms: z.boolean().refine(val => val === true, 'You must accept the Terms of Service'),
   acceptPrivacy: z.boolean().refine(val => val === true, 'You must accept the Privacy Policy')
 });
@@ -52,7 +48,6 @@ authRouter.post('/signup', rateLimitSignup, async (req, res) => {
     // Sanitize email (already validated by Zod, but extra safety)
     const email = sanitizeText(parsed.email.toLowerCase().trim(), 255);
     const password = parsed.password; // Don't sanitize password (it's hashed)
-    const referralCode = parsed.referralCode ? sanitizeText(parsed.referralCode.trim(), 50) : undefined;
     
     // Check if user exists
     const existingUserStmt = db.prepare('SELECT id FROM users WHERE email = ?');
@@ -73,45 +68,11 @@ authRouter.post('/signup', rateLimitSignup, async (req, res) => {
     const { grantInitialTokens } = await import('./tokens.js');
     await grantInitialTokens(userId);
 
-    // Generate referral code for the new user
-    const newUserReferralCode = await getOrCreateReferralCode(userId);
-
-    // Handle referral if code provided
-    let referrerId: string | null = null;
-    if (referralCode && referralCode.trim()) {
-      referrerId = await getUserByReferralCode(referralCode);
-      
-      if (referrerId && referrerId !== userId) {
-        // Check if this user was already referred (prevent duplicate referrals)
-        const existingReferralStmt = db.prepare('SELECT id FROM referrals WHERE referred_id = ?');
-        const existingReferral = await (existingReferralStmt.get(userId) as Promise<any>);
-        
-        if (!existingReferral) {
-          // Create referral record
-          const referralId = uuidv4();
-          const insertReferralStmt = db.prepare(
-            `INSERT INTO referrals (id, referrer_id, referred_id, referral_code) 
-             VALUES (?, ?, ?, ?)`
-          );
-          await (insertReferralStmt.run([referralId, referrerId, userId, referralCode]) as Promise<any>);
-
-          // Grant token to referrer
-          await grantReferralToken(referrerId);
-          
-          // Mark referral as having granted token
-          const updateReferralStmt = db.prepare(`UPDATE referrals SET token_granted = 1 WHERE id = ?`);
-          await (updateReferralStmt.run([referralId]) as Promise<any>);
-        }
-      }
-    }
-
     const token = generateToken(userId);
     res.status(201).json({ 
       message: 'Account created successfully',
       token,
-      userId,
-      referralCode: newUserReferralCode,
-      referredBy: referrerId || null
+      userId
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

@@ -739,7 +739,7 @@ export default function SettingsScreen() {
               end={{ x: 1, y: 1 }}
               style={styles.primaryButton}
             >
-              <Text style={[styles.buttonText, styles.primaryButtonText]}>💳 Buy Tokens</Text>
+              <Text style={[styles.buttonText, styles.primaryButtonText]}>💳 Cop some more</Text>
             </LinearGradient>
           </TouchableOpacity>
         </LinearGradient>

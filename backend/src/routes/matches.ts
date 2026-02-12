@@ -119,6 +119,10 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
       return res.json({ matches: [] });
     }
 
+    // Current user's profile id (for profile-based compatibility on cards)
+    const currentUserProfileRow = db.prepare("SELECT id FROM profiles WHERE user_id = ?").get(userId) as { id: string } | undefined;
+    const currentUserProfileId = currentUserProfileRow?.id ?? null;
+
     // OPTIMIZATION: Batch fetch all data instead of per-match queries
     // Collect all unique user IDs and match IDs
     const allOtherUserIds = new Set<string>();
@@ -327,8 +331,9 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
       }
     }
 
-    // Now format matches using the batch-fetched data
-    const formattedMatches = matches.map((m) => {
+    // Now format matches using the batch-fetched data and add profile-based compatibility for cards
+    const formattedMatches: any[] = [];
+    for (const m of matches) {
       const isUser1 = m.user1_id === userId;
       const otherUserId = isUser1 ? m.user2_id : m.user1_id;
       const otherProfileId = profileIdsMap.get(otherUserId);
@@ -338,7 +343,6 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
       if (otherProfileId) {
         primaryPhotoUrl = primaryPhotosMap.get(otherProfileId) || null;
         if (!primaryPhotoUrl) {
-          // Fallback to photo_url from profiles table
           primaryPhotoUrl = isUser1 ? m.user2_photo : m.user1_photo;
         }
       }
@@ -352,7 +356,6 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
         bio: isUser1 ? m.user2_bio : m.user1_bio,
         gender: isUser1 ? m.user2_gender : m.user1_gender,
         location: isUser1 ? m.user2_location : m.user1_location,
-        // Show primary photo in stage1 and stage2 (all photos shown in stage2 via separate photos array)
         photoUrl: (m.stage === "stage1" || m.stage === "stage2") ? primaryPhotoUrl : null,
         last_active_at: otherLastActive,
         show_active_status: otherShowActive,
@@ -365,12 +368,21 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
       const gameUnlocks = gameUnlocksMap.get(m.id) || { truth_or_dare: false, never_have_i_ever: false };
       const compatibilityScore = compatibilityScoresMap.get(m.id) ?? null;
 
-      // Only include full photos array for stage2; stage1 gets primary via photoUrl only
+      // Profile-based compatibility for match card (shared interests, preferences, etc.) — separate from pulse
+      let profileCompatibility: number | null = null;
+      if (currentUserProfileId && otherProfileId) {
+        try {
+          profileCompatibility = await calculateProfileCompatibilityScore(currentUserProfileId, otherProfileId);
+        } catch (e) {
+          // ignore
+        }
+      }
+
       const photos = m.stage === "stage2" && otherProfileId
         ? (allPhotosByProfileMap.get(otherProfileId) || [])
         : undefined;
 
-      return {
+      formattedMatches.push({
         id: m.id,
         stage: m.stage,
         status: m.status,
@@ -384,6 +396,7 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
         unreadCount: unreadMessageCount,
         gameUnlocks,
         compatibilityScore,
+        profileCompatibility,
         otherUser: {
           ...otherUser,
           profileId: otherProfileId,
@@ -393,8 +406,8 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
           lastActiveAt: otherUser.show_active_status ? (otherUser.last_active_at || null) : null,
           ...(photos !== undefined && { photos }),
         },
-      };
-    });
+      });
+    }
 
     console.log(`✅ Returning ${formattedMatches.length} formatted matches to user ${userId}`);
     res.json({ matches: formattedMatches });

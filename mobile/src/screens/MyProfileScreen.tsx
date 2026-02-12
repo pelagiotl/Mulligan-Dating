@@ -3001,10 +3001,7 @@ const styles = StyleSheet.create({
   editModalSecondaryButtonText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#fff',
-    textShadowColor: 'rgba(0,0,0,0.2)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    color: '#1a1a1a',
   },
   editModalActions: {
     flexDirection: 'row',

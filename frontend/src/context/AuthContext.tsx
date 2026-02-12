@@ -24,8 +24,8 @@ interface AuthContextType {
   isAdmin: boolean
   loading: boolean
   login: (email: string, password: string) => Promise<{ hasProfile: boolean }>
-  signup: (email: string, password: string, referralCode?: string, acceptTerms?: boolean, acceptPrivacy?: boolean) => Promise<void>
-  phoneLogin: (phoneNumber: string, code: string, referralCode?: string) => Promise<{ hasProfile: boolean }>
+  signup: (email: string, password: string, acceptTerms?: boolean, acceptPrivacy?: boolean) => Promise<void>
+  phoneLogin: (phoneNumber: string, code: string) => Promise<{ hasProfile: boolean }>
   logout: () => void
   refreshProfile: () => Promise<void>
 }
@@ -206,11 +206,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const signup = async (email: string, password: string, referralCode?: string, acceptTerms?: boolean, acceptPrivacy?: boolean) => {
+  const signup = async (email: string, password: string, acceptTerms?: boolean, acceptPrivacy?: boolean) => {
     const data: any = await api.post('/auth/signup', { 
       email, 
       password, 
-      referralCode: referralCode || undefined,
       acceptTerms: acceptTerms || false,
       acceptPrivacy: acceptPrivacy || false
     })
@@ -218,11 +217,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser({ id: data.userId, email })
   }
 
-  const phoneLogin = async (phoneNumber: string, code: string, referralCode?: string): Promise<{ hasProfile: boolean }> => {
+  const phoneLogin = async (phoneNumber: string, code: string): Promise<{ hasProfile: boolean }> => {
     const data: any = await api.post('/sms/verify-code', {
       phoneNumber,
       code,
-      referralCode: referralCode || undefined,
       acceptTerms: true,
       acceptPrivacy: true
     })

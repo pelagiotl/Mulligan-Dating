@@ -73,6 +73,7 @@ interface Match {
   unreadCount?: number;
   gameUnlocks?: GameUnlocks;
   compatibilityScore?: number | null;
+  profileCompatibility?: number | null;
   otherUser: {
     userId: string;
     displayName: string;
@@ -695,10 +696,10 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
               </Text>
             ) : null}
             <View style={styles.badgesRow}>
-              {item.compatibilityScore != null && item.stage !== 'pending' && (
+              {(item.profileCompatibility != null || item.compatibilityScore != null) && item.stage !== 'pending' && (
                 <View style={styles.matchCardCompatibilityBadge}>
                   <Text style={styles.matchCardCompatibilityIcon}>💕</Text>
-                  <Text style={styles.matchCardCompatibilityText}>{item.compatibilityScore}%</Text>
+                  <Text style={styles.matchCardCompatibilityText}>{item.profileCompatibility ?? item.compatibilityScore ?? 0}%</Text>
                 </View>
               )}
               <View style={styles.stageContainer}>
@@ -767,6 +768,7 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
     prevProps.item.stage === nextProps.item.stage &&
     prevProps.item.expiresAt === nextProps.item.expiresAt &&
     prevProps.item.compatibilityScore === nextProps.item.compatibilityScore &&
+    prevProps.item.profileCompatibility === nextProps.item.profileCompatibility &&
     prevProps.photoUrl === nextProps.photoUrl
   );
 });
@@ -3149,7 +3151,7 @@ export default function MatchesScreen() {
           >
             <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={styles.stageInfoCard}>
               <LinearGradient
-                colors={stageInfoStage === 'stage2' ? ['#ff85b3', '#ff4d94', '#e91e8c'] : ['#ffd6e8', '#ffb3d9', '#ff99cc']}
+                colors={stageInfoStage === 'stage2' ? ['#ff85b3', '#ff4d94', '#e91e8c'] : ['#ff6b9d', '#ff4081', '#ff80ab', '#ff1493']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.stageInfoCardGradient}
@@ -3215,15 +3217,23 @@ export default function MatchesScreen() {
               <Text style={styles.backButton}>← Back</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={() => setShowProfileModal(true)}
+              onPress={() => {
+                const chatPhotoUrl = getMatchPhoto(selectedMatch);
+                if (chatPhotoUrl) {
+                  setFullScreenImageUrl(getPhotoUrl(chatPhotoUrl));
+                } else {
+                  setShowProfileModal(true);
+                }
+              }}
               activeOpacity={0.8}
               style={styles.chatHeaderPhotoTouch}
             >
               {(() => {
                 const chatPhotoUrl = getMatchPhoto(selectedMatch);
-                return chatPhotoUrl ? (
+                const photoUri = chatPhotoUrl ? getPhotoUrl(chatPhotoUrl) : null;
+                return photoUri ? (
                   <Image
-                    source={{ uri: chatPhotoUrl }}
+                    source={{ uri: photoUri }}
                     style={styles.chatHeaderPhoto}
                     resizeMode="cover"
                   />
@@ -3241,7 +3251,13 @@ export default function MatchesScreen() {
                 );
               })()}
             </TouchableOpacity>
-            <Text style={styles.chatHeaderTitle} numberOfLines={1} ellipsizeMode="tail">{selectedMatch.otherUser.displayName}</Text>
+            <TouchableOpacity
+              onPress={() => setShowProfileModal(true)}
+              activeOpacity={0.8}
+              style={styles.chatHeaderTitleTouch}
+            >
+              <Text style={styles.chatHeaderTitle} numberOfLines={1} ellipsizeMode="tail">{selectedMatch.otherUser.displayName}</Text>
+            </TouchableOpacity>
           </View>
           {/* Bottom row: pills + game icons */}
           <View style={styles.chatHeaderBottomRow}>
@@ -3436,7 +3452,7 @@ export default function MatchesScreen() {
         </TouchableOpacity>
       </Modal>
 
-      {/* Compatibility card popup - tap the % badge to see why you match */}
+      {/* Compatibility card popup - tap the % badge to see why you match; scrollable so user can read all info */}
       <Modal
         visible={showCompatibilityCardModal}
         transparent
@@ -3448,7 +3464,7 @@ export default function MatchesScreen() {
           style={styles.ageCardOverlay}
           onPress={() => setShowCompatibilityCardModal(false)}
         >
-          <TouchableOpacity activeOpacity={1} onPress={() => setShowCompatibilityCardModal(false)} style={styles.compatCardTouchable}>
+          <View style={styles.compatCardTouchable}>
             <LinearGradient
               colors={profileCompatibility != null && profileCompatibility >= 80
                 ? ['#ff6b9d', '#c44569', '#f093fb', '#ff8a80']
@@ -3457,44 +3473,50 @@ export default function MatchesScreen() {
               end={{ x: 1, y: 1 }}
               style={styles.compatCardGradient}
             >
-              <Text style={styles.compatCardEmoji}>💕</Text>
-              <Text style={styles.compatCardTitle}>
-                {profileCompatibility != null ? `${profileCompatibility}%` : ''} Profile Match
-              </Text>
-              <Text style={styles.compatCardSubtitle}>
-                Based on interests, values, lifestyle & what you're looking for
-              </Text>
-              {(compatibilityDetails?.reasons?.length ?? 0) > 0 && (
-                <View style={styles.compatCardReasons}>
-                  {compatibilityDetails!.reasons.map((reason, i) => (
-                    <View key={i} style={styles.compatCardReasonRow}>
-                      <Text style={styles.compatCardReasonBullet}>✓</Text>
-                      <Text style={styles.compatCardReasonText}>{reason}</Text>
-                    </View>
-                  ))}
-                </View>
-              )}
-              {(compatibilityDetails?.sharedInterests?.length ?? 0) > 0 && (
-                <View style={styles.compatCardSection}>
-                  <Text style={styles.compatCardSectionTitle}>Shared interests</Text>
-                  <Text style={styles.compatCardSectionText}>
-                    {compatibilityDetails!.sharedInterests.join(', ')}
+              <ScrollView
+                style={styles.compatCardScroll}
+                contentContainerStyle={styles.compatCardScrollContent}
+                showsVerticalScrollIndicator={true}
+              >
+                <Text style={styles.compatCardEmoji}>💕</Text>
+                <Text style={styles.compatCardTitle}>
+                  {profileCompatibility != null ? `${profileCompatibility}%` : ''} Profile Match
+                </Text>
+                <Text style={styles.compatCardSubtitle}>
+                  Based on interests, values, lifestyle & what you're looking for
+                </Text>
+                {(compatibilityDetails?.reasons?.length ?? 0) > 0 && (
+                  <View style={styles.compatCardReasons}>
+                    {compatibilityDetails!.reasons.map((reason, i) => (
+                      <View key={i} style={styles.compatCardReasonRow}>
+                        <Text style={styles.compatCardReasonBullet}>✓</Text>
+                        <Text style={styles.compatCardReasonText}>{reason}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+                {(compatibilityDetails?.sharedInterests?.length ?? 0) > 0 && (
+                  <View style={styles.compatCardSection}>
+                    <Text style={styles.compatCardSectionTitle}>Shared interests</Text>
+                    <Text style={styles.compatCardSectionText}>
+                      {compatibilityDetails!.sharedInterests.join(', ')}
+                    </Text>
+                  </View>
+                )}
+                {(compatibilityDetails?.sharedValues ?? 0) > 0 && (
+                  <Text style={styles.compatCardValues}>
+                    {compatibilityDetails!.sharedValues} shared value{compatibilityDetails!.sharedValues !== 1 ? 's' : ''}
                   </Text>
-                </View>
-              )}
-              {(compatibilityDetails?.sharedValues ?? 0) > 0 && (
-                <Text style={styles.compatCardValues}>
-                  {compatibilityDetails!.sharedValues} shared value{compatibilityDetails!.sharedValues !== 1 ? 's' : ''}
-                </Text>
-              )}
-              {(!compatibilityDetails?.reasons?.length && !compatibilityDetails?.sharedInterests?.length && !(compatibilityDetails?.sharedValues ?? 0)) && (
-                <Text style={styles.compatCardEmpty}>
-                  You're a solid match based on your profiles—keep the conversation going!
-                </Text>
-              )}
-              <Text style={styles.ageCardHint}>Tap anywhere to close</Text>
+                )}
+                {(!compatibilityDetails?.reasons?.length && !compatibilityDetails?.sharedInterests?.length && !(compatibilityDetails?.sharedValues ?? 0)) && (
+                  <Text style={styles.compatCardEmpty}>
+                    You're a solid match based on your profiles—keep the conversation going!
+                  </Text>
+                )}
+                <Text style={styles.ageCardHint}>Tap outside to close</Text>
+              </ScrollView>
             </LinearGradient>
-          </TouchableOpacity>
+          </View>
         </TouchableOpacity>
       </Modal>
 
@@ -3587,7 +3609,7 @@ export default function MatchesScreen() {
         >
           <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={styles.stageInfoCard}>
             <LinearGradient
-              colors={stageInfoStage === 'stage2' ? ['#ff85b3', '#ff4d94', '#e91e8c'] : ['#ffd6e8', '#ffb3d9', '#ff99cc']}
+              colors={stageInfoStage === 'stage2' ? ['#ff85b3', '#ff4d94', '#e91e8c'] : ['#ff6b9d', '#ff4081', '#ff80ab', '#ff1493']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.stageInfoCardGradient}
@@ -4400,6 +4422,11 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
+  chatHeaderTitleTouch: {
+    flex: 1,
+    minWidth: 0,
+    justifyContent: 'center',
+  },
   chatHeaderTitle: {
     fontSize: 18,
     fontWeight: '700',
@@ -4463,6 +4490,12 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     borderWidth: 1.5,
     borderColor: 'rgba(255, 255, 255, 0.4)',
+  },
+  compatCardScroll: {
+    maxHeight: 420,
+  },
+  compatCardScrollContent: {
+    paddingBottom: 8,
   },
   compatCardEmoji: {
     fontSize: 40,
@@ -4722,13 +4755,13 @@ const styles = StyleSheet.create({
     maxWidth: 340,
     borderRadius: 24,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.4)',
+    shadowColor: '#ff1493',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.45,
+    shadowRadius: 24,
+    elevation: 16,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.6)',
   },
   stageInfoCardGradient: {
     padding: 28,
@@ -4751,17 +4784,20 @@ const styles = StyleSheet.create({
     fontSize: 36,
   },
   stageInfoTitle: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: '800',
-    color: '#2d2d2d',
+    color: '#fff',
     marginBottom: 4,
     textAlign: 'center',
     letterSpacing: 0.5,
+    textShadowColor: 'rgba(0,0,0,0.25)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   stageInfoSubtitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: 'rgba(0,0,0,0.5)',
+    color: 'rgba(255,255,255,0.95)',
     marginBottom: 16,
     textAlign: 'center',
     textTransform: 'uppercase',
@@ -4769,13 +4805,13 @@ const styles = StyleSheet.create({
   },
   stageInfoDivider: {
     height: 1,
-    backgroundColor: 'rgba(0,0,0,0.08)',
+    backgroundColor: 'rgba(255,255,255,0.4)',
     marginBottom: 18,
     marginHorizontal: 8,
   },
   stageInfoBody: {
     fontSize: 16,
-    color: '#444',
+    color: 'rgba(255,255,255,0.95)',
     lineHeight: 24,
     marginBottom: 24,
     textAlign: 'center',

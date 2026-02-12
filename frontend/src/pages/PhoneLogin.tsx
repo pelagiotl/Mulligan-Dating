@@ -1,5 +1,5 @@
-import { useState, FormEvent, useEffect } from 'react'
-import { Link, useSearchParams, useNavigate } from 'react-router-dom'
+import { useState, FormEvent } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../utils/api'
 import { useAuth } from '../context/AuthContext'
 
@@ -9,19 +9,9 @@ export default function PhoneLogin() {
   const [step, setStep] = useState<'phone' | 'verify'>('phone')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [referralCode, setReferralCode] = useState('')
   const [shake, setShake] = useState(false)
-  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const { phoneLogin } = useAuth()
-
-  // Check for referral code in URL
-  useEffect(() => {
-    const refCode = searchParams.get('ref')
-    if (refCode) {
-      setReferralCode(refCode.toUpperCase())
-    }
-  }, [searchParams])
 
   // Create floating particles
   const [particles] = useState(() => {
@@ -96,7 +86,7 @@ export default function PhoneLogin() {
 
     try {
       // Use phoneLogin from AuthContext which handles token storage and user fetching
-      const { hasProfile } = await phoneLogin(phoneNumber, code, referralCode || undefined)
+      const { hasProfile } = await phoneLogin(phoneNumber, code)
       
       // Navigate after successful login
       navigate(hasProfile ? '/browse' : '/create-profile', { replace: true })
@@ -209,23 +199,6 @@ export default function PhoneLogin() {
                   />
                 </div>
               </div>
-
-              {referralCode && (
-                <div className="form-group-enhanced">
-                  <label htmlFor="referral" className="form-label-enhanced">Referral Code (Optional)</label>
-                  <div className="form-input-wrapper">
-                    <span className="form-icon">🎁</span>
-                    <input
-                      type="text"
-                      id="referral"
-                      className="form-input-enhanced"
-                      value={referralCode}
-                      onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
-                      placeholder="REF123"
-                    />
-                  </div>
-                </div>
-              )}
 
               <button 
                 type="submit" 

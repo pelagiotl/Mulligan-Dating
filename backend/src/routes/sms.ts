@@ -5,7 +5,6 @@ import { v4 as uuidv4 } from 'uuid';
 import { sendVerificationCode, formatPhoneNumber, isValidPhoneNumber, isTwilioVerifyConfigured, sendVerificationCodeViaVerify, verifyCodeViaVerify } from '../services/sms.js';
 import { sendVerificationCodeSNS, formatPhoneNumber as formatPhoneNumberSNS, isValidPhoneNumber as isValidPhoneNumberSNS, isSNSConfigured } from '../services/aws-sns.js';
 import { rateLimitAuth } from '../middleware/security.js';
-import { getUserByReferralCode, getOrCreateReferralCode, grantReferralToken } from '../utils/referrals.js';
 
 export const smsRouter = Router();
 
@@ -30,7 +29,6 @@ const sendCodeSchema = z.object({
 const verifyCodeSchema = z.object({
   phoneNumber: z.string().min(10, 'Phone number is required'),
   code: z.string().length(6, 'Code must be 6 digits'),
-  referralCode: z.string().optional(), // For signup flow
   acceptTerms: z.boolean().optional(), // For signup flow
   acceptPrivacy: z.boolean().optional() // For signup flow
 });
@@ -172,7 +170,7 @@ smsRouter.post('/send-code', rateLimitAuth, async (req, res) => {
  */
 smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
   try {
-    const { phoneNumber, code, referralCode, acceptTerms, acceptPrivacy } = verifyCodeSchema.parse(req.body);
+    const { phoneNumber, code, acceptTerms, acceptPrivacy } = verifyCodeSchema.parse(req.body);
     
     // Check which service to use (priority: Twilio Verify > AWS SNS > Twilio Messages)
     const useVerify = isTwilioVerifyConfigured();
@@ -258,34 +256,6 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
         });
       }
 
-      // Generate referral code for new user and handle referrals (shared logic)
-      const userReferralCode = isNewUser ? await getOrCreateReferralCode(userId) : undefined;
-
-      // Handle referral if code provided
-      let referrerId: string | null = null;
-      if (referralCode && referralCode.trim()) {
-        referrerId = await getUserByReferralCode(referralCode.trim());
-        
-        if (referrerId && referrerId !== userId) {
-          const existingReferralStmt = db.prepare('SELECT id FROM referrals WHERE referred_id = ?');
-          const existingReferral = await (existingReferralStmt.get(userId) as Promise<any>);
-          
-          if (!existingReferral) {
-            const referralId = uuidv4();
-            const insertReferralStmt = db.prepare(
-              `INSERT INTO referrals (id, referrer_id, referred_id, referral_code) 
-               VALUES (?, ?, ?, ?)`
-            );
-            await (insertReferralStmt.run([referralId, referrerId, userId, referralCode.trim()]) as Promise<any>);
-
-            await grantReferralToken(referrerId);
-            
-            const updateReferralStmt = db.prepare(`UPDATE referrals SET token_granted = 1 WHERE id = ?`);
-            await (updateReferralStmt.run([referralId]) as Promise<any>);
-          }
-        }
-      }
-
       // Clean up verification code
       verificationCodes.delete(formattedPhone);
 
@@ -303,8 +273,7 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
         token,
         userId,
         hasProfile,
-        isNewUser,
-        referralCode: userReferralCode
+        isNewUser
       });
       return; // Exit early for Verify path
     }
@@ -379,38 +348,6 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
       // Grant initial 7 tokens to new user
       const { grantInitialTokens } = await import('./tokens.js');
       await grantInitialTokens(userId);
-
-      // Generate referral code for the new user
-      const newUserReferralCode = await getOrCreateReferralCode(userId);
-
-      // Handle referral if code provided
-      let referrerId: string | null = null;
-      if (referralCode && referralCode.trim()) {
-        referrerId = await getUserByReferralCode(referralCode.trim());
-        
-        if (referrerId && referrerId !== userId) {
-          // Check if this user was already referred (prevent duplicate referrals)
-          const existingReferralStmt = db.prepare('SELECT id FROM referrals WHERE referred_id = ?');
-          const existingReferral = await (existingReferralStmt.get(userId) as Promise<any>);
-          
-          if (!existingReferral) {
-            // Create referral record
-            const referralId = uuidv4();
-            const insertReferralStmt = db.prepare(
-              `INSERT INTO referrals (id, referrer_id, referred_id, referral_code) 
-               VALUES (?, ?, ?, ?)`
-            );
-            await (insertReferralStmt.run([referralId, referrerId, userId, referralCode.trim()]) as Promise<any>);
-
-            // Grant token to referrer
-            await grantReferralToken(referrerId);
-            
-            // Mark referral as having granted token
-            const updateReferralStmt = db.prepare(`UPDATE referrals SET token_granted = 1 WHERE id = ?`);
-            await (updateReferralStmt.run([referralId]) as Promise<any>);
-          }
-        }
-      }
     }
 
     // Clean up verification code
@@ -424,16 +361,13 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
     const profileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
     const profile = await (profileStmt.get(userId) as Promise<{ id: string } | null>);
     const hasProfile = !!profile;
-
-    const userReferralCode = isNewUser ? await getOrCreateReferralCode(userId) : undefined;
     
     res.json({
       message: isNewUser ? 'Account created successfully' : 'Login successful',
       token,
       userId,
       hasProfile,
-      isNewUser,
-      referralCode: userReferralCode
+      isNewUser
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

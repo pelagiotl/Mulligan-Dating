@@ -10,7 +10,6 @@ import CreateProfile from './pages/CreateProfile'
 import Browse from './pages/Browse'
 import Matches from './pages/Matches'
 import MyProfile from './pages/MyProfile'
-import Referrals from './pages/Referrals'
 import Settings from './pages/Settings'
 import Admin from './pages/Admin'
 import Terms from './pages/Terms'
@@ -531,7 +530,6 @@ export default function App() {
           <Route path="/browse" element={<PrivateRoute><Browse /></PrivateRoute>} />
           <Route path="/matches" element={<PrivateRoute><Matches /></PrivateRoute>} />
           <Route path="/profile" element={<PrivateRoute><MyProfile /></PrivateRoute>} />
-          <Route path="/referrals" element={<PrivateRoute><Referrals /></PrivateRoute>} />
           <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
           <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
         </Route>

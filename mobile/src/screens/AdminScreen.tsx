@@ -284,7 +284,7 @@ export default function AdminScreen() {
       `- User account\n` +
       `- Profile and all profile data\n` +
       `- All matches and messages\n` +
-      `- All tokens and referrals\n` +
+      `- All tokens\n` +
       `- All blocks\n\n` +
       `This action CANNOT be undone. Are you absolutely sure?`,
       [

@@ -148,14 +148,6 @@ export default function Layout() {
             </li>
             <li>
               <Link 
-                to="/referrals" 
-                className={`navbar-link ${isActive('/referrals') ? 'active' : ''}`}
-              >
-                <span>🎁</span> Referrals
-              </Link>
-            </li>
-            <li>
-              <Link 
                 to="/settings" 
                 className={`navbar-link ${isActive('/settings') ? 'active' : ''}`}
               >
