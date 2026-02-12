@@ -1658,6 +1658,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 20,
     elevation: 10,
+    overflow: 'hidden',
   },
   preferencesCardTitle: {
     fontSize: 20,
@@ -1678,6 +1679,8 @@ const styles = StyleSheet.create({
   },
   sliderContainer: {
     marginTop: 8,
+    width: '100%',
+    overflow: 'hidden',
   },
   distanceButtons: {
     flexDirection: 'row',
@@ -1685,6 +1688,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: 8,
     gap: 8,
+    width: '100%',
   },
   distanceButtonUnlimitedWrap: {
     width: '100%',
@@ -1695,14 +1699,16 @@ const styles = StyleSheet.create({
   },
   distanceButton: {
     flex: 1,
-    minWidth: '18%',
+    minWidth: 0,
+    maxWidth: '19%',
     paddingVertical: 14,
-    paddingHorizontal: 10,
+    paddingHorizontal: 6,
     borderRadius: 16,
     backgroundColor: 'rgba(255, 255, 255, 0.12)',
     borderWidth: 2.5,
     borderColor: 'rgba(255, 255, 255, 0.25)',
     alignItems: 'center',
+    justifyContent: 'center',
     shadowColor: '#667eea',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.25,

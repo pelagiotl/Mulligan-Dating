@@ -99,6 +99,7 @@ export default function CreateProfileScreen() {
   const { refreshProfile, profile: existingProfile, logout } = useAuth();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [savingInCreateProfile, setSavingInCreateProfile] = useState(false);
   const [error, setError] = useState('');
   const [showCelebration, setShowCelebration] = useState(false);
   const step1ScrollViewRef = useRef<ScrollView>(null);
@@ -2167,15 +2168,25 @@ export default function CreateProfileScreen() {
         style={[styles.header, { position: 'relative' }]}
       >
         {existingProfile ? (
-          <TouchableOpacity
-            style={styles.exitButton}
-            onPress={() => {
-              (navigation as any).navigate('MainTabs', { screen: 'Browse' });
-            }}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.exitButtonText}>Exit</Text>
-          </TouchableOpacity>
+          <View style={styles.exitSaveRow}>
+            <TouchableOpacity
+              style={[styles.exitButton, styles.saveButton]}
+              onPress={handleSaveInCreateProfile}
+              disabled={savingInCreateProfile}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.exitButtonText}>{savingInCreateProfile ? 'Saving...' : 'Save'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.exitButton}
+              onPress={() => {
+                (navigation as any).navigate('MainTabs', { screen: 'Browse' });
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.exitButtonText}>Exit</Text>
+            </TouchableOpacity>
+          </View>
         ) : null}
         <Text style={styles.title}>Create Your Profile</Text>
         <Text style={styles.subtitle}>Step {step} of {TOTAL_STEPS}</Text>
@@ -2311,15 +2322,23 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 8,
   },
-  exitButton: {
+  exitSaveRow: {
     position: 'absolute',
     top: 52,
     right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    zIndex: 10,
+  },
+  exitButton: {
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 12,
     backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    zIndex: 10,
+  },
+  saveButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
   },
   exitButtonText: {
     color: '#fff',

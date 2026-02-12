@@ -294,6 +294,9 @@ export const api = {
     if (endpoint.includes('grant-tokens') || endpoint.includes('/tokens/claim')) {
       apiCache.clear(APICache.getCacheKey('/tokens'));
     }
+    if (endpoint === '/profile') {
+      apiCache.clear(APICache.getCacheKey('/profile'));
+    }
     return request<T>(endpoint, {
       method: 'POST',
       body

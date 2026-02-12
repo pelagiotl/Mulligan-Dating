@@ -138,6 +138,8 @@ interface SettingsData {
 
 const LOOKING_FOR_OPTIONS = ['Relationship', 'Something casual', 'Friendship', 'Not sure yet'];
 
+const PREFERRED_GENDERS_OPTIONS = ['Man', 'Woman', 'Other', 'Everyone'];
+
 const MAX_DISTANCE_OPTIONS: (number | null)[] = [10, 25, 50, 100, 250, 500, null]; // null = Any
 
 export default function MyProfileScreen() {
@@ -165,9 +167,11 @@ export default function MyProfileScreen() {
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showDistanceModal, setShowDistanceModal] = useState(false);
   const [showLookingForModal, setShowLookingForModal] = useState(false);
+  const [showPreferredGendersModal, setShowPreferredGendersModal] = useState(false);
   const [editLocation, setEditLocation] = useState('');
   const [editMaxDistance, setEditMaxDistance] = useState<number | null>(50);
   const [editLookingFor, setEditLookingFor] = useState('');
+  const [editPreferredGenders, setEditPreferredGenders] = useState<string[]>([]);
   const [showBioModal, setShowBioModal] = useState(false);
   const [editBio, setEditBio] = useState('');
   const [detectingLocation, setDetectingLocation] = useState(false);
@@ -723,6 +727,7 @@ export default function MyProfileScreen() {
       });
       setData((prev) => prev ? { ...prev, profile: { ...prev.profile, location: loc } } : null);
       setShowLocationModal(false);
+      api.clearCache('/profile');
       refreshProfile?.();
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Failed to update location.');
@@ -746,6 +751,7 @@ export default function MyProfileScreen() {
       });
       setData((prev) => prev ? { ...prev, profile: { ...prev.profile, looking_for: val } } : null);
       setShowLookingForModal(false);
+      api.clearCache('/profile');
       refreshProfile?.();
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Failed to update looking for.');
@@ -777,9 +783,37 @@ export default function MyProfileScreen() {
         ? { ...prev, preferences: { ...prev.preferences, max_distance: editMaxDistance } }
         : prev);
       setShowDistanceModal(false);
+      api.clearCache('/profile');
       refreshProfile?.();
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Failed to update max distance.');
+    } finally {
+      setUpdatingField(false);
+    }
+  };
+
+  const savePreferredGenders = async () => {
+    if (!data?.profile) return;
+    setUpdatingField(true);
+    try {
+      const prefs = data.preferences;
+      const payload = (editPreferredGenders.includes('Everyone') || editPreferredGenders.length === 0)
+        ? null
+        : editPreferredGenders;
+      await api.put('/profile/preferences', {
+        minAge: prefs?.min_age ?? null,
+        maxAge: prefs?.max_age ?? null,
+        preferredGenders: payload,
+        maxDistance: prefs?.max_distance ?? null,
+      });
+      setData((prev) => prev && prev.preferences
+        ? { ...prev, preferences: { ...prev.preferences, preferred_genders: payload ? JSON.stringify(payload) : null } }
+        : prev);
+      setShowPreferredGendersModal(false);
+      api.clearCache('/profile');
+      refreshProfile?.();
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to update preferred genders.');
     } finally {
       setUpdatingField(false);
     }
@@ -1809,6 +1843,46 @@ export default function MyProfileScreen() {
                 </LinearGradient>
               </TouchableOpacity>
 
+              {/* Preferred genders - tappable to update */}
+              <TouchableOpacity
+                activeOpacity={0.9}
+                onPress={() => {
+                  let initial: string[] = [];
+                  if (data?.preferences?.preferred_genders) {
+                    try {
+                      initial = JSON.parse(data.preferences.preferred_genders) as string[];
+                    } catch { initial = []; }
+                  }
+                  if (initial.length === 0) initial = ['Everyone'];
+                  setEditPreferredGenders(initial);
+                  setShowPreferredGendersModal(true);
+                  if (Platform.OS === 'ios') Vibration.vibrate(50);
+                  else Vibration.vibrate(50);
+                }}
+                style={styles.infoCardFullTouchable}
+              >
+                <LinearGradient
+                  colors={['#a78bfa', '#c084fc', '#e879f9']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.infoCardFull}
+                >
+                  <Text style={styles.infoCardEmoji}>👫</Text>
+                  <Text style={styles.infoCardLabel}>Preferred genders</Text>
+                  <Text style={styles.infoCardValueFull}>
+                    {(() => {
+                      const pg = data?.preferences?.preferred_genders;
+                      if (!pg) return 'Everyone';
+                      try {
+                        const arr = JSON.parse(pg) as string[];
+                        if (!arr.length || arr.includes('Everyone')) return 'Everyone';
+                        return arr.join(', ');
+                      } catch { return 'Everyone'; }
+                    })()}
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+
               {/* Looking For - tappable to update */}
               <TouchableOpacity
                 activeOpacity={0.9}
@@ -1948,6 +2022,66 @@ export default function MyProfileScreen() {
                   <Text style={styles.editModalCancelPillText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.editModalSavePill} onPress={saveLookingFor} disabled={updatingField} activeOpacity={0.8}>
+                  <Text style={styles.editModalSavePillText}>{updatingField ? 'Saving...' : 'Save'}</Text>
+                </TouchableOpacity>
+              </View>
+            </LinearGradient>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Preferred genders edit modal */}
+      <Modal visible={showPreferredGendersModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={styles.modalOverlayTouchable} activeOpacity={1} onPress={() => setShowPreferredGendersModal(false)} />
+          <View style={styles.editModalCard}>
+            <LinearGradient
+              colors={['#a78bfa', '#c084fc', '#e879f9']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.editModalGradient}
+            >
+              <Text style={styles.editModalEmoji}>👫</Text>
+              <Text style={styles.editModalTitleLight}>Preferred genders</Text>
+              <Text style={styles.editModalSubtitleLight}>Who you want to see in Connect</Text>
+              <View style={styles.editModalInner}>
+                {PREFERRED_GENDERS_OPTIONS.map((opt) => (
+                  <TouchableOpacity
+                    key={opt}
+                    style={[
+                      styles.preferredGenderOption,
+                      (editPreferredGenders.includes(opt) || (opt === 'Everyone' && (editPreferredGenders.length === 0 || editPreferredGenders.includes('Everyone')))) && styles.preferredGenderOptionActive,
+                    ]}
+                    onPress={() => {
+                      if (opt === 'Everyone') {
+                        setEditPreferredGenders(['Everyone']);
+                      } else {
+                        setEditPreferredGenders((prev) => {
+                          const withoutEveryone = prev.filter((g) => g !== 'Everyone');
+                          if (withoutEveryone.includes(opt)) {
+                            const next = withoutEveryone.filter((g) => g !== opt);
+                            return next.length === 0 ? ['Everyone'] : next;
+                          }
+                          return [...withoutEveryone, opt];
+                        });
+                      }
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[
+                      styles.preferredGenderOptionText,
+                      (editPreferredGenders.includes(opt) || (opt === 'Everyone' && (editPreferredGenders.length === 0 || editPreferredGenders.includes('Everyone')))) && styles.preferredGenderOptionTextActive,
+                    ]}>
+                      {opt}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <View style={styles.editModalActions}>
+                <TouchableOpacity style={styles.editModalCancelPill} onPress={() => setShowPreferredGendersModal(false)} activeOpacity={0.8}>
+                  <Text style={styles.editModalCancelPillText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.editModalSavePill} onPress={savePreferredGenders} disabled={updatingField} activeOpacity={0.8}>
                   <Text style={styles.editModalSavePillText}>{updatingField ? 'Saving...' : 'Save'}</Text>
                 </TouchableOpacity>
               </View>
@@ -2925,6 +3059,27 @@ const styles = StyleSheet.create({
   pickerItem: {
     fontSize: 16,
     color: '#1e293b',
+  },
+  preferredGenderOption: {
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.35)',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+    marginBottom: 10,
+  },
+  preferredGenderOptionActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderColor: '#7c3aed',
+  },
+  preferredGenderOptionText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.9)',
+  },
+  preferredGenderOptionTextActive: {
+    color: '#5b21b6',
   },
   distanceOptionsRow: {
     flexDirection: 'row',
