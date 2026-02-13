@@ -20,7 +20,7 @@ import {
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useNavigation, useRoute, useFocusEffect, useIsFocused } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect, useIsFocused, CommonActions } from '@react-navigation/native';
 import { navigationRef } from '../navigation/navigationRef';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
@@ -186,29 +186,27 @@ export default function MyProfileScreen() {
   // Bump when photos change so the header avatar reloads (avoids stale image cache after upload/reorder/delete)
   const [avatarVersion, setAvatarVersion] = useState(0);
 
-  /** Navigate to CreateProfile (root stack). Try commonNavigate first, then parent chain, then ref. */
+  /** Navigate to CreateProfile on the root stack. Defer so we don't throw during touch (avoids Error Boundary). */
   const navigateToCreateProfile = useCallback((params?: { startFromBeginning?: boolean; initialStep?: number }) => {
-    try {
-      (navigation as any).navigate('CreateProfile', params);
-      return;
-    } catch (_) {}
-    try {
-      let nav: any = (navigation as any).getParent?.();
-      while (nav) {
-        try {
-          nav.navigate('CreateProfile', params);
+    const run = () => {
+      try {
+        if (!navigationRef.current?.isReady()) {
+          Alert.alert('Error', 'Could not open edit profile. Please try again.');
           return;
-        } catch (_) {}
-        nav = nav.getParent?.();
+        }
+        navigationRef.current.dispatch(
+          CommonActions.navigate({
+            name: 'CreateProfile',
+            params: params ?? undefined,
+          })
+        );
+      } catch (e) {
+        console.error('Navigate to CreateProfile failed:', e);
+        Alert.alert('Error', 'Could not open edit profile. Please try again.');
       }
-    } catch (_) {}
-    try {
-      navigationRef.current?.navigate('CreateProfile', params);
-    } catch (e) {
-      console.error('Navigate to CreateProfile failed:', e);
-      Alert.alert('Error', 'Could not open edit profile. Please try again.');
-    }
-  }, [navigation]);
+    };
+    setTimeout(run, 0);
+  }, []);
 
   // Animation for header elements
   const headerFade = useRef(new Animated.Value(0)).current;
@@ -3109,7 +3107,7 @@ const styles = StyleSheet.create({
   preferredGenderOptionText: {
     fontSize: 16,
     fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: '#1e293b',
   },
   preferredGenderOptionTextActive: {
     color: '#5b21b6',

@@ -3284,6 +3284,8 @@ export default function MatchesScreen() {
             <TouchableOpacity
               onPress={() => {
                 console.log('🔙 Back button TOUCHED');
+                setFullScreenImageUrl(null);
+                setShowProfileModal(false);
                 navigation.setParams({ matchId: undefined });
                 setMessages([]);
                 setSelectedMatch(null);
@@ -3590,13 +3592,19 @@ export default function MatchesScreen() {
         </TouchableOpacity>
       </Modal>
 
-      {/* Profile Modal */}
+      {/* Profile Modal - when user taps photo we close this and show full-screen image so only one modal is visible */}
       {showProfileModal && selectedMatch && (
         <MatchProfileModal
           match={selectedMatch}
           visible={showProfileModal}
-          onClose={() => setShowProfileModal(false)}
-          onPhotoPress={(url) => setFullScreenImageUrl(url)}
+          onClose={() => {
+            setShowProfileModal(false);
+            setFullScreenImageUrl(null);
+          }}
+          onPhotoPress={(url) => {
+            setShowProfileModal(false);
+            setTimeout(() => setFullScreenImageUrl(url), 100);
+          }}
         />
       )}
 
