@@ -212,10 +212,12 @@ export default function MatchCelebration({
       // Haptics not available (simulator, etc.)
     }
 
-    // Play match notification sound
-    playMatchSound().catch((error) => {
-      console.warn('🎵 [MatchCelebration] Sound playback failed:', error?.message || error);
-    });
+    // Play match notification sound after a short delay so the modal is visible and the audio session is ready (helps on iOS)
+    const soundDelay = setTimeout(() => {
+      playMatchSound().catch((error) => {
+        console.warn('🎵 [MatchCelebration] Sound playback failed:', error?.message || error);
+      });
+    }, 280);
 
     const timer1 = setTimeout(() => setShowContent(true), 100);
     const timer2 = setTimeout(() => setShowConfetti(true), 300);
@@ -321,6 +323,7 @@ export default function MatchCelebration({
       clearTimeout(timer2);
       clearTimeout(timer3);
       clearTimeout(timer4);
+      clearTimeout(soundDelay);
       photoPulseLoop.stop();
       heartBeatLoop.stop();
       buttonPulseLoop.stop();
@@ -357,6 +360,26 @@ export default function MatchCelebration({
       }
     } catch (error) {
       console.error('❌ Error in handleContinue:', error);
+      onClose();
+    }
+  };
+
+  /** Navigate to Connect (Browse) tab and close the celebration — used by "Keep Browsing" */
+  const handleKeepBrowsing = () => {
+    try {
+      onClose();
+      if (navigationRef.current?.isReady()) {
+        navigationRef.current.dispatch(
+          CommonActions.navigate({
+            name: 'MainTabs',
+            params: { screen: 'Browse' },
+          })
+        );
+      } else {
+        navigation.navigate('MainTabs' as never, { screen: 'Browse' } as never);
+      }
+    } catch (error) {
+      console.error('❌ Error in handleKeepBrowsing:', error);
       onClose();
     }
   };
@@ -613,10 +636,10 @@ export default function MatchCelebration({
                   </TouchableOpacity>
                 </Animated.View>
                 
-                {/* Keep Browsing button */}
+                {/* Keep Browsing button — go to Connect tab */}
                 <TouchableOpacity
                   style={styles.secondaryButton}
-                  onPress={onClose}
+                  onPress={handleKeepBrowsing}
                   activeOpacity={0.7}
                 >
                   <Text style={styles.secondaryButtonText}>Keep Browsing 💫</Text>

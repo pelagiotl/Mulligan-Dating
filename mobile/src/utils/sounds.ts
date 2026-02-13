@@ -13,40 +13,35 @@ let messageSoundModule: any = null;
 // Path is relative to this file: src/utils/sounds.ts -> ../../assets = mobile/assets
 const isExpoGo = typeof Constants !== 'undefined' && Constants?.executionEnvironment === 'storeClient';
 
-// Only attempt to load if not in Expo Go (to avoid noisy errors in dev)
-if (!isExpoGo) {
-  // Load match sound (match-sound.mp3 in mobile/assets/)
+// Always attempt to load sound assets so they work in dev builds and production (Expo Go may still fail to bundle them)
+try {
+  matchSoundModule = require('../../assets/match-sound.mp3');
+  console.log('🎵 ✅ Match sound module loaded successfully (MP3)');
+} catch (mp3Error: any) {
   try {
-    matchSoundModule = require('../../assets/match-sound.mp3');
-    console.log('🎵 ✅ Match sound module loaded successfully (MP3)');
-  } catch (mp3Error: any) {
-    try {
-      matchSoundModule = require('../../assets/match-sound.wav');
-      console.log('🎵 ✅ Match sound module loaded successfully (WAV)');
-    } catch (wavError: any) {
-      matchSoundModule = null;
+    matchSoundModule = require('../../assets/match-sound.wav');
+    console.log('🎵 ✅ Match sound module loaded successfully (WAV)');
+  } catch (wavError: any) {
+    matchSoundModule = null;
+    if (!isExpoGo) {
       console.warn('🎵 ⚠️  Match sound file not found. Sound notifications will be disabled.');
     }
   }
-  
-  // Load message sound (message-sound.mp3 or message-sound.wav in mobile/assets/)
+}
+
+try {
+  messageSoundModule = require('../../assets/message-sound.mp3');
+  console.log('🎵 ✅ Message sound module loaded successfully (MP3)');
+} catch (mp3Error: any) {
   try {
-    messageSoundModule = require('../../assets/message-sound.mp3');
-    console.log('🎵 ✅ Message sound module loaded successfully (MP3)');
-  } catch (mp3Error: any) {
-    try {
-      messageSoundModule = require('../../assets/message-sound.wav');
-      console.log('🎵 ✅ Message sound module loaded successfully (WAV)');
-    } catch (wavError: any) {
-      messageSoundModule = null;
+    messageSoundModule = require('../../assets/message-sound.wav');
+    console.log('🎵 ✅ Message sound module loaded successfully (WAV)');
+  } catch (wavError: any) {
+    messageSoundModule = null;
+    if (!isExpoGo) {
       console.warn('🎵 ⚠️  Message sound file not found. Message sound notifications will be disabled.');
     }
   }
-} else {
-  // In Expo Go, audio files won't bundle - this is expected
-  matchSoundModule = null;
-  messageSoundModule = null;
-  console.log('🎵 ℹ️  Running in Expo Go - sound will be disabled (this is normal)');
 }
 
 /**

@@ -185,7 +185,31 @@ export default function MyProfileScreen() {
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   // Bump when photos change so the header avatar reloads (avoids stale image cache after upload/reorder/delete)
   const [avatarVersion, setAvatarVersion] = useState(0);
-  
+
+  /** Navigate to CreateProfile (root stack). Try commonNavigate first, then parent chain, then ref. */
+  const navigateToCreateProfile = useCallback((params?: { startFromBeginning?: boolean; initialStep?: number }) => {
+    try {
+      (navigation as any).navigate('CreateProfile', params);
+      return;
+    } catch (_) {}
+    try {
+      let nav: any = (navigation as any).getParent?.();
+      while (nav) {
+        try {
+          nav.navigate('CreateProfile', params);
+          return;
+        } catch (_) {}
+        nav = nav.getParent?.();
+      }
+    } catch (_) {}
+    try {
+      navigationRef.current?.navigate('CreateProfile', params);
+    } catch (e) {
+      console.error('Navigate to CreateProfile failed:', e);
+      Alert.alert('Error', 'Could not open edit profile. Please try again.');
+    }
+  }, [navigation]);
+
   // Animation for header elements
   const headerFade = useRef(new Animated.Value(0)).current;
   const headerScale = useRef(new Animated.Value(0.95)).current;
@@ -1142,7 +1166,7 @@ export default function MyProfileScreen() {
         <Text style={styles.noProfileText}>You haven't created your profile yet</Text>
         <TouchableOpacity
           style={styles.createButton}
-          onPress={() => navigationRef.current?.navigate('CreateProfile', undefined)}
+          onPress={() => navigateToCreateProfile()}
         >
           <Text style={styles.createButtonText}>Create Your Profile</Text>
         </TouchableOpacity>
@@ -2048,39 +2072,41 @@ export default function MyProfileScreen() {
               <Text style={styles.editModalEmoji}>👫</Text>
               <Text style={styles.editModalTitleLight}>Preferred genders</Text>
               <Text style={styles.editModalSubtitleLight}>Who you want to see in Connect</Text>
-              <View style={styles.editModalInner}>
-                {PREFERRED_GENDERS_VALUES.map((opt) => (
-                  <TouchableOpacity
-                    key={opt}
-                    style={[
-                      styles.preferredGenderOption,
-                      (editPreferredGenders.includes(opt) || (opt === 'Everyone' && (editPreferredGenders.length === 0 || editPreferredGenders.includes('Everyone')))) && styles.preferredGenderOptionActive,
-                    ]}
-                    onPress={() => {
-                      if (opt === 'Everyone') {
-                        setEditPreferredGenders(['Everyone']);
-                      } else {
-                        setEditPreferredGenders((prev) => {
-                          const withoutEveryone = prev.filter((g) => g !== 'Everyone');
-                          if (withoutEveryone.includes(opt)) {
-                            const next = withoutEveryone.filter((g) => g !== opt);
-                            return next.length === 0 ? ['Everyone'] : next;
-                          }
-                          return [...withoutEveryone, opt];
-                        });
-                      }
-                    }}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={[
-                      styles.preferredGenderOptionText,
-                      (editPreferredGenders.includes(opt) || (opt === 'Everyone' && (editPreferredGenders.length === 0 || editPreferredGenders.includes('Everyone')))) && styles.preferredGenderOptionTextActive,
-                    ]}>
-                      {preferredGenderLabel(opt)}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <ScrollView style={styles.preferredGendersScroll} contentContainerStyle={styles.preferredGendersScrollContent} showsVerticalScrollIndicator={true}>
+                <View style={styles.editModalInner}>
+                  {PREFERRED_GENDERS_VALUES.map((opt) => (
+                    <TouchableOpacity
+                      key={opt}
+                      style={[
+                        styles.preferredGenderOption,
+                        (editPreferredGenders.includes(opt) || (opt === 'Everyone' && (editPreferredGenders.length === 0 || editPreferredGenders.includes('Everyone')))) && styles.preferredGenderOptionActive,
+                      ]}
+                      onPress={() => {
+                        if (opt === 'Everyone') {
+                          setEditPreferredGenders(['Everyone']);
+                        } else {
+                          setEditPreferredGenders((prev) => {
+                            const withoutEveryone = prev.filter((g) => g !== 'Everyone');
+                            if (withoutEveryone.includes(opt)) {
+                              const next = withoutEveryone.filter((g) => g !== opt);
+                              return next.length === 0 ? ['Everyone'] : next;
+                            }
+                            return [...withoutEveryone, opt];
+                          });
+                        }
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[
+                        styles.preferredGenderOptionText,
+                        (editPreferredGenders.includes(opt) || (opt === 'Everyone' && (editPreferredGenders.length === 0 || editPreferredGenders.includes('Everyone')))) && styles.preferredGenderOptionTextActive,
+                      ]}>
+                        {preferredGenderLabel(opt)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
               <View style={styles.editModalActions}>
                 <TouchableOpacity style={styles.editModalCancelPill} onPress={() => setShowPreferredGendersModal(false)} activeOpacity={0.8}>
                   <Text style={styles.editModalCancelPillText}>Cancel</Text>
@@ -2390,7 +2416,7 @@ export default function MyProfileScreen() {
           <View style={styles.sectionTitleContainer}>
             <AnimatedEmoji emoji="🎯" delay={200} />
             <Text style={styles.sectionTitle}> My Interests</Text>
-            <TouchableOpacity style={styles.sectionEditTouchable} onPress={() => navigationRef.current?.navigate('CreateProfile', { initialStep: 7 })} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity style={styles.sectionEditTouchable} onPress={() => navigateToCreateProfile({ initialStep: 7 })} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Text style={styles.sectionEditLink}>Edit</Text>
             </TouchableOpacity>
           </View>
@@ -2431,7 +2457,7 @@ export default function MyProfileScreen() {
           <View style={styles.sectionTitleContainer}>
             <AnimatedEmoji emoji="🚫" delay={400} />
             <Text style={styles.sectionTitle}> My Dealbreakers</Text>
-            <TouchableOpacity style={styles.sectionEditTouchable} onPress={() => navigationRef.current?.navigate('CreateProfile', { initialStep: 8 })} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity style={styles.sectionEditTouchable} onPress={() => navigateToCreateProfile({ initialStep: 8 })} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Text style={styles.sectionEditLink}>Edit</Text>
             </TouchableOpacity>
           </View>
@@ -2472,7 +2498,7 @@ export default function MyProfileScreen() {
           <View style={styles.sectionTitleContainer}>
             <AnimatedEmoji emoji="💕" delay={600} />
             <Text style={styles.sectionTitle}> What I'm Looking For</Text>
-            <TouchableOpacity style={styles.sectionEditTouchable} onPress={() => navigationRef.current?.navigate('CreateProfile', { initialStep: 9 })} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity style={styles.sectionEditTouchable} onPress={() => navigateToCreateProfile({ initialStep: 9 })} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Text style={styles.sectionEditLink}>Edit</Text>
             </TouchableOpacity>
           </View>
@@ -2513,7 +2539,7 @@ export default function MyProfileScreen() {
           <View style={styles.sectionTitleContainer}>
             <AnimatedEmoji emoji="🌱" delay={800} />
             <Text style={styles.sectionTitle}> Lifestyle</Text>
-            <TouchableOpacity style={styles.sectionEditTouchable} onPress={() => navigationRef.current?.navigate('CreateProfile', { initialStep: 14 })} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity style={styles.sectionEditTouchable} onPress={() => navigateToCreateProfile({ initialStep: 14 })} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Text style={styles.sectionEditLink}>Edit</Text>
             </TouchableOpacity>
           </View>
@@ -2589,7 +2615,7 @@ export default function MyProfileScreen() {
             } else {
               Vibration.vibrate(50);
             }
-            navigationRef.current?.navigate('CreateProfile', { startFromBeginning: true });
+            navigateToCreateProfile({ startFromBeginning: true });
           }}
         >
           <Animated.View
@@ -3060,6 +3086,12 @@ const styles = StyleSheet.create({
   pickerItem: {
     fontSize: 16,
     color: '#1e293b',
+  },
+  preferredGendersScroll: {
+    maxHeight: 280,
+  },
+  preferredGendersScrollContent: {
+    paddingBottom: 8,
   },
   preferredGenderOption: {
     paddingVertical: 14,

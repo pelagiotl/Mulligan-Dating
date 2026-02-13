@@ -19,6 +19,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { G, Path, Circle, Defs, LinearGradient as SvgLinearGradient, Stop, ClipPath } from 'react-native-svg';
 import { useNavigation, useFocusEffect, useIsFocused, CommonActions } from '@react-navigation/native';
 import { setPendingOpenMatchId, clearPendingOpenMatchId } from '../utils/pendingMatchOpen';
+import { initiatorMatchIdRef } from '../utils/currentMatchView';
 import { navigationRef } from '../navigation/navigationRef';
 import { playMatchSound } from '../utils/sounds';
 import { io, Socket } from 'socket.io-client';
@@ -1513,6 +1514,7 @@ export default function BrowseScreen() {
         setMatchedProfile(profile);
         setMatchId(result.matchId);
         matchIdFromConnectRef.current = result.matchId;
+        initiatorMatchIdRef.current = result.matchId; // So AuthContext skips in-app match notification (celebration only for User A)
         setMatchExplanation(result.explanation ?? null);
         setShowMatchCelebration(true);
       })
@@ -1521,6 +1523,8 @@ export default function BrowseScreen() {
         setShowMatchCelebration(false);
         setMatchedProfile(null);
         setMatchId(null);
+        matchIdFromConnectRef.current = null;
+        initiatorMatchIdRef.current = null;
         setMatchExplanation(null);
         setCurrentProfile(profile);
         setConnecting(false);
@@ -1588,6 +1592,7 @@ export default function BrowseScreen() {
     setMatchedProfile(null);
     setMatchId(null);
     matchIdFromConnectRef.current = null;
+    initiatorMatchIdRef.current = null;
     setMatchExplanation(null);
     setIsAutoMatching(false);
     clearPendingOpenMatchId(); // Ensure no stale pending match when user chooses Keep Browsing

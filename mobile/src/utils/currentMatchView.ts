@@ -4,3 +4,10 @@
  * is already in that match's chat. MatchesScreen sets/clears this when selectedMatch changes.
  */
 export const currentMatchIdRef: { current: string | null } = { current: null };
+
+/**
+ * When User A (initiator) taps Connect and a match is created, we set this to the new matchId.
+ * AuthContext skips in-app match notification (sound) for this matchId so only the celebration card is shown.
+ * Cleared when the celebration is closed.
+ */
+export const initiatorMatchIdRef: { current: string | null } = { current: null };

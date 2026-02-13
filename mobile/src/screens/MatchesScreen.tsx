@@ -3590,7 +3590,17 @@ export default function MatchesScreen() {
         </TouchableOpacity>
       </Modal>
 
-      {/* Full-screen image viewer (chat images) */}
+      {/* Profile Modal */}
+      {showProfileModal && selectedMatch && (
+        <MatchProfileModal
+          match={selectedMatch}
+          visible={showProfileModal}
+          onClose={() => setShowProfileModal(false)}
+          onPhotoPress={(url) => setFullScreenImageUrl(url)}
+        />
+      )}
+
+      {/* Full-screen image viewer (profile/message photos) - rendered after Profile Modal so it appears on top when user taps photo */}
       <Modal
         visible={!!fullScreenImageUrl}
         transparent
@@ -3611,16 +3621,6 @@ export default function MatchesScreen() {
           ) : null}
         </TouchableOpacity>
       </Modal>
-
-      {/* Profile Modal */}
-      {showProfileModal && selectedMatch && (
-        <MatchProfileModal
-          match={selectedMatch}
-          visible={showProfileModal}
-          onClose={() => setShowProfileModal(false)}
-          onPhotoPress={(url) => setFullScreenImageUrl(url)}
-        />
-      )}
 
       {/* Game Request Modal - when User B receives invite */}
       <GameRequestModal

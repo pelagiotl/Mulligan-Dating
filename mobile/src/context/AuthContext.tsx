@@ -17,7 +17,7 @@ import * as Notifications from 'expo-notifications';
 import { navigationRef } from '../navigation/navigationRef';
 import { playMessageSound, playMatchSound } from '../utils/sounds';
 import { setPendingGameRequest } from '../utils/pendingGameRequest';
-import { currentMatchIdRef } from '../utils/currentMatchView';
+import { currentMatchIdRef, initiatorMatchIdRef } from '../utils/currentMatchView';
 
 export type MessageNotificationItem = { id: string; senderName: string; preview: string; matchId: string };
 /** @deprecated Use messageNotifications (array); kept for compatibility as first item or null */
@@ -143,7 +143,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       });
 
-      socket.on('new_match', () => {
+      socket.on('new_match', (data?: { matchId?: string }) => {
+        // Skip in-app match notification for User A (initiator): they already see the celebration card
+        if (data?.matchId && data.matchId === initiatorMatchIdRef.current) {
+          if (__DEV__) console.log('🎉 In-app match notification skipped: we are the initiator (celebration only)');
+          return;
+        }
         playMatchSound().catch(() => {});
         api.clearCache('/tokens');
       });
