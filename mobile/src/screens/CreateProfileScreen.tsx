@@ -1381,6 +1381,64 @@ export default function CreateProfileScreen() {
     }
   };
 
+  /** Save current form data and refresh profile — used by header "Save" when editing from Profile tab */
+  const handleSaveInCreateProfile = useCallback(async () => {
+    setSavingInCreateProfile(true);
+    setError('');
+    try {
+      await api.post('/profile', {
+        displayName,
+        age: parseInt(age),
+        gender,
+        location,
+        bio,
+        lookingFor
+      });
+      if (interests.length > 0) {
+        await api.put('/profile/interests', {
+          interests: interests.map((name: string) => ({ name }))
+        });
+      }
+      if (dealbreakers.length > 0) {
+        await api.put('/profile/dealbreakers', {
+          dealbreakers: dealbreakers.map((description: string) => ({ description }))
+        });
+      }
+      if (qualities.length > 0) {
+        await api.put('/profile/partner-qualities', {
+          qualities: qualities.map((quality: string) => ({ quality }))
+        });
+      }
+      await api.put('/profile/preferences', {
+        minAge,
+        maxAge: maxAge >= minAge && maxAge <= 120 ? maxAge : null,
+        preferredGenders: (preferredGenders.includes('Everyone') || preferredGenders.length === 0) ? null : preferredGenders,
+        maxDistance,
+        relationshipType: lookingFor || null
+      });
+      await api.put('/profile/lifestyle', {
+        smoking,
+        drinking,
+        children,
+        pets,
+        religion,
+        workLifeBalance,
+        worksOut
+      });
+      await refreshProfile();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to save. Please try again.');
+    } finally {
+      setSavingInCreateProfile(false);
+    }
+  }, [
+    displayName, age, gender, location, bio, lookingFor,
+    interests, dealbreakers, qualities,
+    minAge, maxAge, preferredGenders, maxDistance,
+    smoking, drinking, children, pets, religion, workLifeBalance, worksOut,
+    refreshProfile
+  ]);
+
   const toggleInterest = (interest: string) => {
     if (interests.includes(interest)) {
       setInterests(interests.filter(i => i !== interest));

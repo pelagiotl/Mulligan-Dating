@@ -1935,6 +1935,7 @@ export default function MatchesScreen() {
   const [gameRequestToShow, setGameRequestToShow] = useState<PendingGameRequest | null>(null);
   const [openGameForAccept, setOpenGameForAccept] = useState<{ matchId: string; gameType: 'truth_or_dare' | 'never_have_i_ever' } | null>(null);
   const [fullScreenImageUrl, setFullScreenImageUrl] = useState<string | null>(null);
+  const fullScreenOpenedFromProfileCardRef = useRef(false);
   const socketRef = useRef<Socket | null>(null);
   const messagesEndRef = useRef<FlatList>(null);
   const selectedMatchRef = useRef<Match | null>(null);
@@ -2225,6 +2226,7 @@ export default function MatchesScreen() {
   }, []);
 
   const onImagePress = useCallback((url: string) => {
+    fullScreenOpenedFromProfileCardRef.current = false;
     setFullScreenImageUrl(url);
   }, []);
 
@@ -3602,23 +3604,34 @@ export default function MatchesScreen() {
             setFullScreenImageUrl(null);
           }}
           onPhotoPress={(url) => {
+            fullScreenOpenedFromProfileCardRef.current = true;
             setShowProfileModal(false);
             setTimeout(() => setFullScreenImageUrl(url), 100);
           }}
         />
       )}
 
-      {/* Full-screen image viewer (profile/message photos) - rendered after Profile Modal so it appears on top when user taps photo */}
+      {/* Full-screen image viewer - if opened from profile card, tap to close returns to profile card */}
       <Modal
         visible={!!fullScreenImageUrl}
         transparent
         animationType="fade"
-        onRequestClose={() => setFullScreenImageUrl(null)}
+        onRequestClose={() => {
+          const fromProfileCard = fullScreenOpenedFromProfileCardRef.current;
+          setFullScreenImageUrl(null);
+          fullScreenOpenedFromProfileCardRef.current = false;
+          if (fromProfileCard) setShowProfileModal(true);
+        }}
       >
         <TouchableOpacity
           activeOpacity={1}
           style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center' }}
-          onPress={() => setFullScreenImageUrl(null)}
+          onPress={() => {
+            const fromProfileCard = fullScreenOpenedFromProfileCardRef.current;
+            setFullScreenImageUrl(null);
+            fullScreenOpenedFromProfileCardRef.current = false;
+            if (fromProfileCard) setShowProfileModal(true);
+          }}
         >
           {fullScreenImageUrl ? (
             <Image
