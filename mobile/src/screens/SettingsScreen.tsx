@@ -13,39 +13,18 @@ import {
   Animated,
   Platform,
 } from 'react-native';
-import * as Clipboard from 'expo-clipboard';
+import Constants from 'expo-constants';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { usePaymentSheet } from '@stripe/stripe-react-native';
 import { api } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import LegalFooter from '../components/LegalFooter';
-import { playMatchSound } from '../utils/sounds';
 
 interface SettingsData {
   email: string;
   createdAt: string;
   lastActiveAt: string | null;
-}
-
-interface ProfileData {
-  profile: {
-    id: string;
-    display_name: string;
-    age: number;
-    gender: string;
-    location: string | null;
-    bio: string | null;
-    photo_url: string | null;
-    looking_for: string | null;
-  };
-  preferences: {
-    min_age: number;
-    max_age: number | null;
-    preferred_genders: string | null;
-    max_distance: number;
-    relationship_type: string | null;
-  } | null;
 }
 
 export default function SettingsScreen() {
@@ -56,13 +35,6 @@ export default function SettingsScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  
-  // Location preferences
-  const [maxDistance, setMaxDistance] = useState<number | null>(50);
-  const [customDistance, setCustomDistance] = useState('');
-  const [showCustomInput, setShowCustomInput] = useState(false);
-  const [loadingPreferences, setLoadingPreferences] = useState(false);
-  const [updatingDistance, setUpdatingDistance] = useState(false);
 
   // Delete account
   const [deleting, setDeleting] = useState(false);
@@ -95,8 +67,7 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     fetchSettings();
-    fetchPreferences();
-    
+
     // Header entrance animation
     Animated.parallel([
       Animated.spring(headerScale, {
@@ -179,58 +150,6 @@ export default function SettingsScreen() {
       setLoading(false);
     }
   };
-
-  const fetchPreferences = async () => {
-    try {
-      setLoadingPreferences(true);
-      const profileData = await api.get<ProfileData>('/profile');
-      if (profileData?.preferences?.max_distance !== undefined) {
-        // Handle null (unlimited) or number
-        setMaxDistance(profileData.preferences.max_distance);
-      }
-    } catch (err: any) {
-      console.error('Failed to fetch preferences:', err);
-      // Don't show error, just use default
-    } finally {
-      setLoadingPreferences(false);
-    }
-  };
-
-  const handleDistanceChange = async (value: number | null) => {
-    setMaxDistance(value);
-    setShowCustomInput(false);
-    setCustomDistance('');
-    
-    // Update preferences on backend
-    try {
-      setUpdatingDistance(true);
-      await api.put('/profile/preferences', {
-        maxDistance: value,
-      });
-      const successMessage = value === null 
-        ? 'Distance preference updated to unlimited'
-        : `Distance preference updated to ${value} miles`;
-      setSuccess(successMessage);
-      setTimeout(() => setSuccess(''), 3000);
-    } catch (err: any) {
-      console.error('Failed to update distance preference:', err);
-      setError('Failed to update distance preference. Please try again.');
-      setTimeout(() => setError(''), 3000);
-      // Revert to previous value on error
-      fetchPreferences();
-    } finally {
-      setUpdatingDistance(false);
-    }
-  };
-
-  const handleCustomDistanceSubmit = useCallback(() => {
-    const value = parseInt(customDistance, 10);
-    if (!isNaN(value) && value >= 1 && value <= 10000) {
-      handleDistanceChange(value);
-    } else {
-      Alert.alert('Invalid Distance', 'Please enter a number between 1 and 10,000 miles.');
-    }
-  }, [customDistance, handleDistanceChange]);
 
   const fetchPackages = async () => {
     try {
@@ -475,21 +394,6 @@ export default function SettingsScreen() {
           <Text style={styles.sectionTitle}>Account</Text>
         </View>
 
-        {user?.id ? (
-          <TouchableOpacity
-            style={styles.userIdRow}
-            onLongPress={async () => {
-              await Clipboard.setStringAsync(user.id);
-              Alert.alert('Copied', 'User ID copied to clipboard. Use ADMIN_USER_IDS=your-id in backend .env for admin access.');
-            }}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.userIdLabel}>User ID</Text>
-            <Text style={styles.userIdValue} numberOfLines={1} ellipsizeMode="middle">{user.id}</Text>
-            <Text style={styles.userIdHint}>Long-press to copy</Text>
-          </TouchableOpacity>
-        ) : null}
-
         {/* Account Stats Cards */}
         <View style={styles.statsRow}>
           <Animated.View
@@ -556,145 +460,6 @@ export default function SettingsScreen() {
         </View>
       </Animated.View>
 
-      {/* Location Preferences */}
-      <Animated.View
-        style={[
-          styles.section,
-          {
-            opacity: sectionAnimations[1] ?? sectionFallbackAnim,
-            transform: [
-              {
-                translateY: (sectionAnimations[1] ?? sectionFallbackAnim).interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [30, 0],
-                }),
-              },
-            ],
-          },
-        ]}
-      >
-        <View style={styles.sectionTitleContainer}>
-          <Text style={styles.sectionEmoji}>📍</Text>
-          <Text style={styles.sectionTitle}>Location Preferences</Text>
-        </View>
-        <LinearGradient
-          colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.05)']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.preferencesCard}
-        >
-          <Text style={styles.preferencesCardTitle}>Maximum Distance</Text>
-          <View style={styles.preferencesCardDescriptionWrap}>
-            <Text style={styles.preferencesCardDescription} numberOfLines={3}>
-              {maxDistance === null 
-                ? 'Show me people from anywhere (unlimited distance)'
-                : `Show me people within ${maxDistance} mile${maxDistance !== 1 ? 's' : ''}`
-              }
-            </Text>
-          </View>
-          {loadingPreferences ? (
-            <ActivityIndicator size="small" color="#fff" style={styles.sliderLoading} />
-          ) : (
-            <View style={styles.sliderContainer}>
-              <View style={styles.distanceButtons}>
-                {/* Unlimited option - full width so "Unlimited" reads normally */}
-                <View style={styles.distanceButtonUnlimitedWrap}>
-                  <TouchableOpacity
-                    style={[
-                      styles.distanceButton,
-                      styles.distanceButtonUnlimited,
-                      maxDistance === null && styles.distanceButtonActive
-                    ]}
-                    onPress={() => {
-                      if (!updatingDistance) {
-                        handleDistanceChange(null);
-                      }
-                    }}
-                    disabled={updatingDistance}
-                  >
-                    <Text style={[
-                      styles.distanceButtonText,
-                      maxDistance === null && styles.distanceButtonTextActive
-                    ]} numberOfLines={1}>
-                      ∞ Unlimited
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-                {[10, 25, 50, 75, 100].map((value) => (
-                  <TouchableOpacity
-                    key={value}
-                    style={[
-                      styles.distanceButton,
-                      maxDistance === value && styles.distanceButtonActive
-                    ]}
-                    onPress={() => {
-                      if (!updatingDistance) {
-                        handleDistanceChange(value);
-                      }
-                    }}
-                    disabled={updatingDistance}
-                  >
-                    <Text style={[
-                      styles.distanceButtonText,
-                      maxDistance === value && styles.distanceButtonTextActive
-                    ]}>
-                      {value} mi
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              {!showCustomInput ? (
-                <TouchableOpacity
-                  style={styles.customDistanceButton}
-                  onPress={() => setShowCustomInput(true)}
-                  disabled={updatingDistance}
-                >
-                  <Text style={styles.customDistanceButtonText}>
-                    Custom {maxDistance === null ? '(Unlimited)' : `(${maxDistance} mi)`} ✏️
-                  </Text>
-                </TouchableOpacity>
-              ) : (
-                <View style={styles.customInputContainer}>
-                  <TextInput
-                    style={styles.customInput}
-                    value={customDistance}
-                    onChangeText={setCustomDistance}
-                    placeholder={maxDistance === null ? 'Current: Unlimited' : `Current: ${maxDistance} mi`}
-                    placeholderTextColor="rgba(255, 255, 255, 0.5)"
-                    keyboardType="number-pad"
-                    maxLength={5}
-                    autoFocus
-                  />
-                  <View style={styles.customInputActions}>
-                    <TouchableOpacity
-                      style={[styles.customInputButton, styles.customInputButtonCancel]}
-                      onPress={() => {
-                        setShowCustomInput(false);
-                        setCustomDistance('');
-                      }}
-                    >
-                      <Text style={styles.customInputButtonText}>Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.customInputButton, styles.customInputButtonSave]}
-                      onPress={handleCustomDistanceSubmit}
-                      disabled={updatingDistance}
-                    >
-                      <Text style={[styles.customInputButtonText, styles.customInputButtonTextSave]}>
-                        Save
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )}
-              {updatingDistance && (
-                <ActivityIndicator size="small" color="#fff" style={styles.updatingIndicator} />
-              )}
-            </View>
-          )}
-        </LinearGradient>
-      </Animated.View>
-
       {/* Buy Tokens */}
       <Animated.View
         style={[
@@ -745,127 +510,75 @@ export default function SettingsScreen() {
         </LinearGradient>
       </Animated.View>
 
-      {/* Test: Match Sound */}
-      <Animated.View
-        style={[
-          styles.section,
-          styles.testSection,
-          {
-            opacity: sectionAnimations[3] ?? sectionFallbackAnim,
-            transform: [
-              {
-                translateY: (sectionAnimations[3] ?? sectionFallbackAnim).interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [30, 0],
-                }),
-              },
-            ],
-          },
-        ]}
-      >
-        <View style={styles.sectionTitleContainer}>
-          <Text style={styles.sectionEmoji}>🔊</Text>
-          <Text style={styles.sectionTitle}>Test: Match Sound</Text>
-        </View>
-        <Text style={styles.testText}>
-          Test the match celebration sound. In Expo Go, the sound won't play (this is expected), but you'll see detailed logs in the console. In TestFlight/production builds, the sound should play.
-        </Text>
-        <TouchableOpacity
-          style={[styles.button, styles.testButton]}
-          onPress={async () => {
-            try {
-              console.log('🧪 [TEST] User clicked "Test Match Sound" button');
-              await playMatchSound();
-              Alert.alert(
-                'Sound Test',
-                'Sound test triggered! Check the console logs for details. In Expo Go, sound won\'t play (expected). In TestFlight builds, you should hear the sound.',
-                [{ text: 'OK' }]
-              );
-            } catch (error: any) {
-              console.error('🧪 [TEST] Error testing sound:', error);
-              Alert.alert(
-                'Sound Test Error',
-                `Error: ${error?.message || String(error)}\n\nCheck console logs for details.`,
-                [{ text: 'OK' }]
-              );
-            }
-          }}
-        >
-          <Text style={[styles.buttonText, styles.testButtonText]}>🔊 Test Match Sound</Text>
-        </TouchableOpacity>
-      </Animated.View>
-
-      {/* Test: Delete Profile (Temporary) */}
-      <Animated.View
-        style={[
-          styles.section,
-          styles.testSection,
-          {
-            opacity: sectionAnimations[4] ?? sectionFallbackAnim,
-            transform: [
-              {
-                translateY: (sectionAnimations[4] ?? sectionFallbackAnim).interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [30, 0],
-                }),
-              },
-            ],
-          },
-        ]}
-      >
-        <View style={styles.sectionTitleContainer}>
-          <Text style={styles.sectionEmoji}>🧪</Text>
-          <Text style={styles.sectionTitle}>Test: Delete Profile</Text>
-        </View>
-        <Text style={styles.testText}>
-          This will delete your profile (but keep your account). You'll be redirected to create a new profile. Use this to test the profile creation flow.
-        </Text>
-        <TouchableOpacity
-          style={[styles.button, styles.testButton]}
-          onPress={async () => {
-            Alert.alert(
-              'Delete Profile (Test)',
-              'This will delete your profile data. Your account will remain, but you\'ll need to recreate your profile. This is for testing purposes only.',
-              [
-                { text: 'Cancel', style: 'cancel' },
+      {__DEV__ && (
+        /* Test: Delete Profile (Temporary) - only visible in development */
+        <Animated.View
+          style={[
+            styles.section,
+            styles.testSection,
+            {
+              opacity: sectionAnimations[4] ?? sectionFallbackAnim,
+              transform: [
                 {
-                  text: 'Delete Profile',
-                  style: 'destructive',
-                  onPress: async () => {
-                    try {
-                      setLoading(true);
-                      await api.delete('/profile');
-                      // Refresh auth to clear profile
-                      await refreshProfile();
-                      // Navigate to create profile - need to navigate to root stack
-                      try {
-                        const rootNavigation = (navigation as any).getParent?.() || navigation;
-                        if (rootNavigation && rootNavigation.navigate) {
-                          rootNavigation.navigate('CreateProfile');
-                        } else {
-                          // Fallback: use reset if navigate doesn't work
-                          (navigation as any).reset({
-                            index: 0,
-                            routes: [{ name: 'CreateProfile' }],
-                          });
-                        }
-                      } catch (navErr: any) {
-                        console.error('Navigation error:', navErr);
-                        // If navigation fails, the profile check in AppNavigator should handle redirect
-                      }
-                    } catch (err: any) {
-                      Alert.alert('Error', err?.message || 'Failed to delete profile');
-                      setLoading(false);
-                    }
-                  },
+                  translateY: (sectionAnimations[4] ?? sectionFallbackAnim).interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [30, 0],
+                  }),
                 },
-              ]
-            );
-          }}
+              ],
+            },
+          ]}
         >
-          <Text style={[styles.buttonText, styles.testButtonText]}>🧪 Delete My Profile (Test)</Text>
-        </TouchableOpacity>
-      </Animated.View>
+          <View style={styles.sectionTitleContainer}>
+            <Text style={styles.sectionEmoji}>🧪</Text>
+            <Text style={styles.sectionTitle}>Test: Delete Profile</Text>
+          </View>
+          <Text style={styles.testText}>
+            This will delete your profile (but keep your account). You'll be redirected to create a new profile. Use this to test the profile creation flow.
+          </Text>
+          <TouchableOpacity
+            style={[styles.button, styles.testButton]}
+            onPress={async () => {
+              Alert.alert(
+                'Delete Profile (Test)',
+                'This will delete your profile data. Your account will remain, but you\'ll need to recreate your profile. This is for testing purposes only.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Delete Profile',
+                    style: 'destructive',
+                    onPress: async () => {
+                      try {
+                        setLoading(true);
+                        await api.delete('/profile');
+                        await refreshProfile();
+                        try {
+                          const rootNavigation = (navigation as any).getParent?.() || navigation;
+                          if (rootNavigation && rootNavigation.navigate) {
+                            rootNavigation.navigate('CreateProfile');
+                          } else {
+                            (navigation as any).reset({
+                              index: 0,
+                              routes: [{ name: 'CreateProfile' }],
+                            });
+                          }
+                        } catch (navErr: any) {
+                          console.error('Navigation error:', navErr);
+                        }
+                      } catch (err: any) {
+                        Alert.alert('Error', err?.message || 'Failed to delete profile');
+                        setLoading(false);
+                      }
+                    },
+                  },
+                ]
+              );
+            }}
+          >
+            <Text style={[styles.buttonText, styles.testButtonText]}>🧪 Delete My Profile (Test)</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      )}
 
       {/* Delete Account */}
       <Animated.View
@@ -931,7 +644,7 @@ export default function SettingsScreen() {
         )}
       </Animated.View>
 
-      {/* Logout */}
+      {/* Help & Support */}
       <Animated.View
         style={[
           styles.section,
@@ -940,6 +653,37 @@ export default function SettingsScreen() {
             transform: [
               {
                 translateY: (sectionAnimations[6] ?? sectionFallbackAnim).interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [30, 0],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
+        <View style={styles.sectionTitleContainer}>
+          <Text style={styles.sectionEmoji}>💬</Text>
+          <Text style={styles.sectionTitle}>Help & Support</Text>
+        </View>
+        <TouchableOpacity
+          style={styles.supportRow}
+          onPress={() => Linking.openURL('mailto:mulligandating@gmail.com')}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.supportRowText}>Contact us</Text>
+          <Text style={styles.supportRowChevron}>›</Text>
+        </TouchableOpacity>
+      </Animated.View>
+
+      {/* Logout */}
+      <Animated.View
+        style={[
+          styles.section,
+          {
+            opacity: sectionAnimations[7] ?? sectionFallbackAnim,
+            transform: [
+              {
+                translateY: (sectionAnimations[7] ?? sectionFallbackAnim).interpolate({
                   inputRange: [0, 1],
                   outputRange: [30, 0],
                 }),
@@ -973,6 +717,12 @@ export default function SettingsScreen() {
 
       {/* Legal Footer */}
       <LegalFooter />
+
+      {/* App version */}
+      <Text style={styles.versionText}>
+        Version {Constants.expoConfig?.version ?? Constants.manifest?.version ?? '1.0.0'}
+      </Text>
+
       </ScrollView>
 
       {/* Purchase Modal */}
@@ -1248,30 +998,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
   },
-  userIdRow: {
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-  },
-  userIdLabel: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.7)',
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  userIdValue: {
-    fontSize: 13,
-    color: '#fff',
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-  },
-  userIdHint: {
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.5)',
-    marginTop: 6,
-  },
   statCard: {
     flex: 1,
     borderRadius: 24,
@@ -1403,6 +1129,25 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
   },
+  supportRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+  },
+  supportRowText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  supportRowChevron: {
+    fontSize: 20,
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontWeight: '300',
+  },
   logoutButton: {
     backgroundColor: 'rgba(102, 102, 102, 0.9)',
     paddingVertical: 16,
@@ -1435,6 +1180,13 @@ const styles = StyleSheet.create({
   },
   logoutButtonText: {
     color: '#fff',
+  },
+  versionText: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.5)',
+    textAlign: 'center',
+    marginTop: 12,
+    marginBottom: 24,
   },
   dangerSection: {
     backgroundColor: 'rgba(239, 68, 68, 0.08)',

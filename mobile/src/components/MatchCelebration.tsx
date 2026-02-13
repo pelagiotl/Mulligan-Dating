@@ -156,7 +156,7 @@ function FindingMatchLoading() {
   );
 }
 
-const REVEAL_DELAY_MS = 2500;
+const REVEAL_DELAY_MS = 7000; // "Finding your curated match..." shows for 7 seconds before reveal
 
 export default function MatchCelebration({
   profileName,

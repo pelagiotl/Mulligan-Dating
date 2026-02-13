@@ -37,7 +37,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import OptimizedImage from '../components/OptimizedImage';
 
 const GENDER_OPTIONS = ['Man', 'Woman', 'Other'];
-const PREFERRED_GENDER_OPTIONS = ['Man', 'Woman', 'Everyone']; // Everyone = match all genders
+// API values: Man, Woman. "Everyone" = match all. Display labels: Men, Women, Everyone.
+const PREFERRED_GENDER_OPTIONS = ['Man', 'Woman', 'Everyone'] as const;
+const PREFERRED_GENDER_LABELS: Record<string, string> = { Man: 'Men', Woman: 'Women', Everyone: 'Everyone' };
+function preferredGenderDisplayLabel(value: string) { return PREFERRED_GENDER_LABELS[value] ?? value; }
 const LOOKING_FOR_OPTIONS = ['Relationship', 'Something casual', 'Friendship', 'Not sure yet'];
 
 const INTEREST_OPTIONS = [
@@ -1890,12 +1893,12 @@ export default function CreateProfileScreen() {
                 <TouchableOpacity key={gender} style={styles.preferencesGenderCard} onPress={() => togglePreferredGender(gender)} activeOpacity={0.7}>
                   {isSelected ? (
                     <LinearGradient colors={['#f5576c', '#f093fb', '#667eea']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.preferencesGenderCardSelected}>
-                      <Text style={styles.preferencesGenderTextSelected}>{gender}</Text>
+                      <Text style={styles.preferencesGenderTextSelected}>{preferredGenderDisplayLabel(gender)}</Text>
                       <View style={styles.preferencesCheckmark}><Text style={styles.preferencesCheckmarkText}>✓</Text></View>
                     </LinearGradient>
                   ) : (
                     <View style={styles.preferencesGenderCardUnselected}>
-                      <Text style={styles.preferencesGenderText}>{gender}</Text>
+                      <Text style={styles.preferencesGenderText}>{preferredGenderDisplayLabel(gender)}</Text>
                     </View>
                   )}
                 </TouchableOpacity>

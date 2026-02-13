@@ -7,7 +7,7 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Platform, Text, View, StyleSheet, Alert, Vibration, ActivityIndicator, Pressable } from 'react-native';
+import { Platform, Text, View, StyleSheet, Alert, Vibration, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, NavigationContainerRef } from '@react-navigation/native';
 
@@ -350,22 +350,21 @@ export default function AppNavigator() {
     setIsNavigationReady(true);
   }, []);
 
-  // Check profile status on mount and when auth state changes
+  // Open straight to Connect; when auth completes, redirect to PhoneLogin or CreateProfile if needed
   React.useEffect(() => {
     if (!loading && isNavigationReady && navigationRef.current) {
       const currentRoute = navigationRef.current.getCurrentRoute();
-      // Never redirect when on PhoneLogin: post-verify navigation is handled there using
-      // verify-code API hasProfile. Otherwise we race and can send existing users to CreateProfile.
-      if (currentRoute?.name === 'PhoneLogin') return;
-
-      if (user && !profile) {
-        try {
-          if (currentRoute?.name !== 'CreateProfile') {
-            navigationRef.current.reset({
-              index: 0,
-              routes: [{ name: 'CreateProfile' }],
-            });
+      if (!user) {
+        if (currentRoute?.name !== 'PhoneLogin') {
+          try {
+            navigationRef.current.reset({ index: 0, routes: [{ name: 'PhoneLogin' }] });
+          } catch (err) {
+            console.error('Navigation error in AppNavigator:', err);
           }
+        }
+      } else if (user && !profile && currentRoute?.name !== 'CreateProfile') {
+        try {
+          navigationRef.current.reset({ index: 0, routes: [{ name: 'CreateProfile' }] });
         } catch (err) {
           console.error('Navigation error in AppNavigator:', err);
         }
@@ -373,36 +372,11 @@ export default function AppNavigator() {
     }
   }, [loading, user, profile, isNavigationReady]);
 
-  // Determine initial route based on auth state
-  // When user is already logged in, skip PhoneLogin so they never see "enter your phone number"
-  const getInitialRouteName = (): keyof RootStackParamList => {
-    if (loading) {
-      return 'PhoneLogin'; // Will be replaced once we show loading gate below
-    }
-    if (user && profile) {
-      return 'MainTabs';
-    }
-    if (user && !profile) {
-      return 'CreateProfile';
-    }
-    return 'PhoneLogin';
-  };
-
-  // Don't show phone login screen when user is already logged in: wait for auth before showing stack
-  if (loading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
-        <ActivityIndicator size="large" color="#8B1538" />
-        <Text style={{ marginTop: 12, fontSize: 16, color: '#666' }}>Loading...</Text>
-      </View>
-    );
-  }
-
   try {
     return (
       <NavigationContainer ref={navigationRef} onReady={handleNavigationReady}>
         <Stack.Navigator
-          initialRouteName={getInitialRouteName()}
+          initialRouteName="MainTabs"
           screenOptions={{
             headerShown: false,
           }}

@@ -21,6 +21,7 @@ import {
 import { Picker } from '@react-native-picker/picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, useRoute, useFocusEffect, useIsFocused } from '@react-navigation/native';
+import { navigationRef } from '../navigation/navigationRef';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -138,7 +139,10 @@ interface SettingsData {
 
 const LOOKING_FOR_OPTIONS = ['Relationship', 'Something casual', 'Friendship', 'Not sure yet'];
 
-const PREFERRED_GENDERS_OPTIONS = ['Man', 'Woman', 'Other', 'Everyone'];
+// Values sent to API (matching uses profile.gender: "Man" | "Woman" | "Non-binary" etc.)
+const PREFERRED_GENDERS_VALUES = ['Man', 'Woman', 'Other', 'Everyone'];
+const PREFERRED_GENDERS_LABELS: Record<string, string> = { Man: 'Men', Woman: 'Women', Other: 'Other', Everyone: 'Everyone' };
+function preferredGenderLabel(value: string) { return PREFERRED_GENDERS_LABELS[value] ?? value; }
 
 const MAX_DISTANCE_OPTIONS: (number | null)[] = [10, 25, 50, 100, 250, 500, null]; // null = Any
 
@@ -1138,7 +1142,7 @@ export default function MyProfileScreen() {
         <Text style={styles.noProfileText}>You haven't created your profile yet</Text>
         <TouchableOpacity
           style={styles.createButton}
-          onPress={() => navigation.navigate('CreateProfile' as never)}
+          onPress={() => navigationRef.current?.navigate('CreateProfile', undefined)}
         >
           <Text style={styles.createButtonText}>Create Your Profile</Text>
         </TouchableOpacity>
@@ -1876,7 +1880,7 @@ export default function MyProfileScreen() {
                       try {
                         const arr = JSON.parse(pg) as string[];
                         if (!arr.length || arr.includes('Everyone')) return 'Everyone';
-                        return arr.join(', ');
+                        return arr.map(preferredGenderLabel).join(', ');
                       } catch { return 'Everyone'; }
                     })()}
                   </Text>
@@ -2045,7 +2049,7 @@ export default function MyProfileScreen() {
               <Text style={styles.editModalTitleLight}>Preferred genders</Text>
               <Text style={styles.editModalSubtitleLight}>Who you want to see in Connect</Text>
               <View style={styles.editModalInner}>
-                {PREFERRED_GENDERS_OPTIONS.map((opt) => (
+                {PREFERRED_GENDERS_VALUES.map((opt) => (
                   <TouchableOpacity
                     key={opt}
                     style={[
@@ -2072,7 +2076,7 @@ export default function MyProfileScreen() {
                       styles.preferredGenderOptionText,
                       (editPreferredGenders.includes(opt) || (opt === 'Everyone' && (editPreferredGenders.length === 0 || editPreferredGenders.includes('Everyone')))) && styles.preferredGenderOptionTextActive,
                     ]}>
-                      {opt}
+                      {preferredGenderLabel(opt)}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -2386,7 +2390,7 @@ export default function MyProfileScreen() {
           <View style={styles.sectionTitleContainer}>
             <AnimatedEmoji emoji="🎯" delay={200} />
             <Text style={styles.sectionTitle}> My Interests</Text>
-            <TouchableOpacity style={styles.sectionEditTouchable} onPress={() => (navigation as any).navigate('CreateProfile', { initialStep: 7 })} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity style={styles.sectionEditTouchable} onPress={() => navigationRef.current?.navigate('CreateProfile', { initialStep: 7 })} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Text style={styles.sectionEditLink}>Edit</Text>
             </TouchableOpacity>
           </View>
@@ -2427,7 +2431,7 @@ export default function MyProfileScreen() {
           <View style={styles.sectionTitleContainer}>
             <AnimatedEmoji emoji="🚫" delay={400} />
             <Text style={styles.sectionTitle}> My Dealbreakers</Text>
-            <TouchableOpacity style={styles.sectionEditTouchable} onPress={() => (navigation as any).navigate('CreateProfile', { initialStep: 8 })} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity style={styles.sectionEditTouchable} onPress={() => navigationRef.current?.navigate('CreateProfile', { initialStep: 8 })} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Text style={styles.sectionEditLink}>Edit</Text>
             </TouchableOpacity>
           </View>
@@ -2468,7 +2472,7 @@ export default function MyProfileScreen() {
           <View style={styles.sectionTitleContainer}>
             <AnimatedEmoji emoji="💕" delay={600} />
             <Text style={styles.sectionTitle}> What I'm Looking For</Text>
-            <TouchableOpacity style={styles.sectionEditTouchable} onPress={() => (navigation as any).navigate('CreateProfile', { initialStep: 9 })} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity style={styles.sectionEditTouchable} onPress={() => navigationRef.current?.navigate('CreateProfile', { initialStep: 9 })} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Text style={styles.sectionEditLink}>Edit</Text>
             </TouchableOpacity>
           </View>
@@ -2509,7 +2513,7 @@ export default function MyProfileScreen() {
           <View style={styles.sectionTitleContainer}>
             <AnimatedEmoji emoji="🌱" delay={800} />
             <Text style={styles.sectionTitle}> Lifestyle</Text>
-            <TouchableOpacity style={styles.sectionEditTouchable} onPress={() => (navigation as any).navigate('CreateProfile', { initialStep: 14 })} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity style={styles.sectionEditTouchable} onPress={() => navigationRef.current?.navigate('CreateProfile', { initialStep: 14 })} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Text style={styles.sectionEditLink}>Edit</Text>
             </TouchableOpacity>
           </View>
@@ -2585,7 +2589,7 @@ export default function MyProfileScreen() {
             } else {
               Vibration.vibrate(50);
             }
-            (navigation as any).navigate('CreateProfile', { startFromBeginning: true });
+            navigationRef.current?.navigate('CreateProfile', { startFromBeginning: true });
           }}
         >
           <Animated.View

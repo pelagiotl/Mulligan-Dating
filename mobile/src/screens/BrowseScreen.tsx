@@ -1270,8 +1270,7 @@ export default function BrowseScreen() {
         console.log('❌ Browse: Disconnected from WebSocket server');
       });
 
-      // In-app notification when the other user gets a new match (User B). Skip if we're the connect initiator
-      // — we already show "It's a match! You matched with X" via MatchCelebration; avoid duplicate "New match! X matched with you".
+      // When User B gets a new match (socket), go straight to big MatchCelebration. Skip if we're the connect initiator (we already show it).
       socket.on('new_match', (data: {
         matchId: string;
         otherUserId: string;
@@ -1280,26 +1279,12 @@ export default function BrowseScreen() {
         stage: string;
       }) => {
         if (matchIdFromConnectRef.current === data.matchId) return;
-        setMatchNotification(data.message);
-        setTimeout(() => setMatchNotification(null), 5000);
-        Alert.alert(
-          '🎉 New Match!',
-          data.message,
-          [
-            {
-              text: 'View',
-              onPress: () => {
-                if (data.matchId && navigationRef.current?.isReady()) {
-                  navigationRef.current.navigate('MainTabs' as never, {
-                    screen: 'Matches',
-                    params: { matchId: data.matchId, showMatchCelebration: true, matchName: data.otherUserName || 'Someone' },
-                  } as never);
-                }
-              },
-            },
-            { text: 'OK', style: 'cancel' },
-          ]
-        );
+        if (data.matchId && navigationRef.current?.isReady()) {
+          navigationRef.current.navigate('MainTabs' as never, {
+            screen: 'Matches',
+            params: { matchId: data.matchId, showMatchCelebration: true, matchName: data.otherUserName || 'Someone' },
+          } as never);
+        }
       });
 
       // In-app message notification (Alert + sound) is handled by AuthContext's dedicated socket

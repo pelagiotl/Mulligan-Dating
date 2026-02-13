@@ -243,63 +243,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         );
       }
 
-      // Show in-app notification for new matches
+      // New match: go straight to big MatchCelebration (no small alert)
       if (data?.type === 'new_match') {
         console.log('🎉 New match notification:', {
           matchId: data.matchId,
           matchName: data.matchName,
         });
-        
-        // Play match sound
         playMatchSound().catch(() => {
           console.log('Match sound not available');
         });
-        
-        // Show in-app alert
-        const matchName = data.matchName || 'Someone';
-        Alert.alert(
-          '🎉 New Match!',
-          `${matchName} matched with you. Start chatting now!`,
-          [
-            {
-              text: 'View',
-              onPress: () => {
-                // Navigate to the match if matchId is available (show MatchCelebration for User B)
-                if (data?.matchId) {
-                  const attemptNavigation = (attemptNumber: number = 0) => {
-                    const maxAttempts = 10; // Try for up to 5 seconds (10 attempts * 500ms)
-                    
-                    if (navigationRef.current?.isReady()) {
-                      try {
-                        navigationRef.current.navigate('MainTabs', {
-                          screen: 'Matches',
-                          params: {
-                            matchId: data.matchId,
-                            showMatchCelebration: true,
-                            matchName: data.matchName || 'Someone',
-                          },
-                        });
-                        console.log('✅ Navigated to match from in-app notification');
-                      } catch (error) {
-                        console.error('❌ Error navigating to match from notification:', error);
-                      }
-                    } else if (attemptNumber < maxAttempts) {
-                      console.warn(`⚠️ Navigation not ready yet (attempt ${attemptNumber + 1}/${maxAttempts}), retrying...`);
-                      setTimeout(() => {
-                        attemptNavigation(attemptNumber + 1);
-                      }, 500);
-                    } else {
-                      console.error('❌ Failed to navigate after max attempts');
-                    }
-                  };
-                  
-                  attemptNavigation();
-                }
-              },
-            },
-            { text: 'OK', style: 'cancel' },
-          ]
-        );
+        if (data?.matchId) {
+          const attemptNavigation = (attemptNumber: number = 0) => {
+            const maxAttempts = 10;
+            if (navigationRef.current?.isReady()) {
+              try {
+                navigationRef.current.navigate('MainTabs', {
+                  screen: 'Matches',
+                  params: {
+                    matchId: data.matchId,
+                    showMatchCelebration: true,
+                    matchName: data.matchName || 'Someone',
+                  },
+                });
+                console.log('✅ Navigated to match celebration');
+              } catch (error) {
+                console.error('❌ Error navigating to match:', error);
+              }
+            } else if (attemptNumber < maxAttempts) {
+              setTimeout(() => attemptNavigation(attemptNumber + 1), 500);
+            }
+          };
+          attemptNavigation();
+        }
       }
     });
 

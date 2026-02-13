@@ -696,10 +696,10 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
               </Text>
             ) : null}
             <View style={styles.badgesRow}>
-              {(item.profileCompatibility != null || item.compatibilityScore != null) && item.stage !== 'pending' && (
+              {item.profileCompatibility != null && item.stage !== 'pending' && (
                 <View style={styles.matchCardCompatibilityBadge}>
                   <Text style={styles.matchCardCompatibilityIcon}>💕</Text>
-                  <Text style={styles.matchCardCompatibilityText}>{item.profileCompatibility ?? item.compatibilityScore ?? 0}%</Text>
+                  <Text style={styles.matchCardCompatibilityText}>{item.profileCompatibility}%</Text>
                 </View>
               )}
               <View style={styles.stageContainer}>
@@ -767,7 +767,6 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
     prevProps.item.unreadCount === nextProps.item.unreadCount &&
     prevProps.item.stage === nextProps.item.stage &&
     prevProps.item.expiresAt === nextProps.item.expiresAt &&
-    prevProps.item.compatibilityScore === nextProps.item.compatibilityScore &&
     prevProps.item.profileCompatibility === nextProps.item.profileCompatibility &&
     prevProps.photoUrl === nextProps.photoUrl
   );
@@ -1464,88 +1463,166 @@ function MatchProfileModal({
                 />
                 
                 {/* Avatar with breathing effect - tappable to open full-screen; Level 2: tap left/right to cycle photos */}
-                <Animated.View
-                  style={{
-                    transform: [{ scale: avatarBreath }],
-                  }}
-                >
-                  {mainPhotoUrl ? (
-                    canSwipePhotos ? (
-                      <View style={styles.modalPhotoSwipeContainer}>
-                        <TouchableOpacity style={styles.modalPhotoSwipeSide} onPress={goPrevPhoto} activeOpacity={1} accessibilityLabel="Previous photo" />
-                        <TouchableOpacity
-                          style={styles.modalPhotoSwipeCenter}
-                          onPress={() => onPhotoPress?.(mainPhotoUrl)}
-                          activeOpacity={0.9}
+                {onPhotoPress && !canSwipePhotos && mainPhotoUrl ? (
+                  <TouchableOpacity
+                    onPress={() => onPhotoPress(mainPhotoUrl)}
+                    activeOpacity={0.9}
+                    style={styles.modalPhotoTouchable}
+                    accessibilityLabel="View full size photo"
+                  >
+                    <Animated.View
+                      style={{
+                        transform: [{ scale: avatarBreath }],
+                      }}
+                      pointerEvents="none"
+                    >
+                      {mainPhotoUrl ? (
+                        <Image source={{ uri: mainPhotoUrl }} style={styles.modalPhoto} resizeMode="cover" />
+                      ) : (
+                        <LinearGradient
+                          colors={['#667eea', '#764ba2', '#f093fb']}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                          style={styles.modalPhotoPlaceholder}
                         >
+                          <Text style={styles.modalPhotoPlaceholderText}>
+                            {otherUser.displayName.charAt(0).toUpperCase()}
+                          </Text>
+                        </LinearGradient>
+                      )}
+                    </Animated.View>
+                    <Animated.Text
+                      pointerEvents="none"
+                      style={[
+                        styles.modalPhotoSparkle1,
+                        {
+                          transform: [
+                            { translateX: sparkle1X },
+                            { translateY: sparkle1Y },
+                          ],
+                        },
+                      ]}
+                    >
+                      ✨
+                    </Animated.Text>
+                    <Animated.Text
+                      pointerEvents="none"
+                      style={[
+                        styles.modalPhotoSparkle2,
+                        {
+                          transform: [
+                            { translateX: sparkle2X },
+                            { translateY: sparkle2Y },
+                          ],
+                        },
+                      ]}
+                    >
+                      ✨
+                    </Animated.Text>
+                    <Animated.Text
+                      pointerEvents="none"
+                      style={[
+                        styles.modalPhotoSparkle3,
+                        {
+                          transform: [
+                            { translateX: sparkle3X },
+                            { translateY: sparkle3Y },
+                          ],
+                        },
+                      ]}
+                    >
+                      ✨
+                    </Animated.Text>
+                  </TouchableOpacity>
+                ) : (
+                  <>
+                  <Animated.View
+                    style={{
+                      transform: [{ scale: avatarBreath }],
+                    }}
+                  >
+                    {mainPhotoUrl ? (
+                      canSwipePhotos ? (
+                        <View style={styles.modalPhotoSwipeContainer}>
+                          <TouchableOpacity style={styles.modalPhotoSwipeSide} onPress={goPrevPhoto} activeOpacity={1} accessibilityLabel="Previous photo" />
+                          <TouchableOpacity
+                            style={styles.modalPhotoSwipeCenter}
+                            onPress={() => onPhotoPress?.(mainPhotoUrl)}
+                            activeOpacity={0.9}
+                          >
+                            <Image source={{ uri: mainPhotoUrl }} style={styles.modalPhoto} resizeMode="cover" />
+                          </TouchableOpacity>
+                          <TouchableOpacity style={styles.modalPhotoSwipeSide} onPress={goNextPhoto} activeOpacity={1} accessibilityLabel="Next photo" />
+                        </View>
+                      ) : onPhotoPress ? (
+                        <TouchableOpacity onPress={() => onPhotoPress(mainPhotoUrl)} activeOpacity={0.9}>
                           <Image source={{ uri: mainPhotoUrl }} style={styles.modalPhoto} resizeMode="cover" />
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.modalPhotoSwipeSide} onPress={goNextPhoto} activeOpacity={1} accessibilityLabel="Next photo" />
-                      </View>
-                    ) : onPhotoPress ? (
-                      <TouchableOpacity onPress={() => onPhotoPress(mainPhotoUrl)} activeOpacity={0.9}>
+                      ) : (
                         <Image source={{ uri: mainPhotoUrl }} style={styles.modalPhoto} resizeMode="cover" />
-                      </TouchableOpacity>
+                      )
                     ) : (
-                      <Image source={{ uri: mainPhotoUrl }} style={styles.modalPhoto} resizeMode="cover" />
-                    )
-                  ) : (
-                    <LinearGradient
-                      colors={['#667eea', '#764ba2', '#f093fb']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.modalPhotoPlaceholder}
-                    >
-                      <Text style={styles.modalPhotoPlaceholderText}>
-                        {otherUser.displayName.charAt(0).toUpperCase()}
-                      </Text>
-                    </LinearGradient>
+                      <LinearGradient
+                        colors={['#667eea', '#764ba2', '#f093fb']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.modalPhotoPlaceholder}
+                      >
+                        <Text style={styles.modalPhotoPlaceholderText}>
+                          {otherUser.displayName.charAt(0).toUpperCase()}
+                        </Text>
+                      </LinearGradient>
+                    )}
+                  </Animated.View>
+                  {/* Floating sparkles - only when not using wrapper touchable */}
+                  {(!onPhotoPress || canSwipePhotos) && (
+                    <>
+                      <Animated.Text
+                        pointerEvents="none"
+                        style={[
+                          styles.modalPhotoSparkle1,
+                          {
+                            transform: [
+                              { translateX: sparkle1X },
+                              { translateY: sparkle1Y },
+                            ],
+                          },
+                        ]}
+                      >
+                        ✨
+                      </Animated.Text>
+                      <Animated.Text
+                        pointerEvents="none"
+                        style={[
+                          styles.modalPhotoSparkle2,
+                          {
+                            transform: [
+                              { translateX: sparkle2X },
+                              { translateY: sparkle2Y },
+                            ],
+                          },
+                        ]}
+                      >
+                        ✨
+                      </Animated.Text>
+                      <Animated.Text
+                        pointerEvents="none"
+                        style={[
+                          styles.modalPhotoSparkle3,
+                          {
+                            transform: [
+                              { translateX: sparkle3X },
+                              { translateY: sparkle3Y },
+                            ],
+                          },
+                        ]}
+                      >
+                        ✨
+                      </Animated.Text>
+                    </>
                   )}
-                </Animated.View>
-                
-                {/* Floating sparkles - pointerEvents none so photo tap works */}
-                <Animated.Text
-                  pointerEvents="none"
-                  style={[
-                    styles.modalPhotoSparkle1,
-                    {
-                      transform: [
-                        { translateX: sparkle1X },
-                        { translateY: sparkle1Y },
-                      ],
-                    },
-                  ]}
-                >
-                  ✨
-                </Animated.Text>
-                <Animated.Text
-                  pointerEvents="none"
-                  style={[
-                    styles.modalPhotoSparkle2,
-                    {
-                      transform: [
-                        { translateX: sparkle2X },
-                        { translateY: sparkle2Y },
-                      ],
-                    },
-                  ]}
-                >
-                  ✨
-                </Animated.Text>
-                <Animated.Text
-                  pointerEvents="none"
-                  style={[
-                    styles.modalPhotoSparkle3,
-                    {
-                      transform: [
-                        { translateX: sparkle3X },
-                        { translateY: sparkle3Y },
-                      ],
-                    },
-                  ]}
-                >
-                  ✨
-                </Animated.Text>
+                  </>
+                )}
               </Animated.View>
             </View>
             
@@ -3217,14 +3294,7 @@ export default function MatchesScreen() {
               <Text style={styles.backButton}>← Back</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={() => {
-                const chatPhotoUrl = getMatchPhoto(selectedMatch);
-                if (chatPhotoUrl) {
-                  setFullScreenImageUrl(getPhotoUrl(chatPhotoUrl));
-                } else {
-                  setShowProfileModal(true);
-                }
-              }}
+              onPress={() => setShowProfileModal(true)}
               activeOpacity={0.8}
               style={styles.chatHeaderPhotoTouch}
             >
@@ -5376,6 +5446,12 @@ const styles = StyleSheet.create({
   modalPhotoSwipeCenter: {
     width: 200,
     height: 200,
+  },
+  modalPhotoTouchable: {
+    width: 200,
+    height: 200,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   modalPhotoPlaceholder: {
     width: 200,

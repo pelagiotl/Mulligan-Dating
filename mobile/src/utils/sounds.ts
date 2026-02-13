@@ -9,18 +9,19 @@ let messageSoundModule: any = null;
 // Try to load sound file at module load time
 // CRITICAL: Metro bundler requires static string literals in require() calls
 // Using variables will cause "Requiring unknown module 'undefined'" errors
-// MUST use direct string literals like require('../assets/match-sound.mp3')
+// MUST use direct string literals like require('../../assets/match-sound.mp3')
+// Path is relative to this file: src/utils/sounds.ts -> ../../assets = mobile/assets
 const isExpoGo = typeof Constants !== 'undefined' && Constants?.executionEnvironment === 'storeClient';
 
 // Only attempt to load if not in Expo Go (to avoid noisy errors in dev)
 if (!isExpoGo) {
-  // Load match sound
+  // Load match sound (match-sound.mp3 in mobile/assets/)
   try {
-    matchSoundModule = require('../assets/match-sound.mp3');
+    matchSoundModule = require('../../assets/match-sound.mp3');
     console.log('🎵 ✅ Match sound module loaded successfully (MP3)');
   } catch (mp3Error: any) {
     try {
-      matchSoundModule = require('../assets/match-sound.wav');
+      matchSoundModule = require('../../assets/match-sound.wav');
       console.log('🎵 ✅ Match sound module loaded successfully (WAV)');
     } catch (wavError: any) {
       matchSoundModule = null;
@@ -28,13 +29,13 @@ if (!isExpoGo) {
     }
   }
   
-  // Load message sound (message-sound.mp3 or message-sound.wav)
+  // Load message sound (message-sound.mp3 or message-sound.wav in mobile/assets/)
   try {
-    messageSoundModule = require('../assets/message-sound.mp3');
+    messageSoundModule = require('../../assets/message-sound.mp3');
     console.log('🎵 ✅ Message sound module loaded successfully (MP3)');
   } catch (mp3Error: any) {
     try {
-      messageSoundModule = require('../assets/message-sound.wav');
+      messageSoundModule = require('../../assets/message-sound.wav');
       console.log('🎵 ✅ Message sound module loaded successfully (WAV)');
     } catch (wavError: any) {
       messageSoundModule = null;

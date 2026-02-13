@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Modal, ScrollView, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Modal, ScrollView, Animated, Easing, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { usePaymentSheet } from '@stripe/stripe-react-native';
 import { api } from '../utils/api';
@@ -65,6 +67,227 @@ function AnimatedHourglass() {
     >
       <Text style={styles.refillEmoji}>⏳</Text>
     </Animated.View>
+  );
+}
+
+// Animated re-up celebration card (replaces native alert)
+function ReupCelebrationModal({
+  visible,
+  message,
+  onLetsGo,
+  onRequestClose,
+}: {
+  visible: boolean;
+  message: string;
+  onLetsGo: () => void;
+  onRequestClose: () => void;
+}) {
+  const scale = useRef(new Animated.Value(0)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+  const glowPulse = useRef(new Animated.Value(1)).current;
+  const sparkle1 = useRef(new Animated.Value(0)).current;
+  const sparkle2 = useRef(new Animated.Value(0)).current;
+  const sparkle3 = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!visible) {
+      scale.setValue(0);
+      opacity.setValue(0);
+      sparkle1.setValue(0);
+      sparkle2.setValue(0);
+      sparkle3.setValue(0);
+      return;
+    }
+    Animated.parallel([
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scale, {
+        toValue: 1,
+        friction: 6,
+        tension: 80,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    const sparkleDuration = 600;
+    const sparkleStagger = 150;
+    Animated.sequence([
+      Animated.delay(300),
+      Animated.parallel([
+        Animated.sequence([
+          Animated.timing(sparkle1, { toValue: 1, duration: sparkleDuration, useNativeDriver: true }),
+          Animated.timing(sparkle1, { toValue: 0, duration: 200, useNativeDriver: true }),
+        ]),
+        Animated.sequence([
+          Animated.delay(sparkleStagger),
+          Animated.timing(sparkle2, { toValue: 1, duration: sparkleDuration, useNativeDriver: true }),
+          Animated.timing(sparkle2, { toValue: 0, duration: 200, useNativeDriver: true }),
+        ]),
+        Animated.sequence([
+          Animated.delay(sparkleStagger * 2),
+          Animated.timing(sparkle3, { toValue: 1, duration: sparkleDuration, useNativeDriver: true }),
+          Animated.timing(sparkle3, { toValue: 0, duration: 200, useNativeDriver: true }),
+        ]),
+      ]),
+    ]).start();
+
+    const glowLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(glowPulse, { toValue: 1.15, duration: 800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(glowPulse, { toValue: 1, duration: 800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ])
+    );
+    glowLoop.start();
+    return () => glowLoop.stop();
+  }, [visible]);
+
+  const s1Opacity = sparkle1.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
+  const s1Scale = sparkle1.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1.2] });
+  const s2Opacity = sparkle2.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
+  const s2Scale = sparkle2.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1.2] });
+  const s3Opacity = sparkle3.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
+  const s3Scale = sparkle3.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1.2] });
+
+  if (!visible) return null;
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onRequestClose}>
+      <Animated.View style={[styles.reupOverlay, { opacity }]} pointerEvents="box-none">
+        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onRequestClose} />
+        <View style={styles.reupCardWrap} pointerEvents="box-none">
+          {/* Sparkles */}
+          <Animated.View style={[styles.reupSparkle, styles.reupSparkle1, { opacity: s1Opacity, transform: [{ scale: s1Scale }] }]} />
+          <Animated.View style={[styles.reupSparkle, styles.reupSparkle2, { opacity: s2Opacity, transform: [{ scale: s2Scale }] }]} />
+          <Animated.View style={[styles.reupSparkle, styles.reupSparkle3, { opacity: s3Opacity, transform: [{ scale: s3Scale }] }]} />
+
+          <Animated.View style={[styles.reupCardInner, { transform: [{ scale }] }]}>
+            <Animated.View style={{ transform: [{ scale: glowPulse }] }}>
+              <LinearGradient
+                colors={['#10b981', '#059669', '#047857', '#065f46']}
+                locations={[0, 0.35, 0.7, 1]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.reupCardGradient}
+              >
+                <Text style={styles.reupEmoji}>🎉</Text>
+                <Text style={styles.reupTitle}>You're Reupped!</Text>
+                <Text style={styles.reupMessage}>{message}</Text>
+                <TouchableOpacity
+                  style={styles.reupButtonWrap}
+                  onPress={() => {
+                    onLetsGo();
+                    onRequestClose();
+                  }}
+                  activeOpacity={0.9}
+                >
+                  <LinearGradient
+                    colors={['#fff', '#f0fdf4']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.reupButton}
+                  >
+                    <Text style={styles.reupButtonText}>Let's go! ✨</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </LinearGradient>
+            </Animated.View>
+          </Animated.View>
+        </View>
+      </Animated.View>
+    </Modal>
+  );
+}
+
+// Animated purchase success card
+function PurchaseSuccessModal({
+  visible,
+  tokensGranted,
+  onDismiss,
+}: {
+  visible: boolean;
+  tokensGranted: number;
+  onDismiss: () => void;
+}) {
+  const scale = useRef(new Animated.Value(0)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+  const glowPulse = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (!visible) {
+      scale.setValue(0);
+      opacity.setValue(0);
+      return;
+    }
+    Animated.parallel([
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scale, {
+        toValue: 1,
+        friction: 6,
+        tension: 80,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    const glowLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(glowPulse, { toValue: 1.12, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(glowPulse, { toValue: 1, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ])
+    );
+    glowLoop.start();
+    return () => glowLoop.stop();
+  }, [visible]);
+
+  if (!visible) return null;
+
+  const tokenText = tokensGranted === 1 ? '1 token' : `${tokensGranted} tokens`;
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onDismiss}>
+      <Animated.View style={[styles.reupOverlay, { opacity }]} pointerEvents="box-none">
+        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onDismiss} />
+        <View style={styles.reupCardWrap} pointerEvents="box-none">
+          <Animated.View style={[styles.reupCardInner, { transform: [{ scale }] }]}>
+            <Animated.View style={{ transform: [{ scale: glowPulse }] }}>
+              <LinearGradient
+                colors={['#10b981', '#059669', '#047857', '#065f46']}
+                locations={[0, 0.35, 0.7, 1]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.reupCardGradient}
+              >
+                <Text style={styles.reupEmoji}>🎟️</Text>
+                <Text style={styles.reupTitle}>Purchase complete!</Text>
+                <Text style={styles.reupMessage}>
+                  {tokenText} added to your account. You're ready to connect!
+                </Text>
+                <TouchableOpacity
+                  style={styles.reupButtonWrap}
+                  onPress={onDismiss}
+                  activeOpacity={0.9}
+                >
+                  <LinearGradient
+                    colors={['#fff', '#f0fdf4']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.reupButton}
+                  >
+                    <Text style={styles.reupButtonText}>Nice! ✨</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </LinearGradient>
+            </Animated.View>
+          </Animated.View>
+        </View>
+      </Animated.View>
+    </Modal>
   );
 }
 
@@ -179,6 +402,8 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
   const [packages, setPackages] = useState<TokenPackage[]>([]);
   const [loadingPackages, setLoadingPackages] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
+  const [reupCelebration, setReupCelebration] = useState<{ message: string; onSuccess?: () => void } | null>(null);
+  const [purchaseSuccess, setPurchaseSuccess] = useState<{ tokensGranted: number } | null>(null);
 
   const isFocused = useIsFocused();
 
@@ -213,7 +438,7 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
           api.clearCache('/tokens');
           await fetchTokens();
           const msg = opts?.successMessage ?? `Congrats! You've been officially reupped and are ready to start matching! 🎉`;
-          Alert.alert('🎉 Reupped!', msg, [{ text: 'Let\'s go!', onPress: () => opts?.onSuccess?.() }]);
+          setReupCelebration({ message: msg, onSuccess: opts?.onSuccess });
         } catch (err: any) {
           const errorMessage = err?.message || 'Failed to claim tokens. Please try again.';
           Alert.alert('Oops', errorMessage);
@@ -331,12 +556,11 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
         return;
       }
 
-      // Payment succeeded - webhook will grant tokens; refresh after short delay
+      // Payment succeeded - show success card, close purchase modal, refresh tokens
       setShowPurchaseModal(false);
-      setSuccess(`${paymentIntent.tokensToGrant} token${paymentIntent.tokensToGrant !== 1 ? 's' : ''} added!`);
-      setTimeout(() => setSuccess(''), 4000);
+      setPurchaseSuccess({ tokensGranted: paymentIntent.tokensToGrant });
       api.clearCache('/tokens');
-      setTimeout(() => fetchTokens(), 1500);
+      setTimeout(() => fetchTokens(), 800);
     } catch (err: any) {
       console.error('Purchase error:', err);
       const errorMessage = err?.message || 'Failed to process purchase. Please try again.';
@@ -555,6 +779,19 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
             </View>
           </Modal>
 
+          <ReupCelebrationModal
+            visible={!!reupCelebration}
+            message={reupCelebration?.message ?? ''}
+            onLetsGo={() => reupCelebration?.onSuccess?.()}
+            onRequestClose={() => setReupCelebration(null)}
+          />
+
+          <PurchaseSuccessModal
+            visible={!!purchaseSuccess}
+            tokensGranted={purchaseSuccess?.tokensGranted ?? 0}
+            onDismiss={() => setPurchaseSuccess(null)}
+          />
+
           {/* Purchase Modal - Also available in compact/premium mode */}
           <Modal
             visible={showPurchaseModal}
@@ -725,6 +962,12 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
           <Text style={styles.claimButtonText}>💳 Cop some more</Text>
         </TouchableOpacity>
       )}
+
+      <PurchaseSuccessModal
+        visible={!!purchaseSuccess}
+        tokensGranted={purchaseSuccess?.tokensGranted ?? 0}
+        onDismiss={() => setPurchaseSuccess(null)}
+      />
 
       {/* Purchase Modal */}
       <Modal
@@ -968,6 +1211,92 @@ const styles = StyleSheet.create({
     color: '#10b981',
     fontSize: 14,
     textAlign: 'center',
+  },
+  reupOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  reupCardWrap: {
+    width: '100%',
+    maxWidth: Math.min(SCREEN_WIDTH - 48, 340),
+    position: 'relative',
+  },
+  reupSparkle: {
+    position: 'absolute',
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    shadowColor: '#fff',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  reupSparkle1: { top: -8, left: -8 },
+  reupSparkle2: { top: -12, right: 20 },
+  reupSparkle3: { bottom: 40, right: -6 },
+  reupCardInner: {
+    borderRadius: 24,
+    overflow: 'hidden',
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.45,
+    shadowRadius: 24,
+    elevation: 16,
+  },
+  reupCardGradient: {
+    paddingVertical: 28,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.25)',
+  },
+  reupEmoji: {
+    fontSize: 52,
+    marginBottom: 8,
+  },
+  reupTitle: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#fff',
+    marginBottom: 12,
+    textShadowColor: 'rgba(0,0,0,0.2)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  reupMessage: {
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.95)',
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 24,
+    paddingHorizontal: 8,
+  },
+  reupButtonWrap: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  reupButton: {
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 16,
+    minWidth: 160,
+    alignItems: 'center',
+  },
+  reupButtonText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#047857',
   },
   claimButton: {
     backgroundColor: '#8B1538',
