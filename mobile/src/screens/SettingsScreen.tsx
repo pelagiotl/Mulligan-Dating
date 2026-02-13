@@ -66,7 +66,11 @@ export default function SettingsScreen() {
   const gradientPos = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    fetchSettings();
+    if (user) {
+      fetchSettings();
+    } else {
+      setLoading(false);
+    }
 
     // Header entrance animation
     Animated.parallel([
@@ -137,7 +141,7 @@ export default function SettingsScreen() {
         useNativeDriver: true,
       }).start();
     }
-  }, []);
+  }, [user]);
 
   const fetchSettings = async () => {
     try {

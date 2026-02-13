@@ -96,11 +96,9 @@ async function request<T = any>(endpoint: string, options: RequestInit & { body?
     headers['Content-Type'] = 'application/json';
   }
 
-  // Set Authorization header if we have a valid token
+  // Set Authorization header if we have a valid token (no warning when missing — expected when logged out)
   if (hasValidToken) {
     headers['Authorization'] = `Bearer ${token.trim()}`;
-  } else {
-    console.warn('⚠️ No valid token found in AsyncStorage for request to:', endpoint);
   }
 
   // Send push token on every request so backend can save it (fallback when POST /auth/push-token fails)
@@ -189,7 +187,10 @@ async function request<T = any>(endpoint: string, options: RequestInit & { body?
       // Suppress 404 / "no date plan" for date-plan endpoint (expected when no plan exists yet)
       const isDatePlan404 = (response.status === 404 || (errorMsgLower.includes('no date plan found'))) && endpoint.includes('/date-plan');
       
-      if (!isInformational && !isPushToken404 && !isDatePlan404) {
+      // 401 with no token is expected when not logged in — don't log as error
+      const isUnauthenticatedExpected = response.status === 401 && !token;
+      
+      if (!isInformational && !isPushToken404 && !isDatePlan404 && !isUnauthenticatedExpected) {
         console.error('❌ API request failed:', {
           endpoint,
           status: response.status,
@@ -197,7 +198,18 @@ async function request<T = any>(endpoint: string, options: RequestInit & { body?
           hasToken: !!token
         });
       }
-      if (response.status === 401) clearTokenCache();
+      // Clear stored token on auth errors so app can show login instead of repeated 403s
+      if (response.status === 401) {
+        clearTokenCache();
+        AsyncStorage.removeItem('token').catch(() => {});
+      }
+      if (response.status === 403) {
+        const msg = (errorMsg || '').toLowerCase();
+        if (msg.includes('token') && (msg.includes('invalid') || msg.includes('expired'))) {
+          clearTokenCache();
+          AsyncStorage.removeItem('token').catch(() => {});
+        }
+      }
       const apiError = new ApiError(response.status, errorMsg);
       // Preserve additional error data (like code, canClaimWeeklyToken, AT_MATCH_LIMIT fields) for error handling
       if (data.code) {
