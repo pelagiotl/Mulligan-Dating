@@ -1252,16 +1252,10 @@ const styles = StyleSheet.create({
   modalContent: {
     width: '95%',
     maxWidth: 500,
-    maxHeight: '95%',
-    backgroundColor: '#fff',
+    alignSelf: 'center',
+    backgroundColor: 'transparent',
     borderRadius: 20,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
-    elevation: 25,
-    minHeight: 200, // Ensure minimum height so it's visible
   },
   modalCloseButton: {
     position: 'absolute',
@@ -1290,10 +1284,10 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 14,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 12,
   },
   planTitle: {
     color: '#fff',

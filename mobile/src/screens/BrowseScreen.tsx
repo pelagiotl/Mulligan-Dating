@@ -19,7 +19,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { G, Path, Circle, Defs, LinearGradient as SvgLinearGradient, Stop, ClipPath } from 'react-native-svg';
 import { useNavigation, useFocusEffect, useIsFocused, CommonActions } from '@react-navigation/native';
 import { setPendingOpenMatchId, clearPendingOpenMatchId } from '../utils/pendingMatchOpen';
-import { initiatorMatchIdRef } from '../utils/currentMatchView';
+import { initiatorMatchIdRef, connectInitiatorAtRef } from '../utils/currentMatchView';
 import { navigationRef } from '../navigation/navigationRef';
 import { playMatchSound } from '../utils/sounds';
 import { io, Socket } from 'socket.io-client';
@@ -1472,6 +1472,7 @@ export default function BrowseScreen() {
     setError('');
     setConnecting(true);
     connectRequestedRef.current = true;
+    connectInitiatorAtRef.current = Date.now(); // Suppress "matched with you" push for initiator (celebration only)
     connectOverlayOpacity.setValue(1);
     connectSpinnerOpacity.setValue(1);
     connectTextOpacity.setValue(0);
@@ -1525,6 +1526,7 @@ export default function BrowseScreen() {
         setMatchId(null);
         matchIdFromConnectRef.current = null;
         initiatorMatchIdRef.current = null;
+        connectInitiatorAtRef.current = null;
         setMatchExplanation(null);
         setCurrentProfile(profile);
         setConnecting(false);
@@ -1593,6 +1595,7 @@ export default function BrowseScreen() {
     setMatchId(null);
     matchIdFromConnectRef.current = null;
     initiatorMatchIdRef.current = null;
+    connectInitiatorAtRef.current = null;
     setMatchExplanation(null);
     setIsAutoMatching(false);
     clearPendingOpenMatchId(); // Ensure no stale pending match when user chooses Keep Browsing
@@ -1859,7 +1862,7 @@ export default function BrowseScreen() {
               <Text style={styles.landingHint}>
                 {photoCount !== null && photoCount < MIN_PHOTOS_TO_CONNECT
                   ? `Add at least ${MIN_PHOTOS_TO_CONNECT} photos in Profile to Connect`
-                  : 'Use a token to see your match ❤️'}
+                  : 'Use a Mulligan 😉'}
               </Text>
             </View>
           </View>

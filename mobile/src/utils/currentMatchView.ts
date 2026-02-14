@@ -11,3 +11,9 @@ export const currentMatchIdRef: { current: string | null } = { current: null };
  * Cleared when the celebration is closed.
  */
 export const initiatorMatchIdRef: { current: string | null } = { current: null };
+
+/**
+ * Set when User A taps Connect (before API returns). Used to suppress the "matched with you" push
+ * if it arrives before we have matchId. Cleared after celebration or after 15s.
+ */
+export const connectInitiatorAtRef: { current: number | null } = { current: null };

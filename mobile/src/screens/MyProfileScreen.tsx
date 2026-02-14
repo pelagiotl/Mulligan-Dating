@@ -150,7 +150,7 @@ export default function MyProfileScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   const isFocused = useIsFocused();
-  const { refreshProfile, user } = useAuth();
+  const { refreshProfile, user, loading: authLoading } = useAuth();
   const [data, setData] = useState<ProfileData | null>(null);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [settings, setSettings] = useState<SettingsData | null>(null);
@@ -163,6 +163,7 @@ export default function MyProfileScreen() {
   const photoGalleryProgrammaticScrollRef = useRef(false);
   const scrollViewRef = useRef<ScrollView>(null);
   const photosSectionYRef = useRef<number>(0);
+  const profileCheckDoneRef = useRef(false);
   const [draggingPhotoId, setDraggingPhotoId] = useState<string | null>(null);
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
   const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
@@ -185,6 +186,9 @@ export default function MyProfileScreen() {
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   // Bump when photos change so the header avatar reloads (avoids stale image cache after upload/reorder/delete)
   const [avatarVersion, setAvatarVersion] = useState(0);
+  // Cached primary photo URL so avatar can show immediately when opening Profile tab (before fetchPhotos returns)
+  const [cachedPrimaryPhotoUrl, setCachedPrimaryPhotoUrl] = useState<string | null>(null);
+  const CACHED_PRIMARY_PHOTO_KEY = 'profile_primary_photo_url';
 
   /** Navigate to CreateProfile on the root stack. Defer so we don't throw during touch (avoids Error Boundary). */
   const navigateToCreateProfile = useCallback((params?: { startFromBeginning?: boolean; initialStep?: number }) => {
@@ -528,15 +532,16 @@ export default function MyProfileScreen() {
   }, [data, isFocused]);
 
   useEffect(() => {
-    // Only fetch data if user is authenticated
     if (user) {
+      profileCheckDoneRef.current = false;
       fetchProfile();
       fetchPhotos();
       fetchSettings();
     } else {
-      setLoading(false);
+      profileCheckDoneRef.current = false;
+      if (!authLoading) setLoading(false);
     }
-  }, [user]);
+  }, [user, authLoading]);
 
   // Refetch when Profile tab is focused — defer so tab switch paints immediately, then refetch in background
   useFocusEffect(
@@ -617,6 +622,15 @@ export default function MyProfileScreen() {
     }
   }, [settings]);
 
+  // Load cached primary photo URL on mount so avatar can show immediately when opening Profile tab
+  useEffect(() => {
+    let cancelled = false;
+    AsyncStorage.getItem(CACHED_PRIMARY_PHOTO_KEY).then((url) => {
+      if (!cancelled && url) setCachedPrimaryPhotoUrl(url);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
   const fetchPhotos = async () => {
     if (!user) return;
     try {
@@ -626,6 +640,16 @@ export default function MyProfileScreen() {
       setPhotos(nextPhotos);
       // Force header avatar to reload when photo list changes (e.g. after upload)
       setAvatarVersion((v) => v + 1);
+      // Persist primary photo URL so next time we open Profile tab the avatar can show immediately
+      const primary = nextPhotos.find((p) => p.isPrimary) || nextPhotos[0];
+      const primaryUrl = primary ? getPhotoUrl(primary.url) : null;
+      if (primaryUrl) {
+        AsyncStorage.setItem(CACHED_PRIMARY_PHOTO_KEY, primaryUrl);
+        setCachedPrimaryPhotoUrl(primaryUrl);
+      } else {
+        AsyncStorage.removeItem(CACHED_PRIMARY_PHOTO_KEY);
+        setCachedPrimaryPhotoUrl(null);
+      }
     } catch (err) {
       // Only log error if it's not an auth error
       if (err && typeof err === 'object' && 'message' in err && err.message !== 'Authentication required') {
@@ -660,6 +684,7 @@ export default function MyProfileScreen() {
         setError(errorMessage);
       }
     } finally {
+      profileCheckDoneRef.current = true;
       setLoading(false);
     }
   };
@@ -1142,7 +1167,8 @@ export default function MyProfileScreen() {
     return <View style={{ flex: 1 }} />;
   }
 
-  if (loading) {
+  const waitingForProfile = user && data == null && !profileCheckDoneRef.current;
+  if (loading || (authLoading && !data) || waitingForProfile) {
     return (
       <View style={styles.loadingContainer}>
         <LinearGradient
@@ -1192,6 +1218,8 @@ export default function MyProfileScreen() {
   // Don't fall back to profile.photo_url since that may be stale after deletion
   const primaryPhoto = photos.find(p => p.isPrimary) || photos[0];
   const profilePhotoUrl = primaryPhoto ? getPhotoUrl(primaryPhoto.url) : null;
+  // Use cached URL so avatar shows immediately when opening Profile tab (before fetchPhotos returns)
+  const displayPhotoUrl = profilePhotoUrl || cachedPrimaryPhotoUrl;
 
   return (
     <GestureHandlerRootView style={styles.wrapper}>
@@ -1227,7 +1255,7 @@ export default function MyProfileScreen() {
           style={styles.headerGradientInner}
         >
           <View style={styles.header}>
-            {profilePhotoUrl ? (
+            {displayPhotoUrl ? (
               <TouchableOpacity
                 activeOpacity={0.9}
                 onPress={() => {
@@ -1370,8 +1398,8 @@ export default function MyProfileScreen() {
                 />
                 
                 <Animated.Image
-                  key={`${profilePhotoUrl ?? 'no-photo'}-v${avatarVersion}`}
-                  source={{ uri: profilePhotoUrl ? `${profilePhotoUrl}${profilePhotoUrl.includes('?') ? '&' : '?'}v=${avatarVersion}` : undefined }}
+                  key={`${displayPhotoUrl ?? 'no-photo'}-v${avatarVersion}`}
+                  source={{ uri: profilePhotoUrl ? `${profilePhotoUrl}${profilePhotoUrl.includes('?') ? '&' : '?'}v=${avatarVersion}` : (cachedPrimaryPhotoUrl || undefined) }}
                   style={[
                     styles.avatar,
                     {

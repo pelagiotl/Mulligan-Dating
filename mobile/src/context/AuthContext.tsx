@@ -248,14 +248,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         );
       }
 
-      // New match: go straight to big MatchCelebration (no small alert)
+      // New match: go straight to big MatchCelebration (no small alert). Sound plays when MatchCelebration mounts.
       if (data?.type === 'new_match') {
         console.log('🎉 New match notification:', {
           matchId: data.matchId,
           matchName: data.matchName,
-        });
-        playMatchSound().catch(() => {
-          console.log('Match sound not available');
         });
         if (data?.matchId) {
           const attemptNavigation = (attemptNumber: number = 0) => {

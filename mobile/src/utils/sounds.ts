@@ -1,4 +1,5 @@
 import { Audio } from 'expo-av';
+import { InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
 import Constants from 'expo-constants';
 
 let matchSound: Audio.Sound | null = null;
@@ -89,8 +90,8 @@ export async function playMatchSound() {
       playsInSilentModeIOS: true, // CRITICAL: Allows sound to play in silent mode
       staysActiveInBackground: false,
       shouldDuckAndroid: true,
-      interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_MIX_WITH_OTHERS, // Mix with other audio
-      interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DO_NOT_MIX,
+      interruptionModeIOS: InterruptionModeIOS.MixWithOthers, // Mix with other audio
+      interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
       playThroughEarpieceAndroid: false, // Ensure sound plays through speaker
     });
     console.log('🎵 [SOUND] ✅ Audio mode set successfully');
@@ -270,8 +271,8 @@ export async function playMessageSound() {
       playsInSilentModeIOS: true,
       staysActiveInBackground: false,
       shouldDuckAndroid: true,
-      interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_MIX_WITH_OTHERS,
-      interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DO_NOT_MIX,
+      interruptionModeIOS: InterruptionModeIOS.MixWithOthers,
+      interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
       playThroughEarpieceAndroid: false,
     });
 

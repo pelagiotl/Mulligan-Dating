@@ -688,6 +688,12 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
                 {item.otherUser.displayName ?? ''}
               </Text>
               <Text style={styles.matchAge}>, {item.otherUser.age != null ? String(item.otherUser.age) : ''}</Text>
+              {item.unreadCount != null && item.unreadCount > 0 ? (
+                <View style={styles.unreadDot} />
+              ) : null}
+              {item.unreadCount != null && item.unreadCount > 0 ? (
+                <Text style={styles.unreadLabel} numberOfLines={1}>New</Text>
+              ) : null}
             </View>
             {renderMatchLocation(item.otherUser.location)}
             {formatLastActive(item.otherUser.lastActiveAt) ? (
@@ -1916,6 +1922,8 @@ export default function MatchesScreen() {
   const isFocused = useIsFocused();
   const insets = useSafeAreaInsets();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  // Compact chat header on small screens (e.g. iPhone SE 667pt) so more messages are visible
+  const isSmallScreen = windowHeight < 680;
   const [matches, setMatches] = useState<Match[]>([]);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -2542,14 +2550,14 @@ export default function MatchesScreen() {
     };
   }, [selectedMatch?.id, fetchMessages]);
 
-  // Poll for new messages when chat is open (fallback if socket misses an event)
+  // Poll for new messages when chat is open (fallback if socket misses an event). 15s interval to avoid rate limits (429).
   useEffect(() => {
     if (!selectedMatch || selectedMatch.stage === 'pending') return;
     const interval = setInterval(() => {
       if (selectedMatchRef.current?.id === selectedMatch.id) {
         fetchMessages(selectedMatch.id);
       }
-    }, 8000);
+    }, 15000);
     return () => clearInterval(interval);
   }, [selectedMatch?.id, selectedMatch?.stage, fetchMessages]);
 
@@ -2680,14 +2688,22 @@ export default function MatchesScreen() {
           setTimeout(() => fetchMessages(matchId, retryCount + 1), 400);
         }
       }
-    } catch (error) {
-      console.error('Failed to fetch messages:', error);
-      if (retryCount < maxRetries) {
-        setTimeout(() => fetchMessages(matchId, retryCount + 1), 600);
+    } catch (error: any) {
+      const isRateLimit = error?.status === 429;
+      if (isRateLimit && retryCount === 0) {
+        console.warn('⚠️ Rate limited (429) fetching messages — will retry after 10s');
+      } else {
+        console.error('Failed to fetch messages:', error);
+      }
+      // 429: back off longer and only retry once to avoid hammering the server
+      const retryDelay = isRateLimit ? 10000 : 600;
+      const allowedRetries = isRateLimit ? 1 : maxRetries;
+      if (retryCount < allowedRetries) {
+        setTimeout(() => fetchMessages(matchId, retryCount + 1), retryDelay);
         return;
       }
       // DON'T clear messages on error - keep existing messages visible
-      console.warn(`⚠️ Failed to fetch messages after ${maxRetries + 1} attempts, keeping existing messages`);
+      console.warn(`⚠️ Failed to fetch messages after ${retryCount + 1} attempts, keeping existing messages`);
       if (selectedMatchRef.current?.id === matchId) {
         lastFetchedMatchIdRef.current = matchId;
         setMessages((prev) => prev.length > 0 ? prev : []);
@@ -3278,11 +3294,16 @@ export default function MatchesScreen() {
         colors={['#667eea', '#764ba2', '#f093fb', '#f5576c']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={styles.chatHeaderGradient}
+        style={[
+          styles.chatHeaderGradient,
+          isSmallScreen && {
+            paddingTop: Platform.OS === 'ios' ? Math.max(insets.top, 12) + 4 : 12,
+          },
+        ]}
       >
-        <View style={styles.chatHeader}>
+        <View style={[styles.chatHeader, isSmallScreen && { padding: 10, paddingBottom: 8 }]}>
           {/* Top row: Back | Photo | Name */}
-          <View style={styles.chatHeaderTopRow}>
+          <View style={[styles.chatHeaderTopRow, isSmallScreen && { marginBottom: 6 }]}>
             <TouchableOpacity
               onPress={() => {
                 console.log('🔙 Back button TOUCHED');
@@ -3305,10 +3326,11 @@ export default function MatchesScreen() {
               {(() => {
                 const chatPhotoUrl = getMatchPhoto(selectedMatch);
                 const photoUri = chatPhotoUrl ? getPhotoUrl(chatPhotoUrl) : null;
+                const photoStyle = isSmallScreen ? { width: 46, height: 46, borderRadius: 23, borderWidth: 2 } : undefined;
                 return photoUri ? (
                   <Image
                     source={{ uri: photoUri }}
-                    style={styles.chatHeaderPhoto}
+                    style={[styles.chatHeaderPhoto, photoStyle]}
                     resizeMode="cover"
                   />
                 ) : (
@@ -3316,9 +3338,9 @@ export default function MatchesScreen() {
                     colors={['#667eea', '#764ba2', '#f093fb']}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
-                    style={styles.chatHeaderPhotoPlaceholder}
+                    style={[styles.chatHeaderPhotoPlaceholder, photoStyle]}
                   >
-                    <Text style={styles.chatHeaderPhotoPlaceholderText}>
+                    <Text style={[styles.chatHeaderPhotoPlaceholderText, isSmallScreen && { fontSize: 20 }]} numberOfLines={1}>
                       {selectedMatch.otherUser.displayName.charAt(0).toUpperCase()}
                     </Text>
                   </LinearGradient>
@@ -3330,12 +3352,12 @@ export default function MatchesScreen() {
               activeOpacity={0.8}
               style={styles.chatHeaderTitleTouch}
             >
-              <Text style={styles.chatHeaderTitle} numberOfLines={1} ellipsizeMode="tail">{selectedMatch.otherUser.displayName}</Text>
+              <Text style={[styles.chatHeaderTitle, isSmallScreen && { fontSize: 16 }]} numberOfLines={1} ellipsizeMode="tail">{selectedMatch.otherUser.displayName}</Text>
             </TouchableOpacity>
           </View>
           {/* Bottom row: pills + game icons */}
-          <View style={styles.chatHeaderBottomRow}>
-            <View style={styles.chatHeaderPillRow}>
+          <View style={[styles.chatHeaderBottomRow, isSmallScreen && { gap: 6 }]}>
+            <View style={[styles.chatHeaderPillRow, isSmallScreen && { gap: 6 }]}>
               <TouchableOpacity
                 activeOpacity={0.85}
                 onPress={() => setShowAgeCardModal(true)}
@@ -3605,8 +3627,7 @@ export default function MatchesScreen() {
           }}
           onPhotoPress={(url) => {
             fullScreenOpenedFromProfileCardRef.current = true;
-            setShowProfileModal(false);
-            setTimeout(() => setFullScreenImageUrl(url), 100);
+            setFullScreenImageUrl(url);
           }}
         />
       )}
@@ -3617,20 +3638,16 @@ export default function MatchesScreen() {
         transparent
         animationType="fade"
         onRequestClose={() => {
-          const fromProfileCard = fullScreenOpenedFromProfileCardRef.current;
           setFullScreenImageUrl(null);
           fullScreenOpenedFromProfileCardRef.current = false;
-          if (fromProfileCard) setShowProfileModal(true);
         }}
       >
         <TouchableOpacity
           activeOpacity={1}
           style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center' }}
           onPress={() => {
-            const fromProfileCard = fullScreenOpenedFromProfileCardRef.current;
             setFullScreenImageUrl(null);
             fullScreenOpenedFromProfileCardRef.current = false;
-            if (fromProfileCard) setShowProfileModal(true);
           }}
         >
           {fullScreenImageUrl ? (
@@ -4282,6 +4299,21 @@ const styles = StyleSheet.create({
   matchNameUnread: {
     fontWeight: '900',
   },
+  unreadDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#22c55e',
+    marginLeft: 6,
+    alignSelf: 'center',
+  },
+  unreadLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#22c55e',
+    marginLeft: 4,
+    letterSpacing: 0.2,
+  },
   matchAge: {
     fontSize: 17,
     color: '#666',
@@ -4480,9 +4512,9 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   chatHeaderPhoto: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     borderWidth: 2.5,
     borderColor: 'rgba(255, 255, 255, 0.3)',
     shadowColor: '#000',
@@ -4492,9 +4524,9 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   chatHeaderPhotoPlaceholder: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2.5,
@@ -4506,7 +4538,7 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   chatHeaderPhotoPlaceholderText: {
-    fontSize: 20,
+    fontSize: 24,
     color: '#fff',
     fontWeight: 'bold',
     textShadowColor: 'rgba(0, 0, 0, 0.3)',

@@ -201,7 +201,7 @@ export default function MatchCelebration({
     return () => clearTimeout(t);
   }, []);
 
-  // When revealed, run celebration (haptic, sound, animations)
+  // When revealed, run celebration (haptic, sound, animations) — sound plays when the match card opens
   useEffect(() => {
     if (!revealed) return;
 
@@ -212,7 +212,7 @@ export default function MatchCelebration({
       // Haptics not available (simulator, etc.)
     }
 
-    // Play match notification sound after a short delay so the modal is visible and the audio session is ready (helps on iOS)
+    // Play match sound when the match celebration card opens (after "Finding your curated match...")
     const soundDelay = setTimeout(() => {
       playMatchSound().catch((error) => {
         console.warn('🎵 [MatchCelebration] Sound playback failed:', error?.message || error);

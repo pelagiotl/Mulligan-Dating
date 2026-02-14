@@ -9,6 +9,7 @@ import Constants from 'expo-constants';
 import { api } from './api';
 import { safeNativeModuleCall } from './nativeModuleGuard';
 import { setStoredPushToken } from './pushTokenStore';
+import { initiatorMatchIdRef, connectInitiatorAtRef } from './currentMatchView';
 
 // Flag to track if notification handler has been initialized
 let notificationHandlerInitialized = false;
@@ -27,22 +28,25 @@ function initializeNotificationHandler() {
     async () => {
       try {
         Notifications.setNotificationHandler({
-      handleNotification: async () => {
+      handleNotification: async (notification) => {
         try {
+          const data = notification?.request?.content?.data as { type?: string; matchId?: string } | undefined;
+          // Don't show the "matched with you" banner for User A (initiator) — they only see the celebration card
+          const isInitiatorMatch = data?.type === 'new_match' && data?.matchId && (
+            initiatorMatchIdRef.current === data.matchId ||
+            (connectInitiatorAtRef.current && Date.now() - connectInitiatorAtRef.current < 15000)
+          );
+          if (isInitiatorMatch) {
+            return { shouldShowAlert: false, shouldPlaySound: false, shouldSetBadge: false };
+          }
           return {
             shouldShowAlert: true,
             shouldPlaySound: true,
             shouldSetBadge: true,
           };
         } catch (error) {
-          // Prevent errors in notification handler from crashing the app
           console.error('⚠️  Error in notification handler (non-critical):', error);
-          // Return safe defaults
-          return {
-            shouldShowAlert: true,
-            shouldPlaySound: false, // Disable sound if there's an error
-            shouldSetBadge: true,
-          };
+          return { shouldShowAlert: true, shouldPlaySound: false, shouldSetBadge: true };
         }
       },
     });
