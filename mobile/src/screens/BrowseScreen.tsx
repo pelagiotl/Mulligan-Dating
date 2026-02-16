@@ -17,7 +17,7 @@ import {
 import { TouchableOpacity as GestureTouchable } from 'react-native-gesture-handler';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { G, Path, Circle, Defs, LinearGradient as SvgLinearGradient, Stop, ClipPath } from 'react-native-svg';
-import { useNavigation, useFocusEffect, useIsFocused, CommonActions } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect, useIsFocused, CommonActions } from '@react-navigation/native';
 import { setPendingOpenMatchId, clearPendingOpenMatchId } from '../utils/pendingMatchOpen';
 import { initiatorMatchIdRef, connectInitiatorAtRef } from '../utils/currentMatchView';
 import { navigationRef } from '../navigation/navigationRef';
@@ -655,6 +655,7 @@ interface Profile {
 
 export default function BrowseScreen() {
   const navigation = useNavigation();
+  const route = useRoute();
   const isFocused = useIsFocused();
   const { profile: userProfile, user, isAuthenticated } = useAuth();
   const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
@@ -750,6 +751,9 @@ export default function BrowseScreen() {
   const titleScale = useRef(new Animated.Value(0.9)).current;
   const titleOpacity = useRef(new Animated.Value(0)).current;
   const titleTranslateY = useRef(new Animated.Value(20)).current;
+
+  // "Use a Mulligan" hint fade-in when landing page is shown
+  const landingHintOpacity = useRef(new Animated.Value(0)).current;
 
   // Claim banner animations (pulse + shimmer feel)
   const claimBannerPulse = useRef(new Animated.Value(1)).current;
@@ -1220,6 +1224,26 @@ export default function BrowseScreen() {
     }, [])
   );
 
+  // When navigated with resetToLanding (e.g. "Keep Browsing" from match celebration), show Connect landing page
+  useFocusEffect(
+    useCallback(() => {
+      const params = route.params as { resetToLanding?: boolean } | undefined;
+      if (!params?.resetToLanding) return;
+      setShowMatchCelebration(false);
+      setMatchedProfile(null);
+      setMatchId(null);
+      matchIdFromConnectRef.current = null;
+      initiatorMatchIdRef.current = null;
+      connectInitiatorAtRef.current = null;
+      setMatchExplanation(null);
+      setIsAutoMatching(false);
+      clearPendingOpenMatchId();
+      setBrowseUnlocked(false);
+      setCurrentProfile(null);
+      navigation.setParams({ resetToLanding: undefined });
+    }, [route.params, navigation])
+  );
+
   // Fetch user's photo count when on landing page (for 5-photo minimum to Connect)
   // Refetch when tab is focused so count updates after user adds photos on Profile tab
   useEffect(() => {
@@ -1317,6 +1341,13 @@ export default function BrowseScreen() {
         Animated.timing(titleTranslateY, { toValue: 0, duration: 800, useNativeDriver: true }),
       ]).start();
 
+      // "Use a Mulligan" hint: gentle fade-in after a short delay
+      landingHintOpacity.setValue(0);
+      Animated.sequence([
+        Animated.delay(350),
+        Animated.timing(landingHintOpacity, { toValue: 1, duration: 550, useNativeDriver: true }),
+      ]).start();
+
       buttonLoop = Animated.loop(
         Animated.sequence([
           Animated.timing(buttonPulse, { toValue: 1.05, duration: 1500, useNativeDriver: true }),
@@ -1339,12 +1370,13 @@ export default function BrowseScreen() {
       titleScale.setValue(0.9);
       titleOpacity.setValue(0);
       titleTranslateY.setValue(20);
+      landingHintOpacity.setValue(0);
     }
     return () => {
       buttonLoop?.stop();
       shimmerLoop?.stop();
     };
-  }, [showLandingPage, unlocking]);
+  }, [showLandingPage, unlocking, landingHintOpacity]);
 
   // Connect button pulse/shimmer: start on layout (view ready), stop when Connect button not shown
   const startConnectButtonAnimations = useCallback(() => {
@@ -1859,11 +1891,13 @@ export default function BrowseScreen() {
                 </TouchableOpacity>
               </Animated.View>
               
-              <Text style={styles.landingHint}>
-                {photoCount !== null && photoCount < MIN_PHOTOS_TO_CONNECT
-                  ? `Add at least ${MIN_PHOTOS_TO_CONNECT} photos in Profile to Connect`
-                  : 'Use a Mulligan 😉'}
-              </Text>
+              <Animated.View style={[styles.landingHintWrap, { opacity: landingHintOpacity }]}>
+                <Text style={styles.landingHint}>
+                  {photoCount !== null && photoCount < MIN_PHOTOS_TO_CONNECT
+                    ? `Add at least ${MIN_PHOTOS_TO_CONNECT} photos in Profile to Connect`
+                    : '⛳ Use a Mulligan'}
+                </Text>
+              </Animated.View>
             </View>
           </View>
         </View>
@@ -2866,13 +2900,18 @@ const styles = StyleSheet.create({
     opacity: 0.95,
     fontWeight: '500',
   },
+  landingHintWrap: {
+    alignSelf: 'center',
+    marginTop: 14,
+  },
   landingHint: {
     fontSize: 14,
-    color: '#000',
+    color: 'rgba(60, 50, 85, 0.95)',
     textAlign: 'center',
-    marginTop: 8,
-    fontWeight: '400',
+    fontWeight: '600',
+    letterSpacing: 0.6,
     lineHeight: 20,
+    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
   },
   // Keep old styles for backward compatibility
   lockedContainer: {

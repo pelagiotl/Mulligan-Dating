@@ -7,7 +7,7 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Platform, Text, View, StyleSheet, Alert, Vibration, Pressable } from 'react-native';
+import { Platform, Text, View, StyleSheet, Alert, Vibration, Pressable, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, NavigationContainerRef } from '@react-navigation/native';
 
@@ -28,7 +28,7 @@ import { navigationRef, RootStackParamList } from './navigationRef';
 // Types
 export type { RootStackParamList };
 export type MainTabParamList = {
-  Browse: undefined;
+  Browse: { resetToLanding?: boolean } | undefined;
   Matches: { matchId?: string } | undefined;
   MyProfile: { scrollToPhotos?: boolean } | undefined;
   Settings: undefined;
@@ -345,7 +345,7 @@ export default function AppNavigator() {
   const { user, profile, loading } = authContext;
   const [isNavigationReady, setIsNavigationReady] = React.useState(false);
 
-  // Track when navigation container is ready
+  // Track when navigation container is ready (must be called unconditionally — Rules of Hooks)
   const handleNavigationReady = React.useCallback(() => {
     setIsNavigationReady(true);
   }, []);
@@ -372,13 +372,38 @@ export default function AppNavigator() {
     }
   }, [loading, user, profile, isNavigationReady]);
 
+  // Show a light loading screen while checking auth — avoids black screen on simulator (after all hooks)
+  if (loading) {
+    return (
+      <View style={styles.loadingScreen}>
+        <ActivityIndicator size="large" color="#8B1538" />
+        <Text style={styles.loadingScreenText}>Loading…</Text>
+      </View>
+    );
+  }
+
   try {
     return (
-      <NavigationContainer ref={navigationRef} onReady={handleNavigationReady}>
+      <NavigationContainer
+        ref={navigationRef}
+        onReady={handleNavigationReady}
+        theme={{
+          dark: false,
+          colors: {
+            primary: '#8B1538',
+            background: '#f8f9ff',
+            card: '#ffffff',
+            text: '#1a1a2e',
+            border: '#e2e8f0',
+            notification: '#8B1538',
+          },
+        }}
+      >
         <Stack.Navigator
           initialRouteName="MainTabs"
           screenOptions={{
             headerShown: false,
+            contentStyle: { backgroundColor: '#f8f9ff' },
           }}
         >
           <Stack.Screen name="PhoneLogin" component={PhoneLoginScreen} />
@@ -402,6 +427,18 @@ export default function AppNavigator() {
 }
 
 const styles = StyleSheet.create({
+  loadingScreen: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f8f9ff',
+  },
+  loadingScreenText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#64748b',
+    fontWeight: '500',
+  },
   tabIcon: {
     fontSize: 20,
     textAlign: 'center',

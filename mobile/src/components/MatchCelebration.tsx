@@ -364,19 +364,20 @@ export default function MatchCelebration({
     }
   };
 
-  /** Navigate to Connect (Browse) tab and close the celebration — used by "Keep Browsing" */
+  /** Navigate to Connect (Browse) tab landing page and close the celebration — used by "Keep Browsing" */
   const handleKeepBrowsing = () => {
     try {
       onClose();
+      // Navigate to Connect tab and force landing page (so user doesn't land back on celebration or a profile)
       if (navigationRef.current?.isReady()) {
         navigationRef.current.dispatch(
           CommonActions.navigate({
             name: 'MainTabs',
-            params: { screen: 'Browse' },
+            params: { screen: 'Browse', params: { resetToLanding: true } },
           })
         );
       } else {
-        navigation.navigate('MainTabs' as never, { screen: 'Browse' } as never);
+        navigation.navigate('MainTabs' as never, { screen: 'Browse', params: { resetToLanding: true } } as never);
       }
     } catch (error) {
       console.error('❌ Error in handleKeepBrowsing:', error);
