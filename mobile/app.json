@@ -39,8 +39,10 @@
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.RECORD_AUDIO"
-      ]
+        "android.permission.RECORD_AUDIO",
+        "android.permission.POST_NOTIFICATIONS"
+      ],
+      "useNextNotificationsApi": true
     },
     "assetBundlePatterns": [
       "**/*",
@@ -78,7 +80,8 @@
         "expo-notifications",
         {
           "icon": "./assets/icon.png",
-          "color": "#ffffff"
+          "color": "#ffffff",
+          "defaultChannelId": "default"
         }
       ],
       [

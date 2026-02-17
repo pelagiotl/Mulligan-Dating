@@ -17,7 +17,7 @@ import * as Notifications from 'expo-notifications';
 import { navigationRef } from '../navigation/navigationRef';
 import { playMessageSound, playMatchSound } from '../utils/sounds';
 import { setPendingGameRequest } from '../utils/pendingGameRequest';
-import { currentMatchIdRef, initiatorMatchIdRef } from '../utils/currentMatchView';
+import { currentMatchIdRef } from '../utils/currentMatchView';
 
 export type MessageNotificationItem = { id: string; senderName: string; preview: string; matchId: string };
 /** @deprecated Use messageNotifications (array); kept for compatibility as first item or null */
@@ -33,6 +33,8 @@ interface AuthContextType {
   /** Single notification for backward compat; first in stack or null. */
   messageNotification: MessageNotification;
   clearMessageNotification: (id?: string) => void;
+  /** Register a callback to refresh the match list when new_match is received (e.g. from another tab). Call with null to unregister. */
+  registerMatchListRefresh: (callback: (() => void) | null) => void;
   phoneLogin: (phoneNumber: string, code: string) => Promise<{ hasProfile: boolean }>;
   logout: () => void;
   refreshProfile: () => Promise<void>;
@@ -53,6 +55,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const responseListener = useRef<any>(null);
   const messageNotificationSocketRef = useRef<Socket | null>(null);
   const lastMessageDedupeRef = useRef<{ matchId: string; at: number } | null>(null);
+  const onNewMatchRef = useRef<(() => void) | null>(null);
+
+  const registerMatchListRefresh = useCallback((callback: (() => void) | null) => {
+    onNewMatchRef.current = callback;
+  }, []);
 
   const clearMessageNotification = useCallback((id?: string) => {
     if (id) {
@@ -143,14 +150,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       });
 
-      socket.on('new_match', (data?: { matchId?: string }) => {
-        // Skip in-app match notification for User A (initiator): they already see the celebration card
-        if (data?.matchId && data.matchId === initiatorMatchIdRef.current) {
-          if (__DEV__) console.log('🎉 In-app match notification skipped: we are the initiator (celebration only)');
-          return;
-        }
-        playMatchSound().catch(() => {});
+      socket.on('new_match', () => {
+        // Do not play match sound here. It plays only when the "It's a match" card reveals in MatchCelebration
+        // (after "Finding your curated match..."). That way the sound never plays when the loading card opens.
         api.clearCache('/tokens');
+        api.clearCache('/matches');
+        // Refresh match list so User A sees the new match even when on another tab (MatchesScreen registers this callback)
+        onNewMatchRef.current?.();
       });
 
       socket.on('new_message', (data: { matchId?: string; senderId: string; senderName?: string; content?: string; id?: string }) => {
@@ -193,6 +199,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     };
   }, [user?.id, showMessageNotification]);
+
+  // Reconnect message notification socket when app comes to foreground (Android often drops socket in background)
+  useEffect(() => {
+    if (!user?.id) return;
+    const sub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      if (nextState !== 'active') return;
+      const socket = messageNotificationSocketRef.current;
+      if (socket && !socket.connected) {
+        if (__DEV__) console.log('🔄 AuthContext: Reconnecting message notification socket after app resume');
+        socket.connect();
+      }
+    });
+    return () => sub.remove();
+  }, [user?.id]);
 
   // Set up notification listeners for incoming push notifications
   useEffect(() => {
@@ -473,6 +493,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(t);
   }, [user?.id]);
 
+  // Android: third registration attempt at 15s (FCM can be slow to initialize on some devices)
+  useEffect(() => {
+    if (!user || Platform.OS !== 'android') return;
+    const t = setTimeout(() => {
+      registerForPushNotificationsAsync().catch(() => {});
+    }, 15000);
+    return () => clearTimeout(t);
+  }, [user?.id]);
+
   const checkAuth = async () => {
     try {
       // Wrap AsyncStorage in try-catch in case it fails to initialize
@@ -674,6 +703,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         messageNotifications,
         messageNotification,
         clearMessageNotification,
+        registerMatchListRefresh,
         phoneLogin,
         logout,
         refreshProfile,

@@ -8,6 +8,7 @@
 import 'react-native-gesture-handler';
 
 import React from 'react';
+import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StripeProvider } from '@stripe/stripe-react-native';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
@@ -190,8 +191,9 @@ export default function App() {
   }, []);
 
   return (
-    <SafeAreaProvider>
-      <StripeProvider
+    <View style={{ flex: 1, backgroundColor: '#f8f9ff' }}>
+      <SafeAreaProvider>
+        <StripeProvider
         publishableKey={STRIPE_PUBLISHABLE_KEY}
         merchantIdentifier="merchant.com.lukepelagiotomerlin.mulligan"
       >
@@ -202,6 +204,7 @@ export default function App() {
         </ErrorBoundary>
       </StripeProvider>
     </SafeAreaProvider>
+    </View>
   );
 }
 

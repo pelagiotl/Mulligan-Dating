@@ -884,9 +884,6 @@ function EmptyStateAnimated({ navigation }: { navigation: any }) {
       <Animated.Text style={[styles.emptyTitle, { opacity: fadeAnim }]}>
         No matches yet
       </Animated.Text>
-      <Animated.Text style={[styles.emptyText, { opacity: fadeAnim }]}>
-        Start browsing to find your perfect match!
-      </Animated.Text>
       <TouchableOpacity
         style={styles.browseButton}
         onPress={() => navigation.navigate('Browse' as never)}
@@ -1387,8 +1384,9 @@ function MatchProfileModal({
             </View>
             
             {/* Profile Photo with animated rings */}
-            <View style={styles.modalPhotoContainer}>
+            <View style={styles.modalPhotoContainer} pointerEvents="box-none">
               <Animated.View
+                pointerEvents="box-none"
                 style={[
                   styles.modalPhotoWrapper,
                   {
@@ -1552,16 +1550,17 @@ function MatchProfileModal({
                         <View style={styles.modalPhotoSwipeContainer}>
                           <TouchableOpacity style={styles.modalPhotoSwipeSide} onPress={goPrevPhoto} activeOpacity={1} accessibilityLabel="Previous photo" />
                           <TouchableOpacity
-                            style={styles.modalPhotoSwipeCenter}
+                            style={[styles.modalPhotoSwipeCenter, { zIndex: 10, elevation: 10 }]}
                             onPress={() => onPhotoPress?.(mainPhotoUrl)}
                             activeOpacity={0.9}
+                            accessibilityLabel="View full size photo"
                           >
                             <Image source={{ uri: mainPhotoUrl }} style={styles.modalPhoto} resizeMode="cover" />
                           </TouchableOpacity>
                           <TouchableOpacity style={styles.modalPhotoSwipeSide} onPress={goNextPhoto} activeOpacity={1} accessibilityLabel="Next photo" />
                         </View>
                       ) : onPhotoPress ? (
-                        <TouchableOpacity onPress={() => onPhotoPress(mainPhotoUrl)} activeOpacity={0.9}>
+                        <TouchableOpacity style={[styles.modalPhotoTouchable, { zIndex: 10, elevation: 10 }]} onPress={() => onPhotoPress(mainPhotoUrl)} activeOpacity={0.9} accessibilityLabel="View full size photo">
                           <Image source={{ uri: mainPhotoUrl }} style={styles.modalPhoto} resizeMode="cover" />
                         </TouchableOpacity>
                       ) : (
@@ -1916,7 +1915,7 @@ function renderMatchLocation(location: string | null | undefined) {
 }
 
 export default function MatchesScreen() {
-  const { user, isAuthenticated, loading: authLoading } = useAuth();
+  const { user, isAuthenticated, loading: authLoading, registerMatchListRefresh } = useAuth();
   const navigation = useNavigation();
   const route = useRoute();
   const isFocused = useIsFocused();
@@ -2448,6 +2447,16 @@ export default function MatchesScreen() {
           setSelectedMatch(prev => prev ? { ...prev, gameUnlocks: { ...(prev.gameUnlocks || { truth_or_dare: false, never_have_i_ever: false }), [gameKey]: true } } : null);
         }
       });
+
+      // Real-time: other user unmatched — remove match from list and close chat if open
+      socket.on('match_unmatched', (data: { matchId: string; unmatchedBy?: string }) => {
+        const { matchId } = data;
+        setMatches((prev) => prev.filter((m) => m.id !== matchId));
+        if (selectedMatchRef.current?.id === matchId) {
+          setSelectedMatch(null);
+          setMessages([]);
+        }
+      });
     };
 
     initSocket();
@@ -2653,6 +2662,12 @@ export default function MatchesScreen() {
     }
   }, [route.params]);
 
+  // When new_match is received (e.g. User B matched with User A while A is on Connect tab), refresh list via AuthContext socket
+  useEffect(() => {
+    registerMatchListRefresh(() => fetchMatches());
+    return () => registerMatchListRefresh(null);
+  }, [registerMatchListRefresh, fetchMatches]);
+
   // Auto-select match when matches load and we have pending or route param (e.g. celebration "Send message")
   // When matches refresh (e.g. after fetchMatches), re-set selectedMatch from fresh list so gameUnlocks is up to date
   useEffect(() => {
@@ -2689,7 +2704,25 @@ export default function MatchesScreen() {
         }
       }
     } catch (error: any) {
-      const isRateLimit = error?.status === 429;
+      const status = error?.status ?? error?.response?.status;
+      const message = error?.message ?? '';
+      const isMatchNotFound = status === 404 || /match not found|not yet mutual/i.test(message);
+
+      if (isMatchNotFound) {
+        // Match no longer exists or not mutual (e.g. other user unmatched, stale list). Don't retry.
+        if (selectedMatchRef.current?.id === matchId) {
+          lastFetchedMatchIdRef.current = null;
+          setMessages([]);
+          fetchMatches();
+          setSelectedMatch(null);
+        }
+        if (__DEV__) {
+          console.warn('⚠️ Match no longer available, returning to list:', matchId);
+        }
+        return;
+      }
+
+      const isRateLimit = status === 429;
       if (isRateLimit && retryCount === 0) {
         console.warn('⚠️ Rate limited (429) fetching messages — will retry after 10s');
       } else {
@@ -2709,7 +2742,7 @@ export default function MatchesScreen() {
         setMessages((prev) => prev.length > 0 ? prev : []);
       }
     }
-  }, []);
+  }, [fetchMatches]);
 
   const handleBack = useCallback(() => {
     console.log('🔙 handleBack called - clearing selected match');
@@ -3780,7 +3813,7 @@ export default function MatchesScreen() {
             opacity: chatFadeAnim,
             paddingBottom: effectiveKeyboardHeight > 0
               ? effectiveKeyboardHeight + 72
-              : (Platform.OS === 'ios' ? 56 + Math.round(insets.bottom * 0.5) : 56) + 72,
+              : (Platform.OS === 'ios' ? 56 + Math.round(insets.bottom * 0.5) : 56 + 56) + 72,
           },
         ]}
       >
@@ -3813,9 +3846,11 @@ export default function MatchesScreen() {
             styles.inputContainer,
             {
               position: 'absolute',
-              bottom: effectiveKeyboardHeight > 0 
-                ? effectiveKeyboardHeight 
-                : Platform.OS === 'ios' ? 56 + Math.round(insets.bottom * 0.5) : 56,
+              bottom: effectiveKeyboardHeight > 0
+                ? effectiveKeyboardHeight
+                : Platform.OS === 'ios'
+                  ? 56 + Math.round(insets.bottom * 0.5)
+                  : 56 + 56, // Android: extra offset so input sits above tab bar (tab bar has marginBottom + height)
               left: 0,
               right: 0,
               width: windowWidth,
@@ -5505,6 +5540,8 @@ const styles = StyleSheet.create({
     height: 200,
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 10,
+    elevation: 10,
   },
   modalPhotoPlaceholder: {
     width: 200,

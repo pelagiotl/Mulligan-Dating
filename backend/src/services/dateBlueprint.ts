@@ -293,11 +293,12 @@ Generate a creative, engaging first date plan that:
 - Is specific and actionable
 - Has a short, catchy title that is NOT the same idea as the recent plans listed above
 - If a specific venue was provided above, the description MUST describe the date at THAT venue only — do not mention or suggest any other business or place name.
+- Description must be CONCISE: 1–2 short sentences max. No long paragraphs. Punchy and scannable.
 
 Return ONLY a JSON object with this exact format:
 {
   "title": "short catchy title",
-  "description": "detailed description of the date plan",
+  "description": "1–2 sentence concise summary of the date (what you do, where; no fluff)",
   "conversationTopics": ["topic 1", "topic 2", "topic 3"],
   "budgetRange": "low|medium|high"
 }`;
@@ -307,7 +308,7 @@ Return ONLY a JSON object with this exact format:
         messages: [
           {
             role: 'system',
-            content: 'You are a creative assistant that creates unique, fun, safe first date plans for dating apps. Each plan should be different and memorable.',
+            content: 'You are a creative assistant that creates unique, fun, safe first date plans for dating apps. Each plan should be different and memorable. Keep descriptions brief and punchy—one or two sentences only. No long paragraphs.',
           },
           {
             role: 'user',
@@ -324,7 +325,10 @@ Return ONLY a JSON object with this exact format:
         if (jsonMatch) {
           const parsed = JSON.parse(jsonMatch[0]);
           planTitle = parsed.title || planTitle;
-          planDescription = parsed.description || planDescription;
+          let desc = typeof parsed.description === 'string' ? parsed.description : planDescription;
+          // Keep description concise: at most 2 sentences
+          const sentences = desc.split(/(?<=[.!?])\s+/).filter(Boolean);
+          planDescription = sentences.length > 2 ? sentences.slice(0, 2).join(' ').trim() : desc;
           conversationTopics = parsed.conversationTopics || [];
           budgetRange = parsed.budgetRange || 'medium';
         }

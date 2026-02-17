@@ -279,11 +279,14 @@ export default function Admin() {
   return (
     <div className="admin-page">
       <div className="admin-header">
-        <h1>🔐 Admin Dashboard</h1>
+        <div>
+          <h1>Admin Dashboard</h1>
+          <p className="admin-subtitle">User & moderation control</p>
+        </div>
         {message && (
           <div className={`admin-message admin-message-${message.type}`}>
             {message.text}
-            <button onClick={() => setMessage(null)}>×</button>
+            <button onClick={() => setMessage(null)} aria-label="Dismiss">×</button>
           </div>
         )}
       </div>
@@ -291,30 +294,35 @@ export default function Admin() {
       {stats && (
         <div className="admin-stats">
           <div className="stat-card">
+            <div className="stat-icon" aria-hidden>👥</div>
             <div className="stat-value">{stats.totalUsers}</div>
             <div className="stat-label">Total Users</div>
           </div>
           <div className="stat-card">
+            <div className="stat-icon" aria-hidden>📋</div>
             <div className="stat-value">{stats.totalProfiles}</div>
             <div className="stat-label">Profiles</div>
           </div>
           <div className="stat-card">
+            <div className="stat-icon" aria-hidden>💕</div>
             <div className="stat-value">{stats.totalMatches}</div>
             <div className="stat-label">Active Matches</div>
           </div>
           <div className="stat-card">
+            <div className="stat-icon" aria-hidden>🚫</div>
             <div className="stat-value">{stats.restrictedUsers}</div>
-            <div className="stat-label">Restricted Users</div>
+            <div className="stat-label">Restricted</div>
           </div>
           <div className="stat-card">
+            <div className="stat-icon" aria-hidden>✨</div>
             <div className="stat-value">{stats.activeUsers}</div>
-            <div className="stat-label">Active (7 days)</div>
+            <div className="stat-label">Active (7d)</div>
           </div>
         </div>
       )}
 
-      <div className="admin-actions-section" style={{ marginBottom: 'var(--space-4)', padding: 'var(--space-4)', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-lg)' }}>
-        <h2 style={{ marginTop: 0, marginBottom: 'var(--space-3)' }}>Bulk Actions</h2>
+      <div className="admin-actions-section">
+        <h2>Bulk Actions</h2>
         <button
           className="btn btn-danger"
           onClick={async () => {
@@ -368,7 +376,7 @@ export default function Admin() {
         >
           {actionLoading === 'delete-test-users' ? 'Deleting...' : '🗑️ Delete All Test Users'}
         </button>
-        <p style={{ marginTop: 'var(--space-2)', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
+        <p className="admin-actions-note">
           This will delete all users with test email patterns (test@, newtest@, testing@, etc.) and all their associated data.
         </p>
       </div>

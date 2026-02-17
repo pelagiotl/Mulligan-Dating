@@ -770,8 +770,9 @@ export default function PhoneLoginScreen() {
         >
           <ScrollView 
             contentContainerStyle={styles.scrollContent}
-            removeClippedSubviews={true}
-            keyboardShouldPersistTaps="handled"
+            removeClippedSubviews={false}
+            keyboardShouldPersistTaps="always"
+            keyboardDismissMode="on-drag"
           >
           <View style={styles.header}>
             <AnimatedLogo />
@@ -808,8 +809,9 @@ export default function PhoneLoginScreen() {
       >
         <ScrollView 
           contentContainerStyle={styles.scrollContent}
-          removeClippedSubviews={true}
-          keyboardShouldPersistTaps="handled"
+          removeClippedSubviews={false}
+          keyboardShouldPersistTaps="always"
+          keyboardDismissMode="on-drag"
         >
         <View style={styles.header}>
           <AnimatedLogo />

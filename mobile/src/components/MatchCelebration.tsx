@@ -171,7 +171,7 @@ export default function MatchCelebration({
   const [showConfetti, setShowConfetti] = useState(false);
   const [showButton, setShowButton] = useState(false);
   const [confettiParticles] = useState<ConfettiParticle[]>(() => {
-    const colors = ['#f43f5e', '#fb7185', '#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe', '#ff6b9d', '#c084fc', '#a855f7', '#ec4899', '#f472b6'];
+    const colors = ['#667eea', '#764ba2', '#a855f7', '#c026d3', '#ec4899', '#f472b6'];
     return Array.from({ length: 80 }, (_, i) => ({
       id: i,
       left: Math.random() * 100,
@@ -188,7 +188,6 @@ export default function MatchCelebration({
   const word3Anim = useRef(new Animated.Value(0)).current;
   const ring1Anim = useRef(new Animated.Value(0)).current;
   const ring2Anim = useRef(new Animated.Value(0)).current;
-  const ring3Anim = useRef(new Animated.Value(0)).current;
   const photoScaleAnim = useRef(new Animated.Value(0)).current;
   const photoPulseAnim = useRef(new Animated.Value(1)).current;
   const heartBeatAnim = useRef(new Animated.Value(1)).current;
@@ -297,7 +296,6 @@ export default function MatchCelebration({
     Animated.parallel([
       Animated.timing(ring1Anim, { toValue: 1, duration: 2000, useNativeDriver: true }),
       Animated.timing(ring2Anim, { toValue: 1, duration: 2000, delay: 200, useNativeDriver: true }),
-      Animated.timing(ring3Anim, { toValue: 1, duration: 2000, delay: 400, useNativeDriver: true }),
     ]).start();
     Animated.spring(scaleAnim, {
       toValue: 1,
@@ -387,32 +385,22 @@ export default function MatchCelebration({
 
   const ring1Scale = ring1Anim.interpolate({
     inputRange: [0, 1],
-    outputRange: [1, 1.5],
+    outputRange: [1, 1.55],
   });
 
   const ring1Opacity = ring1Anim.interpolate({
     inputRange: [0, 0.5, 1],
-    outputRange: [0.8, 0.4, 0],
+    outputRange: [0.45, 0.2, 0],
   });
 
   const ring2Scale = ring2Anim.interpolate({
     inputRange: [0, 1],
-    outputRange: [1, 1.7],
+    outputRange: [1, 1.75],
   });
 
   const ring2Opacity = ring2Anim.interpolate({
     inputRange: [0, 0.5, 1],
-    outputRange: [0.6, 0.3, 0],
-  });
-
-  const ring3Scale = ring3Anim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1, 1.9],
-  });
-
-  const ring3Opacity = ring3Anim.interpolate({
-    inputRange: [0, 0.5, 1],
-    outputRange: [0.4, 0.2, 0],
+    outputRange: [0.3, 0.12, 0],
   });
 
   const word1TranslateY = word1Anim.interpolate({
@@ -444,10 +432,10 @@ export default function MatchCelebration({
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
-        {/* Beautiful gradient background */}
+        {/* Gradient: app purple → violet → magenta (focused palette) */}
         <LinearGradient
-          colors={['#667eea', '#764ba2', '#ff0080', '#f5576c', '#4facfe']}
-          locations={[0, 0.25, 0.5, 0.75, 1]}
+          colors={['#667eea', '#764ba2', '#c026d3']}
+          locations={[0, 0.5, 1]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={StyleSheet.absoluteFill}
@@ -478,8 +466,8 @@ export default function MatchCelebration({
                 { scale: scaleAnim },
               ],
               opacity: opacityAnim,
-              shadowOpacity: 0.5,
-              shadowRadius: 25,
+              shadowOpacity: 0.45,
+              shadowRadius: 28,
             },
           ]}
         >
@@ -502,16 +490,6 @@ export default function MatchCelebration({
                 {
                   transform: [{ scale: ring2Scale }],
                   opacity: ring2Opacity,
-                },
-              ]}
-            />
-            <Animated.View
-              style={[
-                styles.photoRing,
-                styles.ring3,
-                {
-                  transform: [{ scale: ring3Scale }],
-                  opacity: ring3Opacity,
                 },
               ]}
             />
@@ -588,7 +566,7 @@ export default function MatchCelebration({
 
             <View style={styles.subtitleContainer}>
               <Text style={styles.subtitle}>
-                You and <Text style={styles.bold}>{profileName}</Text> liked each other
+                You and <Text style={styles.bold}>{profileName}</Text> connected
               </Text>
             </View>
             
@@ -605,10 +583,6 @@ export default function MatchCelebration({
               </View>
             )}
             
-            <View style={styles.messageContainer}>
-              <Text style={styles.message}>Start chatting now! 💬</Text>
-            </View>
-
             {showButton && (
               <Animated.View
                 style={{
@@ -626,13 +600,16 @@ export default function MatchCelebration({
                     activeOpacity={0.8}
                   >
                     <LinearGradient
-                      colors={['#ff0080', '#ff3399', '#cc0066', '#ff66b2']}
-                      locations={[0, 0.3, 0.7, 1]}
+                      colors={['#c026d3', '#d946ef', '#ec4899']}
+                      locations={[0, 0.4, 1]}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                       style={styles.buttonGradient}
                     >
-                      <Text style={styles.buttonText}>Send a Message 💌</Text>
+                      <View style={styles.buttonContent}>
+                        <Text style={styles.buttonText}>Send a Message</Text>
+                        <Text style={styles.buttonEmoji}> 💌</Text>
+                      </View>
                     </LinearGradient>
                   </TouchableOpacity>
                 </Animated.View>
@@ -643,7 +620,7 @@ export default function MatchCelebration({
                   onPress={handleKeepBrowsing}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.secondaryButtonText}>Keep Browsing 💫</Text>
+                  <Text style={styles.secondaryButtonText}>Keep Browsing</Text>
                 </TouchableOpacity>
               </Animated.View>
             )}
@@ -943,7 +920,7 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#f5576c',
+    backgroundColor: '#c026d3',
   },
   loadingSubtext: {
     fontSize: 15,
@@ -977,11 +954,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     maxWidth: '90%',
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.8)',
-    shadowColor: '#f5576c',
-    shadowOffset: { width: 0, height: 16 },
-    shadowOpacity: 0.5,
-    shadowRadius: 32,
+    borderColor: 'rgba(255,255,255,0.92)',
+    shadowColor: '#764ba2',
+    shadowOffset: { width: 0, height: 18 },
+    shadowOpacity: 0.4,
+    shadowRadius: 28,
     elevation: 24,
   },
   photoContainer: {
@@ -993,13 +970,13 @@ const styles = StyleSheet.create({
   photoRing: {
     position: 'absolute',
     borderRadius: 100,
-    borderWidth: 4,
-    borderColor: '#ff8fab',
-    shadowColor: '#ff8fab',
+    borderWidth: 3,
+    borderColor: 'rgba(196, 38, 211, 0.5)',
+    shadowColor: 'rgba(196, 38, 211, 0.35)',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.6,
-    shadowRadius: 12,
-    elevation: 10,
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 8,
   },
   ring1: {
     width: 140,
@@ -1007,14 +984,9 @@ const styles = StyleSheet.create({
     borderRadius: 70,
   },
   ring2: {
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-  },
-  ring3: {
-    width: 180,
-    height: 180,
-    borderRadius: 90,
+    width: 168,
+    height: 168,
+    borderRadius: 84,
   },
   photoWrapper: {
     width: 130,
@@ -1024,10 +996,10 @@ const styles = StyleSheet.create({
     borderWidth: 5,
     borderColor: '#fff',
     zIndex: 10,
-    shadowColor: '#ff0080',
+    shadowColor: '#764ba2',
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
+    shadowOpacity: 0.35,
+    shadowRadius: 18,
     elevation: 14,
   },
   photo: {
@@ -1037,7 +1009,7 @@ const styles = StyleSheet.create({
   photoPlaceholder: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#ff0080',
+    backgroundColor: '#c026d3',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1065,9 +1037,9 @@ const styles = StyleSheet.create({
     textShadowRadius: 4,
   },
   titleWordMatch: {
-    color: '#ff0080',
+    color: '#c026d3',
     fontSize: 48,
-    textShadowColor: 'rgba(255, 0, 128, 0.5)',
+    textShadowColor: 'rgba(196, 38, 211, 0.4)',
     textShadowOffset: { width: 0, height: 4 },
     textShadowRadius: 10,
   },
@@ -1084,34 +1056,23 @@ const styles = StyleSheet.create({
   },
   bold: {
     fontWeight: '800',
-    color: '#ff0080',
+    color: '#c026d3',
     fontSize: 22,
   },
-  messageContainer: {
-    marginBottom: 24,
-    paddingHorizontal: 20,
-  },
-  message: {
-    fontSize: 18,
-    color: '#ff0080',
-    textAlign: 'center',
-    fontWeight: '700',
-    letterSpacing: 0.2,
-  },
   explanationContainer: {
-    backgroundColor: 'rgba(255, 0, 128, 0.06)',
+    backgroundColor: 'rgba(196, 38, 211, 0.06)',
     borderRadius: 16,
     padding: 18,
     marginVertical: 16,
     marginHorizontal: 8,
     borderWidth: 1,
-    borderColor: 'rgba(255, 0, 128, 0.2)',
+    borderColor: 'rgba(196, 38, 211, 0.18)',
     maxWidth: '90%',
   },
   explanationTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#ff0080',
+    color: '#c026d3',
     marginBottom: 12,
     textAlign: 'center',
   },
@@ -1135,15 +1096,20 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     marginTop: 8,
     overflow: 'hidden',
-    shadowColor: '#ff0080',
+    shadowColor: '#764ba2',
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
+    shadowOpacity: 0.4,
+    shadowRadius: 18,
     elevation: 14,
   },
   buttonGradient: {
     paddingHorizontal: 44,
     paddingVertical: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonContent: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1156,6 +1122,11 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
   },
+  buttonEmoji: {
+    fontSize: 20,
+    lineHeight: 24,
+    includeFontPadding: false,
+  },
   secondaryButton: {
     marginTop: 16,
     paddingVertical: 14,
@@ -1163,17 +1134,17 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderWidth: 2,
-    borderColor: '#ff0080',
+    borderColor: '#c026d3',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#ff0080',
+    shadowColor: '#764ba2',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.18,
     shadowRadius: 8,
     elevation: 4,
   },
   secondaryButtonText: {
-    color: '#ff0080',
+    color: '#c026d3',
     fontSize: 17,
     fontWeight: '700',
     letterSpacing: 0.3,
@@ -1210,7 +1181,7 @@ const styles = StyleSheet.create({
   },
   heartEmoji: {
     fontSize: 32,
-    textShadowColor: 'rgba(245, 87, 108, 0.5)',
+    textShadowColor: 'rgba(196, 38, 211, 0.5)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
   },

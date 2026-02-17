@@ -71,7 +71,8 @@ To get **system** message notifications when the app is in the background or clo
 
 2. **Recipient device**  
    - Use a **real device** (e.g. TestFlight or EAS dev build). Push when the app is killed often does **not** work in the iOS Simulator or in Expo Go.  
-   - Open the app at least once after login and **allow notifications** so the push token is saved.
+   - Open the app at least once after login and **allow notifications** so the push token is saved.  
+   - **Android:** The app requests notification permission (Android 13+) and uses the `default` channel. If push still doesn’t appear, create a new **EAS/development build** (not Expo Go) so the native `POST_NOTIFICATIONS` and channel config are applied.
 
 3. **Verify in Render logs**  
    Message push uses the **same** pipeline as match and date-plan notifications (same token, same Expo config). When someone sends a chat message, look for:  
@@ -82,8 +83,14 @@ To get **system** message notifications when the app is in the background or clo
    - If you see `EXPO_ACCESS_TOKEN=NOT SET` → set the token on Render and redeploy.
 
 4. **If the recipient has a real build and allowed notifications but still has no token**  
-   - The app now retries push registration at 1.5s and 5s after load (and when they background/foreground). Have them fully close the app, open it again, and wait ~10 seconds; then check Render logs for `POST /auth/push-token: user=<recipient-id> hasToken=true` and `✅ Push token saved for user …`.  
+   - The app now retries push registration at 1.5s, 5s, and (on Android) 15s after load, plus when they background/foreground. Have them fully close the app, open it again, and wait ~15 seconds; then check Render logs for `POST /auth/push-token: user=<recipient-id> hasToken=true` and `✅ Push token saved for user …`.  
    - You can also confirm whether the backend has a token for a user: `GET /auth/me` returns `user.hasPushToken: true/false`. If the recipient logs in and still sees `hasPushToken: false`, the client never successfully sent the token (check device logs for "Push: No projectId" or "Push token save failed").
+
+5. **Android outside-app notifications not showing**  
+   - **Backend:** Ensure `EXPO_ACCESS_TOKEN` is set in the Render environment (required for Expo to deliver to FCM). Redeploy after setting.  
+   - **Device:** Use an **EAS or production build** (not Expo Go). Ensure the user has **allowed notifications** when prompted.  
+   - **Timing:** On Android, FCM can take a few seconds to initialize. The app delays token request by ~800ms and retries once after 2s, and tries again at 15s. Have the user open the app, allow notifications, and leave it open for ~15 seconds so the token is saved.  
+   - **Verify:** In Render logs when a message is sent, look for `📲 Push (message): recipient=… hasToken=true validFormat=true EXPO_ACCESS_TOKEN=set`. If `hasToken=false`, the recipient’s device has not saved a token yet (see step 4).
 
 ### Project Structure
 

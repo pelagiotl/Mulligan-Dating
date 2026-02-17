@@ -513,6 +513,18 @@ export async function initDatabase() {
     // Column already exists, ignore
   }
 
+  // Push notification preferences (1 = enabled, 0 = disabled; default on)
+  try {
+    await execSQL(`ALTER TABLE users ADD COLUMN push_notify_matches ${usePostgres ? 'INT DEFAULT 1' : 'INTEGER DEFAULT 1'}`);
+  } catch (e) {
+    // Column already exists, ignore
+  }
+  try {
+    await execSQL(`ALTER TABLE users ADD COLUMN push_notify_messages ${usePostgres ? 'INT DEFAULT 1' : 'INTEGER DEFAULT 1'}`);
+  } catch (e) {
+    // Column already exists, ignore
+  }
+
   // Payments table - tracks token purchases via Stripe
   await execSQL(`
     CREATE TABLE IF NOT EXISTS payments (

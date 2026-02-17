@@ -12,6 +12,7 @@ export type RootStackParamList = {
   MainTabs: undefined;
   Terms: undefined;
   Privacy: undefined;
+  PushNotificationSettings: undefined;
 };
 
 // Create ref object directly (not using useRef hook since this is module-level)

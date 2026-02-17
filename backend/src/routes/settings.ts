@@ -217,3 +217,49 @@ settingsRouter.put("/active-status", authenticateToken, async (req: AuthRequest,
   }
 });
 
+// Push notification preferences
+const notificationPrefsSchema = z.object({
+  pushNotifyMatches: z.boolean(),
+  pushNotifyMessages: z.boolean(),
+});
+
+settingsRouter.get("/notification-preferences", authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const row = await (db
+      .prepare("SELECT push_notify_matches, push_notify_messages FROM users WHERE id = ?")
+      .get(userId) as Promise<{ push_notify_matches: number | null; push_notify_messages: number | null } | undefined>);
+    if (!row) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    res.json({
+      pushNotifyMatches: row.push_notify_matches === undefined || row.push_notify_matches === null ? true : !!row.push_notify_matches,
+      pushNotifyMessages: row.push_notify_messages === undefined || row.push_notify_messages === null ? true : !!row.push_notify_messages,
+    });
+  } catch (error) {
+    console.error("Get notification preferences error:", error);
+    res.status(500).json({ error: "Failed to load notification preferences" });
+  }
+});
+
+settingsRouter.put("/notification-preferences", authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { pushNotifyMatches, pushNotifyMessages } = notificationPrefsSchema.parse(req.body);
+    await (db
+      .prepare("UPDATE users SET push_notify_matches = ?, push_notify_messages = ? WHERE id = ?")
+      .run([pushNotifyMatches ? 1 : 0, pushNotifyMessages ? 1 : 0, userId]) as Promise<any>);
+    res.json({
+      message: "Notification preferences updated",
+      pushNotifyMatches,
+      pushNotifyMessages,
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors[0].message });
+    }
+    console.error("Update notification preferences error:", error);
+    res.status(500).json({ error: "Failed to update notification preferences" });
+  }
+});
+

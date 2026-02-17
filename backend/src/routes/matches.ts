@@ -700,31 +700,27 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
         }
 
         const { sendMatchPushNotification } = await import('../services/pushNotifications.js');
-        const userPushTokenResult = db
-          .prepare("SELECT push_token FROM users WHERE id = ?")
-          .get([userId]);
-        const userPushToken = (userPushTokenResult instanceof Promise
-          ? await userPushTokenResult
-          : userPushTokenResult) as { push_token: string | null } | undefined;
-        const targetPushTokenResult = db
-          .prepare("SELECT push_token FROM users WHERE id = ?")
-          .get([targetUserId]);
-        const targetPushToken = (targetPushTokenResult instanceof Promise
-          ? await targetPushTokenResult
-          : targetPushTokenResult) as { push_token: string | null } | undefined;
+        const userPushRow = (await (db
+          .prepare("SELECT push_token, push_notify_matches FROM users WHERE id = ?")
+          .get([userId]) as Promise<{ push_token: string | null; push_notify_matches: number | null } | undefined>)) as { push_token: string | null; push_notify_matches: number | null } | undefined;
+        const targetPushRow = (await (db
+          .prepare("SELECT push_token, push_notify_matches FROM users WHERE id = ?")
+          .get([targetUserId]) as Promise<{ push_token: string | null; push_notify_matches: number | null } | undefined>)) as { push_token: string | null; push_notify_matches: number | null } | undefined;
 
-        // Send match push to BOTH users so each hears/gets the celebration in-app or outside-app
-        if (targetPushToken?.push_token) {
+        const userWantsMatchPush = userPushRow?.push_notify_matches === undefined || userPushRow?.push_notify_matches === null || userPushRow.push_notify_matches !== 0;
+        const targetWantsMatchPush = targetPushRow?.push_notify_matches === undefined || targetPushRow?.push_notify_matches === null || targetPushRow.push_notify_matches !== 0;
+
+        if (targetPushRow?.push_token && targetWantsMatchPush) {
           await sendMatchPushNotification(
-            targetPushToken.push_token,
+            targetPushRow.push_token,
             userDisplayName?.display_name || 'Someone',
             matchId
           );
           console.log(`✅ Sent match push to ${targetUserId} (User B)`);
         }
-        if (userPushToken?.push_token) {
+        if (userPushRow?.push_token && userWantsMatchPush) {
           await sendMatchPushNotification(
-            userPushToken.push_token,
+            userPushRow.push_token,
             targetDisplayName?.display_name || 'Someone',
             matchId
           );
@@ -1063,15 +1059,18 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
     try {
       const { sendMessagePushNotification, isPushNotificationConfigured, isExpoPushToken } = await import('../services/pushNotifications.js');
       const hasExpoToken = !!process.env.EXPO_ACCESS_TOKEN;
-      let otherUserPushTokenResult = db.prepare("SELECT push_token FROM users WHERE id = ?").get([otherUserId]);
-      if (otherUserPushTokenResult instanceof Promise) otherUserPushTokenResult = await otherUserPushTokenResult;
-      let token = (otherUserPushTokenResult as { push_token: string | null } | undefined)?.push_token ?? null;
+      let otherUserRowResult = db.prepare("SELECT push_token, push_notify_messages FROM users WHERE id = ?").get([otherUserId]);
+      if (otherUserRowResult instanceof Promise) otherUserRowResult = await otherUserRowResult;
+      let otherUserRow = otherUserRowResult as { push_token: string | null; push_notify_messages: number | null } | undefined;
+      let token = otherUserRow?.push_token ?? null;
+      const wantsMessagePush = otherUserRow?.push_notify_messages === undefined || otherUserRow?.push_notify_messages === null || otherUserRow.push_notify_messages !== 0;
       // If no token yet, recipient may have a request in flight that just saved it; retry with longer waits
-      if ((!token || !token.trim()) && isPushNotificationConfigured()) {
+      if ((!token || !token.trim()) && isPushNotificationConfigured() && wantsMessagePush) {
         await new Promise((r) => setTimeout(r, 2500));
-        let retryResult = db.prepare("SELECT push_token FROM users WHERE id = ?").get([otherUserId]);
+        let retryResult = db.prepare("SELECT push_token, push_notify_messages FROM users WHERE id = ?").get([otherUserId]);
         if (retryResult instanceof Promise) retryResult = await retryResult;
-        token = (retryResult as { push_token: string | null } | undefined)?.push_token ?? null;
+        otherUserRow = retryResult as { push_token: string | null; push_notify_messages: number | null } | undefined;
+        token = otherUserRow?.push_token ?? null;
         if ((!token || !token.trim()) && isPushNotificationConfigured()) {
           await new Promise((r) => setTimeout(r, 1500));
           let retry2 = db.prepare("SELECT push_token FROM users WHERE id = ?").get([otherUserId]);
@@ -1081,7 +1080,7 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
       }
       const tokenValid = !!(token && isExpoPushToken(token));
       const tokenPreview = token ? `${token.substring(0, 28)}...` : 'null';
-      console.log(`📲 Push (message): recipient=${otherUserId} hasToken=${!!token} validFormat=${tokenValid} tokenPreview=${tokenPreview} EXPO_ACCESS_TOKEN=${hasExpoToken ? 'set' : 'NOT SET'}`);
+      console.log(`📲 Push (message): recipient=${otherUserId} hasToken=${!!token} validFormat=${tokenValid} wantsMessagePush=${wantsMessagePush} EXPO_ACCESS_TOKEN=${hasExpoToken ? 'set' : 'NOT SET'}`);
 
       const senderProfileResult = db
         .prepare("SELECT display_name FROM profiles WHERE user_id = ?")
@@ -1113,7 +1112,7 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
         }
       };
 
-      if (isPushNotificationConfigured()) {
+      if (isPushNotificationConfigured() && wantsMessagePush) {
         if (tokenValid) {
           const result = await sendMessagePushNotification(token!, senderName, messagePreview, matchId, userId, messageId);
           if (result.invalidToken) {
@@ -1284,12 +1283,14 @@ matchesRouter.post("/:matchId/unmatch", authenticateToken, async (req: AuthReque
       .prepare(`UPDATE matches SET stage = 'expired', expires_at = CURRENT_TIMESTAMP WHERE id = ?`)
       .run([matchId]) as Promise<any>);
 
-    // Notify via Socket.io if available
+    // Notify via Socket.io so the other user's list updates in real time
     try {
       const { getIO } = await import('../socket.js');
       const io = getIO();
       if (io) {
+        const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
         io.to(`match:${matchId}`).emit('match_unmatched', { matchId, unmatchedBy: userId });
+        io.to(`user:${otherUserId}`).emit('match_unmatched', { matchId, unmatchedBy: userId });
       }
     } catch (socketError) {
       console.warn('⚠️  Socket.io not available for unmatch notification');
@@ -1663,11 +1664,12 @@ matchesRouter.post("/:matchId/unlock-game", authenticateToken, rateLimitAPI, asy
         if (io) io.to(`match:${matchId}`).emit('new_message', { id: notifyMsgId, matchId, content: notifyContent, imageUrl: null, senderId: userId, senderName, sentAt: new Date().toISOString(), readAt: null });
         const { sendMessagePushNotification, isPushNotificationConfigured, isExpoPushToken } = await import('../services/pushNotifications.js');
         if (isPushNotificationConfigured()) {
-          let otherTokenRow = db.prepare('SELECT push_token FROM users WHERE id = ?').get([otherUserId]);
+          let otherTokenRow = db.prepare('SELECT push_token, push_notify_messages FROM users WHERE id = ?').get([otherUserId]);
           if (otherTokenRow instanceof Promise) otherTokenRow = await otherTokenRow;
-          const otherToken = (otherTokenRow as { push_token: string | null } | undefined)?.push_token;
-          if (otherToken && isExpoPushToken(otherToken)) {
-            await sendMessagePushNotification(otherToken, senderName, notifyContent, matchId, userId);
+          const row = otherTokenRow as { push_token: string | null; push_notify_messages: number | null } | undefined;
+          const wants = row?.push_notify_messages === undefined || row?.push_notify_messages === null || row.push_notify_messages !== 0;
+          if (wants && row?.push_token && isExpoPushToken(row.push_token)) {
+            await sendMessagePushNotification(row.push_token, senderName, notifyContent, matchId, userId);
           }
         }
       } catch (e) {
@@ -1815,12 +1817,13 @@ matchesRouter.post("/:matchId/game-request", authenticateToken, rateLimitAPI, as
     try {
       const { sendGameRequestPushNotification, isPushNotificationConfigured, isExpoPushToken } = await import('../services/pushNotifications.js');
       if (isPushNotificationConfigured()) {
-        let toUserTokenResult = db.prepare('SELECT push_token FROM users WHERE id = ?').get(toUserId);
-        if (toUserTokenResult instanceof Promise) toUserTokenResult = await toUserTokenResult;
-        const toUserToken = (toUserTokenResult as { push_token: string | null } | undefined)?.push_token;
-        if (toUserToken && isExpoPushToken(toUserToken)) {
+        let toUserRowResult = db.prepare('SELECT push_token, push_notify_messages FROM users WHERE id = ?').get(toUserId);
+        if (toUserRowResult instanceof Promise) toUserRowResult = await toUserRowResult;
+        const toUserRow = toUserRowResult as { push_token: string | null; push_notify_messages: number | null } | undefined;
+        const wantsMessagePush = toUserRow?.push_notify_messages === undefined || toUserRow?.push_notify_messages === null || toUserRow.push_notify_messages !== 0;
+        if (wantsMessagePush && toUserRow?.push_token && isExpoPushToken(toUserRow.push_token)) {
           await sendGameRequestPushNotification(
-            toUserToken,
+            toUserRow.push_token,
             fromUserName,
             gameType as 'truth_or_dare' | 'never_have_i_ever',
             matchId,
@@ -2545,23 +2548,20 @@ matchesRouter.post("/:matchId/generate-date-plan", authenticateToken, rateLimitA
       const { sendMessagePushNotification, isPushNotificationConfigured, isExpoPushToken } = await import('../services/pushNotifications.js');
       
       if (isPushNotificationConfigured()) {
-        // Get the other user's push token
-        const otherUserPushTokenResult = db
-          .prepare('SELECT push_token FROM users WHERE id = ?')
-          .get([otherUserId]);
-        const otherUserPushToken = (otherUserPushTokenResult instanceof Promise
-          ? await otherUserPushTokenResult
-          : otherUserPushTokenResult) as { push_token: string | null } | undefined;
-
-        if (otherUserPushToken?.push_token && isExpoPushToken(otherUserPushToken.push_token)) {
+        const otherUserRowResult = db.prepare('SELECT push_token, push_notify_messages FROM users WHERE id = ?').get([otherUserId]);
+        const otherUserRow = (otherUserRowResult instanceof Promise ? await otherUserRowResult : otherUserRowResult) as { push_token: string | null; push_notify_messages: number | null } | undefined;
+        const wantsMessagePush = otherUserRow?.push_notify_messages === undefined || otherUserRow?.push_notify_messages === null || otherUserRow.push_notify_messages !== 0;
+        if (wantsMessagePush && otherUserRow?.push_token && isExpoPushToken(otherUserRow.push_token)) {
           await sendMessagePushNotification(
-            otherUserPushToken.push_token,
+            otherUserRow.push_token,
             currentUserName,
             `created a date plan: "${plan.title}"`,
             matchId,
             userId
           );
           console.log(`✅ Sent push notification for date plan generation to user ${otherUserId}`);
+        } else if (!wantsMessagePush) {
+          console.log(`ℹ️  User ${otherUserId} has message notifications disabled, skipping push`);
         } else {
           console.log(`ℹ️  No valid push token for user ${otherUserId}, skipping push notification`);
         }
@@ -2676,23 +2676,20 @@ matchesRouter.post("/:matchId/date-plan/:planId/action", authenticateToken, rate
         const { sendMessagePushNotification, isPushNotificationConfigured, isExpoPushToken } = await import('../services/pushNotifications.js');
         
         if (isPushNotificationConfigured()) {
-          // Get the other user's push token
-          const otherUserPushTokenResult = db
-            .prepare('SELECT push_token FROM users WHERE id = ?')
-            .get([otherUserId]);
-          const otherUserPushToken = (otherUserPushTokenResult instanceof Promise
-            ? await otherUserPushTokenResult
-            : otherUserPushTokenResult) as { push_token: string | null } | undefined;
-
-          if (otherUserPushToken?.push_token && isExpoPushToken(otherUserPushToken.push_token)) {
+          const otherUserRowResult = db.prepare('SELECT push_token, push_notify_messages FROM users WHERE id = ?').get([otherUserId]);
+          const otherUserRow = (otherUserRowResult instanceof Promise ? await otherUserRowResult : otherUserRowResult) as { push_token: string | null; push_notify_messages: number | null } | undefined;
+          const wantsMessagePush = otherUserRow?.push_notify_messages === undefined || otherUserRow?.push_notify_messages === null || otherUserRow.push_notify_messages !== 0;
+          if (wantsMessagePush && otherUserRow?.push_token && isExpoPushToken(otherUserRow.push_token)) {
             await sendMessagePushNotification(
-              otherUserPushToken.push_token,
+              otherUserRow.push_token,
               currentUserName,
               `wants to confirm the date plan: "${plan.title}"`,
               matchId,
               userId
             );
             console.log(`✅ Sent push notification for date plan acceptance to user ${otherUserId}`);
+          } else if (!wantsMessagePush) {
+            console.log(`ℹ️  User ${otherUserId} has message notifications disabled, skipping push`);
           } else {
             console.log(`ℹ️  No valid push token for user ${otherUserId}, skipping push notification`);
           }

@@ -215,14 +215,16 @@ export function initializeSocket(server: HTTPServer) {
       try {
         const { isPushNotificationConfigured, isExpoPushToken } = await import('./services/pushNotifications.js');
         const hasExpoToken = !!process.env.EXPO_ACCESS_TOKEN;
-        let otherUserPushTokenResult = db.prepare("SELECT push_token FROM users WHERE id = ?").get(otherUserId);
-        if (otherUserPushTokenResult instanceof Promise) otherUserPushTokenResult = await otherUserPushTokenResult;
-        const token = (otherUserPushTokenResult as { push_token: string | null } | undefined)?.push_token ?? null;
+        let otherUserRowResult = db.prepare("SELECT push_token, push_notify_messages FROM users WHERE id = ?").get(otherUserId);
+        if (otherUserRowResult instanceof Promise) otherUserRowResult = await otherUserRowResult;
+        const otherUserRow = otherUserRowResult as { push_token: string | null; push_notify_messages: number | null } | undefined;
+        const token = otherUserRow?.push_token ?? null;
         const tokenValid = !!(token && isExpoPushToken(token));
-        console.log(`📲 Push (message): recipient=${otherUserId} hasToken=${!!token} validFormat=${tokenValid} expoConfigured=${isPushNotificationConfigured()} EXPO_ACCESS_TOKEN=${hasExpoToken ? 'set' : 'NOT SET'}`);
+        const wantsMessagePush = otherUserRow?.push_notify_messages === undefined || otherUserRow?.push_notify_messages === null || otherUserRow.push_notify_messages !== 0;
+        console.log(`📲 Push (message): recipient=${otherUserId} hasToken=${!!token} validFormat=${tokenValid} wantsMessagePush=${wantsMessagePush} EXPO_ACCESS_TOKEN=${hasExpoToken ? 'set' : 'NOT SET'}`);
         if (!isPushNotificationConfigured()) {
           console.warn('⚠️  Push notification service not configured (install expo-server-sdk and set EXPO_ACCESS_TOKEN on Render)');
-        } else if (tokenValid) {
+        } else if (tokenValid && wantsMessagePush) {
           const messagePreview = content.trim().length > 50 ? content.trim().substring(0, 50) + '...' : content.trim();
           const { sendMessagePushNotification } = await import('./services/pushNotifications.js');
           const result = await sendMessagePushNotification(token!, profile.display_name, messagePreview, matchId, userId);

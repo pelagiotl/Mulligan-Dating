@@ -80,17 +80,20 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
       // Continue anyway - handler initialization failure shouldn't block registration
     }
     
-    // Request permissions - wrap each step in try-catch
+    // Android: create default channel before requesting permission (required for FCM / Expo).
+    // Must match backend channelId: 'default'. On Android 13+ also ensure app.json has
+    // android.permission.POST_NOTIFICATIONS and rebuild the app.
     if (Platform.OS === 'android') {
       try {
         await Notifications.setNotificationChannelAsync('default', {
-          name: 'default',
+          name: 'Messages & matches',
           importance: Notifications.AndroidImportance.MAX,
           vibrationPattern: [0, 250, 250, 250],
-          lightColor: '#FF231F7C',
-          sound: 'default', // Enable sound for Android notifications
+          lightColor: '#8B1538',
+          sound: 'default',
           enableVibrate: true,
           enableLights: true,
+          description: 'New messages and match notifications',
         });
       } catch (channelError) {
         console.warn('⚠️  Failed to set notification channel (non-critical):', channelError);
@@ -115,6 +118,11 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
     if (finalStatus !== 'granted') {
       console.warn('⚠️  Push notification permissions not granted — outside-app notifications will not work.');
       return null;
+    }
+
+    // Android: give FCM time to initialize before requesting token (reduces "token null" / no delivery)
+    if (Platform.OS === 'android') {
+      await new Promise((r) => setTimeout(r, 800));
     }
 
     // Get Expo push token
@@ -144,28 +152,27 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
       console.warn('⚠️  Push: No projectId — token not requested. (Expo Go has no projectId; use a new EAS/TestFlight build.)');
       return null;
     }
-    
-    // Get push token - wrap in try-catch as this is a native module call
-    let pushToken: string;
-    try {
-      const tokenData = await Notifications.getExpoPushTokenAsync({
-        projectId,
-      });
-      
-      if (!tokenData || !tokenData.data) {
-        console.warn('⚠️  Invalid token data received from Expo');
-        return null;
+
+    const fetchToken = async (): Promise<string | null> => {
+      try {
+        const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+        if (tokenData?.data?.trim()) return tokenData.data;
+      } catch (e: any) {
+        if (__DEV__) console.warn('⚠️  getExpoPushTokenAsync:', e?.message || e);
       }
-      
-      pushToken = tokenData.data;
-    } catch (tokenError: any) {
-      // This is a native module call that can fail - prevent crash
-      console.error('❌ Failed to get Expo push token (non-critical):', tokenError?.message || tokenError);
-      // Check if it's a known error we can handle
-      if (tokenError?.message?.includes('projectId') || tokenError?.message?.includes('project')) {
-        console.warn('⚠️  Project ID issue - token generation skipped');
-      }
-      return null; // Don't crash - just return null
+      return null;
+    };
+
+    // Get push token (Android: retry once after 2s if FCM wasn't ready)
+    let pushToken: string | null = await fetchToken();
+    if (Platform.OS === 'android' && !pushToken) {
+      await new Promise((r) => setTimeout(r, 2000));
+      pushToken = await fetchToken();
+      if (pushToken && __DEV__) console.log('📲 Push: Android token obtained on retry');
+    }
+    if (!pushToken) {
+      console.warn('⚠️  Push: Could not get Expo push token. On Android, use an EAS/development build (not Expo Go) and ensure notifications are allowed.');
+      return null;
     }
 
     // Store so api client can send on every request (fallback if POST fails)

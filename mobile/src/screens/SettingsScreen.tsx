@@ -19,6 +19,7 @@ import { useNavigation } from '@react-navigation/native';
 import { usePaymentSheet } from '@stripe/stripe-react-native';
 import { api } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
+import { navigationRef } from '../navigation/navigationRef';
 import LegalFooter from '../components/LegalFooter';
 
 interface SettingsData {
@@ -461,6 +462,18 @@ export default function SettingsScreen() {
               </Text>
             </LinearGradient>
           </Animated.View>
+        </View>
+
+        <View style={styles.pushNotificationsRowWrap}>
+          <TouchableOpacity
+            style={styles.pushNotificationsRow}
+            onPress={() => navigationRef.current?.navigate('PushNotificationSettings')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.pushNotificationsRowIcon}>🔔</Text>
+            <Text style={styles.pushNotificationsRowText}>Push notifications</Text>
+            <Text style={styles.pushNotificationsRowChevron}>›</Text>
+          </TouchableOpacity>
         </View>
       </Animated.View>
 
@@ -1132,6 +1145,41 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.4,
     shadowRadius: 12,
     elevation: 8,
+  },
+  pushNotificationsRowWrap: {
+    marginTop: 24,
+  },
+  pushNotificationsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+    paddingVertical: 18,
+    paddingHorizontal: 22,
+    borderRadius: 18,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.35)',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  pushNotificationsRowIcon: {
+    fontSize: 22,
+    marginRight: 12,
+  },
+  pushNotificationsRowText: {
+    flex: 1,
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#fff',
+    letterSpacing: 0.2,
+  },
+  pushNotificationsRowChevron: {
+    fontSize: 22,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '400',
   },
   supportRow: {
     flexDirection: 'row',

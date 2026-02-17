@@ -64,6 +64,9 @@ export async function sendPushNotification(
     console.warn('⚠️  Expo Push Notification service not initialized. Skipping push notification.');
     return { sent: false };
   }
+  if (!process.env.EXPO_ACCESS_TOKEN) {
+    console.warn('⚠️  EXPO_ACCESS_TOKEN is not set — push may not be delivered (especially on Android). Set it in Render environment and redeploy.');
+  }
 
   if (!isExpoPushToken(pushToken)) {
     console.error('❌ Invalid Expo push token:', pushToken);
