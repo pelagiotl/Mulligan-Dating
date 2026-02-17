@@ -240,6 +240,11 @@ export async function initDatabase() {
     // Column already exists, ignore
   }
   try {
+    await execSQL(`ALTER TABLE users ADD COLUMN push_token_fail_count ${usePostgres ? 'INT' : 'INTEGER'} DEFAULT 0`);
+  } catch (e) {
+    // Column already exists, ignore
+  }
+  try {
     await execSQL(`ALTER TABLE users ADD COLUMN match_slot_limit ${usePostgres ? 'INT' : 'INTEGER'} DEFAULT 20`);
   } catch (e) {
     // Column already exists, ignore

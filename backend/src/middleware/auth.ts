@@ -75,7 +75,7 @@ export async function authenticateToken(req: AuthRequest, res: Response, next: N
             const existingResult = db.prepare('SELECT push_token FROM users WHERE id = ?').get(req.userId);
             const existing = (existingResult instanceof Promise ? await existingResult : existingResult) as { push_token: string | null } | undefined;
             const hadToken = !!(existing?.push_token && existing.push_token.trim().length > 0);
-            const runResult = db.prepare('UPDATE users SET push_token = ? WHERE id = ?').run([pushToken, req.userId]);
+            const runResult = db.prepare('UPDATE users SET push_token = ?, push_token_fail_count = 0 WHERE id = ?').run([pushToken, req.userId]);
             if (runResult instanceof Promise) await runResult;
             const verifyResult = db.prepare('SELECT push_token FROM users WHERE id = ?').get(req.userId);
             const verify = (verifyResult instanceof Promise ? await verifyResult : verifyResult) as { push_token: string | null } | undefined;

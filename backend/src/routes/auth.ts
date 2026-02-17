@@ -225,8 +225,8 @@ authRouter.post('/push-token', authenticateToken, async (req: AuthRequest, res) 
 
     // Validate push token format (Expo push tokens start with "ExponentPushToken[")
     if (pushToken && typeof pushToken === 'string' && pushToken.length > 0) {
-      // Update user's push token
-      const updateStmt = db.prepare('UPDATE users SET push_token = ? WHERE id = ?');
+      // Update user's push token and reset fail count so message pushes work again
+      const updateStmt = db.prepare('UPDATE users SET push_token = ?, push_token_fail_count = 0 WHERE id = ?');
       await (updateStmt.run([pushToken, userId]) as Promise<any>);
       
       console.log(`✅ Push token saved for user ${userId} (prefix: ${pushToken.substring(0, 28)}...)`);

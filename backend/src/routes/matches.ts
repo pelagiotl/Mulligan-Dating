@@ -1059,23 +1059,25 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
     try {
       const { sendMessagePushNotification, isPushNotificationConfigured, isExpoPushToken } = await import('../services/pushNotifications.js');
       const hasExpoToken = !!process.env.EXPO_ACCESS_TOKEN;
-      let otherUserRowResult = db.prepare("SELECT push_token, push_notify_messages FROM users WHERE id = ?").get([otherUserId]);
+      let otherUserRowResult = db.prepare("SELECT push_token, push_notify_messages, push_token_fail_count FROM users WHERE id = ?").get([otherUserId]);
       if (otherUserRowResult instanceof Promise) otherUserRowResult = await otherUserRowResult;
-      let otherUserRow = otherUserRowResult as { push_token: string | null; push_notify_messages: number | null } | undefined;
+      let otherUserRow = otherUserRowResult as { push_token: string | null; push_notify_messages: number | null; push_token_fail_count?: number | null } | undefined;
       let token = otherUserRow?.push_token ?? null;
       const wantsMessagePush = otherUserRow?.push_notify_messages === undefined || otherUserRow?.push_notify_messages === null || otherUserRow.push_notify_messages !== 0;
       // If no token yet, recipient may have a request in flight that just saved it; retry with longer waits
       if ((!token || !token.trim()) && isPushNotificationConfigured() && wantsMessagePush) {
         await new Promise((r) => setTimeout(r, 2500));
-        let retryResult = db.prepare("SELECT push_token, push_notify_messages FROM users WHERE id = ?").get([otherUserId]);
+        let retryResult = db.prepare("SELECT push_token, push_notify_messages, push_token_fail_count FROM users WHERE id = ?").get([otherUserId]);
         if (retryResult instanceof Promise) retryResult = await retryResult;
-        otherUserRow = retryResult as { push_token: string | null; push_notify_messages: number | null } | undefined;
+        otherUserRow = retryResult as { push_token: string | null; push_notify_messages: number | null; push_token_fail_count?: number | null } | undefined;
         token = otherUserRow?.push_token ?? null;
         if ((!token || !token.trim()) && isPushNotificationConfigured()) {
           await new Promise((r) => setTimeout(r, 1500));
-          let retry2 = db.prepare("SELECT push_token FROM users WHERE id = ?").get([otherUserId]);
+          let retry2 = db.prepare("SELECT push_token, push_token_fail_count FROM users WHERE id = ?").get([otherUserId]);
           if (retry2 instanceof Promise) retry2 = await retry2;
-          token = (retry2 as { push_token: string | null } | undefined)?.push_token ?? null;
+          const retry2Row = retry2 as { push_token: string | null; push_token_fail_count?: number | null } | undefined;
+          token = retry2Row?.push_token ?? null;
+          if (otherUserRow && retry2Row) otherUserRow = { ...otherUserRow, push_token: token, push_token_fail_count: retry2Row.push_token_fail_count };
         }
       }
       const tokenValid = !!(token && isExpoPushToken(token));
@@ -1102,13 +1104,19 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
         messagePreview = 'New message';
       }
 
-      const clearRecipientPushToken = async () => {
+      const handleInvalidTokenForRecipient = async () => {
         try {
-          const run = db.prepare('UPDATE users SET push_token = NULL WHERE id = ?').run([otherUserId]);
-          if (run instanceof Promise) await run;
-          console.log(`📲 Push: cleared invalid token for recipient ${otherUserId} (next app open will re-register)`);
+          const row = db.prepare('SELECT push_token_fail_count FROM users WHERE id = ?').get([otherUserId]) as { push_token_fail_count?: number | null } | undefined;
+          const failCount = (row?.push_token_fail_count ?? 0) + 1;
+          db.prepare('UPDATE users SET push_token_fail_count = ? WHERE id = ?').run([failCount, otherUserId]);
+          if (failCount >= 2) {
+            db.prepare('UPDATE users SET push_token = NULL, push_token_fail_count = 0 WHERE id = ?').run([otherUserId]);
+            console.log(`📲 Push: cleared invalid token for recipient ${otherUserId} after ${failCount} failures`);
+          } else {
+            console.log(`📲 Push: invalid token for recipient ${otherUserId} (failure ${failCount}/2 — not clearing yet)`);
+          }
         } catch (e) {
-          console.warn('⚠️  Failed to clear push token for', otherUserId, e);
+          console.warn('⚠️  Failed to update push token fail count for', otherUserId, e);
         }
       };
 
@@ -1116,9 +1124,12 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
         if (tokenValid) {
           const result = await sendMessagePushNotification(token!, senderName, messagePreview, matchId, userId, messageId);
           if (result.invalidToken) {
-            await clearRecipientPushToken();
-            console.log(`📲 PUSH_MSG_SKIP recipient=${otherUserId} reason=invalid_token_cleared`);
+            await handleInvalidTokenForRecipient();
+            console.log(`📲 PUSH_MSG_SKIP recipient=${otherUserId} reason=invalid_token`);
           } else if (result.sent) {
+            try {
+              db.prepare('UPDATE users SET push_token_fail_count = 0 WHERE id = ?').run([otherUserId]);
+            } catch (_) {}
             console.log(`📲 PUSH_MSG_SENT recipient=${otherUserId}`);
           } else {
             console.warn(`📲 PUSH_MSG_SKIP recipient=${otherUserId} reason=expo_send_failed`);
@@ -1130,8 +1141,11 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
                 const retryToken = (retryTokenRow as { push_token: string | null } | undefined)?.push_token ?? null;
                 if (!retryToken || !isExpoPushToken(retryToken)) return;
                 const retryResult = await sendMessagePushNotification(retryToken, senderName, messagePreview, matchId, userId, messageId);
-                if (retryResult.invalidToken) await clearRecipientPushToken();
-                else if (retryResult.sent) console.log(`📲 PUSH_MSG_SENT recipient=${otherUserId} (send retry)`);
+                if (retryResult.invalidToken) await handleInvalidTokenForRecipient();
+                else if (retryResult.sent) {
+                  try { db.prepare('UPDATE users SET push_token_fail_count = 0 WHERE id = ?').run([otherUserId]); } catch (_) {}
+                  console.log(`📲 PUSH_MSG_SENT recipient=${otherUserId} (send retry)`);
+                }
               } catch (e) { console.warn('⚠️  Push send retry failed:', e); }
             }, 3000);
           }
@@ -1146,8 +1160,9 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
               const retryToken = (retryRow as { push_token: string | null } | undefined)?.push_token ?? null;
               if (retryToken && retryToken.trim() && isExpoPushToken(retryToken)) {
                 const res = await sendMessagePushNotification(retryToken, senderName, messagePreview, matchId, userId, messageId);
-                if (res.invalidToken) await clearRecipientPushToken();
+                if (res.invalidToken) await handleInvalidTokenForRecipient();
                 else if (res.sent) {
+                  try { db.prepare('UPDATE users SET push_token_fail_count = 0 WHERE id = ?').run([otherUserId]); } catch (_) {}
                   console.log(`📲 PUSH_MSG_SENT recipient=${otherUserId} (delayed retry)`);
                   return true;
                 }
