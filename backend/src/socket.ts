@@ -226,27 +226,36 @@ export function initializeSocket(server: HTTPServer) {
           console.warn('⚠️  Push notification service not configured (install expo-server-sdk and set EXPO_ACCESS_TOKEN on Render)');
         } else if (tokenValid && wantsMessagePush) {
           const messagePreview = content.trim().length > 50 ? content.trim().substring(0, 50) + '...' : content.trim();
-          const { sendMessagePushNotification } = await import('./services/pushNotifications.js');
-          const result = await sendMessagePushNotification(token!, profile.display_name, messagePreview, matchId, userId);
-          if (result.invalidToken) {
-            try {
-              const failCount = (otherUserRow?.push_token_fail_count ?? 0) + 1;
-              db.prepare('UPDATE users SET push_token_fail_count = ? WHERE id = ?').run(failCount, otherUserId);
-              if (failCount >= 2) {
+          const { sendMessagePushNotification, getMessagePushThrottleDelayMs, recordMessagePushSent } = await import('./services/pushNotifications.js');
+          const delayMs = getMessagePushThrottleDelayMs(otherUserId);
+          const doSend = async () => {
+            const result = await sendMessagePushNotification(token!, profile.display_name, messagePreview, matchId, userId);
+            if (result.invalidToken) {
+              try {
+                const failCount = (otherUserRow?.push_token_fail_count ?? 0) + 1;
+                db.prepare('UPDATE users SET push_token_fail_count = ? WHERE id = ?').run(failCount, otherUserId);
+              if (failCount >= 10) {
                 db.prepare('UPDATE users SET push_token = NULL, push_token_fail_count = 0 WHERE id = ?').run(otherUserId);
                 console.log(`📲 Push: cleared invalid token for user ${otherUserId} after ${failCount} failures`);
               } else {
-                console.log(`📲 Push: invalid token for user ${otherUserId} (failure ${failCount}/2 — not clearing yet)`);
-              }
-            } catch (_) {}
-          }
-          if (result.sent) {
-            try {
-              db.prepare('UPDATE users SET push_token_fail_count = 0 WHERE id = ?').run(otherUserId);
-            } catch (_) {}
-            console.log(`✅ Push (message) sent to ${otherUserId}`);
-          } else if (!result.invalidToken) {
-            console.warn(`⚠️  Push (message) to ${otherUserId} failed (check Render logs above for Expo error)`);
+                console.log(`📲 Push: invalid token for user ${otherUserId} (failure ${failCount}/10 — not clearing yet)`);
+                }
+              } catch (_) {}
+            }
+            if (result.sent) {
+              recordMessagePushSent(otherUserId);
+              try {
+                db.prepare('UPDATE users SET push_token_fail_count = 0 WHERE id = ?').run(otherUserId);
+              } catch (_) {}
+              console.log(`✅ Push (message) sent to ${otherUserId}`);
+            } else if (!result.invalidToken) {
+              console.warn(`⚠️  Push (message) to ${otherUserId} failed (check Render logs above for Expo error)`);
+            }
+          };
+          if (delayMs > 0) {
+            setTimeout(() => doSend().catch((e: any) => console.warn('⚠️  Push (message) exception:', e?.message || e)), delayMs);
+          } else {
+            await doSend();
           }
         } else {
           if (!token) console.warn(`⚠️  No push_token for user ${otherUserId} — they need to open the app on a real device (TestFlight/dev build) and allow notifications.`);

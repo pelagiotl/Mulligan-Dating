@@ -304,6 +304,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // This works even when app is closed - will trigger when app opens
     responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
       console.log('👆 Notification tapped:', response);
+      // Refresh and send push token when opening from notification so backend has latest token
+      // (FCM/APNs may have rotated it; avoids notifications stopping after 15–30s)
+      registerForPushNotificationsAsync().catch(() => {});
       const data = response.notification.request.content.data;
       
       // If it's a game request, set pending and navigate
@@ -410,6 +413,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     Notifications.getLastNotificationResponseAsync().then((response) => {
       if (cancelled || !response) return;
+      // Refresh and send push token so backend has latest token after cold start from notification
+      registerForPushNotificationsAsync().catch(() => {});
       const data = response.notification.request.content.data;
       const attemptNavigation = (attempt: number = 0) => {
         if (attempt >= 15) return;
@@ -454,7 +459,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Re-register push when app comes to foreground (ensures token is saved if initial registration failed or was delayed)
   const lastPushRegisterRef = useRef<number>(0);
-  const PUSH_REREGISTER_DEBOUNCE_MS = 60000; // at most once per minute when foregrounding
+  const PUSH_REREGISTER_DEBOUNCE_MS = 20000; // at most once per 20s when foregrounding (keeps token fresh so pushes don't stop after 15–30s)
   useEffect(() => {
     if (!user) return;
     const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {

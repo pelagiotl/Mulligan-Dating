@@ -49,6 +49,25 @@ export function isExpoPushToken(token: string): boolean {
 
 export type PushResult = { sent: boolean; invalidToken?: boolean };
 
+/** Minimum ms between message pushes to the same recipient (avoids FCM/APNs MessageRateExceeded) */
+const MESSAGE_PUSH_MIN_INTERVAL_MS = 4000;
+const lastMessagePushByRecipient: Record<string, number> = {};
+
+/**
+ * Returns how many ms to wait before sending a message push to this recipient, or 0 if we can send now.
+ * Call recordMessagePushSent(recipientId) after a successful send.
+ */
+export function getMessagePushThrottleDelayMs(recipientId: string): number {
+  const last = lastMessagePushByRecipient[recipientId] ?? 0;
+  const elapsed = Date.now() - last;
+  if (elapsed >= MESSAGE_PUSH_MIN_INTERVAL_MS) return 0;
+  return MESSAGE_PUSH_MIN_INTERVAL_MS - elapsed;
+}
+
+export function recordMessagePushSent(recipientId: string): void {
+  lastMessagePushByRecipient[recipientId] = Date.now();
+}
+
 /**
  * Send push notification to a single user
  * @returns PushResult - { sent, invalidToken } so callers can clear DB when token is dead

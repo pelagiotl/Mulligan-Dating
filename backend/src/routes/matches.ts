@@ -1057,7 +1057,7 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
 
     // Send push notification to the other user (OS shows when app is backgrounded/closed)
     try {
-      const { sendMessagePushNotification, isPushNotificationConfigured, isExpoPushToken } = await import('../services/pushNotifications.js');
+      const { sendMessagePushNotification, isPushNotificationConfigured, isExpoPushToken, getMessagePushThrottleDelayMs, recordMessagePushSent } = await import('../services/pushNotifications.js');
       const hasExpoToken = !!process.env.EXPO_ACCESS_TOKEN;
       let otherUserRowResult = db.prepare("SELECT push_token, push_notify_messages, push_token_fail_count FROM users WHERE id = ?").get([otherUserId]);
       if (otherUserRowResult instanceof Promise) otherUserRowResult = await otherUserRowResult;
@@ -1109,11 +1109,11 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
           const row = db.prepare('SELECT push_token_fail_count FROM users WHERE id = ?').get([otherUserId]) as { push_token_fail_count?: number | null } | undefined;
           const failCount = (row?.push_token_fail_count ?? 0) + 1;
           db.prepare('UPDATE users SET push_token_fail_count = ? WHERE id = ?').run([failCount, otherUserId]);
-          if (failCount >= 2) {
+          if (failCount >= 10) {
             db.prepare('UPDATE users SET push_token = NULL, push_token_fail_count = 0 WHERE id = ?').run([otherUserId]);
             console.log(`📲 Push: cleared invalid token for recipient ${otherUserId} after ${failCount} failures`);
           } else {
-            console.log(`📲 Push: invalid token for recipient ${otherUserId} (failure ${failCount}/2 — not clearing yet)`);
+            console.log(`📲 Push: invalid token for recipient ${otherUserId} (failure ${failCount}/10 — not clearing yet)`);
           }
         } catch (e) {
           console.warn('⚠️  Failed to update push token fail count for', otherUserId, e);
@@ -1122,11 +1122,30 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
 
       if (isPushNotificationConfigured() && wantsMessagePush) {
         if (tokenValid) {
+          const throttleDelayMs = getMessagePushThrottleDelayMs(otherUserId);
+          if (throttleDelayMs > 0) {
+            setTimeout(async () => {
+              try {
+                const row = db.prepare('SELECT push_token FROM users WHERE id = ?').get([otherUserId]) as { push_token: string | null } | undefined;
+                const t = row?.push_token ?? null;
+                if (!t || !isExpoPushToken(t)) return;
+                const res = await sendMessagePushNotification(t, senderName, messagePreview, matchId, userId, messageId);
+                if (res.invalidToken) await handleInvalidTokenForRecipient();
+                else if (res.sent) {
+                  recordMessagePushSent(otherUserId);
+                  try { db.prepare('UPDATE users SET push_token_fail_count = 0 WHERE id = ?').run([otherUserId]); } catch (_) {}
+                  console.log(`📲 PUSH_MSG_SENT recipient=${otherUserId} (throttled)`);
+                }
+              } catch (e) { console.warn('⚠️  Throttled push failed:', e); }
+            }, throttleDelayMs);
+            return;
+          }
           const result = await sendMessagePushNotification(token!, senderName, messagePreview, matchId, userId, messageId);
           if (result.invalidToken) {
             await handleInvalidTokenForRecipient();
             console.log(`📲 PUSH_MSG_SKIP recipient=${otherUserId} reason=invalid_token`);
           } else if (result.sent) {
+            recordMessagePushSent(otherUserId);
             try {
               db.prepare('UPDATE users SET push_token_fail_count = 0 WHERE id = ?').run([otherUserId]);
             } catch (_) {}
@@ -1143,6 +1162,7 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
                 const retryResult = await sendMessagePushNotification(retryToken, senderName, messagePreview, matchId, userId, messageId);
                 if (retryResult.invalidToken) await handleInvalidTokenForRecipient();
                 else if (retryResult.sent) {
+                  recordMessagePushSent(otherUserId);
                   try { db.prepare('UPDATE users SET push_token_fail_count = 0 WHERE id = ?').run([otherUserId]); } catch (_) {}
                   console.log(`📲 PUSH_MSG_SENT recipient=${otherUserId} (send retry)`);
                 }
@@ -1162,6 +1182,7 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
                 const res = await sendMessagePushNotification(retryToken, senderName, messagePreview, matchId, userId, messageId);
                 if (res.invalidToken) await handleInvalidTokenForRecipient();
                 else if (res.sent) {
+                  recordMessagePushSent(otherUserId);
                   try { db.prepare('UPDATE users SET push_token_fail_count = 0 WHERE id = ?').run([otherUserId]); } catch (_) {}
                   console.log(`📲 PUSH_MSG_SENT recipient=${otherUserId} (delayed retry)`);
                   return true;
