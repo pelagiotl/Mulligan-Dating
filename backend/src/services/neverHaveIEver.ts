@@ -290,8 +290,19 @@ export async function getGameState(
     winner = theirStrikes >= STRIKES_TO_LOSE ? 'you' : 'them';
   }
 
-  const prompt = row.current_prompt || 'Never have I ever...';
+  let prompt = row.current_prompt?.trim() || '';
   const level = (spiceLevel || row.spice_level || 'pg13') as SpiceLevel;
+  // If we're in playing phase but prompt is missing/placeholder, generate one and persist (fixes UI showing only "Never have I ever...")
+  if (!prompt || prompt === 'Never have I ever...') {
+    try {
+      prompt = await generateNeverHaveIEverPrompt(matchId, level);
+      db.prepare('UPDATE never_have_i_ever_games SET current_prompt = ?, updated_at = ? WHERE match_id = ?').run([prompt, new Date().toISOString(), matchId]);
+    } catch (e) {
+      console.warn('Never Have I Ever lazy prompt generation failed:', e);
+      prompt = prompt || 'Never have I ever...';
+    }
+  }
+  if (!prompt) prompt = 'Never have I ever...';
 
   // Turn-based (token-unlock): current_turn_user_id set
   const currentTurnUserId = row.current_turn_user_id ?? null;

@@ -234,11 +234,11 @@ export function initializeSocket(server: HTTPServer) {
               try {
                 const failCount = (otherUserRow?.push_token_fail_count ?? 0) + 1;
                 db.prepare('UPDATE users SET push_token_fail_count = ? WHERE id = ?').run(failCount, otherUserId);
-              if (failCount >= 10) {
+              if (failCount >= 2) {
                 db.prepare('UPDATE users SET push_token = NULL, push_token_fail_count = 0 WHERE id = ?').run(otherUserId);
                 console.log(`📲 Push: cleared invalid token for user ${otherUserId} after ${failCount} failures`);
               } else {
-                console.log(`📲 Push: invalid token for user ${otherUserId} (failure ${failCount}/10 — not clearing yet)`);
+                console.log(`📲 Push: invalid token for user ${otherUserId} (failure ${failCount}/2 — not clearing yet)`);
                 }
               } catch (_) {}
             }

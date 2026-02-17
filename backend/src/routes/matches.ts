@@ -1109,11 +1109,11 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
           const row = db.prepare('SELECT push_token_fail_count FROM users WHERE id = ?').get([otherUserId]) as { push_token_fail_count?: number | null } | undefined;
           const failCount = (row?.push_token_fail_count ?? 0) + 1;
           db.prepare('UPDATE users SET push_token_fail_count = ? WHERE id = ?').run([failCount, otherUserId]);
-          if (failCount >= 10) {
+          if (failCount >= 2) {
             db.prepare('UPDATE users SET push_token = NULL, push_token_fail_count = 0 WHERE id = ?').run([otherUserId]);
             console.log(`📲 Push: cleared invalid token for recipient ${otherUserId} after ${failCount} failures`);
           } else {
-            console.log(`📲 Push: invalid token for recipient ${otherUserId} (failure ${failCount}/10 — not clearing yet)`);
+            console.log(`📲 Push: invalid token for recipient ${otherUserId} (failure ${failCount}/2 — not clearing yet)`);
           }
         } catch (e) {
           console.warn('⚠️  Failed to update push token fail count for', otherUserId, e);
@@ -1172,7 +1172,7 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
         } else {
           const reason = !token ? 'RECIPIENT_HAS_NO_TOKEN' : 'invalid_expo_token_format';
           console.warn(`📲 PUSH_MSG_SKIP recipient=${otherUserId} reason=${reason}`);
-          // Delayed retry: recipient may open app later; re-check at 3s, 8s, 18s, 30s
+          // Delayed retry: recipient may open app later and token appears (e.g. some iPhones only send token when app is backgrounded)
           if (!token) {
             const tryDelayedPush = async (): Promise<boolean> => {
               let retryRow = db.prepare("SELECT push_token FROM users WHERE id = ?").get([otherUserId]);
@@ -1190,7 +1190,7 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
               }
               return false;
             };
-            [3000, 8000, 18000, 30000].forEach((delayMs) => {
+            [3000, 8000, 18000, 30000, 60000, 120000].forEach((delayMs) => {
               setTimeout(() => {
                 tryDelayedPush().catch((e) => console.warn('⚠️  Delayed push retry failed:', e));
               }, delayMs);

@@ -1795,7 +1795,12 @@ function MatchProfileModal({
                         }}
                       >
                         {onPhotoPress ? (
-                          <TouchableOpacity onPress={() => onPhotoPress(photoUrl)} activeOpacity={0.9}>
+                          <TouchableOpacity
+                            onPress={() => onPhotoPress(photoUrl)}
+                            activeOpacity={0.9}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            accessibilityLabel="View full size photo"
+                          >
                             {thumb}
                           </TouchableOpacity>
                         ) : thumb}
@@ -3352,7 +3357,15 @@ export default function MatchesScreen() {
               <Text style={styles.backButton}>← Back</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={() => setShowProfileModal(true)}
+              onPress={() => {
+                const chatPhotoUrl = getMatchPhoto(selectedMatch);
+                const photoUri = chatPhotoUrl ? getPhotoUrl(chatPhotoUrl) : null;
+                if (photoUri) {
+                  setFullScreenImageUrl(photoUri);
+                } else {
+                  setShowProfileModal(true);
+                }
+              }}
               activeOpacity={0.8}
               style={styles.chatHeaderPhotoTouch}
             >
@@ -3660,6 +3673,7 @@ export default function MatchesScreen() {
           }}
           onPhotoPress={(url) => {
             fullScreenOpenedFromProfileCardRef.current = true;
+            setShowProfileModal(false);
             setFullScreenImageUrl(url);
           }}
         />

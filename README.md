@@ -77,7 +77,14 @@ To get **system** message notifications when the app is in the background or clo
 3. **Verify in Render logs**  
    Message push uses the **same** pipeline as match and date-plan notifications (same token, same Expo config). When someone sends a chat message, look for:  
    - `📲 Push (message HTTP): recipient=… hasToken=true validFormat=true EXPO_ACCESS_TOKEN=set` → push was attempted.  
-   - `✅ Push (message HTTP) sent to …` → Expo accepted it.  
+   - `✅ Push (message HTTP) sent to …` → Expo accepted it.
+
+**Keeping push solid on all devices**
+
+- **Backend:** `EXPO_ACCESS_TOKEN` set on Render; backend clears invalid tokens after 2 failures and retries when the recipient has no token (3s–120s).
+- **iOS:** Use a real device / TestFlight build. If only the first message pushes, the app refreshes the token when you open it (or tap a notification) and when a message notification is received; bring the app to foreground once so the token is re-sent.
+- **Android:** Use an EAS/dev build (not Expo Go), grant notification permission, and ensure the `default` channel exists (the app creates it). If pushes stop after a while, opening the app re-registers the token.
+- **Per-device quirks:** Some devices (e.g. certain iPhones) only provide the push token after the app has been backgrounded once; delayed retries (up to 120s) send the first message’s push once the token appears. Opening the app and then exiting ensures the token is saved for later messages.  
    - If you see `hasToken=false` → the **recipient** (person who should get the notification) must open the app on a real device (TestFlight/EAS build), allow notifications, and have the app register their token at least once.  
    - If you see `⚠️ Skipping push for user …: no push token` → same as above: that user needs to open the app and allow notifications so their token is saved.  
    - If you see `EXPO_ACCESS_TOKEN=NOT SET` → set the token on Render and redeploy.

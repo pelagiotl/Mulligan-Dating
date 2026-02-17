@@ -221,11 +221,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Handle notifications received while app is in foreground
+    // Handle notifications received (foreground; sometimes background on iOS)
     notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
       console.log('📬 Notification received (foreground):', notification);
       const data = notification.request.content.data;
-      
+      // After first push, token may rotate on some devices (e.g. iPhone 15 Pro Max); refresh and send so 2nd+ pushes work
+      if (data?.type === 'new_message') {
+        refreshAndSendPushTokenOnBackground().catch(() => {});
+      }
       // Do NOT show in-app banner/sound for new_message when in foreground - the socket already
       // delivered new_message and we showed the banner once. Showing here too caused duplicate notifications.
       // Push is for when app is backgrounded/closed (OS shows it); when foreground we rely on socket only.
@@ -504,6 +507,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const t = setTimeout(() => {
       registerForPushNotificationsAsync().catch(() => {});
     }, 15000);
+    return () => clearTimeout(t);
+  }, [user?.id]);
+
+  // iOS: some devices (e.g. iPhone 15 Pro Max) may not provide push token until later; retry at 10s so token is sent before user backgrounds
+  useEffect(() => {
+    if (!user || Platform.OS !== 'ios') return;
+    const t = setTimeout(() => {
+      registerForPushNotificationsAsync().catch(() => {});
+    }, 10000);
     return () => clearTimeout(t);
   }, [user?.id]);
 

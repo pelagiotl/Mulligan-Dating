@@ -27,6 +27,22 @@ TOOLS:
 - Or Canva - use App Icon template
 - Export as PNG, save to: mobile/assets/icon.png
 
+ANDROID ADAPTIVE ICON (adaptive-icon.png)
+-----------------------------------------
+Android uses a 1024x1024 foreground image but only shows the inner ~66% as a "safe zone"
+(circle). Content outside this zone can be CUT OFF on some launchers (e.g. heart clipped).
+
+RULE: Keep the heart (or main graphic) inside a circle of diameter ~66% of the canvas,
+      centered. So for 1024x1024: safe circle diameter ≈ 676px, radius ≈ 338px from center.
+      Scale the heart/logo DOWN and center it so it fits inside that circle.
+
+- In Figma: add a 676x676 circle guide centered on the 1024 artboard; keep all important
+  graphics inside the circle. Export as mobile/assets/adaptive-icon.png (1024x1024).
+- Or: design at 1024x1024 with the main graphic occupying only the center ~676px width/height.
+- Background color is set in app.json (adaptiveIcon.backgroundColor: "#8B1538"); the PNG
+  can have transparency where the background will show.
+
+This prevents the heart from being cut off on Android devices.
 
 
 
