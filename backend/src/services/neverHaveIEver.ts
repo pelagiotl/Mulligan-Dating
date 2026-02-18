@@ -465,6 +465,7 @@ export async function submitAnswer(
   let roundResult: { youStrike: boolean; themStrike: boolean } | undefined;
 
   if (user1Answer !== null && user2Answer !== null) {
+    // Scoring: point for "you" iff you answered "I have". Both have → both get +1. Both haven't → +0. A have / B haven't → A +1, B +0.
     const user1Strike = user1Answer === 'have';
     const user2Strike = user2Answer === 'have';
     const s1 = Number(row.user1_strikes) || 0;
@@ -480,19 +481,20 @@ export async function submitAnswer(
     const gameOver = newUser1Strikes >= STRIKES_TO_LOSE || newUser2Strikes >= STRIKES_TO_LOSE;
     const ts = new Date().toISOString();
 
-    db.prepare(
+    let runResult = db.prepare(
       `UPDATE never_have_i_ever_games SET user1_strikes = ?, user2_strikes = ?, updated_at = ? WHERE match_id = ?`
     ).run([newUser1Strikes, newUser2Strikes, ts, matchId]);
+    if (runResult instanceof Promise) await runResult;
 
-    if (!gameOver) {
-      const c1 = row.user1_spice_choice as SpiceLevel | null;
-      const c2 = row.user2_spice_choice as SpiceLevel | null;
-      const effectiveLevel = (c1 && c2 ? moreConservative(c1, c2) : (row.spice_level as SpiceLevel)) || 'pg13';
-      const nextPrompt = await generateNeverHaveIEverPrompt(matchId, effectiveLevel);
-      db.prepare(
-        `UPDATE never_have_i_ever_games SET current_prompt = ?, user1_answer = NULL, user2_answer = NULL, updated_at = ? WHERE match_id = ?`
-      ).run([nextPrompt, ts, matchId]);
-    }
+    // Always generate and show the next prompt when both have answered (so UI never sticks on the old prompt).
+    const c1 = row.user1_spice_choice as SpiceLevel | null;
+    const c2 = row.user2_spice_choice as SpiceLevel | null;
+    const effectiveLevel = (c1 && c2 ? moreConservative(c1, c2) : (row.spice_level as SpiceLevel)) || 'pg13';
+    const nextPrompt = await generateNeverHaveIEverPrompt(matchId, effectiveLevel);
+    runResult = db.prepare(
+      `UPDATE never_have_i_ever_games SET current_prompt = ?, user1_answer = NULL, user2_answer = NULL, updated_at = ? WHERE match_id = ?`
+    ).run([nextPrompt, ts, matchId]);
+    if (runResult instanceof Promise) await runResult;
   }
 
   const state = await getGameState(matchId, userId, match);
