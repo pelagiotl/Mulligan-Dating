@@ -179,7 +179,8 @@ export default function NeverHaveIEver({
       return;
     }
     try {
-      const data = await api.get<any>(`/matches/${matchId}/never-have-i-ever`);
+      // Never use cache so points/prompt don't revert after both answer (poll or socket refetch must get fresh state)
+      const data = await api.get<any>(`/matches/${matchId}/never-have-i-ever`, false);
       const simple: GameState = {
         prompt: data.prompt || '',
         phase: data.spiceReady && (data.prompt || data.spiceLevel) ? 'playing' : 'lobby',
@@ -240,8 +241,9 @@ export default function NeverHaveIEver({
   useEffect(() => {
     if (!modalVisible) return;
     const onUpdate = () => {
+      lastRoundCompletedAtRef.current = Date.now();
       api.clearCache(`/matches/${matchId}/never-have-i-ever`);
-      fetchState(true);
+      fetchState(false);
     };
     socket?.on?.('never_have_i_ever_updated', onUpdate);
     return () => {
@@ -319,12 +321,13 @@ export default function NeverHaveIEver({
       const data = await api.post<any>(`/matches/${matchId}/never-have-i-ever/answer`, { answer });
       const serverYourPts = typeof data.yourPoints === 'number' ? data.yourPoints : (data.yourStrikes ?? 0);
       const serverTheirPts = typeof data.theirPoints === 'number' ? data.theirPoints : (data.theirStrikes ?? 0);
+      const roundComplete = !!data.bothAnswered || !!data.roundJustCompleted;
       setState(prev => {
         if (!prev) return null;
         const baseYou = prev.yourPoints ?? 0;
         const baseThem = prev.theirPoints ?? 0;
-        const useServerYou = data.bothAnswered || (typeof serverYourPts === 'number' && serverYourPts > baseYou);
-        const useServerThem = data.bothAnswered || (typeof serverTheirPts === 'number' && serverTheirPts > baseThem);
+        const useServerYou = roundComplete || (typeof serverYourPts === 'number' && serverYourPts > baseYou);
+        const useServerThem = roundComplete || (typeof serverTheirPts === 'number' && serverTheirPts > baseThem);
         const yourPts = useServerYou ? serverYourPts : (answer === 'have' ? baseYou + 1 : baseYou);
         const theirPts = useServerThem ? serverTheirPts : (typeof data.theirPoints === 'number' ? data.theirPoints : (typeof data.theirStrikes === 'number' ? data.theirStrikes : baseThem));
         return {
@@ -340,13 +343,15 @@ export default function NeverHaveIEver({
       if (data.prompt) {
         setPrompt(data.prompt);
       }
-      if (data.bothAnswered) {
+      if (data.bothAnswered || data.roundJustCompleted) {
         lastRoundCompletedAtRef.current = Date.now();
         api.clearCache(`/matches/${matchId}/never-have-i-ever`);
+        const serverYou = typeof data.yourPoints === 'number' ? data.yourPoints : (data.yourStrikes ?? 0);
+        const serverThem = typeof data.theirPoints === 'number' ? data.theirPoints : (data.theirStrikes ?? 0);
         setState(prev => prev ? {
           ...prev,
-          yourPoints: typeof data.yourPoints === 'number' ? data.yourPoints : (data.yourStrikes ?? 0),
-          theirPoints: typeof data.theirPoints === 'number' ? data.theirPoints : (data.theirStrikes ?? 0),
+          yourPoints: serverYou,
+          theirPoints: serverThem,
           yourAnswer: data.yourAnswer ?? null,
           theirAnswer: data.theirAnswer ?? null,
           bothAnswered: !!data.bothAnswered,

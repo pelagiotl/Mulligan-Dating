@@ -536,14 +536,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setTokenCache(token);
         // Restore last session's push token so the very first request sends it (fixes notifications for recipient).
         await hydrateStoredPushToken();
-        // Wait for push token (or short timeout) before first API call so /auth/me includes X-Push-Token.
-        const pushReady = Promise.race([
-          registerForPushNotificationsAsync(),
-          new Promise<void>((r) => setTimeout(r, 6000)),
-        ]).catch((e) => {
+        // Don't block on push registration — fetch user immediately for a faster open. Push runs in parallel;
+        // the first API request will send X-Push-Token from the store, and we re-register after 500ms in fetchUser.
+        registerForPushNotificationsAsync().catch((e) => {
           console.warn('⚠️ Push register on auth (non-critical):', e?.message || e);
         });
-        await pushReady;
         await fetchUser();
       } else {
         // No token found - show login screen

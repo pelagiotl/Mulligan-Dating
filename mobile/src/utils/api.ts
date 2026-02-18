@@ -53,7 +53,9 @@ class ApiError extends Error {
   }
 }
 
-async function request<T = any>(endpoint: string, options: RequestInit & { body?: any } = {}, useCache: boolean = true): Promise<T> {
+type RequestOptions = RequestInit & { body?: any; timeoutMs?: number };
+
+async function request<T = any>(endpoint: string, options: RequestOptions = {}, useCache: boolean = true): Promise<T> {
   // Check cache for GET requests
   const isGetRequest = !options.method || options.method === 'GET';
   if (isGetRequest && useCache) {
@@ -117,15 +119,17 @@ async function request<T = any>(endpoint: string, options: RequestInit & { body?
     body = JSON.stringify(body);
   }
 
-  // Add timeout to prevent hanging
+  // Timeout: longer for message send (consecutive sends / slow server), default 45s
+  const timeoutMs = options.timeoutMs ?? 45000;
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 45000); // 45 second timeout
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   const url = `${BASE_URL}${endpoint}`;
 
   const doRequest = async (): Promise<Response> => {
+    const { timeoutMs: _tm, ...restOptions } = options;
     const fetchOptions: RequestInit = {
-      ...options,
+      ...restOptions,
       headers,
       body,
       signal: controller.signal,
@@ -298,7 +302,7 @@ async function request<T = any>(endpoint: string, options: RequestInit & { body?
 
 export const api = {
   get: <T>(endpoint: string, useCache: boolean = true) => request<T>(endpoint, {}, useCache),
-  post: <T>(endpoint: string, body: unknown) => {
+  post: <T>(endpoint: string, body: unknown, extraOptions?: { timeoutMs?: number }) => {
     // Clear related cache entries on POST
     if (endpoint.includes('/matches/connect')) {
       apiCache.clear(APICache.getCacheKey('/matches'));
@@ -309,9 +313,13 @@ export const api = {
     if (endpoint === '/profile') {
       apiCache.clear(APICache.getCacheKey('/profile'));
     }
+    // Message send: longer timeout when server is slow or multiple sends in sequence
+    const isMessageSend = /\/matches\/[^/]+\/messages$/.test(endpoint);
+    const timeoutMs = extraOptions?.timeoutMs ?? (isMessageSend ? 90000 : 45000);
     return request<T>(endpoint, {
       method: 'POST',
-      body
+      body,
+      timeoutMs,
     }, false);
   },
   put: <T>(endpoint: string, body: unknown) => {

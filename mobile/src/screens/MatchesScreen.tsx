@@ -104,35 +104,50 @@ interface Message {
   isOwn: boolean;
 }
 
-// Voice message play button + playback
+// Voice message play button + playback (uri must be a full URL for remote audio)
 function VoiceMessagePlayer({ uri }: { uri: string }) {
   const [playing, setPlaying] = useState(false);
   const soundRef = useRef<Audio.Sound | null>(null);
   const play = useCallback(async () => {
+    if (!uri || !uri.trim()) return;
     try {
       if (soundRef.current) {
         await soundRef.current.replayAsync();
         setPlaying(true);
         soundRef.current.setOnPlaybackStatusUpdate((s) => {
-          if (s.isLoaded && s.didJustFinishAndNotReset) setPlaying(false);
+          if (s.isLoaded && ((s as any).didJustFinishAndNotReset ?? s.didJustFinish)) setPlaying(false);
         });
         return;
       }
-      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: false, shouldDuckAndroid: true, playThroughEarpieceAndroid: false });
-      const { sound } = await Audio.Sound.createAsync({ uri });
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+      });
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: uri.trim() },
+        { shouldPlay: false, volume: 1.0, isLooping: false }
+      );
       soundRef.current = sound;
       setPlaying(true);
       sound.setOnPlaybackStatusUpdate((s) => {
-        if (s.isLoaded && s.didJustFinishAndNotReset) setPlaying(false);
+        if (s.isLoaded && ((s as any).didJustFinishAndNotReset ?? s.didJustFinish)) setPlaying(false);
       });
       await sound.playAsync();
-    } catch (e) {
+    } catch (e: any) {
       setPlaying(false);
+      console.warn('Voice message playback failed:', e?.message ?? e);
+      Alert.alert('Playback failed', 'Could not play voice message. Please try again.');
     }
   }, [uri]);
-  useEffect(() => () => { soundRef.current?.unloadAsync?.(); }, []);
+  useEffect(() => () => {
+    soundRef.current?.unloadAsync?.().catch(() => {});
+    soundRef.current = null;
+  }, []);
   return (
-    <TouchableOpacity onPress={play} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 12, backgroundColor: 'rgba(0,0,0,0.06)', borderRadius: 20, gap: 8 }}>
+    <TouchableOpacity onPress={play} activeOpacity={0.7} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 12, backgroundColor: 'rgba(0,0,0,0.06)', borderRadius: 20, gap: 8 }}>
       <Text style={{ fontSize: 18 }}>{playing ? '⏸' : '▶️'}</Text>
       <Text style={{ fontSize: 14, color: '#333' }}>Voice message</Text>
     </TouchableOpacity>
@@ -191,7 +206,7 @@ const MessageBubble = React.memo(function MessageBubble({
         />
       ) : null}
       {item.audioUrl ? (
-        <VoiceMessagePlayer uri={item.audioUrl} />
+        <VoiceMessagePlayer uri={getPhotoUrl(item.audioUrl) || item.audioUrl} />
       ) : null}
       {item.content ? (
         <Text style={isOwn ? s.messageTextOwn : s.messageTextOther}>{item.content}</Text>
@@ -1941,6 +1956,7 @@ export default function MatchesScreen() {
   const [pendingVideoUri, setPendingVideoUri] = useState<string | null>(null);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const recordingRef = useRef<Audio.Recording | null>(null);
+  const sendInFlightRef = useRef(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [stageInfoModalVisible, setStageInfoModalVisible] = useState(false);
   const [stageInfoStage, setStageInfoStage] = useState<'stage1' | 'stage2' | null>(null);
@@ -2765,7 +2781,10 @@ export default function MatchesScreen() {
     const hasImage = !!imageUrlToSend;
     const hasVideo = !!videoUrlToSend;
     const hasAudio = !!audioUrlToSend;
-    if ((!hasContent && !hasImage && !hasVideo && !hasAudio) || !selectedMatch || sendingMessage || !user) return;
+    if ((!hasContent && !hasImage && !hasVideo && !hasAudio) || !selectedMatch || !user) return;
+    // Ref guard: prevent concurrent sends (state update is async so rapid taps can both pass sendingMessage check)
+    if (sendInFlightRef.current) return;
+    sendInFlightRef.current = true;
 
     // Stop typing indicator
     if (isTyping && selectedMatch.id) {
@@ -2845,6 +2864,7 @@ export default function MatchesScreen() {
       setMessages((prev) => prev.filter((m) => m.id !== tempMessage.id));
       Alert.alert('Error', error?.message || 'Failed to send message');
     } finally {
+      sendInFlightRef.current = false;
       setSendingMessage(false);
     }
   };
@@ -2867,11 +2887,8 @@ export default function MatchesScreen() {
               }
               const result = await ImagePicker.launchCameraAsync({
                 mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                allowsEditing: true,
-                aspect: [1, 1],
-                quality: 0.5,
-                maxWidth: 1024,
-                maxHeight: 1024,
+                allowsEditing: false,
+                quality: 0.85,
               });
               if (!result.canceled && result.assets[0]) {
                 setPendingVideoUri(null);
@@ -2916,11 +2933,8 @@ export default function MatchesScreen() {
               }
               const result = await ImagePicker.launchImageLibraryAsync({
                 mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                allowsEditing: true,
-                aspect: [1, 1],
-                quality: 0.5,
-                maxWidth: 1024,
-                maxHeight: 1024,
+                allowsEditing: false,
+                quality: 0.85,
               });
               if (!result.canceled && result.assets[0]) {
                 setPendingVideoUri(null);
@@ -3357,15 +3371,7 @@ export default function MatchesScreen() {
               <Text style={styles.backButton}>← Back</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={() => {
-                const chatPhotoUrl = getMatchPhoto(selectedMatch);
-                const photoUri = chatPhotoUrl ? getPhotoUrl(chatPhotoUrl) : null;
-                if (photoUri) {
-                  setFullScreenImageUrl(photoUri);
-                } else {
-                  setShowProfileModal(true);
-                }
-              }}
+              onPress={() => setShowProfileModal(true)}
               activeOpacity={0.8}
               style={styles.chatHeaderPhotoTouch}
             >

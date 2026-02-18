@@ -373,12 +373,13 @@ export default function AppNavigator() {
     }
   }, [loading, user, profile, isNavigationReady]);
 
-  // Show a light loading screen while checking auth — avoids black screen on simulator (after all hooks)
+  // Brief seamless splash while checking auth — same background as app, no "Loading" label
   if (loading) {
     return (
       <View style={styles.loadingScreen}>
-        <ActivityIndicator size="large" color="#8B1538" />
-        <Text style={styles.loadingScreenText}>Loading…</Text>
+        <View style={{ opacity: 0.5 }}>
+          <ActivityIndicator size="small" color="#8B1538" />
+        </View>
       </View>
     );
   }
@@ -434,12 +435,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#f8f9ff',
-  },
-  loadingScreenText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: '#64748b',
-    fontWeight: '500',
   },
   tabIcon: {
     fontSize: 20,

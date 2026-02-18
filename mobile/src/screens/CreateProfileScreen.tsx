@@ -1239,11 +1239,8 @@ export default function CreateProfileScreen() {
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.5,
-        maxWidth: 1200,
-        maxHeight: 1200,
+        allowsEditing: false,
+        quality: 0.85,
       });
 
       if (!result.canceled && result.assets[0]) {

@@ -215,7 +215,7 @@ export default function MyProfileScreen() {
   // Animation for header elements
   const headerFade = useRef(new Animated.Value(0)).current;
   const headerScale = useRef(new Animated.Value(0.95)).current;
-  const avatarScale = useRef(new Animated.Value(0)).current;
+  const avatarScale = useRef(new Animated.Value(1)).current;
   
   // Animations for stat cards
   const statCard1Anim = useRef(new Animated.Value(0)).current;
@@ -291,21 +291,12 @@ export default function MyProfileScreen() {
   
   useEffect(() => {
     if (data) {
-      // Show header immediately so picture, name, and basic info are visible at top
+      // Show header and avatar at full size immediately (no spring delay)
       headerFade.setValue(1);
       headerScale.setValue(1);
       avatarScale.setValue(1);
-      // Optional: subtle entrance (fast, non-blocking)
-      Animated.parallel([
-        Animated.spring(avatarScale, {
-          toValue: 1,
-          tension: 40,
-          friction: 6,
-          useNativeDriver: true,
-        }),
-      ]).start();
       
-      // Start ring animations - continuous pulsing and rotation
+      // Start ring animations when we have full profile data
       const ring1Pulse = Animated.loop(
         Animated.sequence([
           Animated.parallel([
@@ -511,8 +502,13 @@ export default function MyProfileScreen() {
         sparkle2Float.stop();
         sparkle3Float.stop();
       };
+    } else if ((cachedPrimaryPhotoUrl || photos.length > 0) && isFocused) {
+      // Show header/avatar immediately from cache or photos while profile loads
+      headerFade.setValue(1);
+      headerScale.setValue(1);
+      avatarScale.setValue(1);
     } else {
-      // Reset animations when data is cleared
+      // Reset animations when data is cleared and no cached photo
       headerFade.setValue(0);
       headerScale.setValue(0.95);
       avatarScale.setValue(0);
@@ -529,7 +525,7 @@ export default function MyProfileScreen() {
       sparkle2Anim.setValue(0);
       sparkle3Anim.setValue(0);
     }
-  }, [data, isFocused]);
+  }, [data, cachedPrimaryPhotoUrl, photos.length, isFocused]);
 
   useEffect(() => {
     if (user) {
@@ -912,7 +908,7 @@ export default function MyProfileScreen() {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
-        quality: 0.6,
+        quality: 0.85,
         allowsMultipleSelection: false,
       });
 
@@ -1168,7 +1164,8 @@ export default function MyProfileScreen() {
   }
 
   const waitingForProfile = user && data == null && !profileCheckDoneRef.current;
-  if (loading || (authLoading && !data) || waitingForProfile) {
+  const showFullScreenLoading = (loading || (authLoading && !data) || waitingForProfile) && !cachedPrimaryPhotoUrl && photos.length === 0;
+  if (showFullScreenLoading) {
     return (
       <View style={styles.loadingContainer}>
         <LinearGradient
@@ -1180,6 +1177,57 @@ export default function MyProfileScreen() {
         <ActivityIndicator size="large" color="#fff" />
         <Text style={styles.loadingText}>Loading your profile...</Text>
       </View>
+    );
+  }
+
+  // Show profile shell with avatar from cache/photos while profile data loads (avatar appears instantly)
+  const shellPhotoUrl = cachedPrimaryPhotoUrl || (photos.length > 0 ? getPhotoUrl(photos[0].url) : null);
+  if (user && shellPhotoUrl && !data) {
+    return (
+      <GestureHandlerRootView style={styles.wrapper}>
+        <LinearGradient
+          colors={['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+        <ScrollView
+          style={styles.container}
+          contentContainerStyle={styles.contentContainer}
+          showsVerticalScrollIndicator={false}
+        >
+          <Animated.View
+            style={[
+              styles.headerGradient,
+              { opacity: headerFade, transform: [{ scale: headerScale }] },
+            ]}
+          >
+            <LinearGradient
+              colors={['rgba(255, 255, 255, 0.98)', 'rgba(255, 245, 248, 0.95)', 'rgba(255, 255, 255, 0.98)', 'rgba(250, 250, 255, 0.95)']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.headerGradientInner}
+            >
+              <View style={styles.header}>
+                <Animated.View style={[styles.avatarWrapper, { transform: [{ scale: avatarScale }] }]}>
+                  <Animated.Image
+                    source={{ uri: shellPhotoUrl }}
+                    style={[styles.avatar, { transform: [{ scale: avatarBreath }] }]}
+                    resizeMode="cover"
+                  />
+                </Animated.View>
+                <View style={styles.info}>
+                  <Text style={styles.name}>...</Text>
+                </View>
+              </View>
+            </LinearGradient>
+          </Animated.View>
+          <View style={{ padding: 24, alignItems: 'center' }}>
+            <ActivityIndicator size="small" color="#667eea" />
+            <Text style={[styles.loadingText, { color: '#666', marginTop: 12 }]}>Loading your profile...</Text>
+          </View>
+        </ScrollView>
+      </GestureHandlerRootView>
     );
   }
 

@@ -2386,6 +2386,7 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
     res.json({
       ...state,
       roundResult,
+      roundJustCompleted: !!roundResult,
       yourPoints: state.yourStrikes ?? 0,
       theirPoints: state.theirStrikes ?? 0,
     });
