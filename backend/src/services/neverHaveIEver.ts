@@ -458,7 +458,8 @@ export async function submitAnswer(
     if (updateResult instanceof Promise) await updateResult;
   }
 
-  row = (db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]) as any) as GameRow;
+  const rowAfter = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
+  row = (rowAfter instanceof Promise ? await rowAfter : rowAfter) as GameRow;
   const user1Answer = row.user1_answer as 'have' | 'havent' | null;
   const user2Answer = row.user2_answer as 'have' | 'havent' | null;
 

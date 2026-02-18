@@ -855,12 +855,99 @@ matchesRouter.get("/:matchId/messages", authenticateToken, async (req: AuthReque
         sentAt: m.sent_at,
         readAt: m.read_at || null,
         isOwn: m.sender_id === userId,
+        likedBy: m.liked_by_id || null,
       })),
     });
   } catch (error) {
     console.error("Get messages error:", error);
     const errorMessage = error instanceof Error ? error.message : String(error);
     res.status(500).json({ error: `Failed to load messages: ${errorMessage}` });
+  }
+});
+
+// Like a message (only the other user in the match can like; one like per message)
+matchesRouter.post("/:matchId/messages/:messageId/like", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { matchId, messageId } = req.params;
+
+    const matchResult = db.prepare(
+      `SELECT user1_id, user2_id FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?) AND stage IN ('stage1', 'stage2')`
+    ).get([matchId, userId, userId]);
+    const match = (matchResult instanceof Promise ? await matchResult : matchResult) as { user1_id: string; user2_id: string } | undefined;
+    if (!match) return res.status(404).json({ error: "Match not found or not mutual" });
+
+    const msgResult = db.prepare(
+      `SELECT id, sender_id, liked_by_id FROM messages WHERE id = ? AND match_id = ?`
+    ).get([messageId, matchId]);
+    const msg = (msgResult instanceof Promise ? await msgResult : msgResult) as { id: string; sender_id: string; liked_by_id: string | null } | undefined;
+    if (!msg) return res.status(404).json({ error: "Message not found" });
+
+    const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
+    if (msg.sender_id === userId) return res.status(400).json({ error: "You cannot like your own message" });
+
+    const runResult = db.prepare(`UPDATE messages SET liked_by_id = ? WHERE id = ? AND match_id = ?`).run([userId, messageId, matchId]);
+    if (runResult instanceof Promise) await runResult;
+
+    const likerProfile = db.prepare(`SELECT display_name FROM profiles WHERE user_id = ?`).get([userId]) as { display_name: string } | undefined;
+    const likerName = likerProfile?.display_name || "Someone";
+
+    const { getIO } = await import("../socket.js");
+    const io = getIO();
+    if (io) {
+      const payload = { matchId, messageId, likedBy: userId, likerName, senderId: msg.sender_id };
+      io.to(`match:${matchId}`).emit("message_liked", payload);
+      io.to(`user:${msg.sender_id}`).emit("message_liked", payload);
+    }
+
+    try {
+      const { sendMessageLikedPushNotification, isPushNotificationConfigured, isExpoPushToken } = await import("../services/pushNotifications.js");
+      const row = db.prepare("SELECT push_token, push_notify_messages FROM users WHERE id = ?").get([msg.sender_id]) as { push_token: string | null; push_notify_messages: number | null } | undefined;
+      const wantsPush = row?.push_notify_messages === undefined || row?.push_notify_messages === null || row.push_notify_messages !== 0;
+      if (row?.push_token && isExpoPushToken(row.push_token) && wantsPush && isPushNotificationConfigured()) {
+        await sendMessageLikedPushNotification(row.push_token, likerName, matchId, messageId);
+      }
+    } catch (pushErr) {
+      console.warn("Push (message liked) failed:", pushErr);
+    }
+
+    res.json({ liked: true, messageId, likedBy: userId });
+  } catch (error) {
+    const errMsg = error instanceof Error ? error.message : String(error);
+    console.error("Like message error:", error);
+    res.status(500).json({ error: `Failed to like message: ${errMsg}` });
+  }
+});
+
+// Unlike a message
+matchesRouter.delete("/:matchId/messages/:messageId/like", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { matchId, messageId } = req.params;
+
+    const matchResult = db.prepare(
+      `SELECT user1_id, user2_id FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?) AND stage IN ('stage1', 'stage2')`
+    ).get([matchId, userId, userId]);
+    const match = (matchResult instanceof Promise ? await matchResult : matchResult) as { user1_id: string; user2_id: string } | undefined;
+    if (!match) return res.status(404).json({ error: "Match not found or not mutual" });
+
+    const msgResult = db.prepare(`SELECT id, liked_by_id FROM messages WHERE id = ? AND match_id = ?`).get([messageId, matchId]);
+    const msg = (msgResult instanceof Promise ? await msgResult : msgResult) as { id: string; liked_by_id: string | null } | undefined;
+    if (!msg) return res.status(404).json({ error: "Message not found" });
+    if (msg.liked_by_id !== userId) return res.status(400).json({ error: "You have not liked this message" });
+
+    const runResult = db.prepare(`UPDATE messages SET liked_by_id = NULL WHERE id = ? AND match_id = ?`).run([messageId, matchId]);
+    if (runResult instanceof Promise) await runResult;
+
+    const { getIO } = await import("../socket.js");
+    const io = getIO();
+    if (io) io.to(`match:${matchId}`).emit("message_unliked", { matchId, messageId });
+
+    res.json({ liked: false, messageId });
+  } catch (error) {
+    const errMsg = error instanceof Error ? error.message : String(error);
+    console.error("Unlike message error:", error);
+    res.status(500).json({ error: `Failed to unlike message: ${errMsg}` });
   }
 });
 
@@ -949,7 +1036,8 @@ matchesRouter.post("/:matchId/messages/upload-audio", authenticateToken, rateLim
     const match = (matchResult instanceof Promise ? await matchResult : matchResult) as MatchRow | undefined;
     if (!match) return res.status(404).json({ error: "Match not found or not yet mutual" });
     if (!isCloudinaryConfigured()) return res.status(503).json({ error: "Audio upload is not configured" });
-    const audioUrl = await uploadToCloudinaryMedia(file.buffer, 'chat-audio', 'raw');
+    const publicId = `${uuidv4()}.m4a`;
+    const audioUrl = await uploadToCloudinaryMedia(file.buffer, 'chat-audio', 'raw', publicId);
     res.json({ audioUrl });
   } catch (error) {
     console.error("Chat audio upload error:", error);

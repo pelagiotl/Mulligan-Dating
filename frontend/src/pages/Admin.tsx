@@ -20,6 +20,9 @@ interface User {
 interface Message {
   id: string;
   content: string;
+  imageUrl?: string | null;
+  videoUrl?: string | null;
+  audioUrl?: string | null;
   senderId: string;
   senderName: string;
   otherUserName?: string;
@@ -581,7 +584,7 @@ export default function Admin() {
                     {userMessages.length === 0 ? (
                       <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', padding: 'var(--space-4)' }}>No messages found</p>
                     ) : (
-                      <div style={{ maxHeight: '400px', overflowY: 'auto', padding: 'var(--space-2)' }}>
+                      <div className="admin-messages-scroll" style={{ maxHeight: '400px', overflowY: 'auto', padding: 'var(--space-2)' }}>
                         {userMessages.map((msg) => (
                           <div
                             key={msg.id}
@@ -596,7 +599,31 @@ export default function Admin() {
                                 {new Date(msg.sentAt).toLocaleString()}
                               </span>
                             </div>
-                            <div className="admin-message-content">{msg.content}</div>
+                            {(msg.content || msg.imageUrl || msg.videoUrl || msg.audioUrl) ? (
+                              <>
+                                {msg.content && <div className="admin-message-content">{msg.content}</div>}
+                                {msg.imageUrl && (
+                                  <div className="admin-message-media">
+                                    <a href={msg.imageUrl} target="_blank" rel="noopener noreferrer" className="admin-message-photo-link">
+                                      <img src={msg.imageUrl} alt="Sent photo" className="admin-message-photo" />
+                                    </a>
+                                    <span className="admin-message-media-label">Photo</span>
+                                  </div>
+                                )}
+                                {msg.videoUrl && (
+                                  <div className="admin-message-media">
+                                    <a href={msg.videoUrl} target="_blank" rel="noopener noreferrer" className="admin-message-media-link">📹 Open video</a>
+                                  </div>
+                                )}
+                                {msg.audioUrl && (
+                                  <div className="admin-message-media">
+                                    <a href={msg.audioUrl} target="_blank" rel="noopener noreferrer" className="admin-message-media-link">🎤 Open voice message</a>
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <div className="admin-message-content admin-message-empty">—</div>
+                            )}
                             {msg.readAt && (
                               <div className="admin-message-read">✓ Read {new Date(msg.readAt).toLocaleString()}</div>
                             )}

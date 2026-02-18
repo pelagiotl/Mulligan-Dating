@@ -154,7 +154,7 @@ export async function uploadToCloudinaryMedia(
       resource_type: resourceType,
       timeout: 300000,
     };
-    if (publicId) uploadOptions.public_id = publicId;
+    if (publicId) uploadOptions.public_id = publicId.replace(/^\//, ''); // Cloudinary expects no leading slash
     const uploadStream = cloudinary.uploader.upload_stream(
       uploadOptions,
       (error: any, result: any) => {

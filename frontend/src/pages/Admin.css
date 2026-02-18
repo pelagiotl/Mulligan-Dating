@@ -475,6 +475,11 @@
   overflow-y: auto;
   border: 1px solid rgba(254, 205, 211, 0.6);
   box-shadow: 0 8px 32px rgba(45, 17, 24, 0.08);
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.admin-user-details::-webkit-scrollbar {
+  display: none;
 }
 
 .user-details-header {
@@ -603,6 +608,14 @@
   animation: adminFadeIn 0.25s ease-out;
 }
 
+.admin-messages-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.admin-messages-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 @keyframes adminFadeIn {
   from {
     opacity: 0;
@@ -661,6 +674,50 @@
   line-height: 1.5;
   font-size: 0.875rem;
   word-wrap: break-word;
+}
+
+.admin-message-content.admin-message-empty {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.admin-message-media {
+  margin-top: var(--space-2);
+}
+
+.admin-message-photo-link {
+  display: inline-block;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--color-rose-200);
+  max-width: 280px;
+}
+
+.admin-message-photo {
+  display: block;
+  max-width: 280px;
+  max-height: 240px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  vertical-align: middle;
+}
+
+.admin-message-media-label {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-top: var(--space-1);
+}
+
+.admin-message-media-link {
+  font-size: 0.875rem;
+  color: var(--color-rose-600);
+  text-decoration: underline;
+}
+
+.admin-message-media-link:hover {
+  color: var(--color-rose-800);
 }
 
 .admin-message-read {

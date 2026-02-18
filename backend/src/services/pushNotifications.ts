@@ -269,4 +269,27 @@ export async function sendMessagePushNotification(
   );
 }
 
+/**
+ * Send push when someone liked your message
+ */
+export async function sendMessageLikedPushNotification(
+  pushToken: string,
+  likerName: string,
+  matchId: string,
+  messageId?: string
+): Promise<PushResult> {
+  return sendPushNotification(
+    pushToken,
+    '❤️ Message liked',
+    `${likerName} liked your message`,
+    {
+      type: 'message_liked',
+      matchId,
+      likerName,
+      ...(messageId ? { messageId } : {}),
+    },
+    'default'
+  );
+}
+
 

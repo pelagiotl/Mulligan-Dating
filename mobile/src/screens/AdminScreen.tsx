@@ -11,10 +11,12 @@ import {
   Modal,
   RefreshControl,
   Share,
+  Image,
+  Linking,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
-import { api } from '../utils/api';
+import { api, API_URL } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 
 interface Stats {
@@ -677,7 +679,7 @@ export default function AdminScreen() {
       {!adminDenied && (
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>👥 User Management</Text>
-        
+        <Text style={styles.sectionDescription}>Tap a user for details. Use 💬 to view their messages with matches.</Text>
         <TextInput
           style={styles.searchInput}
           placeholder="Search by email, name, or phone..."
@@ -695,38 +697,39 @@ export default function AdminScreen() {
           <Text style={styles.emptyText}>No users found</Text>
         ) : (
           users.map((u) => (
-            <TouchableOpacity
-              key={u.id}
-              style={styles.userCard}
-              onPress={() => fetchUserDetails(u.id)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.userCardContent}>
-                <View style={styles.userInfo}>
-                  <Text style={styles.userName}>{u.display_name || u.email || u.phoneNumber || 'N/A'}</Text>
-                  <Text style={styles.userEmail}>{u.email || u.phoneNumber || 'No contact'}</Text>
-                  {u.age && u.gender && (
-                    <Text style={styles.userDetails}>{u.age} • {u.gender} {u.location ? `• ${u.location}` : ''}</Text>
-                  )}
+            <View key={u.id} style={styles.userCard}>
+              <TouchableOpacity
+                onPress={() => fetchUserDetails(u.id)}
+                activeOpacity={0.7}
+                style={styles.userCardTouchable}
+              >
+                <View style={styles.userCardContent}>
+                  <View style={styles.userInfo}>
+                    <Text style={styles.userName} numberOfLines={1}>{u.display_name || u.email || u.phoneNumber || 'N/A'}</Text>
+                    <Text style={styles.userEmail} numberOfLines={1}>{u.email || u.phoneNumber || 'No contact'}</Text>
+                    {u.age && u.gender && (
+                      <Text style={styles.userDetails} numberOfLines={1}>{u.age} • {u.gender}{u.location ? ` • ${u.location}` : ''}</Text>
+                    )}
+                  </View>
+                  <View style={styles.userBadges}>
+                    {u.is_admin && (
+                      <LinearGradient colors={['#667eea', '#764ba2']} style={styles.badgeGradient}>
+                        <Text style={styles.badgeText}>Admin</Text>
+                      </LinearGradient>
+                    )}
+                    {u.is_restricted && (
+                      <LinearGradient colors={['#ef4444', '#dc2626']} style={styles.badgeGradient}>
+                        <Text style={styles.badgeText}>Restricted</Text>
+                      </LinearGradient>
+                    )}
+                    {!u.is_admin && !u.is_restricted && (
+                      <LinearGradient colors={['#10b981', '#059669']} style={styles.badgeGradient}>
+                        <Text style={styles.badgeText}>Active</Text>
+                      </LinearGradient>
+                    )}
+                  </View>
                 </View>
-                <View style={styles.userBadges}>
-                  {u.is_admin && (
-                    <LinearGradient colors={['#667eea', '#764ba2']} style={styles.badgeGradient}>
-                      <Text style={styles.badgeText}>Admin</Text>
-                    </LinearGradient>
-                  )}
-                  {u.is_restricted && (
-                    <LinearGradient colors={['#ef4444', '#dc2626']} style={styles.badgeGradient}>
-                      <Text style={styles.badgeText}>Restricted</Text>
-                    </LinearGradient>
-                  )}
-                  {!u.is_admin && !u.is_restricted && (
-                    <LinearGradient colors={['#10b981', '#059669']} style={styles.badgeGradient}>
-                      <Text style={styles.badgeText}>Active</Text>
-                    </LinearGradient>
-                  )}
-                </View>
-              </View>
+              </TouchableOpacity>
               <View style={styles.userActions}>
                 <View style={styles.tokenBadge}>
                   <Text style={styles.tokenEmoji}>🎟️</Text>
@@ -734,29 +737,20 @@ export default function AdminScreen() {
                 </View>
                 <TouchableOpacity
                   style={[styles.smallButton, styles.secondaryButton]}
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    openMessagesForUser(u.id, u.display_name || u.email || u.id);
-                  }}
+                  onPress={() => openMessagesForUser(u.id, u.display_name || u.email || u.id)}
                 >
                   <Text style={styles.smallButtonText}>💬</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.smallButton, styles.primaryButton]}
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    handleGrantTokens(u.id, 1);
-                  }}
+                  onPress={() => handleGrantTokens(u.id, 1)}
                   disabled={actionLoading === u.id}
                 >
                   <Text style={styles.smallButtonText}>+1</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.smallButton, u.is_restricted ? styles.successButton : styles.warningButton]}
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    handleRestrictUser(u.id, !u.is_restricted);
-                  }}
+                  onPress={() => handleRestrictUser(u.id, !u.is_restricted)}
                   disabled={actionLoading === u.id}
                 >
                   <Text style={styles.smallButtonText}>{u.is_restricted ? 'Unrestrict' : 'Restrict'}</Text>
@@ -764,17 +758,14 @@ export default function AdminScreen() {
                 {!u.is_admin && (
                   <TouchableOpacity
                     style={[styles.smallButton, styles.dangerButton]}
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      handleDeleteUser(u.id);
-                    }}
+                    onPress={() => handleDeleteUser(u.id)}
                     disabled={actionLoading === u.id}
                   >
                     <Text style={styles.smallButtonText}>🗑️</Text>
                   </TouchableOpacity>
                 )}
               </View>
-            </TouchableOpacity>
+            </View>
           ))
         )}
       </View>
@@ -931,18 +922,33 @@ export default function AdminScreen() {
                     userMessages.map((msg) => {
                       const dateStr = msg.sentAt ? new Date(msg.sentAt).toLocaleString() : '—';
                       const fromTo = `${msg.senderName} → ${msg.otherUserName}`;
-                      let body = msg.content || '';
-                      if (!body && (msg.imageUrl || msg.videoUrl || msg.audioUrl)) {
-                        if (msg.imageUrl) body = '[Photo]';
-                        else if (msg.videoUrl) body = '[Video]';
-                        else if (msg.audioUrl) body = '[Voice]';
-                      }
-                      if (!body) body = '—';
+                      const hasContent = !!(msg.content || msg.imageUrl || msg.videoUrl || msg.audioUrl);
+                      const resolveUrl = (url: string | null | undefined) =>
+                        !url ? null : url.startsWith('http') ? url : `${API_URL.replace(/\/$/, '')}${url.startsWith('/') ? '' : '/'}${url}`;
+                      const imageUri = resolveUrl(msg.imageUrl ?? null);
+                      const videoUri = resolveUrl(msg.videoUrl ?? null);
+                      const audioUri = resolveUrl(msg.audioUrl ?? null);
                       return (
                         <View key={msg.id} style={styles.messageRow}>
                           <Text style={styles.messageMeta}>{dateStr}</Text>
                           <Text style={styles.messageFromTo}>{fromTo}</Text>
-                          <Text style={styles.messageBody} numberOfLines={10}>{body}</Text>
+                          {msg.content ? <Text style={styles.messageBody} numberOfLines={10}>{msg.content}</Text> : null}
+                          {imageUri ? (
+                            <TouchableOpacity
+                              activeOpacity={0.9}
+                              onPress={() => Linking.openURL(imageUri)}
+                              style={styles.messageImageWrap}
+                            >
+                              <Image source={{ uri: imageUri }} style={styles.messageImage} resizeMode="cover" />
+                            </TouchableOpacity>
+                          ) : null}
+                          {videoUri ? (
+                            <Text style={styles.messageMediaLink} onPress={() => Linking.openURL(videoUri)}>📹 Open video</Text>
+                          ) : null}
+                          {audioUri ? (
+                            <Text style={styles.messageMediaLink} onPress={() => Linking.openURL(audioUri)}>🎤 Open voice message</Text>
+                          ) : null}
+                          {!hasContent && <Text style={styles.messageBody}>—</Text>}
                         </View>
                       );
                     })
@@ -1190,27 +1196,24 @@ const styles = StyleSheet.create({
   },
   section: {
     backgroundColor: '#fff',
-    borderRadius: 28,
-    padding: 28,
-    marginBottom: 24,
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 20,
     marginHorizontal: 16,
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 24,
-    elevation: 12,
-    borderWidth: 3,
-    borderColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(102, 126, 234, 0.12)',
   },
   sectionTitle: {
-    fontSize: 26,
-    fontWeight: '900',
+    fontSize: 22,
+    fontWeight: '800',
     color: '#1a1a1a',
-    marginBottom: 16,
-    letterSpacing: -0.5,
-    textShadowColor: 'rgba(102, 126, 234, 0.2)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 6,
+    marginBottom: 6,
+    letterSpacing: -0.3,
   },
   sectionDescription: {
     fontSize: 16,
@@ -1316,24 +1319,29 @@ const styles = StyleSheet.create({
   },
   userCard: {
     backgroundColor: '#fff',
-    borderRadius: 24,
-    padding: 20,
-    marginBottom: 16,
-    borderWidth: 2.5,
-    borderColor: '#fff',
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
-    shadowRadius: 16,
-    elevation: 8,
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(102, 126, 234, 0.2)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+    overflow: 'hidden',
+  },
+  userCardTouchable: {
+    marginBottom: 12,
   },
   userCardContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    alignItems: 'flex-start',
   },
   userInfo: {
     flex: 1,
+    minWidth: 0,
   },
   userName: {
     fontSize: 18,
@@ -1397,49 +1405,47 @@ const styles = StyleSheet.create({
   userActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    flexWrap: 'wrap',
+    gap: 6,
+    paddingTop: 2,
   },
   tokenBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(102, 126, 234, 0.12)',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 16,
+    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
     marginRight: 'auto',
-    borderWidth: 2,
-    borderColor: '#667eea',
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(102, 126, 234, 0.35)',
   },
   tokenEmoji: {
-    fontSize: 16,
-    marginRight: 6,
+    fontSize: 14,
+    marginRight: 4,
   },
   tokenCount: {
-    fontSize: 16,
-    fontWeight: '900',
+    fontSize: 14,
+    fontWeight: '800',
     color: '#667eea',
-    letterSpacing: 0.2,
   },
   smallButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 12,
+    minWidth: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
   smallButtonText: {
     color: '#fff',
-    fontSize: 13,
-    fontWeight: '800',
-    letterSpacing: 0.3,
+    fontSize: 12,
+    fontWeight: '700',
   },
   primaryButton: {
     backgroundColor: '#667eea',
@@ -1584,6 +1590,27 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#1a1a1a',
     lineHeight: 22,
+  },
+  messageImageWrap: {
+    marginTop: 8,
+    borderRadius: 10,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#e0e4ff',
+    alignSelf: 'flex-start',
+    maxWidth: 260,
+    maxHeight: 220,
+  },
+  messageImage: {
+    width: 260,
+    height: 220,
+  },
+  messageMediaLink: {
+    marginTop: 6,
+    fontSize: 14,
+    color: '#6366f1',
+    textDecorationLine: 'underline',
+    fontWeight: '600',
   },
   drillDownCard: {
     borderRadius: 20,

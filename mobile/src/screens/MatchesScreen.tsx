@@ -102,6 +102,7 @@ interface Message {
   sentAt: string;
   readAt?: string | null;
   isOwn: boolean;
+  likedBy?: string | null;
 }
 
 // Voice message play button + playback (uri must be a full URL for remote audio)
@@ -109,7 +110,10 @@ function VoiceMessagePlayer({ uri }: { uri: string }) {
   const [playing, setPlaying] = useState(false);
   const soundRef = useRef<Audio.Sound | null>(null);
   const play = useCallback(async () => {
-    if (!uri || !uri.trim()) return;
+    const rawUri = (uri || '').trim();
+    if (!rawUri) return;
+    // Use URL without query/fragment so native player gets a clean resource URL (helps iOS/Android)
+    const cleanUri = rawUri.split('?')[0].split('#')[0];
     try {
       if (soundRef.current) {
         await soundRef.current.replayAsync();
@@ -126,8 +130,9 @@ function VoiceMessagePlayer({ uri }: { uri: string }) {
         shouldDuckAndroid: true,
         playThroughEarpieceAndroid: false,
       });
-      const loadOptions: { uri: string; overrideFileExtensionIOS?: string } = { uri: uri.trim() };
-      if (Platform.OS === 'ios' && !uri.includes('.m4a') && !uri.includes('.mp3') && !uri.includes('.mp4')) {
+      const loadOptions: { uri: string; overrideFileExtensionIOS?: string } = { uri: cleanUri };
+      const hasAudioExt = /\.(m4a|mp3|mp4|aac|ogg|wav)(\?|#|$)/i.test(cleanUri);
+      if (Platform.OS === 'ios' && !hasAudioExt) {
         loadOptions.overrideFileExtensionIOS = 'm4a';
       }
       const { sound } = await Audio.Sound.createAsync(
@@ -166,16 +171,26 @@ const MessageBubble = React.memo(function MessageBubble({
   animValue,
   styles: s,
   onImagePress,
+  matchId,
+  currentUserId,
+  onLikePress,
 }: {
   item: Message;
   animValue: Animated.Value | null;
   styles: { [key: string]: any };
   onImagePress?: (url: string) => void;
+  matchId?: string | null;
+  currentUserId?: string | null;
+  onLikePress?: (messageId: string, currentlyLiked: boolean) => void;
 }) {
   const formattedTime = useMemo(
     () => new Date(item.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     [item.sentAt]
   );
+
+  const isLikedByThem = item.isOwn && !!item.likedBy;
+  const isLikedByMe = !item.isOwn && item.likedBy === currentUserId;
+  const canLike = !item.isOwn && matchId && currentUserId && onLikePress;
 
   const renderBubbleContent = (isOwn: boolean) => (
     <>
@@ -219,9 +234,23 @@ const MessageBubble = React.memo(function MessageBubble({
         <View style={s.messageFooterOwn}>
           <Text style={s.messageTimeOwn}>{formattedTime}</Text>
           {item.readAt ? <Text style={s.messageStatusRead}>✓✓</Text> : <Text style={s.messageStatusSent}>✓</Text>}
+          {isLikedByThem ? <Text style={s.messageHeartOwn}> ❤️</Text> : null}
         </View>
       ) : (
-        <Text style={s.messageTimeOther}>{formattedTime}</Text>
+        <View style={s.messageFooterOther}>
+          <Text style={s.messageTimeOther}>{formattedTime}</Text>
+          {canLike ? (
+            <TouchableOpacity
+              onPress={() => onLikePress!(item.id, !!item.likedBy)}
+              hitSlop={12}
+              style={s.messageHeartTouch}
+            >
+              <Text style={s.messageHeartOther}>{isLikedByMe ? '❤️' : '🤍'}</Text>
+            </TouchableOpacity>
+          ) : isLikedByMe ? (
+            <Text style={s.messageHeartOther}>❤️</Text>
+          ) : null}
+        </View>
       )}
     </>
   );
@@ -1984,6 +2013,13 @@ export default function MatchesScreen() {
   const [compatibilityDetails, setCompatibilityDetails] = useState<{ reasons: string[]; sharedInterests: string[]; sharedValues: number } | null>(null);
   const [showAgeCardModal, setShowAgeCardModal] = useState(false);
   const [showCompatibilityCardModal, setShowCompatibilityCardModal] = useState(false);
+  const [messageLikedToast, setMessageLikedToast] = useState<{ likerName: string } | null>(null);
+  
+  useEffect(() => {
+    if (!messageLikedToast) return;
+    const t = setTimeout(() => setMessageLikedToast(null), 3000);
+    return () => clearTimeout(t);
+  }, [messageLikedToast]);
   
   // Header animations
   const headerGradientPos = useRef(new Animated.Value(0)).current;
@@ -2263,6 +2299,25 @@ export default function MatchesScreen() {
     setFullScreenImageUrl(url);
   }, []);
 
+  const handleLikePress = useCallback(
+    async (messageId: string, currentlyLiked: boolean) => {
+      if (!selectedMatch?.id || !user?.id) return;
+      try {
+        const base = `/matches/${selectedMatch.id}/messages/${messageId}/like`;
+        if (currentlyLiked) {
+          await api.delete(base);
+          setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, likedBy: null } : m)));
+        } else {
+          await api.post(base, {});
+          setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, likedBy: user.id } : m)));
+        }
+      } catch (_) {
+        // Optionally show error toast
+      }
+    },
+    [selectedMatch?.id, user?.id]
+  );
+
   // Memoized renderItem - with inverted list, index 0 = newest; animate last N (first N in reversed)
   const renderMessageItem = useCallback(
     ({ item, index }: { item: Message; index: number }) => {
@@ -2283,9 +2338,19 @@ export default function MatchesScreen() {
         animValue = messageAnimations[item.id];
       }
 
-      return <MessageBubble item={item} animValue={animValue} styles={styles} onImagePress={onImagePress} />;
+      return (
+        <MessageBubble
+          item={item}
+          animValue={animValue}
+          styles={styles}
+          onImagePress={onImagePress}
+          matchId={selectedMatch?.id}
+          currentUserId={user?.id}
+          onLikePress={handleLikePress}
+        />
+      );
     },
-    [messages.length, onImagePress]
+    [messages.length, onImagePress, selectedMatch?.id, user?.id, handleLikePress]
   );
 
   // Prune old message animations when list changes (prevents memory leak)
@@ -2426,6 +2491,21 @@ export default function MatchesScreen() {
         }
       });
 
+      socket.on('message_liked', (data: { matchId: string; messageId: string; likedBy: string; likerName?: string; senderId?: string }) => {
+        const currentMatchId = selectedMatchRef.current?.id;
+        if (currentMatchId !== data.matchId) return;
+        setMessages((prev) => prev.map((m) => (m.id === data.messageId ? { ...m, likedBy: data.likedBy } : m)));
+        if (data.senderId === user?.id && data.likerName) {
+          setMessageLikedToast({ likerName: data.likerName });
+        }
+      });
+
+      socket.on('message_unliked', (data: { matchId: string; messageId: string }) => {
+        const currentMatchId = selectedMatchRef.current?.id;
+        if (currentMatchId !== data.matchId) return;
+        setMessages((prev) => prev.map((m) => (m.id === data.messageId ? { ...m, likedBy: null } : m)));
+      });
+
       // Match notification: refresh list (match sound played by AuthContext for both users)
       socket.on('new_match', () => {
         fetchMatches();
@@ -2493,6 +2573,8 @@ export default function MatchesScreen() {
           socketRef.current.off('typing_stopped');
           socketRef.current.off('messages_read');
           socketRef.current.off('new_message');
+          socketRef.current.off('message_liked');
+          socketRef.current.off('message_unliked');
           socketRef.current.off('new_match');
           socketRef.current.off('stage_advanced');
           socketRef.current.off('game_request_received');
@@ -3412,9 +3494,9 @@ export default function MatchesScreen() {
               <Text style={[styles.chatHeaderTitle, isSmallScreen && { fontSize: 16 }]} numberOfLines={1} ellipsizeMode="tail">{selectedMatch.otherUser.displayName}</Text>
             </TouchableOpacity>
           </View>
-          {/* Bottom row: pills + game icons */}
+          {/* Bottom row: stacked pills (age, level, compatibility) + game icons */}
           <View style={[styles.chatHeaderBottomRow, isSmallScreen && { gap: 6 }]}>
-            <View style={[styles.chatHeaderPillRow, isSmallScreen && { gap: 6 }]}>
+            <View style={[styles.chatHeaderPillRow, isSmallScreen && { gap: 4 }]}>
               <TouchableOpacity
                 activeOpacity={0.85}
                 onPress={() => setShowAgeCardModal(true)}
@@ -3914,6 +3996,12 @@ export default function MatchesScreen() {
           ListHeaderComponent={listHeaderComponent}
         />
       </Animated.View>
+
+      {messageLikedToast ? (
+        <View style={styles.messageLikedToast} pointerEvents="none">
+          <Text style={styles.messageLikedToastText}>❤️ {messageLikedToast.likerName} liked your message</Text>
+        </View>
+      ) : null}
 
         <Animated.View 
           style={[
@@ -4670,14 +4758,17 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   chatHeaderCompatibilityBadgeWrap: {
-    marginLeft: 8,
+    marginLeft: 0,
+    minWidth: 80,
+    alignSelf: 'center',
   },
   chatHeaderCompatibilityBadge: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 16,
+    paddingVertical: 4,
+    borderRadius: 14,
     borderWidth: 1.5,
     borderColor: 'rgba(255, 255, 255, 0.6)',
     shadowColor: '#000',
@@ -4687,14 +4778,14 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   chatHeaderCompatibilityIcon: {
-    fontSize: 12,
-    marginRight: 4,
+    fontSize: 11,
+    marginRight: 3,
   },
   chatHeaderCompatibilityText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '800',
     color: '#fff',
-    marginRight: 3,
+    marginRight: 2,
     textShadowColor: 'rgba(0, 0, 0, 0.2)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
@@ -4815,19 +4906,19 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   chatHeaderPillRow: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 8,
-    flex: 1,
-    minWidth: 0,
+    justifyContent: 'center',
+    gap: 6,
+    flex: 0,
   },
   chatHeaderAgePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 18,
+    justifyContent: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 14,
     borderWidth: 1.5,
     borderColor: 'rgba(255,255,255,0.5)',
     shadowColor: '#000',
@@ -4835,26 +4926,27 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 3,
+    minWidth: 80,
   },
   chatHeaderAgePillIcon: {
-    fontSize: 14,
-    marginRight: 5,
+    fontSize: 12,
+    marginRight: 4,
   },
   chatHeaderAgePillText: {
-    fontSize: 17,
+    fontSize: 14,
     fontWeight: '800',
     color: '#fff',
-    marginRight: 3,
+    marginRight: 2,
     textShadowColor: 'rgba(0,0,0,0.3)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
   chatHeaderAgePillLabel: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
     color: 'rgba(255,255,255,0.95)',
     textTransform: 'uppercase',
-    letterSpacing: 0.6,
+    letterSpacing: 0.5,
   },
   ageCardOverlay: {
     flex: 1,
@@ -4901,14 +4993,16 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   chatHeaderStagePillWrap: {
-    marginLeft: 8,
-    borderRadius: 16,
+    marginLeft: 0,
+    borderRadius: 14,
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
     shadowRadius: 3,
     elevation: 2,
+    minWidth: 80,
+    alignSelf: 'center',
   },
   chatHeaderStagePillWrapStage1: {
     shadowColor: '#ff4081',
@@ -4920,9 +5014,10 @@ const styles = StyleSheet.create({
   chatHeaderStagePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    borderRadius: 16,
+    justifyContent: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 14,
     borderWidth: 1.5,
     borderColor: 'rgba(255,255,255,0.35)',
     position: 'relative',
@@ -4939,15 +5034,15 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: '50%',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    borderTopLeftRadius: 14,
+    borderTopRightRadius: 14,
   },
   chatHeaderStagePillEmoji: {
-    fontSize: 13,
-    marginRight: 4,
+    fontSize: 11,
+    marginRight: 3,
   },
   chatHeaderStagePillText: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '700',
     color: '#b84d6f',
     letterSpacing: 0.3,
@@ -5273,6 +5368,40 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     marginTop: 4,
     gap: 4,
+  },
+  messageFooterOther: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    gap: 6,
+  },
+  messageHeartOwn: {
+    fontSize: 12,
+  },
+  messageHeartTouch: {
+    padding: 4,
+  },
+  messageHeartOther: {
+    fontSize: 14,
+  },
+  messageLikedToast: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 100 : 80,
+    left: 16,
+    right: 16,
+    backgroundColor: 'rgba(0,0,0,0.78)',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    alignSelf: 'center',
+    zIndex: 999,
+    elevation: 999,
+  },
+  messageLikedToastText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   messageStatusSent: {
     fontSize: 11,

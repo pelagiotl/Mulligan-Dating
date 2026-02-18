@@ -490,6 +490,9 @@ export async function initDatabase() {
   try {
     await execSQL(`ALTER TABLE messages ADD COLUMN audio_url ${usePostgres ? 'TEXT' : 'TEXT'}`);
   } catch (e) { /* ignore */ }
+  try {
+    await execSQL(`ALTER TABLE messages ADD COLUMN liked_by_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'}`);
+  } catch (e) { /* ignore */ }
 
   // Blocks table - users blocking other users
   await execSQL(`

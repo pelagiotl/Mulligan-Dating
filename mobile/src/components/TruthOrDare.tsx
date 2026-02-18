@@ -39,21 +39,21 @@ const TRUTH_PROMPTS = [
 ];
 
 const DARE_PROMPTS = [
-  "Send a voice note saying something you'd normally only say in person",
-  "Describe your ideal partner in exactly 3 words",
-  "Send a selfie with your best 'I'm into you' look",
-  "Send a voice note saying 'I have a crush on you' in a funny accent",
+  "Send a voice note saying something you'd only say when you're really into someone",
+  "Describe your type in exactly 3 words",
+  "Send a selfie with the look you give when you're attracted to someone",
+  "Voice note: say one thing that would make me want to meet you in person",
   "Describe your ideal first date in 3 emojis",
-  "Send a pic of your current view and rate it as a date spot 1-10",
-  "Reply with the cheesiest pick-up line you'd actually use",
-  "Send a selfie making a silly face — bonus points if it's flirty",
+  "Send a pic of what you're doing right now with a one-line vibe check",
+  "Reply with the line you'd use to ask someone out in person",
+  "Send a selfie — your choice of flirty or silly",
   "Describe what you find attractive in someone using only emojis",
-  "Send a voice note singing the chorus of a song that describes your mood",
+  "Send a voice note: 10 seconds on why you're a good date",
   "Reply with 3 words that describe your vibe on a good date",
-  "Send a pic of your pet (or pet plant!) and say they're your wingman",
-  "Pick an emoji that represents your dating energy and explain why",
-  "Reply with a question you've always wanted to ask me",
-  "Send a selfie with your best smile — make us melt",
+  "Send a pic of your pet (or plant) with a caption that says something about you",
+  "Pick one emoji that sums up your dating energy and explain in one sentence",
+  "Reply with a question you've always wanted to ask a match",
+  "Send a selfie with your best smile",
 ];
 
 // Rated R — spicier, more suggestive (still app-store safe)
@@ -76,19 +76,19 @@ const TRUTH_PROMPTS_R = [
 ];
 
 const DARE_PROMPTS_R = [
-  "Send a voice note saying something flirty you'd whisper on a date",
+  "Send a voice note saying something you'd whisper to someone you're into",
   "Send a selfie with your best 'come here' look",
-  "Describe what you find physically attractive in 3 words",
-  "Send a voice note saying you're attracted to them (keep it classy)",
+  "Describe what turns you on physically in 3 words",
+  "Voice note: tell them one thing you find attractive about them",
   "Describe your ideal first kiss in 3 emojis",
-  "Send a pic of your lips with a flirty caption",
+  "Send a pic with a caption that flirts without being explicit",
   "Reply with the boldest thing you'd say to break the tension on a date",
-  "Send a selfie from a flattering angle — make them look twice",
-  "Describe your type using only suggestive emojis",
-  "Send a voice note with your best 'smooth operator' impression",
+  "Send a selfie from an angle you know works",
+  "Describe your type using only emojis",
+  "Voice note: say what you'd do if you were on a date with them right now",
   "Reply with 3 words that describe your romantic energy",
-  "Send a selfie with your most captivating look",
-  "Pick an emoji that represents your flirty side and explain",
+  "Send a selfie that shows your confidence",
+  "Pick an emoji that represents your flirty side and explain in one line",
   "Reply with a question that would make someone blush",
   "Send a selfie that shows off your favorite feature",
 ];
@@ -113,20 +113,20 @@ const TRUTH_PROMPTS_SPICY = [
 ];
 
 const DARE_PROMPTS_SPICY = [
-  "Send a voice note saying something you'd whisper in their ear on a date",
-  "Send a selfie from a steamy angle — make them look twice",
+  "Send a voice note saying something you'd say when the tension is high",
+  "Send a selfie from an angle that makes an impression",
   "Describe what you find attractive about them in 3 bold words",
-  "Send a voice note with your best 'I want you' energy (keep it classy)",
+  "Voice note: say what you want to do with them on a second date",
   "Reply with the boldest thing you'd do if we were alone right now",
-  "Send a pic of your lips with a flirty caption",
-  "Voice note: say something that would make them blush — tasteful but bold",
-  "Send a selfie that shows off your most confident feature",
+  "Send a pic with a caption that's flirty but tasteful",
+  "Voice note: say one thing that would make them blush",
+  "Send a selfie that shows off your most confident side",
   "Reply with a question that would make someone's heart skip",
   "Describe your ideal night with them using only emojis",
-  "Send a voice note saying what you'd want to do on a second date",
-  "Reply with 3 words that describe the vibe you want between us",
+  "Voice note: describe the vibe you want between you two",
+  "Reply with 3 words that describe the energy you want between us",
   "Send a selfie with your best 'come here' look",
-  "Voice note: describe your type in a way that makes it clear you're into them",
+  "Voice note: tell them why you're into them in one sentence",
   "Send a pic with a caption that flirts without saying it outright",
 ];
 
