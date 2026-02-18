@@ -84,6 +84,9 @@ export default function NeverHaveIEver({
   const [prompt, setPrompt] = useState('');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastRoundCompletedAtRef = useRef<number>(0);
+  const lastKnownPointsRef = useRef<{ yourPoints: number; theirPoints: number }>({ yourPoints: 0, theirPoints: 0 });
+  const modalVisibleRef = useRef(false);
+  modalVisibleRef.current = modalVisible;
 
   const isUnlocked = gameUnlockedByToken;
   const displayPrompt = prompt || state?.prompt || '';
@@ -175,12 +178,17 @@ export default function NeverHaveIEver({
   }, [isUnlocked, pulseAnim]);
 
   const fetchState = useCallback(async (skipIfRecentRound = false) => {
-    if (skipIfRecentRound && Date.now() - lastRoundCompletedAtRef.current < 4000) {
+    if (skipIfRecentRound && Date.now() - lastRoundCompletedAtRef.current < 6000) {
       return;
     }
     try {
-      // Never use cache so points/prompt don't revert after both answer (poll or socket refetch must get fresh state)
+      // Never use cache so points/prompt don't revert after both answer
       const data = await api.get<any>(`/matches/${matchId}/never-have-i-ever`, false);
+      const fetchedYou = typeof data.yourPoints === 'number' ? data.yourPoints : (data.yourStrikes ?? 0);
+      const fetchedThem = typeof data.theirPoints === 'number' ? data.theirPoints : (data.theirStrikes ?? 0);
+      if (fetchedYou > 0 || fetchedThem > 0) {
+        lastKnownPointsRef.current = { yourPoints: fetchedYou, theirPoints: fetchedThem };
+      }
       const simple: GameState = {
         prompt: data.prompt || '',
         phase: data.spiceReady && (data.prompt || data.spiceLevel) ? 'playing' : 'lobby',
@@ -191,15 +199,23 @@ export default function NeverHaveIEver({
         tokenUnlocked: !!data.tokenUnlocked,
         needsSpiceChoiceFromUnlocker: !!data.needsSpiceChoiceFromUnlocker,
         unlockedByUserId: data.unlockedByUserId ?? null,
-        yourPoints: typeof data.yourPoints === 'number' ? data.yourPoints : (data.yourStrikes ?? 0),
-        theirPoints: typeof data.theirPoints === 'number' ? data.theirPoints : (data.theirStrikes ?? 0),
+        yourPoints: fetchedYou,
+        theirPoints: fetchedThem,
         yourAnswer: data.yourAnswer ?? null,
         theirAnswer: data.theirAnswer ?? null,
         bothAnswered: !!data.bothAnswered,
         gameOver: !!data.gameOver,
         winner: data.winner ?? null,
       };
-      setState(simple);
+      setState(prev => {
+        const recentRound = Date.now() - lastRoundCompletedAtRef.current < 6000;
+        const fetchedZero = simple.yourPoints === 0 && simple.theirPoints === 0;
+        const hadPoints = prev && (prev.yourPoints > 0 || prev.theirPoints > 0);
+        if (recentRound && fetchedZero && hadPoints) {
+          return { ...simple, yourPoints: prev!.yourPoints, theirPoints: prev!.theirPoints };
+        }
+        return simple;
+      });
       setPrompt(simple.prompt || '');
     } catch (err) {
       console.warn('Never Have I Ever fetch error:', err);
@@ -243,7 +259,16 @@ export default function NeverHaveIEver({
     const onUpdate = () => {
       lastRoundCompletedAtRef.current = Date.now();
       api.clearCache(`/matches/${matchId}/never-have-i-ever`);
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
       fetchState(false);
+      setTimeout(() => {
+        if (modalVisibleRef.current && !pollRef.current) {
+          pollRef.current = setInterval(() => fetchState(true), 3000);
+        }
+      }, 6000);
     };
     socket?.on?.('never_have_i_ever_updated', onUpdate);
     return () => {
@@ -344,10 +369,15 @@ export default function NeverHaveIEver({
         setPrompt(data.prompt);
       }
       if (data.bothAnswered || data.roundJustCompleted) {
-        lastRoundCompletedAtRef.current = Date.now();
-        api.clearCache(`/matches/${matchId}/never-have-i-ever`);
         const serverYou = typeof data.yourPoints === 'number' ? data.yourPoints : (data.yourStrikes ?? 0);
         const serverThem = typeof data.theirPoints === 'number' ? data.theirPoints : (data.theirStrikes ?? 0);
+        lastKnownPointsRef.current = { yourPoints: serverYou, theirPoints: serverThem };
+        lastRoundCompletedAtRef.current = Date.now();
+        api.clearCache(`/matches/${matchId}/never-have-i-ever`);
+        if (pollRef.current) {
+          clearInterval(pollRef.current);
+          pollRef.current = null;
+        }
         setState(prev => prev ? {
           ...prev,
           yourPoints: serverYou,
@@ -360,6 +390,11 @@ export default function NeverHaveIEver({
           winner: data.winner ?? null,
         } : null);
         if (data.prompt) setPrompt(data.prompt);
+        setTimeout(() => {
+          if (modalVisibleRef.current && !pollRef.current) {
+            pollRef.current = setInterval(() => fetchState(true), 3000);
+          }
+        }, 6000);
       }
     } catch (err) {
       console.warn('Never Have I Ever answer error:', err);

@@ -835,15 +835,46 @@ adminRouter.post('/users/:id/set-admin', authenticateToken, requireAdmin, async 
   }
 });
 
-// Get user messages
+// List matches for a user (for admin messages: pick a conversation)
+adminRouter.get('/users/:id/matches', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.params.id;
+
+    const matchesResult = await (db.prepare(`
+      SELECT m.id as match_id, m.stage, m.stage1_at,
+        u2.id as other_user_id, p2.display_name as other_user_name
+      FROM matches m
+      JOIN users u2 ON u2.id = CASE WHEN m.user1_id = ? THEN m.user2_id ELSE m.user1_id END
+      LEFT JOIN profiles p2 ON p2.user_id = u2.id
+      WHERE (m.user1_id = ? OR m.user2_id = ?) AND m.stage != 'expired'
+      ORDER BY m.stage1_at DESC
+    `).all([userId, userId, userId]) as Promise<any[]>);
+
+    const matches = matchesResult.map((m: any) => ({
+      matchId: m.match_id,
+      stage: m.stage,
+      stage1At: m.stage1_at,
+      otherUserId: m.other_user_id,
+      otherUserName: m.other_user_name || 'Unknown'
+    }));
+
+    res.json({ matches });
+  } catch (error: any) {
+    console.error('Error fetching user matches:', error);
+    res.status(500).json({ error: 'Failed to fetch matches', details: error.message });
+  }
+});
+
+// Get user messages (optional ?matchId= to filter to one conversation)
 adminRouter.get('/users/:id/messages', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const userId = req.params.id;
+    const matchId = req.query.matchId as string | undefined;
     const limit = parseInt(req.query.limit as string) || 50;
 
-    const messagesResult = await (db.prepare(`
+    let query = `
       SELECT 
-        m.id, m.content, m.sent_at, m.read_at, m.match_id,
+        m.id, m.content, m.sent_at, m.read_at, m.match_id, m.image_url, m.video_url, m.audio_url,
         u1.id as sender_id, p1.display_name as sender_name,
         u2.id as other_user_id, p2.display_name as other_user_name,
         CASE WHEN m.sender_id = ? THEN 0 ELSE 1 END as is_from_target_user
@@ -854,13 +885,23 @@ adminRouter.get('/users/:id/messages', authenticateToken, requireAdmin, async (r
       LEFT JOIN users u2 ON u2.id = CASE WHEN m.sender_id = ma.user1_id THEN ma.user2_id ELSE ma.user1_id END
       LEFT JOIN profiles p2 ON p2.user_id = u2.id
       WHERE ma.user1_id = ? OR ma.user2_id = ?
-      ORDER BY m.sent_at DESC
-      LIMIT ?
-    `).all([userId, userId, userId, limit]) as Promise<any[]>);
+    `;
+    const params: any[] = [userId, userId, userId];
+    if (matchId) {
+      query += ` AND m.match_id = ?`;
+      params.push(matchId);
+    }
+    query += ` ORDER BY m.sent_at DESC LIMIT ?`;
+    params.push(limit);
+
+    const messagesResult = await (db.prepare(query).all(params) as Promise<any[]>);
 
     const messages = messagesResult.map((m: any) => ({
       id: m.id,
       content: m.content,
+      imageUrl: m.image_url || null,
+      videoUrl: m.video_url || null,
+      audioUrl: m.audio_url || null,
       senderId: m.sender_id,
       senderName: m.sender_name || 'Unknown',
       otherUserName: m.other_user_name || 'Unknown',

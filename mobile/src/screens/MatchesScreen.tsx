@@ -126,8 +126,12 @@ function VoiceMessagePlayer({ uri }: { uri: string }) {
         shouldDuckAndroid: true,
         playThroughEarpieceAndroid: false,
       });
+      const loadOptions: { uri: string; overrideFileExtensionIOS?: string } = { uri: uri.trim() };
+      if (Platform.OS === 'ios' && !uri.includes('.m4a') && !uri.includes('.mp3') && !uri.includes('.mp4')) {
+        loadOptions.overrideFileExtensionIOS = 'm4a';
+      }
       const { sound } = await Audio.Sound.createAsync(
-        { uri: uri.trim() },
+        loadOptions as any,
         { shouldPlay: false, volume: 1.0, isLooping: false }
       );
       soundRef.current = sound;
@@ -1960,6 +1964,7 @@ export default function MatchesScreen() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [stageInfoModalVisible, setStageInfoModalVisible] = useState(false);
   const [stageInfoStage, setStageInfoStage] = useState<'stage1' | 'stage2' | null>(null);
+  const [showPhotoGuidelinesModal, setShowPhotoGuidelinesModal] = useState(false);
   const [gameRequestToShow, setGameRequestToShow] = useState<PendingGameRequest | null>(null);
   const [openGameForAccept, setOpenGameForAccept] = useState<{ matchId: string; gameType: 'truth_or_dare' | 'never_have_i_ever' } | null>(null);
   const [fullScreenImageUrl, setFullScreenImageUrl] = useState<string | null>(null);
@@ -3713,6 +3718,55 @@ export default function MatchesScreen() {
         </TouchableOpacity>
       </Modal>
 
+      {/* Photo guidelines - shown when user taps camera icon before send photo/video/voice options */}
+      <Modal
+        visible={showPhotoGuidelinesModal}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setShowPhotoGuidelinesModal(false)}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          style={styles.photoGuidelinesOverlay}
+          onPress={() => setShowPhotoGuidelinesModal(false)}
+        >
+          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={styles.photoGuidelinesCard}>
+            <LinearGradient
+              colors={['#4a4a4a', '#2d2d2d', '#1a1a1a']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.photoGuidelinesCardGradient}
+            >
+              <Text style={styles.photoGuidelinesEmoji}>⚠️</Text>
+              <Text style={styles.photoGuidelinesTitle}>Keep it appropriate</Text>
+              <Text style={styles.photoGuidelinesBody}>
+                Don&apos;t be dumb. F**k around and get banned.
+              </Text>
+              <Text style={styles.photoGuidelinesSubtext}>
+                Inappropriate photos can get you permanently banned from Mulligan.
+              </Text>
+              <TouchableOpacity
+                style={styles.photoGuidelinesButton}
+                onPress={() => {
+                  setShowPhotoGuidelinesModal(false);
+                  handleSendPhoto();
+                }}
+                activeOpacity={0.85}
+              >
+                <LinearGradient
+                  colors={['#667eea', '#764ba2']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.photoGuidelinesButtonGradient}
+                >
+                  <Text style={styles.photoGuidelinesButtonText}>Got it</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </LinearGradient>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
       {/* Game Request Modal - when User B receives invite */}
       <GameRequestModal
         visible={!!gameRequestToShow}
@@ -3935,7 +3989,7 @@ export default function MatchesScreen() {
           >
             <View style={styles.inputWrapper}>
               <TouchableOpacity
-                onPress={handleSendPhoto}
+                onPress={() => setShowPhotoGuidelinesModal(true)}
                 disabled={sendingMessage || uploadingImage || uploadingVideo || uploadingAudio}
                 style={styles.photoButton}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -5014,6 +5068,82 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     color: '#333',
+    letterSpacing: 0.3,
+  },
+  photoGuidelinesOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 28,
+  },
+  photoGuidelinesCard: {
+    width: '100%',
+    maxWidth: 320,
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 20,
+    elevation: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  photoGuidelinesCardGradient: {
+    padding: 24,
+    paddingTop: 28,
+    paddingBottom: 24,
+  },
+  photoGuidelinesEmoji: {
+    fontSize: 40,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  photoGuidelinesTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#fff',
+    marginBottom: 10,
+    textAlign: 'center',
+    letterSpacing: 0.3,
+  },
+  photoGuidelinesBody: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#fff',
+    lineHeight: 24,
+    marginBottom: 8,
+    textAlign: 'center',
+    paddingHorizontal: 4,
+  },
+  photoGuidelinesSubtext: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.8)',
+    lineHeight: 20,
+    marginBottom: 22,
+    textAlign: 'center',
+    paddingHorizontal: 4,
+  },
+  photoGuidelinesButton: {
+    alignSelf: 'center',
+    borderRadius: 22,
+    overflow: 'hidden',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  photoGuidelinesButtonGradient: {
+    paddingVertical: 12,
+    paddingHorizontal: 36,
+    borderRadius: 22,
+  },
+  photoGuidelinesButtonText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#fff',
     letterSpacing: 0.3,
   },
   featuresContainer: {

@@ -55,6 +55,29 @@ interface MatchPair {
   user2: { id: string; name: string; phone?: string };
 }
 
+interface AdminMessage {
+  id: string;
+  content: string | null;
+  imageUrl: string | null;
+  videoUrl: string | null;
+  audioUrl: string | null;
+  senderId: string;
+  senderName: string;
+  otherUserName: string;
+  matchId: string;
+  sentAt: string;
+  readAt: string | null;
+  isFromTargetUser: boolean;
+}
+
+interface AdminUserMatch {
+  matchId: string;
+  otherUserId: string;
+  otherUserName: string;
+  stage: string;
+  stage1At: string;
+}
+
 type StatDrillDownType = 'users' | 'matches' | 'restricted' | 'active';
 
 export default function AdminScreen() {
@@ -79,6 +102,14 @@ export default function AdminScreen() {
   const drillDownRequestRef = React.useRef<StatDrillDownType | null>(null);
   const [drillDownUnrestricting, setDrillDownUnrestricting] = useState<string | null>(null);
   const [adminDenied, setAdminDenied] = useState(false);
+  const [showMessagesModal, setShowMessagesModal] = useState(false);
+  const [messagesUserId, setMessagesUserId] = useState<string | null>(null);
+  const [messagesUserDisplayName, setMessagesUserDisplayName] = useState<string>('');
+  const [userMatchesList, setUserMatchesList] = useState<AdminUserMatch[]>([]);
+  const [selectedMatchForMessages, setSelectedMatchForMessages] = useState<{ matchId: string; otherUserName: string } | null>(null);
+  const [userMessages, setUserMessages] = useState<AdminMessage[]>([]);
+  const [messagesLoading, setMessagesLoading] = useState(false);
+  const [matchesLoading, setMatchesLoading] = useState(false);
 
   useEffect(() => {
     if (!isFocused) return;
@@ -314,6 +345,43 @@ export default function AdminScreen() {
         },
       ]
     );
+  };
+
+  const openMessagesForUser = (userId: string, displayName: string) => {
+    setMessagesUserId(userId);
+    setMessagesUserDisplayName(displayName);
+    setSelectedMatchForMessages(null);
+    setUserMessages([]);
+    setUserMatchesList([]);
+    setShowMessagesModal(true);
+    setMatchesLoading(true);
+    setMessagesLoading(false);
+    api.get<{ matches: AdminUserMatch[] }>(`/admin/users/${userId}/matches`, false)
+      .then((result) => setUserMatchesList(result.matches || []))
+      .catch(() => setUserMatchesList([]))
+      .finally(() => setMatchesLoading(false));
+  };
+
+  const handleViewMessages = () => {
+    if (!selectedUser) return;
+    openMessagesForUser(
+      selectedUser.id,
+      selectedUser.profile?.display_name || selectedUser.email || selectedUser.id
+    );
+  };
+
+  const openConversationForMatch = (matchId: string, otherUserName: string) => {
+    if (!messagesUserId) return;
+    setSelectedMatchForMessages({ matchId, otherUserName });
+    setUserMessages([]);
+    setMessagesLoading(true);
+    api.get<{ messages: AdminMessage[]; total: number }>(
+      `/admin/users/${messagesUserId}/messages?matchId=${encodeURIComponent(matchId)}&limit=200`,
+      false
+    )
+      .then((result) => setUserMessages(result.messages || []))
+      .catch(() => setUserMessages([]))
+      .finally(() => setMessagesLoading(false));
   };
 
   const handleCreateTestUsers = async () => {
@@ -665,6 +733,15 @@ export default function AdminScreen() {
                   <Text style={styles.tokenCount}>{u.tokenCount}</Text>
                 </View>
                 <TouchableOpacity
+                  style={[styles.smallButton, styles.secondaryButton]}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    openMessagesForUser(u.id, u.display_name || u.email || u.id);
+                  }}
+                >
+                  <Text style={styles.smallButtonText}>💬</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
                   style={[styles.smallButton, styles.primaryButton]}
                   onPress={(e) => {
                     e.stopPropagation();
@@ -751,6 +828,13 @@ export default function AdminScreen() {
                     <Text style={styles.detailTitle}>Actions</Text>
                     <TouchableOpacity
                       style={[styles.actionButton, styles.primaryButton]}
+                      onPress={handleViewMessages}
+                      disabled={actionLoading === selectedUser.id}
+                    >
+                      <Text style={styles.actionButtonText}>💬 View messages</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.primaryButton]}
                       onPress={() => handleGrantTokens(selectedUser.id, 1)}
                       disabled={actionLoading === selectedUser.id}
                     >
@@ -794,6 +878,104 @@ export default function AdminScreen() {
                 </>
               )}
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* User Messages Modal */}
+      <Modal
+        visible={showMessagesModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          if (selectedMatchForMessages) setSelectedMatchForMessages(null);
+          else setShowMessagesModal(false);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, styles.drillDownModalContent]}>
+            <LinearGradient colors={['#667eea', '#764ba2']} style={styles.drillDownModalHeader} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+              <View style={styles.messagesModalHeaderRow}>
+                {selectedMatchForMessages ? (
+                  <TouchableOpacity onPress={() => setSelectedMatchForMessages(null)} hitSlop={8}>
+                    <Text style={styles.messageBackText}>← Back</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={styles.messageBackPlaceholder} />
+                )}
+                <View style={styles.messagesModalTitleWrap}>
+                  <Text style={styles.drillDownModalTitle} numberOfLines={1}>
+                    {selectedMatchForMessages ? `With ${selectedMatchForMessages.otherUserName}` : `Messages — ${messagesUserDisplayName}`}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => { setSelectedMatchForMessages(null); setShowMessagesModal(false); }}
+                  hitSlop={12}
+                >
+                  <Text style={styles.drillDownModalClose}>✕</Text>
+                </TouchableOpacity>
+              </View>
+            </LinearGradient>
+            {selectedMatchForMessages ? (
+              messagesLoading ? (
+                <View style={{ padding: 24, alignItems: 'center' }}>
+                  <ActivityIndicator size="large" color="#fff" />
+                </View>
+              ) : (
+                <ScrollView style={styles.drillDownScroll} contentContainerStyle={styles.messagesScrollContent}>
+                  {userMessages.length === 0 ? (
+                    <View style={styles.drillDownEmpty}>
+                      <Text style={styles.drillDownEmptyText}>No messages in this conversation</Text>
+                    </View>
+                  ) : (
+                    userMessages.map((msg) => {
+                      const dateStr = msg.sentAt ? new Date(msg.sentAt).toLocaleString() : '—';
+                      const fromTo = `${msg.senderName} → ${msg.otherUserName}`;
+                      let body = msg.content || '';
+                      if (!body && (msg.imageUrl || msg.videoUrl || msg.audioUrl)) {
+                        if (msg.imageUrl) body = '[Photo]';
+                        else if (msg.videoUrl) body = '[Video]';
+                        else if (msg.audioUrl) body = '[Voice]';
+                      }
+                      if (!body) body = '—';
+                      return (
+                        <View key={msg.id} style={styles.messageRow}>
+                          <Text style={styles.messageMeta}>{dateStr}</Text>
+                          <Text style={styles.messageFromTo}>{fromTo}</Text>
+                          <Text style={styles.messageBody} numberOfLines={10}>{body}</Text>
+                        </View>
+                      );
+                    })
+                  )}
+                </ScrollView>
+              )
+            ) : matchesLoading ? (
+              <View style={{ padding: 24, alignItems: 'center' }}>
+                <ActivityIndicator size="large" color="#fff" />
+              </View>
+            ) : (
+              <ScrollView style={styles.drillDownScroll} contentContainerStyle={styles.messagesScrollContent}>
+                {userMatchesList.length === 0 ? (
+                  <View style={styles.drillDownEmpty}>
+                    <Text style={styles.drillDownEmptyText}>No matches yet</Text>
+                  </View>
+                ) : (
+                  userMatchesList.map((match) => (
+                    <TouchableOpacity
+                      key={match.matchId}
+                      style={styles.matchRow}
+                      onPress={() => openConversationForMatch(match.matchId, match.otherUserName)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.matchRowName}>{match.otherUserName}</Text>
+                      <Text style={styles.matchRowMeta}>
+                        {match.stage} · Matched {new Date(match.stage1At).toLocaleDateString()}
+                      </Text>
+                    </TouchableOpacity>
+                  ))
+                )}
+              </ScrollView>
+            )}
           </View>
         </View>
       </Modal>
@@ -1334,6 +1516,74 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#999',
     fontWeight: '500',
+  },
+  messagesModalHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 32,
+  },
+  messagesModalTitleWrap: {
+    flex: 1,
+    marginHorizontal: 8,
+    minWidth: 0,
+  },
+  messageBackText: {
+    fontSize: 17,
+    color: 'rgba(255, 255, 255, 0.95)',
+    fontWeight: '600',
+  },
+  messageBackPlaceholder: {
+    width: 56,
+  },
+  messagesScrollContent: {
+    paddingHorizontal: 28,
+    paddingTop: 16,
+    paddingBottom: 24,
+  },
+  matchRow: {
+    backgroundColor: '#f0f2ff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e0e4ff',
+  },
+  matchRowName: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#1a1a1a',
+    marginBottom: 4,
+  },
+  matchRowMeta: {
+    fontSize: 13,
+    color: '#666',
+    fontWeight: '500',
+  },
+  messageRow: {
+    backgroundColor: '#f0f2ff',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e0e4ff',
+  },
+  messageMeta: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 4,
+    fontWeight: '600',
+  },
+  messageFromTo: {
+    fontSize: 13,
+    color: '#444',
+    marginBottom: 6,
+    fontWeight: '700',
+  },
+  messageBody: {
+    fontSize: 15,
+    color: '#1a1a1a',
+    lineHeight: 22,
   },
   drillDownCard: {
     borderRadius: 20,
