@@ -19,7 +19,14 @@ import { playMessageSound, playMatchSound } from '../utils/sounds';
 import { setPendingGameRequest } from '../utils/pendingGameRequest';
 import { currentMatchIdRef } from '../utils/currentMatchView';
 
-export type MessageNotificationItem = { id: string; senderName: string; preview: string; matchId: string };
+export type MessageNotificationItem = {
+  id: string;
+  senderName: string;
+  preview: string;
+  matchId: string;
+  /** When 'message_liked', show "Message liked" and "❤️ {senderName} liked your message" */
+  notificationType?: 'message' | 'message_liked';
+};
 /** @deprecated Use messageNotifications (array); kept for compatibility as first item or null */
 export type MessageNotification = MessageNotificationItem | null;
 
@@ -76,9 +83,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const showMessageNotification = useCallback((senderName: string, preview: string, matchId: string) => {
+  const showMessageNotification = useCallback((senderName: string, preview: string, matchId: string, notificationType: 'message' | 'message_liked' = 'message') => {
     const id = `${Date.now()}-${matchId}-${Math.random().toString(36).slice(2, 9)}`;
-    const item: MessageNotificationItem = { id, senderName, preview, matchId };
+    const item: MessageNotificationItem = { id, senderName, preview, matchId, notificationType };
     setMessageNotifications((prev) => {
       const next = [item, ...prev].slice(0, MAX_STACKED_MESSAGE_NOTIFICATIONS);
       return next;
@@ -89,6 +96,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, MESSAGE_NOTIFICATION_DURATION_MS);
     messageNotificationTimeoutsRef.current.set(id, timeoutId);
   }, []);
+
+  const showMessageLikedNotification = useCallback((likerName: string, matchId: string) => {
+    showMessageNotification(likerName, 'liked your message', matchId, 'message_liked');
+  }, [showMessageNotification]);
 
   useEffect(() => {
     checkAuth();
@@ -185,6 +196,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.warn('⚠️ AuthContext new_message handler error:', err);
         }
       });
+
+      socket.on('message_liked', (data: { matchId: string; messageId?: string; likedBy: string; likerName?: string; senderId?: string }) => {
+        try {
+          // Only notify when our message was liked (we are the sender of the message)
+          if (data.senderId !== user?.id) return;
+          if (!data.matchId) return;
+          if (currentMatchIdRef.current === data.matchId) {
+            if (__DEV__) console.log('❤️ Message liked in-app notification skipped: already viewing this chat');
+            return;
+          }
+          const likerName = data.likerName || 'Someone';
+          showMessageLikedNotification(likerName, data.matchId);
+          playMessageSound().catch(() => {});
+          if (__DEV__) console.log('❤️ In-app message liked alert:', likerName);
+        } catch (err) {
+          console.warn('⚠️ AuthContext message_liked handler error:', err);
+        }
+      });
     };
 
     initMessageNotificationSocket();
@@ -194,11 +223,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (messageNotificationSocketRef.current) {
         messageNotificationSocketRef.current.off('new_match');
         messageNotificationSocketRef.current.off('new_message');
+        messageNotificationSocketRef.current.off('message_liked');
         messageNotificationSocketRef.current.disconnect();
         messageNotificationSocketRef.current = null;
       }
     };
-  }, [user?.id, showMessageNotification]);
+  }, [user?.id, showMessageNotification, showMessageLikedNotification]);
 
   // Reconnect message notification socket when app comes to foreground (Android often drops socket in background)
   useEffect(() => {
@@ -365,6 +395,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         attemptNavigation();
       }
 
+      // If it's a message liked notification, navigate to that match
+      if (data?.type === 'message_liked' && data?.matchId) {
+        console.log('❤️ Navigating to match from message liked notification:', data.matchId);
+        const attemptNavigation = (attemptNumber: number = 0) => {
+          const maxAttempts = 10;
+          if (navigationRef.current?.isReady() && user) {
+            try {
+              navigationRef.current.navigate('MainTabs', {
+                screen: 'Matches',
+                params: { matchId: data.matchId },
+              });
+              console.log('✅ Navigated to match from message liked');
+            } catch (error) {
+              console.error('❌ Error navigating to match:', error);
+            }
+          } else if (attemptNumber < maxAttempts) {
+            setTimeout(() => attemptNavigation(attemptNumber + 1), 500);
+          }
+        };
+        attemptNavigation();
+      }
+
+      // If it's a message liked notification, navigate to that match
+      if (data?.type === 'message_liked' && data?.matchId) {
+        console.log('❤️ Navigating to match from message liked notification:', data.matchId);
+        const attemptNavigation = (attemptNumber: number = 0) => {
+          const maxAttempts = 10;
+          if (navigationRef.current?.isReady() && user) {
+            try {
+              navigationRef.current.navigate('MainTabs', {
+                screen: 'Matches',
+                params: { matchId: data.matchId },
+              });
+              console.log('✅ Navigated to match from message liked');
+            } catch (error) {
+              console.error('❌ Error navigating to match:', error);
+            }
+          } else if (attemptNumber < maxAttempts) {
+            setTimeout(() => attemptNavigation(attemptNumber + 1), 500);
+          }
+        };
+        attemptNavigation();
+      }
+
       // If it's a message or date plan notification, navigate to that match
       if (data?.type === 'new_message' && data?.matchId) {
         console.log('💬 Navigating to match:', data.matchId);
@@ -427,6 +501,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         try {
           if (data?.type === 'new_message' && data?.matchId) {
+            navigationRef.current.navigate('MainTabs' as never, {
+              screen: 'Matches',
+              params: { matchId: data.matchId },
+            } as never);
+          } else if (data?.type === 'message_liked' && data?.matchId) {
             navigationRef.current.navigate('MainTabs' as never, {
               screen: 'Matches',
               params: { matchId: data.matchId },
@@ -758,16 +837,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 >
                   <View style={messageNotificationStyles.bannerContent}>
                     <View style={messageNotificationStyles.iconCircle}>
-                      <Text style={messageNotificationStyles.iconText}>💬</Text>
+                      <Text style={messageNotificationStyles.iconText}>{item.notificationType === 'message_liked' ? '❤️' : '💬'}</Text>
                     </View>
                     <View style={messageNotificationStyles.textBlock}>
-                      <Text style={messageNotificationStyles.label}>New message</Text>
+                      <Text style={messageNotificationStyles.label}>{item.notificationType === 'message_liked' ? 'Message liked' : 'New message'}</Text>
                       <Text style={messageNotificationStyles.senderName} numberOfLines={1}>
-                        {item.senderName}
+                        {item.notificationType === 'message_liked' ? `❤️ ${item.senderName} ${item.preview}` : item.senderName}
                       </Text>
-                      <Text style={messageNotificationStyles.preview} numberOfLines={1}>
-                        {item.preview}
-                      </Text>
+                      {item.notificationType !== 'message_liked' && (
+                        <Text style={messageNotificationStyles.preview} numberOfLines={1}>
+                          {item.preview}
+                        </Text>
+                      )}
                     </View>
                     <View style={messageNotificationStyles.viewPill}>
                       <Text style={messageNotificationStyles.viewPillText}>View</Text>

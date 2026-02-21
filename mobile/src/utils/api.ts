@@ -249,7 +249,7 @@ async function request<T = any>(endpoint: string, options: RequestOptions = {}, 
       } else if (endpoint.includes('/users/browse')) {
         ttl = 10 * 1000; // 10 seconds for browse (very dynamic)
       } else if (endpoint === '/tokens' || endpoint.startsWith('/tokens')) {
-        ttl = 15 * 1000; // 15 seconds for tokens (admin grants, claims, etc.)
+        ttl = 60 * 1000; // 60 seconds for tokens to avoid rate limit (429); balance still refreshes after claim/connect
       }
       apiCache.set(cacheKey, data, ttl);
     }
@@ -315,7 +315,7 @@ export const api = {
     }
     // Message send: longer timeout when server is slow or multiple sends in sequence
     const isMessageSend = /\/matches\/[^/]+\/messages$/.test(endpoint);
-    const timeoutMs = extraOptions?.timeoutMs ?? (isMessageSend ? 90000 : 45000);
+    const timeoutMs = extraOptions?.timeoutMs ?? (isMessageSend ? 120000 : 45000);
     return request<T>(endpoint, {
       method: 'POST',
       body,

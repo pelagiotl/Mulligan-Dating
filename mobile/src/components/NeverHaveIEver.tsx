@@ -347,14 +347,13 @@ export default function NeverHaveIEver({
       const serverYourPts = typeof data.yourPoints === 'number' ? data.yourPoints : (data.yourStrikes ?? 0);
       const serverTheirPts = typeof data.theirPoints === 'number' ? data.theirPoints : (data.theirStrikes ?? 0);
       const roundComplete = !!data.bothAnswered || !!data.roundJustCompleted;
+      // Only use server points (never add optimistically). Points are applied only after BOTH have answered.
       setState(prev => {
         if (!prev) return null;
         const baseYou = prev.yourPoints ?? 0;
         const baseThem = prev.theirPoints ?? 0;
-        const useServerYou = roundComplete || (typeof serverYourPts === 'number' && serverYourPts > baseYou);
-        const useServerThem = roundComplete || (typeof serverTheirPts === 'number' && serverTheirPts > baseThem);
-        const yourPts = useServerYou ? serverYourPts : (answer === 'have' ? baseYou + 1 : baseYou);
-        const theirPts = useServerThem ? serverTheirPts : (typeof data.theirPoints === 'number' ? data.theirPoints : (typeof data.theirStrikes === 'number' ? data.theirStrikes : baseThem));
+        const yourPts = roundComplete ? serverYourPts : baseYou;
+        const theirPts = roundComplete ? serverTheirPts : baseThem;
         return {
           ...prev,
           yourAnswer: data.yourAnswer ?? answer,
@@ -368,7 +367,7 @@ export default function NeverHaveIEver({
       if (data.prompt) {
         setPrompt(data.prompt);
       }
-      if (data.bothAnswered || data.roundJustCompleted) {
+      if (roundComplete) {
         const serverYou = typeof data.yourPoints === 'number' ? data.yourPoints : (data.yourStrikes ?? 0);
         const serverThem = typeof data.theirPoints === 'number' ? data.theirPoints : (data.theirStrikes ?? 0);
         lastKnownPointsRef.current = { yourPoints: serverYou, theirPoints: serverThem };

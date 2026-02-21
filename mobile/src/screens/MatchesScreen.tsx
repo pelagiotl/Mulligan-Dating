@@ -109,11 +109,35 @@ interface Message {
 function VoiceMessagePlayer({ uri }: { uri: string }) {
   const [playing, setPlaying] = useState(false);
   const soundRef = useRef<Audio.Sound | null>(null);
+  const loadAndPlay = useCallback(async (audioUri: string, isRetry: boolean) => {
+    await Audio.setAudioModeAsync({
+      allowsRecordingIOS: false,
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: false,
+      shouldDuckAndroid: true,
+      playThroughEarpieceAndroid: false,
+    });
+    const loadOptions: { uri: string; overrideFileExtensionIOS?: string } = { uri: audioUri };
+    const hasAudioExt = /\.(m4a|mp3|mp4|aac|ogg|wav)(\?|#|$)/i.test(audioUri);
+    if (Platform.OS === 'ios' && !hasAudioExt) {
+      loadOptions.overrideFileExtensionIOS = 'm4a';
+    }
+    const { sound } = await Audio.Sound.createAsync(
+      loadOptions as any,
+      { shouldPlay: false, volume: 1.0, isLooping: false }
+    );
+    soundRef.current = sound;
+    setPlaying(true);
+    sound.setOnPlaybackStatusUpdate((s) => {
+      if (s.isLoaded && ((s as any).didJustFinishAndNotReset ?? s.didJustFinish)) setPlaying(false);
+    });
+    await sound.playAsync();
+  }, []);
   const play = useCallback(async () => {
     const rawUri = (uri || '').trim();
     if (!rawUri) return;
-    // Use URL without query/fragment so native player gets a clean resource URL (helps iOS/Android)
-    const cleanUri = rawUri.split('?')[0].split('#')[0];
+    // Prefer full URL; keep query string for CDNs (e.g. Cloudinary) that use it
+    const audioUri = rawUri.startsWith('http') ? rawUri : getPhotoUrl(rawUri) || rawUri;
     try {
       if (soundRef.current) {
         await soundRef.current.replayAsync();
@@ -123,34 +147,19 @@ function VoiceMessagePlayer({ uri }: { uri: string }) {
         });
         return;
       }
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
-      });
-      const loadOptions: { uri: string; overrideFileExtensionIOS?: string } = { uri: cleanUri };
-      const hasAudioExt = /\.(m4a|mp3|mp4|aac|ogg|wav)(\?|#|$)/i.test(cleanUri);
-      if (Platform.OS === 'ios' && !hasAudioExt) {
-        loadOptions.overrideFileExtensionIOS = 'm4a';
-      }
-      const { sound } = await Audio.Sound.createAsync(
-        loadOptions as any,
-        { shouldPlay: false, volume: 1.0, isLooping: false }
-      );
-      soundRef.current = sound;
-      setPlaying(true);
-      sound.setOnPlaybackStatusUpdate((s) => {
-        if (s.isLoaded && ((s as any).didJustFinishAndNotReset ?? s.didJustFinish)) setPlaying(false);
-      });
-      await sound.playAsync();
+      await loadAndPlay(audioUri, false);
     } catch (e: any) {
+      if (!soundRef.current) {
+        try {
+          await loadAndPlay(audioUri.split('?')[0].split('#')[0], true);
+          return;
+        } catch (_) {}
+      }
       setPlaying(false);
       console.warn('Voice message playback failed:', e?.message ?? e);
       Alert.alert('Playback failed', 'Could not play voice message. Please try again.');
     }
-  }, [uri]);
+  }, [uri, loadAndPlay]);
   useEffect(() => () => {
     soundRef.current?.unloadAsync?.().catch(() => {});
     soundRef.current = null;
@@ -2918,14 +2927,36 @@ export default function MatchesScreen() {
     scrollToNewestAfterLayout();
     setTimeout(scrollToNewestAfterLayout, 200);
 
+    const sendPayload = {
+      content: messageContent || '',
+      ...(imageUrlToSend ? { imageUrl: imageUrlToSend } : {}),
+      ...(videoUrlToSend ? { videoUrl: videoUrlToSend } : {}),
+      ...(audioUrlToSend ? { audioUrl: audioUrlToSend } : {}),
+    };
+    const doSend = () =>
+      api.post<{ message: Message; stage?: string; autoAdvanced?: boolean }>(
+        `/matches/${selectedMatch.id}/messages`,
+        sendPayload,
+        { timeoutMs: 120000 }
+      );
+
     try {
-      const response = await api.post<{ message: Message; stage?: string; autoAdvanced?: boolean }>(`/matches/${selectedMatch.id}/messages`, {
-        content: messageContent || '',
-        ...(imageUrlToSend ? { imageUrl: imageUrlToSend } : {}),
-        ...(videoUrlToSend ? { videoUrl: videoUrlToSend } : {}),
-        ...(audioUrlToSend ? { audioUrl: audioUrlToSend } : {}),
-      });
-      
+      let response: Awaited<ReturnType<typeof doSend>>;
+      try {
+        response = await doSend();
+      } catch (firstErr: any) {
+        const isTimeout =
+          firstErr?.message?.toLowerCase().includes('timeout') ||
+          firstErr?.status === 408 ||
+          firstErr?.message?.toLowerCase().includes('aborted');
+        if (isTimeout) {
+          await new Promise((r) => setTimeout(r, 2000));
+          response = await doSend();
+        } else {
+          throw firstErr;
+        }
+      }
+
       // Replace temp message with real message from server (dedupe: socket may have already added it)
       if (response.message) {
         setMessages((prev) => {
@@ -2949,7 +2980,8 @@ export default function MatchesScreen() {
     } catch (error: any) {
       // Remove temp message on error
       setMessages((prev) => prev.filter((m) => m.id !== tempMessage.id));
-      Alert.alert('Error', error?.message || 'Failed to send message');
+      const msg = error?.message || 'Failed to send message';
+      Alert.alert('Error', msg.includes('timeout') ? 'Network request timed out. Please check your connection and try again.' : msg);
     } finally {
       sendInFlightRef.current = false;
       setSendingMessage(false);

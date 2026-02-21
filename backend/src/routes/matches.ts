@@ -576,16 +576,8 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
 
       const weeklyTokens = allTokens.filter((t: any) => !t.source || t.source === 'weekly');
       const lastWeeklyToken = weeklyTokens.length > 0 ? weeklyTokens[0] : null;
-      const oneWeekAgo = new Date();
-      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-
-      let canClaimWeeklyToken = false;
-      if (!lastWeeklyToken) {
-        canClaimWeeklyToken = true;
-      } else {
-        const lastGranted = new Date(lastWeeklyToken.granted_at);
-        canClaimWeeklyToken = lastGranted < oneWeekAgo;
-      }
+      const { canClaimWeekly } = await import("../utils/weeklyTokens.js");
+      const canClaimWeeklyToken = canClaimWeekly(lastWeeklyToken?.granted_at ?? null);
 
       return res.status(400).json({ 
         error: "No tokens available. Claim your weekly token!",

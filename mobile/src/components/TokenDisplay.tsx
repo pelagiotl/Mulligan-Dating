@@ -468,13 +468,12 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
     }, [user])
   );
 
-  // Periodic refresh while screen is focused so token count stays up to date in real time
+  // Periodic refresh while focused; cache (60s) avoids rate limit (429) while keeping balance reasonably fresh
   useEffect(() => {
     if (!user || !isFocused) return;
     const interval = setInterval(() => {
-      api.clearCache('/tokens');
-      fetchTokens();
-    }, 20 * 1000); // every 20 seconds when this screen is focused
+      fetchTokens(); // uses cache when valid, so we don't hit /tokens every 20s
+    }, 30 * 1000); // every 30 seconds when focused
     return () => clearInterval(interval);
   }, [user, isFocused]);
 

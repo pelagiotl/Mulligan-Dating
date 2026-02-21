@@ -2,6 +2,7 @@ import { Router } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { db } from "../database.js";
 import { authenticateToken, AuthRequest } from "../middleware/auth.js";
+import { canClaimWeekly, getNextRefillDate } from "../utils/weeklyTokens.js";
 
 export const tokensRouter = Router();
 
@@ -62,36 +63,18 @@ tokensRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
     // Don't cap here - show actual count (the cap is enforced when claiming)
     const availableTokens = tokens.filter((t: TokenRow) => !t.used_at && !t.returned_at).length;
 
-    // Check if user should get weekly tokens (7 tokens per week, fills up to 7 max)
-    // Find the most recent weekly token grant
-    // Look for tokens with source='weekly' or no source (old tokens)
+    // Check if user can claim weekly (7 days since last weekly claim)
     const weeklyTokens = tokens.filter((t: TokenRow) => !t.source || t.source === 'weekly');
     const lastWeeklyToken = weeklyTokens.length > 0 ? weeklyTokens[0] : null;
-    const oneWeekAgo = new Date();
-    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-
-    let canClaimWeeklyToken = false;
-    if (!lastWeeklyToken) {
-      // No weekly tokens yet, can claim
-      canClaimWeeklyToken = true;
-    } else {
-      const lastGranted = new Date(lastWeeklyToken.granted_at);
-      canClaimWeeklyToken = lastGranted < oneWeekAgo;
-    }
+    let canClaimWeeklyToken = canClaimWeekly(lastWeeklyToken ? lastWeeklyToken.granted_at : null);
 
     // Can't claim if already at max (7 tokens)
     if (availableTokens >= 7) {
       canClaimWeeklyToken = false;
     }
 
-    // Calculate next weekly refill date
-    let nextRefillDate: string | null = null;
-    if (lastWeeklyToken) {
-      const lastGranted = new Date(lastWeeklyToken.granted_at);
-      const nextRefill = new Date(lastGranted);
-      nextRefill.setDate(nextRefill.getDate() + 7);
-      nextRefillDate = nextRefill.toISOString();
-    }
+    // Next refill = 7 days after last weekly claim (or null if never claimed)
+    const nextRefillDate = getNextRefillDate(lastWeeklyToken?.granted_at ?? null);
 
     console.log('✅ Tokens fetched:', { availableTokens, canClaimWeeklyToken, totalTokens: tokens.length });
     res.json({
@@ -134,20 +117,13 @@ tokensRouter.post("/claim", authenticateToken, async (req: AuthRequest, res) => 
     });
   }
 
-  // Check if user can claim weekly tokens
-  // Look for tokens with source='weekly' or no source (old tokens)
+  // Check if user can claim weekly tokens (7 days since last claim)
   const weeklyTokens = allTokens.filter((t: TokenRow) => !t.source || t.source === 'weekly');
   const lastWeeklyToken = weeklyTokens.length > 0 ? weeklyTokens[0] : null;
-  const oneWeekAgo = new Date();
-  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-
-  if (lastWeeklyToken) {
-    const lastGranted = new Date(lastWeeklyToken.granted_at);
-    if (lastGranted >= oneWeekAgo) {
-      return res
-        .status(400)
-        .json({ error: "You can only claim weekly tokens once per week. Wait until next week!" });
-    }
+  if (lastWeeklyToken && !canClaimWeekly(lastWeeklyToken.granted_at)) {
+    return res
+      .status(400)
+      .json({ error: "You can only claim weekly tokens once per week. Wait until next week!" });
   }
 
   // Calculate how many tokens to grant (fill up to 7 max)

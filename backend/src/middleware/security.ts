@@ -184,7 +184,12 @@ export async function rateLimitAPI(req: Request, res: Response, next: NextFuncti
   if (req.path.includes('/admin')) {
     return next();
   }
-  
+
+  // GET /tokens is called often (balance display, claim banner); don't consume from main limit to avoid 429
+  if (req.method === 'GET' && (req.path === '/tokens' || req.path === '/tokens/')) {
+    return next();
+  }
+
   // For profile creation/update endpoints, use a more lenient rate limit
   // Profile creation involves multiple requests (interests, dealbreakers, preferences, etc.)
   if (req.path.includes('/profile') && (req as any).userId) {
