@@ -2443,7 +2443,7 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
     const { submitAnswer, submitTurnAnswer } = await import('../services/neverHaveIEver.js');
     const rowResult = db.prepare('SELECT spice_level, current_prompt, current_turn_user_id FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
     const row = (rowResult instanceof Promise ? await rowResult : rowResult) as { spice_level: string | null; current_prompt: string | null; current_turn_user_id: string | null } | undefined;
-    // When current_turn_user_id is null, both users answer each prompt then we generate the next (tally mode)
+    // When current_turn_user_id is null, both users answer each prompt then we tally and generate next (tally mode)
     const isTurnBased = !!row?.current_turn_user_id;
 
     const { state, roundResult } = isTurnBased

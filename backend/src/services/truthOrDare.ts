@@ -5,115 +5,115 @@
 import { db } from '../database.js';
 import { getSharedInterests } from './mulliganMoments.js';
 
-// Slightly spicy but tasteful — flirty, playful, PG-13
+// PG-13 — cool, mature, flirty without being cheesy
 const TRUTH_FALLBACKS = [
-  "What's the first thing you notice about someone you're attracted to?",
-  "What's your love language and how do you show it?",
-  "What's something that would make you swipe right immediately?",
-  "What's your idea of a perfect first date?",
-  "What's the best compliment you've ever received from a crush?",
-  "Have you ever had a crush on someone you just met?",
-  "What's your go-to move to break the ice on a first date?",
-  "What's the most attractive quality in someone's profile?",
-  "What's something you'd want a date to do to impress you?",
-  "What's your guilty pleasure when it comes to romance?",
-  "What's the most romantic thing someone's ever done for you?",
-  "What emoji would you use to describe your dating energy?",
-  "What's your biggest green flag in a conversation?",
-  "What's something you're secretly picky about in dating?",
-  "What would make you want to extend a first date into a second?",
+  "What's the first thing that actually catches your attention about someone?",
+  "What's a non-negotiable for you in someone you're into?",
+  "What would make you cancel plans to see someone?",
+  "What's your idea of a perfect first date — no generic answers.",
+  "What's something you find attractive that most people don't mention?",
+  "What's the biggest green flag you've noticed in someone you dated?",
+  "What would make you take someone seriously from the first conversation?",
+  "What's your actual love language, and how do you show it?",
+  "What's something you'd only admit to someone you're really into?",
+  "What's the best compliment you've gotten that actually stuck with you?",
+  "What's your dealbreaker that isn't the usual list?",
+  "What would make you want a second date before the first one's over?",
+  "What's the most underrated quality in a partner?",
+  "What's something you're secretly strict about when it comes to dating?",
+  "What would make you stop scrolling and actually reply?",
 ];
 
 const DARE_FALLBACKS = [
-  "Send a voice note saying something you'd only say when you're really into someone",
-  "Describe your type in exactly 3 words",
-  "Send a selfie with the look you give when you're attracted to someone",
-  "Voice note: say one thing that would make me want to meet you in person",
-  "Describe your ideal first date in 3 emojis",
-  "Send a pic of what you're doing right now with a one-line vibe check",
+  "Send a voice note saying one thing that would make me want to meet you",
+  "Describe your type in 3 words — no clichés",
+  "Send a selfie with the look you give when you're actually interested",
+  "Voice note: 10 seconds on why you're worth a first date",
   "Reply with the line you'd use to ask someone out in person",
-  "Send a selfie — your choice of flirty or silly",
-  "Describe what you find attractive in someone using only emojis",
-  "Send a voice note: 10 seconds on why you're a good date",
-  "Reply with 3 words that describe your vibe on a good date",
-  "Send a pic of your pet (or plant) with a caption that says something about you",
-  "Pick one emoji that sums up your dating energy and explain in one sentence",
-  "Reply with a question you've always wanted to ask a match",
-  "Send a selfie with your best smile",
+  "Send a pic of what you're doing rn with a one-line that says something real about you",
+  "Describe your ideal first date in 3 emojis",
+  "Send a selfie — flirty or unapologetically you",
+  "Reply with 3 words that describe your vibe when you're into someone",
+  "Voice note: one thing you find attractive about them (be specific)",
+  "Send a selfie that shows your actual smile, not the camera smile",
+  "Reply with a question you've always wanted to ask a match but never have",
+  "Describe what turns you on in a conversation in one sentence",
+  "Send a voice note: the boldest thing you'd say to break tension on a date",
+  "Reply with one green flag you've already noticed about them",
 ];
 
-// Rated R — spicier, more suggestive (still app-store safe)
+// Rated R — bolder, more mature, still app-store safe
 const TRUTH_FALLBACKS_R = [
-  "What's your biggest turn-on in a conversation?",
-  "What's the most attractive physical feature on someone?",
-  "Have you ever made the first move? How did it go?",
-  "What's something you find irresistible in a date?",
+  "What's your biggest turn-on in a conversation — be specific",
+  "What actually makes you want to make the first move?",
   "What's your idea of the perfect kiss?",
   "What's the boldest thing you've done to get someone's attention?",
   "What's a dealbreaker for you when it comes to chemistry?",
-  "What's your love language when it comes to physical affection?",
-  "What's something that instantly attracts you to someone?",
-  "What's the most romantic thing you've ever done for a crush?",
-  "What's your take on making the first move?",
-  "What's something you'd never do on a first date?",
-  "What's your biggest green flag when it comes to chemistry?",
-  "What's the most memorable compliment you've gotten about your looks?",
+  "What's something that instantly attracts you that isn't just looks?",
   "What would make you want to kiss someone on a first date?",
+  "What's the most attractive thing someone could say to you in person?",
+  "What's something you'd never do on a first date — and why?",
+  "What's your take on who should make the first move?",
+  "What's the most memorable way someone's ever shown they were into you?",
+  "What would make you lose your cool on a date?",
+  "What's your love language when it comes to physical affection?",
+  "What's something you find irresistible that you don't usually admit?",
+  "What's the boldest thing you'd say if you knew they were into you?",
 ];
 
 const DARE_FALLBACKS_R = [
-  "Send a voice note saying something you'd whisper to someone you're into",
-  "Send a selfie with your best 'come here' look",
-  "Describe what turns you on physically in 3 words",
-  "Voice note: tell them one thing you find attractive about them",
-  "Describe your ideal first kiss in 3 emojis",
-  "Send a pic with a caption that flirts without being explicit",
-  "Reply with the boldest thing you'd say to break the tension on a date",
+  "Send a voice note saying something you'd say when the tension is high",
+  "Send a selfie with the look you give when you're actually into someone",
+  "Voice note: one thing you find attractive about them — no generic stuff",
+  "Describe what turns you on in 3 words",
+  "Reply with the boldest thing you'd say to break tension on a date",
   "Send a selfie from an angle you know works",
-  "Describe your type using only emojis",
-  "Voice note: say what you'd do if you were on a date with them right now",
-  "Reply with 3 words that describe your romantic energy",
-  "Send a selfie that shows your confidence",
-  "Pick an emoji that represents your flirty side and explain in one line",
-  "Reply with a question that would make someone blush",
-  "Send a selfie that shows off your favorite feature",
+  "Voice note: what you'd do if you were on a date with them right now",
+  "Reply with a question that would make them actually think",
+  "Send a selfie that shows your confidence — no filter needed",
+  "Describe your ideal first kiss in 3 emojis",
+  "Voice note: say what you'd whisper if you were close enough",
+  "Reply with 3 words that describe the energy you want between you two",
+  "Send a pic with a caption that flirts without being obvious",
+  "Pick one thing about them that caught your attention and say it in a voice note",
+  "Send a selfie that shows off what you're most confident about",
 ];
 
-// Spicy — boldest level, most provocative (app-store safe, no explicit content)
+// Spicy — boldest, most mature and provocative (app-store safe)
 const TRUTH_FALLBACKS_SPICY = [
   "What's your biggest fantasy when it comes to a first date?",
-  "What's the boldest thing you've ever done to get someone's attention?",
-  "What would make you want to skip straight to the good part on a date?",
+  "What would make you want to skip the small talk and get to the good part?",
   "What's something you'd never admit in person but might say here?",
-  "What's the most attractive thing someone could whisper to you?",
+  "What's the most attractive thing someone could say to you when you're alone?",
   "What's your secret turn-on that you've never told anyone?",
   "What would you do if we had the place to ourselves right now?",
-  "What's the most impulsive romantic thing you've ever done?",
-  "What's your idea of the perfect night alone with someone you're into?",
+  "What's the most impulsive thing you've ever done when you were into someone?",
+  "What's your idea of the perfect night with someone you're really into?",
   "What would make you lose your cool on a date?",
-  "What's the most memorable way someone's ever flirted with you?",
   "What's something you find irresistible that most people overlook?",
-  "What's your boldest move when you know there's chemistry?",
+  "What's your boldest move when you know the chemistry is mutual?",
   "What would you want me to say to make your heart race?",
   "What's the hottest non-physical thing someone can do on a date?",
+  "What's the most memorable way someone's ever made it clear they wanted you?",
+  "What would make you break your own rules for someone?",
 ];
 
 const DARE_FALLBACKS_SPICY = [
-  "Send a voice note saying something you'd say when the tension is high",
-  "Send a selfie from an angle that makes an impression",
+  "Send a voice note saying something you'd only say when the tension is high",
+  "Send a selfie from an angle that actually makes an impression",
   "Describe what you find attractive about them in 3 bold words",
-  "Voice note: say what you want to do with them on a second date",
-  "Reply with the boldest thing you'd do if we were alone right now",
-  "Send a pic with a caption that's flirty but tasteful",
-  "Voice note: say one thing that would make them blush",
-  "Send a selfie that shows off your most confident side",
-  "Reply with a question that would make someone's heart skip",
-  "Describe your ideal night with them using only emojis",
-  "Voice note: describe the vibe you want between you two",
-  "Reply with 3 words that describe the energy you want between us",
-  "Send a selfie with your best 'come here' look",
-  "Voice note: tell them why you're into them in one sentence",
-  "Send a pic with a caption that flirts without saying it outright",
+  "Voice note: what you'd want to do with them on a second date",
+  "Reply with the boldest thing you'd do if you were alone right now",
+  "Voice note: one thing that would make them blush",
+  "Send a selfie that shows your most confident side",
+  "Reply with a question that would make their heart skip",
+  "Voice note: describe the vibe you want between you two in one sentence",
+  "Reply with 3 words that describe the energy you want between you",
+  "Send a selfie with the look you give when you're really into someone",
+  "Voice note: tell them why you're into them — no generic lines",
+  "Send a pic with a caption that's flirty but not try-hard",
+  "Reply with the boldest thing you'd say if you knew they were thinking the same",
+  "Voice note: say what you're actually thinking right now",
 ];
 
 function pickRandom<T>(arr: T[], exclude?: T): T {
@@ -175,14 +175,14 @@ export async function generateTruthOrDarePrompt(
 
     const typeLabel = type === 'truth' ? 'Truth' : 'Dare';
 
-    const pg13Truth = 'a playfully flirty question about attraction, dating, romance, or chemistry. Hint at romance without being crude. Think: what they find attractive, love languages, first impressions, green flags, dream dates. Tasteful PG-13 vibe.';
-    const pg13Dare = 'a fun, slightly flirty challenge they can complete in chat (voice note, selfie, emoji). Can hint at romance (e.g. "best smile", "describe your type in 3 words") but stay tasteful. Doable via text/voice/image in a dating app. Do NOT mention travel, vacation, "where you are", scenic views, or location. Write for adults: confident and cool, never corny, no puns or wordplay (e.g. no "score on and off the field" or similar).';
+    const pg13Truth = 'a cool, mature question about attraction, dating, or chemistry. Specific and real — not generic or cheesy. Think: what actually catches their attention, green flags, dealbreakers, what they\'d only admit to someone they\'re into. Tasteful PG-13. No corny or cringe phrasing.';
+    const pg13Dare = 'a confident, slightly flirty challenge they can do in chat (voice note, selfie, short reply). Hint at romance without being cheesy. Doable via text/voice/image. Do NOT use travel, vacation, "where you are", or location. Tone: cool and mature — NO puns, NO wordplay, NO corny lines (e.g. never "score on and off the field"). Write for adults who cringe at try-hard humor.';
 
-    const rTruth = 'a spicier, more suggestive question about physical attraction, chemistry, kissing, what turns them on, romantic boldness, or physical preferences. Still tasteful and app-store safe — no explicit sexual content. Think: turn-ons, first kiss, making moves, what they find irresistible. Rated R vibe = bold and flirty.';
-    const rDare = 'a bolder, more suggestive challenge they can complete in chat. Can be flirtier: suggestive selfies, voice notes with romantic tension, describing physical attraction, etc. Still tasteful — no explicit content. Doable via text/voice/image. Rated R = make them blush. Do NOT mention travel, vacation, scenic views, or "where you are". Write for adults: confident, sexy, never corny or punny.';
+    const rTruth = 'a bolder, more suggestive question about physical attraction, chemistry, kissing, turn-ons, or what they find irresistible. Specific and mature — not generic. Still tasteful and app-store safe. Rated R = bold and flirty, never corny.';
+    const rDare = 'a bolder challenge they can complete in chat: suggestive selfies, voice notes with tension, describing attraction. Tasteful, no explicit content. Doable via text/voice/image. Do NOT use travel, vacation, or location. Tone: confident and sexy — never corny, punny, or try-hard.';
 
-    const spicyTruth = 'the boldest, most provocative question — fantasies, secret turn-ons, what would make them lose their cool, impulsive romantic moves, what they\'d never admit in person. Push boundaries. Make them blush. Still tasteful and app-store safe — NO explicit sexual content.';
-    const spicyDare = 'the boldest challenge they can complete in chat — suggestive voice notes, steamy selfies, describing attraction boldly, flirty captions. Make them blush. Tasteful but provocative. Doable via text/voice/image. No explicit content. Do NOT mention travel, vacation, scenic views, or location. Write for adults: bold and hot, never corny or try-hard.';
+    const spicyTruth = 'the boldest question: fantasies, secret turn-ons, what would make them lose their cool, what they\'d never admit in person. Push boundaries, make them blush. Tasteful and app-store safe — NO explicit sexual content. Mature and specific, never cheesy.';
+    const spicyDare = 'the boldest challenge for chat: suggestive voice notes, confident selfies, describing attraction boldly. Make them blush. Tasteful, no explicit content. Doable via text/voice/image. Do NOT use travel or location. Tone: bold and hot — never corny or try-hard.';
 
     const typeInstruction = type === 'truth'
       ? (isSpicy ? spicyTruth : isR ? rTruth : pg13Truth)
@@ -190,30 +190,28 @@ export async function generateTruthOrDarePrompt(
 
     const spiceLabel = isSpicy ? 'Spicy' : isR ? 'Rated R' : 'PG-13';
     const systemSpice = isSpicy
-      ? `SPICE LEVEL: Spicy — the BOLDEST level. Provocative, suggestive, make them blush. Fantasies, secret turn-ons, steamy voice notes, bold flirting. Push boundaries. Still tasteful and app-store safe. NEVER explicit sexual content.`
+      ? `SPICE LEVEL: Spicy — the BOLDEST level. Provocative, suggestive, make them blush. Still tasteful and app-store safe. NEVER explicit sexual content.`
       : isR
-      ? `SPICE LEVEL: Rated R — bolder, more suggestive, flirtier. Can touch on physical attraction, chemistry, kissing, turn-ons, romantic boldness. Still tasteful and app-store safe. NEVER explicit sexual content.`
-      : `SPICE LEVEL: PG-13 — playfully flirty, romantic undertones. Never crude, sexual, or invasive.`;
+      ? `SPICE LEVEL: Rated R — bolder, more suggestive. Physical attraction, chemistry, turn-ons. Still tasteful and app-store safe. NEVER explicit sexual content.`
+      : `SPICE LEVEL: PG-13 — flirty, romantic undertones. Never crude or invasive.`;
 
     const noTravelNote = type === 'dare'
-      ? '\n- Do NOT use travel, vacation, "where you are", scenic views, or location in the background. Users are often at home. Keep dares doable from wherever they are.'
+      ? '\n- Do NOT use travel, vacation, "where you are", scenic views, or location. Users are often at home. Keep dares doable from wherever they are.'
       : '';
 
-    const noCornyNote = type === 'dare'
-      ? '\n- Tone: mature adults. NO corny wordplay, NO puns (e.g. never "score on and off the field" or sports double meanings), NO cringe or try-hard humor. Confident, cool, flirty — not cheesy.'
-      : '';
+    const toneNote = '\n- TONE: Cool and mature. Write for adults. NO corny wordplay, NO puns, NO cringe or try-hard humor, NO generic dating clichés. Confident, specific, and flirty — never cheesy or childish.';
 
     const systemPrompt = `You generate ${type} prompts for a dating app's "Truth or Dare" game. ${systemSpice}
 
 - Concise: one sentence, under 100 characters.
-- Specific to ${type}: ${typeInstruction}${noTravelNote}${noCornyNote}
+- Specific to ${type}: ${typeInstruction}${noTravelNote}${toneNote}
 - Output ONLY the prompt text, nothing else. No quotes, no numbering, no explanation.`;
 
     const spiceHint = isSpicy
-      ? 'Make it bold and provocative — fantasies, turn-ons, steamy energy. Make them blush. Push boundaries but stay tasteful.'
+      ? 'Bold and provocative — fantasies, turn-ons, steamy energy. Make them blush. Mature and specific, never corny.'
       : isR
-      ? 'Make it bolder and more suggestive — but keep it tasteful and app-store safe.'
-      : 'Playfully flirty, spark chemistry without going too far.';
+      ? 'Bolder and more suggestive — tasteful and app-store safe. Cool, not cheesy.'
+      : 'Cool and flirty, spark chemistry. Specific and mature — no generic or corny lines.';
 
     const excludeHint = toExclude.length > 0
       ? `\n\nIMPORTANT: Do NOT use any of these prompts (already shown this game): ${toExclude.map((p) => `"${p}"`).join(', ')}. Generate a different one.`

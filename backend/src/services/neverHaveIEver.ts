@@ -593,16 +593,16 @@ export async function startNewGame(
   const prompt = await generateNeverHaveIEverPrompt(matchId, spiceLevel);
 
   const ts = new Date().toISOString();
-  const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
+  // Keep tally mode (current_turn_user_id = NULL): both users answer each prompt, then we tally and generate next.
   if (row) {
     const updateResult = db.prepare(
-      `UPDATE never_have_i_ever_games SET user1_strikes = 0, user2_strikes = 0, current_prompt = ?, current_turn_user_id = ?, user1_answer = NULL, user2_answer = NULL, updated_at = ? WHERE match_id = ?`
-    ).run([prompt, otherUserId, ts, matchId]);
+      `UPDATE never_have_i_ever_games SET user1_strikes = 0, user2_strikes = 0, current_prompt = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, updated_at = ? WHERE match_id = ?`
+    ).run([prompt, ts, matchId]);
     if (updateResult instanceof Promise) await updateResult;
   } else {
     const insertResult = db.prepare(
-      `INSERT INTO never_have_i_ever_games (match_id, user1_strikes, user2_strikes, spice_level, current_prompt, current_turn_user_id, user1_answer, user2_answer, updated_at) VALUES (?, 0, 0, ?, ?, ?, NULL, NULL, ?)`
-    ).run([matchId, spiceLevel, prompt, otherUserId, ts]);
+      `INSERT INTO never_have_i_ever_games (match_id, user1_strikes, user2_strikes, spice_level, current_prompt, current_turn_user_id, user1_answer, user2_answer, updated_at) VALUES (?, 0, 0, ?, ?, NULL, NULL, NULL, ?)`
+    ).run([matchId, spiceLevel, prompt, ts]);
     if (insertResult instanceof Promise) await insertResult;
   }
 
