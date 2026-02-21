@@ -50,15 +50,15 @@ matchesRouter.get("/count", authenticateToken, async (req: AuthRequest, res) => 
     const count = Math.floor(Number(countRow?.count ?? 0));
 
     const limitResult = db
-      .prepare("SELECT COALESCE(match_slot_limit, 20) as slot_limit FROM users WHERE id = ?")
+      .prepare("SELECT COALESCE(match_slot_limit, 50) as slot_limit FROM users WHERE id = ?")
       .get([userId]);
     const limitRow = (limitResult instanceof Promise ? await limitResult : limitResult) as { slot_limit: number | string } | undefined;
-    const slotLimit = Math.floor(Number(limitRow?.slot_limit ?? 20));
+    const slotLimit = Math.floor(Number(limitRow?.slot_limit ?? 50));
 
     res.json({ count, slotLimit });
   } catch (error) {
     console.error('Matches count error:', error);
-    res.status(500).json({ error: 'Failed to get match count', count: 0, slotLimit: 20 });
+    res.status(500).json({ error: 'Failed to get match count', count: 0, slotLimit: 50 });
   }
 });
 
@@ -418,7 +418,7 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
 });
 
 // Send a match request (use a token) - AUTOMATIC MATCH
-// Match limit: default 20 per user. Tokens stay at 7 (weekly claim, max 7).
+// Match limit: default 50 per user. Tokens stay at 7 (weekly claim, max 7).
 matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
   const userId = req.userId!;
   const { targetUserId, expandSlot } = req.body;
@@ -500,7 +500,7 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
       return res.status(400).json({ error: "Target user profile not found" });
     }
 
-    // Match limit: 20 per user (no expansion beyond 20).
+    // Match limit: 50 per user (no expansion beyond 50).
     const activeMatchCountResult = db
       .prepare(
         `SELECT COUNT(*) as count FROM matches 
@@ -513,14 +513,14 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
     const count = Math.floor(Number(activeMatchCount?.count ?? 0));
 
     const userRowResult = db
-      .prepare("SELECT COALESCE(match_slot_limit, 20) as slot_limit FROM users WHERE id = ?")
+      .prepare("SELECT COALESCE(match_slot_limit, 50) as slot_limit FROM users WHERE id = ?")
       .get([userId]);
     const userRow = (userRowResult instanceof Promise ? await userRowResult : userRowResult) as { slot_limit: number | string } | undefined;
-    const slotLimit = Math.floor(Number(userRow?.slot_limit ?? 20));
+    const slotLimit = Math.floor(Number(userRow?.slot_limit ?? 50));
 
-    if (count >= 20) {
+    if (count >= 50) {
       return res.status(400).json({
-        error: "You've reached the maximum of 20 matches. Unmatch with someone to free up a slot.",
+        error: "You've reached the maximum of 50 matches. Unmatch with someone to free up a slot.",
         code: "MAX_MATCHES_REACHED",
       });
     }

@@ -5,7 +5,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiCache, APICache } from './apiCache';
-import { getStoredPushToken } from './pushTokenStore';
+import { getStoredPushToken, shouldSendTokenToServer } from './pushTokenStore';
 
 // API URL - use EXPO_PUBLIC_ for production builds, fallback to hardcoded production URL
 export const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://mulligan-backend.onrender.com';
@@ -103,13 +103,15 @@ async function request<T = any>(endpoint: string, options: RequestOptions = {}, 
     headers['Authorization'] = `Bearer ${token.trim()}`;
   }
 
-  // Send push token on every request so backend can save it (fallback when POST /auth/push-token fails)
-  const pushToken = getStoredPushToken();
-  if (pushToken && typeof pushToken === 'string' && pushToken.trim().length > 0) {
-    headers['X-Push-Token'] = pushToken.trim();
-    if (__DEV__ && !pushTokenHeaderLogged) {
-      pushTokenHeaderLogged = true;
-      console.log('📲 X-Push-Token sent with request — backend will save for outside-app notifications');
+  // Send push token only when it came from fresh registration this session (avoids overwriting server with stale token after app update)
+  if (shouldSendTokenToServer()) {
+    const pushToken = getStoredPushToken();
+    if (pushToken?.trim()) {
+      headers['X-Push-Token'] = pushToken.trim();
+      if (__DEV__ && !pushTokenHeaderLogged) {
+        pushTokenHeaderLogged = true;
+        console.log('📲 X-Push-Token sent with request — backend will save for outside-app notifications');
+      }
     }
   }
   

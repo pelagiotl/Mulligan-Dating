@@ -189,7 +189,7 @@ function ReupCelebrationModal({
                     end={{ x: 1, y: 1 }}
                     style={styles.reupButton}
                   >
-                    <Text style={styles.reupButtonText}>Let's go! ✨</Text>
+                    <Text style={styles.reupButtonText}>Slay</Text>
                   </LinearGradient>
                 </TouchableOpacity>
               </LinearGradient>
@@ -437,7 +437,7 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
           const result = await api.post<{ message: string; tokensGranted: number }>('/tokens/claim', {});
           api.clearCache('/tokens');
           await fetchTokens();
-          const msg = opts?.successMessage ?? `Congrats! You've been officially reupped and are ready to start matching! 🎉`;
+          const msg = opts?.successMessage ?? `You've been reupped. Cool 😏`;
           setReupCelebration({ message: msg, onSuccess: opts?.onSuccess });
         } catch (err: any) {
           const errorMessage = err?.message || 'Failed to claim tokens. Please try again.';

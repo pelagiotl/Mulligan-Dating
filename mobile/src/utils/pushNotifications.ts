@@ -175,8 +175,9 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
       return null;
     }
 
-    // Store so api client can send on every request (fallback if POST fails)
-    setStoredPushToken(pushToken);
+    // Store so api client can send on every request (fallback if POST fails). Mark as from registration
+    // so we send it to the server; avoid sending hydrated (stale) token after app update.
+    setStoredPushToken(pushToken, { fromRegistration: true });
     console.log('📲 Push: Got Expo token — will send with every request so backend can save it.');
     // Send token to backend (retry on failure so message notifications work)
     const maxRetries = 3;
@@ -200,12 +201,12 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
           const delayMs = attempt * 2000;
           await new Promise((r) => setTimeout(r, delayMs));
         } else {
-          setStoredPushToken(pushToken); // still send on future requests so backend can save
+          setStoredPushToken(pushToken, { fromRegistration: true }); // still send on future requests so backend can save
           return pushToken;
         }
       }
     }
-    setStoredPushToken(pushToken);
+    setStoredPushToken(pushToken, { fromRegistration: true });
     return pushToken;
   }, 'PushNotifications', {
     maxWaitMs: 10000, // Wait up to 10 seconds for app initialization
@@ -228,7 +229,7 @@ export async function refreshAndSendPushTokenOnBackground(): Promise<void> {
     const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
     const pushToken = tokenData?.data;
     if (!pushToken?.trim()) return;
-    setStoredPushToken(pushToken);
+    setStoredPushToken(pushToken, { fromRegistration: true });
     await api.post('/auth/push-token', { pushToken });
     if (__DEV__) console.log('📲 Push token refreshed and sent on background');
   } catch (e) {
