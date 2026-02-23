@@ -295,52 +295,30 @@ app.post("/api/admin/force-admin", async (req, res) => {
 
 app.use("/api/admin", adminRouter);
 
-// Public endpoint to make user admin by phone number (for development/testing)
-// TODO: Remove or secure this before production launch
-app.post("/api/make-admin-by-phone", async (req, res) => {
-  try {
-    const { phoneNumber } = req.body;
-    
-    if (!phoneNumber) {
-      return res.status(400).json({ error: 'Phone number is required' });
+// Dev-only endpoints: disabled in production (security)
+if (process.env.NODE_ENV !== 'production') {
+  // Make user admin by phone (for local/testing only)
+  app.post("/api/make-admin-by-phone", async (req, res) => {
+    try {
+      const { phoneNumber } = req.body;
+      if (!phoneNumber) return res.status(400).json({ error: 'Phone number is required' });
+      const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+1${phoneNumber.replace(/\D/g, '')}`;
+      const userStmt = db.prepare('SELECT id, phone_number FROM users WHERE phone_number = ?');
+      const user = await (userStmt.get([formattedPhone]) as Promise<{ id: string; phone_number: string } | undefined>);
+      if (!user) return res.status(404).json({ error: `User with phone number ${formattedPhone} not found` });
+      const updateStmt = db.prepare('UPDATE users SET is_admin = 1 WHERE id = ?');
+      await (updateStmt.run([user.id]) as Promise<any>);
+      const verifyStmt = db.prepare('SELECT id, phone_number, is_admin FROM users WHERE id = ?');
+      const updated = await (verifyStmt.get([user.id]) as Promise<{ id: string; phone_number: string; is_admin: number } | undefined>);
+      res.json({ success: true, message: `User ${formattedPhone} is now an admin`, userId: user.id, isAdmin: updated?.is_admin === 1 });
+    } catch (error) {
+      console.error('Error making user admin:', error);
+      res.status(500).json({ error: 'Failed to make user admin' });
     }
+  });
 
-    // Format phone number (add + if not present)
-    const formattedPhone = phoneNumber.startsWith('+') 
-      ? phoneNumber 
-      : `+1${phoneNumber.replace(/\D/g, '')}`;
-
-    // Find user by phone number
-    const userStmt = db.prepare('SELECT id, phone_number FROM users WHERE phone_number = ?');
-    const user = await (userStmt.get([formattedPhone]) as Promise<{ id: string; phone_number: string } | undefined>);
-
-    if (!user) {
-      return res.status(404).json({ error: `User with phone number ${formattedPhone} not found` });
-    }
-
-    // Make user admin
-    const updateStmt = db.prepare('UPDATE users SET is_admin = 1 WHERE id = ?');
-    await (updateStmt.run([user.id]) as Promise<any>);
-
-    // Verify
-    const verifyStmt = db.prepare('SELECT id, phone_number, is_admin FROM users WHERE id = ?');
-    const updated = await (verifyStmt.get([user.id]) as Promise<{ id: string; phone_number: string; is_admin: number } | undefined>);
-
-    res.json({
-      success: true,
-      message: `User ${formattedPhone} is now an admin`,
-      userId: user.id,
-      isAdmin: updated?.is_admin === 1
-    });
-  } catch (error) {
-    console.error('Error making user admin:', error);
-    res.status(500).json({ error: 'Failed to make user admin' });
-  }
-});
-
-// Public endpoint to create test users (for development/testing only)
-// TODO: Remove or secure this before production launch
-app.post("/api/create-test-users", async (req, res) => {
+  // Create test users (for local/testing only)
+  app.post("/api/create-test-users", async (req, res) => {
   try {
     const testUsers = [
       {
@@ -503,7 +481,8 @@ app.post("/api/create-test-users", async (req, res) => {
       details: error.message || String(error)
     });
   }
-});
+  });
+}
 
 // Health check
 app.get("/api/health", async (req, res) => {
