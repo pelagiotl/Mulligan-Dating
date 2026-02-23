@@ -388,19 +388,36 @@ profileRouter.put('/preferences', authenticateToken, rateLimitAPI, async (req: A
       return res.status(404).json({ error: 'Profile not found' });
     }
 
-    // Check if preferences exist
-    const existingPrefsStmt = db.prepare('SELECT id FROM preferences WHERE profile_id = ?');
-    const existingPrefs = await (existingPrefsStmt.get([profileResult.id]) as Promise<{ id: string } | undefined>);
+    // Fetch existing preferences so partial updates don't wipe fields (e.g. preferred_genders)
+    const existingPrefsStmt = db.prepare('SELECT id, min_age, max_age, preferred_genders, max_distance, relationship_type, intent, values FROM preferences WHERE profile_id = ?');
+    const existingPrefs = await (existingPrefsStmt.get([profileResult.id]) as Promise<{
+      id: string;
+      min_age: number | null;
+      max_age: number | null;
+      preferred_genders: string | null;
+      max_distance: number | null;
+      relationship_type: string | null;
+      intent: number | null;
+      values: string | null;
+    } | undefined>);
 
-    const preferredGendersJson = preferencesData.preferredGenders && preferencesData.preferredGenders.length > 0
-      ? JSON.stringify(preferencesData.preferredGenders)
-      : null;
-    const valuesJson = preferencesData.values && preferencesData.values.length > 0
-      ? JSON.stringify(preferencesData.values)
-      : null;
+    const preferredGendersJson = preferencesData.preferredGenders !== undefined
+      ? (preferencesData.preferredGenders && preferencesData.preferredGenders.length > 0
+          ? JSON.stringify(preferencesData.preferredGenders)
+          : null)
+      : (existingPrefs?.preferred_genders ?? null);
+    const valuesJson = preferencesData.values !== undefined
+      ? (preferencesData.values && preferencesData.values.length > 0 ? JSON.stringify(preferencesData.values) : null)
+      : (existingPrefs?.values ?? null);
+
+    const minAge = preferencesData.minAge !== undefined ? preferencesData.minAge : (existingPrefs?.min_age ?? null);
+    const maxAge = preferencesData.maxAge !== undefined ? preferencesData.maxAge : (existingPrefs?.max_age ?? null);
+    const maxDistance = preferencesData.maxDistance !== undefined ? preferencesData.maxDistance : (existingPrefs?.max_distance ?? null);
+    const relationshipType = preferencesData.relationshipType !== undefined ? preferencesData.relationshipType : (existingPrefs?.relationship_type ?? null);
+    const intent = preferencesData.intent !== undefined ? preferencesData.intent : (existingPrefs?.intent ?? null);
 
     if (existingPrefs) {
-      // Update existing preferences
+      // Update existing preferences (merge: only overwrite fields that were provided)
       const updateStmt = db.prepare(`
         UPDATE preferences SET
           min_age = ?, max_age = ?, preferred_genders = ?, max_distance = ?,
@@ -408,12 +425,12 @@ profileRouter.put('/preferences', authenticateToken, rateLimitAPI, async (req: A
         WHERE profile_id = ?
       `);
       await (updateStmt.run([
-        preferencesData.minAge ?? null,
-        preferencesData.maxAge ?? null,
+        minAge,
+        maxAge,
         preferredGendersJson,
-        preferencesData.maxDistance ?? null,
-        preferencesData.relationshipType ?? null,
-        preferencesData.intent ?? null,
+        maxDistance,
+        relationshipType,
+        intent,
         valuesJson,
         profileResult.id
       ]) as Promise<any>);
@@ -427,12 +444,12 @@ profileRouter.put('/preferences', authenticateToken, rateLimitAPI, async (req: A
       await (insertStmt.run([
         prefId,
         profileResult.id,
-        preferencesData.minAge ?? null,
-        preferencesData.maxAge ?? null,
+        minAge,
+        maxAge,
         preferredGendersJson,
-        preferencesData.maxDistance ?? null,
-        preferencesData.relationshipType ?? null,
-        preferencesData.intent ?? null,
+        maxDistance,
+        relationshipType,
+        intent,
         valuesJson
       ]) as Promise<any>);
     }

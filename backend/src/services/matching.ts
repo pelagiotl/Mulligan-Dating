@@ -709,15 +709,17 @@ export async function generateWeeklyMatches(userId: string): Promise<{
       continue; // Age mismatch
     }
 
-    // Check mutual gender preferences ("Everyone" or empty = open to all)
+    // Check mutual gender preferences ("Everyone" or empty = open to all; "Other" matches "Non-binary")
     const userWantsCandidate =
       userPreferredGenders.length === 0 ||
       userPreferredGenders.includes('Everyone') ||
-      userPreferredGenders.includes(candidate.gender);
+      userPreferredGenders.includes(candidate.gender) ||
+      (candidate.gender === 'Non-binary' && userPreferredGenders.includes('Other'));
     const candidateWantsUser =
       candidatePreferredGenders.length === 0 ||
       candidatePreferredGenders.includes('Everyone') ||
-      candidatePreferredGenders.includes(userProfile.gender);
+      candidatePreferredGenders.includes(userProfile.gender) ||
+      (userProfile.gender === 'Non-binary' && candidatePreferredGenders.includes('Other'));
 
     if (!userWantsCandidate || !candidateWantsUser) {
       continue; // Gender preference mismatch

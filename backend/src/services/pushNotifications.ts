@@ -270,7 +270,7 @@ export async function sendMessagePushNotification(
 }
 
 /**
- * Send push when someone liked your message
+ * Send push when someone loved your message (heart reaction)
  */
 export async function sendMessageLikedPushNotification(
   pushToken: string,
@@ -280,8 +280,8 @@ export async function sendMessageLikedPushNotification(
 ): Promise<PushResult> {
   return sendPushNotification(
     pushToken,
-    '❤️ Message liked',
-    `${likerName} liked your message`,
+    '❤️ Message loved',
+    `${likerName} loved your message`,
     {
       type: 'message_liked',
       matchId,

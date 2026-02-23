@@ -1244,6 +1244,24 @@ export default function BrowseScreen() {
     }, [route.params, navigation])
   );
 
+  // When already on Browse and params get resetToLanding (Keep Browsing), clear celebration so Modal unmounts and doesn't block touches
+  useEffect(() => {
+    const params = route.params as { resetToLanding?: boolean } | undefined;
+    if (!params?.resetToLanding) return;
+    setShowMatchCelebration(false);
+    setMatchedProfile(null);
+    setMatchId(null);
+    matchIdFromConnectRef.current = null;
+    initiatorMatchIdRef.current = null;
+    connectInitiatorAtRef.current = null;
+    setMatchExplanation(null);
+    setIsAutoMatching(false);
+    clearPendingOpenMatchId();
+    setBrowseUnlocked(false);
+    setCurrentProfile(null);
+    navigation.setParams({ resetToLanding: undefined });
+  }, [route.params, navigation]);
+
   // Fetch user's photo count when on landing page (for 5-photo minimum to Connect)
   // Refetch when tab is focused so count updates after user adds photos on Profile tab
   useEffect(() => {

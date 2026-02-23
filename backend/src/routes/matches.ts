@@ -488,16 +488,39 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
     //   });
     // }
 
-    // Check if target user profile exists
+    // Check if target user profile exists and load gender for preference check
     const targetProfileResult = db
-      .prepare("SELECT id FROM profiles WHERE user_id = ?")
+      .prepare("SELECT id, gender FROM profiles WHERE user_id = ?")
       .get([targetUserId]);
     const targetProfile = (targetProfileResult instanceof Promise
       ? await targetProfileResult
-      : targetProfileResult) as { id: string } | undefined;
+      : targetProfileResult) as { id: string; gender: string } | undefined;
 
     if (!targetProfile) {
       return res.status(400).json({ error: "Target user profile not found" });
+    }
+
+    // Enforce gender preferences: user can only connect with profiles that match their preferred genders
+    const userPrefsResult = db.prepare("SELECT preferred_genders FROM preferences WHERE profile_id = ?").get([userProfile.id]);
+    const userPrefsRow = (userPrefsResult instanceof Promise ? await userPrefsResult : userPrefsResult) as { preferred_genders: string | null } | undefined;
+    if (userPrefsRow?.preferred_genders) {
+      try {
+        const preferredGenders = JSON.parse(userPrefsRow.preferred_genders) as string[];
+        const isEveryone = preferredGenders.includes('Everyone');
+        if (preferredGenders.length > 0 && !isEveryone) {
+          const targetGender = targetProfile.gender || '';
+          const matches = preferredGenders.includes(targetGender)
+            || (targetGender === 'Non-binary' && preferredGenders.includes('Other'));
+          if (!matches) {
+            return res.status(400).json({
+              error: "This person doesn't match your connection preferences. Update your preferences in Profile to connect with everyone.",
+              code: "PREFERENCE_MISMATCH",
+            });
+          }
+        }
+      } catch (_) {
+        // Invalid JSON, allow connect (fail open)
+      }
     }
 
     // Match limit: 50 per user (no expansion beyond 50).
@@ -881,7 +904,8 @@ matchesRouter.post("/:matchId/messages/:messageId/like", authenticateToken, rate
     const runResult = db.prepare(`UPDATE messages SET liked_by_id = ? WHERE id = ? AND match_id = ?`).run([userId, messageId, matchId]);
     if (runResult instanceof Promise) await runResult;
 
-    const likerProfile = db.prepare(`SELECT display_name FROM profiles WHERE user_id = ?`).get([userId]) as { display_name: string } | undefined;
+    const likerProfileResult = db.prepare(`SELECT display_name FROM profiles WHERE user_id = ?`).get([userId]);
+    const likerProfile = (likerProfileResult instanceof Promise ? await likerProfileResult : likerProfileResult) as { display_name: string } | undefined;
     const likerName = likerProfile?.display_name || "Someone";
 
     const { getIO } = await import("../socket.js");
@@ -889,12 +913,12 @@ matchesRouter.post("/:matchId/messages/:messageId/like", authenticateToken, rate
     if (io) {
       const payload = { matchId, messageId, likedBy: userId, likerName, senderId: msg.sender_id };
       io.to(`match:${matchId}`).emit("message_liked", payload);
-      io.to(`user:${msg.sender_id}`).emit("message_liked", payload);
     }
 
     try {
       const { sendMessageLikedPushNotification, isPushNotificationConfigured, isExpoPushToken } = await import("../services/pushNotifications.js");
-      const row = db.prepare("SELECT push_token, push_notify_messages FROM users WHERE id = ?").get([msg.sender_id]) as { push_token: string | null; push_notify_messages: number | null } | undefined;
+      const rowResult = db.prepare("SELECT push_token, push_notify_messages FROM users WHERE id = ?").get([msg.sender_id]);
+      const row = (rowResult instanceof Promise ? await rowResult : rowResult) as { push_token: string | null; push_notify_messages: number | null } | undefined;
       const wantsPush = row?.push_notify_messages === undefined || row?.push_notify_messages === null || row.push_notify_messages !== 0;
       if (row?.push_token && isExpoPushToken(row.push_token) && wantsPush && isPushNotificationConfigured()) {
         await sendMessageLikedPushNotification(row.push_token, likerName, matchId, messageId);
@@ -1251,7 +1275,7 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
           }
         } else {
           const reason = !token ? 'RECIPIENT_HAS_NO_TOKEN' : 'invalid_expo_token_format';
-          console.warn(`📲 PUSH_MSG_SKIP recipient=${otherUserId} reason=${reason}`);
+          console.warn(`📲 PUSH_MSG_SKIP recipient=${otherUserId} reason=${reason} — If NO_TOKEN: recipient should open the app, allow notifications, and ensure token is saved.`);
           // Delayed retry: recipient may open app later and token appears (e.g. some iPhones only send token when app is backgrounded)
           if (!token) {
             const tryDelayedPush = async (): Promise<boolean> => {

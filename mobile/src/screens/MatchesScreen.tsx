@@ -987,7 +987,7 @@ function MatchProfileModal({
   match: Match; 
   visible: boolean; 
   onClose: () => void;
-  onPhotoPress?: (url: string) => void;
+  onPhotoPress?: (url: string, allUrls?: string[], index?: number) => void;
 }) {
   const { otherUser } = match;
   const { user } = useAuth();
@@ -1526,7 +1526,7 @@ function MatchProfileModal({
                 {/* Avatar with breathing effect - tappable to open full-screen; Level 2: tap left/right to cycle photos */}
                 {onPhotoPress && !canSwipePhotos && mainPhotoUrl ? (
                   <TouchableOpacity
-                    onPress={() => onPhotoPress(mainPhotoUrl)}
+                    onPress={() => onPhotoPress(mainPhotoUrl, canSwipePhotos ? allPhotos.map(p => getPhotoUrl(p.url)) : undefined, canSwipePhotos ? mainPhotoIndex : undefined)}
                     activeOpacity={0.9}
                     style={styles.modalPhotoTouchable}
                     accessibilityLabel="View full size photo"
@@ -1608,7 +1608,7 @@ function MatchProfileModal({
                           <TouchableOpacity style={styles.modalPhotoSwipeSide} onPress={goPrevPhoto} activeOpacity={1} accessibilityLabel="Previous photo" />
                           <TouchableOpacity
                             style={[styles.modalPhotoSwipeCenter, { zIndex: 10, elevation: 10 }]}
-                            onPress={() => onPhotoPress?.(mainPhotoUrl)}
+                            onPress={() => onPhotoPress?.(mainPhotoUrl, allPhotos.map(p => getPhotoUrl(p.url)), mainPhotoIndex)}
                             activeOpacity={0.9}
                             accessibilityLabel="View full size photo"
                           >
@@ -1617,7 +1617,7 @@ function MatchProfileModal({
                           <TouchableOpacity style={styles.modalPhotoSwipeSide} onPress={goNextPhoto} activeOpacity={1} accessibilityLabel="Next photo" />
                         </View>
                       ) : onPhotoPress ? (
-                        <TouchableOpacity style={[styles.modalPhotoTouchable, { zIndex: 10, elevation: 10 }]} onPress={() => onPhotoPress(mainPhotoUrl)} activeOpacity={0.9} accessibilityLabel="View full size photo">
+                        <TouchableOpacity style={[styles.modalPhotoTouchable, { zIndex: 10, elevation: 10 }]} onPress={() => onPhotoPress(mainPhotoUrl, undefined, undefined)} activeOpacity={0.9} accessibilityLabel="View full size photo">
                           <Image source={{ uri: mainPhotoUrl }} style={styles.modalPhoto} resizeMode="cover" />
                         </TouchableOpacity>
                       ) : (
@@ -1853,7 +1853,7 @@ function MatchProfileModal({
                       >
                         {onPhotoPress ? (
                           <TouchableOpacity
-                            onPress={() => onPhotoPress(photoUrl)}
+                            onPress={() => onPhotoPress(photoUrl, allPhotos.map(p => getPhotoUrl(p.url)), idx)}
                             activeOpacity={0.9}
                             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                             accessibilityLabel="View full size photo"
@@ -2006,6 +2006,8 @@ export default function MatchesScreen() {
   const [gameRequestToShow, setGameRequestToShow] = useState<PendingGameRequest | null>(null);
   const [openGameForAccept, setOpenGameForAccept] = useState<{ matchId: string; gameType: 'truth_or_dare' | 'never_have_i_ever' } | null>(null);
   const [fullScreenImageUrl, setFullScreenImageUrl] = useState<string | null>(null);
+  const [fullScreenPhotoList, setFullScreenPhotoList] = useState<string[] | null>(null);
+  const [fullScreenPhotoIndex, setFullScreenPhotoIndex] = useState(0);
   const fullScreenOpenedFromProfileCardRef = useRef(false);
   const socketRef = useRef<Socket | null>(null);
   const messagesEndRef = useRef<FlatList>(null);
@@ -2749,6 +2751,18 @@ export default function MatchesScreen() {
       const data = await api.get<{ matches: Match[] }>('/matches');
       const fetchedMatches = data.matches || [];
       setMatches(fetchedMatches);
+
+      // Prefetch primary photos so they display immediately when user opens the matches list
+      fetchedMatches.forEach((m: Match) => {
+        let raw: string | null = null;
+        if (m.stage === 'stage2' && m.otherUser.photos?.length) {
+          const primary = m.otherUser.photos.find((p: Photo) => p.isPrimary) || m.otherUser.photos[0];
+          raw = primary?.url ?? null;
+        } else {
+          raw = m.otherUser.photoUrl ?? null;
+        }
+        if (raw) Image.prefetch(getPhotoUrl(raw));
+      });
 
       // Auto-select match from pending (celebration "Send message") or route params
       const pendingId = getPendingOpenMatchId();
@@ -3795,41 +3809,96 @@ export default function MatchesScreen() {
           onClose={() => {
             setShowProfileModal(false);
             setFullScreenImageUrl(null);
+            setFullScreenPhotoList(null);
           }}
-          onPhotoPress={(url) => {
+          onPhotoPress={(url, allUrls, index) => {
             fullScreenOpenedFromProfileCardRef.current = true;
             setShowProfileModal(false);
             setFullScreenImageUrl(url);
+            setFullScreenPhotoList(allUrls && allUrls.length > 1 ? allUrls : null);
+            setFullScreenPhotoIndex(typeof index === 'number' ? index : 0);
           }}
         />
       )}
 
-      {/* Full-screen image viewer - if opened from profile card, tap to close returns to profile card */}
+      {/* Full-screen image viewer - if opened from profile card, tap to close returns to profile card; Level 2: tap left/right to cycle photos */}
       <Modal
         visible={!!fullScreenImageUrl}
         transparent
         animationType="fade"
         onRequestClose={() => {
+          const fromProfile = fullScreenOpenedFromProfileCardRef.current;
           setFullScreenImageUrl(null);
+          setFullScreenPhotoList(null);
           fullScreenOpenedFromProfileCardRef.current = false;
+          if (fromProfile) setShowProfileModal(true);
         }}
       >
-        <TouchableOpacity
-          activeOpacity={1}
-          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center' }}
-          onPress={() => {
-            setFullScreenImageUrl(null);
-            fullScreenOpenedFromProfileCardRef.current = false;
-          }}
-        >
-          {fullScreenImageUrl ? (
-            <Image
-              source={{ uri: fullScreenImageUrl }}
-              style={{ width: windowWidth, height: windowHeight * 0.8, resizeMode: 'contain' }}
-              resizeMode="contain"
-            />
-          ) : null}
-        </TouchableOpacity>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', flexDirection: 'row' }}>
+          {fullScreenPhotoList && fullScreenPhotoList.length > 1 ? (
+            <>
+              <TouchableOpacity
+                activeOpacity={1}
+                style={{ flex: 0.2, justifyContent: 'center', alignItems: 'center' }}
+                onPress={() => {
+                  const nextIndex = fullScreenPhotoIndex <= 0 ? fullScreenPhotoList.length - 1 : fullScreenPhotoIndex - 1;
+                  setFullScreenPhotoIndex(nextIndex);
+                  setFullScreenImageUrl(fullScreenPhotoList[nextIndex]);
+                }}
+                accessibilityLabel="Previous photo"
+              />
+              <TouchableOpacity
+                activeOpacity={1}
+                style={{ flex: 0.6, justifyContent: 'center', alignItems: 'center' }}
+                onPress={() => {
+                  const fromProfile = fullScreenOpenedFromProfileCardRef.current;
+                  setFullScreenImageUrl(null);
+                  setFullScreenPhotoList(null);
+                  fullScreenOpenedFromProfileCardRef.current = false;
+                  if (fromProfile) setShowProfileModal(true);
+                }}
+              >
+                {fullScreenImageUrl ? (
+                  <Image
+                    source={{ uri: fullScreenImageUrl }}
+                    style={{ width: windowWidth * 0.6, height: windowHeight * 0.8, resizeMode: 'contain' }}
+                    resizeMode="contain"
+                  />
+                ) : null}
+              </TouchableOpacity>
+              <TouchableOpacity
+                activeOpacity={1}
+                style={{ flex: 0.2, justifyContent: 'center', alignItems: 'center' }}
+                onPress={() => {
+                  const nextIndex = fullScreenPhotoIndex >= fullScreenPhotoList.length - 1 ? 0 : fullScreenPhotoIndex + 1;
+                  setFullScreenPhotoIndex(nextIndex);
+                  setFullScreenImageUrl(fullScreenPhotoList[nextIndex]);
+                }}
+                accessibilityLabel="Next photo"
+              />
+            </>
+          ) : (
+            <TouchableOpacity
+              activeOpacity={1}
+              style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
+              onPress={() => {
+                const fromProfile = fullScreenOpenedFromProfileCardRef.current;
+                setFullScreenImageUrl(null);
+                setFullScreenPhotoList(null);
+                fullScreenOpenedFromProfileCardRef.current = false;
+                if (fromProfile) setShowProfileModal(true);
+              }}
+            >
+              {fullScreenImageUrl ? (
+                <Image
+                  source={{ uri: fullScreenImageUrl }}
+                  style={{ width: windowWidth, height: windowHeight * 0.8, resizeMode: 'contain' }}
+                  resizeMode="contain"
+                />
+              ) : null}
+            </TouchableOpacity>
+          )}
+        </View>
       </Modal>
 
       {/* Photo guidelines - shown when user taps camera icon before send photo/video/voice options */}
@@ -4031,7 +4100,7 @@ export default function MatchesScreen() {
 
       {messageLikedToast ? (
         <View style={styles.messageLikedToast} pointerEvents="none">
-          <Text style={styles.messageLikedToastText}>❤️ {messageLikedToast.likerName} liked your message</Text>
+          <Text style={styles.messageLikedToastText}>❤️ {messageLikedToast.likerName} loved your message</Text>
         </View>
       ) : null}
 

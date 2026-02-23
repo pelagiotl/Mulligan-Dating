@@ -366,16 +366,23 @@ export default function MatchCelebration({
   const handleKeepBrowsing = () => {
     try {
       onClose();
-      // Navigate to Connect tab and force landing page (so user doesn't land back on celebration or a profile)
-      if (navigationRef.current?.isReady()) {
-        navigationRef.current.dispatch(
-          CommonActions.navigate({
-            name: 'MainTabs',
-            params: { screen: 'Browse', params: { resetToLanding: true } },
-          })
-        );
+      // Defer navigation so parent can commit state (hide modal) first; avoids modal staying visible and blocking touches
+      const doNavigate = () => {
+        if (navigationRef.current?.isReady()) {
+          navigationRef.current.dispatch(
+            CommonActions.navigate({
+              name: 'MainTabs',
+              params: { screen: 'Browse', params: { resetToLanding: true } },
+            })
+          );
+        } else {
+          navigation.navigate('MainTabs' as never, { screen: 'Browse', params: { resetToLanding: true } } as never);
+        }
+      };
+      if (typeof requestAnimationFrame !== 'undefined') {
+        requestAnimationFrame(() => setTimeout(doNavigate, 0));
       } else {
-        navigation.navigate('MainTabs' as never, { screen: 'Browse', params: { resetToLanding: true } } as never);
+        setTimeout(doNavigate, 0);
       }
     } catch (error) {
       console.error('❌ Error in handleKeepBrowsing:', error);

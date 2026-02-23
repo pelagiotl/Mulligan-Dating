@@ -7,6 +7,8 @@ import {
   StyleSheet,
   Animated,
   Dimensions,
+  Platform,
+  Vibration,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { playMatchSound } from '../utils/sounds';
@@ -215,6 +217,9 @@ export default function ProfileCompleteCelebration({
   }, [showButton, visible, startButtonAnimations, stopButtonAnimations]);
 
   const handleContinue = () => {
+    if (Platform.OS === 'ios' || Platform.OS === 'android') {
+      Vibration.vibrate(50);
+    }
     onClose();
   };
 
@@ -261,19 +266,18 @@ export default function ProfileCompleteCelebration({
                   },
                 ]}
               >
-                <Text style={styles.emoji}>🎉</Text>
+                <Text style={styles.emoji}>🤑</Text>
               </Animated.View>
 
               {/* Title */}
               <Animated.View style={{ opacity: titleOpacity }}>
-                <Text style={styles.title}>Nice Job!</Text>
+                <Text style={styles.title}>Nice work.</Text>
               </Animated.View>
 
               {/* Subtitle */}
               <Animated.View style={{ opacity: subtitleOpacity }}>
                 <Text style={styles.subtitle}>
-                  Your profile is complete!{'\n'}
-                  You're all set to start connecting.
+                  Have fun & be cool.
                 </Text>
               </Animated.View>
 

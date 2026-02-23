@@ -12,7 +12,7 @@ import { io, Socket } from 'socket.io-client';
 import { api, clearTokenCache, setTokenCache } from '../utils/api';
 import { User, Profile } from '../types';
 import { registerForPushNotificationsAsync, clearPushToken, refreshAndSendPushTokenOnBackground } from '../utils/pushNotifications';
-import { getStoredPushToken, hydrateStoredPushToken } from '../utils/pushTokenStore';
+import { getStoredPushToken, hydrateStoredPushToken, shouldSendTokenToServer } from '../utils/pushTokenStore';
 import * as Notifications from 'expo-notifications';
 import { navigationRef } from '../navigation/navigationRef';
 import { playMessageSound, playMatchSound } from '../utils/sounds';
@@ -24,7 +24,7 @@ export type MessageNotificationItem = {
   senderName: string;
   preview: string;
   matchId: string;
-  /** When 'message_liked', show "Message liked" and "❤️ {senderName} liked your message" */
+  /** When 'message_liked', show "Message loved" and "❤️ {senderName} loved your message" */
   notificationType?: 'message' | 'message_liked';
 };
 /** @deprecated Use messageNotifications (array); kept for compatibility as first item or null */
@@ -98,7 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const showMessageLikedNotification = useCallback((likerName: string, matchId: string) => {
-    showMessageNotification(likerName, 'liked your message', matchId, 'message_liked');
+    showMessageNotification(likerName, 'loved your message', matchId, 'message_liked');
   }, [showMessageNotification]);
 
   useEffect(() => {
@@ -568,6 +568,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.remove();
   }, [user]);
 
+  // Fallback: 3s after login, if we have a token from storage but never got a fresh one this session,
+  // POST it once so the server has a token even if the user backgrounds before 5s/10s registration runs.
+  const sentHydratedTokenRef = useRef(false);
+  useEffect(() => {
+    if (!user) return;
+    const t = setTimeout(() => {
+      if (sentHydratedTokenRef.current) return;
+      const stored = getStoredPushToken();
+      if (stored?.trim() && !shouldSendTokenToServer()) {
+        sentHydratedTokenRef.current = true;
+        api.post('/auth/push-token', { pushToken: stored }).then(() => {
+          if (__DEV__) console.log('📲 Push token (from storage) sent to backend — fallback so notifications work after close.');
+        }).catch(() => {});
+      }
+    }, 3000);
+    return () => clearTimeout(t);
+  }, [user?.id]);
+
   // Second push registration attempt on cold start (5s after user is set). The first is at 1.5s in fetchUser;
   // if native modules weren't ready, this gives the recipient's device another chance to save the token.
   useEffect(() => {
@@ -840,7 +858,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                       <Text style={messageNotificationStyles.iconText}>{item.notificationType === 'message_liked' ? '❤️' : '💬'}</Text>
                     </View>
                     <View style={messageNotificationStyles.textBlock}>
-                      <Text style={messageNotificationStyles.label}>{item.notificationType === 'message_liked' ? 'Message liked' : 'New message'}</Text>
+                      <Text style={messageNotificationStyles.label}>{item.notificationType === 'message_liked' ? 'Message loved' : 'New message'}</Text>
                       <Text style={messageNotificationStyles.senderName} numberOfLines={1}>
                         {item.notificationType === 'message_liked' ? `❤️ ${item.senderName} ${item.preview}` : item.senderName}
                       </Text>

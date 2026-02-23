@@ -191,17 +191,23 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
         console.log('ℹ️  No age preferences set - showing all ages');
       }
       
-      // Filter by gender preferences (if user has preferences set)
+      // Filter by gender preferences: women only → only profiles with gender Woman; men only → only Man; everyone → all
       if (userPrefs.preferred_genders) {
         try {
           const preferredGenders = JSON.parse(userPrefs.preferred_genders) as string[];
           console.log('🔍 Gender filter:', { preferredGenders, raw: userPrefs.preferred_genders });
           const isEveryone = preferredGenders.includes('Everyone');
           if (preferredGenders.length > 0 && !isEveryone) {
-            const placeholders = preferredGenders.map(() => '?').join(',');
+            // Build list of profile genders to match: include "Non-binary" when user selected "Other"
+            const gendersForQuery = new Set<string>(preferredGenders);
+            for (const g of preferredGenders) {
+              if (g === 'Other') gendersForQuery.add('Non-binary');
+            }
+            const genderList = Array.from(gendersForQuery);
+            const placeholders = genderList.map(() => '?').join(',');
             query += ` AND p.gender IN (${placeholders})`;
-            params.push(...preferredGenders);
-            console.log('✅ Applied gender filter:', preferredGenders);
+            params.push(...genderList);
+            console.log('✅ Applied gender filter:', genderList);
           } else if (isEveryone) {
             console.log('ℹ️  Preferred genders is "Everyone" - showing all genders');
           } else {
@@ -711,16 +717,21 @@ usersRouter.get('/diagnose/:targetUserId', authenticateToken, async (req: AuthRe
       }
     }
 
-    // Check gender filter
+    // Check gender filter (Other in preferences matches profile gender Non-binary)
     let genderFilterPass = true;
     let genderFilterReason = '';
     if (userPrefs?.preferred_genders) {
       try {
         const preferredGenders = JSON.parse(userPrefs.preferred_genders) as string[];
         const isEveryone = preferredGenders.includes('Everyone');
-        if (preferredGenders.length > 0 && !isEveryone && !preferredGenders.includes(targetProfile.gender)) {
-          genderFilterPass = false;
-          genderFilterReason = `Target gender (${targetProfile.gender}) is not in your preferred genders (${preferredGenders.join(', ')})`;
+        if (preferredGenders.length > 0 && !isEveryone) {
+          const targetGender = targetProfile.gender || '';
+          const matches = preferredGenders.includes(targetGender)
+            || (targetGender === 'Non-binary' && preferredGenders.includes('Other'));
+          if (!matches) {
+            genderFilterPass = false;
+            genderFilterReason = `Target gender (${targetProfile.gender}) is not in your preferred genders (${preferredGenders.join(', ')})`;
+          }
         }
       } catch (error) {
         // Invalid JSON, skip

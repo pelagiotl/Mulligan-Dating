@@ -258,8 +258,11 @@ export function initializeSocket(server: HTTPServer) {
             await doSend();
           }
         } else {
-          if (!token) console.warn(`⚠️  No push_token for user ${otherUserId} — they need to open the app on a real device (TestFlight/dev build) and allow notifications.`);
-          else console.warn(`⚠️  Invalid Expo push token format for user ${otherUserId}`);
+          if (!token) {
+            console.warn(`📲 PUSH_SKIP recipient=${otherUserId} reason=NO_TOKEN — Recipient must open the app, allow notifications, and have token saved (e.g. wait for "Push token saved to backend" or retry).`);
+          } else {
+            console.warn(`📲 PUSH_SKIP recipient=${otherUserId} reason=INVALID_TOKEN_FORMAT`);
+          }
         }
       } catch (pushError: any) {
         console.warn('⚠️  Push (message) exception:', pushError?.message || pushError);
