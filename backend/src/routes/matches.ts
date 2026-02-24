@@ -2479,7 +2479,9 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
       completedTheirAnswer?: 'have' | 'havent';
     };
 
-    console.log(`🙊 Never Have I Ever answer: match=${matchId} user=${userId} answer=${answer} bothAnswered=${state.bothAnswered} yourStrikes=${state.yourStrikes} theirStrikes=${state.theirStrikes} promptLen=${state.prompt?.length ?? 0}`);
+    const yourPoints = Number(state.yourStrikes) || 0;
+    const theirPoints = Number(state.theirStrikes) || 0;
+    console.log(`🙊 Never Have I Ever answer: match=${matchId} user=${userId} answer=${answer} bothAnswered=${state.bothAnswered} yourPoints=${yourPoints} theirPoints=${theirPoints} roundJustCompleted=${!!roundResult}`);
 
     try {
       const { getIO } = await import('../socket.js');
@@ -2493,8 +2495,8 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
       ...state,
       roundResult,
       roundJustCompleted: !!roundResult,
-      yourPoints: state.yourStrikes ?? 0,
-      theirPoints: state.theirStrikes ?? 0,
+      yourPoints,
+      theirPoints,
       ...(roundResult && completedYourAnswer != null && { yourAnswer: completedYourAnswer }),
       ...(roundResult && completedTheirAnswer != null && { theirAnswer: completedTheirAnswer }),
     });

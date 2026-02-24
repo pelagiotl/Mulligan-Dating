@@ -210,9 +210,9 @@ export default function NeverHaveIEver({
       setState(prev => {
         const recentRound = Date.now() - lastRoundCompletedAtRef.current < 6000;
         const fetchedZero = simple.yourPoints === 0 && simple.theirPoints === 0;
-        const hadPoints = prev && (prev.yourPoints > 0 || prev.theirPoints > 0);
-        if (recentRound && fetchedZero && hadPoints) {
-          return { ...simple, yourPoints: prev!.yourPoints, theirPoints: prev!.theirPoints };
+        const refHasPoints = lastKnownPointsRef.current.yourPoints > 0 || lastKnownPointsRef.current.theirPoints > 0;
+        if (recentRound && fetchedZero && refHasPoints) {
+          return { ...simple, yourPoints: lastKnownPointsRef.current.yourPoints, theirPoints: lastKnownPointsRef.current.theirPoints };
         }
         return simple;
       });
@@ -347,54 +347,45 @@ export default function NeverHaveIEver({
       const serverYourPts = typeof data.yourPoints === 'number' ? data.yourPoints : (data.yourStrikes ?? 0);
       const serverTheirPts = typeof data.theirPoints === 'number' ? data.theirPoints : (data.theirStrikes ?? 0);
       const roundComplete = !!data.bothAnswered || !!data.roundJustCompleted;
-      // Only use server points (never add optimistically). Points are applied only after BOTH have answered.
+
+      // Keep server points as source of truth so fetchState won't overwrite with stale zeros
+      lastKnownPointsRef.current = { yourPoints: serverYourPts, theirPoints: serverTheirPts };
+
+      // Always apply server points and answers from this response
       setState(prev => {
         if (!prev) return null;
-        const baseYou = prev.yourPoints ?? 0;
-        const baseThem = prev.theirPoints ?? 0;
-        const yourPts = roundComplete ? serverYourPts : baseYou;
-        const theirPts = roundComplete ? serverTheirPts : baseThem;
         return {
           ...prev,
           yourAnswer: data.yourAnswer ?? answer,
           theirAnswer: data.theirAnswer ?? prev.theirAnswer,
           bothAnswered: !!data.bothAnswered,
-          yourPoints: yourPts,
-          theirPoints: theirPts,
+          yourPoints: serverYourPts,
+          theirPoints: serverTheirPts,
           prompt: data.prompt ?? prev.prompt,
+          gameOver: !!data.gameOver,
+          winner: data.winner ?? null,
         };
       });
-      if (data.prompt) {
-        setPrompt(data.prompt);
-      }
+      if (data.prompt) setPrompt(data.prompt);
+
       if (roundComplete) {
-        const serverYou = typeof data.yourPoints === 'number' ? data.yourPoints : (data.yourStrikes ?? 0);
-        const serverThem = typeof data.theirPoints === 'number' ? data.theirPoints : (data.theirStrikes ?? 0);
-        lastKnownPointsRef.current = { yourPoints: serverYou, theirPoints: serverThem };
         lastRoundCompletedAtRef.current = Date.now();
         api.clearCache(`/matches/${matchId}/never-have-i-ever`);
         if (pollRef.current) {
           clearInterval(pollRef.current);
           pollRef.current = null;
         }
-        setState(prev => prev ? {
-          ...prev,
-          yourPoints: serverYou,
-          theirPoints: serverThem,
-          yourAnswer: data.yourAnswer ?? null,
-          theirAnswer: data.theirAnswer ?? null,
-          bothAnswered: !!data.bothAnswered,
-          prompt: data.prompt ?? prev.prompt,
-          gameOver: !!data.gameOver,
-          winner: data.winner ?? null,
-        } : null);
-        if (data.prompt) setPrompt(data.prompt);
         setTimeout(() => {
           if (modalVisibleRef.current && !pollRef.current) {
             pollRef.current = setInterval(() => fetchState(true), 3000);
           }
         }, 6000);
       }
+
+      // Refetch state after a short delay to sync points (handles both users; second responder already has points, first gets them via this refetch or socket)
+      setTimeout(() => {
+        if (modalVisibleRef.current) fetchState(false);
+      }, 1500);
     } catch (err) {
       console.warn('Never Have I Ever answer error:', err);
       fetchState();
