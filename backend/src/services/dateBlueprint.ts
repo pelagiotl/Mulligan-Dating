@@ -53,6 +53,17 @@ async function getUserLocation(userId: string): Promise<{ city: string; state: s
   return null;
 }
 
+/** Venue from search (includes place_id for fetching details) */
+type VenueSearchResult = {
+  name: string;
+  address: string;
+  lat: number;
+  lng: number;
+  rating?: number;
+  priceLevel?: number;
+  place_id?: string;
+};
+
 /**
  * Search for venues using Google Places API
  */
@@ -60,16 +71,9 @@ async function searchVenues(
   location: string,
   interest?: string,
   budget?: 'low' | 'medium' | 'high'
-): Promise<Array<{
-  name: string;
-  address: string;
-  lat: number;
-  lng: number;
-  rating?: number;
-  priceLevel?: number;
-}>> {
+): Promise<VenueSearchResult[]> {
   const googleApiKey = process.env.GOOGLE_PLACES_API_KEY;
-  
+
   if (!googleApiKey) {
     console.warn('⚠️  Google Places API key not configured, skipping venue search');
     return [];
@@ -77,10 +81,9 @@ async function searchVenues(
 
   try {
     const client = new Client({});
-    
-    // Build search query
+
     let query = interest ? `${interest} in ${location}` : `activities in ${location}`;
-    
+
     const response = await client.textSearch({
       params: {
         query,
@@ -88,14 +91,16 @@ async function searchVenues(
       },
     });
 
-    if (response.data.results && response.data.results.length > 0) {
-      return response.data.results.slice(0, 5).map(place => ({
+    const results = response.data?.results;
+    if (results && results.length > 0) {
+      return results.slice(0, 5).map((place: { name?: string; formatted_address?: string; geometry?: { location?: { lat?: number; lng?: number } }; rating?: number; price_level?: number; place_id?: string }) => ({
         name: place.name || 'Unknown',
         address: place.formatted_address || '',
-        lat: place.geometry?.location?.lat || 0,
-        lng: place.geometry?.location?.lng || 0,
+        lat: place.geometry?.location?.lat ?? 0,
+        lng: place.geometry?.location?.lng ?? 0,
         rating: place.rating,
         priceLevel: place.price_level,
+        place_id: place.place_id,
       }));
     }
 
@@ -103,6 +108,44 @@ async function searchVenues(
   } catch (error) {
     console.error('❌ Failed to search venues:', error);
     return [];
+  }
+}
+
+/**
+ * Fetch place details (what the venue actually is) so AI descriptions match reality.
+ * Uses Place Details API: editorial_summary and/or types.
+ */
+async function getVenueDescription(placeId: string, apiKey: string): Promise<string | null> {
+  try {
+    const client = new Client({});
+    const response = await client.placeDetails({
+      params: {
+        place_id: placeId,
+        key: apiKey,
+        fields: ['editorial_summary', 'types'],
+      },
+    });
+
+    const result = (response.data as { result?: { editorial_summary?: { overview?: string }; types?: string[] } })?.result;
+    if (!result) return null;
+
+    const overview = result.editorial_summary?.overview;
+    if (overview && overview.trim().length > 0) {
+      return overview.trim();
+    }
+
+    const types = result.types;
+    if (types && types.length > 0) {
+      const filtered = types.filter(t => !['point_of_interest', 'establishment', 'premise'].includes(t));
+      if (filtered.length > 0) {
+        return filtered.map(t => t.replace(/_/g, ' ')).join(', ');
+      }
+    }
+
+    return null;
+  } catch (error) {
+    console.warn('⚠️  Place details not available for venue:', error);
+    return null;
   }
 }
 
@@ -230,8 +273,22 @@ export async function generateDatePlan(
       const { default: OpenAI } = await import('openai');
       const openai = new OpenAI({ apiKey: openaiApiKey });
 
+      // Fetch what the venue actually is (so the AI doesn't invent food trucks, parks, etc.)
+      let venueFacts: string | null = null;
+      const googleApiKey = process.env.GOOGLE_PLACES_API_KEY;
+      if (selectedVenueForPlan?.place_id && googleApiKey) {
+        venueFacts = await getVenueDescription(selectedVenueForPlan.place_id, googleApiKey);
+      }
+
       const venueInfo = selectedVenueForPlan
-        ? `THE date must be at this exact venue. Use ONLY this venue in the description and do not mention any other place: ${selectedVenueForPlan.name} at ${selectedVenueForPlan.address}`
+        ? (venueFacts
+            ? `THE date must be at this exact venue: ${selectedVenueForPlan.name}, ${selectedVenueForPlan.address}.
+
+WHAT THIS VENUE ACTUALLY IS (use ONLY these facts; do not invent anything else):
+${venueFacts}
+
+CRITICAL: Your description MUST only describe activities that match the above. Do NOT add features that are not listed (e.g. do NOT say food trucks, live music in a park, or global cuisines unless the venue is actually that). If it is a sports complex with pool and courts, describe that. If it is a café, describe that. Never mix up venue types.`
+            : `THE date must be at this exact venue. Use ONLY this venue in the description and do not mention any other place: ${selectedVenueForPlan.name} at ${selectedVenueForPlan.address}. Do not invent features the venue does not have (e.g. no food trucks or "park" unless the venue is actually a park).`)
         : 'No specific venue found, suggest a general activity (do not invent a specific venue name).';
 
       const interestsText = sharedInterests.length > 0
@@ -242,36 +299,40 @@ export async function generateDatePlan(
         ? `\nCRITICAL: Do NOT suggest anything similar to these recent plans for this couple: ${existingTitles.join(' | ')}. Pick a completely different type of date (different activity, vibe, and title).\n`
         : '';
 
-      // Many wholesome date-type hints for boundless variety (no bars/alcohol focus)
-      const variationHints = [
-        'Suggest a low-key activity like mini golf, arcade, or bowling — fun and casual.',
-        'Suggest something creative: pottery class, paint-and-sip, or a craft workshop.',
-        'Suggest a food-focused date: food hall, food trucks, or a cooking class.',
-        'Suggest an outdoor date: picnic, botanical garden, farmers market, or scenic walk.',
-        'Suggest a cultural date: museum, gallery, indie cinema, or live comedy.',
-        'Suggest a cozy date: bookstore café, brunch spot, or tea house with a view.',
-        'Suggest an active date: hiking, bike ride, ice skating, or beach day.',
-        'Suggest something playful: escape room, trivia night, or board game café.',
-        'Suggest a romantic-but-casual date: sunset spot, stargazing, or waterfront walk.',
-        'Suggest a niche interest date: record store, vintage market, or flea market.',
-        'Suggest a sweet-tooth date: dessert café, chocolate tasting, or donut tour.',
-        'Suggest a nature date: aquarium, zoo, or nature center.',
-        'Suggest a local-discovery date: neighborhood walk, hidden gems, or street art tour.',
-        'Suggest a morning date: sunrise coffee, breakfast spot, or morning market.',
-        'Suggest a competitive-but-fun date: axe throwing, go-karts, or batting cages.',
-        'Suggest a chill-and-talk date: tea house, juice bar, or quiet café.',
-        'Suggest a music date: vinyl listening, open mic, or small concert (no bar focus).',
-        'Suggest a seasonal date: holiday market, outdoor movie, or fall foliage walk.',
-        'Suggest something unexpected: trampoline park, karaoke, or a themed pop-up.',
-        'Suggest a learning date: cooking class, art class, or dance lesson.',
-        'Suggest a scenic date: scenic overlook, lakeside, or garden.',
-        'Suggest a cozy indoor date: library, board game café, or bookstore.',
-        'Suggest an active outdoor date: kayaking, paddleboarding, or bike trail.',
-        'Suggest a food adventure: food hall, food trucks, or tasting tour (non-alcoholic).',
-        'Suggest a creative date: DIY workshop, craft fair, or maker space.',
-        'Suggest a relaxed date: park bench, waterfront bench, or café patio.',
-      ];
-      const randomVariation = variationHints[Math.floor(Math.random() * variationHints.length)];
+      // When we have real venue facts, don't suggest a random different activity type (e.g. "food trucks" for a sports complex)
+      const variationLine = venueFacts
+        ? 'Keep the tone fun and conversational; describe only what this venue actually offers.'
+        : (() => {
+            const variationHints = [
+              'Suggest a low-key activity like mini golf, arcade, or bowling — fun and casual.',
+              'Suggest something creative: pottery class, paint-and-sip, or a craft workshop.',
+              'Suggest a food-focused date: food hall, food trucks, or a cooking class.',
+              'Suggest an outdoor date: picnic, botanical garden, farmers market, or scenic walk.',
+              'Suggest a cultural date: museum, gallery, indie cinema, or live comedy.',
+              'Suggest a cozy date: bookstore café, brunch spot, or tea house with a view.',
+              'Suggest an active date: hiking, bike ride, ice skating, or beach day.',
+              'Suggest something playful: escape room, trivia night, or board game café.',
+              'Suggest a romantic-but-casual date: sunset spot, stargazing, or waterfront walk.',
+              'Suggest a niche interest date: record store, vintage market, or flea market.',
+              'Suggest a sweet-tooth date: dessert café, chocolate tasting, or donut tour.',
+              'Suggest a nature date: aquarium, zoo, or nature center.',
+              'Suggest a local-discovery date: neighborhood walk, hidden gems, or street art tour.',
+              'Suggest a morning date: sunrise coffee, breakfast spot, or morning market.',
+              'Suggest a competitive-but-fun date: axe throwing, go-karts, or batting cages.',
+              'Suggest a chill-and-talk date: tea house, juice bar, or quiet café.',
+              'Suggest a music date: vinyl listening, open mic, or small concert (no bar focus).',
+              'Suggest a seasonal date: holiday market, outdoor movie, or fall foliage walk.',
+              'Suggest something unexpected: trampoline park, karaoke, or a themed pop-up.',
+              'Suggest a learning date: cooking class, art class, or dance lesson.',
+              'Suggest a scenic date: scenic overlook, lakeside, or garden.',
+              'Suggest a cozy indoor date: library, board game café, or bookstore.',
+              'Suggest an active outdoor date: kayaking, paddleboarding, or bike trail.',
+              'Suggest a food adventure: food hall, food trucks, or tasting tour (non-alcoholic).',
+              'Suggest a creative date: DIY workshop, craft fair, or maker space.',
+              'Suggest a relaxed date: park bench, waterfront bench, or café patio.',
+            ];
+            return variationHints[Math.floor(Math.random() * variationHints.length)];
+          })();
 
       const prompt = `Create a FIRST DATE plan for a dating app. This must be DIFFERENT from any plan suggested before for this couple.
 ${interestsText}
@@ -279,11 +340,9 @@ Location: ${meetingLocation}
 ${venueInfo}
 ${avoidText}
 
-This time: ${randomVariation}
+This time: ${variationLine}
 
 Keep the date wholesome: do NOT suggest bars, wine bars, breweries, or alcohol-focused venues. Prefer coffee, food, activities, outdoors, and low-key spots.
-
-There is no limit to date ideas — be wildly creative and vary the type every time (outdoor, creative, food, culture, activity, cozy, etc.).
 
 Generate a creative, engaging first date plan that:
 - Is appropriate for a first meeting (public, safe, not too intimate)
@@ -292,7 +351,7 @@ Generate a creative, engaging first date plan that:
 - Suggests a budget range (low/medium/high)
 - Is specific and actionable
 - Has a short, catchy title that is NOT the same idea as the recent plans listed above
-- If a specific venue was provided above, the description MUST describe the date at THAT venue only — do not mention or suggest any other business or place name.
+- If a specific venue was provided above, the description MUST describe the date at THAT venue only and MUST match what the venue actually is (no invented features).
 - Description must be CONCISE: 1–2 short sentences max. No long paragraphs. Punchy and scannable.
 
 Return ONLY a JSON object with this exact format:

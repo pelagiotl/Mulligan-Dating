@@ -462,7 +462,7 @@ export default function DateBlueprint({ matchId, socket, currentUserId, headerMo
                             }}
                             style={[styles.actionButton, styles.inviteButton]}
                           >
-                            <Text style={styles.inviteButtonText}>Invite to chat</Text>
+                            <Text style={styles.inviteButtonText}>Invite</Text>
                           </TouchableOpacity>
                         )}
                       </View>
@@ -906,7 +906,7 @@ export default function DateBlueprint({ matchId, socket, currentUserId, headerMo
                         }}
                         style={[styles.actionButton, styles.inviteButton]}
                       >
-                        <Text style={styles.inviteButtonText}>Invite to chat</Text>
+                        <Text style={styles.inviteButtonText}>Invite</Text>
                       </TouchableOpacity>
                     )}
                   </View>

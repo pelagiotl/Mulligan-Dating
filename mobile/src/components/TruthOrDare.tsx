@@ -326,7 +326,11 @@ export default function TruthOrDare({
 
   useEffect(() => {
     if (!modalVisible) return;
-    const onUpdate = () => fetchState();
+    const onUpdate = () => {
+      // Right after "Another one", socket fires and fetchState can return stale data and overwrite the new prompt. Skip refetch for a short window so the prompt from the API response stays.
+      if (Date.now() - lastAnotherOneAtRef.current < 4000) return;
+      fetchState();
+    };
     socket?.on?.('truth_or_dare_updated', onUpdate);
     return () => {
       socket?.off?.('truth_or_dare_updated', onUpdate);

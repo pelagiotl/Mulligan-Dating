@@ -2665,52 +2665,12 @@ matchesRouter.post("/:matchId/generate-date-plan", authenticateToken, rateLimitA
     const { getSharedInterests } = await import('../services/mulliganMoments.js');
     const sharedInterests = await getSharedInterests(matchId, match.user1_id, match.user2_id);
 
-    // Determine the other user (the one who should be notified)
-    const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
-
-    // Get current user's display name for the notification
-    const currentUserProfileResult = db
-      .prepare('SELECT display_name FROM profiles WHERE user_id = ?')
-      .get([userId]);
-    const currentUserProfile = (currentUserProfileResult instanceof Promise
-      ? await currentUserProfileResult
-      : currentUserProfileResult) as { display_name: string | null } | undefined;
-    const currentUserName = currentUserProfile?.display_name || 'Someone';
-
-    // Generate date plan
+    // Generate date plan (no push here — push is sent when user clicks "Invite" and the plan is shared to chat)
     console.log(`📅 Generating date plan for match ${matchId}, user ${userId}`);
     console.log(`📅 Shared interests:`, sharedInterests);
     const { generateDatePlan } = await import('../services/dateBlueprint.js');
     const plan = await generateDatePlan(matchId, userId, sharedInterests);
     console.log(`✅ Date plan generated:`, plan.id);
-
-    // Send push notification to the other user
-    try {
-      const { sendMessagePushNotification, isPushNotificationConfigured, isExpoPushToken } = await import('../services/pushNotifications.js');
-      
-      if (isPushNotificationConfigured()) {
-        const otherUserRowResult = db.prepare('SELECT push_token, push_notify_messages FROM users WHERE id = ?').get([otherUserId]);
-        const otherUserRow = (otherUserRowResult instanceof Promise ? await otherUserRowResult : otherUserRowResult) as { push_token: string | null; push_notify_messages: number | null } | undefined;
-        const wantsMessagePush = otherUserRow?.push_notify_messages === undefined || otherUserRow?.push_notify_messages === null || otherUserRow.push_notify_messages !== 0;
-        if (wantsMessagePush && otherUserRow?.push_token && isExpoPushToken(otherUserRow.push_token)) {
-          await sendMessagePushNotification(
-            otherUserRow.push_token,
-            currentUserName,
-            `created a date plan: "${plan.title}"`,
-            matchId,
-            userId
-          );
-          console.log(`✅ Sent push notification for date plan generation to user ${otherUserId}`);
-        } else if (!wantsMessagePush) {
-          console.log(`ℹ️  User ${otherUserId} has message notifications disabled, skipping push`);
-        } else {
-          console.log(`ℹ️  No valid push token for user ${otherUserId}, skipping push notification`);
-        }
-      }
-    } catch (pushError) {
-      // Push notifications are optional, don't fail date plan generation if push fails
-      console.warn('⚠️  Failed to send push notification for date plan generation (non-critical):', pushError);
-    }
 
     // Notify via Socket.io
     try {

@@ -412,10 +412,13 @@ export default function CompatibilityPulse({ matchId, socket, isFocused = true }
               </LinearGradient>
             </View>
 
+            <View style={styles.modalScrollWrapper}>
             <ScrollView 
               style={styles.modalScrollView} 
-              showsVerticalScrollIndicator={true}
               contentContainerStyle={styles.modalScrollContent}
+              showsVerticalScrollIndicator={true}
+              bounces={true}
+              nestedScrollEnabled={true}
             >
               <View style={styles.modalBody}>
                 <View style={styles.infoSection}>
@@ -482,6 +485,7 @@ export default function CompatibilityPulse({ matchId, socket, isFocused = true }
                 </View>
               </View>
             </ScrollView>
+            </View>
           </View>
         </TouchableOpacity>
       </Modal>
@@ -570,8 +574,8 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     width: '90%',
     maxWidth: 500,
+    height: '85%',
     maxHeight: '85%',
-    minHeight: 500,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.3,
@@ -579,14 +583,17 @@ const styles = StyleSheet.create({
     elevation: 25,
     overflow: 'hidden',
   },
+  modalScrollWrapper: {
+    flex: 1,
+    minHeight: 0,
+  },
   modalScrollView: {
     flex: 1,
+    minHeight: 0,
   },
   modalScrollContent: {
-    paddingBottom: 20,
-  },
-  modalScrollView: {
-    flex: 1,
+    paddingBottom: 24,
+    flexGrow: 1,
   },
   modalCloseButton: {
     position: 'absolute',
@@ -631,12 +638,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: 'rgba(255, 255, 255, 0.9)',
     fontWeight: '600',
-  },
-  modalScrollView: {
-    maxHeight: 500,
-  },
-  modalScrollContent: {
-    paddingBottom: 20,
   },
   modalBody: {
     padding: 20,
