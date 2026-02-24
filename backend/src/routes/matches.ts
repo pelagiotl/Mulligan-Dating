@@ -2467,22 +2467,24 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
     const { submitAnswer, submitTurnAnswer } = await import('../services/neverHaveIEver.js');
     const rowResult = db.prepare('SELECT spice_level, current_prompt, current_turn_user_id FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
     const row = (rowResult instanceof Promise ? await rowResult : rowResult) as { spice_level: string | null; current_prompt: string | null; current_turn_user_id: string | null } | undefined;
-    // When current_turn_user_id is null, both users answer each prompt then we tally and generate next (tally mode)
     const isTurnBased = !!row?.current_turn_user_id;
 
-    const { state, roundResult } = isTurnBased
+    const result = isTurnBased
       ? await submitTurnAnswer(matchId, userId, match, answer as 'have' | 'havent')
       : await submitAnswer(matchId, userId, match, answer as 'have' | 'havent');
+    const { state, roundResult, completedYourAnswer, completedTheirAnswer } = result as {
+      state: { bothAnswered: boolean; yourStrikes: number; theirStrikes: number; prompt?: string; gameOver?: boolean; winner?: string | null };
+      roundResult?: { youStrike: boolean; themStrike: boolean };
+      completedYourAnswer?: 'have' | 'havent';
+      completedTheirAnswer?: 'have' | 'havent';
+    };
 
     console.log(`🙊 Never Have I Ever answer: match=${matchId} user=${userId} answer=${answer} bothAnswered=${state.bothAnswered} yourStrikes=${state.yourStrikes} theirStrikes=${state.theirStrikes} promptLen=${state.prompt?.length ?? 0}`);
 
-    // Notify other user via socket
     try {
       const { getIO } = await import('../socket.js');
       const io = getIO();
-      if (io) {
-        io.to(`match:${matchId}`).emit('never_have_i_ever_updated', { matchId });
-      }
+      if (io) io.to(`match:${matchId}`).emit('never_have_i_ever_updated', { matchId });
     } catch (socketError) {
       console.warn('⚠️  Socket.io not available for Never Have I Ever notification');
     }
@@ -2493,6 +2495,8 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
       roundJustCompleted: !!roundResult,
       yourPoints: state.yourStrikes ?? 0,
       theirPoints: state.theirStrikes ?? 0,
+      ...(roundResult && completedYourAnswer != null && { yourAnswer: completedYourAnswer }),
+      ...(roundResult && completedTheirAnswer != null && { theirAnswer: completedTheirAnswer }),
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);

@@ -190,14 +190,7 @@ export async function generateDatePlan(
 
   // Search for venues based on shared interests
   // Add variation: try different interests or generic searches to get different venues
-  let venues: Array<{
-    name: string;
-    address: string;
-    lat: number;
-    lng: number;
-    rating?: number;
-    priceLevel?: number;
-  }> = [];
+  let venues: VenueSearchResult[] = [];
 
   // Get existing plans to avoid suggesting the same venue and to tell AI what not to repeat
   const existingPlansResult = db

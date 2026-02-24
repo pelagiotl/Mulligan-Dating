@@ -428,7 +428,12 @@ export async function submitAnswer(
   userId: string,
   match: { user1_id: string; user2_id: string },
   answer: 'have' | 'havent'
-): Promise<{ state: GameState; roundResult?: { youStrike: boolean; themStrike: boolean } }> {
+): Promise<{
+  state: GameState;
+  roundResult?: { youStrike: boolean; themStrike: boolean };
+  completedYourAnswer?: 'have' | 'havent';
+  completedTheirAnswer?: 'have' | 'havent';
+}> {
   const isUser1 = userId === match.user1_id;
 
   const rowResult = db
@@ -500,7 +505,12 @@ export async function submitAnswer(
 
   const state = await getGameState(matchId, userId, match);
   state.roundResult = roundResult;
-  return { state, roundResult };
+  // When round completed, expose the answers that just completed (for client to show "You said / They said" and apply points)
+  const yourAnswerRaw = isUser1 ? user1Answer : user2Answer;
+  const theirAnswerRaw = isUser1 ? user2Answer : user1Answer;
+  const completedYourAnswer: 'have' | 'havent' | undefined = roundResult && yourAnswerRaw != null ? yourAnswerRaw : undefined;
+  const completedTheirAnswer: 'have' | 'havent' | undefined = roundResult && theirAnswerRaw != null ? theirAnswerRaw : undefined;
+  return { state, roundResult, completedYourAnswer, completedTheirAnswer };
 }
 
 /**

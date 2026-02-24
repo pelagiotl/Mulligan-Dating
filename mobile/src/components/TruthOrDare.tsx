@@ -290,10 +290,13 @@ export default function TruthOrDare({
         }
         return data;
       });
-      const recentlyRequestedAnother = Date.now() - lastAnotherOneAtRef.current < 3000;
+      const recentlyRequestedAnother = Date.now() - lastAnotherOneAtRef.current < 5000;
       const alreadyShowingPrompt = stepRef.current === 'prompt';
+      if (recentlyRequestedAnother && alreadyShowingPrompt) {
+        setLoading(false);
+        return;
+      }
       if (recentlyRequestedAnother && data.currentPrompt && data.currentPromptType) {
-        setPrompt(data.currentPrompt);
         setPromptType(data.currentPromptType);
         setStep('prompt');
         setLoading(false);
@@ -327,8 +330,8 @@ export default function TruthOrDare({
   useEffect(() => {
     if (!modalVisible) return;
     const onUpdate = () => {
-      // Right after "Another one", socket fires and fetchState can return stale data and overwrite the new prompt. Skip refetch for a short window so the prompt from the API response stays.
-      if (Date.now() - lastAnotherOneAtRef.current < 4000) return;
+      // Right after "Another one", socket (and any refetch) can return stale data and overwrite the new prompt. Skip refetch for 6s so the prompt from the API response stays.
+      if (Date.now() - lastAnotherOneAtRef.current < 6000) return;
       fetchState();
     };
     socket?.on?.('truth_or_dare_updated', onUpdate);
