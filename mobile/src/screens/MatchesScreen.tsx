@@ -1999,6 +1999,8 @@ export default function MatchesScreen() {
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const recordingRef = useRef<Audio.Recording | null>(null);
   const sendInFlightRef = useRef(false);
+  const sendSafetyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const SEND_SAFETY_MS = 40000; // Unstick send UI if request hangs (e.g. cold server, bad network)
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [stageInfoModalVisible, setStageInfoModalVisible] = useState(false);
   const [stageInfoStage, setStageInfoStage] = useState<'stage1' | 'stage2' | null>(null);
@@ -2063,6 +2065,18 @@ export default function MatchesScreen() {
   useEffect(() => {
     setPendingImageUri(null);
   }, [selectedMatch?.id]);
+
+  // Unstick send UI when leaving chat (e.g. back to list or switch match) so send works again
+  useEffect(() => {
+    if (!selectedMatch) {
+      if (sendSafetyTimeoutRef.current) {
+        clearTimeout(sendSafetyTimeoutRef.current);
+        sendSafetyTimeoutRef.current = null;
+      }
+      sendInFlightRef.current = false;
+      setSendingMessage(false);
+    }
+  }, [selectedMatch]);
 
   // Fetch profile compatibility when viewing a match (interests, dealbreakers, looking for, etc.)
   useEffect(() => {
@@ -2911,6 +2925,15 @@ export default function MatchesScreen() {
     setTimeout(() => setKeyboardHeight(0), 100);
     
     setSendingMessage(true);
+    if (sendSafetyTimeoutRef.current) clearTimeout(sendSafetyTimeoutRef.current);
+    sendSafetyTimeoutRef.current = setTimeout(() => {
+      sendSafetyTimeoutRef.current = null;
+      if (sendInFlightRef.current) {
+        sendInFlightRef.current = false;
+        setSendingMessage(false);
+        Alert.alert('Send taking longer than usual', 'You can try again. The message may still send.');
+      }
+    }, SEND_SAFETY_MS);
 
     const tempMessage: Message = {
       id: `temp-${Date.now()}`,
@@ -2951,7 +2974,7 @@ export default function MatchesScreen() {
       api.post<{ message: Message; stage?: string; autoAdvanced?: boolean }>(
         `/matches/${selectedMatch.id}/messages`,
         sendPayload,
-        { timeoutMs: 120000 }
+        { timeoutMs: 35000 }
       );
 
     try {
@@ -2997,6 +3020,10 @@ export default function MatchesScreen() {
       const msg = error?.message || 'Failed to send message';
       Alert.alert('Error', msg.includes('timeout') ? 'Network request timed out. Please check your connection and try again.' : msg);
     } finally {
+      if (sendSafetyTimeoutRef.current) {
+        clearTimeout(sendSafetyTimeoutRef.current);
+        sendSafetyTimeoutRef.current = null;
+      }
       sendInFlightRef.current = false;
       setSendingMessage(false);
     }

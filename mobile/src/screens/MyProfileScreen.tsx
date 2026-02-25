@@ -3631,11 +3631,14 @@ const styles = StyleSheet.create({
   },
   sectionTitleContainer: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     marginBottom: 16,
   },
   sectionEditTouchable: {
     marginLeft: 'auto',
+    alignSelf: 'flex-end',
+    flexShrink: 0,
   },
   sectionEditLink: {
     fontSize: 14,
@@ -3647,6 +3650,8 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: '#1a1a1a',
     marginLeft: 12,
+    flex: 1,
+    minWidth: 0,
     letterSpacing: -0.8,
     textShadowColor: 'rgba(102, 126, 234, 0.25)',
     textShadowOffset: { width: 0, height: 3 },
@@ -3797,7 +3802,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   lifestyleItem: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     marginBottom: 16,
     paddingBottom: 16,
     paddingHorizontal: 16,
@@ -3816,16 +3821,15 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
     color: '#667eea',
-    marginRight: 16,
-    minWidth: 160,
+    marginBottom: 4,
     letterSpacing: 0.3,
   },
   lifestyleValue: {
     fontSize: 16,
     color: '#1a1a1a',
-    flex: 1,
     fontWeight: '600',
     letterSpacing: 0.1,
+    flexShrink: 0,
   },
   editButton: {
     marginHorizontal: 20,

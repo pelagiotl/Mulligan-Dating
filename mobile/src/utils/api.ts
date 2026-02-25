@@ -315,9 +315,9 @@ export const api = {
     if (endpoint === '/profile') {
       apiCache.clear(APICache.getCacheKey('/profile'));
     }
-    // Message send: longer timeout when server is slow or multiple sends in sequence
+    // Message send: 35s timeout (safety unstick at 40s on client); avoid 2min hang on cold server/weak network
     const isMessageSend = /\/matches\/[^/]+\/messages$/.test(endpoint);
-    const timeoutMs = extraOptions?.timeoutMs ?? (isMessageSend ? 120000 : 45000);
+    const timeoutMs = extraOptions?.timeoutMs ?? (isMessageSend ? 35000 : 45000);
     return request<T>(endpoint, {
       method: 'POST',
       body,

@@ -1208,16 +1208,17 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
         messagePreview = 'New message';
       }
 
+      const clearAfterFailures = 3;
       const handleInvalidTokenForRecipient = async () => {
         try {
           const row = db.prepare('SELECT push_token_fail_count FROM users WHERE id = ?').get([otherUserId]) as { push_token_fail_count?: number | null } | undefined;
           const failCount = (row?.push_token_fail_count ?? 0) + 1;
           db.prepare('UPDATE users SET push_token_fail_count = ? WHERE id = ?').run([failCount, otherUserId]);
-          if (failCount >= 2) {
+          if (failCount >= clearAfterFailures) {
             db.prepare('UPDATE users SET push_token = NULL, push_token_fail_count = 0 WHERE id = ?').run([otherUserId]);
             console.log(`📲 Push: cleared invalid token for recipient ${otherUserId} after ${failCount} failures`);
           } else {
-            console.log(`📲 Push: invalid token for recipient ${otherUserId} (failure ${failCount}/2 — not clearing yet)`);
+            console.log(`📲 Push: invalid token for recipient ${otherUserId} (failure ${failCount}/${clearAfterFailures} — not clearing yet)`);
           }
         } catch (e) {
           console.warn('⚠️  Failed to update push token fail count for', otherUserId, e);

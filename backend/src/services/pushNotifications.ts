@@ -49,23 +49,19 @@ export function isExpoPushToken(token: string): boolean {
 
 export type PushResult = { sent: boolean; invalidToken?: boolean };
 
-/** Minimum ms between message pushes to the same recipient (avoids FCM/APNs MessageRateExceeded) */
-const MESSAGE_PUSH_MIN_INTERVAL_MS = 4000;
-const lastMessagePushByRecipient: Record<string, number> = {};
-
 /**
- * Returns how many ms to wait before sending a message push to this recipient, or 0 if we can send now.
- * Call recordMessagePushSent(recipientId) after a successful send.
+ * We no longer throttle message pushes with setTimeout — delayed sends were often never
+ * running on serverless/cold-start hosts (e.g. Render) because the process sleeps after
+ * the request returns, so "first 2–3 pushes work, then stop". Send every message push
+ * immediately in the request so it always runs. Expo/APNs may rate-limit; we only treat
+ * DeviceNotRegistered as invalid token.
  */
-export function getMessagePushThrottleDelayMs(recipientId: string): number {
-  const last = lastMessagePushByRecipient[recipientId] ?? 0;
-  const elapsed = Date.now() - last;
-  if (elapsed >= MESSAGE_PUSH_MIN_INTERVAL_MS) return 0;
-  return MESSAGE_PUSH_MIN_INTERVAL_MS - elapsed;
+export function getMessagePushThrottleDelayMs(_recipientId: string): number {
+  return 0;
 }
 
-export function recordMessagePushSent(recipientId: string): void {
-  lastMessagePushByRecipient[recipientId] = Date.now();
+export function recordMessagePushSent(_recipientId: string): void {
+  // no-op (kept for API compat)
 }
 
 /**
