@@ -433,6 +433,7 @@ export async function submitAnswer(
   roundResult?: { youStrike: boolean; themStrike: boolean };
   completedYourAnswer?: 'have' | 'havent';
   completedTheirAnswer?: 'have' | 'havent';
+  pointsFromRound?: { newYourStrikes: number; newTheirStrikes: number };
 }> {
   const isUser1 = userId === match.user1_id;
 
@@ -469,6 +470,8 @@ export async function submitAnswer(
   const user2Answer = row.user2_answer as 'have' | 'havent' | null;
 
   let roundResult: { youStrike: boolean; themStrike: boolean } | undefined;
+  let newUser1Strikes: number | undefined;
+  let newUser2Strikes: number | undefined;
 
   if (user1Answer !== null && user2Answer !== null) {
     // Scoring: point for "you" iff you answered "I have". Both have → both get +1. Both haven't → +0. A have / B haven't → A +1, B +0.
@@ -476,8 +479,8 @@ export async function submitAnswer(
     const user2Strike = user2Answer === 'have';
     const s1 = Number(row.user1_strikes) || 0;
     const s2 = Number(row.user2_strikes) || 0;
-    const newUser1Strikes = s1 + (user1Strike ? 1 : 0);
-    const newUser2Strikes = s2 + (user2Strike ? 1 : 0);
+    newUser1Strikes = s1 + (user1Strike ? 1 : 0);
+    newUser2Strikes = s2 + (user2Strike ? 1 : 0);
 
     roundResult = {
       youStrike: isUser1 ? user1Strike : user2Strike,
@@ -510,7 +513,15 @@ export async function submitAnswer(
   const theirAnswerRaw = isUser1 ? user2Answer : user1Answer;
   const completedYourAnswer: 'have' | 'havent' | undefined = roundResult && yourAnswerRaw != null ? yourAnswerRaw : undefined;
   const completedTheirAnswer: 'have' | 'havent' | undefined = roundResult && theirAnswerRaw != null ? theirAnswerRaw : undefined;
-  return { state, roundResult, completedYourAnswer, completedTheirAnswer };
+  // Return computed strikes when round just completed so client always gets correct points (no reliance on DB read timing)
+  const pointsFromRound =
+    roundResult && newUser1Strikes !== undefined && newUser2Strikes !== undefined
+      ? {
+          newYourStrikes: isUser1 ? newUser1Strikes : newUser2Strikes,
+          newTheirStrikes: isUser1 ? newUser2Strikes : newUser1Strikes,
+        }
+      : undefined;
+  return { state, roundResult, completedYourAnswer, completedTheirAnswer, pointsFromRound };
 }
 
 /**

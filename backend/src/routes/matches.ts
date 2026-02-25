@@ -2472,15 +2472,17 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
     const result = isTurnBased
       ? await submitTurnAnswer(matchId, userId, match, answer as 'have' | 'havent')
       : await submitAnswer(matchId, userId, match, answer as 'have' | 'havent');
-    const { state, roundResult, completedYourAnswer, completedTheirAnswer } = result as {
+    const { state, roundResult, completedYourAnswer, completedTheirAnswer, pointsFromRound } = result as {
       state: { bothAnswered: boolean; yourStrikes: number; theirStrikes: number; prompt?: string; gameOver?: boolean; winner?: string | null };
       roundResult?: { youStrike: boolean; themStrike: boolean };
       completedYourAnswer?: 'have' | 'havent';
       completedTheirAnswer?: 'have' | 'havent';
+      pointsFromRound?: { newYourStrikes: number; newTheirStrikes: number };
     };
 
-    const yourPoints = Number(state.yourStrikes) || 0;
-    const theirPoints = Number(state.theirStrikes) || 0;
+    // When round just completed, use computed points so client always gets correct tally (no DB read timing)
+    const yourPoints = pointsFromRound ? pointsFromRound.newYourStrikes : (Number(state.yourStrikes) || 0);
+    const theirPoints = pointsFromRound ? pointsFromRound.newTheirStrikes : (Number(state.theirStrikes) || 0);
     console.log(`🙊 Never Have I Ever answer: match=${matchId} user=${userId} answer=${answer} bothAnswered=${state.bothAnswered} yourPoints=${yourPoints} theirPoints=${theirPoints} roundJustCompleted=${!!roundResult}`);
 
     try {

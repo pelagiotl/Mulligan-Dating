@@ -185,9 +185,12 @@ export async function rateLimitAPI(req: Request, res: Response, next: NextFuncti
     return next();
   }
 
-  // GET /tokens is called often (balance display, claim banner); don't consume from main limit to avoid 429
-  if (req.method === 'GET' && (req.path === '/tokens' || req.path === '/tokens/')) {
-    return next();
+  // High-frequency GETs: don't consume from main limit to avoid 429 during polling
+  if (req.method === 'GET') {
+    if (req.path === '/tokens' || req.path === '/tokens/') return next();
+    // Polling: Never Have I Ever state (every few s when modal open) and messages (chat)
+    if (/^\/matches\/[^/]+\/never-have-i-ever\/?$/.test(req.path)) return next();
+    if (/^\/matches\/[^/]+\/messages\/?$/.test(req.path)) return next();
   }
 
   // For profile creation/update endpoints, use a more lenient rate limit

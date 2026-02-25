@@ -186,9 +186,6 @@ export default function NeverHaveIEver({
       const data = await api.get<any>(`/matches/${matchId}/never-have-i-ever`, false);
       const fetchedYou = typeof data.yourPoints === 'number' ? data.yourPoints : (data.yourStrikes ?? 0);
       const fetchedThem = typeof data.theirPoints === 'number' ? data.theirPoints : (data.theirStrikes ?? 0);
-      if (fetchedYou > 0 || fetchedThem > 0) {
-        lastKnownPointsRef.current = { yourPoints: fetchedYou, theirPoints: fetchedThem };
-      }
       const simple: GameState = {
         prompt: data.prompt || '',
         phase: data.spiceReady && (data.prompt || data.spiceLevel) ? 'playing' : 'lobby',
@@ -214,6 +211,7 @@ export default function NeverHaveIEver({
         if (recentRound && fetchedZero && refHasPoints) {
           return { ...simple, yourPoints: lastKnownPointsRef.current.yourPoints, theirPoints: lastKnownPointsRef.current.theirPoints };
         }
+        lastKnownPointsRef.current = { yourPoints: simple.yourPoints, theirPoints: simple.theirPoints };
         return simple;
       });
       setPrompt(simple.prompt || '');
@@ -227,7 +225,7 @@ export default function NeverHaveIEver({
       setModalVisible(true);
       setLoading(true);
       fetchState().finally(() => setLoading(false));
-      pollRef.current = setInterval(() => fetchState(true), 3000);
+      pollRef.current = setInterval(() => fetchState(true), 8000);
       onOpenedForAccept?.();
     }
   }, [openForAccept]);
@@ -241,7 +239,7 @@ export default function NeverHaveIEver({
     fetchState().finally(() => setLoading(false));
 
     // Poll every 3s while modal is open (to catch when other player answers); skip if we just completed a round to avoid overwriting
-    pollRef.current = setInterval(() => fetchState(true), 3000);
+          pollRef.current = setInterval(() => fetchState(true), 8000);
   };
 
   const handleClose = () => {
@@ -266,7 +264,7 @@ export default function NeverHaveIEver({
       fetchState(false);
       setTimeout(() => {
         if (modalVisibleRef.current && !pollRef.current) {
-          pollRef.current = setInterval(() => fetchState(true), 3000);
+          pollRef.current = setInterval(() => fetchState(true), 8000);
         }
       }, 6000);
     };
@@ -377,15 +375,10 @@ export default function NeverHaveIEver({
         }
         setTimeout(() => {
           if (modalVisibleRef.current && !pollRef.current) {
-            pollRef.current = setInterval(() => fetchState(true), 3000);
+            pollRef.current = setInterval(() => fetchState(true), 8000);
           }
         }, 6000);
       }
-
-      // Refetch state after a short delay to sync points (handles both users; second responder already has points, first gets them via this refetch or socket)
-      setTimeout(() => {
-        if (modalVisibleRef.current) fetchState(false);
-      }, 1500);
     } catch (err) {
       console.warn('Never Have I Ever answer error:', err);
       fetchState();
@@ -489,12 +482,12 @@ export default function NeverHaveIEver({
                     <View style={styles.tallyRow}>
                       <View style={styles.tallyBox}>
                         <Text style={styles.tallyLabel}>You</Text>
-                        <Text style={styles.tallyValue}>{state.yourPoints}</Text>
+                        <Text style={styles.tallyValue}>{Math.max(state.yourPoints ?? 0, lastKnownPointsRef.current.yourPoints)}</Text>
                       </View>
                       <Text style={styles.tallyVs}>vs</Text>
                       <View style={styles.tallyBox}>
                         <Text style={styles.tallyLabel}>Them</Text>
-                        <Text style={styles.tallyValue}>{state.theirPoints}</Text>
+                        <Text style={styles.tallyValue}>{Math.max(state.theirPoints ?? 0, lastKnownPointsRef.current.theirPoints)}</Text>
                       </View>
                     </View>
                     <Text style={styles.versionLabel}>Playing at: {state.spiceLevel === 'ratedr' ? 'R' : state.spiceLevel === 'pg13' ? 'PG-13' : 'Spicy'}</Text>
