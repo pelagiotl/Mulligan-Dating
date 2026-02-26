@@ -1237,6 +1237,7 @@ export default function BrowseScreen() {
       connectInitiatorAtRef.current = null;
       setMatchExplanation(null);
       setIsAutoMatching(false);
+      setUnlocking(false); // Ensure Connect button is clickable
       clearPendingOpenMatchId();
       setBrowseUnlocked(false);
       setCurrentProfile(null);
@@ -1256,6 +1257,7 @@ export default function BrowseScreen() {
     connectInitiatorAtRef.current = null;
     setMatchExplanation(null);
     setIsAutoMatching(false);
+    setUnlocking(false); // Ensure Connect button is clickable
     clearPendingOpenMatchId();
     setBrowseUnlocked(false);
     setCurrentProfile(null);
@@ -1648,6 +1650,7 @@ export default function BrowseScreen() {
     connectInitiatorAtRef.current = null;
     setMatchExplanation(null);
     setIsAutoMatching(false);
+    setUnlocking(false); // So Connect button is clickable after "Keep Browsing"
     clearPendingOpenMatchId(); // Ensure no stale pending match when user chooses Keep Browsing
     // After a successful match, reset to the landing page so user starts fresh when returning to Connect tab
     setBrowseUnlocked(false);
@@ -2172,8 +2175,8 @@ export default function BrowseScreen() {
         </>
       )}
 
-      {/* Match Celebration Modal */}
-      {showMatchCelebration && matchedProfile && (
+      {/* Match Celebration Modal - hide when resetToLanding so modal never blocks tab bar / Connect button after "Keep Browsing" */}
+      {showMatchCelebration && matchedProfile && !(route.params as { resetToLanding?: boolean } | undefined)?.resetToLanding && (
         <MatchCelebration
           profileName={matchedProfile.displayName || 'Someone'}
           photoUrl={

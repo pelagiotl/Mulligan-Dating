@@ -1208,20 +1208,14 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
         messagePreview = 'New message';
       }
 
-      const clearAfterFailures = 3;
+      // Clear token on first DeviceNotRegistered (Expo/APNs: token is permanently invalid; e.g. rotated on iPhone 15 Pro Max after first push).
+      // User will re-register when they next open the app, so subsequent messages then work.
       const handleInvalidTokenForRecipient = async () => {
         try {
-          const row = db.prepare('SELECT push_token_fail_count FROM users WHERE id = ?').get([otherUserId]) as { push_token_fail_count?: number | null } | undefined;
-          const failCount = (row?.push_token_fail_count ?? 0) + 1;
-          db.prepare('UPDATE users SET push_token_fail_count = ? WHERE id = ?').run([failCount, otherUserId]);
-          if (failCount >= clearAfterFailures) {
-            db.prepare('UPDATE users SET push_token = NULL, push_token_fail_count = 0 WHERE id = ?').run([otherUserId]);
-            console.log(`📲 Push: cleared invalid token for recipient ${otherUserId} after ${failCount} failures`);
-          } else {
-            console.log(`📲 Push: invalid token for recipient ${otherUserId} (failure ${failCount}/${clearAfterFailures} — not clearing yet)`);
-          }
+          db.prepare('UPDATE users SET push_token = NULL, push_token_fail_count = 0 WHERE id = ?').run([otherUserId]);
+          console.log(`📲 Push: cleared invalid token for recipient ${otherUserId} (DeviceNotRegistered — they’ll re-register when app opens)`);
         } catch (e) {
-          console.warn('⚠️  Failed to update push token fail count for', otherUserId, e);
+          console.warn('⚠️  Failed to clear push token for', otherUserId, e);
         }
       };
 
@@ -1256,23 +1250,18 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
             } catch (_) {}
             console.log(`📲 PUSH_MSG_SENT recipient=${otherUserId}`);
           } else {
-            console.warn(`📲 PUSH_MSG_SKIP recipient=${otherUserId} reason=expo_send_failed`);
-            // One retry after 3s for transient Expo/network failures (don't retry if token was invalid)
-            setTimeout(async () => {
-              try {
-                let retryTokenRow = db.prepare("SELECT push_token FROM users WHERE id = ?").get([otherUserId]);
-                if (retryTokenRow instanceof Promise) retryTokenRow = await retryTokenRow;
-                const retryToken = (retryTokenRow as { push_token: string | null } | undefined)?.push_token ?? null;
-                if (!retryToken || !isExpoPushToken(retryToken)) return;
-                const retryResult = await sendMessagePushNotification(retryToken, senderName, messagePreview, matchId, userId, messageId);
-                if (retryResult.invalidToken) await handleInvalidTokenForRecipient();
-                else if (retryResult.sent) {
-                  recordMessagePushSent(otherUserId);
-                  try { db.prepare('UPDATE users SET push_token_fail_count = 0 WHERE id = ?').run([otherUserId]); } catch (_) {}
-                  console.log(`📲 PUSH_MSG_SENT recipient=${otherUserId} (send retry)`);
-                }
-              } catch (e) { console.warn('⚠️  Push send retry failed:', e); }
-            }, 3000);
+            console.warn(`📲 PUSH_MSG_SKIP recipient=${otherUserId} reason=expo_send_failed — retrying once in-request`);
+            // One in-request retry (no setTimeout so it runs before response; avoids lost push when process sleeps)
+            await new Promise((r) => setTimeout(r, 1500));
+            const retryResult = await sendMessagePushNotification(token!, senderName, messagePreview, matchId, userId, messageId);
+            if (retryResult.invalidToken) await handleInvalidTokenForRecipient();
+            else if (retryResult.sent) {
+              recordMessagePushSent(otherUserId);
+              try { db.prepare('UPDATE users SET push_token_fail_count = 0 WHERE id = ?').run([otherUserId]); } catch (_) {}
+              console.log(`📲 PUSH_MSG_SENT recipient=${otherUserId} (in-request retry)`);
+            } else {
+              console.warn(`📲 PUSH_MSG_SKIP recipient=${otherUserId} still failed after retry`);
+            }
           }
         } else {
           const reason = !token ? 'RECIPIENT_HAS_NO_TOKEN' : 'invalid_expo_token_format';
@@ -2473,12 +2462,13 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
     const result = isTurnBased
       ? await submitTurnAnswer(matchId, userId, match, answer as 'have' | 'havent')
       : await submitAnswer(matchId, userId, match, answer as 'have' | 'havent');
-    const { state, roundResult, completedYourAnswer, completedTheirAnswer, pointsFromRound } = result as {
+    const { state, roundResult, completedYourAnswer, completedTheirAnswer, pointsFromRound, newPrompt } = result as {
       state: { bothAnswered: boolean; yourStrikes: number; theirStrikes: number; prompt?: string; gameOver?: boolean; winner?: string | null };
       roundResult?: { youStrike: boolean; themStrike: boolean };
       completedYourAnswer?: 'have' | 'havent';
       completedTheirAnswer?: 'have' | 'havent';
       pointsFromRound?: { newYourStrikes: number; newTheirStrikes: number };
+      newPrompt?: string;
     };
 
     // When round just completed, use computed points so client always gets correct tally (no DB read timing)
@@ -2500,6 +2490,7 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
       roundJustCompleted: !!roundResult,
       yourPoints,
       theirPoints,
+      ...(roundResult && (newPrompt ?? state.prompt) != null && { prompt: newPrompt ?? state.prompt }),
       ...(roundResult && completedYourAnswer != null && { yourAnswer: completedYourAnswer }),
       ...(roundResult && completedTheirAnswer != null && { theirAnswer: completedTheirAnswer }),
     });

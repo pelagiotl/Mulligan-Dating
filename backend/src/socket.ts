@@ -229,18 +229,15 @@ export function initializeSocket(server: HTTPServer) {
           const { sendMessagePushNotification, getMessagePushThrottleDelayMs, recordMessagePushSent } = await import('./services/pushNotifications.js');
           const delayMs = getMessagePushThrottleDelayMs(otherUserId);
           const doSend = async () => {
-            const result = await sendMessagePushNotification(token!, profile.display_name, messagePreview, matchId, userId);
+            let result = await sendMessagePushNotification(token!, profile.display_name, messagePreview, matchId, userId);
+            if (!result.sent && !result.invalidToken) {
+              await new Promise((r) => setTimeout(r, 1500));
+              result = await sendMessagePushNotification(token!, profile.display_name, messagePreview, matchId, userId);
+            }
             if (result.invalidToken) {
               try {
-                const failCount = (otherUserRow?.push_token_fail_count ?? 0) + 1;
-                db.prepare('UPDATE users SET push_token_fail_count = ? WHERE id = ?').run(failCount, otherUserId);
-                const clearAfterFailures = 3;
-                if (failCount >= clearAfterFailures) {
-                  db.prepare('UPDATE users SET push_token = NULL, push_token_fail_count = 0 WHERE id = ?').run(otherUserId);
-                  console.log(`📲 Push: cleared invalid token for user ${otherUserId} after ${failCount} failures`);
-                } else {
-                  console.log(`📲 Push: invalid token for user ${otherUserId} (failure ${failCount}/${clearAfterFailures} — not clearing yet)`);
-                }
+                db.prepare('UPDATE users SET push_token = NULL, push_token_fail_count = 0 WHERE id = ?').run(otherUserId);
+                console.log(`📲 Push: cleared invalid token for user ${otherUserId} (DeviceNotRegistered — they’ll re-register when app opens)`);
               } catch (_) {}
             }
             if (result.sent) {

@@ -564,6 +564,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       registerForPushNotificationsAsync().catch((e) => {
         console.warn('⚠️ Push re-register on foreground (non-critical):', e?.message || e);
       });
+      // iOS (e.g. iPhone 15 Pro Max): token may be rotated after first push; refresh again after 2s so backend gets latest
+      if (Platform.OS === 'ios') {
+        setTimeout(() => refreshAndSendPushTokenOnBackground().catch(() => {}), 2000);
+      }
     });
     return () => subscription.remove();
   }, [user]);

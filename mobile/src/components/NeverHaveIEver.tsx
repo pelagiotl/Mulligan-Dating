@@ -352,19 +352,22 @@ export default function NeverHaveIEver({
       // Always apply server points and answers from this response
       setState(prev => {
         if (!prev) return null;
+        const nextPrompt = data.prompt ?? prev.prompt;
         return {
           ...prev,
-          yourAnswer: data.yourAnswer ?? answer,
-          theirAnswer: data.theirAnswer ?? prev.theirAnswer,
-          bothAnswered: !!data.bothAnswered,
+          yourAnswer: roundComplete ? null : (data.yourAnswer ?? answer),
+          theirAnswer: roundComplete ? null : (data.theirAnswer ?? prev.theirAnswer),
+          bothAnswered: roundComplete ? false : !!data.bothAnswered,
           yourPoints: serverYourPts,
           theirPoints: serverTheirPts,
-          prompt: data.prompt ?? prev.prompt,
+          prompt: nextPrompt,
           gameOver: !!data.gameOver,
           winner: data.winner ?? null,
         };
       });
-      if (data.prompt) setPrompt(data.prompt);
+      // When round completes, server sends the new prompt; always apply so next round shows correctly
+      if (roundComplete && data.prompt != null) setPrompt(data.prompt);
+      else if (data.prompt) setPrompt(data.prompt);
 
       if (roundComplete) {
         lastRoundCompletedAtRef.current = Date.now();

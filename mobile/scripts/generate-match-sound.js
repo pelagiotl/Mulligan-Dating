@@ -1,6 +1,6 @@
 /**
- * Generate a cool match celebration sound
- * Two punchy hits + fast rise + big peak bloom + sparkle tail
+ * Match celebration sound — simple, warm, satisfying.
+ * Four-note ascending phrase (C E G C) with a soft bell tone, then a brief bloom.
  * Run with: node scripts/generate-match-sound.js
  */
 
@@ -9,49 +9,64 @@ const path = require('path');
 
 const TAU = 2 * Math.PI;
 
-function generateWavFile(sampleRate = 44100, duration = 1.85) {
+function generateWavFile(sampleRate = 44100, duration = 1.05) {
   const numChannels = 1;
   const bitsPerSample = 16;
   const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
   const blockAlign = numChannels * (bitsPerSample / 8);
 
-  const tones = [
-    { freq: 659.25, start: 0, duration: 0.2, gain: 0.38, decay: 16, attack: 80 },
-    { freq: 329.63, start: 0, duration: 0.18, gain: 0.12, decay: 12, attack: 60 },
-    { freq: 987.77, start: 0.09, duration: 0.2, gain: 0.36, decay: 14, attack: 80 },
-    { freq: 880, start: 0.3, duration: 0.15, gain: 0.3, decay: 10, attack: 50 },
-    { freq: 1108.73, start: 0.38, duration: 0.15, gain: 0.3, decay: 9, attack: 50 },
-    { freq: 1318.51, start: 0.46, duration: 0.58, gain: 0.34, decay: 3.5, attack: 40 },
-    { freq: 1975.53, start: 0.46, duration: 0.4, gain: 0.12, decay: 6, attack: 30 },
-    { freq: 1760, start: 0.6, duration: 0.5, gain: 0.22, decay: 6, attack: 35 },
-    { freq: 2093, start: 0.68, duration: 0.4, gain: 0.15, decay: 7, attack: 35 },
-    { freq: 2637, start: 0.74, duration: 0.28, gain: 0.08, decay: 9, attack: 40 },
+  // Four notes: C5, E5, G5, C6 — clear rhythm, no overlap
+  const notes = [
+    { freq: 523.25, start: 0, len: 0.28, gain: 0.28 },
+    { freq: 659.25, start: 0.14, len: 0.28, gain: 0.26 },
+    { freq: 783.99, start: 0.28, len: 0.28, gain: 0.27 },
+    { freq: 1046.5, start: 0.42, len: 0.36, gain: 0.25 },
   ];
 
+  // Short bloom after the phrase: soft G5+B5 (adds a satisfying "ah")
+  const bloomFreqs = [783.99, 987.77];
+  const bloomStart = 0.5;
+  const bloomLen = 0.4;
+  const bloomGain = 0.14;
+
   const samples = [];
-  for (let i = 0; i < sampleRate * duration; i++) {
-    const time = i / sampleRate;
+  const numSamples = Math.floor(sampleRate * duration);
+
+  for (let i = 0; i < numSamples; i++) {
+    const t = i / sampleRate;
     let sample = 0;
 
-    tones.forEach((tone) => {
-      if (time >= tone.start && time < tone.start + tone.duration) {
-        const t = time - tone.start;
-        const d = tone.duration;
-        const attack = Math.min(1, t * (tone.attack || 50));
-        const env = attack * Math.exp(-t * tone.decay) * (1 - 0.12 * (t / d));
-        sample += Math.sin(TAU * tone.freq * time) * env * tone.gain;
-        if (tone.freq >= 1000 && tone.freq < 2500) {
-          sample += 0.055 * Math.sin(TAU * tone.freq * 2.5 * time) * env;
-        }
-        if (tone.freq >= 2500) {
-          sample += 0.04 * Math.sin(TAU * tone.freq * 1.5 * time) * env;
-        }
+    notes.forEach((n) => {
+      if (t >= n.start && t < n.start + n.len) {
+        const local = t - n.start;
+        const attack = Math.min(1, local * 120);
+        const decay = Math.exp(-local * 7);
+        const env = attack * decay;
+        const f = n.freq * t;
+        // Warm bell: fundamental + a bit of 2nd and 3rd harmonic
+        sample += (Math.sin(TAU * f) + 0.14 * Math.sin(TAU * 2 * f) + 0.06 * Math.sin(TAU * 3 * f)) * env * n.gain;
       }
     });
 
-    const int16Sample = Math.max(-32768, Math.min(32767, Math.floor(sample * 32767)));
-    samples.push(int16Sample & 0xff);
-    samples.push((int16Sample >> 8) & 0xff);
+    bloomFreqs.forEach((freq) => {
+      if (t >= bloomStart && t < bloomStart + bloomLen) {
+        const local = t - bloomStart;
+        const attack = Math.min(1, local * 35);
+        const decay = Math.exp(-local * 5);
+        const env = attack * decay;
+        sample += Math.sin(TAU * freq * t) * env * bloomGain;
+      }
+    });
+
+    // Smooth master fade out
+    const tailStart = duration - 0.2;
+    const master = t > tailStart ? (duration - t) / 0.2 : 1;
+    sample *= master;
+
+    sample = Math.max(-1, Math.min(1, sample * 0.95));
+    const int16 = Math.floor(sample * 32767);
+    samples.push(int16 & 0xff);
+    samples.push((int16 >> 8) & 0xff);
   }
 
   const header = Buffer.alloc(44);
@@ -76,8 +91,8 @@ function generateWavFile(sampleRate = 44100, duration = 1.85) {
 const wavPath = path.join(__dirname, '../assets/match-sound.wav');
 try {
   fs.writeFileSync(wavPath, generateWavFile());
-  console.log('✅ Match sound generated → mobile/assets/match-sound.wav');
-  console.log('   Punchy hits + rise + peak bloom + sparkle tail');
+  console.log('✅ Match sound → mobile/assets/match-sound.wav');
+  console.log('   Simple phrase + warm bell tone + short bloom');
 } catch (err) {
   console.error('Error:', err);
   process.exit(1);

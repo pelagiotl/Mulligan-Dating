@@ -366,7 +366,7 @@ export default function MatchCelebration({
   const handleKeepBrowsing = () => {
     try {
       onClose();
-      // Defer navigation so parent can commit state (hide modal) first; avoids modal staying visible and blocking touches
+      // Defer navigation so parent can commit state (hide modal) first; short delay so modal unmounts and doesn't block Connect button touches
       const doNavigate = () => {
         if (navigationRef.current?.isReady()) {
           navigationRef.current.dispatch(
@@ -380,9 +380,9 @@ export default function MatchCelebration({
         }
       };
       if (typeof requestAnimationFrame !== 'undefined') {
-        requestAnimationFrame(() => setTimeout(doNavigate, 0));
+        requestAnimationFrame(() => setTimeout(doNavigate, 80));
       } else {
-        setTimeout(doNavigate, 0);
+        setTimeout(doNavigate, 80);
       }
     } catch (error) {
       console.error('❌ Error in handleKeepBrowsing:', error);

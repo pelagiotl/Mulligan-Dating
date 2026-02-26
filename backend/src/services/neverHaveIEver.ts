@@ -521,7 +521,9 @@ export async function submitAnswer(
           newTheirStrikes: isUser1 ? newUser2Strikes : newUser1Strikes,
         }
       : undefined;
-  return { state, roundResult, completedYourAnswer, completedTheirAnswer, pointsFromRound };
+  // Explicit new prompt when round just completed so client always gets it (avoids stale fetch overwriting)
+  const newPrompt = roundResult ? (state.prompt ?? undefined) : undefined;
+  return { state, roundResult, completedYourAnswer, completedTheirAnswer, pointsFromRound, newPrompt };
 }
 
 /**

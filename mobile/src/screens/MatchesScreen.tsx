@@ -1836,6 +1836,7 @@ function MatchProfileModal({
                         source={photo.url}
                         style={styles.modalPhotoThumbnail}
                         resizeMode="cover"
+                        showLoadingIndicator={false}
                       />
                     );
                     return (
@@ -3848,7 +3849,7 @@ export default function MatchesScreen() {
         />
       )}
 
-      {/* Full-screen image viewer - if opened from profile card, tap to close returns to profile card; Level 2: tap left/right to cycle photos */}
+      {/* Full-screen image viewer - if opened from profile card, tap to close returns to profile card; Level 2: swipe or tap left/right to view all photos */}
       <Modal
         visible={!!fullScreenImageUrl}
         transparent
@@ -3861,48 +3862,52 @@ export default function MatchesScreen() {
           if (fromProfile) setShowProfileModal(true);
         }}
       >
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', flexDirection: 'row' }}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)' }}>
           {fullScreenPhotoList && fullScreenPhotoList.length > 1 ? (
             <>
-              <TouchableOpacity
-                activeOpacity={1}
-                style={{ flex: 0.2, justifyContent: 'center', alignItems: 'center' }}
-                onPress={() => {
-                  const nextIndex = fullScreenPhotoIndex <= 0 ? fullScreenPhotoList.length - 1 : fullScreenPhotoIndex - 1;
-                  setFullScreenPhotoIndex(nextIndex);
-                  setFullScreenImageUrl(fullScreenPhotoList[nextIndex]);
+              <FlatList
+                data={fullScreenPhotoList}
+                keyExtractor={(uri, idx) => `${idx}-${(uri || '').slice(-20)}`}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                initialScrollIndex={Math.min(Math.max(0, fullScreenPhotoIndex), fullScreenPhotoList.length - 1)}
+                getItemLayout={(_: any, index: number) => ({
+                  length: windowWidth,
+                  offset: windowWidth * index,
+                  index,
+                })}
+                onMomentumScrollEnd={(e) => {
+                  const idx = Math.round(e.nativeEvent.contentOffset.x / windowWidth);
+                  if (idx >= 0 && idx < fullScreenPhotoList.length) setFullScreenPhotoIndex(idx);
                 }}
-                accessibilityLabel="Previous photo"
+                renderItem={({ item: uri }) => (
+                  <TouchableOpacity
+                    activeOpacity={1}
+                    style={{ width: windowWidth, flex: 1, justifyContent: 'center', alignItems: 'center' }}
+                    onPress={() => {
+                      const fromProfile = fullScreenOpenedFromProfileCardRef.current;
+                      setFullScreenImageUrl(null);
+                      setFullScreenPhotoList(null);
+                      fullScreenOpenedFromProfileCardRef.current = false;
+                      if (fromProfile) setShowProfileModal(true);
+                    }}
+                  >
+                    <Image
+                      source={{ uri }}
+                      style={{ width: windowWidth, height: windowHeight * 0.8, resizeMode: 'contain' }}
+                      resizeMode="contain"
+                    />
+                  </TouchableOpacity>
+                )}
               />
-              <TouchableOpacity
-                activeOpacity={1}
-                style={{ flex: 0.6, justifyContent: 'center', alignItems: 'center' }}
-                onPress={() => {
-                  const fromProfile = fullScreenOpenedFromProfileCardRef.current;
-                  setFullScreenImageUrl(null);
-                  setFullScreenPhotoList(null);
-                  fullScreenOpenedFromProfileCardRef.current = false;
-                  if (fromProfile) setShowProfileModal(true);
-                }}
-              >
-                {fullScreenImageUrl ? (
-                  <Image
-                    source={{ uri: fullScreenImageUrl }}
-                    style={{ width: windowWidth * 0.6, height: windowHeight * 0.8, resizeMode: 'contain' }}
-                    resizeMode="contain"
-                  />
-                ) : null}
-              </TouchableOpacity>
-              <TouchableOpacity
-                activeOpacity={1}
-                style={{ flex: 0.2, justifyContent: 'center', alignItems: 'center' }}
-                onPress={() => {
-                  const nextIndex = fullScreenPhotoIndex >= fullScreenPhotoList.length - 1 ? 0 : fullScreenPhotoIndex + 1;
-                  setFullScreenPhotoIndex(nextIndex);
-                  setFullScreenImageUrl(fullScreenPhotoList[nextIndex]);
-                }}
-                accessibilityLabel="Next photo"
-              />
+              <View style={{ position: 'absolute', bottom: 40, left: 0, right: 0, alignItems: 'center' }}>
+                <View style={{ backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 }}>
+                  <Text style={{ color: '#fff', fontSize: 14 }}>
+                    {fullScreenPhotoIndex + 1} / {fullScreenPhotoList.length}
+                  </Text>
+                </View>
+              </View>
             </>
           ) : (
             <TouchableOpacity
