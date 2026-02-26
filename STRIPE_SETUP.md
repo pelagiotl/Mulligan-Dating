@@ -11,12 +11,15 @@ This guide covers the environment variables and Stripe Dashboard configuration n
 ### Mobile app (EAS Build / local)
 - **EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY** – Your Stripe publishable key (starts with `pk_`)
 
-## Setting the publishable key for EAS builds
+## Setting the publishable key for EAS builds (required for TestFlight)
+
+The key is **baked into the app at build time**. If you see "Payment not configured" or "Stripe is not configured" in TestFlight, the key was missing when that build was created.
 
 1. In [expo.dev](https://expo.dev) → your project → **Secrets**
-2. Add: `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY` = `pk_live_...` (or `pk_test_...` for testing)
+2. Add secret: **Name** `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY`, **Value** `pk_live_...` or `pk_test_...`
+3. Create a **new** iOS production build and submit to TestFlight (existing installs won’t get the key until you install a build made after the secret was set).
 
-Or use a local `.env` file (not committed):
+Or use a local `.env` file (for local/Expo Go only; not committed):
 ```
 EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
 ```

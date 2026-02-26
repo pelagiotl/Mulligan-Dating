@@ -81,6 +81,7 @@ interface Match {
     bio: string | null;
     gender: string;
     location: string | null;
+    lookingFor?: string | null;
     photoUrl: string | null;
     profileId?: string;
     photos?: Photo[];
@@ -1809,6 +1810,19 @@ function MatchProfileModal({
                   </LinearGradient>
                 </View>
               )}
+
+              {otherUser.lookingFor && (
+                <LinearGradient
+                  colors={['#fa709a', '#fee140']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.modalInfoCardFullGradient}
+                >
+                  <Text style={styles.modalInfoCardEmoji}>💝</Text>
+                  <Text style={styles.modalInfoLabel}>Looking for</Text>
+                  <Text style={styles.modalInfoValueFull}>{otherUser.lookingFor}</Text>
+                </LinearGradient>
+              )}
             </Animated.View>
             
             {/* Photos */}
@@ -1921,7 +1935,7 @@ function MatchProfileModal({
               </Animated.View>
             )}
             
-            {/* Partner Qualities */}
+            {/* Partner Qualities (what they want in a partner) */}
             {otherUser.partnerQualities && otherUser.partnerQualities.length > 0 && (
               <Animated.View 
                 style={[
@@ -1931,7 +1945,7 @@ function MatchProfileModal({
               >
                 <View style={styles.modalSectionHeader}>
                   <Text style={styles.modalSectionEmoji}>💕</Text>
-                  <Text style={styles.modalSectionTitle}>Looking For</Text>
+                  <Text style={styles.modalSectionTitle}>What they want in a partner</Text>
                 </View>
                 <View style={styles.modalTagsContainer}>
                   {otherUser.partnerQualities.map((q, idx) => (

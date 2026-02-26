@@ -89,9 +89,9 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
       .prepare(
         `SELECT m.*, 
                 p1.display_name as user1_name, p1.age as user1_age, p1.bio as user1_bio, 
-                p1.photo_url as user1_photo, p1.gender as user1_gender, p1.location as user1_location,
+                p1.photo_url as user1_photo, p1.gender as user1_gender, p1.location as user1_location, p1.looking_for as user1_looking_for,
                 p2.display_name as user2_name, p2.age as user2_age, p2.bio as user2_bio,
-                p2.photo_url as user2_photo, p2.gender as user2_gender, p2.location as user2_location,
+                p2.photo_url as user2_photo, p2.gender as user2_gender, p2.location as user2_location, p2.looking_for as user2_looking_for,
                 u1.last_active_at as user1_last_active, u2.last_active_at as user2_last_active,
                 u1.show_active_status as user1_show_active, u2.show_active_status as user2_show_active
          FROM matches m
@@ -356,6 +356,7 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
         bio: isUser1 ? m.user2_bio : m.user1_bio,
         gender: isUser1 ? m.user2_gender : m.user1_gender,
         location: isUser1 ? m.user2_location : m.user1_location,
+        lookingFor: isUser1 ? (m.user2_looking_for ?? null) : (m.user1_looking_for ?? null),
         photoUrl: (m.stage === "stage1" || m.stage === "stage2") ? primaryPhotoUrl : null,
         last_active_at: otherLastActive,
         show_active_status: otherShowActive,
