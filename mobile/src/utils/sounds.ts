@@ -10,19 +10,19 @@ let messageSoundModule: any = null;
 // Try to load sound file at module load time
 // CRITICAL: Metro bundler requires static string literals in require() calls
 // Using variables will cause "Requiring unknown module 'undefined'" errors
-// MUST use direct string literals like require('../../assets/match-sound.mp3')
 // Path is relative to this file: src/utils/sounds.ts -> ../../assets = mobile/assets
+// Match sound plays for all match celebrations (Browse connect + Matches tab when opening from notification).
 const isExpoGo = typeof Constants !== 'undefined' && Constants?.executionEnvironment === 'storeClient';
 
-// Always attempt to load sound assets so they work in dev builds and production (Expo Go may still fail to bundle them)
+// Load match celebration sound — prefer WAV (primary asset in mobile/assets)
 try {
-  matchSoundModule = require('../../assets/match-sound.mp3');
-  console.log('🎵 ✅ Match sound module loaded successfully (MP3)');
-} catch (mp3Error: any) {
+  matchSoundModule = require('../../assets/match-sound.wav');
+  console.log('🎵 ✅ Match sound module loaded successfully (WAV)');
+} catch (wavError: any) {
   try {
-    matchSoundModule = require('../../assets/match-sound.wav');
-    console.log('🎵 ✅ Match sound module loaded successfully (WAV)');
-  } catch (wavError: any) {
+    matchSoundModule = require('../../assets/match-sound.mp3');
+    console.log('🎵 ✅ Match sound module loaded successfully (MP3)');
+  } catch (mp3Error: any) {
     matchSoundModule = null;
     if (!isExpoGo) {
       console.warn('🎵 ⚠️  Match sound file not found. Sound notifications will be disabled.');
@@ -74,7 +74,7 @@ export async function playMatchSound() {
       console.log('🎵 [SOUND] ℹ️  Sound will work in TestFlight/production builds');
     } else {
       console.warn('🎵 [SOUND] ⚠️ Skipping sound - no sound file found in bundle');
-      console.warn('🎵 [SOUND] Make sure match-sound.mp3 is in mobile/assets/ directory');
+      console.warn('🎵 [SOUND] Make sure match-sound.wav (or match-sound.mp3) is in mobile/assets/ directory');
       console.warn('🎵 [SOUND] Check that assetBundlePatterns includes audio files in app.json');
     }
     return;
@@ -243,7 +243,7 @@ export async function playMatchSound() {
     
     // Try to provide helpful debugging info
     if (error?.message?.includes('Cannot find module')) {
-      console.error('🎵 [SOUND] 💡 TIP: Sound file may not be bundled. Make sure match-sound.mp3 exists in mobile/assets/');
+      console.error('🎵 [SOUND] 💡 TIP: Sound file may not be bundled. Make sure match-sound.wav (or match-sound.mp3) exists in mobile/assets/');
     }
     if (error?.message?.includes('permission')) {
       console.error('🎵 [SOUND] 💡 TIP: Check audio permissions in app.json');
