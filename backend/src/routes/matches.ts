@@ -2417,9 +2417,9 @@ matchesRouter.get("/:matchId/never-have-i-ever", authenticateToken, async (req: 
       unlockedByUserId: unlockRow.unlocked_by_user_id ?? null,
       currentTurnUserId: state.currentTurnUserId ?? null,
       isYourTurn: state.isYourTurn ?? false,
-      // Tally: points = number of "I have" (same as strikes in DB)
-      yourPoints: state.yourStrikes ?? 0,
-      theirPoints: state.theirStrikes ?? 0,
+      // Tally: points = number of "I have" (same as strikes in DB); ensure numbers for client
+      yourPoints: Math.max(0, Number(state.yourStrikes) || 0),
+      theirPoints: Math.max(0, Number(state.theirStrikes) || 0),
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -2472,8 +2472,8 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
     };
 
     // When round just completed, use computed points so client always gets correct tally (no DB read timing)
-    const yourPoints = pointsFromRound ? pointsFromRound.newYourStrikes : (Number(state.yourStrikes) || 0);
-    const theirPoints = pointsFromRound ? pointsFromRound.newTheirStrikes : (Number(state.theirStrikes) || 0);
+    const yourPoints = Math.max(0, pointsFromRound ? pointsFromRound.newYourStrikes : (Number(state.yourStrikes) || 0));
+    const theirPoints = Math.max(0, pointsFromRound ? pointsFromRound.newTheirStrikes : (Number(state.theirStrikes) || 0));
     console.log(`🙊 Never Have I Ever answer: match=${matchId} user=${userId} answer=${answer} bothAnswered=${state.bothAnswered} yourPoints=${yourPoints} theirPoints=${theirPoints} roundJustCompleted=${!!roundResult}`);
 
     try {
@@ -2488,8 +2488,8 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
       ...state,
       roundResult,
       roundJustCompleted: !!roundResult,
-      yourPoints,
-      theirPoints,
+      yourPoints: Number(yourPoints),
+      theirPoints: Number(theirPoints),
       ...(roundResult && (newPrompt ?? state.prompt) != null && { prompt: newPrompt ?? state.prompt }),
       ...(roundResult && completedYourAnswer != null && { yourAnswer: completedYourAnswer }),
       ...(roundResult && completedTheirAnswer != null && { theirAnswer: completedTheirAnswer }),

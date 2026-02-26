@@ -184,8 +184,8 @@ export default function NeverHaveIEver({
     try {
       // Never use cache so points/prompt don't revert after both answer
       const data = await api.get<any>(`/matches/${matchId}/never-have-i-ever`, false);
-      const fetchedYou = typeof data.yourPoints === 'number' ? data.yourPoints : (data.yourStrikes ?? 0);
-      const fetchedThem = typeof data.theirPoints === 'number' ? data.theirPoints : (data.theirStrikes ?? 0);
+      const fetchedYou = Math.max(0, Number(data.yourPoints ?? data.yourStrikes ?? 0));
+      const fetchedThem = Math.max(0, Number(data.theirPoints ?? data.theirStrikes ?? 0));
       const simple: GameState = {
         prompt: data.prompt || '',
         phase: data.spiceReady && (data.prompt || data.spiceLevel) ? 'playing' : 'lobby',
@@ -211,8 +211,11 @@ export default function NeverHaveIEver({
         if (recentRound && fetchedZero && refHasPoints) {
           return { ...simple, yourPoints: lastKnownPointsRef.current.yourPoints, theirPoints: lastKnownPointsRef.current.theirPoints };
         }
-        lastKnownPointsRef.current = { yourPoints: simple.yourPoints, theirPoints: simple.theirPoints };
-        return simple;
+        // Never decrease points ref (stale GET can return 0 right after round complete)
+        const refYou = Math.max(lastKnownPointsRef.current.yourPoints, simple.yourPoints);
+        const refThem = Math.max(lastKnownPointsRef.current.theirPoints, simple.theirPoints);
+        lastKnownPointsRef.current = { yourPoints: refYou, theirPoints: refThem };
+        return { ...simple, yourPoints: refYou, theirPoints: refThem };
       });
       setPrompt(simple.prompt || '');
     } catch (err) {
@@ -342,24 +345,30 @@ export default function NeverHaveIEver({
     setSubmitting(true);
     try {
       const data = await api.post<any>(`/matches/${matchId}/never-have-i-ever/answer`, { answer });
-      const serverYourPts = typeof data.yourPoints === 'number' ? data.yourPoints : (data.yourStrikes ?? 0);
-      const serverTheirPts = typeof data.theirPoints === 'number' ? data.theirPoints : (data.theirStrikes ?? 0);
+      const serverYourPts = Math.max(0, Number(data.yourPoints ?? data.yourStrikes ?? 0));
+      const serverTheirPts = Math.max(0, Number(data.theirPoints ?? data.theirStrikes ?? 0));
       const roundComplete = !!data.bothAnswered || !!data.roundJustCompleted;
 
-      // Keep server points as source of truth so fetchState won't overwrite with stale zeros
-      lastKnownPointsRef.current = { yourPoints: serverYourPts, theirPoints: serverTheirPts };
+      // Round complete => server has authoritative points. Otherwise never decrease (max with current).
+      lastKnownPointsRef.current = roundComplete
+        ? { yourPoints: serverYourPts, theirPoints: serverTheirPts }
+        : {
+            yourPoints: Math.max(lastKnownPointsRef.current.yourPoints, serverYourPts),
+            theirPoints: Math.max(lastKnownPointsRef.current.theirPoints, serverTheirPts),
+          };
 
-      // Always apply server points and answers from this response
       setState(prev => {
         if (!prev) return null;
         const nextPrompt = data.prompt ?? prev.prompt;
+        const yourPts = roundComplete ? serverYourPts : Math.max(prev.yourPoints, serverYourPts);
+        const theirPts = roundComplete ? serverTheirPts : Math.max(prev.theirPoints, serverTheirPts);
         return {
           ...prev,
           yourAnswer: roundComplete ? null : (data.yourAnswer ?? answer),
           theirAnswer: roundComplete ? null : (data.theirAnswer ?? prev.theirAnswer),
           bothAnswered: roundComplete ? false : !!data.bothAnswered,
-          yourPoints: serverYourPts,
-          theirPoints: serverTheirPts,
+          yourPoints: yourPts,
+          theirPoints: theirPts,
           prompt: nextPrompt,
           gameOver: !!data.gameOver,
           winner: data.winner ?? null,

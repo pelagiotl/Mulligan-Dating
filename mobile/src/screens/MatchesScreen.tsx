@@ -1538,7 +1538,7 @@ function MatchProfileModal({
                       pointerEvents="none"
                     >
                       {mainPhotoUrl ? (
-                        <Image source={{ uri: mainPhotoUrl }} style={styles.modalPhoto} resizeMode="cover" />
+                        <OptimizedImage source={mainPhotoUrl} style={styles.modalPhoto} resizeMode="cover" showLoadingIndicator={false} />
                       ) : (
                         <LinearGradient
                           colors={['#667eea', '#764ba2', '#f093fb']}
@@ -1612,16 +1612,16 @@ function MatchProfileModal({
                             activeOpacity={0.9}
                             accessibilityLabel="View full size photo"
                           >
-                            <Image source={{ uri: mainPhotoUrl }} style={styles.modalPhoto} resizeMode="cover" />
+                            <OptimizedImage source={mainPhotoUrl} style={styles.modalPhoto} resizeMode="cover" showLoadingIndicator={false} />
                           </TouchableOpacity>
                           <TouchableOpacity style={styles.modalPhotoSwipeSide} onPress={goNextPhoto} activeOpacity={1} accessibilityLabel="Next photo" />
                         </View>
                       ) : onPhotoPress ? (
                         <TouchableOpacity style={[styles.modalPhotoTouchable, { zIndex: 10, elevation: 10 }]} onPress={() => onPhotoPress(mainPhotoUrl, undefined, undefined)} activeOpacity={0.9} accessibilityLabel="View full size photo">
-                          <Image source={{ uri: mainPhotoUrl }} style={styles.modalPhoto} resizeMode="cover" />
+                          <OptimizedImage source={mainPhotoUrl} style={styles.modalPhoto} resizeMode="cover" showLoadingIndicator={false} />
                         </TouchableOpacity>
                       ) : (
-                        <Image source={{ uri: mainPhotoUrl }} style={styles.modalPhoto} resizeMode="cover" />
+                        <OptimizedImage source={mainPhotoUrl} style={styles.modalPhoto} resizeMode="cover" showLoadingIndicator={false} />
                       )
                     ) : (
                       <LinearGradient
@@ -3541,10 +3541,11 @@ export default function MatchesScreen() {
                 const photoUri = chatPhotoUrl ? getPhotoUrl(chatPhotoUrl) : null;
                 const photoStyle = isSmallScreen ? { width: 46, height: 46, borderRadius: 23, borderWidth: 2 } : undefined;
                 return photoUri ? (
-                  <Image
-                    source={{ uri: photoUri }}
+                  <OptimizedImage
+                    source={chatPhotoUrl}
                     style={[styles.chatHeaderPhoto, photoStyle]}
                     resizeMode="cover"
+                    showLoadingIndicator={false}
                   />
                 ) : (
                   <LinearGradient
@@ -3893,10 +3894,11 @@ export default function MatchesScreen() {
                       if (fromProfile) setShowProfileModal(true);
                     }}
                   >
-                    <Image
-                      source={{ uri }}
-                      style={{ width: windowWidth, height: windowHeight * 0.8, resizeMode: 'contain' }}
+                    <OptimizedImage
+                      source={uri}
+                      style={{ width: windowWidth, height: windowHeight * 0.8 }}
                       resizeMode="contain"
+                      showLoadingIndicator={false}
                     />
                   </TouchableOpacity>
                 )}
@@ -3922,10 +3924,11 @@ export default function MatchesScreen() {
               }}
             >
               {fullScreenImageUrl ? (
-                <Image
-                  source={{ uri: fullScreenImageUrl }}
-                  style={{ width: windowWidth, height: windowHeight * 0.8, resizeMode: 'contain' }}
+                <OptimizedImage
+                  source={fullScreenImageUrl}
+                  style={{ width: windowWidth, height: windowHeight * 0.8 }}
                   resizeMode="contain"
+                  showLoadingIndicator={false}
                 />
               ) : null}
             </TouchableOpacity>

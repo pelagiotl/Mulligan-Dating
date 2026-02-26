@@ -1224,31 +1224,7 @@ export default function BrowseScreen() {
     }, [])
   );
 
-  // When navigated with resetToLanding (e.g. "Keep Browsing" from match celebration), show Connect landing page
-  useFocusEffect(
-    useCallback(() => {
-      const params = route.params as { resetToLanding?: boolean } | undefined;
-      if (!params?.resetToLanding) return;
-      setShowMatchCelebration(false);
-      setMatchedProfile(null);
-      setMatchId(null);
-      matchIdFromConnectRef.current = null;
-      initiatorMatchIdRef.current = null;
-      connectInitiatorAtRef.current = null;
-      setMatchExplanation(null);
-      setIsAutoMatching(false);
-      setUnlocking(false); // Ensure Connect button is clickable
-      clearPendingOpenMatchId();
-      setBrowseUnlocked(false);
-      setCurrentProfile(null);
-      navigation.setParams({ resetToLanding: undefined });
-    }, [route.params, navigation])
-  );
-
-  // When already on Browse and params get resetToLanding (Keep Browsing), clear celebration so Modal unmounts and doesn't block touches
-  useEffect(() => {
-    const params = route.params as { resetToLanding?: boolean } | undefined;
-    if (!params?.resetToLanding) return;
+  const clearCelebrationAndConnectingState = useCallback(() => {
     setShowMatchCelebration(false);
     setMatchedProfile(null);
     setMatchId(null);
@@ -1257,12 +1233,34 @@ export default function BrowseScreen() {
     connectInitiatorAtRef.current = null;
     setMatchExplanation(null);
     setIsAutoMatching(false);
-    setUnlocking(false); // Ensure Connect button is clickable
+    setUnlocking(false);
     clearPendingOpenMatchId();
     setBrowseUnlocked(false);
     setCurrentProfile(null);
+    connectRequestedRef.current = false;
+    setConnecting(false);
+    connectSpinnerOpacity.setValue(0);
+    connectTextOpacity.setValue(1);
+    connectOverlayOpacity.setValue(0);
+  }, []);
+
+  // When navigated with resetToLanding (e.g. "Keep Browsing" from match celebration), show Connect landing page
+  useFocusEffect(
+    useCallback(() => {
+      const params = route.params as { resetToLanding?: boolean } | undefined;
+      if (!params?.resetToLanding) return;
+      clearCelebrationAndConnectingState();
+      navigation.setParams({ resetToLanding: undefined });
+    }, [route.params, navigation, clearCelebrationAndConnectingState])
+  );
+
+  // When already on Browse and params get resetToLanding (Keep Browsing), clear celebration so Modal unmounts and doesn't block touches
+  useEffect(() => {
+    const params = route.params as { resetToLanding?: boolean } | undefined;
+    if (!params?.resetToLanding) return;
+    clearCelebrationAndConnectingState();
     navigation.setParams({ resetToLanding: undefined });
-  }, [route.params, navigation]);
+  }, [route.params, navigation, clearCelebrationAndConnectingState]);
 
   // Fetch user's photo count when on landing page (for 5-photo minimum to Connect)
   // Refetch when tab is focused so count updates after user adds photos on Profile tab
@@ -1642,20 +1640,8 @@ export default function BrowseScreen() {
   }, [isAutoMatching]);
 
   const handleCelebrationClose = useCallback(() => {
-    setShowMatchCelebration(false);
-    setMatchedProfile(null);
-    setMatchId(null);
-    matchIdFromConnectRef.current = null;
-    initiatorMatchIdRef.current = null;
-    connectInitiatorAtRef.current = null;
-    setMatchExplanation(null);
-    setIsAutoMatching(false);
-    setUnlocking(false); // So Connect button is clickable after "Keep Browsing"
-    clearPendingOpenMatchId(); // Ensure no stale pending match when user chooses Keep Browsing
-    // After a successful match, reset to the landing page so user starts fresh when returning to Connect tab
-    setBrowseUnlocked(false);
-    setCurrentProfile(null);
-  }, []);
+    clearCelebrationAndConnectingState();
+  }, [clearCelebrationAndConnectingState]);
 
   const needsProfile = !userProfile && !loading;
 
@@ -2078,11 +2064,12 @@ export default function BrowseScreen() {
                   style={styles.photoScrollView}
                 >
                   {photos.map((photo) => (
-                    <Image
+                    <OptimizedImage
                       key={photo.id}
-                      source={{ uri: getPhotoUrl(photo.url) }}
+                      source={photo.url}
                       style={[styles.profilePhoto, { width: SCREEN_WIDTH - 40 }]}
                       resizeMode="cover"
+                      showLoadingIndicator={false}
                     />
                   ))}
                 </ScrollView>

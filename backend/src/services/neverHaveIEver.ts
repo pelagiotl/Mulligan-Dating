@@ -465,10 +465,27 @@ export async function submitAnswer(
     if (updateResult instanceof Promise) await updateResult;
   }
 
-  const rowAfter = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
+  let rowAfter = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
   row = (rowAfter instanceof Promise ? await rowAfter : rowAfter) as GameRow;
-  const user1Answer = row.user1_answer as 'have' | 'havent' | null;
-  const user2Answer = row.user2_answer as 'have' | 'havent' | null;
+  let user1Answer = (row?.user1_answer ?? null) as 'have' | 'havent' | null;
+  let user2Answer = (row?.user2_answer ?? null) as 'have' | 'havent' | null;
+
+  // If we only see one answer, the other user's update may not be visible yet (commit/timing). Retry with backoff.
+  // With PostgreSQL, .get() returns a Promise — must await so we read actual row values.
+  const retryDelays = [80, 180, 350];
+  for (const delayMs of retryDelays) {
+    if (user1Answer != null && user2Answer != null) break;
+    await new Promise((r) => setTimeout(r, delayMs));
+    const rowRetryResult = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
+    const rowRetry = (rowRetryResult instanceof Promise ? await rowRetryResult : rowRetryResult) as GameRow | undefined;
+    if (!rowRetry) break;
+    user1Answer = (rowRetry.user1_answer ?? null) as 'have' | 'havent' | null;
+    user2Answer = (rowRetry.user2_answer ?? null) as 'have' | 'havent' | null;
+    if (user1Answer != null && user2Answer != null) {
+      row = rowRetry;
+      break;
+    }
+  }
 
   let roundResult: { youStrike: boolean; themStrike: boolean } | undefined;
   let newUser1Strikes: number | undefined;

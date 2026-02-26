@@ -3,7 +3,6 @@ import {
   View,
   Text,
   Modal,
-  Image,
   TouchableOpacity,
   StyleSheet,
   Animated,
@@ -14,7 +13,7 @@ import { useNavigation, CommonActions } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { setPendingOpenMatchId } from '../utils/pendingMatchOpen';
 import { navigationRef } from '../navigation/navigationRef';
-import { getPhotoUrl } from '../utils/photoUrl';
+import OptimizedImage from './OptimizedImage';
 import { playMatchSound } from '../utils/sounds';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -170,6 +169,7 @@ export default function MatchCelebration({
   const [showContent, setShowContent] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [showButton, setShowButton] = useState(false);
+  const [modalVisible, setModalVisible] = useState(true);
   const [confettiParticles] = useState<ConfettiParticle[]>(() => {
     const colors = ['#667eea', '#764ba2', '#a855f7', '#c026d3', '#ec4899', '#f472b6'];
     return Array.from({ length: 80 }, (_, i) => ({
@@ -365,25 +365,29 @@ export default function MatchCelebration({
   /** Navigate to Connect (Browse) tab landing page and close the celebration — used by "Keep Browsing" */
   const handleKeepBrowsing = () => {
     try {
-      onClose();
-      // Defer navigation so parent can commit state (hide modal) first; short delay so modal unmounts and doesn't block Connect button touches
-      const doNavigate = () => {
-        if (navigationRef.current?.isReady()) {
-          navigationRef.current.dispatch(
-            CommonActions.navigate({
-              name: 'MainTabs',
-              params: { screen: 'Browse', params: { resetToLanding: true } },
-            })
-          );
+      // Hide modal first so native layer dismisses and no longer blocks tab bar / Connect button
+      setModalVisible(false);
+      const doCloseAndNavigate = () => {
+        onClose();
+        const doNavigate = () => {
+          if (navigationRef.current?.isReady()) {
+            navigationRef.current.dispatch(
+              CommonActions.navigate({
+                name: 'MainTabs',
+                params: { screen: 'Browse', params: { resetToLanding: true } },
+              })
+            );
+          } else {
+            navigation.navigate('MainTabs' as never, { screen: 'Browse', params: { resetToLanding: true } } as never);
+          }
+        };
+        if (typeof requestAnimationFrame !== 'undefined') {
+          requestAnimationFrame(() => setTimeout(doNavigate, 50));
         } else {
-          navigation.navigate('MainTabs' as never, { screen: 'Browse', params: { resetToLanding: true } } as never);
+          setTimeout(doNavigate, 50);
         }
       };
-      if (typeof requestAnimationFrame !== 'undefined') {
-        requestAnimationFrame(() => setTimeout(doNavigate, 80));
-      } else {
-        setTimeout(doNavigate, 80);
-      }
+      setTimeout(doCloseAndNavigate, 220);
     } catch (error) {
       console.error('❌ Error in handleKeepBrowsing:', error);
       onClose();
@@ -433,7 +437,7 @@ export default function MatchCelebration({
 
   return (
     <Modal
-      visible={true}
+      visible={modalVisible}
       transparent={true}
       animationType="fade"
       onRequestClose={onClose}
@@ -511,10 +515,11 @@ export default function MatchCelebration({
               ]}
             >
               {photoUrl ? (
-                <Image
-                  source={{ uri: getPhotoUrl(photoUrl) }}
+                <OptimizedImage
+                  source={photoUrl}
                   style={styles.photo}
                   resizeMode="cover"
+                  showLoadingIndicator={false}
                 />
               ) : (
                 <View style={styles.photoPlaceholder}>
