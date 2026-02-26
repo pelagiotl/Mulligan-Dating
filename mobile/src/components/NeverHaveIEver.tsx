@@ -349,19 +349,17 @@ export default function NeverHaveIEver({
       const serverTheirPts = Math.max(0, Number(data.theirPoints ?? data.theirStrikes ?? 0));
       const roundComplete = !!data.bothAnswered || !!data.roundJustCompleted;
 
-      // Round complete => server has authoritative points. Otherwise never decrease (max with current).
-      lastKnownPointsRef.current = roundComplete
-        ? { yourPoints: serverYourPts, theirPoints: serverTheirPts }
-        : {
-            yourPoints: Math.max(lastKnownPointsRef.current.yourPoints, serverYourPts),
-            theirPoints: Math.max(lastKnownPointsRef.current.theirPoints, serverTheirPts),
-          };
+      // Always treat server points as source of truth for this response (backend sends updated tally after "I have")
+      lastKnownPointsRef.current = {
+        yourPoints: Math.max(lastKnownPointsRef.current.yourPoints, serverYourPts),
+        theirPoints: Math.max(lastKnownPointsRef.current.theirPoints, serverTheirPts),
+      };
 
       setState(prev => {
         if (!prev) return null;
         const nextPrompt = data.prompt ?? prev.prompt;
-        const yourPts = roundComplete ? serverYourPts : Math.max(prev.yourPoints, serverYourPts);
-        const theirPts = roundComplete ? serverTheirPts : Math.max(prev.theirPoints, serverTheirPts);
+        const yourPts = Math.max(prev.yourPoints, serverYourPts);
+        const theirPts = Math.max(prev.theirPoints, serverTheirPts);
         return {
           ...prev,
           yourAnswer: roundComplete ? null : (data.yourAnswer ?? answer),

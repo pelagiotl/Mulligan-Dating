@@ -449,7 +449,7 @@ export async function submitAnswer(
 
   const ts = new Date().toISOString();
   if (isUser1) {
-    if (row.user1_answer !== null) {
+    if (row.user1_answer !== null && row.user1_answer !== undefined && String(row.user1_answer).trim() !== '') {
       return { state: await getGameState(matchId, userId, match) };
     }
     let updateResult = db
@@ -464,7 +464,7 @@ export async function submitAnswer(
       if (updateResult instanceof Promise) await updateResult;
     }
   } else {
-    if (row.user2_answer !== null) {
+    if (row.user2_answer !== null && row.user2_answer !== undefined && String(row.user2_answer).trim() !== '') {
       return { state: await getGameState(matchId, userId, match) };
     }
     let updateResult = db
@@ -478,6 +478,16 @@ export async function submitAnswer(
       if (updateResult instanceof Promise) await updateResult;
     }
   }
+
+  // Read row immediately after our updates so we always have latest strikes for the response (avoids any read-your-writes delay)
+  const readAfterResult = db.prepare('SELECT user1_strikes, user2_strikes FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
+  const readAfter = (readAfterResult instanceof Promise ? await readAfterResult : readAfterResult) as { user1_strikes?: number; user2_strikes?: number } | undefined;
+  const pointsAfterAnswer = readAfter
+    ? {
+        newYourStrikes: Number(isUser1 ? readAfter.user1_strikes : readAfter.user2_strikes) || 0,
+        newTheirStrikes: Number(isUser1 ? readAfter.user2_strikes : readAfter.user1_strikes) || 0,
+      }
+    : undefined;
 
   let rowAfter = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
   row = (rowAfter instanceof Promise ? await rowAfter : rowAfter) as GameRow;
@@ -538,11 +548,10 @@ export async function submitAnswer(
   const theirAnswerRaw = isUser1 ? user2Answer : user1Answer;
   const completedYourAnswer: 'have' | 'havent' | undefined = roundResult && yourAnswerRaw != null ? yourAnswerRaw : undefined;
   const completedTheirAnswer: 'have' | 'havent' | undefined = roundResult && theirAnswerRaw != null ? theirAnswerRaw : undefined;
-  // Points are added when each user submits "I have"; state already has current strikes
-  const pointsFromRound = roundResult
-    ? { newYourStrikes: state.yourStrikes, newTheirStrikes: state.theirStrikes }
-    : undefined;
-  // Explicit new prompt when round just completed so client always gets it (avoids stale fetch overwriting)
+  // Prefer points we read right after our update so client always gets latest tally (pointsAfterAnswer); else when round completed use state
+  const pointsFromRound =
+    pointsAfterAnswer ??
+    (roundResult ? { newYourStrikes: state.yourStrikes, newTheirStrikes: state.theirStrikes } : undefined);
   const newPrompt = roundResult ? (state.prompt ?? undefined) : undefined;
   return { state, roundResult, completedYourAnswer, completedTheirAnswer, pointsFromRound, newPrompt };
 }
