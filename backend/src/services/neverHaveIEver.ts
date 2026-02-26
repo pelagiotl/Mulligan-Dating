@@ -447,28 +447,48 @@ export async function submitAnswer(
     return { state: await getGameState(matchId, userId, match) };
   }
 
+  const ts = new Date().toISOString();
   if (isUser1) {
     if (row.user1_answer !== null) {
       return { state: await getGameState(matchId, userId, match) };
     }
-    const updateResult = db
+    let updateResult = db
       .prepare('UPDATE never_have_i_ever_games SET user1_answer = ?, updated_at = ? WHERE match_id = ?')
-      .run([answer, new Date().toISOString(), matchId]);
+      .run([answer, ts, matchId]);
     if (updateResult instanceof Promise) await updateResult;
+    // Add a point immediately when this user clicks "I have" (so the counter updates right away)
+    if (answer === 'have') {
+      updateResult = db
+        .prepare('UPDATE never_have_i_ever_games SET user1_strikes = COALESCE(user1_strikes, 0) + 1, updated_at = ? WHERE match_id = ?')
+        .run([ts, matchId]);
+      if (updateResult instanceof Promise) await updateResult;
+    }
   } else {
     if (row.user2_answer !== null) {
       return { state: await getGameState(matchId, userId, match) };
     }
-    const updateResult = db
+    let updateResult = db
       .prepare('UPDATE never_have_i_ever_games SET user2_answer = ?, updated_at = ? WHERE match_id = ?')
-      .run([answer, new Date().toISOString(), matchId]);
+      .run([answer, ts, matchId]);
     if (updateResult instanceof Promise) await updateResult;
+    if (answer === 'have') {
+      updateResult = db
+        .prepare('UPDATE never_have_i_ever_games SET user2_strikes = COALESCE(user2_strikes, 0) + 1, updated_at = ? WHERE match_id = ?')
+        .run([ts, matchId]);
+      if (updateResult instanceof Promise) await updateResult;
+    }
   }
 
   let rowAfter = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
   row = (rowAfter instanceof Promise ? await rowAfter : rowAfter) as GameRow;
   let user1Answer = (row?.user1_answer ?? null) as 'have' | 'havent' | null;
   let user2Answer = (row?.user2_answer ?? null) as 'have' | 'havent' | null;
+
+  // Normalize: DB may return string with different casing
+  if (typeof user1Answer === 'string') user1Answer = user1Answer.trim().toLowerCase() as 'have' | 'havent';
+  if (typeof user2Answer === 'string') user2Answer = user2Answer.trim().toLowerCase() as 'have' | 'havent';
+  if (user1Answer !== 'have' && user1Answer !== 'havent') user1Answer = null;
+  if (user2Answer !== 'have' && user2Answer !== 'havent') user2Answer = null;
 
   // If we only see one answer, the other user's update may not be visible yet (commit/timing). Retry with backoff.
   // With PostgreSQL, .get() returns a Promise — must await so we read actual row values.
@@ -479,66 +499,49 @@ export async function submitAnswer(
     const rowRetryResult = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
     const rowRetry = (rowRetryResult instanceof Promise ? await rowRetryResult : rowRetryResult) as GameRow | undefined;
     if (!rowRetry) break;
-    user1Answer = (rowRetry.user1_answer ?? null) as 'have' | 'havent' | null;
-    user2Answer = (rowRetry.user2_answer ?? null) as 'have' | 'havent' | null;
+    let r1 = (rowRetry.user1_answer ?? null) as string | null;
+    let r2 = (rowRetry.user2_answer ?? null) as string | null;
+    if (typeof r1 === 'string') r1 = r1.trim().toLowerCase();
+    if (typeof r2 === 'string') r2 = r2.trim().toLowerCase();
+    user1Answer = (r1 === 'have' || r1 === 'havent' ? r1 : null) as 'have' | 'havent' | null;
+    user2Answer = (r2 === 'have' || r2 === 'havent' ? r2 : null) as 'have' | 'havent' | null;
     if (user1Answer != null && user2Answer != null) {
       row = rowRetry;
       break;
     }
   }
 
+  console.log(`🙊 NHIE submitAnswer: match=${matchId} isUser1=${isUser1} answer=${answer} user1Answer=${user1Answer} user2Answer=${user2Answer} bothPresent=${user1Answer != null && user2Answer != null}`);
+
   let roundResult: { youStrike: boolean; themStrike: boolean } | undefined;
-  let newUser1Strikes: number | undefined;
-  let newUser2Strikes: number | undefined;
 
   if (user1Answer !== null && user2Answer !== null) {
-    // Scoring: point for "you" iff you answered "I have". Both have → both get +1. Both haven't → +0. A have / B haven't → A +1, B +0.
-    const user1Strike = user1Answer === 'have';
-    const user2Strike = user2Answer === 'have';
-    const s1 = Number(row.user1_strikes) || 0;
-    const s2 = Number(row.user2_strikes) || 0;
-    newUser1Strikes = s1 + (user1Strike ? 1 : 0);
-    newUser2Strikes = s2 + (user2Strike ? 1 : 0);
-
+    // Points were already added when each user submitted "I have". Here we only clear answers and advance the prompt.
     roundResult = {
-      youStrike: isUser1 ? user1Strike : user2Strike,
-      themStrike: isUser1 ? user2Strike : user1Strike,
+      youStrike: (isUser1 ? user1Answer : user2Answer) === 'have',
+      themStrike: (isUser1 ? user2Answer : user1Answer) === 'have',
     };
 
-    const gameOver = newUser1Strikes >= STRIKES_TO_LOSE || newUser2Strikes >= STRIKES_TO_LOSE;
-    const ts = new Date().toISOString();
-
-    let runResult = db.prepare(
-      `UPDATE never_have_i_ever_games SET user1_strikes = ?, user2_strikes = ?, updated_at = ? WHERE match_id = ?`
-    ).run([newUser1Strikes, newUser2Strikes, ts, matchId]);
-    if (runResult instanceof Promise) await runResult;
-
-    // Always generate and show the next prompt when both have answered (so UI never sticks on the old prompt).
     const c1 = row.user1_spice_choice as SpiceLevel | null;
     const c2 = row.user2_spice_choice as SpiceLevel | null;
     const effectiveLevel = (c1 && c2 ? moreConservative(c1, c2) : (row.spice_level as SpiceLevel)) || 'pg13';
     const nextPrompt = await generateNeverHaveIEverPrompt(matchId, effectiveLevel);
-    runResult = db.prepare(
+    const runResult = db.prepare(
       `UPDATE never_have_i_ever_games SET current_prompt = ?, user1_answer = NULL, user2_answer = NULL, updated_at = ? WHERE match_id = ?`
-    ).run([nextPrompt, ts, matchId]);
+    ).run([nextPrompt, new Date().toISOString(), matchId]);
     if (runResult instanceof Promise) await runResult;
   }
 
   const state = await getGameState(matchId, userId, match);
   state.roundResult = roundResult;
-  // When round completed, expose the answers that just completed (for client to show "You said / They said" and apply points)
   const yourAnswerRaw = isUser1 ? user1Answer : user2Answer;
   const theirAnswerRaw = isUser1 ? user2Answer : user1Answer;
   const completedYourAnswer: 'have' | 'havent' | undefined = roundResult && yourAnswerRaw != null ? yourAnswerRaw : undefined;
   const completedTheirAnswer: 'have' | 'havent' | undefined = roundResult && theirAnswerRaw != null ? theirAnswerRaw : undefined;
-  // Return computed strikes when round just completed so client always gets correct points (no reliance on DB read timing)
-  const pointsFromRound =
-    roundResult && newUser1Strikes !== undefined && newUser2Strikes !== undefined
-      ? {
-          newYourStrikes: isUser1 ? newUser1Strikes : newUser2Strikes,
-          newTheirStrikes: isUser1 ? newUser2Strikes : newUser1Strikes,
-        }
-      : undefined;
+  // Points are added when each user submits "I have"; state already has current strikes
+  const pointsFromRound = roundResult
+    ? { newYourStrikes: state.yourStrikes, newTheirStrikes: state.theirStrikes }
+    : undefined;
   // Explicit new prompt when round just completed so client always gets it (avoids stale fetch overwriting)
   const newPrompt = roundResult ? (state.prompt ?? undefined) : undefined;
   return { state, roundResult, completedYourAnswer, completedTheirAnswer, pointsFromRound, newPrompt };
@@ -589,9 +592,10 @@ export async function submitTurnAnswer(
     nextTurnUserId = otherUserId;
   }
 
-  db.prepare(
+  const runResult = db.prepare(
     `UPDATE never_have_i_ever_games SET user1_strikes = ?, user2_strikes = ?, current_prompt = ?, current_turn_user_id = ?, user1_answer = NULL, user2_answer = NULL, updated_at = ? WHERE match_id = ?`
   ).run([newUser1Strikes, newUser2Strikes, newPrompt, nextTurnUserId, new Date().toISOString(), matchId]);
+  if (runResult instanceof Promise) await runResult;
 
   const state = await getGameState(matchId, userId, match);
   state.roundResult = { youStrike, themStrike: false };

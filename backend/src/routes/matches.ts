@@ -2458,6 +2458,9 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
     const rowResult = db.prepare('SELECT spice_level, current_prompt, current_turn_user_id FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
     const row = (rowResult instanceof Promise ? await rowResult : rowResult) as { spice_level: string | null; current_prompt: string | null; current_turn_user_id: string | null } | undefined;
     const isTurnBased = !!row?.current_turn_user_id;
+    if (process.env.NODE_ENV !== 'test') {
+      console.log(`🙊 NHIE answer route: match=${matchId} isTurnBased=${isTurnBased} current_turn_user_id=${row?.current_turn_user_id ?? 'null'}`);
+    }
 
     const result = isTurnBased
       ? await submitTurnAnswer(matchId, userId, match, answer as 'have' | 'havent')
