@@ -434,6 +434,7 @@ export async function submitAnswer(
   completedYourAnswer?: 'have' | 'havent';
   completedTheirAnswer?: 'have' | 'havent';
   pointsFromRound?: { newYourStrikes: number; newTheirStrikes: number };
+  newPrompt?: string;
 }> {
   const isUser1 = userId === match.user1_id;
 
