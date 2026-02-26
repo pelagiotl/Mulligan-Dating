@@ -203,7 +203,7 @@ export async function generateTruthOrDarePrompt(
       ? '\n- Do NOT use travel, vacation, "where you are", scenic views, or location. Users are often at home. Keep dares doable from wherever they are.'
       : '';
 
-    const toneNote = '\n- TONE: Cool and mature. Write for adults. NO corny wordplay, NO puns, NO cringe or try-hard humor, NO generic dating clichés. Confident, specific, and flirty — never cheesy or childish.';
+    const toneNote = '\n- TONE: Cool and hip — current, Gen Z/millennial-friendly language. Write for adults. NO corny wordplay, NO puns, NO cringe or try-hard humor, NO generic dating clichés. Confident, specific, and flirty — never cheesy or childish.\n- WORD CHOICE: Use clear, everyday words. NEVER use vague or old-fashioned words like "sultry", "smoldering", "sultry selfie", "bedroom eyes". Prefer clear phrasing everyone gets: e.g. "flirty selfie", "confident selfie", "selfie that shows you\'re into them", "look that says you\'re interested".';
 
     const systemPrompt = `You generate ${type} prompts for a dating app's "Truth or Dare" game. ${systemSpice}
 

@@ -1,6 +1,7 @@
 import { db } from '../database.js';
 import { v4 as uuidv4 } from 'uuid';
 import { Client } from '@googlemaps/google-maps-services-js';
+import { geocodeLocation } from '../utils/geocoding.js';
 
 export interface DatePlan {
   id: string;
@@ -64,8 +65,59 @@ type VenueSearchResult = {
   place_id?: string;
 };
 
+const NEARBY_RADIUS_MILES = 30;
+const NEARBY_RADIUS_METERS = Math.round(NEARBY_RADIUS_MILES * 1609.34); // 30 miles in meters (max 50000 for Places API)
+
 /**
- * Search for venues using Google Places API
+ * Search for venues within a radius of a lat/lng (nearby cities / area). Uses Places Nearby Search.
+ */
+async function searchVenuesNearby(
+  lat: number,
+  lng: number,
+  keyword?: string
+): Promise<VenueSearchResult[]> {
+  const googleApiKey = process.env.GOOGLE_PLACES_API_KEY;
+  if (!googleApiKey) return [];
+
+  try {
+    const params = new URLSearchParams({
+      location: `${lat},${lng}`,
+      radius: String(Math.min(NEARBY_RADIUS_METERS, 50000)),
+      key: googleApiKey,
+    });
+    if (keyword && keyword.trim()) params.set('keyword', keyword.trim());
+    const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?${params.toString()}`;
+    const res = await fetch(url);
+    const data = (await res.json()) as {
+      results?: Array<{
+        name?: string;
+        vicinity?: string;
+        geometry?: { location?: { lat?: number; lng?: number } };
+        rating?: number;
+        price_level?: number;
+        place_id?: string;
+      }>;
+      status: string;
+    };
+    if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') return [];
+    const results = data.results ?? [];
+    return results.slice(0, 5).map((place) => ({
+      name: place.name || 'Unknown',
+      address: place.vicinity || '',
+      lat: place.geometry?.location?.lat ?? 0,
+      lng: place.geometry?.location?.lng ?? 0,
+      rating: place.rating,
+      priceLevel: place.price_level,
+      place_id: place.place_id,
+    }));
+  } catch (error) {
+    console.warn('⚠️  Nearby venue search failed:', error);
+    return [];
+  }
+}
+
+/**
+ * Search for venues using Google Places API (text query, e.g. "coffee in Austin, TX")
  */
 async function searchVenues(
   location: string,
@@ -188,11 +240,19 @@ export async function generateDatePlan(
     return 'your area';
   })();
 
-  // Search for venues based on shared interests
-  // Add variation: try different interests or generic searches to get different venues
+  // Geocode so we can search within 30-mile radius (nearby cities / area)
+  let meetingLat: number | null = null;
+  let meetingLng: number | null = null;
+  if (meetingLocation !== 'your area') {
+    const geocoded = await geocodeLocation(meetingLocation);
+    if (geocoded?.coordinates) {
+      meetingLat = geocoded.coordinates.lat;
+      meetingLng = geocoded.coordinates.lng;
+    }
+  }
+
   let venues: VenueSearchResult[] = [];
 
-  // Get existing plans to avoid suggesting the same venue and to tell AI what not to repeat
   const existingPlansResult = db
     .prepare('SELECT title, venue_name FROM date_plans WHERE match_id = ? ORDER BY created_at DESC LIMIT 10')
     .all([matchId]);
@@ -204,7 +264,6 @@ export async function generateDatePlan(
   );
   const existingTitles = existingPlans.filter(p => p.title).map(p => (p.title as string).trim()).slice(0, 8);
 
-  // Venue type keywords: wholesome variety (no bars). Park, bookstore, coffee, etc.
   const genericKeywords = [
     'restaurant', 'cafe', 'coffee shop', 'park', 'museum', 'activity', 'entertainment',
     'arcade', 'mini golf', 'bookstore', 'art gallery', 'comedy club',
@@ -214,38 +273,50 @@ export async function generateDatePlan(
     'pottery studio', 'art class', 'cooking class', 'outdoor movie', 'food hall',
   ];
 
-  // Try interest-based searches first when both users have shared interests
-  if (sharedInterests.length > 0) {
+  const tryVenues = (candidates: VenueSearchResult[]) => {
+    const newVenues = candidates.filter(v => !existingVenueNames.has(v.name.toLowerCase()));
+    if (newVenues.length > 0) venues = newVenues;
+    else if (candidates.length > 0) venues = candidates;
+  };
+
+  // 1) Nearby search (30-mile radius) when we have coordinates — pulls from nearby cities
+  if (meetingLat != null && meetingLng != null) {
+    if (sharedInterests.length > 0) {
+      const shuffled = [...sharedInterests].sort(() => Math.random() - 0.5);
+      for (const interest of shuffled) {
+        const nearby = await searchVenuesNearby(meetingLat, meetingLng, interest);
+        tryVenues(nearby);
+        if (venues.length > 0) break;
+      }
+    }
+    if (venues.length === 0) {
+      for (const keyword of genericKeywords.sort(() => Math.random() - 0.5)) {
+        const nearby = await searchVenuesNearby(meetingLat, meetingLng, keyword);
+        tryVenues(nearby);
+        if (venues.length > 0) break;
+      }
+    }
+    if (venues.length === 0) {
+      tryVenues(await searchVenuesNearby(meetingLat, meetingLng));
+    }
+  }
+
+  // 2) Fallback: text search by location name
+  if (venues.length === 0 && sharedInterests.length > 0) {
     const shuffledInterests = [...sharedInterests].sort(() => Math.random() - 0.5);
     for (const interest of shuffledInterests) {
-      const interestVenues = await searchVenues(meetingLocation, interest);
-      const newVenues = interestVenues.filter(v => !existingVenueNames.has(v.name.toLowerCase()));
-      if (newVenues.length > 0) {
-        venues = newVenues;
-        break;
-      }
+      tryVenues(await searchVenues(meetingLocation, interest));
+      if (venues.length > 0) break;
     }
   }
-
-  // If no venues yet, try diverse generic types (park, bookstore, coffee, etc.) so we get variety
   if (venues.length === 0) {
     for (const keyword of genericKeywords.sort(() => Math.random() - 0.5)) {
-      const keywordVenues = await searchVenues(meetingLocation, keyword);
-      const newVenues = keywordVenues.filter(v => !existingVenueNames.has(v.name.toLowerCase()));
-      if (newVenues.length > 0) {
-        venues = newVenues;
-        break;
-      }
+      tryVenues(await searchVenues(meetingLocation, keyword));
+      if (venues.length > 0) break;
     }
   }
-
-  // Last resort: single generic "activities" search
   if (venues.length === 0) {
-    const genericVenues = await searchVenues(meetingLocation);
-    venues = genericVenues.filter(v => !existingVenueNames.has(v.name.toLowerCase()));
-    if (venues.length === 0) {
-      venues = genericVenues;
-    }
+    tryVenues(await searchVenues(meetingLocation));
   }
 
   // Pick ONE venue for this plan and use it for both the AI prompt and the saved plan
