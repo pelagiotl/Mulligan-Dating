@@ -2468,6 +2468,7 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
       console.warn('⚠️  Socket.io not available for Never Have I Ever notification');
     }
 
+    const nextPrompt = (roundResult && (newPrompt ?? state.prompt != null)) ? (newPrompt ?? state.prompt) : undefined;
     res.json({
       ...state,
       roundResult,
@@ -2478,7 +2479,7 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
       theirStrikes: Number(theirPoints),
       ...(pointsFromRound != null && { pointsFromRound: { newYourStrikes: Number(yourPoints), newTheirStrikes: Number(theirPoints) } }),
       ...(roundResult && { bothAnswered: true }),
-      ...(roundResult && (newPrompt ?? state.prompt) != null && { prompt: newPrompt ?? state.prompt }),
+      ...(nextPrompt != null && nextPrompt !== '' && { prompt: nextPrompt, newPrompt: nextPrompt }),
       ...(roundResult && completedYourAnswer != null && { yourAnswer: completedYourAnswer }),
       ...(roundResult && completedTheirAnswer != null && { theirAnswer: completedTheirAnswer }),
     });

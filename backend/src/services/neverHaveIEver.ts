@@ -508,7 +508,7 @@ export async function submitAnswer(
 
   // If we only see one answer, the other user's update may not be visible yet (commit/timing). Retry with backoff.
   // With PostgreSQL, .get() returns a Promise — must await so we read actual row values.
-  const retryDelays = [80, 180, 350];
+  const retryDelays = [80, 180, 350, 600];
   for (const delayMs of retryDelays) {
     if (user1Answer != null && user2Answer != null) break;
     await new Promise((r) => setTimeout(r, delayMs));

@@ -230,10 +230,10 @@ export default function NeverHaveIEver({
   useEffect(() => {
     if (openForAccept) {
       setModalVisible(true);
-      setLoading(true);
-      fetchState().finally(() => setLoading(false));
-      pollRef.current = setInterval(() => fetchState(true), 8000);
-      onOpenedForAccept?.();
+    setLoading(true);
+    fetchState().finally(() => setLoading(false));
+    pollRef.current = setInterval(() => fetchState(true), 2000);
+    onOpenedForAccept?.();
     }
   }, [openForAccept]);
 
@@ -245,8 +245,8 @@ export default function NeverHaveIEver({
     setLoading(true);
     fetchState().finally(() => setLoading(false));
 
-    // Poll every 3s while modal is open (to catch when other player answers); skip if we just completed a round to avoid overwriting
-          pollRef.current = setInterval(() => fetchState(true), 8000);
+    // Poll every 2s while modal is open so we see other player's points and new prompt quickly
+    pollRef.current = setInterval(() => fetchState(true), 2000);
   };
 
   const handleClose = () => {
@@ -271,7 +271,7 @@ export default function NeverHaveIEver({
       fetchState(false);
       setTimeout(() => {
         if (modalVisibleRef.current && !pollRef.current) {
-          pollRef.current = setInterval(() => fetchState(true), 8000);
+          pollRef.current = setInterval(() => fetchState(true), 2000);
         }
       }, 6000);
     };
@@ -384,9 +384,9 @@ export default function NeverHaveIEver({
         theirPoints: Math.max(lastKnownPointsRef.current.theirPoints, serverTheirPts),
       };
 
+      const nextPromptValue = data.newPrompt ?? data.prompt ?? state?.prompt ?? '';
       setState(prev => {
         if (!prev) return null;
-        const nextPrompt = data.prompt ?? prev.prompt;
         const yourPts = Math.max(prev.yourPoints, serverYourPts, lastKnownPointsRef.current.yourPoints);
         const theirPts = Math.max(prev.theirPoints, serverTheirPts, lastKnownPointsRef.current.theirPoints);
         return {
@@ -396,14 +396,14 @@ export default function NeverHaveIEver({
           bothAnswered: roundComplete ? false : !!data.bothAnswered,
           yourPoints: yourPts,
           theirPoints: theirPts,
-          prompt: nextPrompt,
+          prompt: nextPromptValue || prev.prompt,
           gameOver: !!data.gameOver,
           winner: data.winner ?? null,
         };
       });
       // When round completes, server sends the new prompt; always apply so next round shows correctly
-      if (roundComplete && data.prompt != null) setPrompt(data.prompt);
-      else if (data.prompt) setPrompt(data.prompt);
+      if (roundComplete && nextPromptValue) setPrompt(nextPromptValue);
+      else if (nextPromptValue) setPrompt(nextPromptValue);
 
       if (roundComplete) {
         lastRoundCompletedAtRef.current = Date.now();
@@ -414,7 +414,7 @@ export default function NeverHaveIEver({
         }
         setTimeout(() => {
           if (modalVisibleRef.current && !pollRef.current) {
-            pollRef.current = setInterval(() => fetchState(true), 8000);
+            pollRef.current = setInterval(() => fetchState(true), 2000);
           }
         }, 6000);
       }
