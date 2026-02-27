@@ -61,6 +61,15 @@ For accurate distance calculations in matching, set up a  geocoding API key. The
 
 The app will automatically use the best available provider.
 
+### Games: Truth or Dare & Never Have I Ever (unlimited prompt variety)
+
+Truth or Dare and Never Have I Ever use **OpenAI** to generate a **plethora of random prompts** — not a small fixed list. To enable that:
+
+1. Get an API key from [OpenAI](https://platform.openai.com/api-keys).
+2. Add to backend `.env`: `OPENAI_API_KEY=your_key_here`.
+
+With `OPENAI_API_KEY` set, every Truth/Dare and Never Have I Ever prompt is AI-generated for maximum variety. The static prompt arrays in code are **fallbacks only** (used when the key is missing or the API fails).
+
 ### Push notifications (mobile – outside-app)
 
 To get **system** message notifications when the app is in the background or closed:

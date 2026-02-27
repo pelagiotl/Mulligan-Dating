@@ -1,5 +1,7 @@
 /**
- * Never Have I Ever - Game with AI-generated prompts
+ * Never Have I Ever - OpenAI generates a wide variety of unique prompts.
+ * Static FALLBACK_PROMPTS are used ONLY when OPENAI_API_KEY is missing or the API fails.
+ * With the key set, every prompt is AI-generated for maximum variety.
  * First to 10 strikes loses. "I have" = strike.
  */
 
@@ -162,11 +164,11 @@ export async function generateNeverHaveIEverPrompt(matchId: string, spiceLevel: 
       messages: [
         {
           role: 'system',
-          content: `You generate "Never have I ever" prompts for a dating app game. Output ONLY the activity part (the thing after "Never have I ever"), NOT the full phrase. 3-8 words. ${spiceInstruction} Examples for PG-13: "kissed on a first date", "had a crush on a friend". Examples for R: "had a one-night stand", "slept with an ex". Examples for SPICY: "hooked up with someone I just met", "sent a risky text or pic", "slept with someone on the first date", "had a friends-with-benefits situation". Output ONLY the activity, nothing else.`,
+          content: `You generate "Never have I ever" prompts for a dating app game. Output ONLY the activity part (the thing after "Never have I ever"), NOT the full phrase. 3-8 words. ${spiceInstruction} Be creative and varied — we want a plethora of different prompts, not a fixed list. Examples for PG-13: "kissed on a first date", "had a crush on a friend". Examples for R: "had a one-night stand", "slept with an ex". Examples for SPICY: "hooked up with someone I just met", "sent a risky text or pic", "slept with someone on the first date", "had a friends-with-benefits situation". Output ONLY the activity, nothing else.`,
         },
         {
           role: 'user',
-          content: `Generate one unique "Never have I ever" activity for two people playing on a dating app. Spice: ${spiceLevel.toUpperCase()}.${interestsContext} Return ONLY the activity (3-8 words):`,
+          content: `Generate one unique "Never have I ever" activity for two people playing on a dating app. Spice: ${spiceLevel.toUpperCase()}. Be fresh and unexpected.${interestsContext} Return ONLY the activity (3-8 words):`,
         },
       ],
       temperature: 1.0,
