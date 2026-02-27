@@ -19,10 +19,13 @@ The key is **baked into the app at build time**. If you see "Payment not configu
 2. Add secret: **Name** `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY`, **Value** `pk_live_...` or `pk_test_...`
 3. Create a **new** iOS production build and submit to TestFlight (existing installs won’t get the key until you install a build made after the secret was set).
 
-Or use a local `.env` file (for local/Expo Go only; not committed):
-```
-EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
-```
+### Local dev (Expo Go / simulator)
+
+1. In the **mobile** folder, create a file named **`.env`** (copy from **`.env.example`**).
+2. Set the variable **exactly** (no spaces around `=`):  
+   `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_xxxxxxxx`  
+   (Get the key from [Stripe Dashboard → API keys](https://dashboard.stripe.com/apikey).)
+3. **Restart the dev server** after changing `.env` (stop and start `expo start`). Env vars are loaded when the bundler starts.
 
 ## Stripe webhook configuration
 
