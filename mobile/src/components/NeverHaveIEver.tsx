@@ -351,6 +351,18 @@ export default function NeverHaveIEver({
       const { addBreadcrumb, debugLog } = await import('../utils/debugLogger');
       addBreadcrumb('NHIE', 'Submitting answer', { matchId, answer, prevYour: state?.yourPoints, prevTheir: state?.theirPoints });
 
+      // Optimistic update: show +1 point immediately when user taps "I have" so UI never sticks at 0
+      if (answer === 'have' && state) {
+        const nextYour = (state.yourPoints ?? 0) + 1;
+        lastKnownPointsRef.current = {
+          yourPoints: Math.max(lastKnownPointsRef.current.yourPoints, nextYour),
+          theirPoints: lastKnownPointsRef.current.theirPoints,
+        };
+        setState(prev => prev ? { ...prev, yourPoints: nextYour, yourAnswer: 'have' } : null);
+      } else if (answer === 'havent' && state) {
+        setState(prev => prev ? { ...prev, yourAnswer: 'havent' } : null);
+      }
+
       const data = await api.post<any>(`/matches/${matchId}/never-have-i-ever/answer`, { answer });
       const fromRound = data.pointsFromRound as { newYourStrikes?: number; newTheirStrikes?: number } | undefined;
       const serverYourPts = Math.max(
@@ -366,7 +378,7 @@ export default function NeverHaveIEver({
       addBreadcrumb('NHIE', 'Answer response', { serverYourPts, serverTheirPts, roundComplete, bothAnswered: !!data.bothAnswered });
       debugLog('NHIE', 'Answer response full', { yourPoints: data.yourPoints, theirPoints: data.theirPoints, pointsFromRound: data.pointsFromRound, stateYourStrikes: data.yourStrikes, stateTheirStrikes: data.theirStrikes });
 
-      // Always treat server points as source of truth for this response (backend sends updated tally after "I have")
+      // Server is source of truth; never drop below server or our ref (handles stale GET / timing)
       lastKnownPointsRef.current = {
         yourPoints: Math.max(lastKnownPointsRef.current.yourPoints, serverYourPts),
         theirPoints: Math.max(lastKnownPointsRef.current.theirPoints, serverTheirPts),
@@ -375,8 +387,8 @@ export default function NeverHaveIEver({
       setState(prev => {
         if (!prev) return null;
         const nextPrompt = data.prompt ?? prev.prompt;
-        const yourPts = Math.max(prev.yourPoints, serverYourPts);
-        const theirPts = Math.max(prev.theirPoints, serverTheirPts);
+        const yourPts = Math.max(prev.yourPoints, serverYourPts, lastKnownPointsRef.current.yourPoints);
+        const theirPts = Math.max(prev.theirPoints, serverTheirPts, lastKnownPointsRef.current.theirPoints);
         return {
           ...prev,
           yourAnswer: roundComplete ? null : (data.yourAnswer ?? answer),

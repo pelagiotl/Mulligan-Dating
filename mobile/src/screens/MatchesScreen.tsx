@@ -2790,7 +2790,7 @@ export default function MatchesScreen() {
         } else {
           raw = m.otherUser.photoUrl ?? null;
         }
-        if (raw) Image.prefetch(getPhotoUrl(raw));
+        if (raw) Image.prefetch(getPhotoUrl(raw)).catch(() => { /* ignore 404 / failed uploads */ });
       });
 
       // Auto-select match from pending (celebration "Send message") or route params

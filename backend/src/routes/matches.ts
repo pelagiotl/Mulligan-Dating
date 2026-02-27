@@ -1713,7 +1713,7 @@ matchesRouter.post("/:matchId/reset-conversation", authenticateToken, rateLimitA
   }
 });
 
-// Unlock a game (Truth or Dare / Never Have I Ever) by spending 1 Mulligan token - alternative to 10 messages each
+// Unlock a game (Truth or Dare / Never Have I Ever) — free for now (no token spent)
 matchesRouter.post("/:matchId/unlock-game", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
@@ -1738,7 +1738,7 @@ matchesRouter.post("/:matchId/unlock-game", authenticateToken, rateLimitAPI, asy
     const SEVEN_MINUTES_MS = 7 * 60 * 1000;
     const unlockedUntil = new Date(Date.now() + SEVEN_MINUTES_MS);
 
-    // Check if already unlocked and within 7-minute window (idempotent - no token spent)
+    // Check if already unlocked and within 7-minute window (idempotent)
     const existingUnlock = db
       .prepare('SELECT unlocked_until FROM game_unlocks WHERE match_id = ? AND game_type = ?')
       .get([matchId, gameType]) as { unlocked_until: string | null } | undefined;
@@ -1749,19 +1749,7 @@ matchesRouter.post("/:matchId/unlock-game", authenticateToken, rateLimitAPI, asy
       }
     }
 
-    // Spend 1 token
-    let tokensResult = db
-      .prepare('SELECT id FROM mulligan_tokens WHERE user_id = ? AND used_at IS NULL AND returned_at IS NULL ORDER BY granted_at ASC LIMIT 1')
-      .get(userId);
-    if (tokensResult instanceof Promise) tokensResult = await tokensResult;
-    const tokenRow = tokensResult as { id: string } | undefined;
-    if (!tokenRow?.id) {
-      return res.status(400).json({ error: "No tokens available. Claim your weekly token!" });
-    }
-
-    const runUpdate = db.prepare('UPDATE mulligan_tokens SET used_at = CURRENT_TIMESTAMP, match_id = ? WHERE id = ?').run(matchId, tokenRow.id);
-    if (runUpdate instanceof Promise) await runUpdate;
-
+    // Games are free for now — no token spent; just create or extend the unlock record
     if (existingUnlock) {
       // Extend expired unlock with another 7 minutes
       db.prepare('UPDATE game_unlocks SET unlocked_until = ?, unlocked_at = CURRENT_TIMESTAMP WHERE match_id = ? AND game_type = ?')
@@ -1771,12 +1759,16 @@ matchesRouter.post("/:matchId/unlock-game", authenticateToken, rateLimitAPI, asy
         .run([matchId, gameType, userId, unlockedUntil.toISOString()]);
     }
 
-    // Clear previous round's prompt and used-prompt history so both users see choice after unlock
+    // Reset game state so both users see the lobby and must choose PG-13 / R / Spicy again after unlock
     if (gameType === 'truth_or_dare') {
-      db.prepare('UPDATE truth_or_dare_games SET current_prompt = NULL, current_prompt_type = NULL, used_prompts = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run(['[]', matchId]);
+      db.prepare(
+        'UPDATE truth_or_dare_games SET user1_spice_choice = NULL, user2_spice_choice = NULL, spice_level = NULL, current_prompt = NULL, current_prompt_type = NULL, used_prompts = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?'
+      ).run(['[]', matchId]);
     }
     if (gameType === 'never_have_i_ever') {
-      db.prepare('UPDATE never_have_i_ever_games SET current_prompt = NULL, user1_answer = NULL, user2_answer = NULL, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([matchId]);
+      db.prepare(
+        'UPDATE never_have_i_ever_games SET user1_spice_choice = NULL, user2_spice_choice = NULL, spice_level = NULL, current_prompt = NULL, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?'
+      ).run([matchId]);
     }
 
     // When Truth or Dare is unlocked, send a chat message so both see "Truth or Dare is ready!"
@@ -1853,28 +1845,21 @@ matchesRouter.post("/:matchId/game-request", authenticateToken, rateLimitAPI, as
 
     const toUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
 
-    // Unlock the game with User A's token so User B can play without spending a token (same as unlock-game)
+    // Games are free for now — unlock without spending a token (same as unlock-game)
     const SEVEN_MINUTES_MS = 7 * 60 * 1000;
     const unlockedUntil = new Date(Date.now() + SEVEN_MINUTES_MS);
     const existingUnlock = db
       .prepare('SELECT unlocked_until FROM game_unlocks WHERE match_id = ? AND game_type = ?')
       .get([matchId, gameType]) as { unlocked_until: string | null } | undefined;
     if (!existingUnlock) {
-      let tokensResult = db
-        .prepare('SELECT id FROM mulligan_tokens WHERE user_id = ? AND used_at IS NULL AND returned_at IS NULL ORDER BY granted_at ASC LIMIT 1')
-        .get(userId);
-      if (tokensResult instanceof Promise) tokensResult = await tokensResult;
-      const tokenRow = tokensResult as { id: string } | undefined;
-      if (!tokenRow?.id) {
-        return res.status(400).json({ error: "No tokens available. Use a token to invite them to play!" });
-      }
-      const runUpd = db.prepare('UPDATE mulligan_tokens SET used_at = CURRENT_TIMESTAMP, match_id = ? WHERE id = ?').run(matchId, tokenRow.id);
-      if (runUpd instanceof Promise) await runUpd;
       const runIns = db.prepare('INSERT INTO game_unlocks (match_id, game_type, unlocked_by_user_id, unlocked_until) VALUES (?, ?, ?, ?)')
         .run([matchId, gameType, userId, unlockedUntil.toISOString()]);
       if (runIns instanceof Promise) await runIns;
       if (gameType === 'truth_or_dare') {
-        db.prepare('UPDATE truth_or_dare_games SET current_prompt = NULL, current_prompt_type = NULL, used_prompts = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run(['[]', matchId]);
+        db.prepare('UPDATE truth_or_dare_games SET user1_spice_choice = NULL, user2_spice_choice = NULL, spice_level = NULL, current_prompt = NULL, current_prompt_type = NULL, used_prompts = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run(['[]', matchId]);
+      }
+      if (gameType === 'never_have_i_ever') {
+        db.prepare('UPDATE never_have_i_ever_games SET user1_spice_choice = NULL, user2_spice_choice = NULL, spice_level = NULL, current_prompt = NULL, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([matchId]);
       }
       try {
         const { getIO } = await import('../socket.js');
@@ -1887,21 +1872,14 @@ matchesRouter.post("/:matchId/game-request", authenticateToken, rateLimitAPI, as
     } else {
       const until = existingUnlock.unlocked_until ? new Date(existingUnlock.unlocked_until) : null;
       if (until && until <= new Date()) {
-        let tokensResult = db
-          .prepare('SELECT id FROM mulligan_tokens WHERE user_id = ? AND used_at IS NULL AND returned_at IS NULL ORDER BY granted_at ASC LIMIT 1')
-          .get(userId);
-        if (tokensResult instanceof Promise) tokensResult = await tokensResult;
-        const tokenRow = tokensResult as { id: string } | undefined;
-        if (!tokenRow?.id) {
-          return res.status(400).json({ error: "Your game session expired. Use a token to invite them again!" });
-        }
-        const runUpd = db.prepare('UPDATE mulligan_tokens SET used_at = CURRENT_TIMESTAMP, match_id = ? WHERE id = ?').run(matchId, tokenRow.id);
-        if (runUpd instanceof Promise) await runUpd;
         const runExt = db.prepare('UPDATE game_unlocks SET unlocked_until = ?, unlocked_at = CURRENT_TIMESTAMP WHERE match_id = ? AND game_type = ?')
           .run([unlockedUntil.toISOString(), matchId, gameType]);
         if (runExt instanceof Promise) await runExt;
         if (gameType === 'truth_or_dare') {
-          db.prepare('UPDATE truth_or_dare_games SET current_prompt = NULL, current_prompt_type = NULL, used_prompts = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run(['[]', matchId]);
+          db.prepare('UPDATE truth_or_dare_games SET user1_spice_choice = NULL, user2_spice_choice = NULL, spice_level = NULL, current_prompt = NULL, current_prompt_type = NULL, used_prompts = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run(['[]', matchId]);
+        }
+        if (gameType === 'never_have_i_ever') {
+          db.prepare('UPDATE never_have_i_ever_games SET user1_spice_choice = NULL, user2_spice_choice = NULL, spice_level = NULL, current_prompt = NULL, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([matchId]);
         }
         try {
           const { getIO } = await import('../socket.js');
@@ -2418,7 +2396,7 @@ matchesRouter.get("/:matchId/never-have-i-ever", authenticateToken, async (req: 
       unlockedByUserId: unlockRow.unlocked_by_user_id ?? null,
       currentTurnUserId: state.currentTurnUserId ?? null,
       isYourTurn: state.isYourTurn ?? false,
-      // Tally: points = number of "I have" (same as strikes in DB); ensure numbers for client
+      // Tally: points = number of "I have" (same as strikes in DB); coerce to number (PostgreSQL may return strings)
       yourPoints: Math.max(0, Number(state.yourStrikes) || 0),
       theirPoints: Math.max(0, Number(state.theirStrikes) || 0),
     });
@@ -2475,10 +2453,12 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
       newPrompt?: string;
     };
 
-    // When round just completed, use computed points so client always gets correct tally (no DB read timing)
-    const yourPoints = Math.max(0, pointsFromRound ? pointsFromRound.newYourStrikes : (Number(state.yourStrikes) || 0));
-    const theirPoints = Math.max(0, pointsFromRound ? pointsFromRound.newTheirStrikes : (Number(state.theirStrikes) || 0));
-    console.log(`🙊 Never Have I Ever answer: match=${matchId} user=${userId} answer=${answer} bothAnswered=${state.bothAnswered} yourPoints=${yourPoints} theirPoints=${theirPoints} roundJustCompleted=${!!roundResult}`);
+    // Prefer pointsFromRound (single or both answered) so client always gets correct tally; fallback to state
+    const yourPoints = Math.max(0, pointsFromRound != null ? Number(pointsFromRound.newYourStrikes) || 0 : (Number(state.yourStrikes) || 0));
+    const theirPoints = Math.max(0, pointsFromRound != null ? Number(pointsFromRound.newTheirStrikes) || 0 : (Number(state.theirStrikes) || 0));
+    if (process.env.NODE_ENV !== 'test') {
+      console.log(`🙊 Never Have I Ever answer: match=${matchId} user=${userId} answer=${answer} bothAnswered=${state.bothAnswered} yourPoints=${yourPoints} theirPoints=${theirPoints} hasPointsFromRound=${!!pointsFromRound}`);
+    }
 
     try {
       const { getIO } = await import('../socket.js');
@@ -2496,7 +2476,7 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
       theirPoints: Number(theirPoints),
       yourStrikes: Number(yourPoints),
       theirStrikes: Number(theirPoints),
-      ...(pointsFromRound && { pointsFromRound: { newYourStrikes: yourPoints, newTheirStrikes: theirPoints } }),
+      ...(pointsFromRound != null && { pointsFromRound: { newYourStrikes: Number(yourPoints), newTheirStrikes: Number(theirPoints) } }),
       ...(roundResult && { bothAnswered: true }),
       ...(roundResult && (newPrompt ?? state.prompt) != null && { prompt: newPrompt ?? state.prompt }),
       ...(roundResult && completedYourAnswer != null && { yourAnswer: completedYourAnswer }),

@@ -387,12 +387,13 @@ export default function CompatibilityPulse({ matchId, socket, isFocused = true }
         animationType="fade"
         onRequestClose={() => setShowInfoModal(false)}
       >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowInfoModal(false)}
-        >
-          <View style={styles.modalContent} onStartShouldSetResponder={() => true}>
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={styles.modalBackdrop}
+            activeOpacity={1}
+            onPress={() => setShowInfoModal(false)}
+          />
+          <View style={styles.modalContent} pointerEvents="box-none">
             <TouchableOpacity
               onPress={() => setShowInfoModal(false)}
               style={styles.modalCloseButton}
@@ -412,13 +413,12 @@ export default function CompatibilityPulse({ matchId, socket, isFocused = true }
               </LinearGradient>
             </View>
 
-            <View style={styles.modalScrollWrapper}>
-            <ScrollView 
-              style={styles.modalScrollView} 
+            <ScrollView
+              style={styles.modalScrollView}
               contentContainerStyle={styles.modalScrollContent}
               showsVerticalScrollIndicator={true}
               bounces={true}
-              nestedScrollEnabled={true}
+              keyboardShouldPersistTaps="handled"
             >
               <View style={styles.modalBody}>
                 <View style={styles.infoSection}>
@@ -485,9 +485,8 @@ export default function CompatibilityPulse({ matchId, socket, isFocused = true }
                 </View>
               </View>
             </ScrollView>
-            </View>
           </View>
-        </TouchableOpacity>
+        </View>
       </Modal>
     </>
   );
@@ -569,6 +568,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
   modalContent: {
     backgroundColor: '#fff',
     borderRadius: 24,
@@ -583,16 +585,11 @@ const styles = StyleSheet.create({
     elevation: 25,
     overflow: 'hidden',
   },
-  modalScrollWrapper: {
-    flex: 1,
-    minHeight: 0,
-  },
   modalScrollView: {
     flex: 1,
-    minHeight: 0,
   },
   modalScrollContent: {
-    paddingBottom: 24,
+    paddingBottom: 32,
     flexGrow: 1,
   },
   modalCloseButton: {

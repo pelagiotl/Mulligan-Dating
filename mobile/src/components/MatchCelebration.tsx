@@ -170,6 +170,8 @@ export default function MatchCelebration({
   const [showConfetti, setShowConfetti] = useState(false);
   const [showButton, setShowButton] = useState(false);
   const [modalVisible, setModalVisible] = useState(true);
+  /** When true, overlay uses pointerEvents="none" so touches pass through during Keep Browsing transition (avoids freeze) */
+  const [isClosingToBrowse, setIsClosingToBrowse] = useState(false);
   const [confettiParticles] = useState<ConfettiParticle[]>(() => {
     const colors = ['#667eea', '#764ba2', '#a855f7', '#c026d3', '#ec4899', '#f472b6'];
     return Array.from({ length: 80 }, (_, i) => ({
@@ -367,11 +369,11 @@ export default function MatchCelebration({
     try {
       import('../utils/debugLogger').then(({ addBreadcrumb, debugLog }) => {
         addBreadcrumb('MatchCelebration', 'Keep Browsing tapped', { matchId });
-        debugLog('MatchCelebration', 'Keep Browsing flow', { step: 'onClose then navigate' });
+        debugLog('MatchCelebration', 'Keep Browsing flow', { step: 'unblock then navigate then onClose' });
       });
-      // Close immediately so parent unmounts this modal and nothing blocks touches (no delay)
-      onClose();
-      // Navigate on next tick so Browse shows landing; use ref so it works after unmount
+      // Let touches pass through immediately so tab bar and Connect button stay usable (avoids freeze)
+      setIsClosingToBrowse(true);
+      // Next tick: navigate first so Browse receives resetToLanding and hides modal by param, then clear state
       setTimeout(() => {
         import('../utils/debugLogger').then(({ addBreadcrumb }) => {
           addBreadcrumb('MatchCelebration', 'Navigate to Browse', { ready: navigationRef.current?.isReady() });
@@ -386,9 +388,11 @@ export default function MatchCelebration({
         } else {
           navigation.navigate('MainTabs' as never, { screen: 'Browse', params: { resetToLanding: true } } as never);
         }
+        onClose();
       }, 0);
     } catch (error) {
       console.error('❌ Error in handleKeepBrowsing:', error);
+      setIsClosingToBrowse(true);
       onClose();
     }
   };
@@ -441,7 +445,7 @@ export default function MatchCelebration({
       animationType="fade"
       onRequestClose={onClose}
     >
-      <View style={styles.overlay}>
+      <View style={styles.overlay} pointerEvents={isClosingToBrowse ? 'none' : 'auto'}>
         {/* Gradient: app purple → violet → magenta (focused palette) */}
         <LinearGradient
           colors={['#667eea', '#764ba2', '#c026d3']}
