@@ -502,25 +502,25 @@ export default function TruthOrDare({
     if (onUnlockWithToken) {
       Alert.alert(
         '🎲 Truth or Dare',
-        'Use 1 Mulligan token to play Truth or Dare? (Session lasts 7 minutes for both of you.)',
+        '',
         [
           { text: 'Cancel', style: 'cancel' },
           {
-            text: 'Use Token',
+            text: 'Play',
             style: 'default',
             onPress: async () => {
               try {
                 await onUnlockWithToken();
                 handleOpen();
               } catch (e: any) {
-                Alert.alert('Error', e?.message || 'Failed to unlock. You may need more tokens.');
+                Alert.alert('Error', e?.message || 'Failed to open game.');
               }
             },
           },
         ]
       );
     } else {
-      Alert.alert('🎲 Truth or Dare', 'Use a Mulligan token to unlock Truth or Dare for this match.', [{ text: 'Got it', style: 'default' }]);
+      Alert.alert('🎲 Truth or Dare', 'Truth or Dare is not available for this match.', [{ text: 'Got it', style: 'default' }]);
     }
   };
 

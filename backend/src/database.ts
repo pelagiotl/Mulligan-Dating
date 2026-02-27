@@ -507,6 +507,21 @@ export async function initDatabase() {
     )
   `);
 
+  // Reports table - user A reports user B (for moderation)
+  await execSQL(`
+    CREATE TABLE IF NOT EXISTS reports (
+      id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} PRIMARY KEY,
+      reporter_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      reported_user_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      match_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'},
+      reason ${usePostgres ? 'VARCHAR(500)' : 'TEXT'},
+      created_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (reporter_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (reported_user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE SET NULL
+    )
+  `);
+
   // Add last_active_at to users table if it doesn't exist
   try {
     await execSQL(`ALTER TABLE users ADD COLUMN last_active_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'}`);
@@ -606,6 +621,10 @@ export async function initDatabase() {
     // Blocks indexes
     await execSQL(`CREATE INDEX IF NOT EXISTS idx_blocks_blocker_id ON blocks(blocker_id)`);
     await execSQL(`CREATE INDEX IF NOT EXISTS idx_blocks_blocked_id ON blocks(blocked_id)`);
+
+    // Reports indexes
+    await execSQL(`CREATE INDEX IF NOT EXISTS idx_reports_reporter_id ON reports(reporter_id)`);
+    await execSQL(`CREATE INDEX IF NOT EXISTS idx_reports_reported_user_id ON reports(reported_user_id)`);
     
     // Messages indexes
     await execSQL(`CREATE INDEX IF NOT EXISTS idx_messages_match_id ON messages(match_id)`);

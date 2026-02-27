@@ -446,6 +446,11 @@ export async function submitAnswer(
   if (!row || !row.spice_level || !row.current_prompt) {
     return { state: await getGameState(matchId, userId, match) };
   }
+  const alreadyOver =
+    (Number(row.user1_strikes) || 0) >= STRIKES_TO_LOSE || (Number(row.user2_strikes) || 0) >= STRIKES_TO_LOSE;
+  if (alreadyOver) {
+    return { state: await getGameState(matchId, userId, match) };
+  }
 
   const ts = new Date().toISOString();
   if (isUser1) {
@@ -525,6 +530,7 @@ export async function submitAnswer(
   console.log(`🙊 NHIE submitAnswer: match=${matchId} isUser1=${isUser1} answer=${answer} user1Answer=${user1Answer} user2Answer=${user2Answer} bothPresent=${user1Answer != null && user2Answer != null}`);
 
   let roundResult: { youStrike: boolean; themStrike: boolean } | undefined;
+  let generatedNextPrompt: string | undefined;
 
   if (user1Answer !== null && user2Answer !== null) {
     // Points were already added when each user submitted "I have". Here we only clear answers and advance the prompt.
@@ -533,28 +539,43 @@ export async function submitAnswer(
       themStrike: (isUser1 ? user2Answer : user1Answer) === 'have',
     };
 
-    const c1 = row.user1_spice_choice as SpiceLevel | null;
-    const c2 = row.user2_spice_choice as SpiceLevel | null;
-    const effectiveLevel = (c1 && c2 ? moreConservative(c1, c2) : (row.spice_level as SpiceLevel)) || 'pg13';
-    const nextPrompt = await generateNeverHaveIEverPrompt(matchId, effectiveLevel);
-    const runResult = db.prepare(
-      `UPDATE never_have_i_ever_games SET current_prompt = ?, user1_answer = NULL, user2_answer = NULL, updated_at = ? WHERE match_id = ?`
-    ).run([nextPrompt, new Date().toISOString(), matchId]);
-    if (runResult instanceof Promise) await runResult;
+    const s1 = Number(row.user1_strikes) || 0;
+    const s2 = Number(row.user2_strikes) || 0;
+    const gameOver = s1 >= STRIKES_TO_LOSE || s2 >= STRIKES_TO_LOSE;
 
-    // Re-read strikes after round completion so client always gets definitive counts (avoids any read timing)
-    const finalRead = db.prepare('SELECT user1_strikes, user2_strikes FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
-    const finalRow = (finalRead instanceof Promise ? await finalRead : finalRead) as { user1_strikes?: number; user2_strikes?: number } | undefined;
-    if (finalRow) {
+    if (!gameOver) {
+      const c1 = row.user1_spice_choice as SpiceLevel | null;
+      const c2 = row.user2_spice_choice as SpiceLevel | null;
+      const effectiveLevel = (c1 && c2 ? moreConservative(c1, c2) : (row.spice_level as SpiceLevel)) || 'pg13';
+      const nextPrompt = await generateNeverHaveIEverPrompt(matchId, effectiveLevel);
+      generatedNextPrompt = nextPrompt;
+      const runResult = db.prepare(
+        `UPDATE never_have_i_ever_games SET current_prompt = ?, user1_answer = NULL, user2_answer = NULL, updated_at = ? WHERE match_id = ?`
+      ).run([nextPrompt, new Date().toISOString(), matchId]);
+      if (runResult instanceof Promise) await runResult;
+
+      // Re-read strikes after round completion so client always gets definitive counts (avoids any read timing)
+      const finalRead = db.prepare('SELECT user1_strikes, user2_strikes FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
+      const finalRow = (finalRead instanceof Promise ? await finalRead : finalRead) as { user1_strikes?: number; user2_strikes?: number } | undefined;
+      if (finalRow) {
+        pointsAfterRoundComplete = {
+          newYourStrikes: Number(isUser1 ? finalRow.user1_strikes : finalRow.user2_strikes) || 0,
+          newTheirStrikes: Number(isUser1 ? finalRow.user2_strikes : finalRow.user1_strikes) || 0,
+        };
+      }
+    } else {
+      // Game over: don't clear answers or generate next prompt; return current strikes so client shows final score
       pointsAfterRoundComplete = {
-        newYourStrikes: Number(isUser1 ? finalRow.user1_strikes : finalRow.user2_strikes) || 0,
-        newTheirStrikes: Number(isUser1 ? finalRow.user2_strikes : finalRow.user1_strikes) || 0,
+        newYourStrikes: isUser1 ? s1 : s2,
+        newTheirStrikes: isUser1 ? s2 : s1,
       };
     }
   }
 
   const state = await getGameState(matchId, userId, match);
   state.roundResult = roundResult;
+  // When we just generated a new prompt, use it so client always gets it (getGameState may not see it yet in some DBs)
+  if (generatedNextPrompt) state.prompt = generatedNextPrompt;
   const yourAnswerRaw = isUser1 ? user1Answer : user2Answer;
   const theirAnswerRaw = isUser1 ? user2Answer : user1Answer;
   const completedYourAnswer: 'have' | 'havent' | undefined = roundResult && yourAnswerRaw != null ? yourAnswerRaw : undefined;
@@ -562,7 +583,7 @@ export async function submitAnswer(
   const pointsFromRound =
     pointsAfterRoundComplete ?? pointsAfterAnswer ??
     (roundResult ? { newYourStrikes: state.yourStrikes, newTheirStrikes: state.theirStrikes } : undefined);
-  const newPrompt = roundResult ? (state.prompt ?? undefined) : undefined;
+  const newPrompt = generatedNextPrompt ?? (roundResult ? (state.prompt ?? undefined) : undefined);
   return { state, roundResult, completedYourAnswer, completedTheirAnswer, pointsFromRound, newPrompt };
 }
 

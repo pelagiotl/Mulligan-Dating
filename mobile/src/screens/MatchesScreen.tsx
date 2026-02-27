@@ -979,16 +979,21 @@ function EmptyStateAnimated({ navigation }: { navigation: any }) {
 }
 
 // Match Profile Modal Component with Enhanced Animations
+// When noModal is true, renders only the inner content (used inside a parent Modal to avoid double-modal flash)
 function MatchProfileModal({ 
   match, 
   visible, 
   onClose,
   onPhotoPress,
+  onReport,
+  noModal = false,
 }: { 
   match: Match; 
   visible: boolean; 
   onClose: () => void;
   onPhotoPress?: (url: string, allUrls?: string[], index?: number) => void;
+  onReport?: () => void;
+  noModal?: boolean;
 }) {
   const { otherUser } = match;
   const { user } = useAuth();
@@ -1392,13 +1397,7 @@ function MatchProfileModal({
     outputRange: ['0deg', '360deg'],
   });
   
-  return (
-    <Modal
-      visible={visible}
-      animationType="none"
-      transparent={true}
-      onRequestClose={onClose}
-    >
+  const overlayContent = (
       <Animated.View 
         style={[
           styles.modalOverlay,
@@ -1960,9 +1959,35 @@ function MatchProfileModal({
                 </View>
               </Animated.View>
             )}
+
+            {/* Report button */}
+            {onReport && (
+              <Animated.View style={[styles.modalSection, { opacity: contentFade, marginTop: 8, marginBottom: 24 }]}>
+                <TouchableOpacity
+                  onPress={onReport}
+                  style={styles.modalReportButton}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.modalReportButtonText}>🚩 Report</Text>
+                </TouchableOpacity>
+              </Animated.View>
+            )}
           </ScrollView>
         </Animated.View>
       </Animated.View>
+  );
+
+  if (noModal) {
+    return <View style={{ flex: 1 }}>{overlayContent}</View>;
+  }
+  return (
+    <Modal
+      visible={visible}
+      animationType="none"
+      transparent={true}
+      onRequestClose={onClose}
+    >
+      {overlayContent}
     </Modal>
   );
 }
@@ -3318,6 +3343,36 @@ export default function MatchesScreen() {
     );
   }, [selectedMatch]);
 
+  const handleReportMatch = useCallback(() => {
+    if (!selectedMatch) return;
+    const name = selectedMatch.otherUser?.displayName || 'this user';
+    Alert.alert(
+      'Report',
+      `Report ${name}? This will be sent to Mulligan for review.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Report',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.post('/reports', {
+                reportedUserId: selectedMatch.otherUser.userId,
+                matchId: selectedMatch.id,
+              });
+              setShowProfileModal(false);
+              setFullScreenImageUrl(null);
+              setFullScreenPhotoList(null);
+              Alert.alert("Thanks", "We'll look into it.");
+            } catch (e: any) {
+              Alert.alert('Error', e?.message || 'Failed to submit report');
+            }
+          },
+        },
+      ]
+    );
+  }, [selectedMatch]);
+
   // Memoize getMatchPhoto to avoid recalculating
   const getMatchPhoto = useCallback((match: Match) => {
     if (match.stage === 'stage2' && match.otherUser.photos?.length) {
@@ -3844,110 +3899,102 @@ export default function MatchesScreen() {
         </TouchableOpacity>
       </Modal>
 
-      {/* Profile Modal - when user taps photo we close this and show full-screen image so only one modal is visible */}
-      {showProfileModal && selectedMatch && (
-        <MatchProfileModal
-          match={selectedMatch}
-          visible={showProfileModal}
-          onClose={() => {
-            setShowProfileModal(false);
-            setFullScreenImageUrl(null);
-            setFullScreenPhotoList(null);
-          }}
-          onPhotoPress={(url, allUrls, index) => {
-            fullScreenOpenedFromProfileCardRef.current = true;
-            setShowProfileModal(false);
-            setFullScreenImageUrl(url);
-            setFullScreenPhotoList(allUrls && allUrls.length > 1 ? allUrls : null);
-            setFullScreenPhotoIndex(typeof index === 'number' ? index : 0);
-          }}
-        />
-      )}
-
-      {/* Full-screen image viewer - if opened from profile card, tap to close returns to profile card; Level 2: swipe or tap left/right to view all photos */}
+      {/* Single modal: profile card or full-screen image — no switching between modals so no chat flash */}
       <Modal
-        visible={!!fullScreenImageUrl}
+        visible={(showProfileModal && !!selectedMatch) || !!fullScreenImageUrl}
+        animationType="none"
         transparent
-        animationType="fade"
         onRequestClose={() => {
-          const fromProfile = fullScreenOpenedFromProfileCardRef.current;
+          setShowProfileModal(false);
           setFullScreenImageUrl(null);
           setFullScreenPhotoList(null);
-          fullScreenOpenedFromProfileCardRef.current = false;
-          if (fromProfile) setShowProfileModal(true);
         }}
       >
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)' }}>
-          {fullScreenPhotoList && fullScreenPhotoList.length > 1 ? (
-            <>
-              <FlatList
-                data={fullScreenPhotoList}
-                keyExtractor={(uri, idx) => `${idx}-${(uri || '').slice(-20)}`}
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                initialScrollIndex={Math.min(Math.max(0, fullScreenPhotoIndex), fullScreenPhotoList.length - 1)}
-                getItemLayout={(_: any, index: number) => ({
-                  length: windowWidth,
-                  offset: windowWidth * index,
-                  index,
-                })}
-                onMomentumScrollEnd={(e) => {
-                  const idx = Math.round(e.nativeEvent.contentOffset.x / windowWidth);
-                  if (idx >= 0 && idx < fullScreenPhotoList.length) setFullScreenPhotoIndex(idx);
-                }}
-                renderItem={({ item: uri }) => (
-                  <TouchableOpacity
-                    activeOpacity={1}
-                    style={{ width: windowWidth, flex: 1, justifyContent: 'center', alignItems: 'center' }}
-                    onPress={() => {
-                      const fromProfile = fullScreenOpenedFromProfileCardRef.current;
-                      setFullScreenImageUrl(null);
-                      setFullScreenPhotoList(null);
-                      fullScreenOpenedFromProfileCardRef.current = false;
-                      if (fromProfile) setShowProfileModal(true);
-                    }}
-                  >
-                    <OptimizedImage
-                      source={uri}
-                      style={{ width: windowWidth, height: windowHeight * 0.8 }}
-                      resizeMode="contain"
-                      showLoadingIndicator={false}
-                    />
-                  </TouchableOpacity>
-                )}
-              />
-              <View style={{ position: 'absolute', bottom: 40, left: 0, right: 0, alignItems: 'center' }}>
-                <View style={{ backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 }}>
-                  <Text style={{ color: '#fff', fontSize: 14 }}>
-                    {fullScreenPhotoIndex + 1} / {fullScreenPhotoList.length}
-                  </Text>
-                </View>
-              </View>
-            </>
-          ) : (
-            <TouchableOpacity
-              activeOpacity={1}
-              style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
-              onPress={() => {
-                const fromProfile = fullScreenOpenedFromProfileCardRef.current;
-                setFullScreenImageUrl(null);
-                setFullScreenPhotoList(null);
-                fullScreenOpenedFromProfileCardRef.current = false;
-                if (fromProfile) setShowProfileModal(true);
-              }}
-            >
-              {fullScreenImageUrl ? (
-                <OptimizedImage
-                  source={fullScreenImageUrl}
-                  style={{ width: windowWidth, height: windowHeight * 0.8 }}
-                  resizeMode="contain"
-                  showLoadingIndicator={false}
+        {fullScreenImageUrl ? (
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)' }}>
+            {fullScreenPhotoList && fullScreenPhotoList.length > 1 ? (
+              <>
+                <FlatList
+                  data={fullScreenPhotoList}
+                  keyExtractor={(uri, idx) => `${idx}-${(uri || '').slice(-20)}`}
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={false}
+                  initialScrollIndex={Math.min(Math.max(0, fullScreenPhotoIndex), fullScreenPhotoList.length - 1)}
+                  getItemLayout={(_: any, index: number) => ({
+                    length: windowWidth,
+                    offset: windowWidth * index,
+                    index,
+                  })}
+                  onMomentumScrollEnd={(e) => {
+                    const idx = Math.round(e.nativeEvent.contentOffset.x / windowWidth);
+                    if (idx >= 0 && idx < fullScreenPhotoList.length) setFullScreenPhotoIndex(idx);
+                  }}
+                  renderItem={({ item: uri }) => (
+                    <TouchableOpacity
+                      activeOpacity={1}
+                      style={{ width: windowWidth, flex: 1, justifyContent: 'center', alignItems: 'center' }}
+                      onPress={() => {
+                        setFullScreenImageUrl(null);
+                        setFullScreenPhotoList(null);
+                      }}
+                    >
+                      <OptimizedImage
+                        source={uri}
+                        style={{ width: windowWidth, height: windowHeight * 0.8 }}
+                        resizeMode="contain"
+                        showLoadingIndicator={false}
+                      />
+                    </TouchableOpacity>
+                  )}
                 />
-              ) : null}
-            </TouchableOpacity>
-          )}
-        </View>
+                <View style={{ position: 'absolute', bottom: 40, left: 0, right: 0, alignItems: 'center' }}>
+                  <View style={{ backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 }}>
+                    <Text style={{ color: '#fff', fontSize: 14 }}>
+                      {fullScreenPhotoIndex + 1} / {fullScreenPhotoList.length}
+                    </Text>
+                  </View>
+                </View>
+              </>
+            ) : (
+              <TouchableOpacity
+                activeOpacity={1}
+                style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
+                onPress={() => {
+                  setFullScreenImageUrl(null);
+                  setFullScreenPhotoList(null);
+                }}
+              >
+                {fullScreenImageUrl ? (
+                  <OptimizedImage
+                    source={fullScreenImageUrl}
+                    style={{ width: windowWidth, height: windowHeight * 0.8 }}
+                    resizeMode="contain"
+                    showLoadingIndicator={false}
+                  />
+                ) : null}
+              </TouchableOpacity>
+            )}
+          </View>
+        ) : selectedMatch ? (
+          <MatchProfileModal
+            match={selectedMatch}
+            visible={true}
+            noModal
+            onClose={() => {
+              setShowProfileModal(false);
+              setFullScreenImageUrl(null);
+              setFullScreenPhotoList(null);
+            }}
+            onPhotoPress={(url, allUrls, index) => {
+              fullScreenOpenedFromProfileCardRef.current = true;
+              setFullScreenImageUrl(url);
+              setFullScreenPhotoList(allUrls && allUrls.length > 1 ? allUrls : null);
+              setFullScreenPhotoIndex(typeof index === 'number' ? index : 0);
+            }}
+            onReport={handleReportMatch}
+          />
+        ) : null}
       </Modal>
 
       {/* Photo guidelines - shown when user taps camera icon before send photo/video/voice options */}
@@ -5744,6 +5791,20 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     paddingBottom: 40,
+  },
+  modalReportButton: {
+    alignSelf: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(220, 53, 69, 0.12)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(220, 53, 69, 0.4)',
+  },
+  modalReportButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#c82333',
   },
   modalHeader: {
     flexDirection: 'row',

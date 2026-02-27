@@ -445,25 +445,25 @@ export default function NeverHaveIEver({
     if (onUnlockWithToken) {
       Alert.alert(
         '🙊 Never Have I Ever',
-        'Use 1 Mulligan token to play Never Have I Ever?',
+        '',
         [
           { text: 'Cancel', style: 'cancel' },
           {
-            text: 'Use Token',
+            text: 'Play',
             style: 'default',
             onPress: async () => {
               try {
                 await onUnlockWithToken();
                 handleOpen();
               } catch (e: any) {
-                Alert.alert('Error', e?.message || 'Failed to unlock. You may need more tokens.');
+                Alert.alert('Error', e?.message || 'Failed to open game.');
               }
             },
           },
         ]
       );
     } else {
-      Alert.alert('🙊 Never Have I Ever', 'Use a Mulligan token to unlock Never Have I Ever for this match.', [{ text: 'Got it', style: 'default' }]);
+      Alert.alert('🙊 Never Have I Ever', 'Never Have I Ever is not available for this match.', [{ text: 'Got it', style: 'default' }]);
     }
   };
 
@@ -507,7 +507,7 @@ export default function NeverHaveIEver({
               <>
                 {state.gameOver ? (
                   <View style={styles.gameOverContainer}>
-                    <Text style={styles.gameOverTitle}>{state.winner === 'you' ? "You lose!" : "They lose!"}</Text>
+                    <Text style={styles.gameOverTitle}>{state.winner === 'you' ? "You won" : "You're pretty freaky"}</Text>
                     <Text style={styles.gameOverSubtitle}>First to 10 points loses. You: {state.yourPoints} — Them: {state.theirPoints}</Text>
                     <TouchableOpacity onPress={handleRestart} style={styles.restartButton} disabled={submitting} activeOpacity={0.8}>
                       <LinearGradient colors={['#00b894', '#00cec9']} style={styles.restartGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
