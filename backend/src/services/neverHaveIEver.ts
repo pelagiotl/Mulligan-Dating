@@ -508,7 +508,7 @@ export async function submitAnswer(
 
   // If we only see one answer, the other user's update may not be visible yet (commit/timing). Retry with backoff.
   // With PostgreSQL, .get() returns a Promise — must await so we read actual row values.
-  const retryDelays = [80, 180, 350, 600];
+  const retryDelays = [80, 180, 350, 600, 1000, 1500];
   for (const delayMs of retryDelays) {
     if (user1Answer != null && user2Answer != null) break;
     await new Promise((r) => setTimeout(r, delayMs));
@@ -526,7 +526,6 @@ export async function submitAnswer(
       break;
     }
   }
-
   console.log(`🙊 NHIE submitAnswer: match=${matchId} isUser1=${isUser1} answer=${answer} user1Answer=${user1Answer} user2Answer=${user2Answer} bothPresent=${user1Answer != null && user2Answer != null}`);
 
   let roundResult: { youStrike: boolean; themStrike: boolean } | undefined;
@@ -547,7 +546,14 @@ export async function submitAnswer(
       const c1 = row.user1_spice_choice as SpiceLevel | null;
       const c2 = row.user2_spice_choice as SpiceLevel | null;
       const effectiveLevel = (c1 && c2 ? moreConservative(c1, c2) : (row.spice_level as SpiceLevel)) || 'pg13';
-      const nextPrompt = await generateNeverHaveIEverPrompt(matchId, effectiveLevel);
+      let nextPrompt: string;
+      try {
+        nextPrompt = await generateNeverHaveIEverPrompt(matchId, effectiveLevel);
+        if (!nextPrompt || !nextPrompt.trim()) nextPrompt = `Never have I ever ${pickRandom(FALLBACK_PROMPTS)}`;
+      } catch (e) {
+        console.warn('NHIE generate prompt failed, using fallback:', e);
+        nextPrompt = `Never have I ever ${pickRandom(FALLBACK_PROMPTS)}`;
+      }
       generatedNextPrompt = nextPrompt;
       const runResult = db.prepare(
         `UPDATE never_have_i_ever_games SET current_prompt = ?, user1_answer = NULL, user2_answer = NULL, updated_at = ? WHERE match_id = ?`

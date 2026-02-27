@@ -4279,11 +4279,7 @@ export default function MatchesScreen() {
                 style={styles.photoButton}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                {uploadingImage || uploadingVideo || uploadingAudio ? (
-                  <ActivityIndicator size="small" color="#667eea" />
-                ) : (
-                  <Text style={styles.photoButtonIcon}>📷</Text>
-                )}
+                <Text style={[styles.photoButtonIcon, (uploadingImage || uploadingVideo || uploadingAudio) && { opacity: 0.6 }]}>📷</Text>
               </TouchableOpacity>
               <TextInput
                 ref={textInputRef}

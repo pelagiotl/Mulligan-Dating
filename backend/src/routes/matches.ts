@@ -2468,7 +2468,10 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
       console.warn('⚠️  Socket.io not available for Never Have I Ever notification');
     }
 
-    const nextPrompt = (roundResult && (newPrompt ?? state.prompt != null)) ? (newPrompt ?? state.prompt) : undefined;
+    const nextPrompt = roundResult ? (newPrompt ?? state.prompt ?? '') : undefined;
+    if (process.env.NODE_ENV !== 'test' && roundResult) {
+      console.log(`🙊 NHIE round complete: match=${matchId} sending new prompt=${!!nextPrompt} len=${nextPrompt?.length ?? 0}`);
+    }
     res.json({
       ...state,
       roundResult,

@@ -262,18 +262,21 @@ export default function NeverHaveIEver({
   useEffect(() => {
     if (!modalVisible) return;
     const onUpdate = () => {
-      lastRoundCompletedAtRef.current = Date.now();
       api.clearCache(`/matches/${matchId}/never-have-i-ever`);
       if (pollRef.current) {
         clearInterval(pollRef.current);
         pollRef.current = null;
       }
-      fetchState(false);
+      // Short delay so the other user's answer/strike is committed before we refetch (fixes "Them" not updating)
+      setTimeout(() => {
+        lastRoundCompletedAtRef.current = Date.now();
+        fetchState(false);
+      }, 400);
       setTimeout(() => {
         if (modalVisibleRef.current && !pollRef.current) {
           pollRef.current = setInterval(() => fetchState(true), 2000);
         }
-      }, 6000);
+      }, 6400);
     };
     socket?.on?.('never_have_i_ever_updated', onUpdate);
     return () => {
