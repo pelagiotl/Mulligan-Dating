@@ -28,11 +28,15 @@ interface SettingsData {
   lastActiveAt: string | null;
 }
 
+const DEBUG_TAP_COUNT = 7;
+
 export default function SettingsScreen() {
   const { user, logout, refreshProfile } = useAuth();
   const navigation = useNavigation();
   const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
   const [settings, setSettings] = useState<SettingsData | null>(null);
+  const debugTapCountRef = React.useRef(0);
+  const debugTapTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -735,10 +739,33 @@ export default function SettingsScreen() {
       {/* Legal Footer */}
       <LegalFooter />
 
-      {/* App version */}
-      <Text style={styles.versionText}>
-        Version {Constants.expoConfig?.version ?? Constants.manifest?.version ?? '1.0.0'}
-      </Text>
+      {/* App version — tap 7× to toggle Sentry debug logging (see DEBUGGING.md) */}
+      <TouchableOpacity
+        activeOpacity={1}
+        onPress={async () => {
+          debugTapCountRef.current += 1;
+          if (debugTapTimeoutRef.current) clearTimeout(debugTapTimeoutRef.current);
+          if (debugTapCountRef.current >= DEBUG_TAP_COUNT) {
+            debugTapCountRef.current = 0;
+            const { isDebugLoggingEnabled, setDebugLoggingEnabled } = await import('../utils/debugLogger');
+            const currently = await isDebugLoggingEnabled();
+            await setDebugLoggingEnabled(!currently);
+            Alert.alert(
+              'Debug logging',
+              currently
+                ? 'Debug logging for Sentry is now OFF. Detailed flow messages will not be sent.'
+                : 'Debug logging for Sentry is now ON. When issues occur, detailed flow (e.g. NHIE points, Keep Browsing) will appear in Sentry. Tap version 7 times again to disable.',
+              [{ text: 'OK' }]
+            );
+          } else {
+            debugTapTimeoutRef.current = setTimeout(() => { debugTapCountRef.current = 0; }, 2000);
+          }
+        }}
+      >
+        <Text style={styles.versionText}>
+          Version {Constants.expoConfig?.version ?? Constants.manifest?.version ?? '1.0.0'}
+        </Text>
+      </TouchableOpacity>
 
       </ScrollView>
 

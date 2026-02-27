@@ -80,7 +80,10 @@ export function initSentry() {
             message.includes('fetch failed') ||
             message.includes('timeout')
           ) {
-            // Only send if it's a critical network error
+            return null;
+          }
+          // Skip image load failures for /uploads/ URLs (production doesn't serve these; assets should use Cloudinary)
+          if (message.includes('failed to load') && message.includes('uploads')) {
             return null;
           }
         }

@@ -182,6 +182,8 @@ export default function NeverHaveIEver({
       return;
     }
     try {
+      const { addBreadcrumb, debugLog } = await import('../utils/debugLogger');
+      addBreadcrumb('NHIE', 'Fetching state', { matchId, skipIfRecentRound });
       // Never use cache so points/prompt don't revert after both answer
       const data = await api.get<any>(`/matches/${matchId}/never-have-i-ever`, false);
       const fetchedYou = Math.max(0, Number(data.yourPoints ?? data.yourStrikes ?? 0));
@@ -218,6 +220,8 @@ export default function NeverHaveIEver({
         return { ...simple, yourPoints: refYou, theirPoints: refThem };
       });
       setPrompt(simple.prompt || '');
+      addBreadcrumb('NHIE', 'Fetch state received', { fetchedYou: simple.yourPoints, fetchedThem: simple.theirPoints });
+      debugLog('NHIE', 'Fetch state full', { yourPoints: data.yourPoints, theirPoints: data.theirPoints, bothAnswered: !!data.bothAnswered });
     } catch (err) {
       console.warn('Never Have I Ever fetch error:', err);
     }
@@ -344,10 +348,23 @@ export default function NeverHaveIEver({
     if (submitting || state?.yourAnswer != null) return;
     setSubmitting(true);
     try {
+      const { addBreadcrumb, debugLog } = await import('../utils/debugLogger');
+      addBreadcrumb('NHIE', 'Submitting answer', { matchId, answer, prevYour: state?.yourPoints, prevTheir: state?.theirPoints });
+
       const data = await api.post<any>(`/matches/${matchId}/never-have-i-ever/answer`, { answer });
-      const serverYourPts = Math.max(0, Number(data.yourPoints ?? data.yourStrikes ?? 0));
-      const serverTheirPts = Math.max(0, Number(data.theirPoints ?? data.theirStrikes ?? 0));
+      const fromRound = data.pointsFromRound as { newYourStrikes?: number; newTheirStrikes?: number } | undefined;
+      const serverYourPts = Math.max(
+        0,
+        Number(fromRound?.newYourStrikes ?? data.yourPoints ?? data.yourStrikes ?? 0)
+      );
+      const serverTheirPts = Math.max(
+        0,
+        Number(fromRound?.newTheirStrikes ?? data.theirPoints ?? data.theirStrikes ?? 0)
+      );
       const roundComplete = !!data.bothAnswered || !!data.roundJustCompleted;
+
+      addBreadcrumb('NHIE', 'Answer response', { serverYourPts, serverTheirPts, roundComplete, bothAnswered: !!data.bothAnswered });
+      debugLog('NHIE', 'Answer response full', { yourPoints: data.yourPoints, theirPoints: data.theirPoints, pointsFromRound: data.pointsFromRound, stateYourStrikes: data.yourStrikes, stateTheirStrikes: data.theirStrikes });
 
       // Always treat server points as source of truth for this response (backend sends updated tally after "I have")
       lastKnownPointsRef.current = {

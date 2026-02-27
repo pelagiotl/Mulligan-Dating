@@ -488,6 +488,7 @@ export async function submitAnswer(
         newTheirStrikes: Number(isUser1 ? readAfter.user2_strikes : readAfter.user1_strikes) || 0,
       }
     : undefined;
+  let pointsAfterRoundComplete: { newYourStrikes: number; newTheirStrikes: number } | undefined;
 
   let rowAfter = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
   row = (rowAfter instanceof Promise ? await rowAfter : rowAfter) as GameRow;
@@ -540,6 +541,16 @@ export async function submitAnswer(
       `UPDATE never_have_i_ever_games SET current_prompt = ?, user1_answer = NULL, user2_answer = NULL, updated_at = ? WHERE match_id = ?`
     ).run([nextPrompt, new Date().toISOString(), matchId]);
     if (runResult instanceof Promise) await runResult;
+
+    // Re-read strikes after round completion so client always gets definitive counts (avoids any read timing)
+    const finalRead = db.prepare('SELECT user1_strikes, user2_strikes FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
+    const finalRow = (finalRead instanceof Promise ? await finalRead : finalRead) as { user1_strikes?: number; user2_strikes?: number } | undefined;
+    if (finalRow) {
+      pointsAfterRoundComplete = {
+        newYourStrikes: Number(isUser1 ? finalRow.user1_strikes : finalRow.user2_strikes) || 0,
+        newTheirStrikes: Number(isUser1 ? finalRow.user2_strikes : finalRow.user1_strikes) || 0,
+      };
+    }
   }
 
   const state = await getGameState(matchId, userId, match);
@@ -548,9 +559,8 @@ export async function submitAnswer(
   const theirAnswerRaw = isUser1 ? user2Answer : user1Answer;
   const completedYourAnswer: 'have' | 'havent' | undefined = roundResult && yourAnswerRaw != null ? yourAnswerRaw : undefined;
   const completedTheirAnswer: 'have' | 'havent' | undefined = roundResult && theirAnswerRaw != null ? theirAnswerRaw : undefined;
-  // Prefer points we read right after our update so client always gets latest tally (pointsAfterAnswer); else when round completed use state
   const pointsFromRound =
-    pointsAfterAnswer ??
+    pointsAfterRoundComplete ?? pointsAfterAnswer ??
     (roundResult ? { newYourStrikes: state.yourStrikes, newTheirStrikes: state.theirStrikes } : undefined);
   const newPrompt = roundResult ? (state.prompt ?? undefined) : undefined;
   return { state, roundResult, completedYourAnswer, completedTheirAnswer, pointsFromRound, newPrompt };

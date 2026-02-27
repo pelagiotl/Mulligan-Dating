@@ -365,29 +365,28 @@ export default function MatchCelebration({
   /** Navigate to Connect (Browse) tab landing page and close the celebration — used by "Keep Browsing" */
   const handleKeepBrowsing = () => {
     try {
-      // Hide modal first so native layer dismisses and no longer blocks tab bar / Connect button
-      setModalVisible(false);
-      const doCloseAndNavigate = () => {
-        onClose();
-        const doNavigate = () => {
-          if (navigationRef.current?.isReady()) {
-            navigationRef.current.dispatch(
-              CommonActions.navigate({
-                name: 'MainTabs',
-                params: { screen: 'Browse', params: { resetToLanding: true } },
-              })
-            );
-          } else {
-            navigation.navigate('MainTabs' as never, { screen: 'Browse', params: { resetToLanding: true } } as never);
-          }
-        };
-        if (typeof requestAnimationFrame !== 'undefined') {
-          requestAnimationFrame(() => setTimeout(doNavigate, 50));
+      import('../utils/debugLogger').then(({ addBreadcrumb, debugLog }) => {
+        addBreadcrumb('MatchCelebration', 'Keep Browsing tapped', { matchId });
+        debugLog('MatchCelebration', 'Keep Browsing flow', { step: 'onClose then navigate' });
+      });
+      // Close immediately so parent unmounts this modal and nothing blocks touches (no delay)
+      onClose();
+      // Navigate on next tick so Browse shows landing; use ref so it works after unmount
+      setTimeout(() => {
+        import('../utils/debugLogger').then(({ addBreadcrumb }) => {
+          addBreadcrumb('MatchCelebration', 'Navigate to Browse', { ready: navigationRef.current?.isReady() });
+        });
+        if (navigationRef.current?.isReady()) {
+          navigationRef.current.dispatch(
+            CommonActions.navigate({
+              name: 'MainTabs',
+              params: { screen: 'Browse', params: { resetToLanding: true } },
+            })
+          );
         } else {
-          setTimeout(doNavigate, 50);
+          navigation.navigate('MainTabs' as never, { screen: 'Browse', params: { resetToLanding: true } } as never);
         }
-      };
-      setTimeout(doCloseAndNavigate, 220);
+      }, 0);
     } catch (error) {
       console.error('❌ Error in handleKeepBrowsing:', error);
       onClose();

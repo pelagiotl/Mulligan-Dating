@@ -59,9 +59,9 @@ tokensRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
       ? await tokensResult
       : tokensResult as TokenRow[];
 
-    // Count available tokens (granted but not used, and not returned)
-    // Don't cap here - show actual count (the cap is enforced when claiming)
-    const availableTokens = tokens.filter((t: TokenRow) => !t.used_at && !t.returned_at).length;
+    // Count available tokens (granted but not used, and not returned). Cap at 7 for display.
+    const rawAvailable = tokens.filter((t: TokenRow) => !t.used_at && !t.returned_at).length;
+    const availableTokens = Math.min(rawAvailable, 7);
 
     // Check if user can claim weekly (7 days since last weekly claim)
     const weeklyTokens = tokens.filter((t: TokenRow) => !t.source || t.source === 'weekly');
@@ -210,26 +210,36 @@ tokensRouter.post("/check-returns", authenticateToken, async (req: AuthRequest, 
   }
 });
 
-// Grant a free token (for development/testing - bypasses weekly limit)
+// Grant a free token (for development/testing - bypasses weekly limit, still capped at 7 total)
 tokensRouter.post("/grant-free", authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
 
-    // Grant new token without restrictions
+    const allTokensResult = db
+      .prepare(`SELECT * FROM mulligan_tokens WHERE user_id = ? ORDER BY granted_at DESC`)
+      .all([userId]);
+    const allTokens = (allTokensResult instanceof Promise ? await allTokensResult : allTokensResult) as TokenRow[];
+    const availableTokens = allTokens.filter((t: TokenRow) => !t.used_at && !t.returned_at).length;
+
+    if (availableTokens >= 7) {
+      return res.status(400).json({
+        error: "You already have 7 tokens (the maximum). Use some before claiming more.",
+      });
+    }
+
     const tokenId = uuidv4();
     const insertResult = db.prepare(
       `INSERT INTO mulligan_tokens (id, user_id, source) VALUES (?, ?, 'dev')`
     ).run([tokenId, userId]);
-    
-    // Handle both sync (SQLite) and async (PostgreSQL)
+
     if (insertResult instanceof Promise) {
       await insertResult;
     }
 
-    res.json({ 
-      message: "Free token granted!", 
+    res.json({
+      message: "Free token granted!",
       tokenId,
-      note: "This is a development token (bypasses weekly limit)"
+      note: "This is a development token (bypasses weekly limit)",
     });
   } catch (error) {
     console.error('Tokens grant-free error:', error);

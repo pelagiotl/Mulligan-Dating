@@ -735,15 +735,27 @@ adminRouter.post('/users/:id/grant-tokens', authenticateToken, requireAdmin, asy
     const userId = req.params.id;
     const { count } = req.body;
 
-    const tokenCount = parseInt(count) || 1;
-    if (tokenCount < 1 || tokenCount > 100) {
+    const requested = parseInt(count) || 1;
+    if (requested < 1 || requested > 100) {
       return res.status(400).json({ error: 'Token count must be between 1 and 100' });
+    }
+
+    const tokensResult = await (db.prepare(`
+      SELECT * FROM mulligan_tokens WHERE user_id = ? AND used_at IS NULL AND returned_at IS NULL
+    `).all([userId]) as Promise<any[]>);
+    const availableTokens = tokensResult?.length ?? 0;
+    const tokensToGrant = Math.min(requested, Math.max(0, 7 - availableTokens));
+
+    if (tokensToGrant <= 0) {
+      return res.status(400).json({
+        error: `User already has ${availableTokens} tokens (max 7). Cannot grant more.`,
+      });
     }
 
     const now = new Date().toISOString();
     let tokensGranted = 0;
 
-    for (let i = 0; i < tokenCount; i++) {
+    for (let i = 0; i < tokensToGrant; i++) {
       const tokenId = uuidv4();
       const tokenStmt = db.prepare('INSERT INTO mulligan_tokens (id, user_id, granted_at, source) VALUES (?, ?, ?, ?)');
       await (tokenStmt.run([tokenId, userId, now, 'admin_grant']) as Promise<any>);
@@ -751,8 +763,8 @@ adminRouter.post('/users/:id/grant-tokens', authenticateToken, requireAdmin, asy
     }
 
     res.json({
-      message: `Granted ${tokensGranted} token(s)`,
-      tokensGranted
+      message: `Granted ${tokensGranted} token(s) (capped at 7 max; user had ${availableTokens})`,
+      tokensGranted,
     });
   } catch (error: any) {
     console.error('Error granting tokens:', error);
@@ -769,12 +781,11 @@ adminRouter.post('/grant-tokens-by-phone', authenticateToken, requireAdmin, asyn
       return res.status(400).json({ error: 'Phone number is required' });
     }
 
-    const count = parseInt(tokenCount) || 10;
-    if (count < 1 || count > 100) {
+    const requested = parseInt(tokenCount) || 10;
+    if (requested < 1 || requested > 100) {
       return res.status(400).json({ error: 'Token count must be between 1 and 100' });
     }
 
-    // Find user by phone number
     const userStmt = db.prepare('SELECT id FROM users WHERE phone_number = ?');
     const user = await (userStmt.get([phoneNumber]) as Promise<{ id: string } | undefined>);
 
@@ -782,29 +793,34 @@ adminRouter.post('/grant-tokens-by-phone', authenticateToken, requireAdmin, asyn
       return res.status(404).json({ error: 'User not found with that phone number' });
     }
 
+    const tokensResult = await (db.prepare(`
+      SELECT * FROM mulligan_tokens WHERE user_id = ? AND used_at IS NULL AND returned_at IS NULL
+    `).all([user.id]) as Promise<any[]>);
+    const availableTokens = tokensResult?.length ?? 0;
+    const tokensToGrant = Math.min(requested, Math.max(0, 7 - availableTokens));
+
+    if (tokensToGrant <= 0) {
+      return res.status(400).json({
+        error: `User already has ${availableTokens} tokens (max 7). Cannot grant more.`,
+      });
+    }
+
     const now = new Date().toISOString();
     let tokensGranted = 0;
 
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < tokensToGrant; i++) {
       const tokenId = uuidv4();
       const tokenStmt = db.prepare('INSERT INTO mulligan_tokens (id, user_id, granted_at, source) VALUES (?, ?, ?, ?)');
       await (tokenStmt.run([tokenId, user.id, now, 'admin_grant']) as Promise<any>);
       tokensGranted++;
     }
 
-    // Get total available tokens
-    const totalStmt = db.prepare(`
-      SELECT COUNT(*) as count 
-      FROM mulligan_tokens 
-      WHERE user_id = ? AND used_at IS NULL
-    `);
-    const totalResult = await (totalStmt.get([user.id]) as Promise<{ count: number } | undefined>);
-    const totalAvailableTokens = totalResult?.count || 0;
+    const totalAvailableTokens = availableTokens + tokensGranted;
 
     res.json({
-      message: `Granted ${tokensGranted} token(s)`,
+      message: `Granted ${tokensGranted} token(s) (capped at 7 max)`,
       tokensGranted,
-      totalAvailableTokens
+      totalAvailableTokens,
     });
   } catch (error: any) {
     console.error('Error granting tokens by phone:', error);

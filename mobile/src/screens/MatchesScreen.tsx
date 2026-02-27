@@ -1786,16 +1786,16 @@ function MatchProfileModal({
                   colors={['#4facfe', '#00f2fe']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
-                  style={styles.modalInfoCardFullGradient}
+                  style={[styles.modalInfoCardFullGradient, { marginTop: 10, marginBottom: 0 }]}
                 >
                   <Text style={styles.modalInfoCardEmoji}>📍</Text>
                   <Text style={styles.modalInfoLabel}>Location</Text>
                   <Text style={styles.modalInfoValueFull}>{otherUser.location}</Text>
                 </LinearGradient>
               )}
-              
+
               {otherUser.bio && (
-                <View style={styles.modalBioCard}>
+                <View style={[styles.modalBioCard, { marginTop: 10 }]}>
                   <LinearGradient
                     colors={['rgba(102, 126, 234, 0.1)', 'rgba(118, 75, 162, 0.1)']}
                     start={{ x: 0, y: 0 }}
@@ -1816,7 +1816,7 @@ function MatchProfileModal({
                   colors={['#fa709a', '#fee140']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
-                  style={styles.modalInfoCardFullGradient}
+                  style={[styles.modalInfoCardFullGradient, { marginTop: 10 }]}
                 >
                   <Text style={styles.modalInfoCardEmoji}>💝</Text>
                   <Text style={styles.modalInfoLabel}>Looking for</Text>
