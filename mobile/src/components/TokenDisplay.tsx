@@ -508,7 +508,7 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
     if (!publishableKey || !publishableKey.startsWith('pk_')) {
       Alert.alert(
         'Payment Not Configured',
-        'Stripe is not configured. Please set EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY in your environment.'
+        'Stripe is not configured. Set EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY in your app build: EAS Secrets (expo.dev → project → Secrets) or mobile/.env, then create a new build. Backend (Render) env does not apply to the app.'
       );
       return;
     }
