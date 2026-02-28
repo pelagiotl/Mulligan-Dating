@@ -1722,7 +1722,7 @@ export default function BrowseScreen() {
                     setCurrentProfile(null);
                     setHasMore(true);
                   },
-                  successMessage: "Congrats! You've been officially reupped and are ready to start matching! 🎉",
+                  successMessage: "Congrats! You've been officially reupped and are ready to start matching! 🤑",
                 });
               }}
               onPressIn={() => {
@@ -1742,7 +1742,7 @@ export default function BrowseScreen() {
                   },
                 ]}
               >
-                <Text style={styles.claimTokenText}>✨ Claim your 7 tokens!</Text>
+                <Text style={styles.claimTokenText}>Claim your Mulligans 😉</Text>
               </Animated.View>
             </TouchableOpacity>
           )}

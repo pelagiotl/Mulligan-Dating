@@ -267,16 +267,20 @@ export default function NeverHaveIEver({
         clearInterval(pollRef.current);
         pollRef.current = null;
       }
-      // Short delay so the other user's answer/strike is committed before we refetch (fixes "Them" not updating)
+      // Delay so the other user's answer/strike (and any new prompt) is committed before we refetch (fixes "Them" not updating)
+      const refetchDelayMs = 700;
       setTimeout(() => {
-        lastRoundCompletedAtRef.current = Date.now();
         fetchState(false);
-      }, 400);
+      }, refetchDelayMs);
+      // Second refetch in case of DB/network timing so "Them" and new prompt reliably appear
+      setTimeout(() => {
+        fetchState(false);
+      }, refetchDelayMs + 800);
       setTimeout(() => {
         if (modalVisibleRef.current && !pollRef.current) {
           pollRef.current = setInterval(() => fetchState(true), 2000);
         }
-      }, 6400);
+      }, refetchDelayMs + 3000);
     };
     socket?.on?.('never_have_i_ever_updated', onUpdate);
     return () => {

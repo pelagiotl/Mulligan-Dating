@@ -437,7 +437,7 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
           const result = await api.post<{ message: string; tokensGranted: number }>('/tokens/claim', {});
           api.clearCache('/tokens');
           await fetchTokens();
-          const msg = opts?.successMessage ?? `You've been reupped. Cool 😏`;
+          const msg = opts?.successMessage ?? `You've been reupped. Cool 🤑`;
           setReupCelebration({ message: msg, onSuccess: opts?.onSuccess });
         } catch (err: any) {
           const errorMessage = err?.message || 'Failed to claim tokens. Please try again.';
