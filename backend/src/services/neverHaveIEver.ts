@@ -557,6 +557,9 @@ export async function submitAnswer(
         nextPrompt = `Never have I ever ${pickRandom(FALLBACK_PROMPTS)}`;
       }
       generatedNextPrompt = nextPrompt;
+      if (process.env.NODE_ENV !== 'test') {
+        console.log(`🙊 NHIE submitAnswer: both answered, generated new prompt for match=${matchId} promptLen=${nextPrompt.length}`);
+      }
       const runResult = db.prepare(
         `UPDATE never_have_i_ever_games SET current_prompt = ?, user1_answer = NULL, user2_answer = NULL, updated_at = ? WHERE match_id = ?`
       ).run([nextPrompt, new Date().toISOString(), matchId]);

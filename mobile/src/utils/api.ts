@@ -236,6 +236,9 @@ async function request<T = any>(endpoint: string, options: RequestOptions = {}, 
       if (data.tokensNeeded !== undefined) {
         (apiError as any).tokensNeeded = data.tokensNeeded;
       }
+      if (data.details && typeof data.details === 'string') {
+        (apiError as any).details = data.details;
+      }
       throw apiError;
     }
 

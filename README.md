@@ -70,6 +70,26 @@ Truth or Dare and Never Have I Ever use **OpenAI** to generate a **plethora of r
 
 With `OPENAI_API_KEY` set, every Truth/Dare and Never Have I Ever prompt is AI-generated for maximum variety. The static prompt arrays in code are **fallbacks only** (used when the key is missing or the API fails).
 
+### Never Have I Ever – debugging if "Them" or new prompt still fail
+
+- **Mobile (Metro / dev):** In development builds, open the app and the Metro/terminal console. You’ll see:
+  - `[NHIE] Socket never_have_i_ever_updated received` – when the other user’s action triggers the socket (includes `hasNewPrompt`, `roundComplete`).
+  - `[NHIE] Applying new prompt from socket` – when we show the next round’s prompt from the socket.
+  - `[NHIE] Fetch state result` – after each refetch (`yourPoints`, `theirPoints`, `bothAnswered`, `promptLen`). If "Them" stays 0, check whether refetches return `theirPoints: 0` (backend/DB) or the socket never fires (socket/room).
+- **Backend (Render logs):** In your Render service logs, look for:
+  - `🙊 NHIE submitAnswer: both answered, generated new prompt` – confirms the backend generated and saved the new prompt when the second user answered.
+  - `🙊 NHIE emit: match=... hasNewPrompt=true roundComplete=true` – confirms the backend sent the new prompt in the socket. If this appears but the other device doesn’t show the prompt, the issue is on the client (socket not received or not in room).
+- **Sentry:** Enable "Debug logging" (Settings → tap version 7×). NHIE breadcrumbs and debug messages will then be attached to Sentry events so you can see the flow in production.
+
+### Scaling (500 → thousands → millions)
+
+Current settings target **500–1000 concurrent users** on a single Render backend (e.g. Standard 2GB/1 CPU) and a Postgres plan that allows at least ~30 connections:
+
+- **API rate limit:** 1200 requests per 15 minutes per IP in production (~80/min per IP). Each user on their own IP gets that bucket; users on shared WiFi share one.
+- **DB pool:** 30 connections per Node process in production. Your database plan’s `max_connections` must be higher than 30 (e.g. Render Postgres paid tiers).
+
+For **thousands to hundreds of thousands** of users you’ll need: multiple backend instances (horizontal scaling), a connection pooler in front of Postgres (e.g. PgBouncer), CDN for assets, and higher DB/Redis limits. For **millions**, add read replicas, caching (Redis), and consider breaking out heavy features (e.g. AI, search) into separate services.
+
 ### Push notifications (mobile – outside-app)
 
 To get **system** message notifications when the app is in the background or closed:

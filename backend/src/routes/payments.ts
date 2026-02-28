@@ -109,10 +109,16 @@ paymentsRouter.post("/create-intent", authenticateToken, rateLimitAPI, async (re
       tokensToGrant,
     });
   } catch (error: any) {
-    console.error("Payment intent creation error:", error);
-    res.status(500).json({ 
+    const message = error?.message ?? String(error);
+    const code = error?.code ?? error?.type;
+    console.error("Payment intent creation error:", { message, code, stack: error?.stack });
+    // Hint for common mistake: using publishable key (pk_) on backend instead of secret key (sk_)
+    const hint = message?.toLowerCase?.().includes('api key') || code === 'invalid_request_error'
+      ? " Check that STRIPE_SECRET_KEY on the backend is your secret key (sk_live_...), not the publishable key (pk_live_...)."
+      : "";
+    res.status(500).json({
       error: "Failed to create payment intent",
-      details: error.message 
+      details: message + hint,
     });
   }
 });

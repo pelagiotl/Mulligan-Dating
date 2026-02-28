@@ -265,9 +265,11 @@ export default function SettingsScreen() {
       }, 1500);
     } catch (err: any) {
       console.error('Purchase error:', err);
+      const details = err?.details ?? '';
       const errorMessage = err?.message || 'Failed to process purchase. Please try again.';
+      const displayMessage = details ? `${errorMessage}\n\n${details}` : errorMessage;
       setError(errorMessage);
-      Alert.alert('Purchase Failed', errorMessage);
+      Alert.alert('Purchase Failed', displayMessage);
     } finally {
       setPurchasing(false);
     }

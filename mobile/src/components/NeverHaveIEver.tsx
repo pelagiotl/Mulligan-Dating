@@ -222,6 +222,14 @@ export default function NeverHaveIEver({
       setPrompt(simple.prompt || '');
       addBreadcrumb('NHIE', 'Fetch state received', { fetchedYou: simple.yourPoints, fetchedThem: simple.theirPoints });
       debugLog('NHIE', 'Fetch state full', { yourPoints: data.yourPoints, theirPoints: data.theirPoints, bothAnswered: !!data.bothAnswered });
+      if (__DEV__) {
+        console.log('[NHIE] Fetch state result', {
+          yourPoints: simple.yourPoints,
+          theirPoints: simple.theirPoints,
+          bothAnswered: !!data.bothAnswered,
+          promptLen: (simple.prompt || '').length,
+        });
+      }
     } catch (err) {
       console.warn('Never Have I Ever fetch error:', err);
     }
@@ -261,26 +269,37 @@ export default function NeverHaveIEver({
 
   useEffect(() => {
     if (!modalVisible) return;
-    const onUpdate = () => {
-      api.clearCache(`/matches/${matchId}/never-have-i-ever`);
-      if (pollRef.current) {
-        clearInterval(pollRef.current);
-        pollRef.current = null;
+    const onUpdate = (payload: { matchId?: string; newPrompt?: string; roundComplete?: boolean } = {}) => {
+      if (__DEV__) {
+        console.log('[NHIE] Socket never_have_i_ever_updated received', {
+          matchId: payload?.matchId,
+          hasNewPrompt: !!(payload?.newPrompt),
+          roundComplete: payload?.roundComplete,
+        });
       }
-      // Delay so the other user's answer/strike (and any new prompt) is committed before we refetch (fixes "Them" not updating)
-      const refetchDelayMs = 700;
-      setTimeout(() => {
-        fetchState(false);
-      }, refetchDelayMs);
-      // Second refetch in case of DB/network timing so "Them" and new prompt reliably appear
-      setTimeout(() => {
-        fetchState(false);
-      }, refetchDelayMs + 800);
-      setTimeout(() => {
-        if (modalVisibleRef.current && !pollRef.current) {
-          pollRef.current = setInterval(() => fetchState(true), 2000);
-        }
-      }, refetchDelayMs + 3000);
+      const { addBreadcrumb } = require('../utils/debugLogger');
+      addBreadcrumb('NHIE', 'Socket never_have_i_ever_updated', {
+        hasNewPrompt: !!(payload?.newPrompt),
+        roundComplete: payload?.roundComplete,
+      });
+      api.clearCache(`/matches/${matchId}/never-have-i-ever`);
+      // If round just completed, other user sent us the new prompt — show it immediately so next round appears
+      if (payload.newPrompt && payload.roundComplete) {
+        if (__DEV__) console.log('[NHIE] Applying new prompt from socket (round complete)');
+        setPrompt(payload.newPrompt);
+        setState(prev => prev ? {
+          ...prev,
+          prompt: payload.newPrompt!,
+          yourAnswer: null,
+          theirAnswer: null,
+          bothAnswered: false,
+        } : null);
+      }
+      // Keep polling running (don't clear interval) so "Them" points keep updating every 2s
+      // Plus staggered refetches so we get updated points soon after the other user submits
+      setTimeout(() => fetchState(false), 400);
+      setTimeout(() => fetchState(false), 1000);
+      setTimeout(() => fetchState(false), 2000);
     };
     socket?.on?.('never_have_i_ever_updated', onUpdate);
     return () => {

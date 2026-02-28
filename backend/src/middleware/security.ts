@@ -26,10 +26,10 @@ const signupLimiter = RateLimiterMemory ? new RateLimiterMemory({
   blockDuration: process.env.NODE_ENV === 'production' ? 60 : 5, // 1 min in prod, 5 sec in dev
 }) : null;
 
-// Rate limiter for general API endpoints
-// Increased limit for profile operations (multiple requests during profile creation)
+// Rate limiter for general API endpoints (per IP; authenticated routes see high traffic per user)
+// Set high enough for 500–1000 concurrent users: many IPs get their own bucket; shared IPs (e.g. office WiFi) share one.
 const apiLimiter = RateLimiterMemory ? new RateLimiterMemory({
-  points: 200, // 200 requests (increased to handle profile creation with multiple steps)
+  points: process.env.NODE_ENV === 'production' ? 1200 : 200, // 1200 req/15 min per IP in prod (~80/min) for launch; 200 in dev
   duration: 900, // per 15 minutes
 }) : null;
 

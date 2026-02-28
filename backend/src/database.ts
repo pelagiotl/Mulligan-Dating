@@ -37,6 +37,8 @@ if (usePostgres) {
   pgPool = new Pool({
     connectionString,
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+    // Support 500–1000 concurrent users: pool allows more in-flight DB ops (default is 10). Keep below your DB plan's max_connections.
+    max: process.env.NODE_ENV === 'production' ? 30 : 10,
   });
   
   // Test connection
