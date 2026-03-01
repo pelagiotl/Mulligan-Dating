@@ -2382,7 +2382,22 @@ matchesRouter.get("/:matchId/never-have-i-ever", authenticateToken, async (req: 
       return res.status(400).json({ error: "Never Have I Ever must be unlocked with a Mulligan token to play." });
     }
 
-    const { getGameState } = await import('../services/neverHaveIEver.js');
+    const { getGameState, completeRoundIfBothAnswered } = await import('../services/neverHaveIEver.js');
+    // If both answered but POST didn't complete (e.g. concurrent requests), complete the round here so next poll returns new prompt
+    const roundCompleted = await completeRoundIfBothAnswered(matchId);
+    if (roundCompleted.completed && roundCompleted.newPrompt) {
+      try {
+        const { getIO } = await import('../socket.js');
+        const io = getIO();
+        if (io) {
+          io.to(`match:${matchId}`).emit('never_have_i_ever_updated', {
+            matchId,
+            newPrompt: roundCompleted.newPrompt,
+            roundComplete: true,
+          });
+        }
+      } catch (_) {}
+    }
     const state = await getGameState(matchId, userId, match);
 
     if (state.phase === 'playing') {

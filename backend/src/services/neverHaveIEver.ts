@@ -329,6 +329,52 @@ export async function getGameState(
   };
 }
 
+/**
+ * If both users have answered (row has both user1_answer and user2_answer), complete the round:
+ * generate new prompt and clear answers. Used by GET so that when POST didn't see both (e.g. concurrent requests),
+ * the next poll completes the round and returns the new prompt.
+ * Returns { completed: true, newPrompt } if we ran the update; { completed: false } otherwise.
+ */
+export async function completeRoundIfBothAnswered(matchId: string): Promise<{ completed: boolean; newPrompt?: string }> {
+  const rowResult = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
+  const row = (rowResult instanceof Promise ? await rowResult : rowResult) as GameRow | undefined;
+  if (!row || !row.spice_level || !row.current_prompt) return { completed: false };
+
+  let a1 = (row.user1_answer ?? null) as string | null;
+  let a2 = (row.user2_answer ?? null) as string | null;
+  if (typeof a1 === 'string') a1 = a1.trim().toLowerCase();
+  if (typeof a2 === 'string') a2 = a2.trim().toLowerCase();
+  const bothSet = (a1 === 'have' || a1 === 'havent') && (a2 === 'have' || a2 === 'havent');
+  if (!bothSet) return { completed: false };
+
+  const s1 = Number(row.user1_strikes) || 0;
+  const s2 = Number(row.user2_strikes) || 0;
+  if (s1 >= STRIKES_TO_LOSE || s2 >= STRIKES_TO_LOSE) return { completed: false };
+
+  const c1 = row.user1_spice_choice as SpiceLevel | null;
+  const c2 = row.user2_spice_choice as SpiceLevel | null;
+  const effectiveLevel = (c1 && c2 ? moreConservative(c1, c2) : (row.spice_level as SpiceLevel)) || 'pg13';
+  let nextPrompt: string;
+  try {
+    nextPrompt = await generateNeverHaveIEverPrompt(matchId, effectiveLevel);
+    if (!nextPrompt || !nextPrompt.trim()) nextPrompt = `Never have I ever ${pickRandom(FALLBACK_PROMPTS)}`;
+  } catch (e) {
+    console.warn('NHIE completeRoundIfBothAnswered: generate failed', e);
+    nextPrompt = `Never have I ever ${pickRandom(FALLBACK_PROMPTS)}`;
+  }
+
+  const ts = new Date().toISOString();
+  const updateSql = `UPDATE never_have_i_ever_games SET current_prompt = ?, user1_answer = NULL, user2_answer = NULL, updated_at = ? WHERE match_id = ? AND user1_answer IS NOT NULL AND user2_answer IS NOT NULL`;
+  const runResult = db.prepare(updateSql).run([nextPrompt, ts, matchId]);
+  const resolved = runResult instanceof Promise ? await runResult : runResult;
+  const changed = (resolved as { changes?: number }).changes !== undefined && (resolved as { changes: number }).changes > 0;
+
+  if (changed && process.env.NODE_ENV !== 'test') {
+    console.log(`🙊 NHIE completeRoundIfBothAnswered: match=${matchId} completed round, newPromptLen=${nextPrompt.length}`);
+  }
+  return changed ? { completed: true, newPrompt: nextPrompt } : { completed: false };
+}
+
 export async function setSpiceChoice(
   matchId: string,
   userId: string,
