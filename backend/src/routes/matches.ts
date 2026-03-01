@@ -545,41 +545,39 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
       try {
         const userGeo = await geocodeLocation(userLoc);
         const targetGeo = await geocodeLocation(targetLoc);
-        if (!userGeo.coordinates || !targetGeo.coordinates) {
-          return res.status(400).json({
-            error: "We couldn't verify distance between you. Please check that both profiles have a valid location (e.g. City, State).",
-            code: "DISTANCE_VERIFICATION_FAILED",
-          });
-        }
-        const distanceMiles = calculateDistanceMiles(userGeo.coordinates, targetGeo.coordinates);
-        if (initiatorMaxDist != null && distanceMiles > initiatorMaxDist) {
-          if (process.env.NODE_ENV !== "test") {
-            console.log(`🙅 Connect blocked: distance ${distanceMiles.toFixed(1)} mi > initiator max ${initiatorMaxDist} (initiator=${userId} target=${targetUserId})`);
+        if (userGeo.coordinates && targetGeo.coordinates) {
+          const distanceMiles = calculateDistanceMiles(userGeo.coordinates, targetGeo.coordinates);
+          if (initiatorMaxDist != null && distanceMiles > initiatorMaxDist) {
+            if (process.env.NODE_ENV !== "test") {
+              console.log(`🙅 Connect blocked: distance ${distanceMiles.toFixed(1)} mi > initiator max ${initiatorMaxDist} (initiator=${userId} target=${targetUserId})`);
+            }
+            return res.status(400).json({
+              error: "This person is outside your distance preference. Update your max distance in Profile to connect.",
+              code: "DISTANCE_EXCEEDS_YOUR_MAX",
+              distanceMiles: Math.round(distanceMiles * 10) / 10,
+              yourMaxMiles: initiatorMaxDist,
+            });
           }
-          return res.status(400).json({
-            error: "This person is outside your distance preference. Update your max distance in Profile to connect.",
-            code: "DISTANCE_EXCEEDS_YOUR_MAX",
-            distanceMiles: Math.round(distanceMiles * 10) / 10,
-            yourMaxMiles: initiatorMaxDist,
-          });
-        }
-        if (targetMaxDist != null && distanceMiles > targetMaxDist) {
-          if (process.env.NODE_ENV !== "test") {
-            console.log(`🙅 Connect blocked: distance ${distanceMiles.toFixed(1)} mi > target max ${targetMaxDist} (initiator=${userId} target=${targetUserId})`);
+          if (targetMaxDist != null && distanceMiles > targetMaxDist) {
+            if (process.env.NODE_ENV !== "test") {
+              console.log(`🙅 Connect blocked: distance ${distanceMiles.toFixed(1)} mi > target max ${targetMaxDist} (initiator=${userId} target=${targetUserId})`);
+            }
+            return res.status(400).json({
+              error: "You're outside this person's distance preference. They only connect with people closer to them.",
+              code: "DISTANCE_EXCEEDS_THEIR_MAX",
+              distanceMiles: Math.round(distanceMiles * 10) / 10,
+              theirMaxMiles: targetMaxDist,
+            });
           }
-          return res.status(400).json({
-            error: "You're outside this person's distance preference. They only connect with people closer to them.",
-            code: "DISTANCE_EXCEEDS_THEIR_MAX",
-            distanceMiles: Math.round(distanceMiles * 10) / 10,
-            theirMaxMiles: targetMaxDist,
-          });
+        } else {
+          // Geocoding didn't return coordinates for one or both (API limit, format, or provider down). Allow connect so we don't block users.
+          if (process.env.NODE_ENV !== "test") {
+            console.warn(`📷 Distance check skipped: could not geocode one or both locations. userLoc="${userLoc}" → ${userGeo.coordinates ? "OK" : "no coords"}, targetLoc="${targetLoc}" → ${targetGeo.coordinates ? "OK" : "no coords"}. Allowing connect.`);
+          }
         }
       } catch (err) {
-        console.warn("Connect distance check failed:", err);
-        return res.status(400).json({
-          error: "We couldn't verify distance right now. Please try again in a moment.",
-          code: "DISTANCE_VERIFICATION_FAILED",
-        });
+        console.warn("Connect distance check failed (allowing connect):", err);
+        // Don't block on geocoding errors (network, rate limit, etc.)
       }
     }
 
@@ -774,7 +772,7 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
           console.warn('⚠️  Socket.io not initialized, skipping in-app notifications');
         }
 
-        const { sendMatchPushNotification } = await import('../services/pushNotifications.js');
+        const { sendMatchPushNotification, isPushNotificationConfigured, isExpoPushToken } = await import('../services/pushNotifications.js');
         const userPushRow = (await (db
           .prepare("SELECT push_token, push_notify_matches FROM users WHERE id = ?")
           .get([userId]) as Promise<{ push_token: string | null; push_notify_matches: number | null } | undefined>)) as { push_token: string | null; push_notify_matches: number | null } | undefined;
@@ -785,22 +783,33 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
         const userWantsMatchPush = userPushRow?.push_notify_matches === undefined || userPushRow?.push_notify_matches === null || userPushRow.push_notify_matches !== 0;
         const targetWantsMatchPush = targetPushRow?.push_notify_matches === undefined || targetPushRow?.push_notify_matches === null || targetPushRow.push_notify_matches !== 0;
 
-        if (targetPushRow?.push_token && targetWantsMatchPush) {
-          await sendMatchPushNotification(
-            targetPushRow.push_token,
-            userDisplayName?.display_name || 'Someone',
-            matchId
-          );
-          console.log(`✅ Sent match push to ${targetUserId} (User B)`);
+        if (!isPushNotificationConfigured()) {
+          console.warn('📲 Match push skipped: Expo push not configured. Set EXPO_ACCESS_TOKEN in environment (required for Android/iOS delivery).');
         }
-        if (userPushRow?.push_token && userWantsMatchPush) {
-          await sendMatchPushNotification(
-            userPushRow.push_token,
-            targetDisplayName?.display_name || 'Someone',
-            matchId
-          );
-          console.log(`✅ Sent match push to ${userId} (User A)`);
-        }
+
+        const sendMatchPushTo = async (recipientId: string, token: string | null, wants: boolean, matchName: string, label: string) => {
+          if (!token || !token.trim()) {
+            console.log(`📲 Match push skipped for ${recipientId} (${label}): no push token — user should open app, allow notifications, and ensure token is saved.`);
+            return;
+          }
+          if (!wants) {
+            console.log(`📲 Match push skipped for ${recipientId} (${label}): match notifications disabled.`);
+            return;
+          }
+          if (!isExpoPushToken(token)) {
+            console.warn(`📲 Match push skipped for ${recipientId} (${label}): invalid Expo token format (prefix ExponentPushToken[...]).`);
+            return;
+          }
+          const sent = await sendMatchPushNotification(token, matchName, matchId);
+          if (sent) {
+            console.log(`✅ Sent match push to ${recipientId} (${label})`);
+          } else {
+            console.warn(`📲 Match push failed for ${recipientId} (${label}): send returned false. Check logs above for Expo/Android errors.`);
+          }
+        };
+
+        await sendMatchPushTo(targetUserId, targetPushRow?.push_token ?? null, targetWantsMatchPush, userDisplayName?.display_name || 'Someone', 'target');
+        await sendMatchPushTo(userId, userPushRow?.push_token ?? null, userWantsMatchPush, targetDisplayName?.display_name || 'Someone', 'initiator');
       } catch (notifErr) {
         console.warn('⚠️  Match notifications failed (non-critical):', notifErr);
       }
