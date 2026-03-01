@@ -5,6 +5,7 @@ import { authenticateToken, AuthRequest } from "../middleware/auth.js";
 import { generateWeeklyMatches, generateMatchExplanation, calculateProfileCompatibilityScore } from "../services/matching.js";
 import { recordSuccessSignal } from "../utils/successTracking.js";
 import { rateLimitAPI } from "../middleware/security.js";
+import { geocodeLocation, calculateDistanceMiles } from "../utils/geocoding.js";
 import { uploadChatImage, uploadChatVideo, uploadChatAudio } from "../middleware/upload.js";
 import { uploadToCloudinary, uploadToCloudinaryMedia, isCloudinaryConfigured } from "../services/cloudinary.js";
 
@@ -521,6 +522,64 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
         }
       } catch (_) {
         // Invalid JSON, allow connect (fail open)
+      }
+    }
+
+    // Enforce both users' max distance: do not create a match if either is outside the other's distance preference.
+    // Uses same data as Edit Profile: profiles.location and preferences.max_distance (PUT /profile and PUT /profile/preferences).
+    const userProfileLocResult = db.prepare("SELECT location FROM profiles WHERE id = ?").get([userProfile.id]);
+    const userProfileLoc = (userProfileLocResult instanceof Promise ? await userProfileLocResult : userProfileLocResult) as { location: string | null } | undefined;
+    const targetProfileLocResult = db.prepare("SELECT location FROM profiles WHERE id = ?").get([targetProfile.id]);
+    const targetProfileLoc = (targetProfileLocResult instanceof Promise ? await targetProfileLocResult : targetProfileLocResult) as { location: string | null } | undefined;
+    const userPrefsDistResult = db.prepare("SELECT max_distance FROM preferences WHERE profile_id = ?").get([userProfile.id]);
+    const userPrefsDist = (userPrefsDistResult instanceof Promise ? await userPrefsDistResult : userPrefsDistResult) as { max_distance: number | null } | undefined;
+    const targetPrefsDistResult = db.prepare("SELECT max_distance FROM preferences WHERE profile_id = ?").get([targetProfile.id]);
+    const targetPrefsDist = (targetPrefsDistResult instanceof Promise ? await targetPrefsDistResult : targetPrefsDistResult) as { max_distance: number | null } | undefined;
+
+    const userLoc = userProfileLoc?.location?.trim() || null;
+    const targetLoc = targetProfileLoc?.location?.trim() || null;
+    const initiatorMaxDist = userPrefsDist?.max_distance != null ? Number(userPrefsDist.max_distance) : null;
+    const targetMaxDist = targetPrefsDist?.max_distance != null ? Number(targetPrefsDist.max_distance) : null;
+
+    if (userLoc && targetLoc) {
+      try {
+        const userGeo = await geocodeLocation(userLoc);
+        const targetGeo = await geocodeLocation(targetLoc);
+        if (!userGeo.coordinates || !targetGeo.coordinates) {
+          return res.status(400).json({
+            error: "We couldn't verify distance between you. Please check that both profiles have a valid location (e.g. City, State).",
+            code: "DISTANCE_VERIFICATION_FAILED",
+          });
+        }
+        const distanceMiles = calculateDistanceMiles(userGeo.coordinates, targetGeo.coordinates);
+        if (initiatorMaxDist != null && distanceMiles > initiatorMaxDist) {
+          if (process.env.NODE_ENV !== "test") {
+            console.log(`🙅 Connect blocked: distance ${distanceMiles.toFixed(1)} mi > initiator max ${initiatorMaxDist} (initiator=${userId} target=${targetUserId})`);
+          }
+          return res.status(400).json({
+            error: "This person is outside your distance preference. Update your max distance in Profile to connect.",
+            code: "DISTANCE_EXCEEDS_YOUR_MAX",
+            distanceMiles: Math.round(distanceMiles * 10) / 10,
+            yourMaxMiles: initiatorMaxDist,
+          });
+        }
+        if (targetMaxDist != null && distanceMiles > targetMaxDist) {
+          if (process.env.NODE_ENV !== "test") {
+            console.log(`🙅 Connect blocked: distance ${distanceMiles.toFixed(1)} mi > target max ${targetMaxDist} (initiator=${userId} target=${targetUserId})`);
+          }
+          return res.status(400).json({
+            error: "You're outside this person's distance preference. They only connect with people closer to them.",
+            code: "DISTANCE_EXCEEDS_THEIR_MAX",
+            distanceMiles: Math.round(distanceMiles * 10) / 10,
+            theirMaxMiles: targetMaxDist,
+          });
+        }
+      } catch (err) {
+        console.warn("Connect distance check failed:", err);
+        return res.status(400).json({
+          error: "We couldn't verify distance right now. Please try again in a moment.",
+          code: "DISTANCE_VERIFICATION_FAILED",
+        });
       }
     }
 
