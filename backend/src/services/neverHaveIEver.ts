@@ -440,6 +440,13 @@ export async function completeRoundIfBothAnswered(matchId: string): Promise<{ co
   if (changed && process.env.NODE_ENV !== 'test') {
     console.log(`🙊 NHIE completeRoundIfBothAnswered: match=${matchId} completed round, newPromptLen=${nextPrompt.length}`);
   }
+  if (changed) {
+    try {
+      const { getIO } = await import('../socket.js');
+      const io = getIO();
+      if (io) io.to(`match:${matchId}`).emit('never_have_i_ever_updated', { matchId, newPrompt: nextPrompt, roundComplete: true });
+    } catch (_) {}
+  }
   return changed ? { completed: true, newPrompt: nextPrompt } : { completed: false };
 }
 
@@ -568,6 +575,20 @@ export async function submitAnswer(
     return { state: await getGameState(matchId, userId, match) };
   }
 
+  // If both answers are already set (stale round never completed), complete it first so we can set our answer
+  let u1 = (row.user1_answer ?? null) as string | null;
+  let u2 = (row.user2_answer ?? null) as string | null;
+  if (typeof u1 === 'string') u1 = u1.trim().toLowerCase();
+  if (typeof u2 === 'string') u2 = u2.trim().toLowerCase();
+  const bothSet = (u1 === 'have' || u1 === 'havent') && (u2 === 'have' || u2 === 'havent');
+  if (bothSet) {
+    const completed = await completeRoundIfBothAnswered(matchId);
+    if (completed.completed) {
+      const rowResult2 = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
+      row = (rowResult2 instanceof Promise ? await rowResult2 : rowResult2) as GameRow | undefined;
+    }
+  }
+
   const ts = new Date().toISOString();
   // Only set answer when currently null/empty (idempotent: double-tap or double request won't add points)
   const setAnswerSql = isUser1
@@ -581,7 +602,9 @@ export async function submitAnswer(
     if (process.env.NODE_ENV !== 'test') {
       console.log(`🙊 NHIE submitAnswer: answer already set for this user (match=${matchId} isUser1=${isUser1}), returning without updating`);
     }
-    return { state: await getGameState(matchId, userId, match) };
+    const state = await getGameState(matchId, userId, match);
+    const pts = { newYourStrikes: Number(isUser1 ? row.user1_strikes : row.user2_strikes) || 0, newTheirStrikes: Number(isUser1 ? row.user2_strikes : row.user1_strikes) || 0 };
+    return { state, pointsFromRound: pts };
   }
 
   // Add a point only when we actually set the answer (first time only)
