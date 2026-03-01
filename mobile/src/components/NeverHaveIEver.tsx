@@ -83,6 +83,7 @@ export default function NeverHaveIEver({
   const [submitting, setSubmitting] = useState(false);
   const [prompt, setPrompt] = useState('');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const waitingForOtherPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastRoundCompletedAtRef = useRef<number>(0);
   const lastKnownPointsRef = useRef<{ yourPoints: number; theirPoints: number }>({ yourPoints: 0, theirPoints: 0 });
   const modalVisibleRef = useRef(false);
@@ -210,8 +211,13 @@ export default function NeverHaveIEver({
         const recentRound = Date.now() - lastRoundCompletedAtRef.current < 6000;
         const fetchedZero = simple.yourPoints === 0 && simple.theirPoints === 0;
         const refHasPoints = lastKnownPointsRef.current.yourPoints > 0 || lastKnownPointsRef.current.theirPoints > 0;
-        // Don't overwrite yourAnswer with null from a stale GET — once user has answered this prompt, keep it until round completes (bothAnswered = server cleared for next round)
-        const keptYourAnswer = simple.bothAnswered ? (simple.yourAnswer ?? null) : (simple.yourAnswer ?? prev?.yourAnswer ?? null);
+        // Don't overwrite yourAnswer with null from a stale GET — until round completes (server clears answers or sends bothAnswered).
+        // Round complete = server has yourAnswer null and a *new* prompt (cleared for next round), or bothAnswered true
+        const serverClearedForNextRound = simple.yourAnswer === null && (simple.prompt?.trim() ?? '') !== '' && (prev?.yourAnswer != null) && simple.prompt !== (prev?.prompt ?? '');
+        const keptYourAnswer = simple.bothAnswered || serverClearedForNextRound
+          ? (simple.yourAnswer ?? null)
+          : (simple.yourAnswer ?? prev?.yourAnswer ?? null);
+        if (simple.bothAnswered || serverClearedForNextRound) lastRoundCompletedAtRef.current = Date.now();
         const merged = { ...simple, yourAnswer: keptYourAnswer, theirPoints: simple.theirPoints, yourPoints: simple.yourPoints };
         if (recentRound && fetchedZero && refHasPoints) {
           return { ...merged, yourPoints: lastKnownPointsRef.current.yourPoints, theirPoints: lastKnownPointsRef.current.theirPoints };
@@ -315,9 +321,28 @@ export default function NeverHaveIEver({
     };
   }, [modalVisible, socket, fetchState]);
 
+  // When we've selected but the other hasn't, poll every 1.5s so we catch round-complete from GET (fallback if socket misses)
+  useEffect(() => {
+    if (!modalVisible || state?.bothAnswered || state?.yourAnswer == null) return;
+    const id = setInterval(() => fetchState(false), 1500);
+    waitingForOtherPollRef.current = id;
+    const stop = setTimeout(() => {
+      if (waitingForOtherPollRef.current === id) {
+        clearInterval(waitingForOtherPollRef.current);
+        waitingForOtherPollRef.current = null;
+      }
+    }, 20000);
+    return () => {
+      clearInterval(id);
+      clearTimeout(stop);
+      if (waitingForOtherPollRef.current === id) waitingForOtherPollRef.current = null;
+    };
+  }, [modalVisible, state?.yourAnswer, state?.bothAnswered, fetchState]);
+
   useEffect(() => {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
+      if (waitingForOtherPollRef.current) clearInterval(waitingForOtherPollRef.current);
     };
   }, []);
 

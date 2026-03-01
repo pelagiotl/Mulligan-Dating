@@ -487,8 +487,8 @@ export async function submitAnswer(
     : undefined;
   let pointsAfterRoundComplete: { newYourStrikes: number; newTheirStrikes: number } | undefined;
 
-  // Give the other user's connection time to commit so we see both answers (cross-connection visibility)
-  await new Promise((r) => setTimeout(r, 200));
+  // Give the other user's connection time to commit so we see both answers (cross-connection / replica visibility)
+  await new Promise((r) => setTimeout(r, 500));
 
   let rowAfter = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
   row = (rowAfter instanceof Promise ? await rowAfter : rowAfter) as GameRow;
@@ -501,9 +501,8 @@ export async function submitAnswer(
   if (user1Answer !== 'have' && user1Answer !== 'havent') user1Answer = null;
   if (user2Answer !== 'have' && user2Answer !== 'havent') user2Answer = null;
 
-  // If we only see one answer, the other user's update may not be visible yet (commit/timing). Retry with backoff.
-  // With PostgreSQL, .get() returns a Promise — must await so we read actual row values.
-  const retryDelays = [100, 250, 500, 800, 1200, 2000, 3000];
+  // If we only see one answer, the other user's update may not be visible yet (commit/replica timing). Retry with backoff.
+  const retryDelays = [150, 350, 600, 1000, 1500, 2500, 4000, 6000, 8000];
   for (const delayMs of retryDelays) {
     if (user1Answer != null && user2Answer != null) break;
     await new Promise((r) => setTimeout(r, delayMs));
