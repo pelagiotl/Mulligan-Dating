@@ -2433,6 +2433,10 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
       return res.status(400).json({ error: "Never Have I Ever must be unlocked with a Mulligan token to play." });
     }
 
+    if (process.env.NODE_ENV !== 'test') {
+      console.log(`🙊 NHIE POST answer: match=${matchId} userId=${userId} answer=${answer}`);
+    }
+
     const { submitAnswer, submitTurnAnswer } = await import('../services/neverHaveIEver.js');
     const rowResult = db.prepare('SELECT spice_level, current_prompt, current_turn_user_id FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
     const row = (rowResult instanceof Promise ? await rowResult : rowResult) as { spice_level: string | null; current_prompt: string | null; current_turn_user_id: string | null } | undefined;

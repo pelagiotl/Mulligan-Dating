@@ -464,6 +464,9 @@ export async function submitAnswer(
   const answerWasSet = (runResult as { changes?: number }).changes !== undefined && (runResult as { changes: number }).changes > 0;
 
   if (!answerWasSet) {
+    if (process.env.NODE_ENV !== 'test') {
+      console.log(`🙊 NHIE submitAnswer: answer already set for this user (match=${matchId} isUser1=${isUser1}), returning without updating`);
+    }
     return { state: await getGameState(matchId, userId, match) };
   }
 
@@ -518,6 +521,25 @@ export async function submitAnswer(
     if (user1Answer != null && user2Answer != null) {
       row = rowRetry;
       break;
+    }
+  }
+  // One final wait and read in case of replica lag
+  if (user1Answer == null || user2Answer == null) {
+    await new Promise((r) => setTimeout(r, 2000));
+    const finalRead = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
+    const finalRow = (finalRead instanceof Promise ? await finalRead : finalRead) as GameRow | undefined;
+    if (finalRow) {
+      let r1 = (finalRow.user1_answer ?? null) as string | null;
+      let r2 = (finalRow.user2_answer ?? null) as string | null;
+      if (typeof r1 === 'string') r1 = r1.trim().toLowerCase();
+      if (typeof r2 === 'string') r2 = r2.trim().toLowerCase();
+      const f1 = (r1 === 'have' || r1 === 'havent' ? r1 : null) as 'have' | 'havent' | null;
+      const f2 = (r2 === 'have' || r2 === 'havent' ? r2 : null) as 'have' | 'havent' | null;
+      if (f1 != null && f2 != null) {
+        user1Answer = f1;
+        user2Answer = f2;
+        row = finalRow;
+      }
     }
   }
   const raw1 = (row as GameRow)?.user1_answer;
