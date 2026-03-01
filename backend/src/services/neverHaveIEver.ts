@@ -737,6 +737,27 @@ export async function submitAnswer(
     }
   }
 
+  // Fallback: if we didn't see both answers in our retry loop (e.g. PostgreSQL read visibility / timing),
+  // try completing the round once more so at least one request returns roundComplete + newPrompt.
+  if (!roundResult && (user1Answer == null || user2Answer == null)) {
+    const completed = await completeRoundIfBothAnswered(matchId);
+    if (completed.completed && completed.newPrompt) {
+      generatedNextPrompt = completed.newPrompt;
+      roundResult = { youStrike: answer === 'have', themStrike: false };
+      const finalRead = db.prepare('SELECT user1_strikes, user2_strikes FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
+      const finalRow = (finalRead instanceof Promise ? await finalRead : finalRead) as { user1_strikes?: number; user2_strikes?: number } | undefined;
+      if (finalRow) {
+        pointsAfterRoundComplete = {
+          newYourStrikes: Number(isUser1 ? finalRow.user1_strikes : finalRow.user2_strikes) || 0,
+          newTheirStrikes: Number(isUser1 ? finalRow.user2_strikes : finalRow.user1_strikes) || 0,
+        };
+      }
+      if (process.env.NODE_ENV !== 'test') {
+        console.log(`🙊 NHIE submitAnswer: fallback completeRoundIfBothAnswered completed round match=${matchId}`);
+      }
+    }
+  }
+
   const state = await getGameState(matchId, userId, match);
   state.roundResult = roundResult;
   // When we just generated a new prompt, use it so client always gets it (getGameState may not see it yet in some DBs)

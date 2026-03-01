@@ -2384,7 +2384,13 @@ matchesRouter.get("/:matchId/never-have-i-ever", authenticateToken, async (req: 
 
     const { getGameState } = await import('../services/neverHaveIEver.js');
     // Complete round inside the same read when we see both answers (getGameState emits socket when it completes)
-    const state = await getGameState(matchId, userId, match, { completeRoundIfBothAnswered: true });
+    let state = await getGameState(matchId, userId, match, { completeRoundIfBothAnswered: true });
+    // If we're in playing but didn't see both, a second read after a short delay may see them (e.g. PostgreSQL visibility)
+    if (state.phase === 'playing' && !state.bothAnswered) {
+      await new Promise((r) => setTimeout(r, 400));
+      const retryState = await getGameState(matchId, userId, match, { completeRoundIfBothAnswered: true });
+      if (retryState.bothAnswered || (retryState.prompt && retryState.prompt !== state.prompt)) state = retryState;
+    }
 
     if (state.phase === 'playing') {
       console.log(`🙊 Never Have I Ever GET state: match=${matchId} yourStrikes=${state.yourStrikes} theirStrikes=${state.theirStrikes} bothAnswered=${state.bothAnswered} promptLen=${state.prompt?.length ?? 0}`);
