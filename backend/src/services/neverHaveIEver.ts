@@ -224,10 +224,13 @@ export interface GameState {
   isYourTurn?: boolean;
 }
 
+export type GetGameStateOptions = { completeRoundIfBothAnswered?: boolean };
+
 export async function getGameState(
   matchId: string,
   userId: string,
-  match: { user1_id: string; user2_id: string }
+  match: { user1_id: string; user2_id: string },
+  options?: GetGameStateOptions
 ): Promise<GameState> {
   const isUser1 = userId === match.user1_id;
 
@@ -282,8 +285,12 @@ export async function getGameState(
 
   const yourStrikes = Number(isUser1 ? row.user1_strikes : row.user2_strikes) || 0;
   const theirStrikes = Number(isUser1 ? row.user2_strikes : row.user1_strikes) || 0;
-  const yourAnswer = (isUser1 ? row.user1_answer : row.user2_answer) as 'have' | 'havent' | null;
-  const theirAnswer = (isUser1 ? row.user2_answer : row.user1_answer) as 'have' | 'havent' | null;
+  let yourAnswer = (isUser1 ? row.user1_answer : row.user2_answer) as 'have' | 'havent' | null;
+  let theirAnswer = (isUser1 ? row.user2_answer : row.user1_answer) as 'have' | 'havent' | null;
+  if (typeof yourAnswer === 'string') yourAnswer = yourAnswer.trim().toLowerCase() as 'have' | 'havent';
+  if (typeof theirAnswer === 'string') theirAnswer = theirAnswer.trim().toLowerCase() as 'have' | 'havent';
+  if (yourAnswer !== 'have' && yourAnswer !== 'havent') yourAnswer = null;
+  if (theirAnswer !== 'have' && theirAnswer !== 'havent') theirAnswer = null;
 
   const bothAnswered = yourAnswer !== null && theirAnswer !== null;
   const gameOver = yourStrikes >= STRIKES_TO_LOSE || theirStrikes >= STRIKES_TO_LOSE;
@@ -292,8 +299,62 @@ export async function getGameState(
     winner = theirStrikes >= STRIKES_TO_LOSE ? 'you' : 'them';
   }
 
-  let prompt = row.current_prompt?.trim() || '';
   const level = (spiceLevel || row.spice_level || 'pg13') as SpiceLevel;
+
+  // Complete the round in this same read when GET asks for it: we already see both answers, so no second-read race
+  if (options?.completeRoundIfBothAnswered && bothAnswered && !gameOver) {
+    let nextPrompt: string;
+    try {
+      nextPrompt = await generateNeverHaveIEverPrompt(matchId, level);
+      if (!nextPrompt?.trim()) nextPrompt = `Never have I ever ${pickRandom(FALLBACK_PROMPTS)}`;
+    } catch (e) {
+      console.warn('NHIE getGameState complete round: generate failed', e);
+      nextPrompt = `Never have I ever ${pickRandom(FALLBACK_PROMPTS)}`;
+    }
+    const ts = new Date().toISOString();
+    const updateSql = `UPDATE never_have_i_ever_games SET current_prompt = ?, user1_answer = NULL, user2_answer = NULL, updated_at = ? WHERE match_id = ? AND user1_answer IS NOT NULL AND user2_answer IS NOT NULL`;
+    const runResult = db.prepare(updateSql).run([nextPrompt, ts, matchId]);
+    const resolved = runResult instanceof Promise ? await runResult : runResult;
+    const changed = (resolved as { changes?: number }).changes !== undefined && (resolved as { changes: number }).changes > 0;
+    if (changed && process.env.NODE_ENV !== 'test') {
+      console.log(`🙊 NHIE getGameState: completed round match=${matchId} newPromptLen=${nextPrompt.length}`);
+    }
+    // Re-read so we return state with new prompt and cleared answers; emit so other client gets new prompt
+    const reread = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
+    const rowAfter = (reread instanceof Promise ? await reread : reread) as GameRow | undefined;
+    if (rowAfter && changed) {
+      const newPromptVal = rowAfter.current_prompt?.trim() || nextPrompt;
+      try {
+        const { getIO } = await import('../socket.js');
+        const io = getIO();
+        if (io) {
+          io.to(`match:${matchId}`).emit('never_have_i_ever_updated', { matchId, newPrompt: newPromptVal, roundComplete: true });
+        }
+      } catch (_) {}
+      return {
+        prompt: newPromptVal,
+        yourStrikes,
+        theirStrikes,
+        yourAnswer: null,
+        theirAnswer: null,
+        bothAnswered: false,
+        gameOver,
+        winner,
+        phase: 'playing',
+        yourSpiceChoice: yourSpiceChoice || null,
+        theirSpiceChoice: theirSpiceChoice || null,
+        spiceReady,
+        spiceLevel: level,
+        currentTurnUserId: rowAfter.current_turn_user_id ?? null,
+        isYourTurn: !!(rowAfter.current_turn_user_id && rowAfter.current_turn_user_id === userId),
+      };
+    }
+  }
+
+  if (!row) {
+    return { prompt: '', yourStrikes: 0, theirStrikes: 0, yourAnswer: null, theirAnswer: null, bothAnswered: false, gameOver: false, winner: null, phase: 'playing', yourSpiceChoice: null, theirSpiceChoice: null, spiceReady, spiceLevel: level, currentTurnUserId: null, isYourTurn: false };
+  }
+  let prompt = row.current_prompt?.trim() || '';
   // If we're in playing phase but prompt is missing/placeholder, generate one and persist (fixes UI showing only "Never have I ever...")
   if (!prompt || prompt === 'Never have I ever...') {
     try {
@@ -306,7 +367,6 @@ export async function getGameState(
   }
   if (!prompt) prompt = 'Never have I ever...';
 
-  // Turn-based (token-unlock): current_turn_user_id set
   const currentTurnUserId = row.current_turn_user_id ?? null;
   const isYourTurn = !!currentTurnUserId && currentTurnUserId === userId;
 

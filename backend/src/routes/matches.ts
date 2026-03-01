@@ -2382,23 +2382,9 @@ matchesRouter.get("/:matchId/never-have-i-ever", authenticateToken, async (req: 
       return res.status(400).json({ error: "Never Have I Ever must be unlocked with a Mulligan token to play." });
     }
 
-    const { getGameState, completeRoundIfBothAnswered } = await import('../services/neverHaveIEver.js');
-    // If both answered but POST didn't complete (e.g. concurrent requests), complete the round here so next poll returns new prompt
-    const roundCompleted = await completeRoundIfBothAnswered(matchId);
-    if (roundCompleted.completed && roundCompleted.newPrompt) {
-      try {
-        const { getIO } = await import('../socket.js');
-        const io = getIO();
-        if (io) {
-          io.to(`match:${matchId}`).emit('never_have_i_ever_updated', {
-            matchId,
-            newPrompt: roundCompleted.newPrompt,
-            roundComplete: true,
-          });
-        }
-      } catch (_) {}
-    }
-    const state = await getGameState(matchId, userId, match);
+    const { getGameState } = await import('../services/neverHaveIEver.js');
+    // Complete round inside the same read when we see both answers (getGameState emits socket when it completes)
+    const state = await getGameState(matchId, userId, match, { completeRoundIfBothAnswered: true });
 
     if (state.phase === 'playing') {
       console.log(`🙊 Never Have I Ever GET state: match=${matchId} yourStrikes=${state.yourStrikes} theirStrikes=${state.theirStrikes} bothAnswered=${state.bothAnswered} promptLen=${state.prompt?.length ?? 0}`);
