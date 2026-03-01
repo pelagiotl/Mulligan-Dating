@@ -336,16 +336,24 @@ export async function getGameState(
  * Returns { completed: true, newPrompt } if we ran the update; { completed: false } otherwise.
  */
 export async function completeRoundIfBothAnswered(matchId: string): Promise<{ completed: boolean; newPrompt?: string }> {
-  const rowResult = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
-  const row = (rowResult instanceof Promise ? await rowResult : rowResult) as GameRow | undefined;
-  if (!row || !row.spice_level || !row.current_prompt) return { completed: false };
+  function hasBoth(row: GameRow | undefined): boolean {
+    if (!row) return false;
+    let a1 = (row.user1_answer ?? null) as string | null;
+    let a2 = (row.user2_answer ?? null) as string | null;
+    if (typeof a1 === 'string') a1 = a1.trim().toLowerCase();
+    if (typeof a2 === 'string') a2 = a2.trim().toLowerCase();
+    return (a1 === 'have' || a1 === 'havent') && (a2 === 'have' || a2 === 'havent');
+  }
 
-  let a1 = (row.user1_answer ?? null) as string | null;
-  let a2 = (row.user2_answer ?? null) as string | null;
-  if (typeof a1 === 'string') a1 = a1.trim().toLowerCase();
-  if (typeof a2 === 'string') a2 = a2.trim().toLowerCase();
-  const bothSet = (a1 === 'have' || a1 === 'havent') && (a2 === 'have' || a2 === 'havent');
-  if (!bothSet) return { completed: false };
+  let rowResult = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
+  let row = (rowResult instanceof Promise ? await rowResult : rowResult) as GameRow | undefined;
+  if (!row || !row.spice_level || !row.current_prompt) return { completed: false };
+  if (!hasBoth(row)) {
+    await new Promise((r) => setTimeout(r, 400));
+    rowResult = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
+    row = (rowResult instanceof Promise ? await rowResult : rowResult) as GameRow | undefined;
+    if (!row || !hasBoth(row)) return { completed: false };
+  }
 
   const s1 = Number(row.user1_strikes) || 0;
   const s2 = Number(row.user2_strikes) || 0;
@@ -525,15 +533,13 @@ export async function submitAnswer(
     if (strikeResult instanceof Promise) await strikeResult;
   }
 
-  // Read row immediately after our updates so we always have latest strikes for the response (avoids any read-your-writes delay)
-  const readAfterResult = db.prepare('SELECT user1_strikes, user2_strikes FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
-  const readAfter = (readAfterResult instanceof Promise ? await readAfterResult : readAfterResult) as { user1_strikes?: number; user2_strikes?: number } | undefined;
-  const pointsAfterAnswer = readAfter
-    ? {
-        newYourStrikes: Number(isUser1 ? readAfter.user1_strikes : readAfter.user2_strikes) || 0,
-        newTheirStrikes: Number(isUser1 ? readAfter.user2_strikes : readAfter.user1_strikes) || 0,
-      }
-    : undefined;
+  // Compute points from initial row + our update so response is correct even if DB read is stale (replica/cross-connection)
+  const prevYour = Number(isUser1 ? row.user1_strikes : row.user2_strikes) || 0;
+  const prevTheir = Number(isUser1 ? row.user2_strikes : row.user1_strikes) || 0;
+  const pointsAfterAnswer: { newYourStrikes: number; newTheirStrikes: number } = {
+    newYourStrikes: prevYour + (answer === 'have' ? 1 : 0),
+    newTheirStrikes: prevTheir,
+  };
   let pointsAfterRoundComplete: { newYourStrikes: number; newTheirStrikes: number } | undefined;
 
   // Give the other user's connection time to commit so we see both answers (cross-connection / replica visibility)
