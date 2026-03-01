@@ -2465,6 +2465,11 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
       console.log(`🙊 NHIE round complete: match=${matchId} sending new prompt=${!!nextPrompt} len=${nextPrompt?.length ?? 0}`);
     }
 
+    // Brief delay so DB commit is visible to other connections before we emit (helps replica/read-your-writes)
+    if (roundResult && nextPrompt) {
+      await new Promise((r) => setTimeout(r, 150));
+    }
+
     // Emit to the other user so they get new prompt + can refetch for updated "Them" points
     try {
       const { getIO } = await import('../socket.js');
@@ -2472,12 +2477,12 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
       if (io) {
         const payload = {
           matchId,
-          ...(nextPrompt != null && nextPrompt !== '' && { newPrompt: nextPrompt }),
+          newPrompt: nextPrompt && nextPrompt.trim() ? nextPrompt : undefined,
           roundComplete: !!roundResult,
         };
         io.to(`match:${matchId}`).emit('never_have_i_ever_updated', payload);
         if (process.env.NODE_ENV !== 'test') {
-          console.log(`🙊 NHIE emit: match=${matchId} hasNewPrompt=${!!payload.newPrompt} roundComplete=${!!payload.roundComplete} yourPts=${yourPoints} theirPts=${theirPoints}`);
+          console.log(`🙊 NHIE emit: match=${matchId} newPromptLen=${payload.newPrompt?.length ?? 0} roundComplete=${payload.roundComplete}`);
         }
       }
     } catch (socketError) {

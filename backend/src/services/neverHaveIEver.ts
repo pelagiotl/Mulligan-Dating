@@ -455,35 +455,25 @@ export async function submitAnswer(
   }
 
   const ts = new Date().toISOString();
-  if (isUser1) {
-    if (row.user1_answer !== null && row.user1_answer !== undefined && String(row.user1_answer).trim() !== '') {
-      return { state: await getGameState(matchId, userId, match) };
-    }
-    let updateResult = db
-      .prepare('UPDATE never_have_i_ever_games SET user1_answer = ?, updated_at = ? WHERE match_id = ?')
-      .run([answer, ts, matchId]);
-    if (updateResult instanceof Promise) await updateResult;
-    // Add a point immediately when this user clicks "I have" (so the counter updates right away)
-    if (answer === 'have') {
-      updateResult = db
-        .prepare('UPDATE never_have_i_ever_games SET user1_strikes = COALESCE(user1_strikes, 0) + 1, updated_at = ? WHERE match_id = ?')
-        .run([ts, matchId]);
-      if (updateResult instanceof Promise) await updateResult;
-    }
-  } else {
-    if (row.user2_answer !== null && row.user2_answer !== undefined && String(row.user2_answer).trim() !== '') {
-      return { state: await getGameState(matchId, userId, match) };
-    }
-    let updateResult = db
-      .prepare('UPDATE never_have_i_ever_games SET user2_answer = ?, updated_at = ? WHERE match_id = ?')
-      .run([answer, ts, matchId]);
-    if (updateResult instanceof Promise) await updateResult;
-    if (answer === 'have') {
-      updateResult = db
-        .prepare('UPDATE never_have_i_ever_games SET user2_strikes = COALESCE(user2_strikes, 0) + 1, updated_at = ? WHERE match_id = ?')
-        .run([ts, matchId]);
-      if (updateResult instanceof Promise) await updateResult;
-    }
+  // Only set answer when currently null/empty (idempotent: double-tap or double request won't add points)
+  const setAnswerSql = isUser1
+    ? 'UPDATE never_have_i_ever_games SET user1_answer = ?, updated_at = ? WHERE match_id = ? AND (user1_answer IS NULL OR user1_answer = \'\')'
+    : 'UPDATE never_have_i_ever_games SET user2_answer = ?, updated_at = ? WHERE match_id = ? AND (user2_answer IS NULL OR user2_answer = \'\')';
+  let runResult = db.prepare(setAnswerSql).run([answer, ts, matchId]);
+  if (runResult instanceof Promise) runResult = await runResult;
+  const answerWasSet = (runResult as { changes?: number }).changes !== undefined && (runResult as { changes: number }).changes > 0;
+
+  if (!answerWasSet) {
+    return { state: await getGameState(matchId, userId, match) };
+  }
+
+  // Add a point only when we actually set the answer (first time only)
+  if (answer === 'have') {
+    const strikeSql = isUser1
+      ? 'UPDATE never_have_i_ever_games SET user1_strikes = COALESCE(user1_strikes, 0) + 1, updated_at = ? WHERE match_id = ?'
+      : 'UPDATE never_have_i_ever_games SET user2_strikes = COALESCE(user2_strikes, 0) + 1, updated_at = ? WHERE match_id = ?';
+    const strikeResult = db.prepare(strikeSql).run([ts, matchId]);
+    if (strikeResult instanceof Promise) await strikeResult;
   }
 
   // Read row immediately after our updates so we always have latest strikes for the response (avoids any read-your-writes delay)
@@ -496,6 +486,9 @@ export async function submitAnswer(
       }
     : undefined;
   let pointsAfterRoundComplete: { newYourStrikes: number; newTheirStrikes: number } | undefined;
+
+  // Give the other user's connection time to commit so we see both answers (cross-connection visibility)
+  await new Promise((r) => setTimeout(r, 200));
 
   let rowAfter = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
   row = (rowAfter instanceof Promise ? await rowAfter : rowAfter) as GameRow;
@@ -510,7 +503,7 @@ export async function submitAnswer(
 
   // If we only see one answer, the other user's update may not be visible yet (commit/timing). Retry with backoff.
   // With PostgreSQL, .get() returns a Promise — must await so we read actual row values.
-  const retryDelays = [80, 180, 350, 600, 1000, 1500];
+  const retryDelays = [100, 250, 500, 800, 1200, 2000, 3000];
   for (const delayMs of retryDelays) {
     if (user1Answer != null && user2Answer != null) break;
     await new Promise((r) => setTimeout(r, delayMs));
@@ -528,7 +521,9 @@ export async function submitAnswer(
       break;
     }
   }
-  console.log(`🙊 NHIE submitAnswer: match=${matchId} isUser1=${isUser1} answer=${answer} user1Answer=${user1Answer} user2Answer=${user2Answer} bothPresent=${user1Answer != null && user2Answer != null}`);
+  const raw1 = (row as GameRow)?.user1_answer;
+  const raw2 = (row as GameRow)?.user2_answer;
+  console.log(`🙊 NHIE submitAnswer: match=${matchId} isUser1=${isUser1} answer=${answer} user1Answer=${user1Answer} user2Answer=${user2Answer} bothPresent=${user1Answer != null && user2Answer != null} raw1=${JSON.stringify(raw1)} raw2=${JSON.stringify(raw2)}`);
 
   let roundResult: { youStrike: boolean; themStrike: boolean } | undefined;
   let generatedNextPrompt: string | undefined;
@@ -650,7 +645,7 @@ export async function submitTurnAnswer(
 
   const state = await getGameState(matchId, userId, match);
   state.roundResult = { youStrike, themStrike: false };
-  return { state, roundResult: { youStrike, themStrike: false } };
+  return { state, roundResult: { youStrike, themStrike: false }, newPrompt: state.prompt ?? newPrompt };
 }
 
 export async function advanceToNextRound(

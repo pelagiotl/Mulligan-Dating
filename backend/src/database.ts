@@ -128,8 +128,9 @@ class DatabaseWrapper {
       },
       run: async (...args: any[]) => {
         const normalizedParams = normalizeParams(...args);
-        await pgPool!.query(pgSql, normalizedParams);
-        return { lastInsertRowid: 0, changes: 0 };
+        const result = await pgPool!.query(pgSql, normalizedParams);
+        const changes = typeof result.rowCount === 'number' ? result.rowCount : 0;
+        return { lastInsertRowid: 0, changes };
       },
       all: async (...args: any[]) => {
         const normalizedParams = normalizeParams(...args);

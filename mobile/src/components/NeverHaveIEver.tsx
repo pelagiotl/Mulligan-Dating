@@ -210,14 +210,17 @@ export default function NeverHaveIEver({
         const recentRound = Date.now() - lastRoundCompletedAtRef.current < 6000;
         const fetchedZero = simple.yourPoints === 0 && simple.theirPoints === 0;
         const refHasPoints = lastKnownPointsRef.current.yourPoints > 0 || lastKnownPointsRef.current.theirPoints > 0;
+        // Don't overwrite yourAnswer with null from a stale GET — once user has answered this prompt, keep it until round completes (bothAnswered = server cleared for next round)
+        const keptYourAnswer = simple.bothAnswered ? (simple.yourAnswer ?? null) : (simple.yourAnswer ?? prev?.yourAnswer ?? null);
+        const merged = { ...simple, yourAnswer: keptYourAnswer, theirPoints: simple.theirPoints, yourPoints: simple.yourPoints };
         if (recentRound && fetchedZero && refHasPoints) {
-          return { ...simple, yourPoints: lastKnownPointsRef.current.yourPoints, theirPoints: lastKnownPointsRef.current.theirPoints };
+          return { ...merged, yourPoints: lastKnownPointsRef.current.yourPoints, theirPoints: lastKnownPointsRef.current.theirPoints };
         }
         // Never decrease points ref (stale GET can return 0 right after round complete)
         const refYou = Math.max(lastKnownPointsRef.current.yourPoints, simple.yourPoints);
         const refThem = Math.max(lastKnownPointsRef.current.theirPoints, simple.theirPoints);
         lastKnownPointsRef.current = { yourPoints: refYou, theirPoints: refThem };
-        return { ...simple, yourPoints: refYou, theirPoints: refThem };
+        return { ...merged, yourPoints: refYou, theirPoints: refThem };
       });
       setPrompt(simple.prompt || '');
       addBreadcrumb('NHIE', 'Fetch state received', { fetchedYou: simple.yourPoints, fetchedThem: simple.theirPoints });
@@ -283,6 +286,10 @@ export default function NeverHaveIEver({
         roundComplete: payload?.roundComplete,
       });
       api.clearCache(`/matches/${matchId}/never-have-i-ever`);
+      if (payload.roundComplete) {
+        lastRoundCompletedAtRef.current = Date.now();
+        // So the 2s poll skips for 6s and doesn't overwrite new prompt with a stale GET
+      }
       // If round just completed, other user sent us the new prompt — show it immediately so next round appears
       if (payload.newPrompt && payload.roundComplete) {
         if (__DEV__) console.log('[NHIE] Applying new prompt from socket (round complete)');
@@ -295,8 +302,9 @@ export default function NeverHaveIEver({
           bothAnswered: false,
         } : null);
       }
-      // Keep polling running (don't clear interval) so "Them" points keep updating every 2s
-      // Plus staggered refetches so we get updated points soon after the other user submits
+      // Immediate refetch so "Them" points update right away when the other user submits
+      fetchState(false);
+      // Staggered refetches so we get new prompt from server if socket payload lacked it, and updated points
       setTimeout(() => fetchState(false), 400);
       setTimeout(() => fetchState(false), 1000);
       setTimeout(() => fetchState(false), 2000);
