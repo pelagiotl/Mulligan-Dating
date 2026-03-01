@@ -588,6 +588,7 @@ export async function submitAnswer(
       row = (rowResult2 instanceof Promise ? await rowResult2 : rowResult2) as GameRow | undefined;
     }
   }
+  if (!row) return { state: await getGameState(matchId, userId, match) };
 
   const ts = new Date().toISOString();
   // Only set answer when currently null/empty (idempotent: double-tap or double request won't add points)
@@ -603,7 +604,9 @@ export async function submitAnswer(
       console.log(`🙊 NHIE submitAnswer: answer already set for this user (match=${matchId} isUser1=${isUser1}), returning without updating`);
     }
     const state = await getGameState(matchId, userId, match);
-    const pts = { newYourStrikes: Number(isUser1 ? row.user1_strikes : row.user2_strikes) || 0, newTheirStrikes: Number(isUser1 ? row.user2_strikes : row.user1_strikes) || 0 };
+    const pts = row
+      ? { newYourStrikes: Number(isUser1 ? row.user1_strikes : row.user2_strikes) || 0, newTheirStrikes: Number(isUser1 ? row.user2_strikes : row.user1_strikes) || 0 }
+      : { newYourStrikes: 0, newTheirStrikes: 0 };
     return { state, pointsFromRound: pts };
   }
 
