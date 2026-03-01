@@ -602,7 +602,7 @@ export async function submitTurnAnswer(
   userId: string,
   match: { user1_id: string; user2_id: string },
   answer: 'have' | 'havent'
-): Promise<{ state: GameState; roundResult?: { youStrike: boolean; themStrike: boolean } }> {
+): Promise<{ state: GameState; roundResult?: { youStrike: boolean; themStrike: boolean }; newPrompt?: string }> {
   const isUser1 = userId === match.user1_id;
   const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
 
