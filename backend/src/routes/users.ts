@@ -34,11 +34,11 @@ usersRouter.post('/unlock-browse', authenticateToken, async (req: AuthRequest, r
   try {
     const userId = req.userId!;
 
-    // Check if browsing is already unlocked
+    // Check if browsing is already unlocked (idempotent: treat as success)
     const userResult = await (db.prepare('SELECT browse_unlocked_at FROM users WHERE id = ?').get([userId]) as Promise<{ browse_unlocked_at: string | null } | undefined>);
     
     if (userResult?.browse_unlocked_at) {
-      return res.status(400).json({ error: 'Browsing is already unlocked. You can browse profiles now.' });
+      return res.status(200).json({ message: 'Browsing is already unlocked. You can browse profiles now.', alreadyUnlocked: true });
     }
 
     // Get available token

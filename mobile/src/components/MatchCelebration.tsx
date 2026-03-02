@@ -30,6 +30,8 @@ interface MatchCelebrationProps {
   onClose: () => void;
   explanation?: MatchExplanation | null;
   matchId?: string | null;
+  /** When true (recipient / User B), skip "Finding your curated match" and show celebration immediately. When false (initiator / User A), show loading then reveal. */
+  skipLoadingReveal?: boolean;
 }
 
 interface ConfettiParticle {
@@ -163,9 +165,10 @@ export default function MatchCelebration({
   onClose,
   explanation,
   matchId,
+  skipLoadingReveal = false,
 }: MatchCelebrationProps) {
   const navigation = useNavigation();
-  const [revealed, setRevealed] = useState(false);
+  const [revealed, setRevealed] = useState(skipLoadingReveal);
   const [showContent, setShowContent] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [showButton, setShowButton] = useState(false);
@@ -196,11 +199,12 @@ export default function MatchCelebration({
   const buttonScaleAnim = useRef(new Animated.Value(0)).current;
   const buttonPulseAnim = useRef(new Animated.Value(1)).current;
 
-  // Show loading state for a few seconds, then reveal the match
+  // Show loading state for a few seconds, then reveal the match (only when initiator; recipient skips via skipLoadingReveal)
   useEffect(() => {
+    if (skipLoadingReveal) return;
     const t = setTimeout(() => setRevealed(true), REVEAL_DELAY_MS);
     return () => clearTimeout(t);
-  }, []);
+  }, [skipLoadingReveal]);
 
   // When revealed, run celebration (haptic, sound, animations) — sound plays when the match card opens
   useEffect(() => {

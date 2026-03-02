@@ -4064,7 +4064,7 @@ export default function MatchesScreen() {
         }}
       />
 
-      {/* Match Celebration - when User B opens app from match notification (push or in-app) */}
+      {/* Match Celebration - when User B opens app from match notification (push or in-app); skip "Finding your curated match" */}
       {(() => {
         const rp = route.params as { showMatchCelebration?: boolean; matchId?: string; matchName?: string } | undefined;
         const celebrationMatchId = rp?.showMatchCelebration ? rp?.matchId : undefined;
@@ -4085,6 +4085,7 @@ export default function MatchesScreen() {
               const m = matches.find(x => x.id === celebrationMatchId);
               if (m) setSelectedMatch(m);
             }}
+            skipLoadingReveal={true}
           />
         ) : null;
       })()}

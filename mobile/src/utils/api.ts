@@ -193,15 +193,16 @@ async function request<T = any>(endpoint: string, options: RequestOptions = {}, 
       // Suppress 404 / "no date plan" for date-plan endpoint (expected when no plan exists yet)
       const isDatePlan404 = (response.status === 404 || (errorMsgLower.includes('no date plan found'))) && endpoint.includes('/date-plan');
       
-      // 401 with no token is expected when not logged in — don't log as error
+      // 401: expected when not logged in (no token) or when session expired/invalid (we clear token and show login)
       const isUnauthenticatedExpected = response.status === 401 && !token;
+      const isSessionExpired = response.status === 401 && !!token;
       
-      if (!isInformational && !isPushToken404 && !isDatePlan404 && !isUnauthenticatedExpected) {
+      if (!isInformational && !isPushToken404 && !isDatePlan404 && !isUnauthenticatedExpected && !isSessionExpired) {
         console.error('❌ API request failed:', {
           endpoint,
           status: response.status,
           error: errorMsg,
-          hasToken: !!token
+          authTokenPresent: !!token  // Bearer token; not weekly/match token
         });
       }
       // Clear stored token on auth errors so app can show login instead of repeated 403s
@@ -270,16 +271,20 @@ async function request<T = any>(endpoint: string, options: RequestOptions = {}, 
     if (isDatePlan404Rethrown) {
       throw error;
     }
-    const errorDetails = {
-      url,
-      endpoint,
-      baseUrl: BASE_URL,
-      error,
-      name: error instanceof Error ? error.name : 'Unknown',
-      message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined
-    };
-    console.error('❌ API request failed:', errorDetails);
+    // Don't log 401 (auth required / session expired) — we already handled it above and clear token
+    const isAuthRequired = error instanceof ApiError && error.status === 401;
+    if (!isAuthRequired) {
+      const errorDetails = {
+        url,
+        endpoint,
+        baseUrl: BASE_URL,
+        error,
+        name: error instanceof Error ? error.name : 'Unknown',
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      };
+      console.error('❌ API request failed:', errorDetails);
+    }
     
     if (error instanceof Error && error.name === 'AbortError') {
       console.error('Request was aborted (timeout)');

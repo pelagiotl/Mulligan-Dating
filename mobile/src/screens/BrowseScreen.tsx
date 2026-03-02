@@ -1608,6 +1608,15 @@ export default function BrowseScreen() {
             }
             return;
           }
+          // Distance preference: person is outside range — go back to landing so user can tap Connect for a new profile
+          if (apiErr.status === 400 && (apiErr.code === 'DISTANCE_EXCEEDS_YOUR_MAX' || apiErr.code === 'DISTANCE_EXCEEDS_THEIR_MAX')) {
+            setCurrentProfile(null);
+            setBrowseUnlocked(false);
+            if (isAutoMatching) {
+              setIsAutoMatching(false);
+            }
+            return;
+          }
           errorMessage =
             err.message ||
             'Cannot connect. Please check that both you and the other person have photos uploaded and you have available tokens.';
