@@ -538,13 +538,14 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
 
     const userLoc = userProfileLoc?.location?.trim() || null;
     const targetLoc = targetProfileLoc?.location?.trim() || null;
-    // Treat 0 or null as "unlimited"; only enforce when max_distance is a positive number
-    const rawInitiator = userPrefsDist?.max_distance;
-    const rawTarget = targetPrefsDist?.max_distance;
-    const nInitiator = rawInitiator != null ? Number(rawInitiator) : NaN;
-    const nTarget = rawTarget != null ? Number(rawTarget) : NaN;
-    const initiatorMaxDist = Number.isFinite(nInitiator) && nInitiator > 0 ? nInitiator : null;
-    const targetMaxDist = Number.isFinite(nTarget) && nTarget > 0 ? nTarget : null;
+    // "Any" distance = unlimited: treat null, undefined, 0, and "0" as no limit so both users can connect when both set Any
+    const toMaxMiles = (raw: number | null | undefined): number | null => {
+      if (raw === null || raw === undefined) return null;
+      const n = Number(raw);
+      return Number.isFinite(n) && n > 0 ? n : null;
+    };
+    const initiatorMaxDist = toMaxMiles(userPrefsDist?.max_distance);
+    const targetMaxDist = toMaxMiles(targetPrefsDist?.max_distance);
 
     if (userLoc && targetLoc) {
       try {
@@ -565,7 +566,7 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
           }
           if (targetMaxDist != null && distanceMiles > targetMaxDist) {
             if (process.env.NODE_ENV !== "test") {
-              console.log(`🙅 Connect blocked: distance ${distanceMiles.toFixed(1)} mi > target max ${targetMaxDist} (initiator=${userId} target=${targetUserId} initiatorProfileId=${userProfile.id} targetProfileId=${targetProfile.id} rawTarget=${JSON.stringify(rawTarget)})`);
+              console.log(`🙅 Connect blocked: distance ${distanceMiles.toFixed(1)} mi > target max ${targetMaxDist} (initiator=${userId} target=${targetUserId} initiatorProfileId=${userProfile.id} targetProfileId=${targetProfile.id} targetMaxDistanceFromDB=${JSON.stringify(targetPrefsDist?.max_distance)})`);
             }
             return res.status(400).json({
               error: "You're outside this person's distance preference. They only connect with people closer to them.",

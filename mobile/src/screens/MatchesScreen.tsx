@@ -2619,7 +2619,7 @@ export default function MatchesScreen() {
         }
       });
 
-      // Real-time: other user unmatched — remove match from list and close chat if open
+      // Real-time: other user unmatched — remove match from list and close chat if open (no refetch to avoid white flicker)
       socket.on('match_unmatched', (data: { matchId: string; unmatchedBy?: string }) => {
         const { matchId } = data;
         setMatches((prev) => prev.filter((m) => m.id !== matchId));
@@ -2627,6 +2627,8 @@ export default function MatchesScreen() {
           setSelectedMatch(null);
           setMessages([]);
         }
+        if (getPendingOpenMatchId() === matchId) clearPendingOpenMatchId();
+        navigation.setParams({ matchId: undefined } as { matchId?: string });
       });
     };
 
@@ -2909,10 +2911,11 @@ export default function MatchesScreen() {
           lastFetchedMatchIdRef.current = null;
           setMessages([]);
           setSelectedMatch(null);
-          // Remove from list immediately so no effect re-selects it; clear cache so next fetch is fresh (avoids flicker/loop)
           setMatches((prev) => prev.filter((m) => m.id !== matchId));
           api.clearCache('/matches');
-          fetchMatches();
+          // Don't call fetchMatches() — it does setLoading(true) and causes white flicker for User B
+          if (getPendingOpenMatchId() === matchId) clearPendingOpenMatchId();
+          navigation.setParams({ matchId: undefined } as { matchId?: string });
         }
         if (__DEV__) {
           console.warn('⚠️ Match no longer available, returning to list:', matchId);
@@ -2940,7 +2943,7 @@ export default function MatchesScreen() {
         setMessages((prev) => prev.length > 0 ? prev : []);
       }
     }
-  }, [fetchMatches]);
+  }, [fetchMatches, navigation]);
 
   const handleBack = useCallback(() => {
     console.log('🔙 handleBack called - clearing selected match');

@@ -2199,6 +2199,7 @@ export default function BrowseScreen() {
           onClose={handleCelebrationClose}
           explanation={matchExplanation}
           matchId={matchId}
+          skipLoadingReveal={false}
         />
       )}
 

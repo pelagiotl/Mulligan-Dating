@@ -263,11 +263,43 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
       console.warn('   User preferences:', userPrefs);
     }
 
-    // Fast path for offset=0 (Connect flow): return first eligible profile without distance/scoring to show celebration quickly
-    if (offset === 0 && allProfiles.length > 0) {
-      const fastPathLimit = Math.min(10, allProfiles.length);
+    // Apply distance filter first so fast path and full path use the same pool (fixes e.g. Portland user with "Any" distance seeing Medford users)
+    // Note: max_distance can be null (unlimited) or a number
+    let filteredProfiles = allProfiles;
+    if (userProfile.location && userPrefs && userPrefs.max_distance !== undefined) {
+      const userLocationResult = await geocodeLocation(userProfile.location);
+      if (userLocationResult.coordinates) {
+        const profilesWithDistance = await Promise.all(
+          allProfiles.map(async (p: ProfileWithMetadata) => {
+            if (!p.location) return { profile: p, distance: null };
+            const candidateLocationResult = await geocodeLocation(p.location);
+            const distance = candidateLocationResult.coordinates
+              ? calculateDistanceMiles(userLocationResult.coordinates, candidateLocationResult.coordinates)
+              : null;
+            return { profile: p, distance };
+          })
+        );
+        const maxDist = userPrefs.max_distance;
+        const maxDistMiles = (maxDist != null && typeof maxDist === 'number' && maxDist > 0) ? maxDist : null;
+        filteredProfiles = profilesWithDistance
+          .filter(({ distance }) => {
+            if (maxDistMiles === null) return true;
+            return distance === null || distance <= maxDistMiles;
+          })
+          .sort((a, b) => {
+            if (a.distance === null) return 1;
+            if (b.distance === null) return -1;
+            return a.distance - b.distance;
+          })
+          .map(({ profile }) => profile);
+      }
+    }
+
+    // Fast path for offset=0 (Connect flow): return first eligible profile from distance-filtered pool
+    if (offset === 0 && filteredProfiles.length > 0) {
+      const fastPathLimit = Math.min(10, filteredProfiles.length);
       for (let i = 0; i < fastPathLimit; i++) {
-        const p = allProfiles[i] as ProfileWithMetadata;
+        const p = filteredProfiles[i] as ProfileWithMetadata;
         const passes = await checkDealbreakersUtil(userProfile.id, p.id);
         if (passes) {
           const formattedProfile = {
@@ -286,54 +318,13 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
           console.log('✅ Browse fast path: returning first eligible profile', p.display_name);
           return res.json({
             profile: formattedProfile,
-            hasMore: allProfiles.length > 1,
+            hasMore: filteredProfiles.length > 1,
             offset: 0,
-            total: allProfiles.length,
+            total: filteredProfiles.length,
           });
         }
       }
       console.log('⚠️  Browse fast path: no profile passed dealbreakers, falling back to full path');
-    }
-
-    // Filter by distance if user has location
-    // Note: max_distance can be null (unlimited) or a number
-    let filteredProfiles = allProfiles;
-    if (userProfile.location && userPrefs && userPrefs.max_distance !== undefined) {
-      // Geocode user's location once
-      const userLocationResult = await geocodeLocation(userProfile.location);
-      
-      if (userLocationResult.coordinates) {
-        // Filter profiles by distance
-        const profilesWithDistance = await Promise.all(
-          allProfiles.map(async (p: ProfileWithMetadata) => {
-            if (!p.location) {
-              return { profile: p, distance: null };
-            }
-            
-            const candidateLocationResult = await geocodeLocation(p.location);
-            const distance = candidateLocationResult.coordinates
-              ? calculateDistanceMiles(userLocationResult.coordinates, candidateLocationResult.coordinates)
-              : null;
-            
-            return { profile: p, distance };
-          })
-        );
-
-        // Filter by max_distance and sort by distance (treat 0 and null as unlimited, same as connect route)
-        const maxDist = userPrefs.max_distance;
-        const maxDistMiles = (maxDist != null && typeof maxDist === 'number' && maxDist > 0) ? maxDist : null;
-        filteredProfiles = profilesWithDistance
-          .filter(({ distance }) => {
-            if (maxDistMiles === null) return true; // unlimited
-            return distance === null || distance <= maxDistMiles;
-          })
-          .sort((a, b) => {
-            if (a.distance === null) return 1;
-            if (b.distance === null) return -1;
-            return a.distance - b.distance; // Closer first
-          })
-          .map(({ profile }) => profile);
-      }
     }
 
     // NOTE: Lifestyle is NOT used for hard filtering here
