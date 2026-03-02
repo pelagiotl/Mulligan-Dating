@@ -720,7 +720,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }, 500);
       }
     } catch (error: any) {
-      console.error('Fetch user error:', error);
+      if (error?.status !== 429) {
+        console.error('Fetch user error:', error);
+      }
       // Only clear token for auth errors, not network errors
       if (error?.status === 401 || error?.status === 403) {
         await AsyncStorage.removeItem('token');

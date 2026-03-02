@@ -64,6 +64,11 @@ export async function rateLimitAuth(req: Request, res: Response, next: NextFunct
     }
   }
   
+  // Don't consume auth limit for read/register endpoints called on every app open (req.path is relative to mount /api/auth)
+  const p = (req.path || '').replace(/\/$/, '');
+  if (req.method === 'GET' && (p === '/me' || p === 'me')) return next();
+  if (req.method === 'POST' && (p === '/push-token' || p === 'push-token')) return next();
+
   try {
     // For login attempts, use email + IP to avoid shared IP issues behind load balancers
     // This allows multiple users from the same IP to login independently
@@ -185,12 +190,22 @@ export async function rateLimitAPI(req: Request, res: Response, next: NextFuncti
     return next();
   }
 
-  // High-frequency GETs: don't consume from main limit to avoid 429 during polling
+  // High-frequency or startup requests: don't consume from main limit to avoid 429
   if (req.method === 'GET') {
     if (req.path === '/tokens' || req.path === '/tokens/') return next();
+    if (req.path === '/auth/me' || req.path === '/auth/me/') return next(); // Called on every app open
+    if (req.path === '/photos/me' || req.path.startsWith('/photos/profile/')) return next(); // Loaded on profile/app open
     // Polling: Never Have I Ever state (every few s when modal open) and messages (chat)
     if (/^\/matches\/[^/]+\/never-have-i-ever\/?$/.test(req.path)) return next();
     if (/^\/matches\/[^/]+\/messages\/?$/.test(req.path)) return next();
+  }
+  if (req.method === 'POST' && (req.path === '/auth/push-token' || req.path === '/auth/push-token/')) {
+    return next(); // Called on every app open and with retries; don't burn API limit
+  }
+  // SMS login flow: don't consume API limit so users can always request/verify code (still limited by rateLimitAuth per IP)
+  if (req.method === 'POST' && (req.path === '/sms/send-code' || req.path === '/sms/verify-code' ||
+      req.path === '/sms/send-code/' || req.path === '/sms/verify-code/')) {
+    return next();
   }
 
   // For profile creation/update endpoints, use a more lenient rate limit

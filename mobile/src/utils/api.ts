@@ -197,7 +197,12 @@ async function request<T = any>(endpoint: string, options: RequestOptions = {}, 
       const isUnauthenticatedExpected = response.status === 401 && !token;
       const isSessionExpired = response.status === 401 && !!token;
       
-      if (!isInformational && !isPushToken404 && !isDatePlan404 && !isUnauthenticatedExpected && !isSessionExpired) {
+      // 429 on startup or login endpoints: rate limit hit; UI shows friendly message, don't spam ERROR
+      const isRateLimitedStartup = response.status === 429 &&
+        (endpoint === '/auth/me' || endpoint === '/auth/push-token' ||
+         endpoint === '/sms/send-code' || endpoint === '/sms/verify-code');
+      
+      if (!isInformational && !isPushToken404 && !isDatePlan404 && !isUnauthenticatedExpected && !isSessionExpired && !isRateLimitedStartup) {
         console.error('❌ API request failed:', {
           endpoint,
           status: response.status,
@@ -272,8 +277,15 @@ async function request<T = any>(endpoint: string, options: RequestOptions = {}, 
       throw error;
     }
     // Don't log 401 (auth required / session expired) — we already handled it above and clear token
-    const isAuthRequired = error instanceof ApiError && error.status === 401;
-    if (!isAuthRequired) {
+    const isAuthRequired =
+      (error instanceof ApiError && error.status === 401) ||
+      (error instanceof Error && /authentication required/i.test(error.message));
+    // Don't log 429 on startup/login endpoints (rate limit; UI shows friendly message)
+    const isRateLimitedStartupCatch =
+      error instanceof ApiError && error.status === 429 &&
+      (endpoint === '/auth/me' || endpoint === '/auth/push-token' ||
+       endpoint === '/sms/send-code' || endpoint === '/sms/verify-code');
+    if (!isAuthRequired && !isRateLimitedStartupCatch) {
       const errorDetails = {
         url,
         endpoint,

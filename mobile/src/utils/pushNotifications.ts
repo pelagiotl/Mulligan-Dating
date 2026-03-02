@@ -189,7 +189,10 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
       } catch (error: any) {
         const status = error?.status ?? error?.response?.status;
         const msg = error?.message || String(error);
-        console.warn(`⚠️  Push token save failed (attempt ${attempt}/${maxRetries}): status=${status} message=${msg}`);
+        const is429 = status === 429 || /too many requests/i.test(msg);
+        if (!is429) {
+          console.warn(`⚠️  Push token save failed (attempt ${attempt}/${maxRetries}): status=${status} message=${msg}`);
+        }
         const is404 = status === 404 || msg.includes('Route not found');
         if (is404) {
           return pushToken;

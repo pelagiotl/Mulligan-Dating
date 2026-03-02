@@ -651,13 +651,19 @@ export default function PhoneLoginScreen() {
       setStep('verify');
       setLoading(false);
     } catch (err: any) {
-      const errorMsg = err?.response?.data?.error || err?.message || 'Failed to send verification code';
-      console.error('❌ Send code error caught in handlePhoneSubmit:', {
-        error: err,
-        message: errorMsg,
-        errorName: err?.name,
-        errorStack: err?.stack
-      });
+      const is429 = err?.status === 429;
+      const rawMsg = err?.response?.data?.error || err?.message || 'Failed to send verification code';
+      const errorMsg = is429
+        ? 'Too many attempts. Please wait a minute and try again.'
+        : rawMsg;
+      if (!is429) {
+        console.error('❌ Send code error caught in handlePhoneSubmit:', {
+          error: err,
+          message: rawMsg,
+          errorName: err?.name,
+          errorStack: err?.stack
+        });
+      }
       setError(errorMsg);
       setLoading(false);
     }

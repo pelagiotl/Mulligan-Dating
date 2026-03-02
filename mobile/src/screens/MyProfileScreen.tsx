@@ -647,8 +647,10 @@ export default function MyProfileScreen() {
         setCachedPrimaryPhotoUrl(null);
       }
     } catch (err) {
-      // Only log error if it's not an auth error
-      if (err && typeof err === 'object' && 'message' in err && err.message !== 'Authentication required') {
+      // Only log error if it's not an auth error or rate limit (429)
+      const isAuth = err && typeof err === 'object' && 'message' in err && err.message === 'Authentication required';
+      const is429 = err && typeof err === 'object' && 'status' in err && (err as any).status === 429;
+      if (err && typeof err === 'object' && 'message' in err && !isAuth && !is429) {
         console.error('Failed to fetch photos:', err);
       }
       setPhotos([]);
