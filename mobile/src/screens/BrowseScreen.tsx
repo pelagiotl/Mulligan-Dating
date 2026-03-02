@@ -2011,9 +2011,6 @@ export default function BrowseScreen() {
             <Text style={styles.noMoreText}>
               You've seen everyone for now. New people join every day — check back soon!
             </Text>
-            <View style={styles.noMoreHint}>
-              <Text style={styles.noMoreHintText}>🔍 We'll show new profiles here</Text>
-            </View>
           </LinearGradient>
         </View>
       ) : currentProfile ? (

@@ -319,17 +319,13 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
           })
         );
 
-        // Filter by max_distance and sort by distance
+        // Filter by max_distance and sort by distance (treat 0 and null as unlimited, same as connect route)
+        const maxDist = userPrefs.max_distance;
+        const maxDistMiles = (maxDist != null && typeof maxDist === 'number' && maxDist > 0) ? maxDist : null;
         filteredProfiles = profilesWithDistance
           .filter(({ distance }) => {
-            // If max_distance is null, it means unlimited - allow all distances
-            if (userPrefs.max_distance === null) return true;
-            // If max_distance is a number, filter by it
-            if (typeof userPrefs.max_distance === 'number') {
-              return distance === null || distance <= userPrefs.max_distance;
-            }
-            // If max_distance is undefined, allow all (shouldn't happen, but safe fallback)
-            return true;
+            if (maxDistMiles === null) return true; // unlimited
+            return distance === null || distance <= maxDistMiles;
           })
           .sort((a, b) => {
             if (a.distance === null) return 1;
