@@ -541,8 +541,10 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
     // Treat 0 or null as "unlimited"; only enforce when max_distance is a positive number
     const rawInitiator = userPrefsDist?.max_distance;
     const rawTarget = targetPrefsDist?.max_distance;
-    const initiatorMaxDist = (rawInitiator != null && rawInitiator !== '' && Number(rawInitiator) > 0) ? Number(rawInitiator) : null;
-    const targetMaxDist = (rawTarget != null && rawTarget !== '' && Number(rawTarget) > 0) ? Number(rawTarget) : null;
+    const nInitiator = rawInitiator != null ? Number(rawInitiator) : NaN;
+    const nTarget = rawTarget != null ? Number(rawTarget) : NaN;
+    const initiatorMaxDist = Number.isFinite(nInitiator) && nInitiator > 0 ? nInitiator : null;
+    const targetMaxDist = Number.isFinite(nTarget) && nTarget > 0 ? nTarget : null;
 
     if (userLoc && targetLoc) {
       try {
