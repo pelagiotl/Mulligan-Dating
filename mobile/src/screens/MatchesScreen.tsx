@@ -2853,6 +2853,16 @@ export default function MatchesScreen() {
     return () => registerMatchListRefresh(null);
   }, [registerMatchListRefresh, fetchMatches]);
 
+  // When we landed with showMatchCelebration (e.g. User B opened app from "matched with you" push), force refresh
+  // so the new match is in the list. useFocusEffect may not run if the tab was already focused.
+  useEffect(() => {
+    const rp = route.params as { showMatchCelebration?: boolean; matchId?: string } | undefined;
+    if (rp?.showMatchCelebration && rp?.matchId) {
+      api.clearCache('/matches');
+      fetchMatches();
+    }
+  }, [route.params?.showMatchCelebration, route.params?.matchId, fetchMatches]);
+
   // Auto-select match when matches load and we have pending or route param (e.g. celebration "Send message")
   // When matches refresh (e.g. after fetchMatches), re-set selectedMatch from fresh list so gameUnlocks is up to date
   useEffect(() => {
@@ -2898,8 +2908,11 @@ export default function MatchesScreen() {
         if (selectedMatchRef.current?.id === matchId) {
           lastFetchedMatchIdRef.current = null;
           setMessages([]);
-          fetchMatches();
           setSelectedMatch(null);
+          // Remove from list immediately so no effect re-selects it; clear cache so next fetch is fresh (avoids flicker/loop)
+          setMatches((prev) => prev.filter((m) => m.id !== matchId));
+          api.clearCache('/matches');
+          fetchMatches();
         }
         if (__DEV__) {
           console.warn('⚠️ Match no longer available, returning to list:', matchId);

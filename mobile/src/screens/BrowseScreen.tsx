@@ -920,9 +920,15 @@ export default function BrowseScreen() {
               setTimeout(() => setError(''), 5000);
               setIsAutoMatching(false);
               setBrowseUnlocked(true);
+              setLoading(false);
               return;
             }
-            await handleConnect(data.profile);
+            setCurrentProfile(data.profile); // So we never show blank if connect returns no matchId or fails
+            try {
+              await handleConnect(data.profile);
+            } finally {
+              setLoading(false);
+            }
             setTimeout(() => {
               setBrowseUnlocked(true);
               setIsAutoMatching(false);
@@ -977,9 +983,15 @@ export default function BrowseScreen() {
               setTimeout(() => setError(''), 5000);
               setIsAutoMatching(false);
               setBrowseUnlocked(true);
+              setLoading(false);
               return;
             }
-            await handleConnect(data.profile);
+            setCurrentProfile(data.profile);
+            try {
+              await handleConnect(data.profile);
+            } finally {
+              setLoading(false);
+            }
             setTimeout(() => {
               setBrowseUnlocked(true);
               setIsAutoMatching(false);
@@ -1005,6 +1017,7 @@ export default function BrowseScreen() {
           setError(fetchErr?.message || 'Failed to load profiles');
           setTimeout(() => setError(''), 8000);
           setIsAutoMatching(false);
+          setLoading(false);
           setBrowseUnlocked(true); // Unlock so error can be shown
         }
       } else {
@@ -1544,7 +1557,12 @@ export default function BrowseScreen() {
         connectTextOpacity.setValue(1);
         connectOverlayOpacity.setValue(0);
         setConnecting(false);
-        if (!result?.matchId) return;
+        if (!result?.matchId) {
+          // Don't clear currentProfile so user doesn't see a blank screen; show error so they can retry
+          setError('Connection did not complete. Please try again.');
+          setTimeout(() => setError(''), 6000);
+          return;
+        }
         if (result.existingMatch) {
           // Already matched: open existing conversation (no celebration)
           setCurrentProfile(null);
@@ -1561,7 +1579,7 @@ export default function BrowseScreen() {
           }
           return;
         }
-        setCurrentProfile(null);
+        // Set celebration state so modal shows; keep currentProfile until celebration closes to avoid blank white flash
         setMatchedProfile(profile);
         setMatchId(result.matchId);
         matchIdFromConnectRef.current = result.matchId;

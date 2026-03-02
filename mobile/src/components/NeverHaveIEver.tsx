@@ -189,9 +189,11 @@ export default function NeverHaveIEver({
       const data = await api.get<any>(`/matches/${matchId}/never-have-i-ever`, false);
       const fetchedYou = Math.max(0, Number(data.yourPoints ?? data.yourStrikes ?? 0));
       const fetchedThem = Math.max(0, Number(data.theirPoints ?? data.theirStrikes ?? 0));
+      // Once both have chosen spice, stay in playing (never show lobby again); show "Getting prompt..." if prompt is briefly empty
+      const hasChosen = !!(data.yourSpiceChoice || data.theirSpiceChoice);
       const simple: GameState = {
         prompt: data.prompt || '',
-        phase: data.spiceReady && (data.prompt || data.spiceLevel) ? 'playing' : 'lobby',
+        phase: data.spiceReady && (data.prompt || data.spiceLevel || hasChosen) ? 'playing' : 'lobby',
         yourSpiceChoice: data.yourSpiceChoice ?? null,
         theirSpiceChoice: data.theirSpiceChoice ?? null,
         spiceReady: !!data.spiceReady,
@@ -356,7 +358,7 @@ export default function NeverHaveIEver({
         : (data.yourSpiceChoice ?? choice);
       const next: GameState = {
         prompt: data.prompt || '',
-        phase: data.spiceReady && (data.prompt || data.spiceLevel) ? 'playing' : 'lobby',
+        phase: data.spiceReady && (data.prompt || data.spiceLevel || data.yourSpiceChoice || data.theirSpiceChoice) ? 'playing' : 'lobby',
         yourSpiceChoice: data.yourSpiceChoice ?? choice,
         theirSpiceChoice: data.theirSpiceChoice ?? null,
         spiceReady: !!data.spiceReady,
@@ -467,6 +469,10 @@ export default function NeverHaveIEver({
       if (roundComplete) {
         lastRoundCompletedAtRef.current = Date.now();
         api.clearCache(`/matches/${matchId}/never-have-i-ever`);
+        // If we didn't get a new prompt (e.g. backend didn't see both answers in time), refetch so GET runs completeRoundIfBothAnswered
+        if (!nextPromptValue || !nextPromptValue.trim()) {
+          setTimeout(() => fetchState(false), 500);
+        }
         if (pollRef.current) {
           clearInterval(pollRef.current);
           pollRef.current = null;
