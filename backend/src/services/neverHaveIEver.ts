@@ -293,7 +293,7 @@ export async function getGameState(
 
   const yourStrikes = Number(isUser1 ? row.user1_strikes : row.user2_strikes) || 0;
   const theirStrikes = Number(isUser1 ? row.user2_strikes : row.user1_strikes) || 0;
-  const rowAny = row as Record<string, unknown>;
+  const rowAny = row as unknown as Record<string, unknown>;
   let yourAnswer = (isUser1 ? getAnswerVal(rowAny, 'user1_answer') : getAnswerVal(rowAny, 'user2_answer')) as 'have' | 'havent' | null;
   let theirAnswer = (isUser1 ? getAnswerVal(rowAny, 'user2_answer') : getAnswerVal(rowAny, 'user1_answer')) as 'have' | 'havent' | null;
 
@@ -642,8 +642,8 @@ export async function submitAnswer(
   }
 
   // If both answers are already set (stale round never completed), complete it first so we can set our answer
-  const u1 = getAnswerVal(row as Record<string, unknown>, 'user1_answer');
-  const u2 = getAnswerVal(row as Record<string, unknown>, 'user2_answer');
+  const u1 = getAnswerVal(row as unknown as Record<string, unknown>, 'user1_answer');
+  const u2 = getAnswerVal(row as unknown as Record<string, unknown>, 'user2_answer');
   const bothSet = u1 !== null && u2 !== null;
   if (bothSet) {
     const completed = await completeRoundIfBothAnswered(matchId);
@@ -703,8 +703,8 @@ export async function submitAnswer(
   let rowAfter = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
   row = (rowAfter instanceof Promise ? await rowAfter : rowAfter) as GameRow;
   // Use key-agnostic read so we see both answers regardless of DB/driver key shape (e.g. PostgreSQL lowercase)
-  let user1Answer = (row ? getAnswerVal(row as Record<string, unknown>, 'user1_answer') : null) as 'have' | 'havent' | null;
-  let user2Answer = (row ? getAnswerVal(row as Record<string, unknown>, 'user2_answer') : null) as 'have' | 'havent' | null;
+  let user1Answer = (row ? getAnswerVal(row as unknown as Record<string, unknown>, 'user1_answer') : null) as 'have' | 'havent' | null;
+  let user2Answer = (row ? getAnswerVal(row as unknown as Record<string, unknown>, 'user2_answer') : null) as 'have' | 'havent' | null;
 
   nhieLog('submitAnswer: after 1s read', { matchId, user1Answer, user2Answer, bothPresent: user1Answer != null && user2Answer != null });
 
@@ -742,8 +742,8 @@ export async function submitAnswer(
     const rowRetryResult = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
     const rowRetry = (rowRetryResult instanceof Promise ? await rowRetryResult : rowRetryResult) as GameRow | undefined;
     if (!rowRetry) break;
-    user1Answer = getAnswerVal(rowRetry as Record<string, unknown>, 'user1_answer') as 'have' | 'havent' | null;
-    user2Answer = getAnswerVal(rowRetry as Record<string, unknown>, 'user2_answer') as 'have' | 'havent' | null;
+    user1Answer = getAnswerVal(rowRetry as unknown as Record<string, unknown>, 'user1_answer') as 'have' | 'havent' | null;
+    user2Answer = getAnswerVal(rowRetry as unknown as Record<string, unknown>, 'user2_answer') as 'have' | 'havent' | null;
     if (user1Answer != null && user2Answer != null) {
       row = rowRetry;
       break;
@@ -755,8 +755,8 @@ export async function submitAnswer(
     const finalRead = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
     const finalRow = (finalRead instanceof Promise ? await finalRead : finalRead) as GameRow | undefined;
     if (finalRow) {
-      const f1 = getAnswerVal(finalRow as Record<string, unknown>, 'user1_answer') as 'have' | 'havent' | null;
-      const f2 = getAnswerVal(finalRow as Record<string, unknown>, 'user2_answer') as 'have' | 'havent' | null;
+      const f1 = getAnswerVal(finalRow as unknown as Record<string, unknown>, 'user1_answer') as 'have' | 'havent' | null;
+      const f2 = getAnswerVal(finalRow as unknown as Record<string, unknown>, 'user2_answer') as 'have' | 'havent' | null;
       if (f1 != null && f2 != null) {
         user1Answer = f1;
         user2Answer = f2;
@@ -764,8 +764,8 @@ export async function submitAnswer(
       }
     }
   }
-  const raw1 = row ? getAnswerVal(row as Record<string, unknown>, 'user1_answer') : null;
-  const raw2 = row ? getAnswerVal(row as Record<string, unknown>, 'user2_answer') : null;
+  const raw1 = row ? getAnswerVal(row as unknown as Record<string, unknown>, 'user1_answer') : null;
+  const raw2 = row ? getAnswerVal(row as unknown as Record<string, unknown>, 'user2_answer') : null;
   nhieLog('submitAnswer: state after retries', { matchId, isUser1, user1Answer, user2Answer, bothPresent: user1Answer != null && user2Answer != null, roundCompletedByHelper });
   if (NHIE_DEBUG) {
     console.log(`🙊 NHIE submitAnswer: match=${matchId} isUser1=${isUser1} answer=${answer} user1Answer=${user1Answer} user2Answer=${user2Answer} raw1=${JSON.stringify(raw1)} raw2=${JSON.stringify(raw2)}`);
