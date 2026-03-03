@@ -33,6 +33,8 @@ interface MatchCelebrationProps {
   matchId?: string | null;
   /** When true (recipient / User B), skip "Finding your curated match" and show celebration immediately. When false (initiator / User A), show loading then reveal. */
   skipLoadingReveal?: boolean;
+  /** When true (Connect flow), show "Finding your curated match" until matchId is set, then reveal after a short delay. When false, use fixed REVEAL_DELAY_MS. */
+  revealWhenMatchIdReady?: boolean;
 }
 
 interface ConfettiParticle {
@@ -158,7 +160,7 @@ function FindingMatchLoading() {
   );
 }
 
-const REVEAL_DELAY_MS = 7000; // "Finding your curated match..." shows for 7 seconds before reveal
+const REVEAL_DELAY_MS = 7000; // "Finding your curated match..." shows for 7 seconds before reveal (Connect flow minimum)
 
 export default function MatchCelebration({
   profileName,
@@ -167,6 +169,7 @@ export default function MatchCelebration({
   explanation,
   matchId,
   skipLoadingReveal = false,
+  revealWhenMatchIdReady = false,
 }: MatchCelebrationProps) {
   const navigation = useNavigation();
   // Init from prop so User B (skipLoadingReveal=true) shows celebration immediately; User A (false) always sees loading first
@@ -202,13 +205,24 @@ export default function MatchCelebration({
   const buttonPulseAnim = useRef(new Animated.Value(1)).current;
   /** Ensure we only play the match sound once (effect can run twice in Strict Mode or on re-run) */
   const soundPlayedRef = useRef(false);
+  /** When the "Finding your curated match" modal opened (Connect flow); used to enforce 7s minimum */
+  const openedAtRef = useRef<number>(Date.now());
 
-  // Show loading state for a few seconds, then reveal the match (only when initiator; recipient skips via skipLoadingReveal)
+  // Connect flow: show "Finding your curated match" for at least REVEAL_DELAY_MS (7s), then reveal when matchId is set
   useEffect(() => {
-    if (skipLoadingReveal) return;
+    if (!revealWhenMatchIdReady || skipLoadingReveal || !matchId?.trim()) return;
+    const elapsed = Date.now() - openedAtRef.current;
+    const remaining = Math.max(0, REVEAL_DELAY_MS - elapsed);
+    const t = setTimeout(() => setRevealed(true), remaining);
+    return () => clearTimeout(t);
+  }, [revealWhenMatchIdReady, skipLoadingReveal, matchId]);
+
+  // Fixed delay: show loading for REVEAL_DELAY_MS then reveal (when not using revealWhenMatchIdReady)
+  useEffect(() => {
+    if (skipLoadingReveal || revealWhenMatchIdReady) return;
     const t = setTimeout(() => setRevealed(true), REVEAL_DELAY_MS);
     return () => clearTimeout(t);
-  }, [skipLoadingReveal]);
+  }, [skipLoadingReveal, revealWhenMatchIdReady]);
 
   // When revealed, run celebration (haptic, sound, animations) — sound plays once when the match card opens
   useEffect(() => {

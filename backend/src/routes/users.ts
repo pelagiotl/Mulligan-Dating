@@ -302,6 +302,16 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
         const p = filteredProfiles[i] as ProfileWithMetadata;
         const passes = await checkDealbreakersUtil(userProfile.id, p.id);
         if (passes) {
+          // Use profile.photo_url; if null, fall back to primary or first photo so Connect celebration has a photo
+          let photoUrl: string | null = p.photo_url;
+          if (!photoUrl || !String(photoUrl).trim()) {
+            const primaryPhoto = db.prepare('SELECT url FROM photos WHERE profile_id = ? AND is_primary = 1 LIMIT 1').get([p.id]) as { url: string } | undefined;
+            if (primaryPhoto?.url) photoUrl = primaryPhoto.url;
+            else {
+              const firstPhoto = db.prepare('SELECT url FROM photos WHERE profile_id = ? ORDER BY display_order ASC, id ASC LIMIT 1').get([p.id]) as { url: string } | undefined;
+              if (firstPhoto?.url) photoUrl = firstPhoto.url;
+            }
+          }
           const formattedProfile = {
             id: p.id,
             userId: p.user_id,
@@ -310,7 +320,7 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
             gender: p.gender,
             location: p.location,
             bio: p.bio,
-            photoUrl: p.photo_url,
+            photoUrl,
             lookingFor: p.looking_for,
             interests: p.interests_list ? p.interests_list.split(',') : [],
             distance: null as number | null,

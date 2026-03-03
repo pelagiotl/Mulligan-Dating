@@ -1540,6 +1540,12 @@ export default function BrowseScreen() {
     connectSpinnerOpacity.setValue(1);
     connectTextOpacity.setValue(0);
 
+    // Show "Finding your curated match" modal immediately (reveal celebration when API returns)
+    setMatchedProfile(profile);
+    setMatchId(null);
+    setMatchExplanation(null);
+    setShowMatchCelebration(true);
+
     type ConnectResult = {
       message?: string;
       isMutual?: boolean;
@@ -1558,13 +1564,17 @@ export default function BrowseScreen() {
         connectOverlayOpacity.setValue(0);
         setConnecting(false);
         if (!result?.matchId) {
-          // Don't clear currentProfile so user doesn't see a blank screen; show error so they can retry
+          setShowMatchCelebration(false);
+          setMatchedProfile(null);
+          setMatchId(null);
           setError('Connection did not complete. Please try again.');
           setTimeout(() => setError(''), 6000);
           return;
         }
         if (result.existingMatch) {
-          // Already matched: open existing conversation (no celebration)
+          setShowMatchCelebration(false);
+          setMatchedProfile(null);
+          setMatchId(null);
           setCurrentProfile(null);
           setPendingOpenMatchId(result.matchId);
           if (navigationRef.current?.isReady()) {
@@ -1579,13 +1589,21 @@ export default function BrowseScreen() {
           }
           return;
         }
-        // Set celebration state so modal shows; keep currentProfile until celebration closes to avoid blank white flash
-        setMatchedProfile(profile);
+        // Match succeeded: set matchId so MatchCelebration (revealWhenMatchIdReady) reveals the celebration
         setMatchId(result.matchId);
         matchIdFromConnectRef.current = result.matchId;
         initiatorMatchIdRef.current = result.matchId; // So AuthContext skips in-app match notification (celebration only for User A)
         setMatchExplanation(result.explanation ?? null);
-        setShowMatchCelebration(true);
+        // If profile has no photo (e.g. browse fast path didn't include it), fetch so celebration shows User B's picture
+        const hasPhoto = profile.photoUrl || (profile.photos && profile.photos.length > 0);
+        if (!hasPhoto && profile.id) {
+          api.get<{ photos: Photo[] }>(`/photos/profile/${profile.id}`, false).then((photosData) => {
+            if (photosData?.photos?.length) {
+              const primary = photosData.photos.find((p) => p.isPrimary) || photosData.photos[0];
+              setMatchedProfile((prev) => (prev ? { ...prev, photos: photosData.photos, photoUrl: primary?.url ?? prev.photoUrl } : null));
+            }
+          }).catch(() => {});
+        }
       })
       .catch((err: any) => {
         // Rollback optimistic state so user can retry
@@ -2189,7 +2207,7 @@ export default function BrowseScreen() {
       {/* Match Celebration Modal - hide when resetToLanding so modal never blocks tab bar / Connect button after "Keep Browsing" */}
       {showMatchCelebration && matchedProfile && !(route.params as { resetToLanding?: boolean } | undefined)?.resetToLanding && (
         <MatchCelebration
-          key={matchId ?? 'connect-celeb'}
+          key="connect-celeb"
           profileName={matchedProfile.displayName || 'Someone'}
           photoUrl={
             matchedProfile.photos?.find((p) => p.isPrimary)?.url ||
@@ -2201,6 +2219,7 @@ export default function BrowseScreen() {
           explanation={matchExplanation}
           matchId={matchId}
           skipLoadingReveal={false}
+          revealWhenMatchIdReady={true}
         />
       )}
 
