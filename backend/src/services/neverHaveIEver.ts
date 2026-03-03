@@ -420,8 +420,8 @@ export async function completeRoundIfBothAnswered(matchId: string): Promise<{ co
 
   let rowResult = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
   let row = (rowResult instanceof Promise ? await rowResult : rowResult) as GameRow | undefined;
-  if (!row || !row.spice_level || !row.current_prompt) {
-    nhieLog('completeRoundIfBothAnswered exit: no row or no spice/prompt', { matchId, hasRow: !!row });
+  if (!row) {
+    nhieLog('completeRoundIfBothAnswered exit: no row', { matchId });
     return { completed: false };
   }
   if (!hasBoth(row)) {
@@ -443,9 +443,11 @@ export async function completeRoundIfBothAnswered(matchId: string): Promise<{ co
     return { completed: false };
   }
 
-  const c1 = row.user1_spice_choice as SpiceLevel | null;
-  const c2 = row.user2_spice_choice as SpiceLevel | null;
-  const effectiveLevel = (c1 && c2 ? moreConservative(c1, c2) : (row.spice_level as SpiceLevel)) || 'pg13';
+  // Derive level from spice choices or row (PostgreSQL may return different key casing; both answers are present so game was started)
+  const c1 = (row.user1_spice_choice ?? (row as any).user1_spice_choice) as SpiceLevel | null;
+  const c2 = (row.user2_spice_choice ?? (row as any).user2_spice_choice) as SpiceLevel | null;
+  const rowSpice = (row as any).spice_level ?? (row as any).spiceLevel ?? row.spice_level;
+  const effectiveLevel = (c1 && c2 ? moreConservative(c1, c2) : (rowSpice as SpiceLevel)) || 'pg13';
   let nextPrompt: string;
   try {
     nextPrompt = await generateNeverHaveIEverPrompt(matchId, effectiveLevel);
