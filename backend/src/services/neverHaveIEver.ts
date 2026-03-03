@@ -660,8 +660,9 @@ export async function submitAnswer(
   let roundResult: { youStrike: boolean; themStrike: boolean } | undefined;
   let generatedNextPrompt: string | undefined;
 
-  // Give the other user's connection time to commit so we see both answers (cross-connection / replica visibility)
-  await new Promise((r) => setTimeout(r, 500));
+  // Give the other user's connection time to commit so we see both answers (cross-connection / replica visibility).
+  // Use 1s so when both users submit at once, the first read is more likely to see the other's commit.
+  await new Promise((r) => setTimeout(r, 1000));
 
   let rowAfter = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
   row = (rowAfter instanceof Promise ? await rowAfter : rowAfter) as GameRow;
@@ -674,7 +675,7 @@ export async function submitAnswer(
   if (user1Answer !== 'have' && user1Answer !== 'havent') user1Answer = null;
   if (user2Answer !== 'have' && user2Answer !== 'havent') user2Answer = null;
 
-  nhieLog('submitAnswer: after 500ms read', { matchId, user1Answer, user2Answer, bothPresent: user1Answer != null && user2Answer != null });
+  nhieLog('submitAnswer: after 1s read', { matchId, user1Answer, user2Answer, bothPresent: user1Answer != null && user2Answer != null });
 
   // Early completion: if we don't see both yet, try completeRoundIfBothAnswered once (it does its own read).
   // Helps when the other user's commit isn't visible to this connection yet (e.g. PostgreSQL / replica).
