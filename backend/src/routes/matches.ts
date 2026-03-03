@@ -2384,7 +2384,12 @@ matchesRouter.post("/:matchId/never-have-i-ever/spice-choice", authenticateToken
       console.warn('⚠️  Socket.io not available for Never Have I Ever notification');
     }
 
-    res.json({ ...state, tokenUnlocked: true, needsSpiceChoiceFromUnlocker: false });
+    res.json({
+      ...state,
+      tokenUnlocked: true,
+      needsSpiceChoiceFromUnlocker: false,
+      isUser1: userId === match.user1_id,
+    });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error("Never Have I Ever spice choice error:", error);
@@ -2597,15 +2602,15 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
     }
 
     // When POST didn't complete the round (e.g. both users submitted at once and neither saw both answers),
-    // run a delayed completion so we still advance the prompt and emit to both clients.
+    // run delayed completion at 1.2s and 2.5s so we advance the prompt and emit to both clients.
     if (!isTurnBased && !roundResult) {
-      const runDelayedCompletion = async () => {
-        await new Promise((r) => setTimeout(r, 900));
+      const runDelayedCompletion = async (delayMs: number) => {
+        await new Promise((r) => setTimeout(r, delayMs));
         try {
           const { completeRoundIfBothAnswered } = await import('../services/neverHaveIEver.js');
           const completed = await completeRoundIfBothAnswered(matchId);
           if (completed.completed && process.env.NODE_ENV !== 'test') {
-            console.log(`[NHIE] Delayed round completion: match=${matchId} newPromptLen=${completed.newPrompt?.length ?? 0}`);
+            console.log(`[NHIE] Delayed round completion: match=${matchId} delay=${delayMs}ms newPromptLen=${completed.newPrompt?.length ?? 0}`);
           }
         } catch (e) {
           if (process.env.NODE_ENV !== 'test') {
@@ -2613,7 +2618,8 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
           }
         }
       };
-      void runDelayedCompletion();
+      void runDelayedCompletion(1200);
+      void runDelayedCompletion(2500);
     }
 
     res.json({
@@ -2624,6 +2630,7 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
       theirPoints: Number(theirPoints),
       yourStrikes: Number(yourPoints),
       theirStrikes: Number(theirPoints),
+      isUser1: userId === match.user1_id,
       ...(pointsFromRound != null && { pointsFromRound: { newYourStrikes: Number(yourPoints), newTheirStrikes: Number(theirPoints) } }),
       ...(roundResult && { bothAnswered: true }),
       ...(nextPrompt != null && nextPrompt !== '' && { prompt: nextPrompt, newPrompt: nextPrompt }),

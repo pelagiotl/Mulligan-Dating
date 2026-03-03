@@ -207,6 +207,9 @@ export default function TruthOrDare({
   const lastAnotherOneAtRef = useRef<number>(0);
   const lastSpiceChoiceAtRef = useRef<number>(0);
   const lastSpiceChoiceRef = useRef<'pg13' | 'ratedr' | 'spicy' | null>(null);
+  /** When we just chose Truth or Dare, avoid letting fetchState overwrite with stale server currentPromptType */
+  const lastChooseAtRef = useRef<number>(0);
+  const intendedPromptTypeRef = useRef<'truth' | 'dare' | null>(null);
 
   const isUnlocked = gameUnlockedByToken;
 
@@ -297,8 +300,15 @@ export default function TruthOrDare({
         return data;
       });
       const recentlyRequestedAnother = Date.now() - lastAnotherOneAtRef.current < 5000;
+      const recentlyChose = Date.now() - lastChooseAtRef.current < 8000;
       const alreadyShowingPrompt = stepRef.current === 'prompt';
       if (recentlyRequestedAnother && alreadyShowingPrompt) {
+        setLoading(false);
+        return;
+      }
+      // Don't overwrite promptType with stale server data when we just chose Truth/Dare (avoids revert flicker)
+      if (recentlyChose && intendedPromptTypeRef.current != null) {
+        setStep('prompt');
         setLoading(false);
         return;
       }
@@ -433,6 +443,8 @@ export default function TruthOrDare({
   };
 
   const handleChoose = async (type: 'truth' | 'dare', anotherOne = false) => {
+    lastChooseAtRef.current = Date.now();
+    intendedPromptTypeRef.current = type;
     if (anotherOne) {
       lastAnotherOneAtRef.current = Date.now();
       setPromptType(type);
@@ -472,6 +484,8 @@ export default function TruthOrDare({
       lastAnotherOneAtRef.current = Date.now();
     } finally {
       setLoading(false);
+      // Clear after a short delay so future fetchState can apply server state; 8s window still prevents mid-request overwrite
+      setTimeout(() => { intendedPromptTypeRef.current = null; }, 8000);
       // Only send to chat when user explicitly clicks "Send to Chat", never on "Another one"
     }
   };

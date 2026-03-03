@@ -3432,8 +3432,11 @@ export default function MatchesScreen() {
   }
 
   // Show loading while auth is initializing or matches are loading (only when not in a conversation—
-  // when selectedMatch is set, refetches run in background and must not hide chat/input)
-  if (authLoading || (loading && !selectedMatch)) {
+  // when selectedMatch is set, refetches run in background and must not hide chat/input).
+  // Skip loading screen when User B is opening for match celebration so they don't see a brief "Loading matches..." flash.
+  const routeParamsForCelebration = route.params as { showMatchCelebration?: boolean; matchId?: string } | undefined;
+  const openingForCelebration = !!(routeParamsForCelebration?.showMatchCelebration && routeParamsForCelebration?.matchId);
+  if (authLoading || (loading && !selectedMatch && !openingForCelebration)) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#667eea" />

@@ -88,6 +88,8 @@ export default function NeverHaveIEver({
   const waitingForOtherPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastRoundCompletedAtRef = useRef<number>(0);
   const lastKnownPointsRef = useRef<{ yourPoints: number; theirPoints: number }>({ yourPoints: 0, theirPoints: 0 });
+  /** Persist isUser1 so socket handler can map user1Strikes/user2Strikes to yourPoints/theirPoints even if state was overwritten */
+  const isUser1Ref = useRef<boolean | null>(null);
   const modalVisibleRef = useRef(false);
   modalVisibleRef.current = modalVisible;
 
@@ -193,6 +195,7 @@ export default function NeverHaveIEver({
       const fetchedThem = Math.max(0, Number(data.theirPoints ?? data.theirStrikes ?? 0));
       // Once both have chosen spice, stay in playing (never show lobby again); show "Getting prompt..." if prompt is briefly empty
       const hasChosen = !!(data.yourSpiceChoice || data.theirSpiceChoice);
+      if (data.isUser1 !== undefined) isUser1Ref.current = !!data.isUser1;
       const simple: GameState = {
         prompt: data.prompt || '',
         phase: data.spiceReady && (data.prompt || data.spiceLevel || hasChosen) ? 'playing' : 'lobby',
@@ -212,6 +215,7 @@ export default function NeverHaveIEver({
         winner: data.winner ?? null,
         isUser1: data.isUser1,
       };
+      const recentRoundCooldown = Date.now() - lastRoundCompletedAtRef.current < 6000;
       setState(prev => {
         const recentRound = Date.now() - lastRoundCompletedAtRef.current < 6000;
         const fetchedZero = simple.yourPoints === 0 && simple.theirPoints === 0;
@@ -223,7 +227,9 @@ export default function NeverHaveIEver({
           ? (simple.yourAnswer ?? null)
           : (simple.yourAnswer ?? prev?.yourAnswer ?? null);
         if (simple.bothAnswered || serverClearedForNextRound) lastRoundCompletedAtRef.current = Date.now();
-        const merged = { ...simple, yourAnswer: keptYourAnswer, theirPoints: simple.theirPoints, yourPoints: simple.yourPoints };
+        // During round-complete cooldown, don't overwrite prompt with stale GET (avoids old prompt flashing back)
+        const keptPrompt = recentRoundCooldown && (prev?.prompt?.trim() ?? '') !== '' ? (prev.prompt ?? simple.prompt) : simple.prompt;
+        const merged = { ...simple, prompt: keptPrompt, yourAnswer: keptYourAnswer, theirPoints: simple.theirPoints, yourPoints: simple.yourPoints };
         if (recentRound && fetchedZero && refHasPoints) {
           return { ...merged, yourPoints: lastKnownPointsRef.current.yourPoints, theirPoints: lastKnownPointsRef.current.theirPoints };
         }
@@ -233,7 +239,8 @@ export default function NeverHaveIEver({
         lastKnownPointsRef.current = { yourPoints: refYou, theirPoints: refThem };
         return { ...merged, yourPoints: refYou, theirPoints: refThem };
       });
-      setPrompt(simple.prompt || '');
+      // During round-complete cooldown, don't overwrite displayed prompt with stale GET (POST/socket already set the new one)
+      if (!recentRoundCooldown) setPrompt(simple.prompt || '');
       addBreadcrumb('NHIE', 'Fetch state received', { fetchedYou: simple.yourPoints, fetchedThem: simple.theirPoints });
       debugLog('NHIE', 'Fetch state full', { yourPoints: data.yourPoints, theirPoints: data.theirPoints, bothAnswered: !!data.bothAnswered });
       if (__DEV__) {
@@ -315,7 +322,8 @@ export default function NeverHaveIEver({
       if (u1 != null && u2 != null) {
         setState(prev => {
           if (!prev) return null;
-          const isUser1 = prev.isUser1 ?? true;
+          // Use ref first so we don't mis-map when state.isUser1 was lost (e.g. stale merge); default true only if never set
+          const isUser1 = isUser1Ref.current ?? prev.isUser1 ?? true;
           const yourPts = isUser1 ? u1 : u2;
           const theirPts = isUser1 ? u2 : u1;
           lastKnownPointsRef.current = {
@@ -386,6 +394,7 @@ export default function NeverHaveIEver({
       const displayLevel = (data.spiceReady && data.spiceLevel != null && data.spiceLevel === choice)
         ? data.spiceLevel
         : (data.yourSpiceChoice ?? choice);
+      if (data.isUser1 !== undefined) isUser1Ref.current = !!data.isUser1;
       const next: GameState = {
         prompt: data.prompt || '',
         phase: data.spiceReady && (data.prompt || data.spiceLevel || data.yourSpiceChoice || data.theirSpiceChoice) ? 'playing' : 'lobby',
@@ -400,8 +409,9 @@ export default function NeverHaveIEver({
         bothAnswered: !!data.bothAnswered,
         gameOver: !!data.gameOver,
         winner: data.winner ?? null,
+        isUser1: data.isUser1 ?? state?.isUser1,
       };
-      setState(next);
+      setState(prev => ({ ...next, isUser1: next.isUser1 ?? prev?.isUser1 }));
       if (next.prompt) setPrompt(next.prompt);
     } catch (err) {
       console.warn('Never Have I Ever spice choice error:', err);
@@ -455,6 +465,7 @@ export default function NeverHaveIEver({
       }
 
       const data = await api.post<any>(`/matches/${matchId}/never-have-i-ever/answer`, { answer });
+      if (data.isUser1 !== undefined) isUser1Ref.current = !!data.isUser1;
       const fromRound = data.pointsFromRound as { newYourStrikes?: number; newTheirStrikes?: number } | undefined;
       const serverYourPts = Math.max(
         0,
@@ -476,10 +487,12 @@ export default function NeverHaveIEver({
       };
 
       const nextPromptValue = data.newPrompt ?? data.prompt ?? state?.prompt ?? '';
+      // When round completes, clear the old prompt immediately so it disappears; then show new prompt when we have it
       setState(prev => {
         if (!prev) return null;
         const yourPts = Math.max(prev.yourPoints, serverYourPts, lastKnownPointsRef.current.yourPoints);
         const theirPts = Math.max(prev.theirPoints, serverTheirPts, lastKnownPointsRef.current.theirPoints);
+        const newPrompt = roundComplete ? (nextPromptValue || '') : (nextPromptValue || prev.prompt);
         return {
           ...prev,
           yourAnswer: roundComplete ? null : (data.yourAnswer ?? answer),
@@ -487,23 +500,23 @@ export default function NeverHaveIEver({
           bothAnswered: roundComplete ? false : !!data.bothAnswered,
           yourPoints: yourPts,
           theirPoints: theirPts,
-          prompt: nextPromptValue || prev.prompt,
+          prompt: newPrompt,
           gameOver: !!data.gameOver,
           winner: data.winner ?? null,
         };
       });
-      // When round completes, server sends the new prompt; always apply so next round shows correctly
-      if (roundComplete && nextPromptValue) setPrompt(nextPromptValue);
+      if (roundComplete) setPrompt(nextPromptValue || '');
       else if (nextPromptValue) setPrompt(nextPromptValue);
 
       if (roundComplete) {
         lastRoundCompletedAtRef.current = Date.now();
         api.clearCache(`/matches/${matchId}/never-have-i-ever`);
-        // If we didn't get a new prompt (e.g. backend didn't see both answers in time), refetch so GET runs completeRoundIfBothAnswered
+        // If we didn't get a new prompt yet, refetch aggressively so GET completes the round and we get the new prompt
         if (!nextPromptValue || !nextPromptValue.trim()) {
-          setTimeout(() => fetchState(false), 500);
-          setTimeout(() => fetchState(false), 1500);
-          setTimeout(() => fetchState(false), 3000);
+          setTimeout(() => fetchState(false), 400);
+          setTimeout(() => fetchState(false), 900);
+          setTimeout(() => fetchState(false), 1800);
+          setTimeout(() => fetchState(false), 3500);
         }
         if (pollRef.current) {
           clearInterval(pollRef.current);
