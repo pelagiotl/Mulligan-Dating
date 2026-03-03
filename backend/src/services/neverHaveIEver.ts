@@ -408,45 +408,66 @@ export async function getGameState(
  * the next poll completes the round and returns the new prompt.
  * Returns { completed: true, newPrompt } if we ran the update; { completed: false } otherwise.
  */
+/** Read answer from row; handles PostgreSQL/node-pg returning lowercase or different key shapes */
+function getAnswerVal(row: Record<string, unknown>, key: 'user1_answer' | 'user2_answer'): string | null {
+  const raw =
+    row[key] ??
+    (row as any)[key] ??
+    row[key.replace(/_/g, '')] ?? // user1answer
+    (row as any)[key.replace('_', '')];
+  if (raw == null || typeof raw !== 'string') return null;
+  const s = String(raw).trim().toLowerCase();
+  return s === 'have' || s === 'havent' ? s : null;
+}
+
 export async function completeRoundIfBothAnswered(matchId: string): Promise<{ completed: boolean; newPrompt?: string }> {
-  function hasBoth(row: GameRow | undefined): boolean {
+  function hasBoth(row: Record<string, unknown> | undefined): boolean {
     if (!row) return false;
-    let a1 = (row.user1_answer ?? null) as string | null;
-    let a2 = (row.user2_answer ?? null) as string | null;
-    if (typeof a1 === 'string') a1 = a1.trim().toLowerCase();
-    if (typeof a2 === 'string') a2 = a2.trim().toLowerCase();
-    return (a1 === 'have' || a1 === 'havent') && (a2 === 'have' || a2 === 'havent');
+    const a1 = getAnswerVal(row, 'user1_answer');
+    const a2 = getAnswerVal(row, 'user2_answer');
+    return a1 !== null && a2 !== null;
   }
 
-  let rowResult = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
-  let row = (rowResult instanceof Promise ? await rowResult : rowResult) as GameRow | undefined;
+  const readRow = async (): Promise<Record<string, unknown> | null> => {
+    const rowResult = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
+    return (rowResult instanceof Promise ? await rowResult : rowResult) as Record<string, unknown> | null;
+  };
+
+  let row = await readRow();
   if (!row) {
     nhieLog('completeRoundIfBothAnswered exit: no row', { matchId });
     return { completed: false };
   }
-  if (!hasBoth(row)) {
-    nhieLog('completeRoundIfBothAnswered: first read missing both answers, waiting 400ms', { matchId, user1: row.user1_answer, user2: row.user2_answer });
-    await new Promise((r) => setTimeout(r, 400));
-    rowResult = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
-    row = (rowResult instanceof Promise ? await rowResult : rowResult) as GameRow | undefined;
-    if (!row || !hasBoth(row)) {
-      nhieLog('completeRoundIfBothAnswered exit: still missing both after wait', { matchId, user1: row?.user1_answer, user2: row?.user2_answer });
+  // Retry with backoff so we see commits after replica lag (Render/PostgreSQL read replica can be seconds behind)
+  const retryDelays = [400, 800, 1500, 3000, 5000, 8000];
+  for (let i = 0; i < retryDelays.length; i++) {
+    if (hasBoth(row)) break;
+    nhieLog('completeRoundIfBothAnswered: waiting then retry', { matchId, attempt: i + 1, delayMs: retryDelays[i], user1: getAnswerVal(row, 'user1_answer'), user2: getAnswerVal(row, 'user2_answer') });
+    await new Promise((r) => setTimeout(r, retryDelays[i]));
+    row = await readRow();
+    if (!row) {
+      nhieLog('completeRoundIfBothAnswered exit: no row after retry', { matchId });
       return { completed: false };
     }
   }
+  if (!hasBoth(row)) {
+    nhieLog('completeRoundIfBothAnswered exit: still missing both after all retries', { matchId, user1: getAnswerVal(row, 'user1_answer'), user2: getAnswerVal(row, 'user2_answer') });
+    return { completed: false };
+  }
 
-  nhieLog('completeRoundIfBothAnswered: both answers present, generating new prompt', { matchId, user1Answer: row.user1_answer, user2Answer: row.user2_answer });
-  const s1 = Number(row.user1_strikes) || 0;
-  const s2 = Number(row.user2_strikes) || 0;
+  const r = row as Record<string, unknown>;
+  nhieLog('completeRoundIfBothAnswered: both answers present, generating new prompt', { matchId, user1Answer: getAnswerVal(r, 'user1_answer'), user2Answer: getAnswerVal(r, 'user2_answer') });
+  const s1 = Number(r.user1_strikes) || 0;
+  const s2 = Number(r.user2_strikes) || 0;
   if (s1 >= STRIKES_TO_LOSE || s2 >= STRIKES_TO_LOSE) {
     nhieLog('completeRoundIfBothAnswered exit: game over', { matchId, s1, s2 });
     return { completed: false };
   }
 
   // Derive level from spice choices or row (PostgreSQL may return different key casing; both answers are present so game was started)
-  const c1 = (row.user1_spice_choice ?? (row as any).user1_spice_choice) as SpiceLevel | null;
-  const c2 = (row.user2_spice_choice ?? (row as any).user2_spice_choice) as SpiceLevel | null;
-  const rowSpice = (row as any).spice_level ?? (row as any).spiceLevel ?? row.spice_level;
+  const c1 = (r.user1_spice_choice ?? (r as any).user1_spice_choice) as SpiceLevel | null;
+  const c2 = (r.user2_spice_choice ?? (r as any).user2_spice_choice) as SpiceLevel | null;
+  const rowSpice = (r as any).spice_level ?? (r as any).spiceLevel ?? r.spice_level;
   const effectiveLevel = (c1 && c2 ? moreConservative(c1, c2) : (rowSpice as SpiceLevel)) || 'pg13';
   let nextPrompt: string;
   try {
@@ -468,8 +489,8 @@ export async function completeRoundIfBothAnswered(matchId: string): Promise<{ co
     console.log(`🙊 NHIE completeRoundIfBothAnswered: match=${matchId} completed round, newPromptLen=${nextPrompt.length}`);
   }
   if (changed) {
-    const user1Strikes = Math.max(0, Number(row.user1_strikes) || 0);
-    const user2Strikes = Math.max(0, Number(row.user2_strikes) || 0);
+    const user1Strikes = Math.max(0, Number(r.user1_strikes) || 0);
+    const user2Strikes = Math.max(0, Number(r.user2_strikes) || 0);
     nhieLog('completeRoundIfBothAnswered emitting never_have_i_ever_updated', { matchId, user1Strikes, user2Strikes });
     try {
       const { getIO } = await import('../socket.js');
