@@ -14,6 +14,7 @@ import * as Haptics from 'expo-haptics';
 import { setPendingOpenMatchId } from '../utils/pendingMatchOpen';
 import { navigationRef } from '../navigation/navigationRef';
 import OptimizedImage from './OptimizedImage';
+import { getPhotoUrl } from '../utils/photoUrl';
 import { playMatchSound } from '../utils/sounds';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -168,7 +169,8 @@ export default function MatchCelebration({
   skipLoadingReveal = false,
 }: MatchCelebrationProps) {
   const navigation = useNavigation();
-  const [revealed, setRevealed] = useState(skipLoadingReveal);
+  // Init from prop so User B (skipLoadingReveal=true) shows celebration immediately; User A (false) always sees loading first
+  const [revealed, setRevealed] = useState(() => skipLoadingReveal);
   const [showContent, setShowContent] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [showButton, setShowButton] = useState(false);
@@ -198,6 +200,8 @@ export default function MatchCelebration({
   const heartBeatAnim = useRef(new Animated.Value(1)).current;
   const buttonScaleAnim = useRef(new Animated.Value(0)).current;
   const buttonPulseAnim = useRef(new Animated.Value(1)).current;
+  /** Ensure we only play the match sound once (effect can run twice in Strict Mode or on re-run) */
+  const soundPlayedRef = useRef(false);
 
   // Show loading state for a few seconds, then reveal the match (only when initiator; recipient skips via skipLoadingReveal)
   useEffect(() => {
@@ -206,7 +210,7 @@ export default function MatchCelebration({
     return () => clearTimeout(t);
   }, [skipLoadingReveal]);
 
-  // When revealed, run celebration (haptic, sound, animations) — sound plays when the match card opens
+  // When revealed, run celebration (haptic, sound, animations) — sound plays once when the match card opens
   useEffect(() => {
     if (!revealed) return;
 
@@ -217,7 +221,9 @@ export default function MatchCelebration({
       // Haptics not available (simulator, etc.)
     }
 
-    // Play match sound when the match celebration card opens (after "Finding your curated match...")
+    // Play match sound once when the match celebration card opens (after "Finding your curated match...")
+    if (soundPlayedRef.current) return;
+    soundPlayedRef.current = true;
     const soundDelay = setTimeout(() => {
       playMatchSound().catch((error) => {
         console.warn('🎵 [MatchCelebration] Sound playback failed:', error?.message || error);
@@ -523,7 +529,7 @@ export default function MatchCelebration({
             >
               {photoUrl ? (
                 <OptimizedImage
-                  source={photoUrl}
+                  source={getPhotoUrl(photoUrl)}
                   style={styles.photo}
                   resizeMode="cover"
                   showLoadingIndicator={false}

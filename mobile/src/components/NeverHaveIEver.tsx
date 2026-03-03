@@ -43,6 +43,8 @@ interface GameState {
   bothAnswered: boolean;
   gameOver: boolean;
   winner: 'you' | 'them' | null;
+  /** From API so we can map socket user1Strikes/user2Strikes to yourPoints/theirPoints */
+  isUser1?: boolean;
 }
 
 interface NeverHaveIEverProps {
@@ -208,6 +210,7 @@ export default function NeverHaveIEver({
         bothAnswered: !!data.bothAnswered,
         gameOver: !!data.gameOver,
         winner: data.winner ?? null,
+        isUser1: data.isUser1,
       };
       setState(prev => {
         const recentRound = Date.now() - lastRoundCompletedAtRef.current < 6000;
@@ -280,12 +283,20 @@ export default function NeverHaveIEver({
 
   useEffect(() => {
     if (!modalVisible) return;
-    const onUpdate = (payload: { matchId?: string; newPrompt?: string; roundComplete?: boolean } = {}) => {
+    const onUpdate = (payload: {
+      matchId?: string;
+      newPrompt?: string;
+      roundComplete?: boolean;
+      user1Strikes?: number;
+      user2Strikes?: number;
+    } = {}) => {
       if (__DEV__) {
         console.log('[NHIE] Socket never_have_i_ever_updated received', {
           matchId: payload?.matchId,
           hasNewPrompt: !!(payload?.newPrompt),
           roundComplete: payload?.roundComplete,
+          user1Strikes: payload?.user1Strikes,
+          user2Strikes: payload?.user2Strikes,
         });
       }
       const { addBreadcrumb } = require('../utils/debugLogger');
@@ -297,6 +308,26 @@ export default function NeverHaveIEver({
       if (payload.roundComplete) {
         lastRoundCompletedAtRef.current = Date.now();
         // So the 2s poll skips for 6s and doesn't overwrite new prompt with a stale GET
+      }
+      // Apply authoritative strike counts from server so "them" updates without refetch timing
+      const u1 = payload.user1Strikes ?? null;
+      const u2 = payload.user2Strikes ?? null;
+      if (u1 != null && u2 != null) {
+        setState(prev => {
+          if (!prev) return null;
+          const isUser1 = prev.isUser1 ?? true;
+          const yourPts = isUser1 ? u1 : u2;
+          const theirPts = isUser1 ? u2 : u1;
+          lastKnownPointsRef.current = {
+            yourPoints: Math.max(lastKnownPointsRef.current.yourPoints, yourPts),
+            theirPoints: Math.max(lastKnownPointsRef.current.theirPoints, theirPts),
+          };
+          return {
+            ...prev,
+            yourPoints: lastKnownPointsRef.current.yourPoints,
+            theirPoints: lastKnownPointsRef.current.theirPoints,
+          };
+        });
       }
       // If round just completed, other user sent us the new prompt — show it immediately so next round appears
       if (payload.newPrompt && payload.roundComplete) {
@@ -310,9 +341,8 @@ export default function NeverHaveIEver({
           bothAnswered: false,
         } : null);
       }
-      // Immediate refetch so "Them" points update right away when the other user submits
+      // Refetch so we get new prompt if socket lacked it and any other state updates
       fetchState(false);
-      // Staggered refetches so we get new prompt from server if socket payload lacked it, and updated points
       setTimeout(() => fetchState(false), 400);
       setTimeout(() => fetchState(false), 1000);
       setTimeout(() => fetchState(false), 2000);
@@ -472,6 +502,8 @@ export default function NeverHaveIEver({
         // If we didn't get a new prompt (e.g. backend didn't see both answers in time), refetch so GET runs completeRoundIfBothAnswered
         if (!nextPromptValue || !nextPromptValue.trim()) {
           setTimeout(() => fetchState(false), 500);
+          setTimeout(() => fetchState(false), 1500);
+          setTimeout(() => fetchState(false), 3000);
         }
         if (pollRef.current) {
           clearInterval(pollRef.current);

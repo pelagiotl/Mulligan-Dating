@@ -2189,6 +2189,7 @@ export default function BrowseScreen() {
       {/* Match Celebration Modal - hide when resetToLanding so modal never blocks tab bar / Connect button after "Keep Browsing" */}
       {showMatchCelebration && matchedProfile && !(route.params as { resetToLanding?: boolean } | undefined)?.resetToLanding && (
         <MatchCelebration
+          key={matchId ?? 'connect-celeb'}
           profileName={matchedProfile.displayName || 'Someone'}
           photoUrl={
             matchedProfile.photos?.find((p) => p.isPrimary)?.url ||

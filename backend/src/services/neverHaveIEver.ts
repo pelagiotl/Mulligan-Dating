@@ -6,6 +6,14 @@
  */
 
 import { db } from '../database.js';
+
+/** Debug logging for NHIE round/prompt flow. Set DEBUG_NHIE=1 for extra verbose (e.g. raw answer values). */
+const NHIE_DEBUG = process.env.DEBUG_NHIE === '1' || process.env.DEBUG_NHIE === 'true';
+function nhieLog(message: string, data?: Record<string, unknown>): void {
+  if (process.env.NODE_ENV === 'test' && !NHIE_DEBUG) return;
+  const payload = data ? ` ${JSON.stringify(data)}` : '';
+  console.log(`[NHIE] ${message}${payload}`);
+}
 import { getSharedInterests } from './mulliganMoments.js';
 
 const STRIKES_TO_LOSE = 10;
@@ -303,6 +311,7 @@ export async function getGameState(
 
   // Complete the round in this same read when GET asks for it: we already see both answers, so no second-read race
   if (options?.completeRoundIfBothAnswered && bothAnswered && !gameOver) {
+    nhieLog('getGameState completing round (both answered)', { matchId, yourAnswer, theirAnswer, completeRoundIfBothAnswered: true });
     let nextPrompt: string;
     try {
       nextPrompt = await generateNeverHaveIEverPrompt(matchId, level);
@@ -316,6 +325,7 @@ export async function getGameState(
     const runResult = db.prepare(updateSql).run([nextPrompt, ts, matchId]);
     const resolved = runResult instanceof Promise ? await runResult : runResult;
     const changed = (resolved as { changes?: number }).changes !== undefined && (resolved as { changes: number }).changes > 0;
+    nhieLog('getGameState round-completion UPDATE result', { matchId, changed, newPromptPreview: nextPrompt.slice(0, 50) });
     if (changed && process.env.NODE_ENV !== 'test') {
       console.log(`🙊 NHIE getGameState: completed round match=${matchId} newPromptLen=${nextPrompt.length}`);
     }
@@ -324,11 +334,14 @@ export async function getGameState(
     const rowAfter = (reread instanceof Promise ? await reread : reread) as GameRow | undefined;
     if (rowAfter && changed) {
       const newPromptVal = rowAfter.current_prompt?.trim() || nextPrompt;
+      const user1Strikes = Math.max(0, Number(rowAfter.user1_strikes) || 0);
+      const user2Strikes = Math.max(0, Number(rowAfter.user2_strikes) || 0);
+      nhieLog('getGameState emitting never_have_i_ever_updated (round complete)', { matchId, newPromptPreview: newPromptVal.slice(0, 50), user1Strikes, user2Strikes });
       try {
         const { getIO } = await import('../socket.js');
         const io = getIO();
         if (io) {
-          io.to(`match:${matchId}`).emit('never_have_i_ever_updated', { matchId, newPrompt: newPromptVal, roundComplete: true });
+          io.to(`match:${matchId}`).emit('never_have_i_ever_updated', { matchId, newPrompt: newPromptVal, roundComplete: true, user1Strikes, user2Strikes });
         }
       } catch (_) {}
       return {
@@ -407,17 +420,28 @@ export async function completeRoundIfBothAnswered(matchId: string): Promise<{ co
 
   let rowResult = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
   let row = (rowResult instanceof Promise ? await rowResult : rowResult) as GameRow | undefined;
-  if (!row || !row.spice_level || !row.current_prompt) return { completed: false };
+  if (!row || !row.spice_level || !row.current_prompt) {
+    nhieLog('completeRoundIfBothAnswered exit: no row or no spice/prompt', { matchId, hasRow: !!row });
+    return { completed: false };
+  }
   if (!hasBoth(row)) {
+    nhieLog('completeRoundIfBothAnswered: first read missing both answers, waiting 400ms', { matchId, user1: row.user1_answer, user2: row.user2_answer });
     await new Promise((r) => setTimeout(r, 400));
     rowResult = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
     row = (rowResult instanceof Promise ? await rowResult : rowResult) as GameRow | undefined;
-    if (!row || !hasBoth(row)) return { completed: false };
+    if (!row || !hasBoth(row)) {
+      nhieLog('completeRoundIfBothAnswered exit: still missing both after wait', { matchId, user1: row?.user1_answer, user2: row?.user2_answer });
+      return { completed: false };
+    }
   }
 
+  nhieLog('completeRoundIfBothAnswered: both answers present, generating new prompt', { matchId, user1Answer: row.user1_answer, user2Answer: row.user2_answer });
   const s1 = Number(row.user1_strikes) || 0;
   const s2 = Number(row.user2_strikes) || 0;
-  if (s1 >= STRIKES_TO_LOSE || s2 >= STRIKES_TO_LOSE) return { completed: false };
+  if (s1 >= STRIKES_TO_LOSE || s2 >= STRIKES_TO_LOSE) {
+    nhieLog('completeRoundIfBothAnswered exit: game over', { matchId, s1, s2 });
+    return { completed: false };
+  }
 
   const c1 = row.user1_spice_choice as SpiceLevel | null;
   const c2 = row.user2_spice_choice as SpiceLevel | null;
@@ -437,14 +461,18 @@ export async function completeRoundIfBothAnswered(matchId: string): Promise<{ co
   const resolved = runResult instanceof Promise ? await runResult : runResult;
   const changed = (resolved as { changes?: number }).changes !== undefined && (resolved as { changes: number }).changes > 0;
 
+  nhieLog('completeRoundIfBothAnswered UPDATE result', { matchId, changed, newPromptPreview: nextPrompt.slice(0, 50) });
   if (changed && process.env.NODE_ENV !== 'test') {
     console.log(`🙊 NHIE completeRoundIfBothAnswered: match=${matchId} completed round, newPromptLen=${nextPrompt.length}`);
   }
   if (changed) {
+    const user1Strikes = Math.max(0, Number(row.user1_strikes) || 0);
+    const user2Strikes = Math.max(0, Number(row.user2_strikes) || 0);
+    nhieLog('completeRoundIfBothAnswered emitting never_have_i_ever_updated', { matchId, user1Strikes, user2Strikes });
     try {
       const { getIO } = await import('../socket.js');
       const io = getIO();
-      if (io) io.to(`match:${matchId}`).emit('never_have_i_ever_updated', { matchId, newPrompt: nextPrompt, roundComplete: true });
+      if (io) io.to(`match:${matchId}`).emit('never_have_i_ever_updated', { matchId, newPrompt: nextPrompt, roundComplete: true, user1Strikes, user2Strikes });
     } catch (_) {}
   }
   return changed ? { completed: true, newPrompt: nextPrompt } : { completed: false };
@@ -592,12 +620,14 @@ export async function submitAnswer(
 
   const ts = new Date().toISOString();
   // Only set answer when currently null/empty (idempotent: double-tap or double request won't add points)
+  nhieLog('submitAnswer: saving answer', { matchId, isUser1, answer });
   const setAnswerSql = isUser1
     ? 'UPDATE never_have_i_ever_games SET user1_answer = ?, updated_at = ? WHERE match_id = ? AND (user1_answer IS NULL OR user1_answer = \'\')'
     : 'UPDATE never_have_i_ever_games SET user2_answer = ?, updated_at = ? WHERE match_id = ? AND (user2_answer IS NULL OR user2_answer = \'\')';
   let runResult = db.prepare(setAnswerSql).run([answer, ts, matchId]);
   if (runResult instanceof Promise) runResult = await runResult;
   const answerWasSet = (runResult as { changes?: number }).changes !== undefined && (runResult as { changes: number }).changes > 0;
+  nhieLog('submitAnswer: answer UPDATE result', { matchId, isUser1, answerWasSet });
 
   if (!answerWasSet) {
     if (process.env.NODE_ENV !== 'test') {
@@ -627,6 +657,8 @@ export async function submitAnswer(
     newTheirStrikes: prevTheir,
   };
   let pointsAfterRoundComplete: { newYourStrikes: number; newTheirStrikes: number } | undefined;
+  let roundResult: { youStrike: boolean; themStrike: boolean } | undefined;
+  let generatedNextPrompt: string | undefined;
 
   // Give the other user's connection time to commit so we see both answers (cross-connection / replica visibility)
   await new Promise((r) => setTimeout(r, 500));
@@ -642,9 +674,37 @@ export async function submitAnswer(
   if (user1Answer !== 'have' && user1Answer !== 'havent') user1Answer = null;
   if (user2Answer !== 'have' && user2Answer !== 'havent') user2Answer = null;
 
-  // If we only see one answer, the other user's update may not be visible yet (commit/replica timing). Retry with backoff.
+  nhieLog('submitAnswer: after 500ms read', { matchId, user1Answer, user2Answer, bothPresent: user1Answer != null && user2Answer != null });
+
+  // Early completion: if we don't see both yet, try completeRoundIfBothAnswered once (it does its own read).
+  // Helps when the other user's commit isn't visible to this connection yet (e.g. PostgreSQL / replica).
+  let roundCompletedByHelper = false;
+  if (user1Answer == null || user2Answer == null) {
+    nhieLog('submitAnswer: calling completeRoundIfBothAnswered (early) - only one answer visible', { matchId });
+    const earlyComplete = await completeRoundIfBothAnswered(matchId);
+    if (earlyComplete.completed && earlyComplete.newPrompt) {
+      roundCompletedByHelper = true;
+      generatedNextPrompt = earlyComplete.newPrompt;
+      nhieLog('submitAnswer: early completeRoundIfBothAnswered succeeded', { matchId, newPromptPreview: earlyComplete.newPrompt.slice(0, 50) });
+      roundResult = { youStrike: answer === 'have', themStrike: false };
+      const finalRead = db.prepare('SELECT user1_strikes, user2_strikes FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
+      const finalRow = (finalRead instanceof Promise ? await finalRead : finalRead) as { user1_strikes?: number; user2_strikes?: number } | undefined;
+      if (finalRow) {
+        pointsAfterRoundComplete = {
+          newYourStrikes: Number(isUser1 ? finalRow.user1_strikes : finalRow.user2_strikes) || 0,
+          newTheirStrikes: Number(isUser1 ? finalRow.user2_strikes : finalRow.user1_strikes) || 0,
+        };
+      }
+      if (process.env.NODE_ENV !== 'test') {
+        console.log(`🙊 NHIE submitAnswer: early completeRoundIfBothAnswered completed round match=${matchId}`);
+      }
+    }
+  }
+
+  // If we only see one answer (and helper didn't complete), retry with backoff for replica/commit visibility
   const retryDelays = [150, 350, 600, 1000, 1500, 2500, 4000, 6000, 8000];
   for (const delayMs of retryDelays) {
+    if (roundCompletedByHelper) break;
     if (user1Answer != null && user2Answer != null) break;
     await new Promise((r) => setTimeout(r, delayMs));
     const rowRetryResult = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
@@ -661,8 +721,8 @@ export async function submitAnswer(
       break;
     }
   }
-  // One final wait and read in case of replica lag
-  if (user1Answer == null || user2Answer == null) {
+  // One final wait and read in case of replica lag (skip if we already completed via early helper)
+  if (!roundCompletedByHelper && (user1Answer == null || user2Answer == null)) {
     await new Promise((r) => setTimeout(r, 2000));
     const finalRead = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
     const finalRow = (finalRead instanceof Promise ? await finalRead : finalRead) as GameRow | undefined;
@@ -682,12 +742,12 @@ export async function submitAnswer(
   }
   const raw1 = (row as GameRow)?.user1_answer;
   const raw2 = (row as GameRow)?.user2_answer;
-  console.log(`🙊 NHIE submitAnswer: match=${matchId} isUser1=${isUser1} answer=${answer} user1Answer=${user1Answer} user2Answer=${user2Answer} bothPresent=${user1Answer != null && user2Answer != null} raw1=${JSON.stringify(raw1)} raw2=${JSON.stringify(raw2)}`);
+  nhieLog('submitAnswer: state after retries', { matchId, isUser1, user1Answer, user2Answer, bothPresent: user1Answer != null && user2Answer != null, roundCompletedByHelper });
+  if (NHIE_DEBUG) {
+    console.log(`🙊 NHIE submitAnswer: match=${matchId} isUser1=${isUser1} answer=${answer} user1Answer=${user1Answer} user2Answer=${user2Answer} raw1=${JSON.stringify(raw1)} raw2=${JSON.stringify(raw2)}`);
+  }
 
-  let roundResult: { youStrike: boolean; themStrike: boolean } | undefined;
-  let generatedNextPrompt: string | undefined;
-
-  if (user1Answer !== null && user2Answer !== null) {
+  if (!roundCompletedByHelper && user1Answer !== null && user2Answer !== null) {
     // Points were already added when each user submitted "I have". Here we only clear answers and advance the prompt.
     roundResult = {
       youStrike: (isUser1 ? user1Answer : user2Answer) === 'have',
@@ -711,13 +771,16 @@ export async function submitAnswer(
         nextPrompt = `Never have I ever ${pickRandom(FALLBACK_PROMPTS)}`;
       }
       generatedNextPrompt = nextPrompt;
+      nhieLog('submitAnswer: both answered, generated new prompt', { matchId, newPromptPreview: nextPrompt.slice(0, 50) });
       if (process.env.NODE_ENV !== 'test') {
         console.log(`🙊 NHIE submitAnswer: both answered, generated new prompt for match=${matchId} promptLen=${nextPrompt.length}`);
       }
       const runResult = db.prepare(
         `UPDATE never_have_i_ever_games SET current_prompt = ?, user1_answer = NULL, user2_answer = NULL, updated_at = ? WHERE match_id = ?`
       ).run([nextPrompt, new Date().toISOString(), matchId]);
-      if (runResult instanceof Promise) await runResult;
+      const runRes = runResult instanceof Promise ? await runResult : runResult;
+      const updateChanged = (runRes as { changes?: number }).changes !== undefined && (runRes as { changes: number }).changes > 0;
+      nhieLog('submitAnswer: round-completion UPDATE (submitAnswer path)', { matchId, updateChanged });
 
       // Re-read strikes after round completion so client always gets definitive counts (avoids any read timing)
       const finalRead = db.prepare('SELECT user1_strikes, user2_strikes FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
@@ -770,6 +833,7 @@ export async function submitAnswer(
     pointsAfterRoundComplete ?? pointsAfterAnswer ??
     (roundResult ? { newYourStrikes: state.yourStrikes, newTheirStrikes: state.theirStrikes } : undefined);
   const newPrompt = generatedNextPrompt ?? (roundResult ? (state.prompt ?? undefined) : undefined);
+  nhieLog('submitAnswer: returning', { matchId, hasNewPrompt: !!newPrompt, newPromptPreview: newPrompt?.slice(0, 50), roundResult: !!roundResult });
   return { state, roundResult, completedYourAnswer, completedTheirAnswer, pointsFromRound, newPrompt };
 }
 

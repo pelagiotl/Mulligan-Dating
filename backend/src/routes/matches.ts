@@ -2457,15 +2457,24 @@ matchesRouter.get("/:matchId/never-have-i-ever", authenticateToken, async (req: 
     }
 
     const { getGameState } = await import('../services/neverHaveIEver.js');
+    if (process.env.NODE_ENV !== 'test') {
+      console.log(`[NHIE] GET state: match=${matchId} userId=${userId} completeRoundIfBothAnswered=true`);
+    }
     // Complete round inside the same read when we see both answers (getGameState emits socket when it completes)
     let state = await getGameState(matchId, userId, match, { completeRoundIfBothAnswered: true });
     // If we're in playing but didn't see both, a second read after a short delay may see them (e.g. PostgreSQL visibility)
     if (state.phase === 'playing' && !state.bothAnswered) {
+      if (process.env.NODE_ENV !== 'test') {
+        console.log(`[NHIE] GET state retry: match=${matchId} bothAnswered=false, retrying after 400ms`);
+      }
       await new Promise((r) => setTimeout(r, 400));
       const retryState = await getGameState(matchId, userId, match, { completeRoundIfBothAnswered: true });
       if (retryState.bothAnswered || (retryState.prompt && retryState.prompt !== state.prompt)) state = retryState;
     }
 
+    if (state.phase === 'playing' && process.env.NODE_ENV !== 'test') {
+      console.log(`[NHIE] GET state result: match=${matchId} bothAnswered=${state.bothAnswered} yourStrikes=${state.yourStrikes} theirStrikes=${state.theirStrikes} promptLen=${state.prompt?.length ?? 0} promptPreview=${(state.prompt ?? '').slice(0, 50)}`);
+    }
     if (state.phase === 'playing') {
       console.log(`🙊 Never Have I Ever GET state: match=${matchId} yourStrikes=${state.yourStrikes} theirStrikes=${state.theirStrikes} bothAnswered=${state.bothAnswered} promptLen=${state.prompt?.length ?? 0}`);
     }
@@ -2480,6 +2489,8 @@ matchesRouter.get("/:matchId/never-have-i-ever", authenticateToken, async (req: 
       // Tally: points = number of "I have" (same as strikes in DB); coerce to number (PostgreSQL may return strings)
       yourPoints: Math.max(0, Number(state.yourStrikes) || 0),
       theirPoints: Math.max(0, Number(state.theirStrikes) || 0),
+      // So client can map socket payload user1Strikes/user2Strikes to yourPoints/theirPoints
+      isUser1: userId === match.user1_id,
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -2515,7 +2526,7 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
     }
 
     if (process.env.NODE_ENV !== 'test') {
-      console.log(`🙊 NHIE POST answer: match=${matchId} userId=${userId} answer=${answer}`);
+      console.log(`[NHIE] POST answer: match=${matchId} userId=${userId} answer=${answer}`);
     }
 
     const { submitAnswer, submitTurnAnswer } = await import('../services/neverHaveIEver.js');
@@ -2546,6 +2557,9 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
     }
 
     const nextPrompt = roundResult ? (newPrompt ?? state.prompt ?? '') : undefined;
+    if (process.env.NODE_ENV !== 'test') {
+      console.log(`[NHIE] POST answer result: match=${matchId} roundResult=${!!roundResult} hasNewPrompt=${!!nextPrompt} newPromptLen=${nextPrompt?.length ?? 0} newPromptPreview=${(nextPrompt ?? '').slice(0, 50)}`);
+    }
     if (process.env.NODE_ENV !== 'test' && roundResult) {
       console.log(`🙊 NHIE round complete: match=${matchId} sending new prompt=${!!nextPrompt} len=${nextPrompt?.length ?? 0}`);
     }
@@ -2555,19 +2569,27 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
       await new Promise((r) => setTimeout(r, 150));
     }
 
-    // Emit to the other user so they get new prompt + can refetch for updated "Them" points
+    // Emit so other user gets new prompt and authoritative strike counts (so "them" updates without refetch timing)
     try {
       const { getIO } = await import('../socket.js');
       const io = getIO();
       if (io) {
+        let user1Strikes: number | undefined;
+        let user2Strikes: number | undefined;
+        const strikeRow = db.prepare('SELECT user1_strikes, user2_strikes FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]) as { user1_strikes?: number; user2_strikes?: number } | undefined;
+        if (strikeRow) {
+          user1Strikes = Math.max(0, Number(strikeRow.user1_strikes) || 0);
+          user2Strikes = Math.max(0, Number(strikeRow.user2_strikes) || 0);
+        }
         const payload = {
           matchId,
           newPrompt: nextPrompt && nextPrompt.trim() ? nextPrompt : undefined,
           roundComplete: !!roundResult,
+          ...(user1Strikes !== undefined && user2Strikes !== undefined && { user1Strikes, user2Strikes }),
         };
         io.to(`match:${matchId}`).emit('never_have_i_ever_updated', payload);
         if (process.env.NODE_ENV !== 'test') {
-          console.log(`🙊 NHIE emit: match=${matchId} newPromptLen=${payload.newPrompt?.length ?? 0} roundComplete=${payload.roundComplete}`);
+          console.log(`[NHIE] POST answer emit: match=${matchId} roundComplete=${payload.roundComplete} newPromptLen=${payload.newPrompt?.length ?? 0} user1Strikes=${user1Strikes ?? 'none'} user2Strikes=${user2Strikes ?? 'none'} (other client uses these for "them" points)`);
         }
       }
     } catch (socketError) {
