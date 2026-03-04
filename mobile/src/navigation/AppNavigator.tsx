@@ -363,7 +363,12 @@ export default function AppNavigator() {
             console.error('Navigation error in AppNavigator:', err);
           }
         }
-      } else if (user && !profile && currentRoute?.name !== 'CreateProfile') {
+      } else if (
+        user &&
+        !profile &&
+        currentRoute?.name !== 'CreateProfile' &&
+        currentRoute?.name !== 'MainTabs'
+      ) {
         try {
           navigationRef.current.reset({ index: 0, routes: [{ name: 'CreateProfile' }] });
         } catch (err) {
