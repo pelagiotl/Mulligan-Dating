@@ -14,7 +14,7 @@ let messageSoundModule: any = null;
 // Match sound plays for all match celebrations (Browse connect + Matches tab when opening from notification).
 const isExpoGo = typeof Constants !== 'undefined' && Constants?.executionEnvironment === 'storeClient';
 
-// Load match celebration sound — prefer WAV (primary asset in mobile/assets)
+// Match celebration sound — same file for both iOS and Android (mobile/assets/match-sound.wav)
 try {
   matchSoundModule = require('../../assets/match-sound.wav');
   console.log('🎵 ✅ Match sound module loaded successfully (WAV)');
