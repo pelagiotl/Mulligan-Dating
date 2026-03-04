@@ -1275,6 +1275,17 @@ export default function BrowseScreen() {
     navigation.setParams({ resetToLanding: undefined });
   }, [route.params, navigation, clearCelebrationAndConnectingState]);
 
+  // When user returns to Connect tab after a match (e.g. went to Matches then tapped Connect), show landing
+  // instead of "You're all caught up" so they can tap "Use a Mulligan" again (fixes Android getting stuck on empty state).
+  useFocusEffect(
+    useCallback(() => {
+      // If we would show "all caught up" (no card, not loading, have profile), reset to landing
+      if (browseUnlocked && currentProfile === null && !loading && userProfile) {
+        setBrowseUnlocked(false);
+      }
+    }, [browseUnlocked, currentProfile, loading, userProfile])
+  );
+
   // Fetch user's photo count when on landing page (for 5-photo minimum to Connect)
   // Refetch when tab is focused so count updates after user adds photos on Profile tab
   useEffect(() => {

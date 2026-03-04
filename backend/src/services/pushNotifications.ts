@@ -250,6 +250,7 @@ export async function sendMessagePushNotification(
   senderId: string,
   messageId?: string
 ): Promise<PushResult> {
+  // Use 'default' sound so Android shows outside-app notifications reliably (custom sounds can prevent display when app is backgrounded).
   return sendPushNotification(
     pushToken,
     senderName,
@@ -261,7 +262,7 @@ export async function sendMessagePushNotification(
       senderName,
       ...(messageId ? { messageId } : {}),
     },
-    'message-sound'
+    'default'
   );
 }
 
