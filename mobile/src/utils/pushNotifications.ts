@@ -122,7 +122,7 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
 
     // Android: give FCM time to initialize before requesting token (reduces "token null" / no delivery)
     if (Platform.OS === 'android') {
-      await new Promise((r) => setTimeout(r, 800));
+      await new Promise((r) => setTimeout(r, 1200));
     }
 
     // Get Expo push token
@@ -163,12 +163,17 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
       return null;
     };
 
-    // Get push token (Android: retry once after 2s if FCM wasn't ready)
+    // Get push token (Android: retry after 2s and again after 5s — FCM is often slow to initialize)
     let pushToken: string | null = await fetchToken();
     if (Platform.OS === 'android' && !pushToken) {
       await new Promise((r) => setTimeout(r, 2000));
       pushToken = await fetchToken();
-      if (pushToken && __DEV__) console.log('📲 Push: Android token obtained on retry');
+      if (pushToken && __DEV__) console.log('📲 Push: Android token obtained on retry (2s)');
+    }
+    if (Platform.OS === 'android' && !pushToken) {
+      await new Promise((r) => setTimeout(r, 3000));
+      pushToken = await fetchToken();
+      if (pushToken && __DEV__) console.log('📲 Push: Android token obtained on retry (5s)');
     }
     if (!pushToken) {
       console.warn('⚠️  Push: Could not get Expo push token. On Android, use an EAS/development build (not Expo Go) and ensure notifications are allowed.');

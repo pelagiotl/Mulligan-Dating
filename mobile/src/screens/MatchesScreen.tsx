@@ -44,6 +44,9 @@ import NeverHaveIEver from '../components/NeverHaveIEver';
 import OptimizedImage from '../components/OptimizedImage';
 import GameRequestModal from '../components/GameRequestModal';
 import MatchCelebration from '../components/MatchCelebration';
+
+/** Set to true to show the Never Have I Ever game card in match detail. */
+const SHOW_NEVER_HAVE_I_EVER = false;
 import * as ImagePicker from 'expo-image-picker';
 import { Video, Audio } from 'expo-av';
 
@@ -3780,32 +3783,34 @@ export default function MatchesScreen() {
                     gameUnlockedByToken={selectedMatch.gameUnlocks?.truth_or_dare}
                     headerMode
                   />
-                  <NeverHaveIEver
-                    matchId={selectedMatch.id}
-                    messages={messages}
-                    currentUserId={user?.id || ''}
-                    socket={socketRef.current}
-                    onBeforeUnlockPrompt={async () => {
-                      const matches = await fetchMatches();
-                      const m = matches.find(mm => mm.id === selectedMatch.id);
-                      if (m?.gameUnlocks?.never_have_i_ever) {
-                        setSelectedMatch(m);
-                        return true;
-                      }
-                      return false;
-                    }}
-                    onUnlockWithToken={async () => {
-                      await api.post(`/matches/${selectedMatch.id}/unlock-game`, { gameType: 'never_have_i_ever' });
-                      api.clearCache('/matches');
-                      api.clearCache('/tokens');
-                      setSelectedMatch(prev => prev ? { ...prev, gameUnlocks: { ...(prev.gameUnlocks || { truth_or_dare: false, never_have_i_ever: false }), never_have_i_ever: true } } : null);
-                      setMatches(prev => prev.map(m => m.id === selectedMatch.id ? { ...m, gameUnlocks: { ...(m.gameUnlocks || { truth_or_dare: false, never_have_i_ever: false }), never_have_i_ever: true } } : m));
-                    }}
-                    openForAccept={openGameForAccept?.gameType === 'never_have_i_ever' && openGameForAccept?.matchId === selectedMatch.id}
-                    onOpenedForAccept={() => setOpenGameForAccept(null)}
-                    gameUnlockedByToken={selectedMatch.gameUnlocks?.never_have_i_ever}
-                    headerMode
-                  />
+                  {SHOW_NEVER_HAVE_I_EVER && (
+                    <NeverHaveIEver
+                      matchId={selectedMatch.id}
+                      messages={messages}
+                      currentUserId={user?.id || ''}
+                      socket={socketRef.current}
+                      onBeforeUnlockPrompt={async () => {
+                        const matches = await fetchMatches();
+                        const m = matches.find(mm => mm.id === selectedMatch.id);
+                        if (m?.gameUnlocks?.never_have_i_ever) {
+                          setSelectedMatch(m);
+                          return true;
+                        }
+                        return false;
+                      }}
+                      onUnlockWithToken={async () => {
+                        await api.post(`/matches/${selectedMatch.id}/unlock-game`, { gameType: 'never_have_i_ever' });
+                        api.clearCache('/matches');
+                        api.clearCache('/tokens');
+                        setSelectedMatch(prev => prev ? { ...prev, gameUnlocks: { ...(prev.gameUnlocks || { truth_or_dare: false, never_have_i_ever: false }), never_have_i_ever: true } } : null);
+                        setMatches(prev => prev.map(m => m.id === selectedMatch.id ? { ...m, gameUnlocks: { ...(m.gameUnlocks || { truth_or_dare: false, never_have_i_ever: false }), never_have_i_ever: true } } : m));
+                      }}
+                      openForAccept={openGameForAccept?.gameType === 'never_have_i_ever' && openGameForAccept?.matchId === selectedMatch.id}
+                      onOpenedForAccept={() => setOpenGameForAccept(null)}
+                      gameUnlockedByToken={selectedMatch.gameUnlocks?.never_have_i_ever}
+                      headerMode
+                    />
+                  )}
                   <DateBlueprint
                     matchId={selectedMatch.id}
                     socket={socketRef.current}

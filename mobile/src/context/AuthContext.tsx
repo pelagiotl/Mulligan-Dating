@@ -602,11 +602,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(t);
   }, [user?.id]);
 
-  // Android: third registration attempt at 15s (FCM can be slow to initialize on some devices)
+  // Android: third registration attempt at 15s (FCM can be slow to initialize on some devices).
+  // If we still have no fresh token, send the stored (hydrated) token to the server once so pushes can work.
   useEffect(() => {
     if (!user || Platform.OS !== 'android') return;
-    const t = setTimeout(() => {
-      registerForPushNotificationsAsync().catch(() => {});
+    const t = setTimeout(async () => {
+      try {
+        const fresh = await registerForPushNotificationsAsync();
+        if (!fresh) {
+          const stored = getStoredPushToken();
+          if (stored?.trim()) {
+            await api.post('/auth/push-token', { pushToken: stored });
+            if (__DEV__) console.log('📲 Push: Android — sent stored token to server (fresh token unavailable)');
+          }
+        }
+      } catch (_) {}
     }, 15000);
     return () => clearTimeout(t);
   }, [user?.id]);

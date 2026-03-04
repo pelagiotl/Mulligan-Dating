@@ -210,12 +210,12 @@ async function request<T = any>(endpoint: string, options: RequestOptions = {}, 
           authTokenPresent: !!token  // Bearer token; not weekly/match token
         });
       }
-      // Clear stored token on auth errors so app can show login instead of repeated 403s
-      if (response.status === 401) {
+      // Clear stored token only when we actually sent one (avoids clearing on race: request without token gets 401 and wipes session — fixes Android "matches disappear on reopen")
+      if (response.status === 401 && hasValidToken) {
         clearTokenCache();
         AsyncStorage.removeItem('token').catch(() => {});
       }
-      if (response.status === 403) {
+      if (response.status === 403 && hasValidToken) {
         const msg = (errorMsg || '').toLowerCase();
         if (msg.includes('token') && (msg.includes('invalid') || msg.includes('expired'))) {
           clearTokenCache();
