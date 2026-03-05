@@ -64,6 +64,9 @@ temp/
 *.cert
 secrets/
 keys/
+# Firebase Service Account key (do not commit)
+**/firebase-adminsdk-*.json
+mobile/mulligan-ba16c-firebase-adminsdk-*.json
 
 
 

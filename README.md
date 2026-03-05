@@ -4,7 +4,7 @@
 
 Mulligan is a full-stack dating application that helps people find meaningful connections by focusing on what truly matters: shared interests, compatible preferences, and honest dealbreakers.
 
-## Features
+4## Features
 
 - **User Authentication** - Secure signup and login
 - **Rich Profiles** - Express yourself with interests, hobbies, and photos
@@ -123,10 +123,25 @@ To get **system** message notifications when the app is in the background or clo
    - You can also confirm whether the backend has a token for a user: `GET /auth/me` returns `user.hasPushToken: true/false`. If the recipient logs in and still sees `hasPushToken: false`, the client never successfully sent the token (check device logs for "Push: No projectId" or "Push token save failed").
 
 5. **Android outside-app notifications not showing**  
-   - **Backend:** Ensure `EXPO_ACCESS_TOKEN` is set in the Render environment (required for Expo to deliver to FCM). Redeploy after setting.  
+   In-app notifications use the socket; **outside-app** (background/closed) use FCM. For Android, both of these are required or pushes will not be delivered when the app is in the background:
+
+   - **FCM V1 credentials in EAS (required)**  
+     Expo cannot forward pushes to Android devices without a **Google Service Account Key** configured for your EAS project:
+     1. Create a [Firebase project](https://console.firebase.google.com/) and add your Android app (package `com.lukepelagiotomerlin.mulligan`).
+     2. In Firebase: **Project settings → Service accounts** → **Generate New Private Key** (JSON). Keep this file private (e.g. add to `.gitignore`).
+     3. Run `eas credentials` in the **mobile** folder → choose **Android** → **production** → **Set up a Google Service Account Key for Push Notifications (FCM V1)** → upload the JSON file.
+     4. See [Expo: FCM credentials](https://docs.expo.dev/push-notifications/fcm-credentials/) for full steps.
+
+   - **google-services.json in the app (required)**  
+     So the Android app can register with FCM and receive pushes when backgrounded:
+     1. In Firebase Console, download **google-services.json** (Project settings → Your apps → Android app).
+     2. Put it in `mobile/` (e.g. `mobile/google-services.json`).
+     3. In `mobile/app.json`, under `expo.android`, add: `"googleServicesFile": "./google-services.json"`.
+     4. Rebuild the Android app with EAS (`eas build --platform android --profile production`).
+
+   - **Backend:** Ensure `EXPO_ACCESS_TOKEN` is set in the Render environment. Redeploy after setting.  
    - **Device:** Use an **EAS or production build** (not Expo Go). Ensure the user has **allowed notifications** when prompted.  
-   - **Timing:** On Android, FCM can take a few seconds to initialize. The app delays token request by ~800ms and retries once after 2s, and tries again at 15s. Have the user open the app, allow notifications, and leave it open for ~15 seconds so the token is saved.  
-   - **Verify:** In Render logs when a message is sent, look for `📲 Push (message): recipient=… hasToken=true validFormat=true EXPO_ACCESS_TOKEN=set`. If `hasToken=false`, the recipient’s device has not saved a token yet (see step 4).
+   - **Verify:** In Render logs when a message is sent, look for `📲 Push (message): recipient=… hasToken=true validFormat=true EXPO_ACCESS_TOKEN=set` and `✅ Push (message) sent to …`. If the backend says "sent" but the device never shows a notification, FCM credentials or `googleServicesFile` are almost certainly missing — complete the steps above and create a new Android build.
 
 ### Project Structure
 
