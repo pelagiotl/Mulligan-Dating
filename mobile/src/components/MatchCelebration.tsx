@@ -235,15 +235,7 @@ export default function MatchCelebration({
       // Haptics not available (simulator, etc.)
     }
 
-    // Play match sound once when the match celebration card opens (after "Finding your curated match...")
-    if (soundPlayedRef.current) return;
-    soundPlayedRef.current = true;
-    const soundDelay = setTimeout(() => {
-      playMatchSound().catch((error) => {
-        console.warn('🎵 [MatchCelebration] Sound playback failed:', error?.message || error);
-      });
-    }, 280);
-
+    // Sound is played in a separate effect when showContent becomes true (so it only plays when celebration card is visible, not when loading card is open)
     const timer1 = setTimeout(() => setShowContent(true), 100);
     const timer2 = setTimeout(() => setShowConfetti(true), 300);
     const timer3 = setTimeout(() => setShowButton(true), 2000);
@@ -347,12 +339,24 @@ export default function MatchCelebration({
       clearTimeout(timer2);
       clearTimeout(timer3);
       clearTimeout(timer4);
-      clearTimeout(soundDelay);
       photoPulseLoop.stop();
       heartBeatLoop.stop();
       buttonPulseLoop.stop();
     };
   }, [revealed]);
+
+  // Play match sound only when the celebration card is actually visible (showContent), not when "Finding your curated match" is showing
+  useEffect(() => {
+    if (!showContent) return;
+    if (soundPlayedRef.current) return;
+    soundPlayedRef.current = true;
+    const t = setTimeout(() => {
+      playMatchSound().catch((error) => {
+        console.warn('🎵 [MatchCelebration] Sound playback failed:', error?.message || error);
+      });
+    }, 180);
+    return () => clearTimeout(t);
+  }, [showContent]);
 
   const handleContinue = () => {
     const idToOpen = matchId ?? null;
