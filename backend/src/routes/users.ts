@@ -4,6 +4,7 @@ import { authenticateToken, AuthRequest } from '../middleware/auth.js';
 import { geocodeLocation, calculateDistanceMiles } from '../utils/geocoding.js';
 import { checkDealbreakers as checkDealbreakersUtil } from '../utils/dealbreakers.js';
 import { getCompletenessBoost } from '../utils/profileCompleteness.js';
+import { getActiveMatchingRegion, isInRegion, REGION_MAX_DISTANCE_MILES } from '../config/regions.js';
 
 // Check if using PostgreSQL
 const usePostgres = !!process.env.DATABASE_URL;
@@ -263,26 +264,51 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
       console.warn('   User preferences:', userPrefs);
     }
 
-    // Apply distance filter first so fast path and full path use the same pool (fixes e.g. Portland user with "Any" distance seeing Medford users)
-    // Note: max_distance can be null (unlimited) or a number
+    // Geo-lock: when ACTIVE_MATCHING_REGION is set (e.g. southern_oregon), only users in that region can match
+    const activeRegion = getActiveMatchingRegion();
+    if (activeRegion) {
+      if (!userProfile.location || !userProfile.location.trim()) {
+        return res.status(403).json({
+          error: 'Matching is currently only available in Southern Oregon. Please add your location to your profile.',
+          code: 'REGION_REQUIRES_LOCATION',
+        });
+      }
+      const userLocationResult = await geocodeLocation(userProfile.location);
+      if (!userLocationResult.coordinates || !isInRegion(userLocationResult.coordinates.lat, userLocationResult.coordinates.lng, activeRegion)) {
+        return res.status(403).json({
+          error: 'Matching is currently only available for people in Southern Oregon. We may expand to more cities soon!',
+          code: 'OUTSIDE_ACTIVE_REGION',
+        });
+      }
+    }
+
+    // Apply distance filter (and region filter for candidates when geo-lock is on)
     let filteredProfiles = allProfiles;
-    if (userProfile.location && userPrefs && userPrefs.max_distance !== undefined) {
+    const needGeocodeLoop = (userProfile.location && userPrefs && userPrefs.max_distance !== undefined) || activeRegion;
+    if (needGeocodeLoop && userProfile.location) {
       const userLocationResult = await geocodeLocation(userProfile.location);
       if (userLocationResult.coordinates) {
         const profilesWithDistance = await Promise.all(
           allProfiles.map(async (p: ProfileWithMetadata) => {
-            if (!p.location) return { profile: p, distance: null };
+            if (!p.location) return { profile: p, distance: null, inRegion: false };
             const candidateLocationResult = await geocodeLocation(p.location);
-            const distance = candidateLocationResult.coordinates
-              ? calculateDistanceMiles(userLocationResult.coordinates, candidateLocationResult.coordinates)
+            const coords = candidateLocationResult.coordinates;
+            const inRegion = !activeRegion || (coords ? isInRegion(coords.lat, coords.lng, activeRegion) : false);
+            const distance = coords
+              ? calculateDistanceMiles(userLocationResult.coordinates, coords)
               : null;
-            return { profile: p, distance };
+            return { profile: p, distance, inRegion };
           })
         );
-        const maxDist = userPrefs.max_distance;
-        const maxDistMiles = (maxDist != null && typeof maxDist === 'number' && maxDist > 0) ? maxDist : null;
+        const maxDist = userPrefs?.max_distance;
+        let maxDistMiles = (maxDist != null && typeof maxDist === 'number' && maxDist > 0) ? maxDist : null;
+        // When region lock is on, cap at REGION_MAX_DISTANCE_MILES (e.g. 100 mi) so "Any" doesn't mean entire region
+        if (activeRegion && (maxDistMiles === null || maxDistMiles > REGION_MAX_DISTANCE_MILES)) {
+          maxDistMiles = REGION_MAX_DISTANCE_MILES;
+        }
         filteredProfiles = profilesWithDistance
-          .filter(({ distance }) => {
+          .filter(({ distance, inRegion }) => {
+            if (activeRegion && !inRegion) return false;
             if (maxDistMiles === null) return true;
             return distance === null || distance <= maxDistMiles;
           })

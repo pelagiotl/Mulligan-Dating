@@ -6,6 +6,7 @@ import { generateWeeklyMatches, generateMatchExplanation, calculateProfileCompat
 import { recordSuccessSignal } from "../utils/successTracking.js";
 import { rateLimitAPI } from "../middleware/security.js";
 import { geocodeLocation, calculateDistanceMiles } from "../utils/geocoding.js";
+import { getActiveMatchingRegion, isInRegion, REGION_MAX_DISTANCE_MILES } from "../config/regions.js";
 import { uploadChatImage, uploadChatVideo, uploadChatAudio } from "../middleware/upload.js";
 import { uploadToCloudinary, uploadToCloudinaryMedia, isCloudinaryConfigured } from "../services/cloudinary.js";
 
@@ -538,6 +539,16 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
 
     const userLoc = userProfileLoc?.location?.trim() || null;
     const targetLoc = targetProfileLoc?.location?.trim() || null;
+
+    // Geo-lock: when ACTIVE_MATCHING_REGION is set, both users must have a location so we can verify they're in region
+    const activeRegionForConnect = getActiveMatchingRegion();
+    if (activeRegionForConnect && (!userLoc || !targetLoc)) {
+      return res.status(400).json({
+        error: "Matching is currently only available for people in Southern Oregon. Both people need a location set.",
+        code: "REGION_REQUIRES_LOCATION",
+      });
+    }
+
     // "Any" distance = unlimited: treat null, undefined, 0, and "0" as no limit so both users can connect when both set Any
     const toMaxMiles = (raw: number | null | undefined): number | null => {
       if (raw === null || raw === undefined) return null;
@@ -575,8 +586,43 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
               theirMaxMiles: targetMaxDist,
             });
           }
+          // Geo-lock: when ACTIVE_MATCHING_REGION is set, both users must be in that region and within REGION_MAX_DISTANCE_MILES
+          const activeRegion = getActiveMatchingRegion();
+          if (activeRegion) {
+            const userInRegion = isInRegion(userGeo.coordinates.lat, userGeo.coordinates.lng, activeRegion);
+            const targetInRegion = isInRegion(targetGeo.coordinates.lat, targetGeo.coordinates.lng, activeRegion);
+            if (!userInRegion || !targetInRegion) {
+              if (process.env.NODE_ENV !== "test") {
+                console.log(`🙅 Connect blocked: region check failed (activeRegion=${activeRegion}) userInRegion=${userInRegion} targetInRegion=${targetInRegion}`);
+              }
+              return res.status(400).json({
+                error: "Matching is currently only available for people in Southern Oregon. We may expand to more cities soon!",
+                code: "OUTSIDE_ACTIVE_REGION",
+              });
+            }
+            if (distanceMiles > REGION_MAX_DISTANCE_MILES) {
+              if (process.env.NODE_ENV !== "test") {
+                console.log(`🙅 Connect blocked: distance ${distanceMiles.toFixed(1)} mi > region max ${REGION_MAX_DISTANCE_MILES} mi`);
+              }
+              return res.status(400).json({
+                error: `Matching within Southern Oregon is limited to ${REGION_MAX_DISTANCE_MILES} miles. You're ${Math.round(distanceMiles)} miles apart.`,
+                code: "EXCEEDS_REGION_MAX_DISTANCE",
+                distanceMiles: Math.round(distanceMiles * 10) / 10,
+                maxMiles: REGION_MAX_DISTANCE_MILES,
+              });
+            }
+          }
         } else {
-          // Geocoding didn't return coordinates for one or both (API limit, format, or provider down). Allow connect so we don't block users.
+          // Geocoding didn't return coordinates for one or both
+          if (activeRegionForConnect) {
+            if (process.env.NODE_ENV !== "test") {
+              console.warn(`🙅 Connect blocked: region lock requires geocoding but one or both failed. userLoc="${userLoc}" → ${userGeo.coordinates ? "OK" : "no coords"}, targetLoc="${targetLoc}" → ${targetGeo.coordinates ? "OK" : "no coords"}.`);
+            }
+            return res.status(400).json({
+              error: "We couldn't verify your location. Make sure your profile location is a city or area in Southern Oregon.",
+              code: "REGION_VERIFICATION_FAILED",
+            });
+          }
           if (process.env.NODE_ENV !== "test") {
             console.warn(`📷 Distance check skipped: could not geocode one or both locations. userLoc="${userLoc}" → ${userGeo.coordinates ? "OK" : "no coords"}, targetLoc="${targetLoc}" → ${targetGeo.coordinates ? "OK" : "no coords"}. Allowing connect.`);
           }
