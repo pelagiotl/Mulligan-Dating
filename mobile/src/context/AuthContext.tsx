@@ -18,6 +18,7 @@ import { navigationRef } from '../navigation/navigationRef';
 import { playMessageSound, playMatchSound } from '../utils/sounds';
 import { setPendingGameRequest } from '../utils/pendingGameRequest';
 import { currentMatchIdRef } from '../utils/currentMatchView';
+import Purchases from 'react-native-purchases';
 
 export type MessageNotificationItem = {
   id: string;
@@ -714,7 +715,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         hasPushToken: data.user.hasPushToken ?? false,
       });
       setProfile(data.profile || null);
-      
+
+      // Identify user to RevenueCat for in-app purchase attribution (no-op in Expo Go)
+      if (Platform.OS === 'ios' || Platform.OS === 'android') {
+        try {
+          const p = Purchases.logIn(data.user.id);
+          if (p && typeof p.catch === 'function') p.catch((err: unknown) => console.warn('RevenueCat logIn failed:', err));
+        } catch (_) {}
+      }
+
       // Register for push notifications if user is logged in
       // (this handles the case where user refreshes the app and is already logged in)
       // Run this asynchronously after a delay to ensure app is fully initialized
@@ -791,7 +800,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (pushError) {
       console.warn('⚠️  Failed to clear push token (non-critical):', pushError);
     }
+    if (Platform.OS === 'ios' || Platform.OS === 'android') {
+      try {
+        const p = Purchases.logOut();
+        if (p && typeof p.catch === 'function') p.catch((err: unknown) => console.warn('RevenueCat logOut failed:', err));
+      } catch (_) {}
+    }
     clearTokenCache();
+    api.clearCache(); // Prevent next account from seeing previous user's cached profile/data
     await AsyncStorage.removeItem('token');
     setUser(null);
     setProfile(null);

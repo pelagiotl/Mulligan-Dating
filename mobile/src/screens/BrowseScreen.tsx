@@ -35,7 +35,7 @@ import OptimizedImage from '../components/OptimizedImage';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-const MIN_PHOTOS_TO_CONNECT = 5;
+const MIN_PHOTOS_TO_CONNECT = 3;
 
 const MAX_DISTANCE_OPTIONS: (number | null)[] = [10, 25, 50, 100, 250, 500, null]; // null = Any distance
 
@@ -1942,7 +1942,7 @@ export default function BrowseScreen() {
                         </Text>
                       ) : photoCount < MIN_PHOTOS_TO_CONNECT ? (
                         <Text style={styles.landingButtonText} numberOfLines={2}>
-                          Add 5+ Photos
+                          Add 3+ Photos
                         </Text>
                       ) : (
                         <Text style={styles.landingButtonText} numberOfLines={1}>

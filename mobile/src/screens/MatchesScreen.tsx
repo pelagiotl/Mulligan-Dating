@@ -2728,6 +2728,10 @@ export default function MatchesScreen() {
         socketRef.current.emit('join_match', selectedMatch.id);
         socketRef.current.emit('mark_read', { matchId: selectedMatch.id });
       }
+      // Optimistically clear unread badge so it disappears when user goes back to list
+      setMatches((prev) =>
+        prev.map((m) => (m.id === selectedMatch.id ? { ...m, unreadCount: 0 } : m))
+      );
     }
 
     return () => {
@@ -2952,7 +2956,8 @@ export default function MatchesScreen() {
     console.log('🔙 handleBack called - clearing selected match');
     console.log('   Current selectedMatch:', selectedMatch?.id);
     lastFetchedMatchIdRef.current = null;
-    // Refresh matches to update unread counts after viewing messages
+    // Clear cache so refetch gets fresh unread counts from server (mark_read has been emitted)
+    api.clearCache('/matches');
     fetchMatches();
     setMessages([]);
     setSelectedMatch(null);

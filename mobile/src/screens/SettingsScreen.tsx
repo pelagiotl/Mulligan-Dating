@@ -16,7 +16,6 @@ import {
 import Constants from 'expo-constants';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
-import { usePaymentSheet } from '@stripe/stripe-react-native';
 import { api } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { navigationRef } from '../navigation/navigationRef';
@@ -30,10 +29,11 @@ interface SettingsData {
 
 const DEBUG_TAP_COUNT = 7;
 
+const IAP_COMING_SOON_MSG = "In-app purchases are coming soon. We're switching to a new provider—stay tuned!";
+
 export default function SettingsScreen() {
   const { user, logout, refreshProfile } = useAuth();
   const navigation = useNavigation();
-  const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
   const [settings, setSettings] = useState<SettingsData | null>(null);
   const debugTapCountRef = React.useRef(0);
   const debugTapTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -188,92 +188,15 @@ export default function SettingsScreen() {
       })));
       setPackages(response.packages || []);
     } catch (err: any) {
-      console.error('❌ Failed to fetch packages:', err);
-      console.error('Error details:', {
-        message: err?.message,
-        status: err?.status,
-        name: err?.name,
-        stack: err?.stack
-      });
-      const errorMessage = err?.message || 'Failed to load token packages. Please try again.';
-      setError(errorMessage);
-      Alert.alert('Error', `Failed to load token packages: ${errorMessage}`);
-      setShowPurchaseModal(false);
+      setPackages([]);
     } finally {
       setLoadingPackages(false);
     }
   };
 
-  const handlePurchase = useCallback(async (packageId: number) => {
-    const publishableKey = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY;
-    if (!publishableKey || !publishableKey.startsWith('pk_')) {
-      Alert.alert(
-        'Payment Not Configured',
-        'Stripe is not configured. Set EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY in your app build: EAS Secrets (expo.dev → project → Secrets) or mobile/.env, then create a new build. Backend (Render) env does not apply to the app.'
-      );
-      return;
-    }
-
-    try {
-      setPurchasing(true);
-      setError('');
-
-      console.log('🛒 Purchase initiated for package ID:', packageId);
-
-      const paymentIntent = await api.post<{
-        clientSecret: string;
-        paymentIntentId: string;
-        amount: number;
-        tokensToGrant: number;
-      }>('/payments/create-intent', { packageId });
-
-      if (!paymentIntent.clientSecret) {
-        throw new Error('Invalid payment intent response');
-      }
-
-      const { error: initError } = await initPaymentSheet({
-        paymentIntentClientSecret: paymentIntent.clientSecret,
-        merchantDisplayName: 'Mulligan',
-      });
-
-      if (initError) {
-        console.error('PaymentSheet init error:', initError);
-        setError(initError.message || 'Failed to initialize payment');
-        Alert.alert('Payment Error', initError.message || 'Failed to initialize payment');
-        return;
-      }
-
-      const { error: presentError } = await presentPaymentSheet();
-
-      if (presentError) {
-        if (presentError.code === 'Canceled') {
-          return;
-        }
-        console.error('PaymentSheet present error:', presentError);
-        setError(presentError.message || 'Payment failed');
-        Alert.alert('Payment Failed', presentError.message || 'Payment failed');
-        return;
-      }
-
-      setShowPurchaseModal(false);
-      setSuccess(`${paymentIntent.tokensToGrant} token${paymentIntent.tokensToGrant !== 1 ? 's' : ''} added!`);
-      setTimeout(() => setSuccess(''), 4000);
-      api.clearCache('/tokens');
-      setTimeout(() => {
-        fetchSettings();
-        fetchPackages();
-      }, 1500);
-    } catch (err: any) {
-      console.error('Purchase error:', err);
-      const details = err?.details ?? '';
-      const errorMessage = err?.message || 'Failed to process purchase. Please try again.';
-      const displayMessage = details ? `${errorMessage}\n\n${details}` : errorMessage;
-      setError(errorMessage);
-      Alert.alert('Purchase Failed', displayMessage);
-    } finally {
-      setPurchasing(false);
-    }
-  }, [initPaymentSheet, presentPaymentSheet]);
+  const handlePurchase = useCallback(async (_packageId: number) => {
+    Alert.alert('Coming Soon', IAP_COMING_SOON_MSG);
+  }, []);
 
   const handleDeleteAccount = useCallback(async () => {
     setError('');
@@ -793,7 +716,8 @@ export default function SettingsScreen() {
               <ScrollView style={styles.packagesList}>
                 {packages.length === 0 ? (
                   <View style={styles.emptyPackages}>
-                    <Text style={styles.emptyPackagesText}>No packages available</Text>
+                    <Text style={styles.emptyPackagesText}>In-app purchases coming soon</Text>
+                    <Text style={[styles.emptyPackagesText, { marginTop: 8, opacity: 0.9 }]}>We're switching to a new provider. Stay tuned!</Text>
                   </View>
                 ) : (
                   packages.map((pkg) => {

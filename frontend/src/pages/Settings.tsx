@@ -79,32 +79,19 @@ export default function Settings() {
     setLoadingPackages(true);
     try {
       const data = await api.get<{ packages: TokenPackage[] }>("/payments/packages");
-      setPackages(data.packages);
+      setPackages(data.packages || []);
     } catch (err) {
-      console.error("Failed to load token packages:", err);
+      setPackages([]);
     } finally {
       setLoadingPackages(false);
     }
   };
 
-  const handlePurchase = async (packageId: number) => {
-    setPurchasing(packageId);
+  const handlePurchase = async (_packageId: number) => {
     setError("");
     setSuccess("");
-    
-    try {
-      const data = await api.post<{ url: string }>("/payments/create-checkout", { packageId });
-      // Redirect to Stripe Checkout
-      if (data.url) {
-        window.location.href = data.url;
-      } else {
-        setError("Failed to initiate payment. Please try again.");
-        setPurchasing(null);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to initiate payment");
-      setPurchasing(null);
-    }
+    setSuccess("In-app purchases are coming soon. We're switching to a new provider—stay tuned!");
+    setTimeout(() => setSuccess(""), 5000);
   };
 
 
@@ -280,8 +267,9 @@ export default function Settings() {
               ))}
             </div>
           ) : (
-            <div style={{ padding: 'var(--space-4)', color: 'var(--text-secondary)' }}>
-              Failed to load token packages. Please try again later.
+            <div style={{ padding: 'var(--space-4)', color: 'var(--text-secondary)', textAlign: 'center' }}>
+              <p style={{ fontWeight: 600, marginBottom: 'var(--space-2)' }}>In-app purchases coming soon</p>
+              <p>We're switching to a new provider. Stay tuned!</p>
             </div>
           )}
         </div>

@@ -92,6 +92,7 @@ const DEALBREAKER_OPTIONS = [
 ];
 
 const TOTAL_STEPS = 15; // 1-6: basic info; 7: interests; 8: dealbreakers; 9: qualities; 10-13: min age, max age, preferred genders, max distance; 14: lifestyle; 15: photos
+const MIN_PHOTOS_REQUIRED = 3;
 
 export default function CreateProfileScreen() {
   const navigation = useNavigation();
@@ -293,6 +294,7 @@ export default function CreateProfileScreen() {
       titleMargin: Math.round(12 * scaleH),
       subtitleSize: Math.round(18 * scaleW),
       subtitleSizeSmall: Math.round(13 * scaleW),
+      subtitleSizeTiny: Math.max(9, Math.round(10 * scaleW)),
       subtitleSizeCompact: Math.round(16 * scaleW),
       subtitleMargin: Math.round(32 * scaleH),
       subtitleMarginSmall: Math.round(14 * scaleH),
@@ -464,65 +466,69 @@ export default function CreateProfileScreen() {
     }
   }, [workLifeBalance, step]);
 
-  // Load existing profile data
-  useEffect(() => {
-    if (startFromBeginning) skipAutoScrollRef.current = true;
-    const loadProfile = async () => {
-      try {
-        const data = await api.get('/profile');
-        if (data.profile) {
-          setDisplayName(data.profile.display_name);
-          setAge(data.profile.age.toString());
-          setGender(data.profile.gender);
-          setLocation(data.profile.location || '');
-          setBio(data.profile.bio || '');
-          setLookingFor(data.profile.looking_for || '');
-          if (data.interests) {
-            setInterests(data.interests.map((i: any) => i.name));
-          }
-          if (data.dealbreakers) {
-            setDealbreakers(data.dealbreakers.map((d: any) => d.description));
-          }
-          if (data.partnerQualities) {
-            setQualities(data.partnerQualities.map((q: any) => q.quality));
-          }
-          if (data.preferences) {
-            setMinAge(data.preferences.min_age ?? 18);
-            setMaxAge((data.preferences as any).max_age ?? 100);
-            setMaxDistance(data.preferences.max_distance ?? 50);
-            if (data.preferences.preferred_genders) {
-              try {
-                const genders = JSON.parse(data.preferences.preferred_genders) as string[];
-                const allGenders = ['Man', 'Woman', 'Other'];
-                const isEveryone = genders.length === 0 || (genders.length === 3 && allGenders.every(g => genders.includes(g)));
-                setPreferredGenders(isEveryone ? ['Everyone'] : genders);
-              } catch {
-                setPreferredGenders(['Everyone']);
-              }
-            } else {
+  // Load existing profile into form (used when editing; skip when startFromBeginning = new account/delete)
+  const loadProfileForForm = useCallback(async (stepToJumpTo?: number) => {
+    try {
+      // Bypass cache when editing so we always get current server data
+      const data = await api.get('/profile', false);
+      if (data?.profile) {
+        setDisplayName(data.profile.display_name ?? '');
+        setAge((data.profile.age ?? '').toString());
+        setGender(data.profile.gender ?? '');
+        setLocation(data.profile.location ?? '');
+        setBio(data.profile.bio ?? '');
+        setLookingFor(data.profile.looking_for ?? '');
+        if (data.interests?.length) {
+          setInterests(data.interests.map((i: any) => i.name));
+        }
+        if (data.dealbreakers?.length) {
+          setDealbreakers(data.dealbreakers.map((d: any) => d.description));
+        }
+        if (data.partnerQualities?.length) {
+          setQualities(data.partnerQualities.map((q: any) => q.quality));
+        }
+        if (data.preferences) {
+          setMinAge(data.preferences.min_age ?? 18);
+          setMaxAge((data.preferences as any).max_age ?? 100);
+          setMaxDistance(data.preferences.max_distance ?? 50);
+          if (data.preferences.preferred_genders) {
+            try {
+              const genders = JSON.parse(data.preferences.preferred_genders) as string[];
+              const allGenders = ['Man', 'Woman', 'Other'];
+              const isEveryone = genders.length === 0 || (genders.length === 3 && allGenders.every(g => genders.includes(g)));
+              setPreferredGenders(isEveryone ? ['Everyone'] : genders);
+            } catch {
               setPreferredGenders(['Everyone']);
             }
-          }
-          if (data.lifestyle) {
-            setSmoking(data.lifestyle.smoking || '');
-            setDrinking(data.lifestyle.drinking || '');
-            setChildren(data.lifestyle.children || '');
-            setPets(data.lifestyle.pets || '');
-            setReligion(data.lifestyle.religion || '');
-            setWorkLifeBalance(data.lifestyle.work_life_balance || '');
-            setWorksOut(data.lifestyle.works_out || '');
-          }
-          // If navigating from Profile tab "Edit" on a section, jump to that step
-          if (initialStep && initialStep >= 1 && initialStep <= 15) {
-            setStep(initialStep);
+          } else {
+            setPreferredGenders(['Everyone']);
           }
         }
-      } catch (err) {
-        console.log('No existing profile found');
+        if (data.lifestyle) {
+          setSmoking(data.lifestyle.smoking ?? '');
+          setDrinking(data.lifestyle.drinking ?? '');
+          setChildren(data.lifestyle.children ?? '');
+          setPets(data.lifestyle.pets ?? '');
+          setReligion(data.lifestyle.religion ?? '');
+          setWorkLifeBalance(data.lifestyle.work_life_balance ?? '');
+          setWorksOut(data.lifestyle.works_out ?? '');
+        }
+        const targetStep = stepToJumpTo ?? initialStep;
+        if (targetStep != null && targetStep >= 1 && targetStep <= 15) {
+          setStep(targetStep);
+        }
       }
-    };
-    loadProfile();
-  }, [startFromBeginning, initialStep]);
+    } catch (err) {
+      if (__DEV__) console.log('CreateProfile loadProfileForForm:', err);
+    }
+  }, [initialStep]);
+
+  // Load profile on mount and when edit params change (not when startFromBeginning = new account/delete)
+  useEffect(() => {
+    if (startFromBeginning) skipAutoScrollRef.current = true;
+    if (startFromBeginning) return;
+    loadProfileForForm(initialStep ?? undefined);
+  }, [startFromBeginning, initialStep, loadProfileForForm]);
 
   // Prefetch auth token on mount (handles AsyncStorage timing / cache sync after login)
   useEffect(() => {
@@ -1010,7 +1016,7 @@ export default function CreateProfileScreen() {
       return;
     }
     
-    // If moving to step 7, ensure user has at least 5 photos before allowing navigation
+    // If moving to step 15 (photos), validation happens on submit
     // (Note: They can still navigate to step 7 to upload photos, but validation happens on submit)
     // Actually, let's allow navigation to step 7 so they can upload photos there
     
@@ -1280,17 +1286,31 @@ export default function CreateProfileScreen() {
           text: 'Remove',
           style: 'destructive',
           onPress: async () => {
-            try {
-              // If photo has an ID, delete it from the backend
-              if (photo.id) {
-                await api.delete(`/photos/${photo.id}`);
+            const maxAttempts = 3;
+            let lastError: any;
+            for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+              try {
+                if (photo.id) {
+                  await api.delete(`/photos/${photo.id}`);
+                }
+                setPhotos(prev => prev.filter((_, i) => i !== index));
+                api.clearCache('/photos/me');
+                return;
+              } catch (error: any) {
+                lastError = error;
+                const isNetworkError = (error?.message || '').toLowerCase().includes('network') || (error?.message || '').toLowerCase().includes('failed');
+                if (isNetworkError && attempt < maxAttempts) {
+                  await new Promise((r) => setTimeout(r, 2000 * attempt));
+                  continue;
+                }
+                break;
               }
-              // Remove from local state
-              setPhotos(prev => prev.filter((_, i) => i !== index));
-            } catch (error: any) {
-              console.error('Error removing photo:', error);
-              Alert.alert('Error', 'Failed to remove photo. Please try again.');
             }
+            console.error('Error removing photo:', lastError);
+            const msg = (lastError?.message || '').toLowerCase().includes('network')
+              ? 'Connection failed. The server may be waking up—please try again in a moment.'
+              : 'Failed to remove photo. Please try again.';
+            Alert.alert('Error', msg);
           },
         },
       ]
@@ -1301,8 +1321,8 @@ export default function CreateProfileScreen() {
     setLoading(true);
     setError('');
 
-    if (photos.length < 5) {
-      setError('Please upload at least 5 photos to complete your profile');
+    if (photos.length < MIN_PHOTOS_REQUIRED) {
+      setError(`Please upload at least ${MIN_PHOTOS_REQUIRED} photos to complete your profile`);
       setLoading(false);
       return;
     }
@@ -1506,7 +1526,7 @@ export default function CreateProfileScreen() {
         <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.focusedFirstNameCard, keyboardVisible && styles.focusedCardWithKeyboard, { padding: keyboardVisible ? rs.cardPaddingKeyboard : rs.cardPaddingFirst }]}>
           <Text style={[styles.focusedEmoji, keyboardVisible && styles.focusedEmojiSmall, { fontSize: keyboardVisible ? rs.emojiSizeSmall : rs.emojiSize, marginBottom: keyboardVisible ? 8 : 20 }]}>👋</Text>
           <Text style={[styles.focusedTitle, keyboardVisible && styles.focusedTitleCompact, { fontSize: keyboardVisible ? rs.titleSizeCompact : rs.titleSize, marginBottom: keyboardVisible ? 8 : rs.titleMargin }]}>Welcome to Mulligan!</Text>
-          <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleCompact, { fontSize: keyboardVisible ? rs.subtitleSizeCompact : rs.subtitleSize, marginBottom: keyboardVisible ? 20 : rs.subtitleMargin }]}>Let's start with your first name</Text>
+          <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleCompact, { fontSize: keyboardVisible ? rs.subtitleSizeCompact : 10, marginBottom: keyboardVisible ? 20 : rs.subtitleMargin, maxWidth: '100%' }]} numberOfLines={2}>Let's start with your first name</Text>
           <Animated.View style={[styles.focusedInputWrapper, { shadowOpacity: firstNameGlow.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.6] }), shadowRadius: firstNameGlow.interpolate({ inputRange: [0, 1], outputRange: [8, 20] }) }]}>
             <TextInput ref={displayNameInputRef} style={[styles.focusedFirstNameInput, keyboardVisible && styles.focusedFirstNameInputKeyboard]} value={displayName} onChangeText={setDisplayName} placeholder="Your first name" placeholderTextColor="#4a5568" autoCapitalize="words" returnKeyType="next" />
           </Animated.View>
@@ -1597,7 +1617,7 @@ export default function CreateProfileScreen() {
           <Text style={[styles.focusedTitle, keyboardVisible && styles.focusedTitleSmall, { fontSize: rs.titleSizeSmall, marginBottom: keyboardVisible ? 6 : rs.titleMargin }]}>Tell us about yourself</Text>
           <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleSmall, { fontSize: rs.subtitleSizeSmall, marginBottom: keyboardVisible ? 16 : rs.subtitleMargin }]}>Share what makes you unique</Text>
           <Animated.View style={[styles.focusedInputWrapper, { shadowOpacity: bioGlow.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.6] }), shadowRadius: bioGlow.interpolate({ inputRange: [0, 1], outputRange: [8, 20] }) }]}>
-            <TextInput style={styles.focusedBioInput} value={bio} onChangeText={setBio} placeholder="Write a bit about yourself..." placeholderTextColor="rgba(255, 255, 255, 0.6)" multiline numberOfLines={6} maxLength={500} textAlignVertical="top" returnKeyType="done" blurOnSubmit={true} />
+            <TextInput style={styles.focusedBioInput} value={bio} onChangeText={setBio} placeholder="Write a bit about yourself..." placeholderTextColor="rgba(255, 255, 255, 0.6)" multiline numberOfLines={6} maxLength={500} textAlignVertical="top" returnKeyType="default" blurOnSubmit={false} />
           </Animated.View>
           <View style={styles.focusedCharCountContainer}><Text style={[styles.focusedCharCount, bio.length > 450 && styles.charCountWarning]}>{bio.length}/500 characters</Text></View>
           {bio.trim().length >= 20 && <Animated.View style={[styles.successIndicator, { opacity: bioOpacity }]}><Text style={styles.successText}>✓ Great bio!</Text></Animated.View>}
@@ -2121,10 +2141,10 @@ export default function CreateProfileScreen() {
           <Text style={styles.modernHeaderEmojiCondensed}>📸</Text>
           <Text style={styles.modernHeaderTitleCondensed}>Add Your Photos</Text>
           <Text style={styles.modernHeaderSubtitleCondensed}>
-            Upload at least 5 photos (up to 6 total)
+            Upload at least {MIN_PHOTOS_REQUIRED} photos (up to 6 total)
           </Text>
           <Text style={[styles.modernHeaderSubtitleCondensed, { marginTop: 8, fontSize: 14, opacity: 0.9 }]}>
-            {photos.length} / 5 minimum ({photos.length >= 5 ? '✓ Ready' : 'Need more'})
+            {photos.length} / {MIN_PHOTOS_REQUIRED} minimum ({photos.length >= MIN_PHOTOS_REQUIRED ? '✓ Ready' : 'Need more'})
           </Text>
         </LinearGradient>
 
@@ -2137,7 +2157,7 @@ export default function CreateProfileScreen() {
             {photoSlots.map((slotIndex) => {
               const photo = photos[slotIndex];
               const isEmpty = !photo;
-              const isRequired = slotIndex < 5;
+              const isRequired = slotIndex < MIN_PHOTOS_REQUIRED;
 
               return (
                 <View key={slotIndex} style={styles.photoSlot}>
@@ -2165,14 +2185,14 @@ export default function CreateProfileScreen() {
                     <TouchableOpacity
                       style={[
                         styles.addPhotoButton,
-                        isRequired && photos.length < 5 && styles.addPhotoButtonRequired
+                        isRequired && photos.length < MIN_PHOTOS_REQUIRED && styles.addPhotoButtonRequired
                       ]}
                       onPress={canAddMore ? () => handlePickPhoto(slotIndex) : undefined}
                       disabled={!canAddMore || uploadingSlotIndex !== null}
                     >
                       <LinearGradient
                         colors={
-                          isRequired && photos.length < 5
+                          isRequired && photos.length < MIN_PHOTOS_REQUIRED
                             ? ['#f5576c', '#f093fb']
                             : ['rgba(102, 126, 234, 0.3)', 'rgba(118, 75, 162, 0.3)']
                         }
@@ -2225,7 +2245,7 @@ export default function CreateProfileScreen() {
         end={{ x: 1, y: 1 }}
         style={[styles.header, { position: 'relative' }]}
       >
-        {existingProfile ? (
+        {existingProfile && !startFromBeginning ? (
           <View style={styles.exitSaveRow}>
             <TouchableOpacity
               style={[styles.exitButton, styles.saveButton]}
@@ -2326,11 +2346,11 @@ export default function CreateProfileScreen() {
             <TouchableOpacity
               style={styles.modernNextButton}
               onPress={handleSubmit}
-              disabled={loading || photos.length < 5}
+              disabled={loading || photos.length < MIN_PHOTOS_REQUIRED}
               activeOpacity={0.8}
             >
               <LinearGradient
-                colors={loading || photos.length < 5 
+                colors={loading || photos.length < MIN_PHOTOS_REQUIRED 
                   ? ['#ccc', '#bbb'] 
                   : ['#667eea', '#764ba2', '#f093fb']}
                 start={{ x: 0, y: 0 }}
@@ -2382,7 +2402,7 @@ const styles = StyleSheet.create({
   },
   exitSaveRow: {
     position: 'absolute',
-    top: 52,
+    top: 100,
     right: 20,
     flexDirection: 'row',
     alignItems: 'center',
@@ -2634,16 +2654,16 @@ const styles = StyleSheet.create({
     borderWidth: 0,
     borderRadius: 20,
     padding: 28,
-    fontSize: 26,
+    fontSize: 18,
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
     color: '#2d3748',
     fontWeight: '700',
     textAlign: 'center',
-    letterSpacing: 1,
+    letterSpacing: 0.5,
   },
   focusedFirstNameInputKeyboard: {
     padding: 20,
-    fontSize: 22,
+    fontSize: 18,
   },
   focusedAgeCard: {
     padding: 40,

@@ -92,12 +92,6 @@
         }
       ],
       "@sentry/react-native",
-      [
-        "@stripe/stripe-react-native",
-        {
-          "merchantIdentifier": "merchant.com.lukepelagiotomerlin.mulligan"
-        }
-      ],
       "expo-asset"
     ],
     "extra": {

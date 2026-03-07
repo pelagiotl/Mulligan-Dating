@@ -3633,13 +3633,12 @@ const styles = StyleSheet.create({
   },
   sectionTitleContainer: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexWrap: 'nowrap',
     alignItems: 'center',
     marginBottom: 16,
   },
   sectionEditTouchable: {
-    marginLeft: 'auto',
-    alignSelf: 'flex-end',
+    marginLeft: 12,
     flexShrink: 0,
   },
   sectionEditLink: {

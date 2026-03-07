@@ -230,8 +230,6 @@ app.use("/api/reports", reportsRouter);
 app.use("/api/settings", settingsRouter);
 app.use("/api/photos", photosRouter);
 app.use("/api/sms", smsRouter);
-// Stripe webhook must use raw body for signature verification - register BEFORE other payment routes
-app.use("/api/payments/webhook", express.raw({ type: "application/json" }), paymentsRouter);
 app.use("/api/payments", paymentsRouter);
 app.use("/api/connection-quality", connectionQualityRouter);
 app.use("/api/memory-bank", matchMemoryBankRouter);

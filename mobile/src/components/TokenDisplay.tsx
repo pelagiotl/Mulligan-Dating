@@ -4,7 +4,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
-import { usePaymentSheet } from '@stripe/stripe-react-native';
 import { api } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 
@@ -172,7 +171,7 @@ function ReupCelebrationModal({
                 end={{ x: 1, y: 1 }}
                 style={styles.reupCardGradient}
               >
-                <Text style={styles.reupEmoji}>🎉</Text>
+                <Text style={styles.reupEmoji}>💰</Text>
                 <Text style={styles.reupTitle}>You're Reupped!</Text>
                 <Text style={styles.reupMessage}>{message}</Text>
                 <TouchableOpacity
@@ -389,9 +388,10 @@ interface TokenDisplayProps {
   performClaimRef?: React.MutableRefObject<((opts?: { onSuccess?: () => void; successMessage?: string }) => Promise<void>) | null>;
 }
 
+const IAP_COMING_SOON_MSG = "In-app purchases are coming soon. We're switching to a new provider—stay tuned!";
+
 export default function TokenDisplay({ compact = false, premium = false, openModalRef, performClaimRef }: TokenDisplayProps) {
   const { user } = useAuth();
-  const { initPaymentSheet, presentPaymentSheet } = usePaymentSheet();
   const isAdmin = user?.isAdmin || false;
   const [data, setData] = useState<TokenData | null>(null);
   const [claiming, setClaiming] = useState(false);
@@ -495,81 +495,15 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
       const response = await api.get<{ packages: TokenPackage[]; availableTokens?: number }>('/payments/packages');
       setPackages(response.packages || []);
     } catch (err: any) {
-      console.error('Failed to fetch packages:', err);
-      Alert.alert('Error', 'Failed to load token packages. Please try again.');
-      setShowPurchaseModal(false);
+      // Payments disabled (Stripe removed); show empty so modal shows "coming soon"
+      setPackages([]);
     } finally {
       setLoadingPackages(false);
     }
   };
 
-  const handlePurchase = async (packageId: number) => {
-    const publishableKey = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY;
-    if (!publishableKey || !publishableKey.startsWith('pk_')) {
-      Alert.alert(
-        'Payment Not Configured',
-        'Stripe is not configured. Set EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY in your app build: EAS Secrets (expo.dev → project → Secrets) or mobile/.env, then create a new build. Backend (Render) env does not apply to the app.'
-      );
-      return;
-    }
-
-    try {
-      setPurchasing(true);
-      setError('');
-
-      console.log('🛒 Purchase initiated for package ID:', packageId);
-
-      const paymentIntent = await api.post<{
-        clientSecret: string;
-        paymentIntentId: string;
-        amount: number;
-        tokensToGrant: number;
-      }>('/payments/create-intent', { packageId });
-
-      if (!paymentIntent.clientSecret) {
-        throw new Error('Invalid payment intent response');
-      }
-
-      const { error: initError } = await initPaymentSheet({
-        paymentIntentClientSecret: paymentIntent.clientSecret,
-        merchantDisplayName: 'Mulligan',
-      });
-
-      if (initError) {
-        console.error('PaymentSheet init error:', initError);
-        setError(initError.message || 'Failed to initialize payment');
-        Alert.alert('Payment Error', initError.message || 'Failed to initialize payment');
-        return;
-      }
-
-      const { error: presentError } = await presentPaymentSheet();
-
-      if (presentError) {
-        if (presentError.code === 'Canceled') {
-          // User cancelled - no need to show error
-          return;
-        }
-        console.error('PaymentSheet present error:', presentError);
-        setError(presentError.message || 'Payment failed');
-        Alert.alert('Payment Failed', presentError.message || 'Payment failed');
-        return;
-      }
-
-      // Payment succeeded - show success card, close purchase modal, refresh tokens
-      setShowPurchaseModal(false);
-      setPurchaseSuccess({ tokensGranted: paymentIntent.tokensToGrant });
-      api.clearCache('/tokens');
-      setTimeout(() => fetchTokens(), 800);
-    } catch (err: any) {
-      console.error('Purchase error:', err);
-      const details = err?.details ?? '';
-      const errorMessage = err?.message || 'Failed to process purchase. Please try again.';
-      const displayMessage = details ? `${errorMessage}\n\n${details}` : errorMessage;
-      setError(errorMessage);
-      Alert.alert('Purchase Failed', displayMessage);
-    } finally {
-      setPurchasing(false);
-    }
+  const handlePurchase = async (_packageId: number) => {
+    Alert.alert('Coming Soon', IAP_COMING_SOON_MSG);
   };
 
   const handleClaim = async () => {
@@ -816,6 +750,11 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
 
                 {loadingPackages ? (
                   <ActivityIndicator size="large" color="#10b981" style={styles.modalLoading} />
+                ) : packages.length === 0 ? (
+                  <View style={{ padding: 24, alignItems: 'center' }}>
+                    <Text style={[styles.packagePrice, { marginBottom: 8 }]}>In-app purchases coming soon</Text>
+                    <Text style={[styles.packagePricePerToken, { textAlign: 'center' }]}>We're switching to a new provider. Stay tuned!</Text>
+                  </View>
                 ) : (
                   <ScrollView style={styles.packagesList} showsVerticalScrollIndicator={false}>
                     {packages.map((pkg) => {
@@ -993,6 +932,11 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
 
             {loadingPackages ? (
               <ActivityIndicator size="large" color="#10b981" style={styles.modalLoading} />
+            ) : packages.length === 0 ? (
+              <View style={{ padding: 24, alignItems: 'center' }}>
+                <Text style={[styles.packagePrice, { marginBottom: 8 }]}>In-app purchases coming soon</Text>
+                <Text style={[styles.packagePricePerToken, { textAlign: 'center' }]}>We're switching to a new provider. Stay tuned!</Text>
+              </View>
             ) : (
               <ScrollView style={styles.packagesList} showsVerticalScrollIndicator={false}>
                 {packages.map((pkg) => {

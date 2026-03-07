@@ -370,7 +370,10 @@ export default function AppNavigator() {
         currentRoute?.name !== 'MainTabs'
       ) {
         try {
-          navigationRef.current.reset({ index: 0, routes: [{ name: 'CreateProfile' }] });
+          navigationRef.current.reset({
+            index: 0,
+            routes: [{ name: 'CreateProfile', params: { startFromBeginning: true } }],
+          });
         } catch (err) {
           console.error('Navigation error in AppNavigator:', err);
         }

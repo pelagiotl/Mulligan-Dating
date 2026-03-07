@@ -8,15 +8,13 @@
 import 'react-native-gesture-handler';
 
 import React from 'react';
-import { View } from 'react-native';
+import { View, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { StripeProvider } from '@stripe/stripe-react-native';
+import Purchases from 'react-native-purchases';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { AuthProvider } from './src/context/AuthContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import { initSentry, captureException, captureMessage } from './src/utils/sentry';
-
-const STRIPE_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || '';
 
 // Initialize Sentry early (before anything else that might crash)
 // This will capture native crashes and JavaScript errors
@@ -171,21 +169,37 @@ if (typeof global !== 'undefined') {
   };
 }
 
-// Note: Stripe PaymentSheet requires a development build (not Expo Go)
-// For now, using web-based payment flow that works with Expo Go
 export default function App() {
   const [isMounted, setIsMounted] = React.useState(false);
 
+  // Initialize RevenueCat (iOS/Android only; native module not available in Expo Go)
+  React.useEffect(() => {
+    if (Platform.OS !== 'ios' && Platform.OS !== 'android') return;
+    const iosKey = process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY;
+    const androidKey = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY;
+    const fallbackKey = process.env.EXPO_PUBLIC_REVENUECAT_API_KEY;
+    const apiKey = Platform.OS === 'ios' ? (iosKey || fallbackKey) : (androidKey || fallbackKey);
+    if (!apiKey) return;
+    try {
+      const result = Purchases.configure({ apiKey });
+      if (result && typeof result.then === 'function') {
+        result.then(() => {
+          if (__DEV__) Purchases.setLogLevel(Purchases.LOG_LEVEL.DEBUG);
+        }).catch((err: unknown) => console.warn('RevenueCat configure failed:', err));
+      }
+    } catch (err) {
+      console.warn('RevenueCat configure failed (e.g. running in Expo Go):', err);
+    }
+  }, []);
+
   React.useEffect(() => {
     // Mark app as initialized after a delay to ensure everything is mounted
-    // This prevents native module calls during startup
     const timer = setTimeout(() => {
       setIsMounted(true);
-      // Dynamic import to avoid circular dependencies
       import('./src/utils/nativeModuleGuard').then(({ markAppInitialized }) => {
         markAppInitialized();
       });
-    }, 2000); // 2 second delay after mount
+    }, 2000);
 
     return () => clearTimeout(timer);
   }, []);
@@ -193,17 +207,12 @@ export default function App() {
   return (
     <View style={{ flex: 1, backgroundColor: '#f8f9ff' }}>
       <SafeAreaProvider>
-        <StripeProvider
-        publishableKey={STRIPE_PUBLISHABLE_KEY}
-        merchantIdentifier="merchant.com.lukepelagiotomerlin.mulligan"
-      >
         <ErrorBoundary>
           <AuthProvider>
             <AppNavigator />
           </AuthProvider>
         </ErrorBoundary>
-      </StripeProvider>
-    </SafeAreaProvider>
+      </SafeAreaProvider>
     </View>
   );
 }
