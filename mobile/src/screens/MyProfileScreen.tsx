@@ -2691,7 +2691,7 @@ export default function MyProfileScreen() {
             } else {
               Vibration.vibrate(50);
             }
-            navigateToCreateProfile({ startFromBeginning: true });
+            navigateToCreateProfile({ startFromBeginning: false });
           }}
         >
           <Animated.View
