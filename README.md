@@ -143,6 +143,10 @@ To get **system** message notifications when the app is in the background or clo
    - **Device:** Use an **EAS or production build** (not Expo Go). Ensure the user has **allowed notifications** when prompted.  
    - **Verify:** In Render logs when a message is sent, look for `📲 Push (message): recipient=… hasToken=true validFormat=true EXPO_ACCESS_TOKEN=set` and `✅ Push (message) sent to …`. If the backend says "sent" but the device never shows a notification, FCM credentials or `googleServicesFile` are almost certainly missing — complete the steps above and create a new Android build.
 
+### In-app purchases (RevenueCat)
+
+Token packs are sold via RevenueCat. To finish setup (dashboard, App Store / Play products, webhook, mobile env), see **[docs/REVENUECAT_SETUP.md](docs/REVENUECAT_SETUP.md)**.
+
 ### Project Structure
 
 ```

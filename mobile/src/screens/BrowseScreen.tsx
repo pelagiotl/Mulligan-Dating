@@ -738,6 +738,7 @@ export default function BrowseScreen() {
   const matchIdFromConnectRef = useRef<string | null>(null);
   const openTokenModalRef = useRef<(() => void) | null>(null);
   const performClaimRef = useRef<((opts?: { onSuccess?: () => void; successMessage?: string }) => Promise<void>) | null>(null);
+  const unlockErrorHandledRef = useRef(false); // So finally doesn't overwrite browseUnlocked(false) when we show landing after error (e.g. Southern Oregon)
   
   // Button animations
   const buttonPulse = useRef(new Animated.Value(1)).current;
@@ -1021,8 +1022,12 @@ export default function BrowseScreen() {
           setBrowseUnlocked(true); // Unlock so error can be shown
         }
       } else {
-        // Only log and show error for unexpected errors
-        console.error('❌ Unlock browse error:', err);
+        unlockErrorHandledRef.current = true; // So finally keeps us on landing page
+        // Region lock (403) is logged as warn in api.ts; log other errors here
+        const isRegionLock = err?.status === 403 || errorLower.includes('southern oregon') || errorLower.includes('only available for people');
+        if (!isRegionLock) {
+          console.error('❌ Unlock browse error:', err);
+        }
         
         // Check if it's an authentication error
         if (errorLower.includes('authentication required') || errorLower.includes('authentication')) {
@@ -1036,13 +1041,25 @@ export default function BrowseScreen() {
         setError(errorMessage);
         setTimeout(() => setError(''), 8000);
         setIsAutoMatching(false);
-        // If error occurred, unlock browsing so user can see the error
-        setBrowseUnlocked(true);
+        setLoading(false);
+        setCurrentProfile(null);
+        // Stay on landing page so user can tap Connect again (don't set browseUnlocked true)
+        setBrowseUnlocked(false);
+        // Show Alert so user sees the message (error UI is only in non-landing branch)
+        if (isRegionLock) {
+          Alert.alert(
+            'Matching unavailable',
+            errorMessage,
+            [{ text: 'OK' }]
+          );
+        }
       }
     } finally {
       setUnlocking(false);
-      // If we're not auto-matching anymore and no error occurred, ensure browsing is unlocked
-      if (!isAutoMatching && !error) {
+      if (unlockErrorHandledRef.current) {
+        unlockErrorHandledRef.current = false;
+        setBrowseUnlocked(false); // Keep landing page after region/error
+      } else if (!isAutoMatching && !error) {
         setBrowseUnlocked(true);
       }
     }
@@ -1275,15 +1292,14 @@ export default function BrowseScreen() {
     navigation.setParams({ resetToLanding: undefined });
   }, [route.params, navigation, clearCelebrationAndConnectingState]);
 
-  // When user returns to Connect tab after a match (e.g. went to Matches then tapped Connect), show landing
-  // instead of "You're all caught up" so they can tap "Use a Mulligan" again (fixes Android getting stuck on empty state).
+  // When user returns to Connect tab with no profile (e.g. after "no one to match", or "all caught up"), show landing
+  // so they always see the Connect button instead of a blank or empty state.
   useFocusEffect(
     useCallback(() => {
-      // If we would show "all caught up" (no card, not loading, have profile), reset to landing
-      if (browseUnlocked && currentProfile === null && !loading && userProfile) {
-        setBrowseUnlocked(false);
+      if (currentProfile === null && !loading && !unlocking && userProfile) {
+        clearCelebrationAndConnectingState();
       }
-    }, [browseUnlocked, currentProfile, loading, userProfile])
+    }, [currentProfile, loading, unlocking, userProfile, clearCelebrationAndConnectingState])
   );
 
   // Fetch user's photo count when on landing page (for 5-photo minimum to Connect)
@@ -1367,8 +1383,10 @@ export default function BrowseScreen() {
     };
   }, [user?.id]);
 
-  // Show landing page when browsing is locked OR when auto-matching (to prevent UI flash)
-  const showLandingPage = (browseUnlocked === false || isAutoMatching) && !needsProfile && !showMatchCelebration;
+  // Show landing page when: browsing is locked, auto-matching, OR we have no profile to show (avoids blank "Find someone who shares..." screen after no-profiles / tab switch)
+  const showLandingPage =
+    (!needsProfile && !showMatchCelebration) &&
+    ((browseUnlocked === false || isAutoMatching) || (currentProfile === null && !loading));
 
   // Button pulse animation (only when landing page is shown)
   // MUST be before any early returns

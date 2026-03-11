@@ -22,6 +22,17 @@ export function setTokenCache(token: string | null) {
   tokenCache = token ?? null;
 }
 
+/** Called when the API client clears the token due to 401 or 403 (invalid/expired). AuthContext registers this to logout and redirect to login. */
+let onSessionExpired: (() => void) | null = null;
+export function setOnSessionExpired(cb: (() => void) | null) {
+  onSessionExpired = cb;
+}
+
+function notifySessionExpired() {
+  const cb = onSessionExpired;
+  if (cb) setTimeout(() => { try { cb(); } catch (_) {} }, 0);
+}
+
 export function prefetchToken() {
   if (tokenCache === undefined) {
     AsyncStorage.getItem('token').then((t) => {
@@ -202,7 +213,14 @@ async function request<T = any>(endpoint: string, options: RequestOptions = {}, 
         (endpoint === '/auth/me' || endpoint === '/auth/push-token' ||
          endpoint === '/sms/send-code' || endpoint === '/sms/verify-code');
       
-      if (!isInformational && !isPushToken404 && !isDatePlan404 && !isUnauthenticatedExpected && !isSessionExpired && !isRateLimitedStartup) {
+      // 403 from browse when user is outside Southern Oregon — expected; UI shows message and stays on landing
+      const isRegionLock403 = response.status === 403 &&
+        endpoint.includes('/users/browse') &&
+        (errorMsgLower.includes('southern oregon') || errorMsgLower.includes('only available for people'));
+      
+      if (isRegionLock403) {
+        console.warn('⚠️ Browse unavailable (region):', errorMsg);
+      } else if (!isInformational && !isPushToken404 && !isDatePlan404 && !isUnauthenticatedExpected && !isSessionExpired && !isRateLimitedStartup) {
         console.error('❌ API request failed:', {
           endpoint,
           status: response.status,
@@ -214,12 +232,14 @@ async function request<T = any>(endpoint: string, options: RequestOptions = {}, 
       if (response.status === 401 && hasValidToken) {
         clearTokenCache();
         AsyncStorage.removeItem('token').catch(() => {});
+        notifySessionExpired();
       }
       if (response.status === 403 && hasValidToken) {
         const msg = (errorMsg || '').toLowerCase();
         if (msg.includes('token') && (msg.includes('invalid') || msg.includes('expired'))) {
           clearTokenCache();
           AsyncStorage.removeItem('token').catch(() => {});
+          notifySessionExpired();
         }
       }
       const apiError = new ApiError(response.status, errorMsg);
@@ -285,7 +305,14 @@ async function request<T = any>(endpoint: string, options: RequestOptions = {}, 
       error instanceof ApiError && error.status === 429 &&
       (endpoint === '/auth/me' || endpoint === '/auth/push-token' ||
        endpoint === '/sms/send-code' || endpoint === '/sms/verify-code');
-    if (!isAuthRequired && !isRateLimitedStartupCatch) {
+    // 403 browse region lock (Southern Oregon) — expected; don't log as ERROR
+    const isRegionLock403Catch =
+      error instanceof ApiError && error.status === 403 &&
+      endpoint.includes('/users/browse') &&
+      (error.message?.toLowerCase().includes('southern oregon') || error.message?.toLowerCase().includes('only available for people'));
+    if (isRegionLock403Catch) {
+      console.warn('⚠️ Browse unavailable (region):', error.message);
+    } else if (!isAuthRequired && !isRateLimitedStartupCatch) {
       const errorDetails = {
         url,
         endpoint,

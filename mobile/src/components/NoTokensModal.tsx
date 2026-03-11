@@ -38,8 +38,11 @@ export default function NoTokensModal({ visible, onClose, onTokenClaimed }: NoTo
     try {
       const tokenResponse = await api.get<TokenData>('/tokens');
       setTokenData(tokenResponse);
-    } catch (err) {
-      console.error('Failed to fetch token data:', err);
+    } catch (err: any) {
+      // 401/403: session expired; logout will run and unmount this modal — skip log only
+      if (err?.status !== 401 && err?.status !== 403) {
+        console.error('Failed to fetch token data:', err);
+      }
     } finally {
       setLoading(false);
     }

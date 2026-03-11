@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Modal, ScrollView, Animated, Easing, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Modal, ScrollView, Animated, Easing, Dimensions, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import Purchases from 'react-native-purchases';
+import type { PurchasesPackage } from 'react-native-purchases';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
@@ -15,6 +17,7 @@ interface TokenData {
 
 interface TokenPackage {
   id: number;
+  productId?: string;
   tokens: number;
   price: number;
   priceFormatted: string;
@@ -484,26 +487,68 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
       const tokenData = await api.get<TokenData>('/tokens');
       setData(tokenData);
     } catch (err: any) {
+      // 401/403: session expired; API client clears token and notifies AuthContext to logout — don't log or set error
+      if (err?.status === 401 || err?.status === 403) return;
       console.error('Failed to fetch tokens:', err);
       setError(err?.message || 'Failed to load tokens');
     }
   };
 
+  const revenueCatPackagesByProductId = useRef<Record<string, PurchasesPackage>>({});
+
   const fetchPackages = async () => {
     try {
       setLoadingPackages(true);
       const response = await api.get<{ packages: TokenPackage[]; availableTokens?: number }>('/payments/packages');
-      setPackages(response.packages || []);
+      let list = response.packages || [];
+      revenueCatPackagesByProductId.current = {};
+      if (list.length > 0 && Platform.OS !== 'web') {
+        try {
+          const offerings = await Purchases.getOfferings();
+          const current = offerings.current;
+          if (current?.availablePackages?.length) {
+            list = list.map((pkg) => {
+              const productId = pkg.productId;
+              const rcPkg = current.availablePackages.find((p) => p.product.identifier === productId);
+              if (rcPkg) {
+                revenueCatPackagesByProductId.current[productId!] = rcPkg;
+                const price = rcPkg.product.priceString;
+                const perToken = pkg.tokens > 0 ? `$${(rcPkg.product.price / pkg.tokens).toFixed(2)}` : '';
+                return { ...pkg, priceFormatted: price, pricePerToken: perToken };
+              }
+              return pkg;
+            });
+          }
+        } catch {
+          // RevenueCat not configured or Expo Go
+        }
+      }
+      setPackages(list);
     } catch (err: any) {
-      // Payments disabled (Stripe removed); show empty so modal shows "coming soon"
       setPackages([]);
     } finally {
       setLoadingPackages(false);
     }
   };
 
-  const handlePurchase = async (_packageId: number) => {
-    Alert.alert('Coming Soon', IAP_COMING_SOON_MSG);
+  const handlePurchase = async (pkg: TokenPackage) => {
+    const rcPkg = pkg.productId ? revenueCatPackagesByProductId.current[pkg.productId] : null;
+    if (!rcPkg) {
+      Alert.alert('Coming Soon', IAP_COMING_SOON_MSG);
+      return;
+    }
+    setPurchasing(true);
+    try {
+      await Purchases.purchasePackage(rcPkg);
+      await fetchPackages();
+      await fetchTokens();
+      Alert.alert('Success', `${pkg.tokens} token(s) added!`);
+    } catch (err: any) {
+      if (err?.userCancelled) return;
+      Alert.alert('Purchase failed', err?.message || 'Something went wrong. Please try again.');
+    } finally {
+      setPurchasing(false);
+    }
   };
 
   const handleClaim = async () => {
@@ -773,7 +818,7 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
                               );
                               return;
                             }
-                            handlePurchase(pkg.id);
+                            handlePurchase(pkg);
                           }}
                           disabled={isDisabled}
                           style={styles.packageItemWrap}
@@ -955,7 +1000,7 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
                           );
                           return;
                         }
-                        handlePurchase(pkg.id);
+                        handlePurchase(pkg);
                       }}
                       disabled={isDisabled}
                       style={styles.packageItemWrap}

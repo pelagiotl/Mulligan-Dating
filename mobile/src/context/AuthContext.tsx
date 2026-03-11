@@ -9,7 +9,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { io, Socket } from 'socket.io-client';
-import { api, clearTokenCache, setTokenCache } from '../utils/api';
+import { api, clearTokenCache, setTokenCache, setOnSessionExpired } from '../utils/api';
 import { User, Profile } from '../types';
 import { registerForPushNotificationsAsync, clearPushToken, refreshAndSendPushTokenOnBackground } from '../utils/pushNotifications';
 import { getStoredPushToken, hydrateStoredPushToken, shouldSendTokenToServer } from '../utils/pushTokenStore';
@@ -64,6 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const messageNotificationSocketRef = useRef<Socket | null>(null);
   const lastMessageDedupeRef = useRef<{ matchId: string; at: number } | null>(null);
   const onNewMatchRef = useRef<(() => void) | null>(null);
+  const logoutRef = useRef<(() => Promise<void>) | null>(null);
 
   const registerMatchListRefresh = useCallback((callback: (() => void) | null) => {
     onNewMatchRef.current = callback;
@@ -812,6 +813,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setProfile(null);
   };
+
+  logoutRef.current = logout;
+
+  // When API client clears token (401/403 invalid or expired), logout and show login so we don't spam requests
+  useEffect(() => {
+    setOnSessionExpired(() => {
+      logoutRef.current?.();
+    });
+    return () => setOnSessionExpired(null);
+  }, []);
 
   const refreshProfile = async () => {
     await fetchUser();

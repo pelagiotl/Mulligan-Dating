@@ -16,6 +16,8 @@ import {
 import Constants from 'expo-constants';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
+import Purchases from 'react-native-purchases';
+import type { PurchasesPackage } from 'react-native-purchases';
 import { api } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { navigationRef } from '../navigation/navigationRef';
@@ -45,10 +47,11 @@ export default function SettingsScreen() {
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  // Token purchase
+  // Token purchase (backend packages + RevenueCat price/package for purchase)
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
   const [packages, setPackages] = useState<Array<{
     id: number;
+    productId?: string;
     tokens: number;
     price: number;
     priceFormatted: string;
@@ -57,6 +60,7 @@ export default function SettingsScreen() {
     wouldExceedLimit?: boolean;
     maxTokensCanBuy?: number;
   }>>([]);
+  const revenueCatPackagesByProductId = useRef<Record<string, PurchasesPackage>>({});
   const [loadingPackages, setLoadingPackages] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
 
@@ -164,10 +168,10 @@ export default function SettingsScreen() {
     try {
       setLoadingPackages(true);
       setError('');
-      console.log('🔄 Fetching token packages...');
-      const response = await api.get<{ 
+      const response = await api.get<{
         packages: Array<{
           id: number;
+          productId?: string;
           tokens: number;
           price: number;
           priceFormatted: string;
@@ -178,15 +182,38 @@ export default function SettingsScreen() {
         }>;
         availableTokens?: number;
       }>('/payments/packages');
-      console.log('✅ Packages fetched:', response);
-      console.log('📦 Package details:', response.packages?.map(p => ({
-        id: p.id,
-        tokens: p.tokens,
-        available: p.available,
-        wouldExceedLimit: p.wouldExceedLimit,
-        maxTokensCanBuy: p.maxTokensCanBuy
-      })));
-      setPackages(response.packages || []);
+      let list = response.packages || [];
+      revenueCatPackagesByProductId.current = {};
+      if (list.length > 0 && Platform.OS !== 'web') {
+        try {
+          const offerings = await Purchases.getOfferings();
+          const current = offerings.current;
+          if (current?.availablePackages?.length) {
+            list = list.map((pkg) => {
+              const productId = (pkg as { productId?: string }).productId;
+              const rcPkg = current.availablePackages.find(
+                (p) => p.product.identifier === productId
+              );
+              if (rcPkg) {
+                revenueCatPackagesByProductId.current[productId!] = rcPkg;
+                const price = rcPkg.product.priceString;
+                const perToken = pkg.tokens > 0
+                  ? `$${(rcPkg.product.price / pkg.tokens).toFixed(2)}`
+                  : '';
+                return {
+                  ...pkg,
+                  priceFormatted: price,
+                  pricePerToken: perToken,
+                };
+              }
+              return pkg;
+            });
+          }
+        } catch (rcErr) {
+          // RevenueCat not configured or Expo Go — keep backend packages, prices stay empty
+        }
+      }
+      setPackages(list);
     } catch (err: any) {
       setPackages([]);
     } finally {
@@ -194,9 +221,26 @@ export default function SettingsScreen() {
     }
   };
 
-  const handlePurchase = useCallback(async (_packageId: number) => {
-    Alert.alert('Coming Soon', IAP_COMING_SOON_MSG);
-  }, []);
+  const handlePurchase = useCallback(async (pkg: { id: number; productId?: string; tokens: number }) => {
+    const productId = pkg.productId;
+    const rcPkg = productId ? revenueCatPackagesByProductId.current[productId] : null;
+    if (!rcPkg) {
+      Alert.alert('Coming Soon', IAP_COMING_SOON_MSG);
+      return;
+    }
+    setPurchasing(true);
+    try {
+      await Purchases.purchasePackage(rcPkg);
+      await fetchPackages();
+      refreshProfile?.();
+      Alert.alert('Success', `${pkg.tokens} token(s) added! Use them to connect with more people.`);
+    } catch (err: any) {
+      if (err.userCancelled) return;
+      Alert.alert('Purchase failed', err?.message || 'Something went wrong. Please try again.');
+    } finally {
+      setPurchasing(false);
+    }
+  }, [refreshProfile]);
 
   const handleDeleteAccount = useCallback(async () => {
     setError('');
@@ -750,7 +794,7 @@ export default function SettingsScreen() {
                           );
                           return;
                         }
-                        handlePurchase(pkg.id);
+                        handlePurchase(pkg);
                       }}
                       disabled={isDisabled}
                     >
