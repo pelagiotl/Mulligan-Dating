@@ -774,7 +774,7 @@ export default function SettingsScreen() {
                       key={pkg.id}
                       style={[
                         styles.packageItem,
-                        (pkg.id === 3 || pkg.id === 7) && styles.packageItemBestValue,
+                        pkg.tokens === 7 && styles.packageItemBestValue,
                         isDisabled && styles.packageItemDisabled
                       ]}
                       onPress={() => {
@@ -800,7 +800,7 @@ export default function SettingsScreen() {
                     >
                       <View style={styles.packageHeader}>
                         <Text style={styles.packageTokens}>{pkg.tokens} Token{pkg.tokens > 1 ? 's' : ''}</Text>
-                        {(pkg.id === 3 || pkg.id === 7) && (
+                        {pkg.tokens === 7 && (
                           <Text style={styles.bestValueBadge}>Best Value</Text>
                         )}
                         {pkg.wouldExceedLimit && (

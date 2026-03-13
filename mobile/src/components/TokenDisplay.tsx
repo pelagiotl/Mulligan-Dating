@@ -804,7 +804,7 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
                   <ScrollView style={styles.packagesList} showsVerticalScrollIndicator={false}>
                     {packages.map((pkg) => {
                       const isDisabled = purchasing || pkg.wouldExceedLimit || !pkg.available;
-                      const isBestValue = pkg.id === 3 || pkg.id === 7;
+                      const isBestValue = pkg.tokens === 7;
                       return (
                         <TouchableOpacity
                           key={pkg.id}
@@ -986,7 +986,7 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
               <ScrollView style={styles.packagesList} showsVerticalScrollIndicator={false}>
                 {packages.map((pkg) => {
                   const isDisabled = purchasing || pkg.wouldExceedLimit || !pkg.available;
-                  const isBestValue = pkg.id === 3 || pkg.id === 7;
+                  const isBestValue = pkg.tokens === 7;
                   return (
                     <TouchableOpacity
                       key={pkg.id}

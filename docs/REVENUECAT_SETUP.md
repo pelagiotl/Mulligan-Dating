@@ -27,11 +27,20 @@ This guide walks you through finishing the RevenueCat integration so users can b
    See RevenueCat docs: [App Store Connect](https://www.revenuecat.com/docs/getting-started/configuration/app-store-connect), [Google Play](https://www.revenuecat.com/docs/getting-started/configuration/google-play-setup).
 
 4. **Create products**  
-   - In **App Store Connect** and **Google Play Console**, create **consumable** (or non-consumable) in-app products for token packs (e.g. `tokens_3`, `tokens_7`).  
-   - In **RevenueCat → Products**, create products with the **same identifiers** and attach them to your apps.
+   Create **four** token products (prices are set in the stores; backend only maps product ID → token count):
+
+   | Product ID         | Tokens | Example price |
+   |--------------------|--------|----------------|
+   | `mulligan_1_token` | 1      | $1.99          |
+   | `tokens_3`         | 3      | $4.99          |
+   | `tokens_5`         | 5      | $7.99          |
+   | `tokens_7`         | 7      | $9.99          |
+
+   - In **App Store Connect** and **Google Play Console**, create **consumable** (or non-consumable) in-app products with these product IDs and your chosen prices. (iOS 1-token product uses `mulligan_1_token`; you can use the same or `tokens_1` on Android.)  
+   - In **RevenueCat → Products**, create products with the **same identifiers** as in the stores (`mulligan_1_token`, `tokens_3`, `tokens_5`, `tokens_7`) and attach them to your apps.
 
 5. **Create an offering (optional but recommended)**  
-   In RevenueCat → **Offerings**, create a **default** offering and add **packages** that reference your products (e.g. “3 tokens”, “7 tokens”). The app will use `Purchases.getOfferings()` and purchase by package.
+   In RevenueCat → **Offerings**, create a **default** offering and add **packages** that reference all four products (1, 3, 5, 7 tokens). The app will use `Purchases.getOfferings()` and purchase by package.
 
 6. **Get API keys**  
    In RevenueCat: **Project Settings → API keys**. Copy the **public** SDK keys (one for iOS, one for Android). Use the **test** keys for development.
@@ -40,8 +49,8 @@ This guide walks you through finishing the RevenueCat integration so users can b
 
 ## Step 2: App Store Connect & Google Play
 
-- **App Store Connect:** Create consumable (or non-consumable) IAPs with the product IDs you added in RevenueCat (e.g. `tokens_3`, `tokens_7`). Submit for review with your app.  
-- **Google Play:** Create in-app products with the same IDs in Play Console. Activate them.
+- **App Store Connect:** Create four consumable (or non-consumable) IAPs with product IDs `tokens_1`, `tokens_3`, `tokens_5`, `tokens_7` and prices $1.99, $4.99, $7.99, $9.99 (or your chosen prices). Submit for review with your app.  
+- **Google Play:** Create four in-app products with the same IDs and prices in Play Console. Activate them.
 
 ---
 
@@ -97,10 +106,10 @@ This guide walks you through finishing the RevenueCat integration so users can b
    REVENUECAT_WEBHOOK_AUTHORIZATION=Bearer your_secret_here
    ```
 
-   Optional: product → token mapping (if you don’t use the default in code):
+   Optional: product → token mapping (default is `mulligan_1_token:1,tokens_3:3,tokens_5:5,tokens_7:7`):
 
    ```bash
-   REVENUECAT_PRODUCT_TOKENS=tokens_3:3,tokens_7:7
+   REVENUECAT_PRODUCT_TOKENS=mulligan_1_token:1,tokens_3:3,tokens_5:5,tokens_7:7
    ```
 
 4. **Idempotency**  
@@ -116,7 +125,7 @@ This guide walks you through finishing the RevenueCat integration so users can b
 4. Backend webhook handler:  
    - Verifies the Authorization header.  
    - Checks idempotency (transaction_id / event id already processed?).  
-   - Maps `product_id` → token count (e.g. `tokens_3` → 3).  
+   - Maps `product_id` → token count (e.g. `mulligan_1_token` → 1, `tokens_7` → 7).  
    - Ensures user is under the 7-token cap, then inserts into `payments` and inserts rows into `mulligan_tokens` with `source = 'iap'`.  
    - Returns `200`.  
 5. App refetches token balance (or listens for an update) and shows the new balance.
