@@ -166,6 +166,55 @@ app.get("/delete-account", (_req, res) => {
 </html>`);
 });
 
+// Child safety & CSAE policy HTML (for Google Play "externally published standards" link)
+const childSafetyHtml = () => `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Child Safety &amp; CSAE Policy - Mulligan Dating</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 720px; margin: 0 auto; padding: 24px; line-height: 1.6; color: #333; }
+    h1 { color: #8B1538; margin-bottom: 8px; }
+    h2 { font-size: 1.2rem; margin-top: 24px; margin-bottom: 10px; }
+    .meta { color: #666; margin-bottom: 24px; }
+    .footer { margin-top: 32px; padding: 16px; background: #f8f8f8; border-radius: 8px; font-size: 14px; }
+    a { color: #8B1538; }
+  </style>
+</head>
+<body>
+  <h1>Child Safety &amp; Standards Against Child Sexual Abuse and Exploitation (CSAE)</h1>
+  <p class="meta"><strong>Mulligan Dating</strong> · Last updated: ${new Date().toLocaleDateString()}</p>
+
+  <h2>1. Zero tolerance</h2>
+  <p>Mulligan Dating has zero tolerance for child sexual abuse and exploitation (CSAE). We do not permit content or conduct that exploits or endangers minors in any way. Our service is intended for adults only (18+).</p>
+
+  <h2>2. Reporting child safety concerns in the app</h2>
+  <p>Users can report concerns—including possible child safety or CSAE-related issues—directly in the app. To report:</p>
+  <ul>
+    <li>Open the profile or conversation of the user you wish to report.</li>
+    <li>Use the <strong>Report</strong> option and choose the appropriate reason (including safety-related reasons).</li>
+    <li>Submit the report; our team receives it and will take action in line with this policy and applicable law.</li>
+  </ul>
+  <p>Reports are reviewed promptly. We may remove content, suspend or terminate accounts, and report to authorities when required or appropriate.</p>
+
+  <h2>3. Compliance with laws and reporting to authorities</h2>
+  <p>We comply with all applicable child safety laws and regulations. When we become aware of content or conduct that may constitute child sexual abuse or exploitation, we report it to the relevant regional and national authorities as required by law and in accordance with our legal obligations.</p>
+
+  <h2>4. Contact</h2>
+  <p>For child safety or CSAE-related concerns, or to request a copy of this policy, contact us at <strong><a href="mailto:Mulligandating@gmail.com">Mulligandating@gmail.com</a></strong>.</p>
+
+  <div class="footer">
+    This page sets out Mulligan Dating's publicly available standards against child sexual abuse and exploitation. By using our service, you agree to follow these standards and our Terms of Service.
+  </div>
+</body>
+</html>`;
+
+app.get("/child-safety", (_req, res) => {
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(childSafetyHtml());
+});
+
 // CORS configuration
 const allowedOrigins = process.env.NODE_ENV === 'production' 
   ? (process.env.ALLOWED_ORIGINS?.split(',') || [])
@@ -563,6 +612,12 @@ app.get("/api/reset-rate-limit", async (req, res) => {
     message: "Rate limit reset for your IP",
     ip: ipString
   });
+});
+
+// Child safety policy (also at /api/child-safety for alternate access / Play Store)
+app.get("/api/child-safety", (_req, res) => {
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(childSafetyHtml());
 });
 
 // 404 handler - must be after all routes
