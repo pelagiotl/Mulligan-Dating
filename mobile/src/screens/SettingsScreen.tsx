@@ -31,6 +31,7 @@ interface SettingsData {
 
 const DEBUG_TAP_COUNT = 7;
 
+const isExpoGo = Constants.appOwnership === 'expo';
 const IAP_COMING_SOON_MSG = "In-app purchases are coming soon. We're switching to a new provider—stay tuned!";
 
 export default function SettingsScreen() {
@@ -187,15 +188,21 @@ export default function SettingsScreen() {
       if (list.length > 0 && Platform.OS !== 'web') {
         try {
           const offerings = await Purchases.getOfferings();
-          const current = offerings.current;
+          const current = offerings.current ?? (offerings as { all?: Record<string, { availablePackages: PurchasesPackage[] }> }).all?.['default'] ?? Object.values((offerings as { all?: Record<string, { availablePackages: PurchasesPackage[] }> }).all ?? {})[0];
+          if (__DEV__) {
+            console.log('[IAP Settings] getOfferings: offering id=', current?.identifier ?? 'null', 'packages count=', current?.availablePackages?.length ?? 0);
+            current?.availablePackages?.forEach((p) => console.log('[IAP Settings] RC package product.identifier=', p.product.identifier));
+            console.log('[IAP Settings] Backend productIds=', list.map((p) => (p as { productId?: string }).productId));
+          }
           if (current?.availablePackages?.length) {
             list = list.map((pkg) => {
               const productId = (pkg as { productId?: string }).productId;
-              const rcPkg = current.availablePackages.find(
-                (p) => p.product.identifier === productId
-              );
-              if (rcPkg) {
-                revenueCatPackagesByProductId.current[productId!] = rcPkg;
+              const rcPkg = current.availablePackages.find((p) => {
+                const id = p.product.identifier;
+                return id === productId || id?.toLowerCase() === productId?.toLowerCase() || (typeof id === 'string' && id.endsWith && productId && id.endsWith(productId));
+              });
+              if (rcPkg && productId) {
+                revenueCatPackagesByProductId.current[productId] = rcPkg;
                 const price = rcPkg.product.priceString;
                 const perToken = pkg.tokens > 0
                   ? `$${(rcPkg.product.price / pkg.tokens).toFixed(2)}`
@@ -210,7 +217,7 @@ export default function SettingsScreen() {
             });
           }
         } catch (rcErr) {
-          // RevenueCat not configured or Expo Go — keep backend packages, prices stay empty
+          console.warn('[IAP Settings] getOfferings failed:', rcErr);
         }
       }
       setPackages(list);
@@ -225,7 +232,10 @@ export default function SettingsScreen() {
     const productId = pkg.productId;
     const rcPkg = productId ? revenueCatPackagesByProductId.current[productId] : null;
     if (!rcPkg) {
-      Alert.alert('Coming Soon', IAP_COMING_SOON_MSG);
+      const msg = isExpoGo
+        ? "In-app purchases aren't available in Expo Go. Install the app from TestFlight or the App Store to buy tokens."
+        : IAP_COMING_SOON_MSG;
+      Alert.alert(isExpoGo ? 'Not available' : 'Coming Soon', msg);
       return;
     }
     setPurchasing(true);

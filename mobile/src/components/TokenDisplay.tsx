@@ -1,8 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Modal, ScrollView, Animated, Easing, Dimensions, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import Constants from 'expo-constants';
 import Purchases from 'react-native-purchases';
 import type { PurchasesPackage } from 'react-native-purchases';
+
+const isExpoGo = Constants.appOwnership === 'expo';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
@@ -505,13 +508,21 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
       if (list.length > 0 && Platform.OS !== 'web') {
         try {
           const offerings = await Purchases.getOfferings();
-          const current = offerings.current;
+          const current = offerings.current ?? (offerings as { all?: Record<string, { availablePackages: PurchasesPackage[] }> }).all?.['default'] ?? Object.values((offerings as { all?: Record<string, { availablePackages: PurchasesPackage[] }> }).all ?? {})[0];
+          if (__DEV__) {
+            console.log('[IAP] getOfferings: offering id=', current?.identifier ?? 'null', 'packages count=', current?.availablePackages?.length ?? 0);
+            current?.availablePackages?.forEach((p) => console.log('[IAP] RC package product.identifier=', p.product.identifier));
+            console.log('[IAP] Backend productIds=', list.map((p) => p.productId));
+          }
           if (current?.availablePackages?.length) {
             list = list.map((pkg) => {
               const productId = pkg.productId;
-              const rcPkg = current.availablePackages.find((p) => p.product.identifier === productId);
-              if (rcPkg) {
-                revenueCatPackagesByProductId.current[productId!] = rcPkg;
+              const rcPkg = current.availablePackages.find((p) => {
+                const id = p.product.identifier;
+                return id === productId || id?.toLowerCase() === productId?.toLowerCase() || (typeof id === 'string' && id.endsWith && productId && id.endsWith(productId));
+              });
+              if (rcPkg && productId) {
+                revenueCatPackagesByProductId.current[productId] = rcPkg;
                 const price = rcPkg.product.priceString;
                 const perToken = pkg.tokens > 0 ? `$${(rcPkg.product.price / pkg.tokens).toFixed(2)}` : '';
                 return { ...pkg, priceFormatted: price, pricePerToken: perToken };
@@ -519,8 +530,8 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
               return pkg;
             });
           }
-        } catch {
-          // RevenueCat not configured or Expo Go
+        } catch (rcErr) {
+          console.warn('[IAP] getOfferings failed:', rcErr);
         }
       }
       setPackages(list);
@@ -534,7 +545,10 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
   const handlePurchase = async (pkg: TokenPackage) => {
     const rcPkg = pkg.productId ? revenueCatPackagesByProductId.current[pkg.productId] : null;
     if (!rcPkg) {
-      Alert.alert('Coming Soon', IAP_COMING_SOON_MSG);
+      const msg = isExpoGo
+        ? "In-app purchases aren't available in Expo Go. Install the app from TestFlight or the App Store to buy tokens."
+        : IAP_COMING_SOON_MSG;
+      Alert.alert(isExpoGo ? 'Not available' : 'Coming Soon', msg);
       return;
     }
     setPurchasing(true);
