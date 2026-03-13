@@ -127,6 +127,45 @@ app.get("/privacy", (_req, res) => {
 </html>`);
 });
 
+// Delete account instructions (for Google Play / App Store "delete account URL" requirement)
+app.get("/delete-account", (_req, res) => {
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Delete Your Account - Mulligan Dating</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; line-height: 1.6; color: #333; }
+    h1 { color: #8B1538; margin-bottom: 8px; }
+    .steps { background: #f8f8f8; padding: 16px 20px; border-radius: 8px; margin: 20px 0; }
+    .steps ol { margin: 0; padding-left: 20px; }
+    .steps li { margin-bottom: 8px; }
+    .contact { margin-top: 24px; padding: 16px; background: #fef2f2; border-radius: 8px; font-size: 14px; }
+    a { color: #8B1538; }
+  </style>
+</head>
+<body>
+  <h1>Delete Your Account</h1>
+  <p>You can permanently delete your Mulligan Dating account and all associated data at any time from within the app.</p>
+  <div class="steps">
+    <strong>How to delete your account:</strong>
+    <ol>
+      <li>Open the Mulligan Dating app.</li>
+      <li>Go to <strong>Settings</strong> (gear icon or Settings tab).</li>
+      <li>Scroll to the <strong>Danger Zone</strong> section.</li>
+      <li>Tap <strong>Delete Account</strong> and confirm.</li>
+    </ol>
+  </div>
+  <p>After you confirm, your account, profile, matches, and messages are permanently removed and cannot be recovered.</p>
+  <div class="contact">
+    <strong>Need help?</strong> Contact us at <a href="mailto:Mulligandating@gmail.com">Mulligandating@gmail.com</a> and we can assist with account deletion or data questions.
+  </div>
+</body>
+</html>`);
+});
+
 // CORS configuration
 const allowedOrigins = process.env.NODE_ENV === 'production' 
   ? (process.env.ALLOWED_ORIGINS?.split(',') || [])
