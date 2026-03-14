@@ -9,20 +9,22 @@
       "distribution": "internal"
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+      }
     },
     "production": {
       "autoIncrement": true,
+      "env": {
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+      },
       "ios": {
         "image": "macos-sequoia-15.3-xcode-16.2"
       }
     }
   },
   "submit": {
-    "production": {
-      "ios": {
-        "ascAppId": "PASTE_YOUR_APP_STORE_CONNECT_APP_ID_HERE"
-      }
-    }
+    "production": {}
   }
 }

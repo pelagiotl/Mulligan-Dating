@@ -1,0 +1,17 @@
+1. SCREEN RECORDING
+Screen recording attached/linked below, captured on a physical iPhone. Shows: app launch; account registration and login (phone + SMS); account deletion (Settings → Danger Zone → Delete Account); paid content/IAP (Connect tokens, Settings/token modal → Buy Mulligan Tokens via RevenueCat); user-generated content (profile, photos, messaging) and reporting/blocking (profile or chat menu); prompts for camera, photo library, optional location (Southern Oregon check), push notifications.
+
+2. APP PURPOSE AND VALUE
+Mulligan is a dating app for adults 18+ in Southern Oregon. It addresses endless swiping by: (1) limiting to Southern Oregon so matches are local; (2) using tokens for intentional connections; (3) highlighting profiles (interests, dealbreakers) before connecting; (4) offering messaging and icebreaker games (Truth or Dare). Audience: adults 18+ in or near Southern Oregon seeking intentional, local dating.
+
+3. INSTRUCTIONS AND TEST CREDENTIALS
+We do not have a dedicated test phone number. Please use Sign Up with your own phone number; you will receive an SMS code to complete registration. Flow is quick (phone → code → create profile). Main tabs: Connect (browse, use token to connect), Matches (chat; menu for Truth or Dare, report, block), Profile (edit, photos, interests), Settings (tokens, delete account, privacy). Connect: browse → tap profile → "Use token to connect" (1 token). All features are available to new users. Screen recording demonstrates the full flow.
+
+4. EXTERNAL SERVICES
+Backend: Node/Express on Render (mulligan-backend.onrender.com) for auth, profiles, matching, messages, tokens, IAP webhook. Auth: phone + SMS (e.g. Twilio). IAP: RevenueCat + Apple IAP; backend webhook grants tokens. DB: PostgreSQL. Push: Expo Push. Location: geocoding for Southern Oregon region check. Optional: OpenAI for Truth or Dare prompts (fallback to static).
+
+5. REGIONAL DIFFERENCES
+App is currently restricted to Southern Oregon, USA; we plan to add more regions and states with user growth. Users outside the allowed region see "not available in your area" and cannot browse or match. All other features (account, profile, IAP, messaging, report, block) work the same inside the region. No other regional content differences.
+
+6. REGULATED INDUSTRY
+Dating/social app for adults 18+. No financial, health, or legal services. Privacy Policy and Child Safety/CSAE policy linked in app and backend. No additional credentials required.

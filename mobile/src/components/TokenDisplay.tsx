@@ -499,13 +499,14 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
 
   const revenueCatPackagesByProductId = useRef<Record<string, PurchasesPackage>>({});
 
-  const fetchPackages = async () => {
+  const fetchPackages = async (isRetry = false) => {
     try {
-      setLoadingPackages(true);
+      if (!isRetry) setLoadingPackages(true);
       const response = await api.get<{ packages: TokenPackage[]; availableTokens?: number }>('/payments/packages');
       let list = response.packages || [];
-      revenueCatPackagesByProductId.current = {};
-      if (list.length > 0 && Platform.OS !== 'web') {
+      if (!isRetry) revenueCatPackagesByProductId.current = {};
+      const tryRevenueCat = async (): Promise<boolean> => {
+        if (list.length === 0 || Platform.OS === 'web') return false;
         try {
           const offerings = await Purchases.getOfferings();
           const current = offerings.current ?? (offerings as { all?: Record<string, { availablePackages: PurchasesPackage[] }> }).all?.['default'] ?? Object.values((offerings as { all?: Record<string, { availablePackages: PurchasesPackage[] }> }).all ?? {})[0];
@@ -515,6 +516,7 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
             console.log('[IAP] Backend productIds=', list.map((p) => p.productId));
           }
           if (current?.availablePackages?.length) {
+            let matched = 0;
             list = list.map((pkg) => {
               const productId = pkg.productId;
               const rcPkg = current.availablePackages.find((p) => {
@@ -523,17 +525,33 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
               });
               if (rcPkg && productId) {
                 revenueCatPackagesByProductId.current[productId] = rcPkg;
+                matched++;
                 const price = rcPkg.product.priceString;
                 const perToken = pkg.tokens > 0 ? `$${(rcPkg.product.price / pkg.tokens).toFixed(2)}` : '';
                 return { ...pkg, priceFormatted: price, pricePerToken: perToken };
               }
               return pkg;
             });
+            return matched > 0;
           }
         } catch (rcErr) {
           console.warn('[IAP] getOfferings failed:', rcErr);
         }
+        return false;
+      };
+      const gotPrices = await tryRevenueCat();
+      if (!gotPrices && !isExpoGo && list.length > 0 && !isRetry) {
+        await new Promise((r) => setTimeout(r, 2000));
+        await tryRevenueCat();
       }
+      list = list.map((pkg) => {
+        if (pkg.priceFormatted) return pkg;
+        return {
+          ...pkg,
+          priceFormatted: isExpoGo ? 'Price in app' : '—',
+          pricePerToken: '—',
+        };
+      });
       setPackages(list);
     } catch (err: any) {
       setPackages([]);
@@ -547,8 +565,8 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
     if (!rcPkg) {
       const msg = isExpoGo
         ? "In-app purchases aren't available in Expo Go. Install the app from TestFlight or the App Store to buy tokens."
-        : IAP_COMING_SOON_MSG;
-      Alert.alert(isExpoGo ? 'Not available' : 'Coming Soon', msg);
+        : "Prices didn't load for this session. Tap Retry below, or update to the latest app version. If it keeps happening, contact Mulligandating@gmail.com.";
+      Alert.alert(isExpoGo ? 'Not available' : 'Prices not loaded', msg);
       return;
     }
     setPurchasing(true);
@@ -807,6 +825,25 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
                   </TouchableOpacity>
                 </LinearGradient>
 
+                {isExpoGo && packages.length > 0 && !loadingPackages && (
+                  <View style={{ paddingHorizontal: 20, paddingVertical: 12, backgroundColor: '#fef3c7', marginHorizontal: 16, marginTop: 8, borderRadius: 8 }}>
+                    <Text style={{ color: '#92400e', fontSize: 14, textAlign: 'center' }}>
+                      Install the app from TestFlight or the App Store to see prices and buy tokens.
+                    </Text>
+                  </View>
+                )}
+
+                {!isExpoGo && packages.length > 0 && !loadingPackages && packages.every((p) => p.priceFormatted === '—' || !p.priceFormatted) && (
+                  <View style={{ paddingHorizontal: 20, paddingVertical: 12, marginHorizontal: 16, marginTop: 8 }}>
+                    <Text style={{ color: '#64748b', fontSize: 13, textAlign: 'center', marginBottom: 10 }}>
+                      Prices couldn't load. Tap Retry to try again, or update to the latest app version.
+                    </Text>
+                    <TouchableOpacity onPress={() => fetchPackages(true)} style={{ backgroundColor: '#10b981', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 8, alignSelf: 'center' }}>
+                      <Text style={{ color: '#fff', fontWeight: '600' }}>Retry</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
                 {loadingPackages ? (
                   <ActivityIndicator size="large" color="#10b981" style={styles.modalLoading} />
                 ) : packages.length === 0 ? (
@@ -865,9 +902,9 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
                                 <Text style={styles.limitExceededBadge}>Limit</Text>
                               )}
                             </View>
-                            <Text style={[styles.packagePrice, isBestValue && styles.packagePriceBestValue]}>{pkg.priceFormatted}</Text>
+                            <Text style={[styles.packagePrice, isBestValue && styles.packagePriceBestValue]}>{pkg.priceFormatted || '—'}</Text>
                             <Text style={[styles.packagePricePerToken, isBestValue && styles.packagePricePerTokenBestValue]}>
-                              ${pkg.pricePerToken} per token
+                              {pkg.pricePerToken ? `$${pkg.pricePerToken} per token` : 'Price in app'}
                             </Text>
                             {pkg.wouldExceedLimit && (
                               <Text style={styles.limitExceededText}>
@@ -989,6 +1026,25 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
               </TouchableOpacity>
             </LinearGradient>
 
+            {isExpoGo && packages.length > 0 && !loadingPackages && (
+              <View style={{ paddingHorizontal: 20, paddingVertical: 12, backgroundColor: '#fef3c7', marginHorizontal: 16, marginTop: 8, borderRadius: 8 }}>
+                <Text style={{ color: '#92400e', fontSize: 14, textAlign: 'center' }}>
+                  Install the app from TestFlight or the App Store to see prices and buy tokens.
+                </Text>
+              </View>
+            )}
+
+            {!isExpoGo && packages.length > 0 && !loadingPackages && packages.every((p) => p.priceFormatted === '—' || !p.priceFormatted) && (
+              <View style={{ paddingHorizontal: 20, paddingVertical: 12, marginHorizontal: 16, marginTop: 8 }}>
+                <Text style={{ color: '#64748b', fontSize: 13, textAlign: 'center', marginBottom: 10 }}>
+                  Prices couldn't load. Tap Retry to try again, or update to the latest app version.
+                </Text>
+                <TouchableOpacity onPress={() => fetchPackages(true)} style={{ backgroundColor: '#10b981', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 8, alignSelf: 'center' }}>
+                  <Text style={{ color: '#fff', fontWeight: '600' }}>Retry</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             {loadingPackages ? (
               <ActivityIndicator size="large" color="#10b981" style={styles.modalLoading} />
             ) : packages.length === 0 ? (
@@ -1047,9 +1103,9 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
                             <Text style={styles.limitExceededBadge}>Limit</Text>
                           )}
                         </View>
-                        <Text style={[styles.packagePrice, isBestValue && styles.packagePriceBestValue]}>{pkg.priceFormatted}</Text>
+                        <Text style={[styles.packagePrice, isBestValue && styles.packagePriceBestValue]}>{pkg.priceFormatted || '—'}</Text>
                         <Text style={[styles.packagePricePerToken, isBestValue && styles.packagePricePerTokenBestValue]}>
-                          ${pkg.pricePerToken} per token
+                          {pkg.pricePerToken ? `$${pkg.pricePerToken} per token` : 'Price in app'}
                         </Text>
                         {pkg.wouldExceedLimit && (
                           <Text style={styles.limitExceededText}>

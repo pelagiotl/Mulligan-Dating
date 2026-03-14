@@ -989,6 +989,7 @@ function MatchProfileModal({
   onClose,
   onPhotoPress,
   onReport,
+  onBlock,
   noModal = false,
 }: { 
   match: Match; 
@@ -996,6 +997,7 @@ function MatchProfileModal({
   onClose: () => void;
   onPhotoPress?: (url: string, allUrls?: string[], index?: number) => void;
   onReport?: () => void;
+  onBlock?: () => void;
   noModal?: boolean;
 }) {
   const { otherUser } = match;
@@ -1963,16 +1965,27 @@ function MatchProfileModal({
               </Animated.View>
             )}
 
-            {/* Report button */}
-            {onReport && (
-              <Animated.View style={[styles.modalSection, { opacity: contentFade, marginTop: 8, marginBottom: 24 }]}>
-                <TouchableOpacity
-                  onPress={onReport}
-                  style={styles.modalReportButton}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.modalReportButtonText}>🚩 Report</Text>
-                </TouchableOpacity>
+            {/* Report and Block buttons */}
+            {(onReport || onBlock) && (
+              <Animated.View style={[styles.modalSection, { opacity: contentFade, marginTop: 8, marginBottom: 24, flexDirection: 'row', justifyContent: 'center', gap: 12 }]}>
+                {onBlock && (
+                  <TouchableOpacity
+                    onPress={onBlock}
+                    style={styles.modalBlockButton}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.modalBlockButtonText}>🚫 Block</Text>
+                  </TouchableOpacity>
+                )}
+                {onReport && (
+                  <TouchableOpacity
+                    onPress={onReport}
+                    style={styles.modalReportButton}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.modalReportButtonText}>🚩 Report</Text>
+                  </TouchableOpacity>
+                )}
               </Animated.View>
             )}
           </ScrollView>
@@ -3397,6 +3410,38 @@ export default function MatchesScreen() {
     );
   }, [selectedMatch]);
 
+  const handleBlockMatch = useCallback(() => {
+    if (!selectedMatch) return;
+    const name = selectedMatch.otherUser?.displayName || 'this user';
+    Alert.alert(
+      'Block',
+      `Block ${name}? They will be removed from your matches and won't see you in browse. You can unblock them later in Settings.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Block',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.post('/blocks', {
+                blockedUserId: selectedMatch.otherUser.userId,
+              });
+              api.clearCache('/matches');
+              setMatches((prev) => prev.filter((m) => m.id !== selectedMatch.id));
+              setSelectedMatch(null);
+              setShowProfileModal(false);
+              setFullScreenImageUrl(null);
+              setFullScreenPhotoList(null);
+              Alert.alert('Done', 'User has been blocked.');
+            } catch (e: any) {
+              Alert.alert('Error', e?.message || 'Failed to block user');
+            }
+          },
+        },
+      ]
+    );
+  }, [selectedMatch]);
+
   // Memoize getMatchPhoto to avoid recalculating
   const getMatchPhoto = useCallback((match: Match) => {
     if (match.stage === 'stage2' && match.otherUser.photos?.length) {
@@ -4022,6 +4067,7 @@ export default function MatchesScreen() {
               setFullScreenPhotoIndex(typeof index === 'number' ? index : 0);
             }}
             onReport={handleReportMatch}
+            onBlock={handleBlockMatch}
           />
         ) : null}
       </Modal>
@@ -4048,7 +4094,7 @@ export default function MatchesScreen() {
               <Text style={styles.photoGuidelinesEmoji}>⚠️</Text>
               <Text style={styles.photoGuidelinesTitle}>Keep it appropriate</Text>
               <Text style={styles.photoGuidelinesBody}>
-                Don&apos;t be dumb. F**k around and get banned.
+                Inappropriate photos can get you permanently banned from Mulligan.
               </Text>
               <Text style={styles.photoGuidelinesSubtext}>
                 Inappropriate photos can get you permanently banned from Mulligan.
@@ -5818,8 +5864,20 @@ const styles = StyleSheet.create({
   modalContent: {
     paddingBottom: 40,
   },
+  modalBlockButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(80, 80, 80, 0.2)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(80, 80, 80, 0.5)',
+  },
+  modalBlockButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#444',
+  },
   modalReportButton: {
-    alignSelf: 'center',
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 12,

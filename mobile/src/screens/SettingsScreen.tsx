@@ -165,10 +165,12 @@ export default function SettingsScreen() {
     }
   };
 
-  const fetchPackages = async () => {
+  const fetchPackages = async (isRetry = false) => {
     try {
-      setLoadingPackages(true);
-      setError('');
+      if (!isRetry) {
+        setLoadingPackages(true);
+        setError('');
+      }
       const response = await api.get<{
         packages: Array<{
           id: number;
@@ -184,8 +186,9 @@ export default function SettingsScreen() {
         availableTokens?: number;
       }>('/payments/packages');
       let list = response.packages || [];
-      revenueCatPackagesByProductId.current = {};
-      if (list.length > 0 && Platform.OS !== 'web') {
+      if (!isRetry) revenueCatPackagesByProductId.current = {};
+      const tryRevenueCat = async (): Promise<boolean> => {
+        if (list.length === 0 || Platform.OS === 'web') return false;
         try {
           const offerings = await Purchases.getOfferings();
           const current = offerings.current ?? (offerings as { all?: Record<string, { availablePackages: PurchasesPackage[] }> }).all?.['default'] ?? Object.values((offerings as { all?: Record<string, { availablePackages: PurchasesPackage[] }> }).all ?? {})[0];
@@ -195,6 +198,7 @@ export default function SettingsScreen() {
             console.log('[IAP Settings] Backend productIds=', list.map((p) => (p as { productId?: string }).productId));
           }
           if (current?.availablePackages?.length) {
+            let matched = 0;
             list = list.map((pkg) => {
               const productId = (pkg as { productId?: string }).productId;
               const rcPkg = current.availablePackages.find((p) => {
@@ -203,23 +207,34 @@ export default function SettingsScreen() {
               });
               if (rcPkg && productId) {
                 revenueCatPackagesByProductId.current[productId] = rcPkg;
+                matched++;
                 const price = rcPkg.product.priceString;
-                const perToken = pkg.tokens > 0
-                  ? `$${(rcPkg.product.price / pkg.tokens).toFixed(2)}`
-                  : '';
-                return {
-                  ...pkg,
-                  priceFormatted: price,
-                  pricePerToken: perToken,
-                };
+                const perToken = pkg.tokens > 0 ? `$${(rcPkg.product.price / pkg.tokens).toFixed(2)}` : '';
+                return { ...pkg, priceFormatted: price, pricePerToken: perToken };
               }
               return pkg;
             });
+            return matched > 0;
           }
         } catch (rcErr) {
           console.warn('[IAP Settings] getOfferings failed:', rcErr);
         }
+        return false;
+      };
+      const gotPrices = await tryRevenueCat();
+      if (!gotPrices && !isExpoGo && list.length > 0 && !isRetry) {
+        await new Promise((r) => setTimeout(r, 2000));
+        await tryRevenueCat();
       }
+      list = list.map((pkg) => {
+        const p = pkg as { priceFormatted?: string; pricePerToken?: string };
+        if (p.priceFormatted) return pkg;
+        return {
+          ...pkg,
+          priceFormatted: isExpoGo ? 'Price in app' : '—',
+          pricePerToken: '—',
+        };
+      });
       setPackages(list);
     } catch (err: any) {
       setPackages([]);
@@ -234,8 +249,8 @@ export default function SettingsScreen() {
     if (!rcPkg) {
       const msg = isExpoGo
         ? "In-app purchases aren't available in Expo Go. Install the app from TestFlight or the App Store to buy tokens."
-        : IAP_COMING_SOON_MSG;
-      Alert.alert(isExpoGo ? 'Not available' : 'Coming Soon', msg);
+        : "Prices didn't load for this session. Tap Retry below, or update to the latest app version. If it keeps happening, contact Mulligandating@gmail.com.";
+      Alert.alert(isExpoGo ? 'Not available' : 'Prices not loaded', msg);
       return;
     }
     setPurchasing(true);
@@ -455,6 +470,17 @@ export default function SettingsScreen() {
           >
             <Text style={styles.pushNotificationsRowIcon}>🔔</Text>
             <Text style={styles.pushNotificationsRowText}>Push notifications</Text>
+            <Text style={styles.pushNotificationsRowChevron}>›</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.pushNotificationsRowWrap}>
+          <TouchableOpacity
+            style={styles.pushNotificationsRow}
+            onPress={() => navigationRef.current?.navigate('BlockedUsers')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.pushNotificationsRowIcon}>🚫</Text>
+            <Text style={styles.pushNotificationsRowText}>Blocked users</Text>
             <Text style={styles.pushNotificationsRowChevron}>›</Text>
           </TouchableOpacity>
         </View>
@@ -764,6 +790,25 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             </View>
 
+            {isExpoGo && packages.length > 0 && !loadingPackages && (
+              <View style={{ paddingHorizontal: 20, paddingVertical: 12, backgroundColor: '#fef3c7', marginHorizontal: 16, marginTop: 8, borderRadius: 8 }}>
+                <Text style={{ color: '#92400e', fontSize: 14, textAlign: 'center' }}>
+                  Install the app from TestFlight or the App Store to see prices and buy tokens.
+                </Text>
+              </View>
+            )}
+
+            {!isExpoGo && packages.length > 0 && !loadingPackages && packages.every((p) => (p as { priceFormatted?: string }).priceFormatted === '—' || !(p as { priceFormatted?: string }).priceFormatted) && (
+              <View style={{ paddingHorizontal: 20, paddingVertical: 12, marginHorizontal: 16, marginTop: 8 }}>
+                <Text style={{ color: '#64748b', fontSize: 13, textAlign: 'center', marginBottom: 10 }}>
+                  Prices couldn't load. Tap Retry to try again, or update to the latest app version.
+                </Text>
+                <TouchableOpacity onPress={() => fetchPackages(true)} style={{ backgroundColor: '#8B1538', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 8, alignSelf: 'center' }}>
+                  <Text style={{ color: '#fff', fontWeight: '600' }}>Retry</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             {loadingPackages ? (
               <ActivityIndicator size="large" color="#8B1538" style={styles.modalLoading} />
             ) : (
@@ -778,7 +823,6 @@ export default function SettingsScreen() {
                     // Only disable if purchasing OR if it would exceed limit
                     // available can be undefined (backwards compatibility), so only check if it's explicitly false
                     const isDisabled = purchasing || (pkg.wouldExceedLimit === true);
-                    console.log(`📦 Package ${pkg.id}: tokens=${pkg.tokens}, disabled=${isDisabled}, wouldExceed=${pkg.wouldExceedLimit}, available=${pkg.available}`);
                     return (
                     <TouchableOpacity
                       key={pkg.id}
@@ -817,9 +861,9 @@ export default function SettingsScreen() {
                           <Text style={styles.limitExceededBadge}>Limit Exceeded</Text>
                         )}
                       </View>
-                      <Text style={styles.packagePrice}>{pkg.priceFormatted}</Text>
+                      <Text style={styles.packagePrice}>{pkg.priceFormatted || '—'}</Text>
                       <Text style={styles.packagePricePerToken}>
-                        ${pkg.pricePerToken} per token
+                        {pkg.pricePerToken ? `$${pkg.pricePerToken} per token` : 'Price in app'}
                       </Text>
                       {pkg.wouldExceedLimit && (
                         <Text style={styles.limitExceededText}>

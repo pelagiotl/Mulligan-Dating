@@ -13,16 +13,19 @@ async function sendReportNotificationEmail(params: {
   reason: string | null;
   reporterDisplayName: string;
   reportedDisplayName: string;
-}): Promise<void> {
+}): Promise<{ sent: boolean; error?: string }> {
   const supportEmail = process.env.SUPPORT_EMAIL || process.env.REPORT_EMAIL;
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.RESEND_FROM || "Mulligan <onboarding@resend.dev>";
 
   if (!supportEmail || !apiKey) {
     if (process.env.NODE_ENV !== "test") {
-      console.warn("Report email skipped: SUPPORT_EMAIL or RESEND_API_KEY not set");
+      console.error(
+        "[Report email] Not sent: set SUPPORT_EMAIL (or REPORT_EMAIL) and RESEND_API_KEY in your backend env (e.g. Render). " +
+        "Support will not receive report notifications until these are set."
+      );
     }
-    return;
+    return { sent: false, error: "SUPPORT_EMAIL or RESEND_API_KEY not set" };
   }
 
   try {
@@ -48,10 +51,16 @@ async function sendReportNotificationEmail(params: {
     });
     const result = run instanceof Promise ? await run : run;
     if (result.error) {
-      console.warn("Report notification email failed:", result.error);
+      console.error("[Report email] Resend API error:", result.error);
+      return { sent: false, error: String(result.error?.message ?? result.error) };
     }
-  } catch (err) {
-    console.warn("Report notification email error:", err);
+    if (process.env.NODE_ENV !== "test") {
+      console.log("[Report email] Sent to", supportEmail, "for report", params.reportId.slice(0, 8));
+    }
+    return { sent: true };
+  } catch (err: any) {
+    console.error("[Report email] Send failed:", err?.message || err);
+    return { sent: false, error: err?.message || String(err) };
   }
 }
 
@@ -78,19 +87,18 @@ reportsRouter.post("/", authenticateToken, async (req: AuthRequest, res) => {
       typeof reason === "string" ? reason.trim().slice(0, 500) : null;
     const matchIdOrNull = matchId && typeof matchId === "string" ? matchId : null;
 
-    db.prepare(
+    await (db.prepare(
       `INSERT INTO reports (id, reporter_id, reported_user_id, match_id, reason) VALUES (?, ?, ?, ?, ?)`
-    ).run(reportId, userId, reportedUserId, matchIdOrNull, reasonTrimmed);
+    ).run(reportId, userId, reportedUserId, matchIdOrNull, reasonTrimmed) as Promise<any>);
 
-    // Fetch display names for notification email (non-blocking)
-    const reporterProfileResult = db.prepare("SELECT display_name FROM profiles WHERE user_id = ?").get(userId);
-    const reportedProfileResult = db.prepare("SELECT display_name FROM profiles WHERE user_id = ?").get(reportedUserId);
-    const reporterProfile = (reporterProfileResult instanceof Promise ? await reporterProfileResult : reporterProfileResult) as { display_name?: string } | undefined;
-    const reportedProfile = (reportedProfileResult instanceof Promise ? await reportedProfileResult : reportedProfileResult) as { display_name?: string } | undefined;
-    const reporterDisplayName = typeof reporterProfile?.display_name === "string" ? reporterProfile.display_name : "";
-    const reportedDisplayName = typeof reportedProfile?.display_name === "string" ? reportedProfile.display_name : "";
+    // Fetch display names for notification email
+    const reporterProfileResult = await (db.prepare("SELECT display_name FROM profiles WHERE user_id = ?").get(userId) as Promise<{ display_name?: string } | undefined>);
+    const reportedProfileResult = await (db.prepare("SELECT display_name FROM profiles WHERE user_id = ?").get(reportedUserId) as Promise<{ display_name?: string } | undefined>);
+    const reporterDisplayName = typeof reporterProfileResult?.display_name === "string" ? reporterProfileResult.display_name : "";
+    const reportedDisplayName = typeof reportedProfileResult?.display_name === "string" ? reportedProfileResult.display_name : "";
 
-    sendReportNotificationEmail({
+    // Send email to support so the team can review (requires SUPPORT_EMAIL + RESEND_API_KEY on backend)
+    const emailResult = await sendReportNotificationEmail({
       reportId,
       reporterId: userId,
       reportedUserId,
@@ -98,7 +106,10 @@ reportsRouter.post("/", authenticateToken, async (req: AuthRequest, res) => {
       reason: reasonTrimmed,
       reporterDisplayName,
       reportedDisplayName,
-    }).catch(() => {});
+    });
+    if (!emailResult.sent && process.env.NODE_ENV !== "test") {
+      console.error("[Report] Support was not emailed:", emailResult.error);
+    }
 
     res.status(201).json({ message: "Report submitted. We'll look into it." });
   } catch (error) {

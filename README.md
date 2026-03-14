@@ -143,6 +143,16 @@ To get **system** message notifications when the app is in the background or clo
    - **Device:** Use an **EAS or production build** (not Expo Go). Ensure the user has **allowed notifications** when prompted.  
    - **Verify:** In Render logs when a message is sent, look for `📲 Push (message): recipient=… hasToken=true validFormat=true EXPO_ACCESS_TOKEN=set` and `✅ Push (message) sent to …`. If the backend says "sent" but the device never shows a notification, FCM credentials or `googleServicesFile` are almost certainly missing — complete the steps above and create a new Android build.
 
+### Report notifications (support email)
+
+When a user reports another user, the backend can email your support address so your team can review. Set these in your **backend** environment (e.g. Render):
+
+- **`SUPPORT_EMAIL`** (or **`REPORT_EMAIL`**) – e.g. `support@mulligandating.com` – where report notifications are sent.
+- **`RESEND_API_KEY`** – API key from [Resend](https://resend.com) (used to send the email).
+- **`RESEND_FROM`** (optional) – Sender address, e.g. `Mulligan <notifications@mulligandating.com>`. If unset, Resend’s default test domain is used (delivery may be limited).
+
+After setting these and redeploying, each report will trigger an email to `SUPPORT_EMAIL`. In Render logs you’ll see `[Report email] Sent to …` on success, or `[Report email] Not sent: set SUPPORT_EMAIL and RESEND_API_KEY` if they’re missing.
+
 ### In-app purchases (RevenueCat)
 
 Token packs are sold via RevenueCat. To finish setup (dashboard, App Store / Play products, webhook, mobile env), see **[docs/REVENUECAT_SETUP.md](docs/REVENUECAT_SETUP.md)**.

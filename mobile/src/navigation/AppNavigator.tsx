@@ -22,6 +22,7 @@ import AdminScreen from '../screens/AdminScreen';
 import TermsScreen from '../screens/TermsScreen';
 import PrivacyScreen from '../screens/PrivacyScreen';
 import PushNotificationSettingsScreen from '../screens/PushNotificationSettingsScreen';
+import BlockedUsersScreen from '../screens/BlockedUsersScreen';
 import { useAuth } from '../context/AuthContext';
 // Import navigation ref from separate file to avoid circular dependencies
 import { navigationRef, RootStackParamList } from './navigationRef';
@@ -422,6 +423,7 @@ export default function AppNavigator() {
           <Stack.Screen name="Terms" component={TermsScreen} />
           <Stack.Screen name="Privacy" component={PrivacyScreen} />
           <Stack.Screen name="PushNotificationSettings" component={PushNotificationSettingsScreen} />
+          <Stack.Screen name="BlockedUsers" component={BlockedUsersScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     );
