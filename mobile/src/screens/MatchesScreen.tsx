@@ -4097,7 +4097,7 @@ export default function MatchesScreen() {
                 Inappropriate photos can get you permanently banned from Mulligan.
               </Text>
               <Text style={styles.photoGuidelinesSubtext}>
-                Inappropriate photos can get you permanently banned from Mulligan.
+                Tap Got it to continue.
               </Text>
               <TouchableOpacity
                 style={styles.photoGuidelinesButton}
