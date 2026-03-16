@@ -5,6 +5,7 @@ import { geocodeLocation, calculateDistanceMiles } from '../utils/geocoding.js';
 import { checkDealbreakers as checkDealbreakersUtil } from '../utils/dealbreakers.js';
 import { getCompletenessBoost } from '../utils/profileCompleteness.js';
 import { getActiveMatchingRegion, isInRegion, REGION_MAX_DISTANCE_MILES } from '../config/regions.js';
+import { expireOldMatches } from '../utils/expireMatches.js';
 
 // Check if using PostgreSQL
 const usePostgres = !!process.env.DATABASE_URL;
@@ -88,6 +89,9 @@ usersRouter.post('/unlock-browse', authenticateToken, async (req: AuthRequest, r
 // REQUIRES: User must have unlocked browsing by using a token
 usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
   try {
+    // Expire matches past 7-day limit so they don't count as "already matched" when user hasn't opened Matches tab
+    await expireOldMatches();
+
     // Check if browsing is unlocked
     const userResult = await (db.prepare('SELECT browse_unlocked_at FROM users WHERE id = ?').get([req.userId]) as Promise<{ browse_unlocked_at: string | null } | undefined>);
     
@@ -693,6 +697,9 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
 // Usage: GET /users/diagnose/:targetUserId
 usersRouter.get('/diagnose/:targetUserId', authenticateToken, async (req: AuthRequest, res) => {
   try {
+    // Expire matches past 7-day limit so expired matches aren't reported as "already matched"
+    await expireOldMatches();
+
     const userId = req.userId!;
     const targetUserId = req.params.targetUserId;
 

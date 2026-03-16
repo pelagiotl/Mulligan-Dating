@@ -86,7 +86,7 @@ const INTEREST_EMOJIS: { [key: string]: string } = {
 };
 
 const DEALBREAKER_OPTIONS = [
-  'Smokes cigarettes', 'Marijuana', 'Frequent drinking', 'Drug use',
+  'Smokes cigarettes', 'Marijuana', 'Frequent drinking',
   'Doesn\'t want children', 'Wants children',
   'Doesn\'t like pets'
 ];
@@ -1761,11 +1761,8 @@ export default function CreateProfileScreen() {
               'Smokes cigarettes': '🚭',
               'Marijuana': '🌿',
               'Frequent drinking': '🍺',
-              'Drug use': '💊',
               'Doesn\'t want children': '👶',
               'Wants children': '👨‍👩‍👧',
-              'Poor communication': '💬',
-              'No ambition': '📈',
               'Doesn\'t like pets': '🐕',
             };
             const emoji = dealbreakerEmojis[dealbreaker] || '⚠️';
