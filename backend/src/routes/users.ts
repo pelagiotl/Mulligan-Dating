@@ -318,6 +318,9 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
             return a.distance - b.distance;
           })
           .map(({ profile }) => profile);
+        const excludedByRegion = activeRegion ? profilesWithDistance.filter(({ inRegion }) => !inRegion).length : 0;
+        const excludedByDistance = allProfiles.length - filteredProfiles.length - excludedByRegion;
+        console.log(`📊 After region/distance: ${filteredProfiles.length} profiles (excluded: ${excludedByRegion} region, ${Math.max(0, excludedByDistance)} distance)`);
       }
     }
 
@@ -378,10 +381,11 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
         return { profile: p, passes };
       })
     );
+    const beforeDealbreakers = filteredProfiles.length;
     filteredProfiles = dealbreakerResults
       .filter(({ passes }) => passes)
       .map(({ profile }) => profile);
-    console.log('📊 Profiles after dealbreaker filtering:', filteredProfiles.length);
+    console.log('📊 Profiles after dealbreaker filtering:', filteredProfiles.length, beforeDealbreakers > 0 && filteredProfiles.length === 0 ? `(${beforeDealbreakers} were excluded by dealbreakers)` : '');
 
     // NEW: Score and sort by interests overlap, partner qualities ("What I'm Looking For"), AND lifestyle compatibility
     const userInterests = await (db
