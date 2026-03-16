@@ -18,6 +18,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import Purchases from 'react-native-purchases';
 import type { PurchasesPackage } from 'react-native-purchases';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Clipboard from 'expo-clipboard';
 import { api } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { navigationRef } from '../navigation/navigationRef';
@@ -537,7 +539,7 @@ export default function SettingsScreen() {
       </Animated.View>
 
       {__DEV__ && (
-        /* Test: Delete Profile (Temporary) - only visible in development */
+        /* Test: Delete Profile + Copy auth token - only visible in development */
         <Animated.View
           style={[
             styles.section,
@@ -559,6 +561,24 @@ export default function SettingsScreen() {
             <Text style={styles.sectionEmoji}>🧪</Text>
             <Text style={styles.sectionTitle}>Test: Delete Profile</Text>
           </View>
+          <TouchableOpacity
+            style={[styles.button, styles.testButton, { marginBottom: 12 }]}
+            onPress={async () => {
+              try {
+                const token = await AsyncStorage.getItem('token');
+                if (token) {
+                  await Clipboard.setStringAsync(token);
+                  Alert.alert('Copied', 'Auth token copied to clipboard. Use it in: curl -H "Authorization: Bearer <paste>" "https://mulligan-backend.onrender.com/api/users/diagnose/FRIEND_USER_ID"');
+                } else {
+                  Alert.alert('No token', 'You are not logged in.');
+                }
+              } catch (e: any) {
+                Alert.alert('Error', e?.message || 'Failed to copy token');
+              }
+            }}
+          >
+            <Text style={[styles.buttonText, styles.testButtonText]}>📋 Copy auth token (for API debug)</Text>
+          </TouchableOpacity>
           <Text style={styles.testText}>
             This will delete your profile (but keep your account). You'll be redirected to create a new profile. Use this to test the profile creation flow.
           </Text>

@@ -13,12 +13,15 @@ interface ProfileRow {
 }
 
 /**
- * Comprehensive dealbreaker checking function
- * Uses multiple methods to accurately detect dealbreakers:
- * 1. Checks if candidate has same dealbreaker (aligned, not a problem)
- * 2. Checks lifestyle data (most accurate)
- * 3. Checks interests
- * 4. Keyword matching in profile text (fallback)
+ * Dealbreaker semantics: each dealbreaker means "I don't want to match with people who [X]".
+ * We EXCLUDE a candidate when their lifestyle/interests match that description.
+ *
+ * Examples:
+ * - "Doesn't like pets" → exclude only if candidate's lifestyle is "Doesn't like pets" (not if they love pets).
+ * - "Wants children" → exclude if candidate "Doesn't want children" (user wants someone who wants kids).
+ * - "Doesn't want children" → exclude if candidate "Doesn't want children" (user wants someone open to/wants kids).
+ * - "Religious" → exclude if candidate is religious/spiritual (user doesn't want religious partners).
+ * - "Not religious" → exclude if candidate is not religious/atheist/agnostic (user wants religious partners).
  */
 export async function checkDealbreakers(userProfileId: string, candidateProfileId: string): Promise<boolean> {
   // Get user's dealbreakers
@@ -99,8 +102,9 @@ export async function checkDealbreakers(userProfileId: string, candidateProfileI
     }
 
     // Method 2: Check lifestyle data (MOST ACCURATE)
+    // Semantics: user's dealbreaker = "I don't want to match with people who [X]" → exclude candidate if candidate is X
     if (candidateLifestyle) {
-      // Smokes cigarettes dealbreaker
+      // Smokes cigarettes = exclude when candidate smokes cigarettes (or both)
       if (dealbreakerLower === 'smokes cigarettes' && candidateLifestyle.smoking) {
         const candidateSmoking = candidateLifestyle.smoking.toLowerCase();
         if (candidateSmoking === 'smokes cigarettes' || candidateSmoking === 'both') {
@@ -108,7 +112,7 @@ export async function checkDealbreakers(userProfileId: string, candidateProfileI
         }
       }
 
-      // Marijuana dealbreaker
+      // Marijuana = exclude when candidate uses marijuana (or both)
       if (dealbreakerLower === 'marijuana' && candidateLifestyle.smoking) {
         const candidateSmoking = candidateLifestyle.smoking.toLowerCase();
         if (candidateSmoking === 'uses marijuana' || candidateSmoking === 'both') {
@@ -116,7 +120,7 @@ export async function checkDealbreakers(userProfileId: string, candidateProfileI
         }
       }
 
-      // Frequent drinking dealbreaker
+      // Frequent drinking = exclude when candidate drinks frequently (social drinker or frequently; no "frequently" in app UI, so social drinker is used)
       if (dealbreakerLower === 'frequent drinking' && candidateLifestyle.drinking) {
         const candidateDrinking = candidateLifestyle.drinking.toLowerCase();
         if (candidateDrinking === 'social drinker' || candidateDrinking === 'frequently') {
@@ -124,7 +128,7 @@ export async function checkDealbreakers(userProfileId: string, candidateProfileI
         }
       }
 
-      // Drinks alcohol dealbreaker
+      // Drinks alcohol = exclude when candidate drinks at all (any level)
       if (dealbreakerLower === 'drinks alcohol' && candidateLifestyle.drinking) {
         const candidateDrinking = candidateLifestyle.drinking.toLowerCase();
         if (candidateDrinking === 'social drinker' || candidateDrinking === 'occasionally' || candidateDrinking === 'frequently') {
@@ -132,13 +136,14 @@ export async function checkDealbreakers(userProfileId: string, candidateProfileI
         }
       }
 
-      // Doesn't want children / Wants children dealbreakers
+      // Doesn't want children = "I don't want someone who doesn't want children" → exclude only if candidate has "Doesn't want children"
       if (dealbreakerLower === "doesn't want children" && candidateLifestyle.children) {
         const candidateChildren = candidateLifestyle.children.toLowerCase();
-        if (candidateChildren === 'wants children' || candidateChildren === 'has children') {
-          return false; // Candidate wants/has children, exclude them
+        if (candidateChildren === "doesn't want children") {
+          return false; // Candidate doesn't want children, exclude them
         }
       }
+      // Wants children = "I don't want someone who doesn't want children" → exclude if candidate doesn't want children
       if (dealbreakerLower === 'wants children' && candidateLifestyle.children) {
         const candidateChildren = candidateLifestyle.children.toLowerCase();
         if (candidateChildren === "doesn't want children") {
@@ -146,43 +151,46 @@ export async function checkDealbreakers(userProfileId: string, candidateProfileI
         }
       }
 
-      // Doesn't like pets dealbreaker
+      // Doesn't like pets dealbreaker = "I don't want someone who doesn't like pets"
+      // Exclude only candidates whose lifestyle is "Doesn't like pets" (not people who love/have pets)
       if (dealbreakerLower === "doesn't like pets" && candidateLifestyle.pets) {
         const candidatePets = candidateLifestyle.pets.toLowerCase();
-        if (candidatePets === 'loves pets' || candidatePets === 'has pets') {
-          return false; // Candidate loves/has pets, exclude them
+        if (candidatePets === "doesn't like pets") {
+          return false; // Candidate doesn't like pets, exclude them
         }
       }
 
-      // Allergic to pets dealbreaker
+      // Allergic to pets = "I'm allergic, don't want someone with pets" → exclude when candidate has pets (or loves pets, as they may get pets)
       if (dealbreakerLower === 'allergic to pets' && candidateLifestyle.pets) {
         const candidatePets = candidateLifestyle.pets.toLowerCase();
-        if (candidatePets === 'has pets') {
-          return false; // Candidate has pets, exclude them
+        if (candidatePets === 'has pets' || candidatePets === 'loves pets') {
+          return false; // Candidate has or likely has pets, exclude them
         }
       }
 
-      // Religious / Not religious dealbreakers
+      // Religious = "I don't want religious partners" → exclude when candidate is religious or spiritual
       if (dealbreakerLower === 'religious' && candidateLifestyle.religion) {
+        const candidateReligion = candidateLifestyle.religion.toLowerCase();
+        if (candidateReligion === 'religious' || candidateReligion === 'spiritual') {
+          return false; // Candidate is religious/spiritual, exclude them
+        }
+      }
+      // Not religious = "I don't want non-religious partners" → exclude when candidate is not religious
+      if (dealbreakerLower === 'not religious' && candidateLifestyle.religion) {
         const candidateReligion = candidateLifestyle.religion.toLowerCase();
         if (candidateReligion === 'not religious' || candidateReligion === 'atheist' || candidateReligion === 'agnostic') {
           return false; // Candidate is not religious, exclude them
         }
       }
-      if (dealbreakerLower === 'not religious' && candidateLifestyle.religion) {
-        const candidateReligion = candidateLifestyle.religion.toLowerCase();
-        if (candidateReligion === 'religious' || candidateReligion === 'spiritual') {
-          return false; // Candidate is religious, exclude them
-        }
-      }
 
-      // Workaholic dealbreaker
+      // Workaholic = exclude when candidate is a workaholic
       if (dealbreakerLower === 'workaholic' && candidateLifestyle.work_life_balance) {
         const candidateBalance = candidateLifestyle.work_life_balance.toLowerCase();
         if (candidateBalance === 'workaholic') {
           return false; // Candidate is a workaholic, exclude them
         }
       }
+      // Drug use = no lifestyle field in app; handled by Method 3 (interests) or Method 4 (keyword in bio) if needed
     }
 
     // Method 3: Check if dealbreaker appears in candidate's interests (for lifestyle dealbreakers)
