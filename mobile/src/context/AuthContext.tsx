@@ -638,6 +638,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       let token: string | null = null;
       try {
         token = await AsyncStorage.getItem('token');
+        // On some devices AsyncStorage can be slow on first read; retry once after a short delay
+        if (!token) {
+          await new Promise((r) => setTimeout(r, 300));
+          token = await AsyncStorage.getItem('token');
+        }
       } catch (storageError) {
         console.warn('⚠️ AsyncStorage error (non-critical):', storageError);
         // Continue without token - user will need to login again

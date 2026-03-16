@@ -276,7 +276,7 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
       const userLocationResult = await geocodeLocation(userProfile.location);
       if (!userLocationResult.coordinates || !isInRegion(userLocationResult.coordinates.lat, userLocationResult.coordinates.lng, activeRegion)) {
         return res.status(403).json({
-          error: 'Matching is currently only available for people in Southern Oregon. We may expand to more cities soon!',
+          error: 'Matching is only available in Southern Oregon. Use a city and state in your profile (e.g. Medford, OR or Ashland, Oregon).',
           code: 'OUTSIDE_ACTIVE_REGION',
         });
       }

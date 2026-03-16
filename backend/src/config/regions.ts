@@ -22,15 +22,16 @@ export interface Region {
 }
 
 /** Supported regions. Add more for other cities later. */
+/** Bounds use a small buffer so cities like Medford, OR are reliably inside. */
 export const REGIONS: Record<string, Region> = {
   southern_oregon: {
     id: 'southern_oregon',
     name: 'Southern Oregon',
     bounds: {
-      south: 41.5,
-      north: 43.2,
-      west: -124.6,
-      east: -121.4,
+      south: 41.4,
+      north: 43.3,
+      west: -124.7,
+      east: -121.3,
     },
   },
 };

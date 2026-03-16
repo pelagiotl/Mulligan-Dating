@@ -593,11 +593,17 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
             const targetInRegion = isInRegion(targetGeo.coordinates.lat, targetGeo.coordinates.lng, activeRegion);
             if (!userInRegion || !targetInRegion) {
               if (process.env.NODE_ENV !== "test") {
-                console.log(`🙅 Connect blocked: region check failed (activeRegion=${activeRegion}) userInRegion=${userInRegion} targetInRegion=${targetInRegion}`);
+                console.log(`🙅 Connect blocked: region check failed (activeRegion=${activeRegion}) userInRegion=${userInRegion} targetInRegion=${targetInRegion} userLoc=${userLoc} targetLoc=${targetLoc}`);
+              }
+              if (!userInRegion) {
+                return res.status(400).json({
+                  error: "Your profile location couldn't be verified as Southern Oregon. Use a city and state (e.g. Medford, OR or Ashland, Oregon).",
+                  code: "OUTSIDE_ACTIVE_REGION",
+                });
               }
               return res.status(400).json({
-                error: "Matching is currently only available for people in Southern Oregon. We may expand to more cities soon!",
-                code: "OUTSIDE_ACTIVE_REGION",
+                error: "This person is outside the current Southern Oregon matching area.",
+                code: "TARGET_OUTSIDE_ACTIVE_REGION",
               });
             }
             if (distanceMiles > REGION_MAX_DISTANCE_MILES) {
@@ -619,7 +625,7 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
               console.warn(`🙅 Connect blocked: region lock requires geocoding but one or both failed. userLoc="${userLoc}" → ${userGeo.coordinates ? "OK" : "no coords"}, targetLoc="${targetLoc}" → ${targetGeo.coordinates ? "OK" : "no coords"}.`);
             }
             return res.status(400).json({
-              error: "We couldn't verify your location. Make sure your profile location is a city or area in Southern Oregon.",
+              error: "We couldn't verify your location. Use a city and state (e.g. Medford, OR or Ashland, Oregon) in your profile.",
               code: "REGION_VERIFICATION_FAILED",
             });
           }

@@ -2064,7 +2064,7 @@ export default function MyProfileScreen() {
                   style={styles.editModalInput}
                   value={editLocation}
                   onChangeText={setEditLocation}
-                  placeholder="e.g. San Francisco, CA"
+                  placeholder="e.g. Medford, OR or Ashland, Oregon"
                   placeholderTextColor="#94a3b8"
                   editable={!detectingLocation}
                 />
