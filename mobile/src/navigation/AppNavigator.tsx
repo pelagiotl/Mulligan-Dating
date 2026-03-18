@@ -384,10 +384,9 @@ export default function AppNavigator() {
         user &&
         gateStatusLoaded &&
         ageGatePassed === false &&
-        currentRoute?.name !== 'AgeGate' &&
-        currentRoute?.name !== 'CreateProfile' &&
-        currentRoute?.name !== 'MainTabs'
+        currentRoute?.name !== 'AgeGate'
       ) {
+        // Show age gate before CreateProfile or MainTabs (even if login sent them straight there)
         try {
           navigationRef.current.reset({
             index: 0,
@@ -402,7 +401,7 @@ export default function AppNavigator() {
         ageGatePassed === false &&
         (currentRoute?.name === 'CreateProfile' || currentRoute?.name === 'MainTabs')
       ) {
-        // Synced from AgeGateScreen: storage was set, re-read so we don't redirect back to AgeGate
+        // User already on CreateProfile/MainTabs (e.g. just confirmed gate); sync so we don't redirect back
         AsyncStorage.getItem('AGE_GATE_ACCEPTED').then((v) => {
           if (v === 'true') setAgeGatePassed(true);
         });
