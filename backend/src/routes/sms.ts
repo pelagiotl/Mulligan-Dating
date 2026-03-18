@@ -84,6 +84,25 @@ smsRouter.post('/send-code', rateLimitAuth, async (req, res) => {
       isLogin: !!existingUser
     });
 
+    // Reviewer/QA bypass: don't send real SMS to the designated test number (e.g. 555); verify-code will accept fixed code
+    const reviewerPhone = process.env.REVIEWER_PHONE?.replace(/\D/g, '') || '';
+    const inputDigits = (formattedPhone || '').replace(/\D/g, '');
+    if (reviewerPhone && inputDigits === reviewerPhone) {
+      if (existingUser?.id) {
+        verificationCodes.set(formattedPhone, {
+          code: '',
+          expiresAt: Date.now() + 10 * 60 * 1000,
+          userId: existingUser.id
+        });
+      }
+      return res.json({
+        message: 'Verification code sent',
+        phoneNumber: formattedPhone,
+        smsSent: true,
+        code: process.env.NODE_ENV !== 'production' ? (process.env.REVIEWER_CODE || '123456') : undefined
+      });
+    }
+
     // If using Twilio Verify, use it (no code generation needed)
     if (useVerify) {
       const result = await sendVerificationCodeViaVerify(formattedPhone);
