@@ -27,6 +27,7 @@ import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GestureHandlerRootView, PanGestureHandler, State } from 'react-native-gesture-handler';
 import { api, getToken } from '../utils/api';
+import { handleLocationChange, hasCityAndState } from '../utils/locationUtils';
 import { getPhotoUrl } from '../utils/photoUrl';
 import OptimizedImage from '../components/OptimizedImage';
 import { useAuth } from '../context/AuthContext';
@@ -764,6 +765,10 @@ export default function MyProfileScreen() {
   const saveLocation = async () => {
     if (!data?.profile) return;
     const loc = editLocation.trim() || null;
+    if (loc && !hasCityAndState(loc)) {
+      Alert.alert('Location required', 'Please enter both city and state (e.g. Medford, Oregon).');
+      return;
+    }
     setUpdatingField(true);
     try {
       await api.post('/profile', {
@@ -2058,13 +2063,13 @@ export default function MyProfileScreen() {
             >
               <Text style={styles.editModalEmoji}>📍</Text>
               <Text style={styles.editModalTitleLight}>Update Location</Text>
-              <Text style={styles.editModalSubtitleLight}>City, state, or area</Text>
+              <Text style={styles.editModalSubtitleLight}>City and state required</Text>
               <View style={styles.editModalInner}>
                 <TextInput
                   style={styles.editModalInput}
                   value={editLocation}
-                  onChangeText={setEditLocation}
-                  placeholder="e.g. Medford, OR or Ashland, Oregon"
+                  onChangeText={(t) => handleLocationChange(t, setEditLocation)}
+                  placeholder="e.g. Medford, Oregon"
                   placeholderTextColor="#94a3b8"
                   editable={!detectingLocation}
                 />

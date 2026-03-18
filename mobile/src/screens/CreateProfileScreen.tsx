@@ -31,6 +31,7 @@ import { navigationRef } from '../navigation/navigationRef';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import { api, getToken, ensureTokenPrefetched } from '../utils/api';
+import { handleLocationChange, hasCityAndState } from '../utils/locationUtils';
 import ProfileCompleteCelebration from '../components/ProfileCompleteCelebration';
 import { useAuth } from '../context/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -954,6 +955,10 @@ export default function CreateProfileScreen() {
         setError('Please enter your location');
         return;
       }
+      if (!hasCityAndState(location)) {
+        setError('Please enter both city and state (e.g. Medford, Oregon)');
+        return;
+      }
     }
     if (step === 5) {
       if (!lookingFor?.trim()) {
@@ -1579,12 +1584,12 @@ export default function CreateProfileScreen() {
           <Text style={[styles.focusedTitle, keyboardVisible && styles.focusedTitleSmall, { fontSize: rs.titleSizeSmall, marginBottom: keyboardVisible ? 6 : rs.titleMargin }]}>Where are you located?</Text>
           <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleSmall, { fontSize: rs.subtitleSizeSmall, marginBottom: keyboardVisible ? 16 : rs.subtitleMargin }]}>We'll help you find matches nearby</Text>
           <Animated.View style={[styles.focusedInputWrapper, { shadowOpacity: locationGlow.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.6] }), shadowRadius: locationGlow.interpolate({ inputRange: [0, 1], outputRange: [8, 20] }) }]}>
-            <TextInput ref={locationInputRef} style={styles.focusedLocationInput} value={location} onChangeText={setLocation} placeholder="City, State" placeholderTextColor="rgba(255, 255, 255, 0.6)" editable={!detectingLocation} returnKeyType="next" />
+            <TextInput ref={locationInputRef} style={styles.focusedLocationInput} value={location} onChangeText={(t) => handleLocationChange(t, setLocation)} placeholder="City, State" placeholderTextColor="rgba(255, 255, 255, 0.6)" editable={!detectingLocation} returnKeyType="next" />
           </Animated.View>
           <TouchableOpacity style={styles.focusedLocationButton} onPress={detectLocation} disabled={detectingLocation}>
             {detectingLocation ? <ActivityIndicator color="#fff" /> : <Text style={styles.focusedLocationButtonText}>📍 Use My Location</Text>}
           </TouchableOpacity>
-          {location.trim().length > 0 && <Animated.View style={[styles.successIndicator, { opacity: locationOpacity }]}><Text style={styles.successText}>✓ Location set! Tap Continue</Text></Animated.View>}
+          {hasCityAndState(location) && <Animated.View style={[styles.successIndicator, { opacity: locationOpacity }]}><Text style={styles.successText}>✓ Location set! Tap Continue</Text></Animated.View>}
         </LinearGradient>
       </Animated.View>
     </View>

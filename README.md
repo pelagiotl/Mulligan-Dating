@@ -43,12 +43,29 @@ The backend API will be available at: [http://localhost:3001](http://localhost:3
 
 ### Geocoding Setup (Optional but Recommended)
 
-For accurate distance calculations in matching, set up a  geocoding API key. The app supports multiple providers:
+For accurate distance calculations in matching, set up a geocoding API key. The app supports multiple providers. **For production (e.g. 500+ users), use Mapbox or Google** so geocoding isn’t limited by Nominatim’s ~1 req/s.
 
 **Option 1: Mapbox (Recommended)**
-1. Sign up at https://account.mapbox.com/
-2. Get your access token
-3. Add to backend `.env` file: `MAPBOX_ACCESS_TOKEN=your_token_here`
+
+1. **Sign up / log in** at [Mapbox](https://account.mapbox.com/).
+2. **Create an access token:**  
+   - Go to [Account → Access tokens](https://account.mapbox.com/access-tokens/) (or **Tokens** in the left sidebar).  
+   - Click **Create a token** (or use the default public token).  
+   - Name it e.g. `Mulligan Backend`.  
+   - Under **Token scopes**, keep **Public** (no secret needed for geocoding).  
+   - Under **URL restrictions** you can leave blank or restrict to your backend host (e.g. `https://mulligan-backend.onrender.com/*`).  
+   - Click **Create token** and copy the token (starts with `pk.`).
+3. **Local development:**  
+   - In the repo root, open or create `backend/.env`.  
+   - Add: `MAPBOX_ACCESS_TOKEN=pk.your_actual_token_here`  
+   - Restart the backend so it picks up the new env.
+4. **Production (Render):**  
+   - Open [Render Dashboard](https://dashboard.render.com) → your **backend service** (e.g. Mulligan Backend).  
+   - Go to **Environment** (left sidebar).  
+   - Click **Add Environment Variable**.  
+   - Key: `MAPBOX_ACCESS_TOKEN`  
+   - Value: paste your Mapbox token (e.g. `pk.…`).  
+   - Click **Save**. Render will redeploy; after deploy, backend logs should show something like `✅ Mapbox API key found` on startup.
 
 **Option 2: Google Maps**
 1. Get API key from https://console.cloud.google.com/
@@ -83,12 +100,27 @@ With `OPENAI_API_KEY` set, every Truth/Dare and Never Have I Ever prompt is AI-g
 
 ### Scaling (500 → thousands → millions)
 
-Current settings target **500–1000 concurrent users** on a single Render backend (e.g. Standard 2GB/1 CPU) and a Postgres plan that allows at least ~30 connections:
+**Can it sustain more than 500–1000 users?** Yes. With a **2GB Render plan** and **paid Postgres**, a single backend instance can typically sustain **about 1,000–2,000 concurrent users** (browse, match, chat, WebSockets) if traffic is normal. The real limit is CPU and memory on that one Node process; if many users are messaging or playing games at once, you may see higher CPU and slower responses before you hit 2k. Going beyond ~2k concurrent users on one instance usually requires **horizontal scaling** (multiple backend instances behind a load balancer, plus a connection pooler like PgBouncer for Postgres).
 
-- **API rate limit:** 1200 requests per 15 minutes per IP in production (~80/min per IP). Each user on their own IP gets that bucket; users on shared WiFi share one.
-- **DB pool:** 30 connections per Node process in production. Your database plan’s `max_connections` must be higher than 30 (e.g. Render Postgres paid tiers).
+Current settings:
 
-For **thousands to hundreds of thousands** of users you’ll need: multiple backend instances (horizontal scaling), a connection pooler in front of Postgres (e.g. PgBouncer), CDN for assets, and higher DB/Redis limits. For **millions**, add read replicas, caching (Redis), and consider breaking out heavy features (e.g. AI, search) into separate services.
+- **API rate limit:** 1200 requests per 15 minutes **per user** (authenticated) in production (~80/min per user). High-frequency paths (tokens, auth/me, messages, NHIE) are exempt.
+- **DB pool:** 30 connections per Node process in production. Your database plan’s `max_connections` must be higher than 30 (paid Postgres on Render is fine).
+- **Cloudinary:** Free tier has rate and usage limits. For launch with 500+ users and lots of profile/chat photos, consider upgrading so uploads don’t get throttled or blocked.
+
+For **thousands to hundreds of thousands** of users you’ll need: multiple backend instances (horizontal scaling), a connection pooler in front of Postgres (e.g. PgBouncer), CDN for assets, and higher DB/Cloudinary limits. For **millions**, add read replicas, caching (Redis), and consider breaking out heavy features (e.g. AI, search) into separate services.
+
+### Monitoring on Render
+
+With the health check already set in Render, use the dashboard to monitor the backend:
+
+1. **Render Dashboard** → your **backend service** (e.g. Mulligan Backend).
+2. **Logs** (sidebar): Live and historical logs. Watch for errors, `429` (rate limit), DB timeouts, or Cloudinary/Expo errors. Search for `error`, `Error`, or `failed` around launch.
+3. **Metrics** (sidebar): CPU and memory over time. On a 2GB plan, if **CPU stays high** (e.g. >80%) or **memory grows** toward 2GB for long periods, consider scaling up or adding instances. Spikes during peak are normal; sustained high usage is what to act on.
+4. **Health check:** Render pings your health path (e.g. `/api/health` or `/health`) on the interval you set. If the service fails health checks, Render can restart it. Check **Settings** → **Health Check Path** and **Advanced** (restart policy) so you know when Render will auto-restart.
+5. **Events:** Deploy history and any auto-restarts. Useful to see if the service is being restarted due to failed health checks or OOM.
+
+**Quick launch-day checks:** Open **Metrics** and **Logs** in separate tabs. If users report slowness or errors, check Logs for the time window and Metrics for CPU/memory at that time. Cloudinary and Expo push errors will appear in logs (e.g. rate limit or push delivery failed).
 
 ### Push notifications (mobile – outside-app)
 
@@ -127,7 +159,7 @@ To get **system** message notifications when the app is in the background or clo
 
    - **FCM V1 credentials in EAS (required)**  
      Expo cannot forward pushes to Android devices without a **Google Service Account Key** configured for your EAS project:
-     1. Create a [Firebase project](https://console.firebase.google.com/) and add your Android app (package `com.lukepelagiotomerlin.mulligan`).
+     1. Create a [Firebase project](https://console.firebase.google.com/) and add your Android app (package `app.mulligandating`).
      2. In Firebase: **Project settings → Service accounts** → **Generate New Private Key** (JSON). Keep this file private (e.g. add to `.gitignore`).
      3. Run `eas credentials` in the **mobile** folder → choose **Android** → **production** → **Set up a Google Service Account Key for Push Notifications (FCM V1)** → upload the JSON file.
      4. See [Expo: FCM credentials](https://docs.expo.dev/push-notifications/fcm-credentials/) for full steps.

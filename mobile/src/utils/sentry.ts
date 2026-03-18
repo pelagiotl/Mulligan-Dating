@@ -60,6 +60,16 @@ export function initSentry() {
           console.log('Sentry would capture:', event);
           return null; // Don't send in development
         }
+
+        // Skip Android system broadcast delivery failures (benign, not actionable)
+        const excType = (event?.exception?.values?.[0]?.type ?? '').toLowerCase();
+        const excValue = (event?.exception?.values?.[0]?.value ?? '').toLowerCase();
+        if (
+          excType.includes('cannotdeliverbroadcastexception') ||
+          excValue.includes("can't deliver broadcast")
+        ) {
+          return null;
+        }
         
         // Filter out non-critical errors
         const error = hint.originalException;

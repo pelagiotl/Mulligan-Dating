@@ -74,7 +74,7 @@ eas credentials
 
 ### Build Not Appearing in TestFlight?
 - Wait 5-10 minutes after build completes
-- Check that bundle ID matches: `com.lukepelagiotomerlin.mulligan`
+- Check that bundle ID matches: `app.mulligandating`
 - Verify App Store Connect account has access
 
 ## Next Steps

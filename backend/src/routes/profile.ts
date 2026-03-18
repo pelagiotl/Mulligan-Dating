@@ -20,7 +20,17 @@ const profileSchema = z.object({
   location: z.string()
     .max(100, 'Location must be at most 100 characters')
     .optional()
-    .nullable(),
+    .nullable()
+    .refine(
+      (val) => {
+        if (val == null || val.trim() === '') return true;
+        const t = val.trim();
+        const i = t.indexOf(',');
+        if (i === -1) return false;
+        return t.slice(0, i).trim().length > 0 && t.slice(i + 1).trim().length > 0;
+      },
+      { message: 'Location must include both city and state (e.g. Medford, Oregon)' }
+    ),
   bio: z.string()
     .max(500, 'Bio must be at most 500 characters')
     .optional()

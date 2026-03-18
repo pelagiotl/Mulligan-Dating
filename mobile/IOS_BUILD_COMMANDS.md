@@ -56,7 +56,7 @@ Find the build ID from: https://expo.dev/accounts/mulligandating/projects/mullig
 
 **Current Build Info:**
 - Build Number: 30 (auto-increments)
-- Bundle Identifier: com.lukepelagiotomerlin.mulligan
+- Bundle Identifier: app.mulligandating
 - Latest Build URL: https://expo.dev/accounts/mulligandating/projects/mulligan/builds/18a96355-9bcd-47ae-b96e-71af33543a35
 
 **Most Common Workflow:**

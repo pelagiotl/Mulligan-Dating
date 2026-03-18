@@ -13,7 +13,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.lukepelagiotomerlin.mulligan",
+      "bundleIdentifier": "app.mulligandating",
       "buildNumber": "22",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Mulligan uses your location to find matches near you.",
@@ -27,7 +27,7 @@
       }
     },
     "android": {
-      "package": "com.lukepelagiotomerlin.mulligan",
+      "package": "app.mulligandating",
       "googleServicesFile": "./google-services.json",
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
@@ -60,7 +60,13 @@
         {
           "android": {
             "compileSdkVersion": 35,
-            "targetSdkVersion": 35
+            "targetSdkVersion": 35,
+            "ndkVersion": "27.1.12297006",
+            "packagingOptions": {
+              "jniLibs": {
+                "useLegacyPackaging": false
+              }
+            }
           }
         }
       ],

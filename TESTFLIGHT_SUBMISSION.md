@@ -53,7 +53,7 @@ eas build --platform ios --profile production --auto-submit
 - Make sure you're logged into the correct Expo account
 - Ensure your Apple Developer account is connected to Expo
 - The build number will auto-increment (currently at 22 in app.json)
-- The bundle identifier is: `com.lukepelagiotomerlin.mulligan`
+- The bundle identifier is: `app.mulligandating`
 
 ## Check Build Status
 To check the status of your builds:

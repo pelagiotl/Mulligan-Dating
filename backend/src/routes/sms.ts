@@ -197,6 +197,47 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
       return res.status(400).json({ error: 'Invalid phone number format' });
     }
 
+    // Reviewer / QA bypass: allow a fixed code for a designated phone (for Google Play / App Store reviewers)
+    const reviewerPhone = process.env.REVIEWER_PHONE?.replace(/\D/g, '') || '';
+    const reviewerCode = process.env.REVIEWER_CODE || '123456';
+    const inputDigits = formattedPhone.replace(/\D/g, '');
+    if (reviewerPhone && inputDigits === reviewerPhone && code === reviewerCode) {
+      const existingUserStmt = db.prepare('SELECT id, phone_verified FROM users WHERE phone_number = ?');
+      const existingUser = await (existingUserStmt.get(formattedPhone) as Promise<{ id: string; phone_verified: number } | null>);
+      let userId: string;
+      let isNewUser = false;
+      if (existingUser) {
+        userId = existingUser.id;
+        const updateStmt = db.prepare('UPDATE users SET phone_verified = 1 WHERE id = ?');
+        await (updateStmt.run([userId]) as Promise<any>);
+      } else {
+        if (acceptTerms !== true || acceptPrivacy !== true) {
+          return res.status(400).json({ error: 'You must accept the Terms of Service and Privacy Policy' });
+        }
+        userId = uuidv4();
+        isNewUser = true;
+        const now = new Date().toISOString();
+        const insertUserStmt = db.prepare(
+          'INSERT INTO users (id, email, phone_number, phone_verified, tos_accepted_at, privacy_accepted_at, password) VALUES (?, ?, ?, 1, ?, ?, ?)'
+        );
+        await (insertUserStmt.run([userId, null, formattedPhone, now, now, '']) as Promise<any>);
+        const { grantInitialTokens } = await import('./tokens.js');
+        await grantInitialTokens(userId);
+      }
+      const { generateToken } = await import('../middleware/auth.js');
+      const token = generateToken(userId);
+      const profileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
+      const profile = await (profileStmt.get(userId) as Promise<{ id: string } | null>);
+      const hasProfile = !!profile;
+      return res.json({
+        message: existingUser ? 'Login successful' : 'Account created successfully',
+        token,
+        userId,
+        hasProfile,
+        isNewUser
+      });
+    }
+
     // If using Twilio Verify, verify code via Verify API
     if (useVerify) {
       console.log(`🔍 Verifying code for ${formattedPhone} using Twilio Verify...`);

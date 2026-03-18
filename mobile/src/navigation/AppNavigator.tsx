@@ -10,9 +10,11 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Platform, Text, View, StyleSheet, Alert, Vibration, Pressable, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, NavigationContainerRef } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Import screens - React Navigation will lazy load them when lazy={true} is set
 import PhoneLoginScreen from '../screens/PhoneLoginScreen';
+import AgeGateScreen from '../screens/AgeGateScreen';
 import CreateProfileScreen from '../screens/CreateProfileScreen';
 import BrowseScreen from '../screens/BrowseScreen';
 import MatchesScreen from '../screens/MatchesScreen';
@@ -346,15 +348,29 @@ export default function AppNavigator() {
 
   const { user, profile, loading } = authContext;
   const [isNavigationReady, setIsNavigationReady] = React.useState(false);
+  const [gateStatusLoaded, setGateStatusLoaded] = React.useState(false);
+  const [ageGatePassed, setAgeGatePassed] = React.useState<boolean | null>(null);
+
+  // Load age-gate acceptance from storage (for store compliance: 18+ confirmation)
+  React.useEffect(() => {
+    let cancelled = false;
+    AsyncStorage.getItem('AGE_GATE_ACCEPTED').then((v) => {
+      if (!cancelled) {
+        setAgeGatePassed(v === 'true');
+        setGateStatusLoaded(true);
+      }
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   // Track when navigation container is ready (must be called unconditionally — Rules of Hooks)
   const handleNavigationReady = React.useCallback(() => {
     setIsNavigationReady(true);
   }, []);
 
-  // Open straight to Connect; when auth completes, redirect to PhoneLogin or CreateProfile if needed
+  // Open straight to Connect; when auth completes, redirect to PhoneLogin, AgeGate, CreateProfile, or MainTabs
   React.useEffect(() => {
-    if (!loading && isNavigationReady && navigationRef.current) {
+    if (!loading && isNavigationReady && navigationRef.current && (!user || gateStatusLoaded)) {
       const currentRoute = navigationRef.current.getCurrentRoute();
       if (!user) {
         if (currentRoute?.name !== 'PhoneLogin') {
@@ -366,6 +382,34 @@ export default function AppNavigator() {
         }
       } else if (
         user &&
+        gateStatusLoaded &&
+        ageGatePassed === false &&
+        currentRoute?.name !== 'AgeGate' &&
+        currentRoute?.name !== 'CreateProfile' &&
+        currentRoute?.name !== 'MainTabs'
+      ) {
+        try {
+          navigationRef.current.reset({
+            index: 0,
+            routes: [{ name: 'AgeGate', params: { nextRoute: profile ? 'MainTabs' : 'CreateProfile' } }],
+          });
+        } catch (err) {
+          console.error('Navigation error in AppNavigator:', err);
+        }
+      } else if (
+        user &&
+        gateStatusLoaded &&
+        ageGatePassed === false &&
+        (currentRoute?.name === 'CreateProfile' || currentRoute?.name === 'MainTabs')
+      ) {
+        // Synced from AgeGateScreen: storage was set, re-read so we don't redirect back to AgeGate
+        AsyncStorage.getItem('AGE_GATE_ACCEPTED').then((v) => {
+          if (v === 'true') setAgeGatePassed(true);
+        });
+      } else if (
+        user &&
+        gateStatusLoaded &&
+        ageGatePassed === true &&
         !profile &&
         currentRoute?.name !== 'CreateProfile' &&
         currentRoute?.name !== 'MainTabs'
@@ -378,12 +422,25 @@ export default function AppNavigator() {
         } catch (err) {
           console.error('Navigation error in AppNavigator:', err);
         }
+      } else if (
+        user &&
+        gateStatusLoaded &&
+        ageGatePassed === true &&
+        profile &&
+        currentRoute?.name !== 'MainTabs' &&
+        currentRoute?.name !== 'CreateProfile'
+      ) {
+        try {
+          navigationRef.current.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
+        } catch (err) {
+          console.error('Navigation error in AppNavigator:', err);
+        }
       }
     }
-  }, [loading, user, profile, isNavigationReady]);
+  }, [loading, user, profile, isNavigationReady, gateStatusLoaded, ageGatePassed]);
 
-  // Brief seamless splash while checking auth — same background as app, no "Loading" label
-  if (loading) {
+  // Brief seamless splash while checking auth and (if logged in) age gate status
+  if (loading || (user && !gateStatusLoaded)) {
     return (
       <View style={styles.loadingScreen}>
         <View style={{ opacity: 0.5 }}>
@@ -418,6 +475,7 @@ export default function AppNavigator() {
           }}
         >
           <Stack.Screen name="PhoneLogin" component={PhoneLoginScreen} />
+          <Stack.Screen name="AgeGate" component={AgeGateScreen} />
           <Stack.Screen name="CreateProfile" component={CreateProfileScreen} />
           <Stack.Screen name="MainTabs" component={MainTabs} />
           <Stack.Screen name="Terms" component={TermsScreen} />

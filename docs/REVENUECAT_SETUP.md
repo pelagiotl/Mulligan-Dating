@@ -18,7 +18,7 @@ This guide walks you through finishing the RevenueCat integration so users can b
    Go to [app.revenuecat.com](https://app.revenuecat.com) and create a project (e.g. “Mulligan”).
 
 2. **Add apps**  
-   - **iOS:** Add an app; use your App Store Connect app’s bundle ID (e.g. `com.lukepelagiotomerlin.mulligan`).  
+   - **iOS:** Add an app; use your App Store Connect app’s bundle ID (e.g. `app.mulligandating`).  
    - **Android:** Add an app; use your Play Console application ID.
 
 3. **Connect stores**  

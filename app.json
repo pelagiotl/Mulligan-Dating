@@ -6,7 +6,7 @@
       }
     },
     "ios": {
-      "bundleIdentifier": "com.lukepelagiotomerlin.mulligan",
+      "bundleIdentifier": "app.mulligandating",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
