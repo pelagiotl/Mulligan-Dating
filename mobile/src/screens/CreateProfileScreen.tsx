@@ -2267,7 +2267,21 @@ export default function CreateProfileScreen() {
               <Text style={styles.exitButtonText}>Exit</Text>
             </TouchableOpacity>
           </View>
-        ) : null}
+        ) : (
+          <View style={styles.exitSaveRow}>
+            <View style={styles.exitButton} />
+            <TouchableOpacity
+              style={styles.exitButton}
+              onPress={async () => {
+                await logout();
+                navigationRef.current?.reset({ index: 0, routes: [{ name: 'PhoneLogin' }] });
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.logOutLinkText}>Log out</Text>
+            </TouchableOpacity>
+          </View>
+        )}
         <Text style={styles.title}>Create Your Profile</Text>
         <Text style={styles.subtitle}>Step {step} of {TOTAL_STEPS}</Text>
       </LinearGradient>
@@ -2424,6 +2438,11 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
+  },
+  logOutLinkText: {
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 15,
+    fontWeight: '600',
   },
   title: {
     fontSize: 32,

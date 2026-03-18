@@ -352,16 +352,23 @@ export default function AppNavigator() {
   const [ageGatePassed, setAgeGatePassed] = React.useState<boolean | null>(null);
 
   // Load age-gate acceptance from storage (for store compliance: 18+ confirmation)
-  React.useEffect(() => {
-    let cancelled = false;
+  const loadAgeGateStatus = React.useCallback(() => {
     AsyncStorage.getItem('AGE_GATE_ACCEPTED').then((v) => {
-      if (!cancelled) {
-        setAgeGatePassed(v === 'true');
-        setGateStatusLoaded(true);
-      }
+      setAgeGatePassed(v === 'true');
+      setGateStatusLoaded(true);
     });
-    return () => { cancelled = true; };
   }, []);
+
+  React.useEffect(() => {
+    loadAgeGateStatus();
+  }, [loadAgeGateStatus]);
+
+  // When user logs out, re-read gate so next login shows age gate if we cleared it on logout
+  React.useEffect(() => {
+    if (!user) {
+      AsyncStorage.getItem('AGE_GATE_ACCEPTED').then((v) => setAgeGatePassed(v === 'true'));
+    }
+  }, [user]);
 
   // Track when navigation container is ready (must be called unconditionally — Rules of Hooks)
   const handleNavigationReady = React.useCallback(() => {
@@ -380,13 +387,23 @@ export default function AppNavigator() {
             console.error('Navigation error in AppNavigator:', err);
           }
         }
+      } else if (user && currentRoute?.name === 'PhoneLogin') {
+        // Just completed login: always show age gate (don't rely on ageGatePassed state)
+        try {
+          navigationRef.current.reset({
+            index: 0,
+            routes: [{ name: 'AgeGate', params: { nextRoute: profile ? 'MainTabs' : 'CreateProfile' } }],
+          });
+        } catch (err) {
+          console.error('Navigation error in AppNavigator:', err);
+        }
       } else if (
         user &&
         gateStatusLoaded &&
         ageGatePassed === false &&
         currentRoute?.name !== 'AgeGate'
       ) {
-        // Show age gate before CreateProfile or MainTabs (even if login sent them straight there)
+        // Show age gate before CreateProfile or MainTabs (e.g. returning from background)
         try {
           navigationRef.current.reset({
             index: 0,

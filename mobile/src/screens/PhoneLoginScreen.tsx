@@ -686,24 +686,10 @@ export default function PhoneLoginScreen() {
     setLoading(true);
 
     try {
-      const { hasProfile } = await phoneLogin(submittedPhone, codeToUse);
-      
-      // Use verify-code API hasProfile as source of truth. Don't rely on auth context here:
-      // profile state may not have updated yet, and other effects must not override this navigation.
-      console.log('📱 Login complete - navigating:', { hasProfile });
-      
-      if (hasProfile) {
-        // User has profile - go to main app
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'MainTabs' as never }],
-        });
-      } else {
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'CreateProfile' as never }],
-        });
-      }
+      await phoneLogin(submittedPhone, codeToUse);
+      setLoading(false);
+      // Do not navigate here. AppNavigator will redirect based on auth state and age gate:
+      // if age gate not passed → AgeGate screen, then CreateProfile or MainTabs; otherwise → CreateProfile or MainTabs.
     } catch (err: any) {
       const errorMessage = err?.message || 'Invalid verification code';
       setError(errorMessage);

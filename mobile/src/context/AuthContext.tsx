@@ -815,6 +815,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearTokenCache();
     api.clearCache(); // Prevent next account from seeing previous user's cached profile/data
     await AsyncStorage.removeItem('token');
+    await AsyncStorage.removeItem('AGE_GATE_ACCEPTED'); // So next login shows age gate again
     setUser(null);
     setProfile(null);
   };
