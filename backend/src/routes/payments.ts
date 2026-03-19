@@ -11,14 +11,13 @@ const PURCHASES_UNAVAILABLE_MSG = "Purchases temporarily unavailable.";
 
 // RevenueCat: product_id -> number of tokens to grant
 // Prices are set in App Store / Play Store: 1 token $1.99, 3 tokens $4.99, 5 tokens $7.99, 7 tokens $9.99
-// 1-token product may be mulligan_1_token (App Store) or tokens_1; both map to 1 token
-// Override with env REVENUECAT_PRODUCT_TOKENS=mulligan_1_token:1,tokens_3:3,tokens_5:5,tokens_7:7
+// Product IDs must match App Store Connect, Google Play, and RevenueCat offerings.
+// Override with env REVENUECAT_PRODUCT_TOKENS=mulligan_token_1:1,mulligan_tokens_3:3,mulligan_tokens_5:5,mulligan_tokens_7:7
 const DEFAULT_PRODUCT_TOKENS: Record<string, number> = {
-  mulligan_1_token: 1,
-  tokens_1: 1,
-  tokens_3: 3,
-  tokens_5: 5,
-  tokens_7: 7,
+  mulligan_token_1: 1,
+  mulligan_tokens_3: 3,
+  mulligan_tokens_5: 5,
+  mulligan_tokens_7: 7,
 };
 
 function getProductTokensMap(): Record<string, number> {
@@ -34,10 +33,10 @@ function getProductTokensMap(): Record<string, number> {
 
 // IAP packages for GET /packages (productId must match RevenueCat / App Store / Play Store product IDs)
 const IAP_PACKAGES = [
-  { id: 1, productId: "mulligan_1_token", tokens: 1 },
-  { id: 2, productId: "tokens_3", tokens: 3 },
-  { id: 3, productId: "tokens_5", tokens: 5 },
-  { id: 4, productId: "tokens_7", tokens: 7 },
+  { id: 1, productId: "mulligan_token_1", tokens: 1 },
+  { id: 2, productId: "mulligan_tokens_3", tokens: 3 },
+  { id: 3, productId: "mulligan_tokens_5", tokens: 5 },
+  { id: 4, productId: "mulligan_tokens_7", tokens: 7 },
 ];
 
 // Create payment intent - stubbed (was Stripe)
