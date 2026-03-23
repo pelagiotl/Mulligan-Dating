@@ -26,7 +26,7 @@ export default function AgeGateScreen() {
       await AsyncStorage.setItem(AGE_GATE_STORAGE_KEY, 'true');
       navigation.reset({
         index: 0,
-        routes: [nextRoute === 'MainTabs' ? { name: 'MainTabs' } : { name: 'CreateProfile', params: { startFromBeginning: true } }],
+        routes: [nextRoute === 'MainTabs' ? { name: 'MainTabs' } : { name: 'CreateProfile' }],
       });
     } catch (e) {
       Alert.alert('Error', 'Could not save. Please try again.');

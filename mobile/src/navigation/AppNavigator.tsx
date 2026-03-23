@@ -370,6 +370,14 @@ export default function AppNavigator() {
     }
   }, [user]);
 
+  // If in-memory gate state is stale, reconcile from storage before navigation redirects.
+  React.useEffect(() => {
+    if (!user || !gateStatusLoaded || ageGatePassed !== false) return;
+    AsyncStorage.getItem('AGE_GATE_ACCEPTED').then((v) => {
+      if (v === 'true') setAgeGatePassed(true);
+    });
+  }, [user, gateStatusLoaded, ageGatePassed]);
+
   // Track when navigation container is ready (must be called unconditionally — Rules of Hooks)
   const handleNavigationReady = React.useCallback(() => {
     setIsNavigationReady(true);
@@ -388,12 +396,35 @@ export default function AppNavigator() {
           }
         }
       } else if (user && currentRoute?.name === 'PhoneLogin') {
-        // Just completed login: always show age gate (don't rely on ageGatePassed state)
+        // Post-login route decision:
+        // - if age gate already accepted, continue directly
+        // - otherwise show age gate once
         try {
-          navigationRef.current.reset({
-            index: 0,
-            routes: [{ name: 'AgeGate', params: { nextRoute: profile ? 'MainTabs' : 'CreateProfile' } }],
-          });
+          if (ageGatePassed === true) {
+            navigationRef.current.reset({
+              index: 0,
+              routes: profile
+                ? [{ name: 'MainTabs' }]
+                : [{ name: 'CreateProfile' }],
+            });
+          } else {
+            AsyncStorage.getItem('AGE_GATE_ACCEPTED').then((v) => {
+              if (v === 'true') {
+                setAgeGatePassed(true);
+                navigationRef.current?.reset({
+                  index: 0,
+                  routes: profile
+                    ? [{ name: 'MainTabs' }]
+                    : [{ name: 'CreateProfile' }],
+                });
+                return;
+              }
+              navigationRef.current?.reset({
+                index: 0,
+                routes: [{ name: 'AgeGate', params: { nextRoute: profile ? 'MainTabs' : 'CreateProfile' } }],
+              });
+            });
+          }
         } catch (err) {
           console.error('Navigation error in AppNavigator:', err);
         }
@@ -401,24 +432,23 @@ export default function AppNavigator() {
         user &&
         gateStatusLoaded &&
         ageGatePassed === false &&
-        currentRoute?.name !== 'AgeGate'
+        currentRoute?.name !== 'AgeGate' &&
+        currentRoute?.name !== 'CreateProfile' &&
+        currentRoute?.name !== 'MainTabs'
       ) {
-        // Show age gate before CreateProfile or MainTabs (e.g. returning from background)
-        try {
-          navigationRef.current.reset({
-            index: 0,
-            routes: [{ name: 'AgeGate', params: { nextRoute: profile ? 'MainTabs' : 'CreateProfile' } }],
-          });
-        } catch (err) {
-          console.error('Navigation error in AppNavigator:', err);
-        }
+        // Do not interrupt an active session with age-gate redirects.
+        // Age gate is enforced on fresh login entry (PhoneLogin path).
+        AsyncStorage.getItem('AGE_GATE_ACCEPTED').then((v) => {
+          if (v === 'true') setAgeGatePassed(true);
+        });
       } else if (
         user &&
         gateStatusLoaded &&
         ageGatePassed === false &&
         (currentRoute?.name === 'CreateProfile' || currentRoute?.name === 'MainTabs')
       ) {
-        // User already on CreateProfile/MainTabs (e.g. just confirmed gate); sync so we don't redirect back
+        // User already on CreateProfile/MainTabs (e.g. just confirmed gate).
+        // Re-sync storage and avoid redirecting them back to age gate mid-flow.
         AsyncStorage.getItem('AGE_GATE_ACCEPTED').then((v) => {
           if (v === 'true') setAgeGatePassed(true);
         });
@@ -433,7 +463,7 @@ export default function AppNavigator() {
         try {
           navigationRef.current.reset({
             index: 0,
-            routes: [{ name: 'CreateProfile', params: { startFromBeginning: true } }],
+            routes: [{ name: 'CreateProfile' }],
           });
         } catch (err) {
           console.error('Navigation error in AppNavigator:', err);

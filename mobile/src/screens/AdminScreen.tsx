@@ -358,18 +358,35 @@ export default function AdminScreen() {
     setShowMessagesModal(true);
     setMatchesLoading(true);
     setMessagesLoading(false);
-    api.get<{ matches: AdminUserMatch[] }>(`/admin/users/${userId}/matches`, false)
+    api
+      .get<{ matches: AdminUserMatch[] }>(`/admin/users/${userId}/matches`, false)
       .then((result) => setUserMatchesList(result.matches || []))
-      .catch(() => setUserMatchesList([]))
+      .catch((err: any) => {
+        setUserMatchesList([]);
+        const msg = err?.message || 'Could not load matches';
+        Alert.alert('Messages', msg);
+      })
       .finally(() => setMatchesLoading(false));
   };
 
   const handleViewMessages = () => {
     if (!selectedUser) return;
+    // Close user-details modal first — two RN Modals open at once often leaves the
+    // second invisible / non-interactive on some platforms.
+    setShowUserModal(false);
     openMessagesForUser(
       selectedUser.id,
-      selectedUser.profile?.display_name || selectedUser.email || selectedUser.id
+      selectedUser.profile?.display_name ||
+        selectedUser.email ||
+        selectedUser.phoneNumber ||
+        selectedUser.id
     );
+  };
+
+  const closeMessagesModal = () => {
+    setSelectedMatchForMessages(null);
+    setShowMessagesModal(false);
+    if (selectedUser) setShowUserModal(true);
   };
 
   const openConversationForMatch = (matchId: string, otherUserName: string) => {
@@ -377,12 +394,16 @@ export default function AdminScreen() {
     setSelectedMatchForMessages({ matchId, otherUserName });
     setUserMessages([]);
     setMessagesLoading(true);
-    api.get<{ messages: AdminMessage[]; total: number }>(
-      `/admin/users/${messagesUserId}/messages?matchId=${encodeURIComponent(matchId)}&limit=200`,
-      false
-    )
+    api
+      .get<{ messages: AdminMessage[]; total: number }>(
+        `/admin/users/${messagesUserId}/messages?matchId=${encodeURIComponent(matchId)}&limit=200`,
+        false
+      )
       .then((result) => setUserMessages(result.messages || []))
-      .catch(() => setUserMessages([]))
+      .catch((err: any) => {
+        setUserMessages([]);
+        Alert.alert('Messages', err?.message || 'Could not load conversation');
+      })
       .finally(() => setMessagesLoading(false));
   };
 
@@ -880,7 +901,7 @@ export default function AdminScreen() {
         transparent={true}
         onRequestClose={() => {
           if (selectedMatchForMessages) setSelectedMatchForMessages(null);
-          else setShowMessagesModal(false);
+          else closeMessagesModal();
         }}
       >
         <View style={styles.modalOverlay}>
@@ -899,10 +920,7 @@ export default function AdminScreen() {
                     {selectedMatchForMessages ? `With ${selectedMatchForMessages.otherUserName}` : `Messages — ${messagesUserDisplayName}`}
                   </Text>
                 </View>
-                <TouchableOpacity
-                  onPress={() => { setSelectedMatchForMessages(null); setShowMessagesModal(false); }}
-                  hitSlop={12}
-                >
+                <TouchableOpacity onPress={closeMessagesModal} hitSlop={12}>
                   <Text style={styles.drillDownModalClose}>✕</Text>
                 </TouchableOpacity>
               </View>

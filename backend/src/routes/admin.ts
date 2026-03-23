@@ -888,6 +888,8 @@ adminRouter.get('/users/:id/messages', authenticateToken, requireAdmin, async (r
     const matchId = req.query.matchId as string | undefined;
     const limit = parseInt(req.query.limit as string) || 50;
 
+    // Parentheses required: (user in match) AND (optional match filter). Without them,
+    // `OR` + `AND matchId` binds wrong and returns messages from other conversations.
     let query = `
       SELECT 
         m.id, m.content, m.sent_at, m.read_at, m.match_id, m.image_url, m.video_url, m.audio_url,
@@ -900,7 +902,7 @@ adminRouter.get('/users/:id/messages', authenticateToken, requireAdmin, async (r
       LEFT JOIN profiles p1 ON p1.user_id = m.sender_id
       LEFT JOIN users u2 ON u2.id = CASE WHEN m.sender_id = ma.user1_id THEN ma.user2_id ELSE ma.user1_id END
       LEFT JOIN profiles p2 ON p2.user_id = u2.id
-      WHERE ma.user1_id = ? OR ma.user2_id = ?
+      WHERE (ma.user1_id = ? OR ma.user2_id = ?)
     `;
     const params: any[] = [userId, userId, userId];
     if (matchId) {

@@ -581,8 +581,9 @@ export default function CreateProfileScreen() {
               console.error('❌ Failed to save basic profile:', err?.message || err);
               const isAuthError = err?.status === 401 || (typeof err?.message === 'string' && err.message.toLowerCase().includes('authentication'));
               if (isAuthError) {
-                await logout();
-                setError('Session expired. Please log in again.');
+                // Avoid forcing logout from this background save path: transient auth/network
+                // hiccups during onboarding can otherwise bounce users back to login + age gate.
+                setError('Session issue while saving. Please tap Complete Profile again.');
               } else {
                 setError(`Failed to save profile: ${err?.message || 'Please try again'}`);
               }
@@ -1124,8 +1125,7 @@ export default function CreateProfileScreen() {
             
             // Auth error - session expired, redirect to login
             if (response.status === 401 || (typeof errorData?.error === 'string' && errorData.error.toLowerCase().includes('authentication'))) {
-              await logout();
-              setError('Session expired. Please log in again.');
+              setError('Session issue while uploading. Please try again.');
               return;
             }
             
@@ -1221,8 +1221,7 @@ export default function CreateProfileScreen() {
       const errorMessage = err?.message || 'Failed to upload photo';
       const isAuthError = err?.status === 401 || (typeof err?.message === 'string' && err.message.toLowerCase().includes('authentication'));
       if (isAuthError) {
-        await logout();
-        setError('Session expired. Please log in again.');
+        setError('Session issue while uploading. Please try again.');
       } else {
         Alert.alert('Upload Failed', errorMessage, [{ text: 'OK' }]);
       }

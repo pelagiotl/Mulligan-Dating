@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { api } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import './Admin.css';
@@ -62,6 +62,8 @@ export default function Admin() {
   const [showMessages, setShowMessages] = useState(false);
   const [userMessages, setUserMessages] = useState<Message[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [messagesError, setMessagesError] = useState<string | null>(null);
+  const messagesSectionRef = useRef<HTMLDivElement | null>(null);
 
   // Check if current user is the super admin
   const isSuperAdmin = user?.email === 'pelagiotl@gmail.com';
@@ -105,6 +107,7 @@ export default function Admin() {
       setSelectedUser(data);
       setShowMessages(false);
       setUserMessages([]);
+      setMessagesError(null);
     } catch (error) {
       console.error('Failed to fetch user details:', error);
       setMessage({ type: 'error', text: 'Failed to load user details' });
@@ -112,55 +115,43 @@ export default function Admin() {
   };
 
   const fetchUserMessages = async (userId: string) => {
-    console.log('fetchUserMessages called with userId:', userId);
     if (!userId) {
-      console.error('No userId provided to fetchUserMessages');
       setMessage({ type: 'error', text: 'User ID is missing' });
       return;
     }
-    
+
     setLoadingMessages(true);
-    setMessage(null); // Clear any previous messages
+    setMessagesError(null);
+    setMessage(null);
+    setShowMessages(true);
     try {
-      console.log('Fetching messages for user:', userId);
-      const endpoint = `/admin/users/${userId}/messages?limit=50`;
-      console.log('API endpoint:', endpoint);
+      const endpoint = `/admin/users/${userId}/messages?limit=200`;
       const data = await api.get<{ messages: Message[]; total: number }>(endpoint);
-      console.log('Messages received:', data);
-      
-      // Ensure we have the messages array
       const messages = data.messages || [];
-      console.log('Setting messages:', messages.length, 'messages');
-      
       setUserMessages(messages);
-      setShowMessages(true);
-      
-      // Scroll to messages section after a brief delay to ensure DOM update
-      setTimeout(() => {
-        const messagesSection = document.querySelector('.admin-messages-list');
-        if (messagesSection) {
-          messagesSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
-      }, 100);
-      
+      setMessagesError(null);
+
+      requestAnimationFrame(() => {
+        messagesSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+
       if (messages.length === 0) {
         setMessage({ type: 'success', text: 'No messages found for this user' });
+        setTimeout(() => setMessage(null), 4000);
       } else {
-        setMessage({ type: 'success', text: `Loaded ${messages.length} message${messages.length !== 1 ? 's' : ''}` });
-        // Clear success message after 3 seconds
+        setMessage({
+          type: 'success',
+          text: `Loaded ${messages.length} message${messages.length !== 1 ? 's' : ''}`,
+        });
         setTimeout(() => setMessage(null), 3000);
       }
     } catch (error: any) {
       console.error('Failed to fetch messages:', error);
-      console.error('Error details:', {
-        message: error.message,
-        response: error.response,
-        status: error.status
-      });
-      const errorMessage = error.message || error.response?.data?.error || 'Failed to load messages';
-      setMessage({ type: 'error', text: errorMessage });
-      setShowMessages(false);
+      const errorMessage =
+        error.message || error.response?.data?.error || 'Failed to load messages';
+      setMessagesError(errorMessage);
       setUserMessages([]);
+      setMessage({ type: 'error', text: errorMessage });
     } finally {
       setLoadingMessages(false);
     }
@@ -536,7 +527,7 @@ export default function Admin() {
                 <p><strong>Blocks:</strong> {selectedUser.blocks}</p>
               </div>
 
-              <div className="detail-section">
+              <div className="detail-section" ref={messagesSectionRef} id="admin-messages-section">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-3)' }}>
                   <h3 style={{ margin: 0 }}>Messages</h3>
                   {!showMessages ? (
@@ -546,13 +537,9 @@ export default function Admin() {
                       onClick={(e) => {
                         e.stopPropagation();
                         e.preventDefault();
-                        console.log('View Messages button clicked');
-                        console.log('selectedUser:', selectedUser);
-                        console.log('selectedUser.id:', selectedUser?.id);
                         if (selectedUser?.id) {
                           fetchUserMessages(selectedUser.id);
                         } else {
-                          console.error('selectedUser.id is missing!');
                           setMessage({ type: 'error', text: 'User ID is missing. Please select a user first.' });
                         }
                       }}
@@ -568,6 +555,7 @@ export default function Admin() {
                         e.stopPropagation();
                         setShowMessages(false);
                         setUserMessages([]);
+                        setMessagesError(null);
                       }}
                     >
                       Hide Messages
@@ -581,7 +569,18 @@ export default function Admin() {
                 )}
                 {showMessages && !loadingMessages && (
                   <div className="admin-messages-list">
-                    {userMessages.length === 0 ? (
+                    {messagesError ? (
+                      <p
+                        className="admin-messages-error"
+                        style={{
+                          color: 'var(--color-rose-700, #be123c)',
+                          padding: 'var(--space-4)',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {messagesError}
+                      </p>
+                    ) : userMessages.length === 0 ? (
                       <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', padding: 'var(--space-4)' }}>No messages found</p>
                     ) : (
                       <div className="admin-messages-scroll" style={{ maxHeight: '400px', overflowY: 'auto', padding: 'var(--space-2)' }}>
