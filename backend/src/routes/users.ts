@@ -4,7 +4,7 @@ import { authenticateToken, AuthRequest } from '../middleware/auth.js';
 import { geocodeLocation, calculateDistanceMiles } from '../utils/geocoding.js';
 import { checkDealbreakers as checkDealbreakersUtil } from '../utils/dealbreakers.js';
 import { getCompletenessBoost } from '../utils/profileCompleteness.js';
-import { getActiveMatchingRegion, isInRegion, REGION_MAX_DISTANCE_MILES } from '../config/regions.js';
+import { getActiveMatchingRegion, isInRegion, isLikelyInRegionByText, REGION_MAX_DISTANCE_MILES } from '../config/regions.js';
 import { expireOldMatches } from '../utils/expireMatches.js';
 
 // Check if using PostgreSQL
@@ -278,7 +278,11 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
         });
       }
       const userLocationResult = await geocodeLocation(userProfile.location);
-      if (!userLocationResult.coordinates || !isInRegion(userLocationResult.coordinates.lat, userLocationResult.coordinates.lng, activeRegion)) {
+      const userInRegionByCoords = userLocationResult.coordinates
+        ? isInRegion(userLocationResult.coordinates.lat, userLocationResult.coordinates.lng, activeRegion)
+        : false;
+      const userInRegionByText = isLikelyInRegionByText(userProfile.location, activeRegion);
+      if (!userInRegionByCoords && !userInRegionByText) {
         return res.status(403).json({
           error: 'Matching is only available in Southern Oregon. Use a city and state in your profile (e.g. Medford, OR or Ashland, Oregon).',
           code: 'OUTSIDE_ACTIVE_REGION',
@@ -297,7 +301,9 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
             if (!p.location) return { profile: p, distance: null, inRegion: false };
             const candidateLocationResult = await geocodeLocation(p.location);
             const coords = candidateLocationResult.coordinates;
-            const inRegion = !activeRegion || (coords ? isInRegion(coords.lat, coords.lng, activeRegion) : false);
+            const inRegion = !activeRegion
+              || (coords ? isInRegion(coords.lat, coords.lng, activeRegion) : false)
+              || (activeRegion ? isLikelyInRegionByText(p.location, activeRegion) : false);
             const distance = coords
               ? calculateDistanceMiles(userLocationResult.coordinates, coords)
               : null;

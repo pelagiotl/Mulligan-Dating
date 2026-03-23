@@ -659,7 +659,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         registerForPushNotificationsAsync().catch((e) => {
           console.warn('⚠️ Push register on auth (non-critical):', e?.message || e);
         });
-        await fetchUser();
+        await fetchUser(false);
       } else {
         // No token found - show login screen
         setLoading(false);
@@ -671,7 +671,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const fetchUser = async () => {
+  const fetchUser = async (useCache: boolean = true) => {
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) {
@@ -683,7 +683,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       let data: any;
       try {
-        data = await api.get('/auth/me');
+        data = await api.get('/auth/me', useCache);
       } catch (apiError: any) {
         // Handle network/connection errors gracefully
         if (apiError?.status === 0 || 
@@ -775,7 +775,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       await AsyncStorage.setItem('token', data.token);
       setTokenCache(data.token);
-      await fetchUser();
+      await fetchUser(false);
       
       // Register for push notifications after login
       // Run asynchronously after a delay to ensure app is fully initialized
@@ -831,7 +831,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshProfile = async () => {
-    await fetchUser();
+    // Always bypass cache after profile mutations so navigation decisions
+    // are based on fresh server state.
+    api.clearCache('/auth/me');
+    await fetchUser(false);
   };
 
   const insets = useSafeAreaInsets();

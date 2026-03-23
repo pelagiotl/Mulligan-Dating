@@ -64,3 +64,36 @@ export function getActiveMatchingRegion(): string | null {
   const id = v.trim().toLowerCase();
   return REGIONS[id] ? id : null;
 }
+
+
+/**
+ * Fallback text-based region check for cases where geocoding fails or is rate-limited.
+ * This is intentionally conservative and currently only supports southern_oregon.
+ */
+export function isLikelyInRegionByText(location: string | null | undefined, regionId: string): boolean {
+  if (!location || !regionId) return false;
+  const normalized = location.toLowerCase().replace(/\s+/g, ' ').trim();
+
+  if (regionId !== 'southern_oregon') return false;
+
+  const cityPatterns: RegExp[] = [
+    /medford/,
+    /ashland/,
+    /central point/,
+    /eagle point/,
+    /jacksonville/,
+    /white city/,
+    /phoenix/,
+    /talent/,
+    /grants pass/,
+    /cave junction/,
+    /rogue river/,
+    /gold hill/,
+  ];
+
+  const hasRegionalCity = cityPatterns.some((re) => re.test(normalized));
+  const hasOregonMarker = /(or|oregon)/.test(normalized);
+  const hasCountyMarker = /(jackson county|josephine county)/.test(normalized);
+
+  return hasCountyMarker || (hasRegionalCity && (hasOregonMarker || !/(new jersey|ma|massachusetts)/.test(normalized)));
+}

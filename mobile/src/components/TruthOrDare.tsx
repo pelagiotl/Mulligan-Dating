@@ -57,84 +57,6 @@ const DARE_PROMPTS = [
   "Send a 5-second video saying one thing you'd want to do on a first date",
 ];
 
-// Rated R — sexier, bolder (still app-store safe)
-const TRUTH_PROMPTS_R = [
-  "What's your biggest turn-on in a conversation — be specific?",
-  "What actually makes you want to make the first move?",
-  "What's your idea of the perfect kiss?",
-  "What's the boldest thing you've done to get someone's attention?",
-  "What's a dealbreaker for you when it comes to chemistry?",
-  "What would make you want to kiss someone on a first date?",
-  "What's the most attractive thing someone could say to you in person?",
-  "What's something you'd never do on a first date — and why?",
-  "What's the most memorable way someone's ever shown they were into you?",
-  "What would make you lose your cool on a date?",
-  "What's your love language when it comes to physical affection?",
-  "What's something you find irresistible that you don't usually admit?",
-  "What's the boldest thing you'd say if you knew they were into you?",
-  "What's something that instantly attracts you that isn't just looks?",
-  "What's your take on who should make the first move?",
-];
-
-const DARE_PROMPTS_R = [
-  "Send a voice note saying something you'd say when the tension is high",
-  "Send a selfie with the look you give when you're actually into someone",
-  "Send a short video saying one thing you find attractive about them",
-  "Describe what turns you on in 3 words",
-  "Reply with the boldest thing you'd say to break the tension on a date",
-  "Send a selfie from an angle you know works",
-  "Voice note: what you'd do if you were on a date with them right now",
-  "Send a selfie that shows your confidence — no filter needed",
-  "Describe your ideal first kiss in 3 emojis",
-  "Send a quick video saying what you'd whisper if you were close enough",
-  "Reply with 3 words that describe the energy you want between you two",
-  "Send a pic with a caption that flirts without being obvious",
-  "Pick one thing about them that caught your attention — voice note or selfie with caption",
-  "Send a selfie that shows off what you're most confident about",
-  "Send a 5-second video with a look that says you're into them",
-];
-
-// Spicy — most seductive, daring, risky
-const TRUTH_PROMPTS_SPICY = [
-  "What's your biggest fantasy when it comes to a first date?",
-  "What would make you want to skip the small talk and get to the good part?",
-  "What's something you'd never admit in person but might say here?",
-  "What's the most attractive thing someone could say to you when you're alone?",
-  "What's your secret turn-on that you've never told anyone?",
-  "What would you do if we had the place to ourselves right now?",
-  "What's the most impulsive thing you've ever done when you were into someone?",
-  "What's your idea of the perfect night with someone you're really into?",
-  "What would make you lose your cool on a date?",
-  "What's something you find irresistible that most people overlook?",
-  "What's your boldest move when you know the chemistry is mutual?",
-  "What would you want me to say to make your heart race?",
-  "What's the hottest non-physical thing someone can do on a date?",
-  "What's the most memorable way someone's ever made it clear they wanted you?",
-  "What would make you say fuck it and go for it?",
-  "What's the riskiest thing you've ever done to get someone you wanted?",
-  "What would you want to hear from them when the tension is at its peak?",
-];
-
-const DARE_PROMPTS_SPICY = [
-  "Send a voice note saying something you'd only say when the tension is high",
-  "Send a selfie from an angle that actually makes an impression",
-  "Describe what you find attractive about them in 3 bold words",
-  "Send a short video saying what you'd want to do with them on a second date",
-  "Reply with the boldest thing you'd do if you were alone right now",
-  "Voice note: one thing that would make them blush",
-  "Send a selfie that shows your most confident side",
-  "Reply with a question that would make their heart skip",
-  "Send a 5-second video describing the vibe you want between you two",
-  "Send a selfie with the look you give when you're really into someone",
-  "Voice note: tell them why you're into them — no generic lines",
-  "Send a pic with a caption that's flirty but not try-hard",
-  "Send a quick video saying the boldest thing you'd say if you knew they were thinking the same",
-  "Voice note: say what you're actually thinking right now",
-  "Send a selfie or short video that would make them blush",
-  "Send a selfie that says you know exactly what you want",
-  "Voice note: say the riskiest thing you'd say to them if you knew they were into you",
-  "Send a selfie or short video that pushes your comfort zone — but still you",
-];
 
 function pickRandom<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
@@ -194,19 +116,16 @@ export default function TruthOrDare({
   headerMode = false,
 }: TruthOrDareProps) {
   const [modalVisible, setModalVisible] = useState(false);
-  const [step, setStep] = useState<'lobby' | 'choose' | 'prompt'>('lobby');
+  const [step, setStep] = useState<'choose' | 'prompt'>('choose');
   const [prompt, setPrompt] = useState<string>('');
   const [promptType, setPromptType] = useState<'truth' | 'dare'>('truth');
   const [loading, setLoading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
   const [headerTimerSecs, setHeaderTimerSecs] = useState<number | null>(null);
   const lastUnlockedUntilRef = useRef<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastAnotherOneAtRef = useRef<number>(0);
-  const lastSpiceChoiceAtRef = useRef<number>(0);
-  const lastSpiceChoiceRef = useRef<'pg13' | 'ratedr' | 'spicy' | null>(null);
   /** When we just chose Truth or Dare, avoid letting fetchState overwrite with stale server currentPromptType */
   const lastChooseAtRef = useRef<number>(0);
   const intendedPromptTypeRef = useRef<'truth' | 'dare' | null>(null);
@@ -288,16 +207,8 @@ export default function TruthOrDare({
   const fetchState = useCallback(async () => {
     try {
       const data = await api.get<GameState>(`/matches/${matchId}/truth-or-dare/state`);
-      const recentlySetSpice = Date.now() - lastSpiceChoiceAtRef.current < 5000;
-      const intendedSpice = lastSpiceChoiceRef.current;
       setGameState((prev) => {
-        if (recentlySetSpice && (intendedSpice ?? prev?.spiceLevel)) {
-          return { ...data, spiceLevel: intendedSpice ?? prev?.spiceLevel ?? data.spiceLevel, spiceReady: true };
-        }
-        if (data.yourSpiceChoice && !data.spiceReady) {
-          return { ...data, spiceLevel: data.yourSpiceChoice, spiceReady: true };
-        }
-        return data;
+        return { ...prev, ...data, spiceLevel: 'pg13', spiceReady: true };
       });
       const recentlyRequestedAnother = Date.now() - lastAnotherOneAtRef.current < 5000;
       const recentlyChose = Date.now() - lastChooseAtRef.current < 8000;
@@ -319,13 +230,7 @@ export default function TruthOrDare({
         return;
       }
       if (alreadyShowingPrompt) return;
-      if (data.spiceReady && data.spiceLevel) {
-        setStep('choose');
-      } else if (data.yourSpiceChoice) {
-        setStep('choose');
-      } else {
-        setStep('lobby');
-      }
+      setStep('choose');
     } catch (err) {
       console.warn('Truth or Dare fetch state error:', err);
     }
@@ -333,7 +238,7 @@ export default function TruthOrDare({
 
   useEffect(() => {
     if (openForAccept) {
-      setStep('lobby');
+      setStep('choose');
       setPrompt('');
       setModalVisible(true);
       setLoading(true);
@@ -397,7 +302,7 @@ export default function TruthOrDare({
     if (Platform.OS === 'ios' || Platform.OS === 'android') {
       Vibration.vibrate(50);
     }
-    setStep('lobby');
+    setStep('choose');
     setPrompt('');
     setModalVisible(true);
     setLoading(true);
@@ -406,39 +311,13 @@ export default function TruthOrDare({
   };
 
   const handleClose = () => {
-    lastSpiceChoiceRef.current = null;
     setModalVisible(false);
-    setStep('lobby');
+    setStep('choose');
     setPrompt('');
     setGameState(null);
     if (pollRef.current) {
       clearInterval(pollRef.current);
       pollRef.current = null;
-    }
-  };
-
-  const handleSetSpiceChoice = async (choice: 'pg13' | 'ratedr' | 'spicy') => {
-    lastSpiceChoiceAtRef.current = Date.now();
-    lastSpiceChoiceRef.current = choice;
-    setSubmitting(true);
-    setGameState((prev) => (prev ? { ...prev, spiceLevel: choice, spiceReady: true } : prev));
-    try {
-      const data = await api.post<GameState>(`/matches/${matchId}/truth-or-dare/spice-choice`, { choice });
-      // Use agreed level only when it matches the choice we just made (so UI doesn't revert to previous level)
-      const displayLevel = (data.spiceReady && data.spiceLevel != null && data.spiceLevel === choice)
-        ? data.spiceLevel
-        : (data.yourSpiceChoice ?? choice);
-      setGameState((prev) => (prev ? { ...prev, ...data, spiceLevel: displayLevel, spiceReady: true } : { ...data, spiceLevel: displayLevel, spiceReady: true }));
-      setStep('choose');
-      // Clear ref after delay so any socket/poll fetchState in the next 5s still sees intendedSpice and doesn't overwrite with stale GET
-      setTimeout(() => {
-        lastSpiceChoiceRef.current = null;
-      }, 5000);
-    } catch (err) {
-      console.warn('Truth or Dare spice choice error:', err);
-      lastSpiceChoiceRef.current = null;
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -460,8 +339,6 @@ export default function TruthOrDare({
       setPrompt('');
     }
 
-    const spiceLevel = gameState?.spiceLevel || 'pg13';
-
     let finalPrompt = '';
     try {
       const data = await api.post<{ prompt: string; fromAI: boolean; spiceLevel?: string }>(
@@ -476,9 +353,7 @@ export default function TruthOrDare({
         throw new Error('No prompt returned');
       }
     } catch (err) {
-      const list = type === 'truth'
-        ? (spiceLevel === 'spicy' ? TRUTH_PROMPTS_SPICY : spiceLevel === 'ratedr' ? TRUTH_PROMPTS_R : TRUTH_PROMPTS)
-        : (spiceLevel === 'spicy' ? DARE_PROMPTS_SPICY : spiceLevel === 'ratedr' ? DARE_PROMPTS_R : DARE_PROMPTS);
+      const list = type === 'truth' ? TRUTH_PROMPTS : DARE_PROMPTS;
       finalPrompt = pickRandom(list);
       setPrompt(finalPrompt);
       lastAnotherOneAtRef.current = Date.now();
@@ -600,7 +475,7 @@ export default function TruthOrDare({
             <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={styles.modalContent}>
               <LinearGradient colors={['#ff0080', '#ff3399', '#cc0066', '#ff66b2', '#ff0080']} locations={[0, 0.2, 0.5, 0.8, 1]} style={styles.modalGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
                 <View style={styles.modalHeaderBar} />
-                <Text style={styles.modalTitle}>{step === 'lobby' ? '🎲 Truth or Dare' : step === 'choose' ? 'Pick One' : promptType === 'truth' ? '✨ Truth' : '🔥 Dare'}</Text>
+                <Text style={styles.modalTitle}>{step === 'choose' ? 'Pick One' : promptType === 'truth' ? '✨ Truth' : '🔥 Dare'}</Text>
                 {gameState?.unlockedUntil && secondsRemaining !== null && secondsRemaining > 0 && (
                   <View style={styles.timerBadge}><Text style={styles.timerLabel}>Session time left</Text><Text style={styles.timerText}>⏱ {formatTimeRemaining(secondsRemaining)}</Text></View>
                 )}
@@ -611,33 +486,8 @@ export default function TruthOrDare({
                   </View>
                 ) : loading ? (
                   <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#fff" /><Text style={styles.loadingText}>Loading...</Text></View>
-                ) : step === 'lobby' ? (
-                  <View style={styles.lobbyContainer}>
-                    {!gameState?.yourSpiceChoice ? (
-                      <>
-                        <Text style={styles.lobbyTitle}>Pick a version</Text>
-                        <View style={styles.spicePills}>
-                          <TouchableOpacity onPress={() => handleSetSpiceChoice('pg13')} style={[styles.spicePill, gameState?.yourSpiceChoice === 'pg13' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.yourSpiceChoice === 'pg13' && styles.spicePillTextActive]}>PG-13</Text></TouchableOpacity>
-                          <TouchableOpacity onPress={() => handleSetSpiceChoice('ratedr')} style={[styles.spicePill, gameState?.yourSpiceChoice === 'ratedr' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.yourSpiceChoice === 'ratedr' && styles.spicePillTextActive]}>Rated R</Text></TouchableOpacity>
-                          <TouchableOpacity onPress={() => handleSetSpiceChoice('spicy')} style={[styles.spicePill, gameState?.yourSpiceChoice === 'spicy' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.yourSpiceChoice === 'spicy' && styles.spicePillTextActive]}>Spicy</Text></TouchableOpacity>
-                        </View>
-                      </>
-                    ) : (
-                      <Text style={styles.lobbyHint}>Waiting for them to pick a version...</Text>
-                    )}
-                  </View>
                 ) : step === 'choose' ? (
                   <View style={styles.chooseContainer}>
-                    {gameState?.spiceLevel ? (
-                      <>
-                        <Text style={styles.versionLabel}>Version</Text>
-                        <View style={styles.spicePills}>
-                          <TouchableOpacity onPress={() => handleSetSpiceChoice('pg13')} style={[styles.spicePill, gameState?.spiceLevel === 'pg13' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.spiceLevel === 'pg13' && styles.spicePillTextActive]}>PG-13</Text></TouchableOpacity>
-                          <TouchableOpacity onPress={() => handleSetSpiceChoice('ratedr')} style={[styles.spicePill, gameState?.spiceLevel === 'ratedr' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.spiceLevel === 'ratedr' && styles.spicePillTextActive]}>Rated R</Text></TouchableOpacity>
-                          <TouchableOpacity onPress={() => handleSetSpiceChoice('spicy')} style={[styles.spicePill, gameState?.spiceLevel === 'spicy' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.spiceLevel === 'spicy' && styles.spicePillTextActive]}>Spicy</Text></TouchableOpacity>
-                        </View>
-                      </>
-                    ) : null}
                     <Text style={styles.chooseSubtitle}>Pick Truth or Dare</Text>
                     <View style={styles.chooseRow}>
                       <TouchableOpacity onPress={() => handleChoose('truth')} style={styles.choiceButton} activeOpacity={0.8}><LinearGradient colors={['#7c4dff', '#b388ff', '#651fff']} style={styles.choiceGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.choiceEmoji}>✨</Text><Text style={styles.choiceText}>Truth</Text></LinearGradient></TouchableOpacity>
@@ -648,14 +498,6 @@ export default function TruthOrDare({
                   <>
                     {loading ? <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#fff" /><Text style={styles.loadingText}>Generating your prompt...</Text></View> : (
                       <>
-                        <View style={styles.spiceRow}>
-                          <Text style={styles.versionLabel}>Version</Text>
-                          <View style={styles.spicePills}>
-                            <TouchableOpacity onPress={() => handleSetSpiceChoice('pg13')} style={[styles.spicePillSmall, gameState?.spiceLevel === 'pg13' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillTextSmall, gameState?.spiceLevel === 'pg13' && styles.spicePillTextActive]}>PG-13</Text></TouchableOpacity>
-                            <TouchableOpacity onPress={() => handleSetSpiceChoice('ratedr')} style={[styles.spicePillSmall, gameState?.spiceLevel === 'ratedr' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillTextSmall, gameState?.spiceLevel === 'ratedr' && styles.spicePillTextActive]}>R</Text></TouchableOpacity>
-                            <TouchableOpacity onPress={() => handleSetSpiceChoice('spicy')} style={[styles.spicePillSmall, gameState?.spiceLevel === 'spicy' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillTextSmall, gameState?.spiceLevel === 'spicy' && styles.spicePillTextActive]}>Spicy</Text></TouchableOpacity>
-                          </View>
-                        </View>
                         <View style={styles.promptCard}><Text style={styles.promptText}>{prompt}</Text></View>
                       </>
                     )}
@@ -759,7 +601,7 @@ export default function TruthOrDare({
               />
               <View style={styles.modalHeaderBar} />
               <Text style={styles.modalTitle}>
-                {step === 'lobby' ? '🎲 Truth or Dare' : step === 'choose' ? 'Pick One' : promptType === 'truth' ? '✨ Truth' : '🔥 Dare'}
+                {step === 'choose' ? 'Pick One' : promptType === 'truth' ? '✨ Truth' : '🔥 Dare'}
               </Text>
               {gameState?.unlockedUntil && secondsRemaining !== null && secondsRemaining > 0 && (
                 <View style={styles.timerBadge}><Text style={styles.timerLabel}>Session time left</Text><Text style={styles.timerText}>⏱ {formatTimeRemaining(secondsRemaining)}</Text></View>
@@ -774,33 +616,8 @@ export default function TruthOrDare({
                   <ActivityIndicator size="large" color="#fff" />
                   <Text style={styles.loadingText}>Loading...</Text>
                 </View>
-              ) : step === 'lobby' ? (
-                <View style={styles.lobbyContainer}>
-                  {!gameState?.yourSpiceChoice ? (
-                    <>
-                      <Text style={styles.lobbyTitle}>Pick a version</Text>
-                      <View style={styles.spicePills}>
-                        <TouchableOpacity onPress={() => handleSetSpiceChoice('pg13')} style={[styles.spicePill, gameState?.yourSpiceChoice === 'pg13' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.yourSpiceChoice === 'pg13' && styles.spicePillTextActive]}>PG-13</Text></TouchableOpacity>
-                        <TouchableOpacity onPress={() => handleSetSpiceChoice('ratedr')} style={[styles.spicePill, gameState?.yourSpiceChoice === 'ratedr' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.yourSpiceChoice === 'ratedr' && styles.spicePillTextActive]}>Rated R</Text></TouchableOpacity>
-                        <TouchableOpacity onPress={() => handleSetSpiceChoice('spicy')} style={[styles.spicePill, gameState?.yourSpiceChoice === 'spicy' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.yourSpiceChoice === 'spicy' && styles.spicePillTextActive]}>Spicy</Text></TouchableOpacity>
-                      </View>
-                    </>
-                  ) : (
-                    <Text style={styles.lobbyHint}>Waiting for them to pick a version...</Text>
-                  )}
-                </View>
               ) : step === 'choose' ? (
                 <View style={styles.chooseContainer}>
-                  {gameState?.spiceLevel ? (
-                    <>
-                      <Text style={styles.versionLabel}>Version</Text>
-                      <View style={styles.spicePills}>
-                        <TouchableOpacity onPress={() => handleSetSpiceChoice('pg13')} style={[styles.spicePill, gameState?.spiceLevel === 'pg13' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.spiceLevel === 'pg13' && styles.spicePillTextActive]}>PG-13</Text></TouchableOpacity>
-                        <TouchableOpacity onPress={() => handleSetSpiceChoice('ratedr')} style={[styles.spicePill, gameState?.spiceLevel === 'ratedr' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.spiceLevel === 'ratedr' && styles.spicePillTextActive]}>Rated R</Text></TouchableOpacity>
-                        <TouchableOpacity onPress={() => handleSetSpiceChoice('spicy')} style={[styles.spicePill, gameState?.spiceLevel === 'spicy' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, gameState?.spiceLevel === 'spicy' && styles.spicePillTextActive]}>Spicy</Text></TouchableOpacity>
-                      </View>
-                    </>
-                  ) : null}
                   <Text style={styles.chooseSubtitle}>Pick Truth or Dare</Text>
                   <View style={styles.chooseRow}>
                     <TouchableOpacity onPress={() => handleChoose('truth')} style={styles.choiceButton} activeOpacity={0.8}>
@@ -826,14 +643,6 @@ export default function TruthOrDare({
                     </View>
                   ) : (
                     <>
-                      <View style={styles.spiceRow}>
-                        <Text style={styles.versionLabel}>Version</Text>
-                        <View style={styles.spicePills}>
-                          <TouchableOpacity onPress={() => handleSetSpiceChoice('pg13')} style={[styles.spicePillSmall, gameState?.spiceLevel === 'pg13' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillTextSmall, gameState?.spiceLevel === 'pg13' && styles.spicePillTextActive]}>PG-13</Text></TouchableOpacity>
-                          <TouchableOpacity onPress={() => handleSetSpiceChoice('ratedr')} style={[styles.spicePillSmall, gameState?.spiceLevel === 'ratedr' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillTextSmall, gameState?.spiceLevel === 'ratedr' && styles.spicePillTextActive]}>R</Text></TouchableOpacity>
-                          <TouchableOpacity onPress={() => handleSetSpiceChoice('spicy')} style={[styles.spicePillSmall, gameState?.spiceLevel === 'spicy' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillTextSmall, gameState?.spiceLevel === 'spicy' && styles.spicePillTextActive]}>Spicy</Text></TouchableOpacity>
-                        </View>
-                      </View>
                       <View style={styles.promptCard}>
                         <Text style={styles.promptText}>{prompt}</Text>
                       </View>

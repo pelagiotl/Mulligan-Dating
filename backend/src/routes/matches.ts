@@ -6,7 +6,7 @@ import { generateWeeklyMatches, generateMatchExplanation, calculateProfileCompat
 import { recordSuccessSignal } from "../utils/successTracking.js";
 import { rateLimitAPI } from "../middleware/security.js";
 import { geocodeLocation, calculateDistanceMiles } from "../utils/geocoding.js";
-import { getActiveMatchingRegion, isInRegion, REGION_MAX_DISTANCE_MILES } from "../config/regions.js";
+import { getActiveMatchingRegion, isInRegion, isLikelyInRegionByText, REGION_MAX_DISTANCE_MILES } from "../config/regions.js";
 import { uploadChatImage, uploadChatVideo, uploadChatAudio } from "../middleware/upload.js";
 import { uploadToCloudinary, uploadToCloudinaryMedia, isCloudinaryConfigured } from "../services/cloudinary.js";
 
@@ -589,8 +589,10 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
           // Geo-lock: when ACTIVE_MATCHING_REGION is set, both users must be in that region and within REGION_MAX_DISTANCE_MILES
           const activeRegion = getActiveMatchingRegion();
           if (activeRegion) {
-            const userInRegion = isInRegion(userGeo.coordinates.lat, userGeo.coordinates.lng, activeRegion);
-            const targetInRegion = isInRegion(targetGeo.coordinates.lat, targetGeo.coordinates.lng, activeRegion);
+            const userInRegion = isInRegion(userGeo.coordinates.lat, userGeo.coordinates.lng, activeRegion)
+              || isLikelyInRegionByText(userLoc, activeRegion);
+            const targetInRegion = isInRegion(targetGeo.coordinates.lat, targetGeo.coordinates.lng, activeRegion)
+              || isLikelyInRegionByText(targetLoc, activeRegion);
             if (!userInRegion || !targetInRegion) {
               if (process.env.NODE_ENV !== "test") {
                 console.log(`🙅 Connect blocked: region check failed (activeRegion=${activeRegion}) userInRegion=${userInRegion} targetInRegion=${targetInRegion} userLoc=${userLoc} targetLoc=${targetLoc}`);
@@ -621,13 +623,17 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
         } else {
           // Geocoding didn't return coordinates for one or both
           if (activeRegionForConnect) {
-            if (process.env.NODE_ENV !== "test") {
-              console.warn(`🙅 Connect blocked: region lock requires geocoding but one or both failed. userLoc="${userLoc}" → ${userGeo.coordinates ? "OK" : "no coords"}, targetLoc="${targetLoc}" → ${targetGeo.coordinates ? "OK" : "no coords"}.`);
+            const userByText = isLikelyInRegionByText(userLoc, activeRegionForConnect);
+            const targetByText = isLikelyInRegionByText(targetLoc, activeRegionForConnect);
+            if (!userByText || !targetByText) {
+              if (process.env.NODE_ENV !== "test") {
+                console.warn(`🙅 Connect blocked: region lock requires geocoding but one or both failed. userLoc="${userLoc}" → ${userGeo.coordinates ? "OK" : "no coords"}, targetLoc="${targetLoc}" → ${targetGeo.coordinates ? "OK" : "no coords"}.`);
+              }
+              return res.status(400).json({
+                error: "We couldn't verify your location. Use a city and state (e.g. Medford, OR or Ashland, Oregon) in your profile.",
+                code: "REGION_VERIFICATION_FAILED",
+              });
             }
-            return res.status(400).json({
-              error: "We couldn't verify your location. Use a city and state (e.g. Medford, OR or Ashland, Oregon) in your profile.",
-              code: "REGION_VERIFICATION_FAILED",
-            });
           }
           if (process.env.NODE_ENV !== "test") {
             console.warn(`📷 Distance check skipped: could not geocode one or both locations. userLoc="${userLoc}" → ${userGeo.coordinates ? "OK" : "no coords"}, targetLoc="${targetLoc}" → ${targetGeo.coordinates ? "OK" : "no coords"}. Allowing connect.`);
@@ -2123,17 +2129,7 @@ matchesRouter.post("/:matchId/game-request/:requestId/respond", authenticateToke
   }
 });
 
-// Helper: more conservative of two spice choices (no turn logic)
-function moreConservativeSpice(a: string | null, b: string | null): 'pg13' | 'ratedr' | 'spicy' | null {
-  if (!a || !b) return null;
-  const order: Record<string, number> = { pg13: 1, ratedr: 2, spicy: 3 };
-  const oa = order[a] ?? 1;
-  const ob = order[b] ?? 1;
-  const level = oa <= ob ? a : b;
-  return level === 'ratedr' ? 'ratedr' : level === 'spicy' ? 'spicy' : 'pg13';
-}
-
-// Get Truth or Dare game state — both users pick version; no turns
+// Get Truth or Dare game state — single wholesome adult mode.
 matchesRouter.get("/:matchId/truth-or-dare/state", authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
@@ -2150,8 +2146,6 @@ matchesRouter.get("/:matchId/truth-or-dare/state", authenticateToken, async (req
       return res.status(404).json({ error: "Match not found" });
     }
 
-    const isUser1 = match.user1_id === userId;
-
     const unlockRow = db.prepare('SELECT unlocked_by_user_id, unlocked_until FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'truth_or_dare']) as { unlocked_by_user_id: string; unlocked_until: string | null } | undefined;
     if (!unlockRow) {
       return res.status(400).json({ error: "Truth or Dare must be unlocked with a Mulligan token to play." });
@@ -2165,22 +2159,27 @@ matchesRouter.get("/:matchId/truth-or-dare/state", authenticateToken, async (req
     let game = (gameResult instanceof Promise ? await gameResult : gameResult) as any;
 
     if (!game) {
-      db.prepare(`INSERT INTO truth_or_dare_games (match_id) VALUES (?)`).run([matchId]);
-      game = { match_id: matchId, user1_spice_choice: null, user2_spice_choice: null, spice_level: null };
+      db.prepare(`INSERT INTO truth_or_dare_games (match_id, user1_spice_choice, user2_spice_choice, spice_level) VALUES (?, 'pg13', 'pg13', 'pg13')`).run([matchId]);
+      game = { match_id: matchId, user1_spice_choice: 'pg13', user2_spice_choice: 'pg13', spice_level: 'pg13' };
+    } else if (!game.spice_level || !game.user1_spice_choice || !game.user2_spice_choice) {
+      db.prepare(
+        `UPDATE truth_or_dare_games
+         SET user1_spice_choice = COALESCE(user1_spice_choice, 'pg13'),
+             user2_spice_choice = COALESCE(user2_spice_choice, 'pg13'),
+             spice_level = 'pg13',
+             updated_at = CURRENT_TIMESTAMP
+         WHERE match_id = ?`
+      ).run([matchId]);
     }
 
-    const yourSpiceChoice = (isUser1 ? game.user1_spice_choice : game.user2_spice_choice) as 'pg13' | 'ratedr' | 'spicy' | null;
-    const theirSpiceChoice = (isUser1 ? game.user2_spice_choice : game.user1_spice_choice) as 'pg13' | 'ratedr' | 'spicy' | null;
-    const spiceReady = !!(yourSpiceChoice && theirSpiceChoice);
-    const spiceLevel = spiceReady ? moreConservativeSpice(game.user1_spice_choice, game.user2_spice_choice) : (game.spice_level as 'pg13' | 'ratedr' | 'spicy' | null);
     const currentPrompt = game.current_prompt ?? null;
     const currentPromptType = (game.current_prompt_type === 'truth' || game.current_prompt_type === 'dare') ? game.current_prompt_type : null;
 
     res.json({
-      yourSpiceChoice: yourSpiceChoice ?? null,
-      theirSpiceChoice: theirSpiceChoice ?? null,
-      spiceReady,
-      spiceLevel,
+      yourSpiceChoice: 'pg13',
+      theirSpiceChoice: 'pg13',
+      spiceReady: true,
+      spiceLevel: 'pg13',
       tokenUnlocked: true,
       needsSpiceChoiceFromUnlocker: false,
       currentPrompt,
@@ -2194,17 +2193,11 @@ matchesRouter.get("/:matchId/truth-or-dare/state", authenticateToken, async (req
   }
 });
 
-// Set Truth or Dare spice choice — both users pick; when both have chosen, game is ready
+// Deprecated compatibility endpoint: preserve old clients but force single mode.
 matchesRouter.post("/:matchId/truth-or-dare/spice-choice", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
     const { matchId } = req.params;
-    const { choice } = req.body as { choice?: string };
-
-    if (!choice || (choice !== 'pg13' && choice !== 'ratedr' && choice !== 'spicy')) {
-      return res.status(400).json({ error: "Invalid choice. Must be 'pg13', 'ratedr', or 'spicy'." });
-    }
-
     const matchResult = db
       .prepare('SELECT user1_id, user2_id FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?)')
       .get([matchId, userId, userId]);
@@ -2216,9 +2209,6 @@ matchesRouter.post("/:matchId/truth-or-dare/spice-choice", authenticateToken, ra
       return res.status(404).json({ error: "Match not found" });
     }
 
-    const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
-    const isUser1 = match.user1_id === userId;
-
     const unlockRow = db.prepare('SELECT unlocked_by_user_id, unlocked_until FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'truth_or_dare']) as { unlocked_by_user_id: string; unlocked_until: string | null } | undefined;
     if (!unlockRow) {
       return res.status(400).json({ error: "Truth or Dare must be unlocked with a Mulligan token to play." });
@@ -2228,29 +2218,15 @@ matchesRouter.post("/:matchId/truth-or-dare/spice-choice", authenticateToken, ra
       return res.status(400).json({ error: "Your Truth or Dare session expired. Use another token to play for 7 more minutes." });
     }
 
-    let gameResult = db.prepare('SELECT * FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
-    let game = (gameResult instanceof Promise ? await gameResult : gameResult) as any;
-
-    if (!game) {
-      db.prepare(
-        `INSERT INTO truth_or_dare_games (match_id, user1_spice_choice, user2_spice_choice, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)`
-      ).run([matchId, isUser1 ? choice : null, isUser1 ? null : choice]);
-    } else {
-      db.prepare(
-        `UPDATE truth_or_dare_games SET ${isUser1 ? 'user1_spice_choice' : 'user2_spice_choice'} = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?`
-      ).run([choice, matchId]);
-    }
-
-    gameResult = db.prepare('SELECT * FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
-    game = (gameResult instanceof Promise ? await gameResult : gameResult) as any;
-    const c1 = game.user1_spice_choice as string | null;
-    const c2 = game.user2_spice_choice as string | null;
-    const spiceReady = !!(c1 && c2);
-    if (spiceReady) {
-      const level = moreConservativeSpice(c1, c2);
-      db.prepare(`UPDATE truth_or_dare_games SET spice_level = ?, current_prompt = NULL, current_prompt_type = NULL, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?`).run([level, matchId]);
-      game.spice_level = level;
-    }
+    db.prepare(
+      `INSERT INTO truth_or_dare_games (match_id, user1_spice_choice, user2_spice_choice, spice_level, updated_at)
+       VALUES (?, 'pg13', 'pg13', 'pg13', CURRENT_TIMESTAMP)
+       ON CONFLICT(match_id) DO UPDATE SET
+         user1_spice_choice = 'pg13',
+         user2_spice_choice = 'pg13',
+         spice_level = 'pg13',
+         updated_at = CURRENT_TIMESTAMP`
+    ).run([matchId]);
 
     try {
       const { getIO } = await import('../socket.js');
@@ -2260,15 +2236,11 @@ matchesRouter.post("/:matchId/truth-or-dare/spice-choice", authenticateToken, ra
       console.warn('Socket emit failed:', e);
     }
 
-    const yourSpiceChoice = choice as 'pg13' | 'ratedr' | 'spicy';
-    const theirSpiceChoice = (isUser1 ? game.user2_spice_choice : game.user1_spice_choice) as 'pg13' | 'ratedr' | 'spicy' | null;
-    const spiceLevel = spiceReady ? moreConservativeSpice(game.user1_spice_choice, game.user2_spice_choice) : null;
-
     res.json({
-      yourSpiceChoice,
-      theirSpiceChoice: theirSpiceChoice ?? null,
-      spiceReady,
-      spiceLevel,
+      yourSpiceChoice: 'pg13',
+      theirSpiceChoice: 'pg13',
+      spiceReady: true,
+      spiceLevel: 'pg13',
       tokenUnlocked: true,
       needsSpiceChoiceFromUnlocker: false,
     });
@@ -2302,7 +2274,7 @@ matchesRouter.post("/:matchId/truth-or-dare", authenticateToken, rateLimitAPI, a
     }
 
     const gameResult = db.prepare('SELECT * FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
-    const game = (gameResult instanceof Promise ? await gameResult : gameResult) as { spice_level: string | null; user1_spice_choice: string | null; user2_spice_choice: string | null } | undefined;
+    const game = (gameResult instanceof Promise ? await gameResult : gameResult) as { current_prompt?: string | null; current_prompt_type?: string | null } | undefined;
 
     const unlockRowToD = db.prepare('SELECT unlocked_until FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'truth_or_dare']) as { unlocked_until: string | null } | undefined;
     if (!unlockRowToD) {
@@ -2312,14 +2284,7 @@ matchesRouter.post("/:matchId/truth-or-dare", authenticateToken, rateLimitAPI, a
     if (todUntil && todUntil <= new Date()) {
       return res.status(400).json({ error: "Your Truth or Dare session expired. Use another token to play for 7 more minutes." });
     }
-    const isUser1 = match.user1_id === userId;
-    const yourChoice = game ? (isUser1 ? game.user1_spice_choice : game.user2_spice_choice) : null;
-    const agreedLevel = game?.spice_level ?? null;
-    if (!agreedLevel && !yourChoice) {
-      return res.status(400).json({ error: "Pick a version (PG-13, Rated R, or Spicy) first." });
-    }
-    const level = (agreedLevel || yourChoice) as string;
-    const levelNorm = (level === 'ratedr' ? 'ratedr' : level === 'spicy' ? 'spicy' : 'pg13') as 'pg13' | 'ratedr' | 'spicy';
+    const levelNorm = 'pg13' as const;
     const currentPrompt = (game as any).current_prompt ?? null;
     const currentPromptType = (game as any).current_prompt_type ?? null;
 
