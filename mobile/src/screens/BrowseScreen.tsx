@@ -895,6 +895,19 @@ export default function BrowseScreen() {
       return;
     }
     
+    // Guard: do not enter unlock/auto-match flow when user has no tokens.
+    // This keeps the user on landing and shows the no-tokens modal immediately.
+    try {
+      const tokenData = await api.get<{ availableTokens: number; canClaimWeeklyToken: boolean }>('/tokens', false);
+      setCanClaimTokens(tokenData.canClaimWeeklyToken || false);
+      if ((tokenData.availableTokens || 0) <= 0) {
+        setShowNoTokensModal(true);
+        return;
+      }
+    } catch {
+      // If token check fails, continue and let backend handle with a clear API error.
+    }
+
     setUnlocking(true);
     setError('');
     setIsAutoMatching(true); // Mark that we're auto-matching to prevent UI flash
@@ -2263,7 +2276,11 @@ export default function BrowseScreen() {
           setCurrentProfile(null);
         }}
         onTokenClaimed={() => {
-          // Refresh token display if needed
+          // Claim just happened, so weekly-claim CTA should disappear immediately.
+          setCanClaimTokens(false);
+          // Refresh from backend to keep landing state accurate after claim.
+          api.clearCache('/tokens');
+          checkCanClaimTokens();
           setShowNoTokensModal(false);
           // Reset to landing page after claiming tokens
           setBrowseUnlocked(false);
