@@ -15,9 +15,11 @@ import {
   Linking,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Video, ResizeMode } from 'expo-av';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { api, API_URL } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
+import { AdminModerationAudio } from '../components/AdminModerationAudio';
 
 interface Stats {
   totalUsers: number;
@@ -76,6 +78,8 @@ interface AdminUserMatch {
   matchId: string;
   otherUserId: string;
   otherUserName: string;
+  otherUserPhone?: string | null;
+  messageCount?: number;
   stage: string;
   stage1At: string;
 }
@@ -396,7 +400,7 @@ export default function AdminScreen() {
     setMessagesLoading(true);
     api
       .get<{ messages: AdminMessage[]; total: number }>(
-        `/admin/users/${messagesUserId}/messages?matchId=${encodeURIComponent(matchId)}&limit=200`,
+        `/admin/users/${messagesUserId}/messages?matchId=${encodeURIComponent(matchId)}&limit=5000&order=asc`,
         false
       )
       .then((result) => setUserMessages(result.messages || []))
@@ -961,11 +965,14 @@ export default function AdminScreen() {
                             </TouchableOpacity>
                           ) : null}
                           {videoUri ? (
-                            <Text style={styles.messageMediaLink} onPress={() => Linking.openURL(videoUri)}>📹 Open video</Text>
+                            <Video
+                              source={{ uri: videoUri }}
+                              style={styles.adminMessageVideo}
+                              useNativeControls
+                              resizeMode={ResizeMode.CONTAIN}
+                            />
                           ) : null}
-                          {audioUri ? (
-                            <Text style={styles.messageMediaLink} onPress={() => Linking.openURL(audioUri)}>🎤 Open voice message</Text>
-                          ) : null}
+                          {audioUri ? <AdminModerationAudio uri={audioUri} /> : null}
                           {!hasContent && <Text style={styles.messageBody}>—</Text>}
                         </View>
                       );
@@ -993,7 +1000,9 @@ export default function AdminScreen() {
                     >
                       <Text style={styles.matchRowName}>{match.otherUserName}</Text>
                       <Text style={styles.matchRowMeta}>
-                        {match.stage} · Matched {new Date(match.stage1At).toLocaleDateString()}
+                        {match.stage} · {match.messageCount ?? '—'} msgs
+                        {match.otherUserPhone ? ` · ${match.otherUserPhone}` : ''} · Matched{' '}
+                        {new Date(match.stage1At).toLocaleDateString()}
                       </Text>
                     </TouchableOpacity>
                   ))
@@ -1622,6 +1631,14 @@ const styles = StyleSheet.create({
   messageImage: {
     width: 260,
     height: 220,
+  },
+  adminMessageVideo: {
+    width: 280,
+    height: 160,
+    marginTop: 8,
+    borderRadius: 10,
+    backgroundColor: '#000',
+    alignSelf: 'flex-start',
   },
   messageMediaLink: {
     marginTop: 6,

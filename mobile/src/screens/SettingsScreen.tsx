@@ -18,8 +18,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import Purchases from 'react-native-purchases';
 import type { PurchasesPackage } from 'react-native-purchases';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Clipboard from 'expo-clipboard';
 import { api } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { navigationRef } from '../navigation/navigationRef';
@@ -538,104 +536,16 @@ export default function SettingsScreen() {
         </LinearGradient>
       </Animated.View>
 
-      {__DEV__ && (
-        /* Test: Delete Profile + Copy auth token - only visible in development */
-        <Animated.View
-          style={[
-            styles.section,
-            styles.testSection,
-            {
-              opacity: sectionAnimations[4] ?? sectionFallbackAnim,
-              transform: [
-                {
-                  translateY: (sectionAnimations[4] ?? sectionFallbackAnim).interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [30, 0],
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
-          <View style={styles.sectionTitleContainer}>
-            <Text style={styles.sectionEmoji}>🧪</Text>
-            <Text style={styles.sectionTitle}>Test: Delete Profile</Text>
-          </View>
-          <TouchableOpacity
-            style={[styles.button, styles.testButton, { marginBottom: 12 }]}
-            onPress={async () => {
-              try {
-                const token = await AsyncStorage.getItem('token');
-                if (token) {
-                  await Clipboard.setStringAsync(token);
-                  Alert.alert('Copied', 'Auth token copied to clipboard. Use it in: curl -H "Authorization: Bearer <paste>" "https://mulligan-backend.onrender.com/api/users/diagnose/FRIEND_USER_ID"');
-                } else {
-                  Alert.alert('No token', 'You are not logged in.');
-                }
-              } catch (e: any) {
-                Alert.alert('Error', e?.message || 'Failed to copy token');
-              }
-            }}
-          >
-            <Text style={[styles.buttonText, styles.testButtonText]}>📋 Copy auth token (for API debug)</Text>
-          </TouchableOpacity>
-          <Text style={styles.testText}>
-            This will delete your profile (but keep your account). You'll be redirected to create a new profile. Use this to test the profile creation flow.
-          </Text>
-          <TouchableOpacity
-            style={[styles.button, styles.testButton]}
-            onPress={async () => {
-              Alert.alert(
-                'Delete Profile (Test)',
-                'This will delete your profile data. Your account will remain, but you\'ll need to recreate your profile. This is for testing purposes only.',
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Delete Profile',
-                    style: 'destructive',
-                    onPress: async () => {
-                      try {
-                        setLoading(true);
-                        await api.delete('/profile');
-                        await refreshProfile();
-                        try {
-                          const rootNavigation = (navigation as any).getParent?.() || navigation;
-                          if (rootNavigation && rootNavigation.navigate) {
-                            rootNavigation.navigate('CreateProfile');
-                          } else {
-                            (navigation as any).reset({
-                              index: 0,
-                              routes: [{ name: 'CreateProfile' }],
-                            });
-                          }
-                        } catch (navErr: any) {
-                          console.error('Navigation error:', navErr);
-                        }
-                      } catch (err: any) {
-                        Alert.alert('Error', err?.message || 'Failed to delete profile');
-                        setLoading(false);
-                      }
-                    },
-                  },
-                ]
-              );
-            }}
-          >
-            <Text style={[styles.buttonText, styles.testButtonText]}>🧪 Delete My Profile (Test)</Text>
-          </TouchableOpacity>
-        </Animated.View>
-      )}
-
       {/* Delete Account */}
       <Animated.View
         style={[
           styles.section,
           styles.dangerSection,
           {
-            opacity: sectionAnimations[5] ?? sectionFallbackAnim,
+            opacity: sectionAnimations[4] ?? sectionFallbackAnim,
             transform: [
               {
-                translateY: (sectionAnimations[5] ?? sectionFallbackAnim).interpolate({
+                translateY: (sectionAnimations[4] ?? sectionFallbackAnim).interpolate({
                   inputRange: [0, 1],
                   outputRange: [30, 0],
                 }),
@@ -695,10 +605,10 @@ export default function SettingsScreen() {
         style={[
           styles.section,
           {
-            opacity: sectionAnimations[6] ?? sectionFallbackAnim,
+            opacity: sectionAnimations[5] ?? sectionFallbackAnim,
             transform: [
               {
-                translateY: (sectionAnimations[6] ?? sectionFallbackAnim).interpolate({
+                translateY: (sectionAnimations[5] ?? sectionFallbackAnim).interpolate({
                   inputRange: [0, 1],
                   outputRange: [30, 0],
                 }),
@@ -726,10 +636,10 @@ export default function SettingsScreen() {
         style={[
           styles.section,
           {
-            opacity: sectionAnimations[7] ?? sectionFallbackAnim,
+            opacity: sectionAnimations[6] ?? sectionFallbackAnim,
             transform: [
               {
-                translateY: (sectionAnimations[7] ?? sectionFallbackAnim).interpolate({
+                translateY: (sectionAnimations[6] ?? sectionFallbackAnim).interpolate({
                   inputRange: [0, 1],
                   outputRange: [30, 0],
                 }),
@@ -1487,41 +1397,6 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 16,
     color: '#666',
-  },
-  testSection: {
-    backgroundColor: 'rgba(255, 193, 7, 0.08)',
-    borderRadius: 24,
-    padding: 24,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 193, 7, 0.25)',
-    borderStyle: 'dashed',
-    marginBottom: 24,
-  },
-  testText: {
-    fontSize: 15,
-    color: 'rgba(255, 255, 255, 0.85)',
-    marginBottom: 20,
-    lineHeight: 22,
-    fontWeight: '500',
-    letterSpacing: 0.1,
-  },
-  testButton: {
-    backgroundColor: '#ffc107',
-    paddingVertical: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 20,
-    shadowColor: '#ffc107',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  testButtonText: {
-    color: '#1a1a1a',
-    fontWeight: '800',
-    fontSize: 16,
-    letterSpacing: 0.3,
   },
   preferencesCard: {
     borderRadius: 24,

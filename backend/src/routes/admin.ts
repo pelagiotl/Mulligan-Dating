@@ -459,7 +459,7 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
     if (filter === 'restricted') {
       const baseWhere = 'COALESCE(u.is_restricted, 0) = 1 AND COALESCE(u.is_admin, 0) = 0';
       const searchWhere = search
-        ? ` AND (u.email LIKE ? OR p.display_name LIKE ? OR u.phone_number LIKE ?)`
+        ? ` AND (u.email LIKE ? OR p.display_name LIKE ? OR u.phone_number LIKE ? OR u.id LIKE ?)`
         : '';
       const searchTerm = `%${search}%`;
       const query = `
@@ -472,7 +472,7 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
         ORDER BY u.created_at DESC
         LIMIT ? OFFSET ?
       `;
-      const params = search ? [searchTerm, searchTerm, searchTerm, limit, offset] : [limit, offset];
+      const params = search ? [searchTerm, searchTerm, searchTerm, searchTerm, limit, offset] : [limit, offset];
       const usersResult = await (db.prepare(query).all(params) as Promise<any[]>);
 
       const countQuery = `
@@ -480,7 +480,7 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
         LEFT JOIN profiles p ON p.user_id = u.id
         WHERE ${baseWhere}${searchWhere}
       `;
-      const countParams = search ? [searchTerm, searchTerm, searchTerm] : [];
+      const countParams = search ? [searchTerm, searchTerm, searchTerm, searchTerm] : [];
       const totalResult = await (db.prepare(countQuery).get(countParams) as Promise<{ count: number }>);
       const total = totalResult?.count || 0;
 
@@ -543,9 +543,9 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
     }
 
     if (search) {
-      conditions.push('(u.email LIKE ? OR p.display_name LIKE ? OR u.phone_number LIKE ?)');
+      conditions.push('(u.email LIKE ? OR p.display_name LIKE ? OR u.phone_number LIKE ? OR u.id LIKE ?)');
       const searchTerm = `%${search}%`;
-      params.push(searchTerm, searchTerm, searchTerm);
+      params.push(searchTerm, searchTerm, searchTerm, searchTerm);
     }
 
     if (conditions.length > 0) {
@@ -570,8 +570,9 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
     }
     if (search) {
       countQuery += countQuery.includes('WHERE') ? ' AND ' : ' WHERE ';
-      countQuery += '(u.email LIKE ? OR p.display_name LIKE ? OR u.phone_number LIKE ?)';
-      countParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
+      countQuery += '(u.email LIKE ? OR p.display_name LIKE ? OR u.phone_number LIKE ? OR u.id LIKE ?)';
+      const st = `%${search}%`;
+      countParams.push(st, st, st, st);
     }
     const totalResult = await (db.prepare(countQuery).get(countParams) as Promise<{ count: number }>);
     const total = totalResult?.count || 0;
@@ -851,18 +852,25 @@ adminRouter.post('/users/:id/set-admin', authenticateToken, requireAdmin, async 
   }
 });
 
-// List matches for a user (for admin messages: pick a conversation)
+// List matches for a user (for admin: pick a conversation to review messages)
+// includeExpired: default true so moderators can review old / expired threads (?includeExpired=false to hide)
 adminRouter.get('/users/:id/matches', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const userId = req.params.id;
+    const includeExpired =
+      req.query.includeExpired !== 'false' && req.query.includeExpired !== '0';
+
+    const stageClause = includeExpired ? '' : ` AND m.stage != 'expired'`;
 
     const matchesResult = await (db.prepare(`
       SELECT m.id as match_id, m.stage, m.stage1_at,
-        u2.id as other_user_id, p2.display_name as other_user_name
+        u2.id as other_user_id, p2.display_name as other_user_name,
+        u2.phone_number as other_user_phone,
+        (SELECT COUNT(*) FROM messages msg WHERE msg.match_id = m.id) as message_count
       FROM matches m
       JOIN users u2 ON u2.id = CASE WHEN m.user1_id = ? THEN m.user2_id ELSE m.user1_id END
       LEFT JOIN profiles p2 ON p2.user_id = u2.id
-      WHERE (m.user1_id = ? OR m.user2_id = ?) AND m.stage != 'expired'
+      WHERE (m.user1_id = ? OR m.user2_id = ?)${stageClause}
       ORDER BY m.stage1_at DESC
     `).all([userId, userId, userId]) as Promise<any[]>);
 
@@ -871,7 +879,9 @@ adminRouter.get('/users/:id/matches', authenticateToken, requireAdmin, async (re
       stage: m.stage,
       stage1At: m.stage1_at,
       otherUserId: m.other_user_id,
-      otherUserName: m.other_user_name || 'Unknown'
+      otherUserName: m.other_user_name || 'Unknown',
+      otherUserPhone: m.other_user_phone || null,
+      messageCount: Math.floor(Number(m.message_count ?? 0)),
     }));
 
     res.json({ matches });
@@ -881,15 +891,43 @@ adminRouter.get('/users/:id/matches', authenticateToken, requireAdmin, async (re
   }
 });
 
-// Get user messages (optional ?matchId= to filter to one conversation)
+// Get user messages (optional ?matchId= for one conversation).
+// Query: limit (default 2000, max 5000), offset, order=asc|desc (default asc when matchId set, else desc).
 adminRouter.get('/users/:id/messages', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const userId = req.params.id;
     const matchId = req.query.matchId as string | undefined;
-    const limit = parseInt(req.query.limit as string) || 50;
+    const rawLimit = parseInt(String(req.query.limit || ''), 10);
+    const limit = Math.min(Math.max(Number.isFinite(rawLimit) ? rawLimit : 2000, 1), 5000);
+    const rawOffset = parseInt(String(req.query.offset || ''), 10);
+    const offset = Math.max(Number.isFinite(rawOffset) ? rawOffset : 0, 0);
 
-    // Parentheses required: (user in match) AND (optional match filter). Without them,
-    // `OR` + `AND matchId` binds wrong and returns messages from other conversations.
+    let orderDir = 'DESC';
+    if (req.query.order === 'asc' || req.query.order === 'ASC') {
+      orderDir = 'ASC';
+    } else if (req.query.order === 'desc' || req.query.order === 'DESC') {
+      orderDir = 'DESC';
+    } else if (matchId) {
+      orderDir = 'ASC';
+    }
+
+    const baseWhere = `(ma.user1_id = ? OR ma.user2_id = ?)`;
+    const whereParams: any[] = [userId, userId];
+    let matchClause = '';
+    if (matchId) {
+      matchClause = ` AND m.match_id = ?`;
+      whereParams.push(matchId);
+    }
+
+    const countSql = `
+      SELECT COUNT(*) as count
+      FROM messages m
+      INNER JOIN matches ma ON ma.id = m.match_id
+      WHERE ${baseWhere}${matchClause}
+    `;
+    const countRow = await (db.prepare(countSql).get(whereParams) as Promise<{ count: number | string } | undefined>);
+    const total = Math.floor(Number(countRow?.count ?? 0));
+
     let query = `
       SELECT 
         m.id, m.content, m.sent_at, m.read_at, m.match_id, m.image_url, m.video_url, m.audio_url,
@@ -897,20 +935,16 @@ adminRouter.get('/users/:id/messages', authenticateToken, requireAdmin, async (r
         u2.id as other_user_id, p2.display_name as other_user_name,
         CASE WHEN m.sender_id = ? THEN 0 ELSE 1 END as is_from_target_user
       FROM messages m
-      LEFT JOIN matches ma ON ma.id = m.match_id
+      INNER JOIN matches ma ON ma.id = m.match_id
       LEFT JOIN users u1 ON u1.id = m.sender_id
       LEFT JOIN profiles p1 ON p1.user_id = m.sender_id
       LEFT JOIN users u2 ON u2.id = CASE WHEN m.sender_id = ma.user1_id THEN ma.user2_id ELSE ma.user1_id END
       LEFT JOIN profiles p2 ON p2.user_id = u2.id
-      WHERE (ma.user1_id = ? OR ma.user2_id = ?)
+      WHERE ${baseWhere}${matchClause}
+      ORDER BY m.sent_at ${orderDir}, m.id ${orderDir}
+      LIMIT ? OFFSET ?
     `;
-    const params: any[] = [userId, userId, userId];
-    if (matchId) {
-      query += ` AND m.match_id = ?`;
-      params.push(matchId);
-    }
-    query += ` ORDER BY m.sent_at DESC LIMIT ?`;
-    params.push(limit);
+    const params: any[] = [userId, ...whereParams, limit, offset];
 
     const messagesResult = await (db.prepare(query).all(params) as Promise<any[]>);
 
@@ -922,6 +956,7 @@ adminRouter.get('/users/:id/messages', authenticateToken, requireAdmin, async (r
       audioUrl: m.audio_url || null,
       senderId: m.sender_id,
       senderName: m.sender_name || 'Unknown',
+      otherUserId: m.other_user_id,
       otherUserName: m.other_user_name || 'Unknown',
       matchId: m.match_id,
       sentAt: m.sent_at,
@@ -931,7 +966,10 @@ adminRouter.get('/users/:id/messages', authenticateToken, requireAdmin, async (r
 
     res.json({
       messages,
-      total: messages.length
+      total,
+      limit,
+      offset,
+      hasMore: offset + messages.length < total,
     });
   } catch (error: any) {
     console.error('Error fetching user messages:', error);

@@ -3,6 +3,18 @@ import { api } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import './Admin.css';
 
+const API_ORIGIN = String(
+  (import.meta.env as any).VITE_API_URL || (import.meta.env as any).VITE_NGROK_URL || ''
+).replace(/\/$/, '');
+
+function resolveAdminMediaUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const u = url.trim();
+  if (!u) return null;
+  if (u.startsWith('http://') || u.startsWith('https://')) return u;
+  return `${API_ORIGIN}${u.startsWith('/') ? '' : '/'}${u}`;
+}
+
 interface User {
   id: string;
   email: string;
@@ -17,6 +29,16 @@ interface User {
   tokenCount: number;
 }
 
+interface AdminMatchRow {
+  matchId: string;
+  stage: string;
+  stage1At: string;
+  otherUserId: string;
+  otherUserName: string;
+  otherUserPhone: string | null;
+  messageCount: number;
+}
+
 interface Message {
   id: string;
   content: string;
@@ -25,6 +47,7 @@ interface Message {
   audioUrl?: string | null;
   senderId: string;
   senderName: string;
+  otherUserId?: string;
   otherUserName?: string;
   matchId: string;
   sentAt: string;
@@ -59,10 +82,18 @@ export default function Admin() {
   const [pagination, setPagination] = useState({ total: 0, totalPages: 1 });
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [showMessages, setShowMessages] = useState(false);
+  const [userMatches, setUserMatches] = useState<AdminMatchRow[]>([]);
+  const [loadingMatches, setLoadingMatches] = useState(false);
+  const [matchesError, setMatchesError] = useState<string | null>(null);
+  const [selectedConversation, setSelectedConversation] = useState<{
+    matchId: string;
+    otherUserName: string;
+  } | null>(null);
   const [userMessages, setUserMessages] = useState<Message[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [messagesError, setMessagesError] = useState<string | null>(null);
+  const [messagesTotal, setMessagesTotal] = useState(0);
+  const [messagesHasMore, setMessagesHasMore] = useState(false);
   const messagesSectionRef = useRef<HTMLDivElement | null>(null);
 
   // Check if current user is the super admin
@@ -105,56 +136,95 @@ export default function Admin() {
     try {
       const data = await api.get<UserDetails>(`/admin/users/${userId}`);
       setSelectedUser(data);
-      setShowMessages(false);
+      setSelectedConversation(null);
       setUserMessages([]);
       setMessagesError(null);
+      setMatchesError(null);
+      setUserMatches([]);
+      setMessagesTotal(0);
+      setMessagesHasMore(false);
+      void fetchUserMatches(userId);
     } catch (error) {
       console.error('Failed to fetch user details:', error);
       setMessage({ type: 'error', text: 'Failed to load user details' });
     }
   };
 
-  const fetchUserMessages = async (userId: string) => {
-    if (!userId) {
-      setMessage({ type: 'error', text: 'User ID is missing' });
-      return;
+  const fetchUserMatches = async (userId: string) => {
+    setLoadingMatches(true);
+    setMatchesError(null);
+    try {
+      const data = await api.get<{ matches: AdminMatchRow[] }>(`/admin/users/${userId}/matches`);
+      setUserMatches(data.matches || []);
+    } catch (error: any) {
+      console.error('Failed to fetch user matches:', error);
+      const err = error.message || 'Failed to load conversations';
+      setMatchesError(err);
+      setUserMatches([]);
+    } finally {
+      setLoadingMatches(false);
     }
+  };
 
+  const fetchConversationMessages = async (userId: string, matchId: string, offset: number) => {
+    const append = offset > 0;
     setLoadingMessages(true);
     setMessagesError(null);
-    setMessage(null);
-    setShowMessages(true);
     try {
-      const endpoint = `/admin/users/${userId}/messages?limit=200`;
-      const data = await api.get<{ messages: Message[]; total: number }>(endpoint);
-      const messages = data.messages || [];
-      setUserMessages(messages);
-      setMessagesError(null);
+      const params = new URLSearchParams({
+        matchId,
+        limit: '2000',
+        order: 'asc',
+        offset: String(offset),
+      });
+      const data = await api.get<{
+        messages: Message[];
+        total: number;
+        hasMore: boolean;
+      }>(`/admin/users/${userId}/messages?${params}`);
+      const batch = data.messages || [];
+      setUserMessages((prev) => (append ? [...prev, ...batch] : batch));
+      setMessagesTotal(typeof data.total === 'number' ? data.total : batch.length);
+      setMessagesHasMore(Boolean(data.hasMore));
 
       requestAnimationFrame(() => {
         messagesSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
-
-      if (messages.length === 0) {
-        setMessage({ type: 'success', text: 'No messages found for this user' });
-        setTimeout(() => setMessage(null), 4000);
-      } else {
-        setMessage({
-          type: 'success',
-          text: `Loaded ${messages.length} message${messages.length !== 1 ? 's' : ''}`,
-        });
-        setTimeout(() => setMessage(null), 3000);
-      }
     } catch (error: any) {
       console.error('Failed to fetch messages:', error);
-      const errorMessage =
-        error.message || error.response?.data?.error || 'Failed to load messages';
+      const errorMessage = error.message || 'Failed to load messages';
       setMessagesError(errorMessage);
-      setUserMessages([]);
+      if (!append) setUserMessages([]);
       setMessage({ type: 'error', text: errorMessage });
     } finally {
       setLoadingMessages(false);
     }
+  };
+
+  const openConversation = (matchId: string, otherUserName: string) => {
+    if (!selectedUser?.id) return;
+    setSelectedConversation({ matchId, otherUserName });
+    setUserMessages([]);
+    setMessagesTotal(0);
+    setMessagesHasMore(false);
+    void fetchConversationMessages(selectedUser.id, matchId, 0);
+  };
+
+  const backToConversationList = () => {
+    setSelectedConversation(null);
+    setUserMessages([]);
+    setMessagesError(null);
+    setMessagesTotal(0);
+    setMessagesHasMore(false);
+  };
+
+  const loadMoreConversationMessages = () => {
+    if (!selectedUser?.id || !selectedConversation || loadingMessages || !messagesHasMore) return;
+    void fetchConversationMessages(
+      selectedUser.id,
+      selectedConversation.matchId,
+      userMessages.length
+    );
   };
 
   const restrictUser = async (userId: string, restricted: boolean) => {
@@ -528,107 +598,182 @@ export default function Admin() {
               </div>
 
               <div className="detail-section" ref={messagesSectionRef} id="admin-messages-section">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-3)' }}>
-                  <h3 style={{ margin: 0 }}>Messages</h3>
-                  {!showMessages ? (
-                    <button
-                      className="btn btn-sm btn-primary"
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        if (selectedUser?.id) {
-                          fetchUserMessages(selectedUser.id);
-                        } else {
-                          setMessage({ type: 'error', text: 'User ID is missing. Please select a user first.' });
-                        }
-                      }}
-                      disabled={loadingMessages}
-                    >
-                      {loadingMessages ? 'Loading...' : 'View Messages'}
-                    </button>
-                  ) : (
-                    <button
-                      className="btn btn-sm btn-secondary"
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowMessages(false);
-                        setUserMessages([]);
-                        setMessagesError(null);
-                      }}
-                    >
-                      Hide Messages
-                    </button>
-                  )}
+                <div className="admin-moderation-header">
+                  <h3 style={{ margin: 0 }}>Messages (moderation)</h3>
+                  <p className="admin-moderation-sub">
+                    Open a matched conversation to review full history: text, photos, video, and voice notes. Expired
+                    matches are included.
+                  </p>
                 </div>
-                {loadingMessages && (
-                  <div style={{ padding: 'var(--space-4)', textAlign: 'center', color: 'var(--text-muted)' }}>
-                    Loading messages...
+
+                {loadingMatches && (
+                  <p className="admin-moderation-muted">Loading conversations…</p>
+                )}
+                {matchesError && (
+                  <p className="admin-messages-error" style={{ fontWeight: 600 }}>
+                    {matchesError}
+                  </p>
+                )}
+
+                {!loadingMatches && !matchesError && !selectedConversation && (
+                  <div className="admin-conversation-list">
+                    {userMatches.length === 0 ? (
+                      <p className="admin-moderation-muted">No matched conversations for this user.</p>
+                    ) : (
+                      userMatches.map((m) => (
+                        <button
+                          key={m.matchId}
+                          type="button"
+                          className="admin-conversation-row"
+                          onClick={() => openConversation(m.matchId, m.otherUserName)}
+                        >
+                          <div className="admin-conversation-row-main">
+                            <strong>{m.otherUserName}</strong>
+                            <span className="admin-conversation-meta">
+                              {m.stage}
+                              {m.otherUserPhone ? ` · ${m.otherUserPhone}` : ''}
+                            </span>
+                          </div>
+                          <div className="admin-conversation-row-sub">
+                            {m.messageCount} message{m.messageCount !== 1 ? 's' : ''} · matched{' '}
+                            {m.stage1At ? new Date(m.stage1At).toLocaleDateString() : '—'}
+                          </div>
+                        </button>
+                      ))
+                    )}
+                    {selectedUser?.id && (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-secondary admin-refresh-convos"
+                        onClick={() => fetchUserMatches(selectedUser.id)}
+                      >
+                        Refresh conversation list
+                      </button>
+                    )}
                   </div>
                 )}
-                {showMessages && !loadingMessages && (
-                  <div className="admin-messages-list">
-                    {messagesError ? (
-                      <p
-                        className="admin-messages-error"
-                        style={{
-                          color: 'var(--color-rose-700, #be123c)',
-                          padding: 'var(--space-4)',
-                          fontWeight: 600,
-                        }}
-                      >
+
+                {selectedConversation && (
+                  <div className="admin-thread-panel">
+                    <div className="admin-thread-toolbar">
+                      <button type="button" className="btn btn-sm btn-secondary" onClick={backToConversationList}>
+                        ← All conversations
+                      </button>
+                      <span className="admin-thread-title">
+                        With <strong>{selectedConversation.otherUserName}</strong>
+                        <span className="admin-thread-count">
+                          {messagesTotal > 0
+                            ? ` · ${userMessages.length} loaded${messagesTotal > userMessages.length ? ` of ${messagesTotal}` : ''}`
+                            : ''}
+                        </span>
+                      </span>
+                    </div>
+
+                    {loadingMessages && userMessages.length === 0 && (
+                      <p className="admin-moderation-muted">Loading messages…</p>
+                    )}
+
+                    {messagesError && (
+                      <p className="admin-messages-error" style={{ fontWeight: 600 }}>
                         {messagesError}
                       </p>
-                    ) : userMessages.length === 0 ? (
-                      <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', padding: 'var(--space-4)' }}>No messages found</p>
-                    ) : (
-                      <div className="admin-messages-scroll" style={{ maxHeight: '400px', overflowY: 'auto', padding: 'var(--space-2)' }}>
-                        {userMessages.map((msg) => (
-                          <div
-                            key={msg.id}
-                            className={`admin-message-item ${msg.isFromTargetUser ? 'from-user' : 'to-user'}`}
-                          >
-                            <div className="admin-message-header">
-                              <strong>{msg.senderName}</strong>
-                              {msg.otherUserName && (
-                                <span className="admin-message-to"> → {msg.otherUserName}</span>
+                    )}
+
+                    {!messagesError && userMessages.length === 0 && !loadingMessages && (
+                      <p className="admin-moderation-muted">No messages in this conversation.</p>
+                    )}
+
+                    {userMessages.length > 0 && (
+                      <div className="admin-messages-scroll admin-messages-scroll-tall">
+                        {userMessages.map((msg) => {
+                          const imgSrc = resolveAdminMediaUrl(msg.imageUrl ?? null);
+                          const videoSrc = resolveAdminMediaUrl(msg.videoUrl ?? null);
+                          const audioSrc = resolveAdminMediaUrl(msg.audioUrl ?? null);
+                          return (
+                            <div
+                              key={msg.id}
+                              className={`admin-message-item ${msg.isFromTargetUser ? 'from-user' : 'to-user'}`}
+                            >
+                              <div className="admin-message-header">
+                                <strong>{msg.senderName}</strong>
+                                {msg.otherUserName && (
+                                  <span className="admin-message-to"> → {msg.otherUserName}</span>
+                                )}
+                                <span className="admin-message-time">
+                                  {new Date(msg.sentAt).toLocaleString()}
+                                </span>
+                              </div>
+                              {msg.content || imgSrc || videoSrc || audioSrc ? (
+                                <>
+                                  {msg.content ? (
+                                    <div className="admin-message-content">{msg.content}</div>
+                                  ) : null}
+                                  {imgSrc ? (
+                                    <div className="admin-message-media">
+                                      <a
+                                        href={imgSrc}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="admin-message-photo-link"
+                                      >
+                                        <img src={imgSrc} alt="Sent attachment" className="admin-message-photo" />
+                                      </a>
+                                      <span className="admin-message-media-label">Photo · open full size</span>
+                                    </div>
+                                  ) : null}
+                                  {videoSrc ? (
+                                    <div className="admin-message-media">
+                                      <video
+                                        className="admin-message-video"
+                                        controls
+                                        playsInline
+                                        preload="metadata"
+                                        src={videoSrc}
+                                      >
+                                        <a href={videoSrc} target="_blank" rel="noopener noreferrer">
+                                          Open video
+                                        </a>
+                                      </video>
+                                    </div>
+                                  ) : null}
+                                  {audioSrc ? (
+                                    <div className="admin-message-media">
+                                      <audio
+                                        className="admin-message-audio"
+                                        controls
+                                        preload="metadata"
+                                        src={audioSrc}
+                                      >
+                                        <a href={audioSrc} target="_blank" rel="noopener noreferrer">
+                                          Open voice message
+                                        </a>
+                                      </audio>
+                                    </div>
+                                  ) : null}
+                                </>
+                              ) : (
+                                <div className="admin-message-content admin-message-empty">—</div>
                               )}
-                              <span className="admin-message-time">
-                                {new Date(msg.sentAt).toLocaleString()}
-                              </span>
+                              {msg.readAt && (
+                                <div className="admin-message-read">
+                                  ✓ Read {new Date(msg.readAt).toLocaleString()}
+                                </div>
+                              )}
                             </div>
-                            {(msg.content || msg.imageUrl || msg.videoUrl || msg.audioUrl) ? (
-                              <>
-                                {msg.content && <div className="admin-message-content">{msg.content}</div>}
-                                {msg.imageUrl && (
-                                  <div className="admin-message-media">
-                                    <a href={msg.imageUrl} target="_blank" rel="noopener noreferrer" className="admin-message-photo-link">
-                                      <img src={msg.imageUrl} alt="Sent photo" className="admin-message-photo" />
-                                    </a>
-                                    <span className="admin-message-media-label">Photo</span>
-                                  </div>
-                                )}
-                                {msg.videoUrl && (
-                                  <div className="admin-message-media">
-                                    <a href={msg.videoUrl} target="_blank" rel="noopener noreferrer" className="admin-message-media-link">📹 Open video</a>
-                                  </div>
-                                )}
-                                {msg.audioUrl && (
-                                  <div className="admin-message-media">
-                                    <a href={msg.audioUrl} target="_blank" rel="noopener noreferrer" className="admin-message-media-link">🎤 Open voice message</a>
-                                  </div>
-                                )}
-                              </>
-                            ) : (
-                              <div className="admin-message-content admin-message-empty">—</div>
-                            )}
-                            {msg.readAt && (
-                              <div className="admin-message-read">✓ Read {new Date(msg.readAt).toLocaleString()}</div>
-                            )}
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
+                    )}
+
+                    {messagesHasMore && (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-primary admin-load-more-msgs"
+                        onClick={loadMoreConversationMessages}
+                        disabled={loadingMessages}
+                      >
+                        {loadingMessages ? 'Loading…' : 'Load more messages'}
+                      </button>
                     )}
                   </div>
                 )}

@@ -727,6 +727,137 @@
   margin-top: var(--space-1);
 }
 
+.admin-message-video {
+  display: block;
+  max-width: 100%;
+  max-height: 280px;
+  border-radius: var(--radius-md);
+  background: #111;
+}
+
+.admin-message-audio {
+  display: block;
+  width: 100%;
+  max-width: 360px;
+  margin-top: var(--space-2);
+}
+
+/* ----- Moderation: conversations + thread ----- */
+.admin-moderation-header {
+  margin-bottom: var(--space-3);
+}
+
+.admin-moderation-sub {
+  margin: var(--space-2) 0 0 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+  max-width: 52rem;
+}
+
+.admin-moderation-muted {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  margin: var(--space-2) 0;
+}
+
+.admin-conversation-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.admin-conversation-row {
+  text-align: left;
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-rose-200);
+  background: linear-gradient(135deg, #fff 0%, var(--color-rose-50) 100%);
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  font: inherit;
+  color: inherit;
+}
+
+.admin-conversation-row:hover {
+  border-color: var(--color-rose-400);
+  box-shadow: var(--shadow-sm);
+}
+
+.admin-conversation-row-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.admin-conversation-meta {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.admin-conversation-row-sub {
+  margin-top: var(--space-1);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.admin-refresh-convos {
+  align-self: flex-start;
+  margin-top: var(--space-2);
+}
+
+.admin-thread-panel {
+  margin-top: var(--space-3);
+  animation: adminFadeIn 0.25s ease-out;
+}
+
+.admin-thread-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.admin-thread-title {
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+
+.admin-thread-count {
+  font-weight: 400;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.admin-messages-scroll-tall {
+  max-height: min(70vh, 640px);
+  overflow-y: auto;
+  padding: var(--space-2);
+  margin-top: var(--space-2);
+  border: 1px solid var(--color-rose-100);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.6);
+  scrollbar-width: thin;
+}
+
+.admin-messages-scroll-tall::-webkit-scrollbar {
+  display: block;
+  width: 8px;
+}
+
+.admin-messages-scroll-tall::-webkit-scrollbar-thumb {
+  background: var(--color-rose-200);
+  border-radius: 4px;
+}
+
+.admin-load-more-msgs {
+  margin-top: var(--space-3);
+}
+
 /* ----- Responsive ----- */
 @media (max-width: 1024px) {
   .admin-content {

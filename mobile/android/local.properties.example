@@ -1,0 +1,3 @@
+## Copy to local.properties and fix the path (required for CLI builds: npx expo run:android).
+## Android Studio: Settings → Languages & Frameworks → Android SDK → "Android SDK location".
+sdk.dir=/Users/YOUR_USERNAME/Library/Android/sdk

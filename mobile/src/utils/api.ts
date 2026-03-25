@@ -4,12 +4,19 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 import { apiCache, APICache } from './apiCache';
 import { getStoredPushToken, shouldSendTokenToServer } from './pushTokenStore';
 
 // API URL - use EXPO_PUBLIC_ for production builds, fallback to hardcoded production URL
 export const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://mulligan-backend.onrender.com';
 const BASE_URL = `${API_URL}/api`;
+
+const APP_VERSION =
+  Constants.expoConfig?.version ?? (Constants.manifest as { version?: string } | null)?.version ?? '1.0.0';
+/** OkHttp’s default UA is often blocked by edge/WAF on SMS routes; browsers and curl use a recognizable UA. */
+const DEFAULT_API_USER_AGENT = `Mulligan/${APP_VERSION} (${Platform.OS === 'ios' ? 'iOS' : 'Android'}; ReactNative)`;
 
 let tokenCache: string | null | undefined = undefined;
 let pushTokenHeaderLogged = false;
@@ -64,6 +71,110 @@ class ApiError extends Error {
   }
 }
 
+/** RN Android reports "Network request failed"; browsers use "Failed to fetch", etc. */
+function isLikelyNetworkTransportFailure(error: unknown): boolean {
+  const raw =
+    error instanceof Error
+      ? error.message
+      : typeof error === 'object' &&
+          error !== null &&
+          'message' in error &&
+          typeof (error as { message: unknown }).message === 'string'
+        ? (error as { message: string }).message
+        : typeof error === 'string'
+          ? error
+          : '';
+  if (!raw) return false;
+  const m = raw.toLowerCase();
+  return (
+    m.includes('failed to fetch') ||
+    m.includes('networkerror') ||
+    m.includes('network request failed') ||
+    m.includes('load failed') ||
+    m.includes('internet connection appears to be offline')
+  );
+}
+
+function completeXhrToResponse(xhr: XMLHttpRequest): Response {
+  const h = new Headers();
+  const block = xhr.getAllResponseHeaders();
+  if (block) {
+    for (const line of block.trim().split(/[\r\n]+/)) {
+      const idx = line.indexOf(':');
+      if (idx > 0) {
+        const name = line.slice(0, idx).trim();
+        const value = line.slice(idx + 1).trim();
+        if (name) h.append(name, value);
+      }
+    }
+  }
+  return new Response(xhr.responseText, {
+    status: xhr.status,
+    statusText: xhr.statusText,
+    headers: h,
+  });
+}
+
+function applyXhrHeaders(xhr: XMLHttpRequest, headerObj: Record<string, string>) {
+  for (const [key, value] of Object.entries(headerObj)) {
+    try {
+      xhr.setRequestHeader(key, value);
+    } catch {
+      /* ignore disallowed header names */
+    }
+  }
+}
+
+/**
+ * When fetch() fails on some Android AVDs (e.g. tablet images), XHR can still succeed.
+ */
+function androidGetViaXhr(
+  urlStr: string,
+  headerObj: Record<string, string>,
+  xhrTimeoutMs: number,
+): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.timeout = xhrTimeoutMs;
+    xhr.onload = () => {
+      try {
+        resolve(completeXhrToResponse(xhr));
+      } catch (err) {
+        reject(err instanceof Error ? err : new Error(String(err)));
+      }
+    };
+    xhr.onerror = () => reject(new TypeError('Network request failed'));
+    xhr.ontimeout = () => reject(new TypeError('Network request failed'));
+    xhr.open('GET', urlStr);
+    applyXhrHeaders(xhr, headerObj);
+    xhr.send();
+  });
+}
+
+function androidPostJsonViaXhr(
+  urlStr: string,
+  headerObj: Record<string, string>,
+  jsonBody: string,
+  xhrTimeoutMs: number,
+): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.timeout = xhrTimeoutMs;
+    xhr.onload = () => {
+      try {
+        resolve(completeXhrToResponse(xhr));
+      } catch (err) {
+        reject(err instanceof Error ? err : new Error(String(err)));
+      }
+    };
+    xhr.onerror = () => reject(new TypeError('Network request failed'));
+    xhr.ontimeout = () => reject(new TypeError('Network request failed'));
+    xhr.open('POST', urlStr);
+    applyXhrHeaders(xhr, headerObj);
+    xhr.send(jsonBody);
+  });
+}
+
 type RequestOptions = RequestInit & { body?: any; timeoutMs?: number };
 
 async function request<T = any>(endpoint: string, options: RequestOptions = {}, useCache: boolean = true): Promise<T> {
@@ -85,6 +196,9 @@ async function request<T = any>(endpoint: string, options: RequestOptions = {}, 
   
   // Check if body is FormData - if so, don't set Content-Type (let fetch set it with boundary)
   const isFormData = options.body instanceof FormData;
+  const methodUpper = (options.method || 'GET').toUpperCase();
+  const sendsJsonBody =
+    methodUpper === 'POST' || methodUpper === 'PUT' || methodUpper === 'PATCH';
   
   // Build headers object - merge any existing headers from options first
   const headers: Record<string, string> = {};
@@ -104,9 +218,22 @@ async function request<T = any>(endpoint: string, options: RequestOptions = {}, 
     }
   }
   
-  // Set Content-Type if not FormData
-  if (!isFormData && !headers['Content-Type']) {
+  // JSON Content-Type only when we send a body — GET + application/json breaks some Android OkHttp paths.
+  if (!isFormData && !headers['Content-Type'] && sendsJsonBody) {
     headers['Content-Type'] = 'application/json';
+  }
+
+  if (!headers['User-Agent'] && !headers['user-agent']) {
+    headers['User-Agent'] = DEFAULT_API_USER_AGENT;
+  }
+
+  if (
+    Platform.OS === 'android' &&
+    !isGetRequest &&
+    !headers.Connection &&
+    !headers.connection
+  ) {
+    headers.Connection = 'close';
   }
 
   // Set Authorization header if we have a valid token (no warning when missing — expected when logged out)
@@ -114,8 +241,11 @@ async function request<T = any>(endpoint: string, options: RequestOptions = {}, 
     headers['Authorization'] = `Bearer ${token.trim()}`;
   }
 
-  // Send push token only when it came from fresh registration this session (avoids overwriting server with stale token after app update)
-  if (shouldSendTokenToServer()) {
+  const isPreAuthSmsEndpoint =
+    endpoint === '/sms/send-code' || endpoint === '/sms/verify-code';
+
+  // Push token on GET caused Android transport failures for /tokens; POST /auth/push-token + non-GET requests are enough.
+  if (!isPreAuthSmsEndpoint && !isGetRequest && shouldSendTokenToServer()) {
     const pushToken = getStoredPushToken();
     if (pushToken?.trim()) {
       headers['X-Push-Token'] = pushToken.trim();
@@ -134,25 +264,125 @@ async function request<T = any>(endpoint: string, options: RequestOptions = {}, 
 
   // Timeout: longer for message send (consecutive sends / slow server), default 45s
   const timeoutMs = options.timeoutMs ?? 45000;
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
   const url = `${BASE_URL}${endpoint}`;
+  const { timeoutMs: _timeoutOpt, body: _bodyInOptions, ...restOptionsForFetch } = options;
+  /**
+   * Android OkHttp + RN fetch: including `body` on GET (even undefined) can trigger
+   * "Network request failed" while POST to the same host still works.
+   */
+  const buildFetchInit = (signal: AbortSignal): RequestInit => {
+    if (isGetRequest) {
+      return { ...restOptionsForFetch, headers, signal };
+    }
+    return { ...restOptionsForFetch, headers, body, signal };
+  };
 
-  const doRequest = async (): Promise<Response> => {
-    const { timeoutMs: _tm, ...restOptions } = options;
-    const fetchOptions: RequestInit = {
-      ...restOptions,
-      headers,
-      body,
-      signal: controller.signal,
-    };
-    return fetch(url, fetchOptions);
+  /** Android often surfaces flaky TLS/DNS as "Network request failed"; GET + pre-auth SMS POST retry safely. */
+  const transportAttempts =
+    isGetRequest || (isPreAuthSmsEndpoint && !isGetRequest) ? 3 : 1;
+
+  const fetchOnceWithTimeout = async (): Promise<Response> => {
+    const controller = new AbortController();
+    const attemptTid = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, buildFetchInit(controller.signal));
+    } finally {
+      clearTimeout(attemptTid);
+    }
+  };
+
+  const obtainResponse = async (): Promise<Response> => {
+    const preferXhrFirst =
+      Platform.OS === 'android' && isGetRequest && !isFormData;
+    if (preferXhrFirst) {
+      try {
+        const r = await androidGetViaXhr(url, headers, timeoutMs);
+        if (__DEV__) {
+          console.log(`📡 Android GET via XMLHttpRequest: ${endpoint}`);
+        }
+        return r;
+      } catch (xhrErr) {
+        if (__DEV__) {
+          console.warn(`⚠️ Android XHR GET failed for ${endpoint}, using fetch`, xhrErr);
+        }
+      }
+    }
+
+    const preferSmsXhrFirst =
+      Platform.OS === 'android' &&
+      methodUpper === 'POST' &&
+      isPreAuthSmsEndpoint &&
+      typeof body === 'string' &&
+      !isFormData;
+    if (preferSmsXhrFirst) {
+      try {
+        const r = await androidPostJsonViaXhr(url, headers, body, timeoutMs);
+        if (__DEV__) {
+          console.log(`📡 Android SMS POST via XMLHttpRequest: ${endpoint}`);
+        }
+        return r;
+      } catch (xhrErr) {
+        if (__DEV__) {
+          console.warn(`⚠️ Android XHR SMS POST failed for ${endpoint}, using fetch`, xhrErr);
+        }
+      }
+    }
+
+    let lastErr: unknown;
+    for (let i = 1; i <= transportAttempts; i++) {
+      try {
+        return await fetchOnceWithTimeout();
+      } catch (e) {
+        lastErr = e;
+        const canRetryFetch = i < transportAttempts && isLikelyNetworkTransportFailure(e);
+        if (canRetryFetch) {
+          if (__DEV__) {
+            console.warn(`⚠️ Transport retry ${i}/${transportAttempts} for ${endpoint}`);
+          }
+          await new Promise((r) => setTimeout(r, 500 * i));
+          continue;
+        }
+        if (
+          i === transportAttempts &&
+          Platform.OS === 'android' &&
+          isLikelyNetworkTransportFailure(e)
+        ) {
+          if (
+            isPreAuthSmsEndpoint &&
+            methodUpper === 'POST' &&
+            typeof body === 'string' &&
+            !isFormData
+          ) {
+            try {
+              const r = await androidPostJsonViaXhr(url, headers, body, timeoutMs);
+              if (__DEV__) {
+                console.warn(`📡 SMS POST fallback via XMLHttpRequest: ${endpoint}`);
+              }
+              return r;
+            } catch {
+              /* fall through */
+            }
+          }
+          if (!preferXhrFirst && isGetRequest && !isFormData) {
+            try {
+              const r = await androidGetViaXhr(url, headers, timeoutMs);
+              if (__DEV__) {
+                console.warn(`📡 GET fallback via XMLHttpRequest: ${endpoint}`);
+              }
+              return r;
+            } catch {
+              /* fall through */
+            }
+          }
+        }
+        throw e;
+      }
+    }
+    throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
   };
 
   try {
-    let response = await doRequest();
-    clearTimeout(timeoutId);
+    let response: Response = await obtainResponse();
 
     // Retry GET on 502 (server cold start) - up to 3 attempts with backoff (only GET can safely retry)
     if (response.status === 502 && isGetRequest) {
@@ -161,7 +391,7 @@ async function request<T = any>(endpoint: string, options: RequestOptions = {}, 
         const delay = attempt * 4000; // 4s, 8s, 12s
         if (__DEV__) console.log(`⚠️ 502 received, retrying in ${delay / 1000}s (attempt ${attempt}/${maxRetries})`);
         await new Promise(r => setTimeout(r, delay));
-        response = await doRequest();
+        response = await fetchOnceWithTimeout();
         if (response.status !== 502) break;
       }
     }
@@ -287,7 +517,7 @@ async function request<T = any>(endpoint: string, options: RequestOptions = {}, 
 
     return data as T;
   } catch (error) {
-    clearTimeout(timeoutId);
+    // Per-attempt timeouts are cleared in-branch (SMS retries vs single-request path).
     // Don't log date-plan 404 (no plan yet) — expected and handled by UI
     const isDatePlan404Rethrown =
       error instanceof ApiError &&
@@ -335,10 +565,13 @@ async function request<T = any>(endpoint: string, options: RequestOptions = {}, 
     if (error instanceof ApiError) {
       throw error;
     }
-    if (error instanceof Error && (error.message.includes('Failed to fetch') || error.message.includes('NetworkError'))) {
+    if (isLikelyNetworkTransportFailure(error)) {
       // More helpful error messages for specific endpoints
       if (url.includes('/sms/send-code') || url.includes('/sms/verify-code')) {
-        throw new ApiError(0, 'Cannot connect to server. The backend may be starting up (this can take 30-60 seconds). Please wait a moment and try again.');
+        throw new ApiError(
+          0,
+          'Cannot reach Mulligan right now. Check Wi-Fi or cellular data, disable VPN if you use one, and try again. If the app was just opened, wait 30-60 seconds (the server may be waking up) and retry.'
+        );
       }
       if (url.includes('/auth/login')) {
         throw new ApiError(0, 'Server is starting up. Please wait a moment and try again.');

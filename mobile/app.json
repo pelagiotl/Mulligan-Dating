@@ -100,6 +100,11 @@
       "@sentry/react-native",
       "expo-asset"
     ],
+    "updates": {
+      "enabled": false,
+      "checkAutomatically": "NEVER",
+      "useEmbeddedUpdate": true
+    },
     "extra": {
       "eas": {
         "projectId": "ffe7d520-859b-4e18-a2d8-10b607bbf90b"

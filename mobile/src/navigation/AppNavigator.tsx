@@ -257,8 +257,16 @@ function MainTabs() {
     tabBarStyle: {
       backgroundColor: '#FAFAFA',
       borderTopWidth: 0,
-      height: Platform.OS === 'ios' ? 56 + Math.round(insets.bottom * 0.5) : 56,
-      paddingBottom: Platform.OS === 'ios' ? 8 + Math.round(insets.bottom * 0.5) : 8,
+      // Include bottom safe inset on both platforms so the bar sits flush with the screen bottom
+      // while labels/icons stay above gesture / 3-button nav.
+      height:
+        Platform.OS === 'ios'
+          ? 56 + Math.round(insets.bottom * 0.5)
+          : 56 + Math.max(insets.bottom, 8),
+      paddingBottom:
+        Platform.OS === 'ios'
+          ? 8 + Math.round(insets.bottom * 0.5)
+          : 8 + Math.max(insets.bottom, 8),
       paddingTop: 8,
       paddingHorizontal: 8,
       elevation: 12,
@@ -269,8 +277,9 @@ function MainTabs() {
       borderTopLeftRadius: 24,
       borderTopRightRadius: 24,
       position: 'absolute' as const,
-      // Android: lift tab bar above system nav/gesture area so tabs stay tappable
-      ...(Platform.OS === 'android' ? { marginBottom: 52, paddingBottom: 16 } : {}),
+      left: 0,
+      right: 0,
+      bottom: 0,
     },
     tabBarItemStyle: {
       paddingHorizontal: 2,

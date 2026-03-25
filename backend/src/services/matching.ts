@@ -6,6 +6,7 @@ import { getCompletenessBoost } from "../utils/profileCompleteness.js";
 import { checkDealbreakers as checkDealbreakersUtil } from "../utils/dealbreakers.js";
 import { getCollaborativeRecommendations as getCollaborativeRecs } from "../utils/collaborativeFiltering.js";
 import { getSuccessScore } from "../utils/successTracking.js";
+import { getHiddenFromBrowseUserIds } from "../config/hiddenFromBrowse.js";
 
 /**
  * STATE-OF-THE-ART MATCHING ALGORITHM
@@ -669,6 +670,9 @@ export async function generateWeeklyMatches(userId: string): Promise<{
     return { matchesCreated: 0, matches: [] };
   }
 
+  const hiddenFromBrowseIds = await getHiddenFromBrowseUserIds();
+  const hiddenSet = new Set(hiddenFromBrowseIds);
+
   // Get user's values
   const userValues = parseJsonArray(userPrefs.values);
   const userPreferredGenders = parseJsonArray(userPrefs.preferred_genders);
@@ -694,6 +698,9 @@ export async function generateWeeklyMatches(userId: string): Promise<{
   const candidates: MatchCandidate[] = [];
 
   for (const candidate of allProfiles) {
+    if (hiddenSet.has(candidate.user_id)) {
+      continue;
+    }
     const candidateValues = parseJsonArray(candidate.values);
     const candidatePreferredGenders = parseJsonArray(candidate.preferred_genders);
 

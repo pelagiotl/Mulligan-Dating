@@ -70,6 +70,17 @@ export function initSentry() {
         ) {
           return null;
         }
+
+        // RN iOS: RCTWebSocketModule emits websocketClosed while RCTCallableJSModules isn't set (bridge race on
+        // normal socket close / reconnect / tab change). Harmless; not fixable in app JS.
+        if (
+          excType.includes('nsinternalinconsistencyexception') &&
+          (excValue.includes('rctcallablejsmodules') ||
+            excValue.includes('websocketclosed') ||
+            excValue.includes('rctwebsocketmodule'))
+        ) {
+          return null;
+        }
         
         // Filter out non-critical errors
         const error = hint.originalException;

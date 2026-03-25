@@ -6,6 +6,7 @@ import { checkDealbreakers as checkDealbreakersUtil } from '../utils/dealbreaker
 import { getCompletenessBoost } from '../utils/profileCompleteness.js';
 import { getActiveMatchingRegion, isInRegion, isLikelyInRegionByText, REGION_MAX_DISTANCE_MILES } from '../config/regions.js';
 import { expireOldMatches } from '../utils/expireMatches.js';
+import { getHiddenFromBrowseUserIds } from '../config/hiddenFromBrowse.js';
 
 // Check if using PostgreSQL
 const usePostgres = !!process.env.DATABASE_URL;
@@ -31,7 +32,8 @@ type ProfileWithMetadata = ProfileRow & {
   candidate_preferred_genders: string | null;
 };
 
-// Unlock browsing - uses a token to unlock the ability to see profiles
+// Unlock browsing — requires at least one unused token (eligibility gate only).
+// Tokens are consumed only when the user taps Connect (POST /matches/connect), not here.
 usersRouter.post('/unlock-browse', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
@@ -43,31 +45,21 @@ usersRouter.post('/unlock-browse', authenticateToken, async (req: AuthRequest, r
       return res.status(200).json({ message: 'Browsing is already unlocked. You can browse profiles now.', alreadyUnlocked: true });
     }
 
-    // Get available token
     const tokenResult = db
       .prepare(
-        `SELECT * FROM mulligan_tokens 
+        `SELECT id FROM mulligan_tokens 
          WHERE user_id = ? AND used_at IS NULL AND returned_at IS NULL
          ORDER BY granted_at ASC LIMIT 1`
       )
       .get([userId]);
     const token = (tokenResult instanceof Promise
       ? await tokenResult
-      : tokenResult) as any;
+      : tokenResult) as { id: string } | undefined;
 
     if (!token) {
       return res.status(400).json({ error: "No tokens available. Claim your weekly token!" });
     }
 
-    // Use the token
-    const updateTokenResult = db.prepare(
-      `UPDATE mulligan_tokens SET used_at = CURRENT_TIMESTAMP WHERE id = ?`
-    ).run([token.id]);
-    if (updateTokenResult instanceof Promise) {
-      await updateTokenResult;
-    }
-
-    // Unlock browsing
     const updateUserResult = db.prepare(
       `UPDATE users SET browse_unlocked_at = CURRENT_TIMESTAMP WHERE id = ?`
     ).run([userId]);
@@ -77,7 +69,6 @@ usersRouter.post('/unlock-browse', authenticateToken, async (req: AuthRequest, r
 
     res.json({ 
       message: 'Browsing unlocked! You can now see profiles.',
-      tokenUsed: token.id
     });
   } catch (error) {
     console.error('Unlock browse error:', error);
@@ -152,6 +143,8 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
     
     const blockedUserIds = blockedUsers.map(b => b.user_id);
 
+    const hiddenFromBrowseIds = await getHiddenFromBrowseUserIds();
+
     // Build query with preference filters
     // Use PostgreSQL-compatible string_agg or SQLite GROUP_CONCAT
     // Check at runtime, not module load time
@@ -175,8 +168,8 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
 
     const params: any[] = [req.userId];
 
-    // Exclude users that are already matched or blocked
-    const excludedUserIds = [...new Set([...matchedUserIds, ...blockedUserIds])];
+    // Exclude matched, blocked, and founder/internal accounts (never shown as dating candidates)
+    const excludedUserIds = [...new Set([...matchedUserIds, ...blockedUserIds, ...hiddenFromBrowseIds])];
     if (excludedUserIds.length > 0) {
       const placeholders = excludedUserIds.map(() => '?').join(',');
       query += ` AND p.user_id NOT IN (${placeholders})`;

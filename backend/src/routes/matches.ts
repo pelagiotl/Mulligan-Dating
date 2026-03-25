@@ -7,6 +7,7 @@ import { recordSuccessSignal } from "../utils/successTracking.js";
 import { rateLimitAPI } from "../middleware/security.js";
 import { geocodeLocation, calculateDistanceMiles } from "../utils/geocoding.js";
 import { getActiveMatchingRegion, isInRegion, isLikelyInRegionByText, REGION_MAX_DISTANCE_MILES } from "../config/regions.js";
+import { getHiddenFromBrowseUserIds } from "../config/hiddenFromBrowse.js";
 import { uploadChatImage, uploadChatVideo, uploadChatAudio } from "../middleware/upload.js";
 import { uploadToCloudinary, uploadToCloudinaryMedia, isCloudinaryConfigured } from "../services/cloudinary.js";
 
@@ -441,6 +442,11 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
   }
 
   try {
+    const hiddenFromBrowse = await getHiddenFromBrowseUserIds();
+    if (hiddenFromBrowse.includes(targetUserId)) {
+      return res.status(404).json({ error: 'Profile not available' });
+    }
+
     // Check if already matched (but allow re-matching if match is expired)
     const existingMatchResult = db
       .prepare(
