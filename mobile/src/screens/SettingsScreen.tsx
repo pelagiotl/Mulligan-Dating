@@ -525,11 +525,11 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Email (for support + account contact) */}
+        {/* Optional email for support / important account updates */}
         <View style={styles.emailCard}>
-          <Text style={styles.emailCardLabel}>Email address</Text>
+          <Text style={styles.emailCardLabel}>Email address (optional)</Text>
           <Text style={styles.emailCardSubLabel}>
-            Add an email so we can contact you if needed (e.g. a report follow-up).
+            Add an email for account support and important updates. We’ll only contact you if needed.
           </Text>
           <TextInput
             value={emailDraft}
