@@ -24,9 +24,10 @@ import { navigationRef } from '../navigation/navigationRef';
 import LegalFooter from '../components/LegalFooter';
 
 interface SettingsData {
-  email: string;
+  email: string | null;
   createdAt: string;
   lastActiveAt: string | null;
+  showActiveStatus?: boolean;
 }
 
 const DEBUG_TAP_COUNT = 7;
@@ -38,6 +39,10 @@ export default function SettingsScreen() {
   const { user, logout, refreshProfile } = useAuth();
   const navigation = useNavigation();
   const [settings, setSettings] = useState<SettingsData | null>(null);
+  const [emailDraft, setEmailDraft] = useState('');
+  const [emailSaving, setEmailSaving] = useState(false);
+  const [emailPassword, setEmailPassword] = useState('');
+  const [emailNeedsPassword, setEmailNeedsPassword] = useState(false);
   const debugTapCountRef = React.useRef(0);
   const debugTapTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -158,10 +163,45 @@ export default function SettingsScreen() {
       setLoading(true);
       const data = await api.get<SettingsData>('/settings');
       setSettings(data);
+      setEmailDraft((data.email || '').trim());
+      setEmailNeedsPassword(false);
+      setEmailPassword('');
     } catch (err: any) {
       setError(err?.message || 'Failed to load settings');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const saveEmail = async () => {
+    setError('');
+    setSuccess('');
+    const email = emailDraft.trim();
+    if (!email) {
+      setError('Email is required');
+      return;
+    }
+    setEmailSaving(true);
+    try {
+      await api.put('/settings/email', {
+        email,
+        ...(emailNeedsPassword && emailPassword.trim() ? { password: emailPassword } : {}),
+      });
+      setSuccess('Email updated.');
+      setEmailNeedsPassword(false);
+      setEmailPassword('');
+      await fetchSettings();
+    } catch (err: any) {
+      const msg = err?.message || 'Failed to update email';
+      // If the server requires password, reveal the password field and keep user on this section
+      if (String(msg).toLowerCase().includes('password required')) {
+        setEmailNeedsPassword(true);
+        setError('Please enter your password to update your email.');
+      } else {
+        setError(msg);
+      }
+    } finally {
+      setEmailSaving(false);
     }
   };
 
@@ -483,6 +523,58 @@ export default function SettingsScreen() {
             <Text style={styles.pushNotificationsRowText}>Blocked users</Text>
             <Text style={styles.pushNotificationsRowChevron}>›</Text>
           </TouchableOpacity>
+        </View>
+
+        {/* Email (for support + account contact) */}
+        <View style={styles.emailCard}>
+          <Text style={styles.emailCardLabel}>Email address</Text>
+          <Text style={styles.emailCardSubLabel}>
+            Add an email so we can contact you if needed (e.g. a report follow-up).
+          </Text>
+          <TextInput
+            value={emailDraft}
+            onChangeText={setEmailDraft}
+            placeholder="you@example.com"
+            placeholderTextColor="rgba(255,255,255,0.65)"
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+            style={styles.emailInput}
+          />
+          {emailNeedsPassword && (
+            <TextInput
+              value={emailPassword}
+              onChangeText={setEmailPassword}
+              placeholder="Password"
+              placeholderTextColor="rgba(255,255,255,0.65)"
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={styles.emailInput}
+            />
+          )}
+          <TouchableOpacity
+            style={[styles.emailSaveButton, emailSaving ? styles.buttonDisabled : undefined]}
+            onPress={() => void saveEmail()}
+            disabled={emailSaving}
+            activeOpacity={0.85}
+          >
+            <LinearGradient
+              colors={['#fff', '#f8f9ff']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.emailSaveButtonGradient}
+            >
+              {emailSaving ? (
+                <ActivityIndicator color="#667eea" />
+              ) : (
+                <Text style={styles.emailSaveText}>Save email</Text>
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
+          <Text style={styles.emailCardHint}>
+            Current: {settings?.email ? settings.email : 'none'}
+          </Text>
         </View>
       </Animated.View>
 
@@ -1161,6 +1253,63 @@ const styles = StyleSheet.create({
     fontSize: 22,
     color: 'rgba(255, 255, 255, 0.9)',
     fontWeight: '400',
+  },
+  emailCard: {
+    marginTop: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    borderRadius: 18,
+    padding: 18,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.28)',
+  },
+  emailCardLabel: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#fff',
+    marginBottom: 6,
+  },
+  emailCardSubLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.85)',
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  emailInput: {
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.35)',
+    backgroundColor: 'rgba(0,0,0,0.10)',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 10,
+  },
+  emailSaveButton: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    alignSelf: 'flex-start',
+    marginTop: 2,
+  },
+  emailSaveButtonGradient: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emailSaveText: {
+    color: '#667eea',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  emailCardHint: {
+    marginTop: 10,
+    fontSize: 12,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.75)',
   },
   supportRow: {
     flexDirection: 'row',

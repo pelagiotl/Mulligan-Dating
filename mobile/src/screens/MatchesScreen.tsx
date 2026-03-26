@@ -2058,6 +2058,12 @@ export default function MatchesScreen() {
   const sendSafetyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const SEND_SAFETY_MS = 40000; // Unstick send UI if request hangs (e.g. cold server, bad network)
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportMatchId, setReportMatchId] = useState<string | null>(null);
+  const [reportReportedUserId, setReportReportedUserId] = useState<string | null>(null);
+  const [reportSelectedReasonIds, setReportSelectedReasonIds] = useState<string[]>([]);
+  const [reportUrgent, setReportUrgent] = useState(false);
+  const [reportDetails, setReportDetails] = useState('');
   const [stageInfoModalVisible, setStageInfoModalVisible] = useState(false);
   const [stageInfoStage, setStageInfoStage] = useState<'stage1' | 'stage2' | null>(null);
   const [showPhotoGuidelinesModal, setShowPhotoGuidelinesModal] = useState(false);
@@ -3382,33 +3388,92 @@ export default function MatchesScreen() {
 
   const handleReportMatch = useCallback(() => {
     if (!selectedMatch) return;
-    const name = selectedMatch.otherUser?.displayName || 'this user';
-    Alert.alert(
-      'Report',
-      `Report ${name}? This will be sent to Mulligan for review.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Report',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await api.post('/reports', {
-                reportedUserId: selectedMatch.otherUser.userId,
-                matchId: selectedMatch.id,
-              });
-              setShowProfileModal(false);
-              setFullScreenImageUrl(null);
-              setFullScreenPhotoList(null);
-              Alert.alert("Thanks", "We'll look into it.");
-            } catch (e: any) {
-              Alert.alert('Error', e?.message || 'Failed to submit report');
-            }
-          },
-        },
-      ]
-    );
+    setShowProfileModal(false); // avoid double-modals while the user is in the profile overlay
+    setFullScreenImageUrl(null);
+    setFullScreenPhotoList(null);
+    setReportMatchId(selectedMatch.id);
+    setReportReportedUserId(selectedMatch.otherUser.userId);
+    setReportSelectedReasonIds([]);
+    setReportUrgent(false);
+    setReportDetails('');
+    setShowReportModal(true);
   }, [selectedMatch]);
+
+  const REPORT_REASON_OPTIONS = useMemo(
+    () => [
+      { id: 'threats', label: 'Threats / violence / self-harm', urgentEligible: true, emoji: '🛑' },
+      { id: 'sexual', label: 'Unwanted sexual content (non-consensual)', urgentEligible: true, emoji: '🚫' },
+      { id: 'money', label: 'Asking for money / scams / illegal activity', urgentEligible: true, emoji: '💸' },
+      { id: 'harassment', label: 'Harassment / bullying', urgentEligible: false, emoji: '⚠️' },
+      { id: 'hate', label: 'Hate speech', urgentEligible: false, emoji: '🧿' },
+      { id: 'spam', label: 'Spam / repeated unwanted messages', urgentEligible: false, emoji: '📣' },
+      { id: 'other', label: 'Other', urgentEligible: false, emoji: '📝' },
+    ],
+    []
+  );
+
+  const MAX_REPORT_CATEGORIES = 3;
+  const urgentEligibleNow = reportSelectedReasonIds.some((id) =>
+    REPORT_REASON_OPTIONS.find((o) => o.id === id)?.urgentEligible
+  );
+
+  useEffect(() => {
+    if (reportUrgent && !urgentEligibleNow) setReportUrgent(false);
+  }, [urgentEligibleNow, reportUrgent]);
+
+  const toggleReportReason = (id: string) => {
+    setReportSelectedReasonIds((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      if (prev.length >= MAX_REPORT_CATEGORIES) {
+        Alert.alert('Too many selections', `Please select up to ${MAX_REPORT_CATEGORIES} reasons.`);
+        return prev;
+      }
+      return [...prev, id];
+    });
+  };
+
+  const submitReport = async () => {
+    if (!reportReportedUserId || !reportMatchId) {
+      Alert.alert('Error', 'Report target is missing. Please try again.');
+      return;
+    }
+    if (reportSelectedReasonIds.length === 0) {
+      Alert.alert('Select a reason', 'Please choose at least one category for the report.');
+      return;
+    }
+
+    const selectedLabels = REPORT_REASON_OPTIONS
+      .filter((o) => reportSelectedReasonIds.includes(o.id))
+      .map((o) => o.label);
+
+    const parts: string[] = [];
+    if (reportUrgent) parts.push('URGENT');
+    parts.push(`Reasons: ${selectedLabels.join(', ')}`);
+
+    const trimmedDetails = reportDetails.trim();
+    if (trimmedDetails) {
+      parts.push(`Details: ${trimmedDetails}`);
+    }
+
+    const reason = parts.join(' | ').slice(0, 480); // backend also truncates to 500
+
+    try {
+      await api.post('/reports', {
+        reportedUserId: reportReportedUserId,
+        matchId: reportMatchId,
+        reason,
+      });
+      setShowReportModal(false);
+      setReportMatchId(null);
+      setReportReportedUserId(null);
+      setReportSelectedReasonIds([]);
+      setReportUrgent(false);
+      setReportDetails('');
+      Alert.alert('Thanks', "We'll look into it.");
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to submit report');
+    }
+  };
 
   const handleBlockMatch = useCallback(() => {
     if (!selectedMatch) return;
@@ -4117,6 +4182,120 @@ export default function MatchesScreen() {
                 </LinearGradient>
               </TouchableOpacity>
             </LinearGradient>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Report modal: multi-select reasons + optional urgent checkbox */}
+      <Modal
+        visible={showReportModal}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setShowReportModal(false)}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          style={styles.reportOverlay}
+          onPress={() => setShowReportModal(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={styles.reportCard}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <LinearGradient
+              colors={['#ff6b9d', '#764ba2']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.reportHeaderGradient}
+            >
+              <Text style={styles.reportHeaderTitle}>Report user</Text>
+              <Text style={styles.reportHeaderSubtitle}>
+                Select all that apply (up to {MAX_REPORT_CATEGORIES})
+              </Text>
+            </LinearGradient>
+
+            <ScrollView style={styles.reportScroll} contentContainerStyle={styles.reportScrollContent}>
+              <View style={styles.reportReasonList}>
+                {REPORT_REASON_OPTIONS.map((opt) => {
+                  const selected = reportSelectedReasonIds.includes(opt.id);
+                  return (
+                    <TouchableOpacity
+                      key={opt.id}
+                      style={[
+                        styles.reportReasonRow,
+                        selected ? styles.reportReasonRowSelected : undefined,
+                      ]}
+                      onPress={() => toggleReportReason(opt.id)}
+                      activeOpacity={0.85}
+                    >
+                      <View style={styles.reportReasonLeft}>
+                        <Text style={styles.reportReasonEmoji}>{opt.emoji}</Text>
+                        <Text style={styles.reportReasonLabel}>{opt.label}</Text>
+                      </View>
+                      <View style={[styles.reportCheckbox, selected ? styles.reportCheckboxChecked : undefined]}>
+                        {selected ? <Text style={styles.reportCheckboxText}>✓</Text> : null}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <TouchableOpacity
+                activeOpacity={0.9}
+                style={[styles.reportUrgentRow, !urgentEligibleNow ? styles.reportUrgentRowDisabled : undefined]}
+                onPress={() => {
+                  if (!urgentEligibleNow) return;
+                  setReportUrgent((v) => !v);
+                }}
+              >
+                <View style={[styles.reportUrgentCheckbox, reportUrgent ? styles.reportUrgentCheckboxChecked : undefined, !urgentEligibleNow ? styles.reportUrgentCheckboxDisabled : undefined]}>
+                  {reportUrgent ? <Text style={styles.reportCheckboxText}>✓</Text> : null}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.reportUrgentTitle, !urgentEligibleNow ? styles.reportUrgentTextDisabled : undefined]}>
+                    This is urgent
+                  </Text>
+                  <Text style={[styles.reportUrgentSubtitle, !urgentEligibleNow ? styles.reportUrgentTextDisabled : undefined]}>
+                    {urgentEligibleNow
+                      ? 'For threats, self-harm, non-consensual sexual content, or scams/illegal activity.'
+                      : 'Select a safety-critical reason above to enable.'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              <TextInput
+                style={styles.reportDetailsInput}
+                value={reportDetails}
+                onChangeText={setReportDetails}
+                placeholder="Optional details (1–2 sentences)"
+                placeholderTextColor="rgba(0,0,0,0.35)"
+                multiline
+                maxLength={320}
+              />
+            </ScrollView>
+
+            <View style={styles.reportActions}>
+              <TouchableOpacity
+                style={[styles.reportActionButton, styles.reportActionCancel]}
+                onPress={() => setShowReportModal(false)}
+              >
+                <Text style={[styles.reportActionText, { color: '#1a1a1a' }]}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.reportActionButton,
+                  reportSelectedReasonIds.length === 0 ? styles.reportActionDisabled : styles.reportActionSubmit,
+                ]}
+                onPress={() => void submitReport()}
+                disabled={reportSelectedReasonIds.length === 0}
+              >
+                <Text style={[styles.reportActionText, reportSelectedReasonIds.length === 0 ? { color: 'rgba(255,255,255,0.7)' } : undefined]}>
+                  Submit
+                </Text>
+              </TouchableOpacity>
+            </View>
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
@@ -6378,5 +6557,184 @@ const styles = StyleSheet.create({
     color: '#667eea',
     fontWeight: '700',
     letterSpacing: 0.2,
+  },
+  reportOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    padding: 18,
+  },
+  reportCard: {
+    borderRadius: 22,
+    overflow: 'hidden',
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.28,
+    shadowRadius: 18,
+    elevation: 12,
+  },
+  reportHeaderGradient: {
+    padding: 20,
+  },
+  reportHeaderTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    letterSpacing: -0.4,
+    color: '#fff',
+    marginBottom: 6,
+  },
+  reportHeaderSubtitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.95)',
+    lineHeight: 18,
+  },
+  reportScroll: {
+    maxHeight: 520,
+  },
+  reportScrollContent: {
+    padding: 18,
+    gap: 14,
+  },
+  reportReasonList: {
+    gap: 10,
+  },
+  reportReasonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(102,126,234,0.25)',
+    backgroundColor: 'rgba(102,126,234,0.05)',
+  },
+  reportReasonRowSelected: {
+    borderColor: 'rgba(255,77,148,0.55)',
+    backgroundColor: 'rgba(255,107,179,0.08)',
+  },
+  reportReasonLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    paddingRight: 10,
+  },
+  reportReasonEmoji: {
+    fontSize: 18,
+    marginRight: 10,
+  },
+  reportReasonLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    lineHeight: 18,
+  },
+  reportCheckbox: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 1.5,
+    borderColor: 'rgba(102,126,234,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+  },
+  reportCheckboxChecked: {
+    borderColor: 'rgba(255,77,148,0.85)',
+    backgroundColor: 'rgba(255,107,179,0.14)',
+  },
+  reportUrgentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,77,148,0.35)',
+    backgroundColor: 'rgba(255,107,179,0.08)',
+  },
+  reportUrgentRowDisabled: {
+    opacity: 0.5,
+  },
+  reportUrgentCheckbox: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,77,148,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    marginRight: 10,
+  },
+  reportUrgentCheckboxChecked: {
+    backgroundColor: 'rgba(255,77,148,0.18)',
+  },
+  reportUrgentCheckboxDisabled: {
+    borderColor: 'rgba(255,77,148,0.25)',
+  },
+  reportActionButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  reportActionCancel: {
+    backgroundColor: 'rgba(0,0,0,0.06)',
+    borderColor: 'rgba(0,0,0,0.06)',
+  },
+  reportActionSubmit: {
+    backgroundColor: '#667eea',
+    borderColor: '#667eea',
+  },
+  reportActionDisabled: {
+    opacity: 0.6,
+  },
+  reportActionText: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#fff',
+  },
+  reportCheckboxText: {
+    color: '#1a1a1a',
+    fontSize: 16,
+    fontWeight: '900',
+    lineHeight: 16,
+  },
+  reportUrgentTitle: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#1a1a1a',
+    marginBottom: 2,
+  },
+  reportUrgentSubtitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: 'rgba(0,0,0,0.55)',
+    lineHeight: 16,
+  },
+  reportUrgentTextDisabled: {
+    color: 'rgba(0,0,0,0.4)',
+  },
+  reportDetailsInput: {
+    minHeight: 92,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.08)',
+    padding: 14,
+    backgroundColor: 'rgba(0,0,0,0.02)',
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1a1a1a',
+  },
+  reportActions: {
+    flexDirection: 'row',
+    padding: 18,
+    paddingTop: 0,
+    gap: 12,
   },
 });
