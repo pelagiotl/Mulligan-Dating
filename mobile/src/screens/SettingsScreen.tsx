@@ -161,7 +161,8 @@ export default function SettingsScreen() {
   const fetchSettings = async () => {
     try {
       setLoading(true);
-      const data = await api.get<SettingsData>('/settings');
+      // Don't use GET cache — stale /settings would clear the email field after save
+      const data = await api.get<SettingsData>('/settings', false);
       setSettings(data);
       setEmailDraft((data.email || '').trim());
       setEmailNeedsPassword(false);
@@ -190,6 +191,7 @@ export default function SettingsScreen() {
       setSuccess('Email updated.');
       setEmailNeedsPassword(false);
       setEmailPassword('');
+      setEmailDraft(email.toLowerCase());
       await fetchSettings();
     } catch (err: any) {
       const msg = err?.message || 'Failed to update email';

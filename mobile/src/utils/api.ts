@@ -609,6 +609,9 @@ export const api = {
     if (endpoint.includes('/profile') || endpoint.includes('/preferences')) {
       apiCache.clear(APICache.getCacheKey('/profile'));
     }
+    if (endpoint.includes('/settings')) {
+      apiCache.clear(APICache.getCacheKey('/settings'));
+    }
     return request<T>(endpoint, {
       method: 'PUT',
       body
