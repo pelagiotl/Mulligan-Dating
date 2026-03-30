@@ -24,6 +24,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Protocol
 import java.io.File
 import java.net.Inet4Address
+import java.net.InetAddress
 import java.util.concurrent.TimeUnit
 
 class MainApplication : Application(), ReactApplication {
@@ -60,13 +61,15 @@ class MainApplication : Application(), ReactApplication {
       val httpCacheDir = File(cacheDir, "http-cache")
       val cache = Cache(httpCacheDir, 10L * 1024 * 1024)
       val preferIpv4Dns =
-          Dns { hostname ->
-            try {
-              val addresses = Dns.SYSTEM.lookup(hostname)
-              val ipv4 = addresses.filterIsInstance<Inet4Address>()
-              if (ipv4.isNotEmpty()) ipv4 else addresses
-            } catch (_: Exception) {
-              Dns.SYSTEM.lookup(hostname)
+          object : Dns {
+            override fun lookup(hostname: String): List<InetAddress> {
+              return try {
+                val addresses = Dns.SYSTEM.lookup(hostname)
+                val ipv4 = addresses.filterIsInstance<Inet4Address>()
+                if (ipv4.isNotEmpty()) ipv4.map { it } else addresses
+              } catch (_: Exception) {
+                Dns.SYSTEM.lookup(hostname)
+              }
             }
           }
       OkHttpClient.Builder()
