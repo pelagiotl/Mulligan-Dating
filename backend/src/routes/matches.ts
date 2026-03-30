@@ -8,6 +8,7 @@ import { rateLimitAPI } from "../middleware/security.js";
 import { geocodeLocation, calculateDistanceMiles } from "../utils/geocoding.js";
 import { getActiveMatchingRegion, isInRegion, isLikelyInRegionByText, REGION_MAX_DISTANCE_MILES } from "../config/regions.js";
 import { getHiddenFromBrowseUserIds } from "../config/hiddenFromBrowse.js";
+import { isMatchmakingGloballyDisabled, matchmakingDisabledJson } from "../config/matchmaking.js";
 import { uploadChatImage, uploadChatVideo, uploadChatAudio } from "../middleware/upload.js";
 import { uploadToCloudinary, uploadToCloudinaryMedia, isCloudinaryConfigured } from "../services/cloudinary.js";
 
@@ -439,6 +440,10 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
 
   if (targetUserId === userId) {
     return res.status(400).json({ error: "Cannot match with yourself" });
+  }
+
+  if (isMatchmakingGloballyDisabled()) {
+    return res.status(403).json(matchmakingDisabledJson());
   }
 
   try {

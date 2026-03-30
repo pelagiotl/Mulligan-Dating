@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { isMatchmakingGloballyDisabled, getMatchmakingDisabledMessage } from '../config/matchmaking.js';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
@@ -196,7 +197,8 @@ authRouter.get('/me', authenticateToken, async (req: AuthRequest, res) => {
 
     const hasPushToken = !!(user.push_token && typeof user.push_token === 'string' && user.push_token.trim().length > 0);
     
-    res.json({ 
+    const matchmakingOff = isMatchmakingGloballyDisabled();
+    res.json({
       user: {
         id: user.id,
         email: user.email,
@@ -204,8 +206,10 @@ authRouter.get('/me', authenticateToken, async (req: AuthRequest, res) => {
         isAdmin: user.is_admin === 1,
         createdAt: user.created_at,
         hasPushToken, // so app can show "Push registered" and debug message notifications
-      }, 
-      profile 
+      },
+      profile,
+      matchmakingEnabled: !matchmakingOff,
+      matchmakingDisabledMessage: matchmakingOff ? getMatchmakingDisabledMessage() : null,
     });
   } catch (error) {
     console.error('Error in /auth/me:', error);

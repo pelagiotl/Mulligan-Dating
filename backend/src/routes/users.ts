@@ -7,6 +7,7 @@ import { getCompletenessBoost } from '../utils/profileCompleteness.js';
 import { getActiveMatchingRegion, isInRegion, isLikelyInRegionByText, REGION_MAX_DISTANCE_MILES } from '../config/regions.js';
 import { expireOldMatches } from '../utils/expireMatches.js';
 import { getHiddenFromBrowseUserIds } from '../config/hiddenFromBrowse.js';
+import { isMatchmakingGloballyDisabled, matchmakingDisabledJson } from '../config/matchmaking.js';
 
 // Check if using PostgreSQL
 const usePostgres = !!process.env.DATABASE_URL;
@@ -37,6 +38,10 @@ type ProfileWithMetadata = ProfileRow & {
 usersRouter.post('/unlock-browse', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
+
+    if (isMatchmakingGloballyDisabled()) {
+      return res.status(403).json(matchmakingDisabledJson());
+    }
 
     // Check if browsing is already unlocked (idempotent: treat as success)
     const userResult = await (db.prepare('SELECT browse_unlocked_at FROM users WHERE id = ?').get([userId]) as Promise<{ browse_unlocked_at: string | null } | undefined>);
@@ -80,6 +85,10 @@ usersRouter.post('/unlock-browse', authenticateToken, async (req: AuthRequest, r
 // REQUIRES: User must have unlocked browsing by using a token
 usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
   try {
+    if (isMatchmakingGloballyDisabled()) {
+      return res.status(403).json(matchmakingDisabledJson());
+    }
+
     // Expire matches past 7-day limit so they don't count as "already matched" when user hasn't opened Matches tab
     await expireOldMatches();
 

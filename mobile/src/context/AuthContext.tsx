@@ -723,6 +723,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         phoneNumber: data.user.phoneNumber,
         isAdmin: data.user.isAdmin || false,
         hasPushToken: data.user.hasPushToken ?? false,
+        matchmakingEnabled: data.matchmakingEnabled !== false,
+        matchmakingDisabledMessage:
+          typeof data.matchmakingDisabledMessage === 'string' ? data.matchmakingDisabledMessage : null,
       });
       setProfile(data.profile || null);
 

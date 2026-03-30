@@ -657,7 +657,7 @@ export default function BrowseScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   const isFocused = useIsFocused();
-  const { profile: userProfile, user, isAuthenticated } = useAuth();
+  const { profile: userProfile, user, isAuthenticated, refreshProfile } = useAuth();
   const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
   
   // Profile card animations
@@ -739,6 +739,7 @@ export default function BrowseScreen() {
   const openTokenModalRef = useRef<(() => void) | null>(null);
   const performClaimRef = useRef<((opts?: { onSuccess?: () => void; successMessage?: string }) => Promise<void>) | null>(null);
   const unlockErrorHandledRef = useRef(false); // So finally doesn't overwrite browseUnlocked(false) when we show landing after error (e.g. Southern Oregon)
+  const lastMeRefreshOnBrowseRef = useRef(0);
   
   // Button animations
   const buttonPulse = useRef(new Animated.Value(1)).current;
@@ -860,6 +861,16 @@ export default function BrowseScreen() {
 
   const handleUnlockBrowse = useCallback(async () => {
     if (unlocking) return;
+
+    if (user?.matchmakingEnabled === false) {
+      Alert.alert(
+        'Matching not open yet',
+        (user.matchmakingDisabledMessage && String(user.matchmakingDisabledMessage).trim()) ||
+          'Check the app after our official launch to start connecting.',
+        [{ text: 'OK' }],
+      );
+      return;
+    }
     
     // Check if user is authenticated
     if (!isAuthenticated || !user) {
@@ -966,6 +977,17 @@ export default function BrowseScreen() {
     } catch (err: any) {
       const errorMessage = err?.message || 'Failed to unlock browsing. Please try again.';
       const errorLower = errorMessage.toLowerCase();
+
+      if (err?.status === 403 && err?.code === 'MATCHMAKING_DISABLED') {
+        unlockErrorHandledRef.current = true;
+        setIsAutoMatching(false);
+        setLoading(false);
+        setBrowseUnlocked(false);
+        setCurrentProfile(null);
+        void refreshProfile();
+        Alert.alert('Matching not open yet', errorMessage, [{ text: 'OK' }]);
+        return;
+      }
       
       // If already unlocked, this is expected - just continue to fetch and match
       if (errorLower.includes('already unlocked') || errorLower.includes('browsing is already unlocked')) {
@@ -1027,6 +1049,16 @@ export default function BrowseScreen() {
             return; // Exit early to prevent any further state changes
           }
         } catch (fetchErr: any) {
+          if (fetchErr?.status === 403 && fetchErr?.code === 'MATCHMAKING_DISABLED') {
+            unlockErrorHandledRef.current = true;
+            setIsAutoMatching(false);
+            setLoading(false);
+            setBrowseUnlocked(false);
+            setCurrentProfile(null);
+            void refreshProfile();
+            Alert.alert('Matching not open yet', fetchErr?.message || 'Check back soon.', [{ text: 'OK' }]);
+            return;
+          }
           console.error('❌ Fetch profile error:', fetchErr);
           setError(fetchErr?.message || 'Failed to load profiles');
           setTimeout(() => setError(''), 8000);
@@ -1076,7 +1108,7 @@ export default function BrowseScreen() {
         setBrowseUnlocked(true);
       }
     }
-  }, [unlocking, isAuthenticated, user, photoCount, handleConnect]);
+  }, [unlocking, isAuthenticated, user, photoCount, handleConnect, refreshProfile]);
 
   const fetchProfile = useCallback(async () => {
     try {
@@ -1396,10 +1428,25 @@ export default function BrowseScreen() {
     };
   }, [user?.id]);
 
-  // Show landing page when: browsing is locked, auto-matching, OR we have no profile to show (avoids blank "Find someone who shares..." screen after no-profiles / tab switch)
+  // Pick up server-side matchmaking flag without an app update (GET /auth/me).
+  useFocusEffect(
+    useCallback(() => {
+      if (!isAuthenticated) return;
+      const now = Date.now();
+      if (now - lastMeRefreshOnBrowseRef.current < 45_000) return;
+      lastMeRefreshOnBrowseRef.current = now;
+      api.clearCache('/auth/me');
+      void refreshProfile();
+    }, [isAuthenticated, refreshProfile]),
+  );
+
+  const needsProfile = !userProfile && !loading;
+  const matchmakingPaused = !!(user && user.matchmakingEnabled === false);
+
+  // Show landing page when: browsing is locked, auto-matching, no profile to show, or server paused matchmaking
   const showLandingPage =
     (!needsProfile && !showMatchCelebration) &&
-    ((browseUnlocked === false || isAutoMatching) || (currentProfile === null && !loading));
+    ((browseUnlocked === false || isAutoMatching) || (currentProfile === null && !loading) || matchmakingPaused);
 
   // Button pulse animation (only when landing page is shown)
   // MUST be before any early returns
@@ -1574,6 +1621,15 @@ export default function BrowseScreen() {
   }, [isFocused, shouldShowConnectButton, startConnectButtonAnimations, stopConnectButtonAnimations]);
 
   const handleConnect = useCallback((profile: Profile, expandSlot?: boolean) => {
+    if (user?.matchmakingEnabled === false) {
+      Alert.alert(
+        'Matching not open yet',
+        (user.matchmakingDisabledMessage && String(user.matchmakingDisabledMessage).trim()) ||
+          'Check the app after our official launch to start connecting.',
+        [{ text: 'OK' }],
+      );
+      return;
+    }
     setError('');
     setConnecting(true);
     connectRequestedRef.current = true;
@@ -1667,6 +1723,14 @@ export default function BrowseScreen() {
 
         if (err instanceof Error && 'status' in err) {
           const apiErr = err as Error & { status: number; code?: string; canExpand?: boolean; currentLimit?: number; newLimit?: number };
+          if (apiErr.status === 403 && apiErr.code === 'MATCHMAKING_DISABLED') {
+            setCurrentProfile(null);
+            setBrowseUnlocked(false);
+            if (isAutoMatching) setIsAutoMatching(false);
+            void refreshProfile();
+            Alert.alert('Matching not open yet', err.message || 'Check back soon.', [{ text: 'OK' }]);
+            return;
+          }
           if (apiErr.status === 400 && apiErr.code === 'AT_MATCH_LIMIT') {
             setMatchLimitCanExpand(!!apiErr.canExpand);
             setMatchLimitProfile(profile);
@@ -1724,13 +1788,11 @@ export default function BrowseScreen() {
           setBrowseUnlocked(true);
         }
       });
-  }, [isAutoMatching]);
+  }, [isAutoMatching, user, refreshProfile]);
 
   const handleCelebrationClose = useCallback(() => {
     clearCelebrationAndConnectingState();
   }, [clearCelebrationAndConnectingState]);
-
-  const needsProfile = !userProfile && !loading;
 
   const photos = currentProfile?.photos || [];
   const primaryPhoto = photos.find((p) => p.isPrimary) || photos[0];
@@ -1883,7 +1945,10 @@ export default function BrowseScreen() {
                 Discover People
               </Animated.Text>
               <Text style={styles.landingSubtitle}>
-                Find someone who shares your interests and values
+                {matchmakingPaused
+                  ? user?.matchmakingDisabledMessage?.trim() ||
+                    'Matching will open on launch day. You can still set up your profile, add photos, and get ready.'
+                  : 'Find someone who shares your interests and values'}
               </Text>
               
               <View style={styles.landingFeatures}>
@@ -1907,89 +1972,101 @@ export default function BrowseScreen() {
                 </View>
               </View>
               
-              <Animated.View
-                style={[
-                  styles.landingButtonContainer,
-                  {
-                    transform: [{ scale: buttonPulse }],
-                  },
-                ]}
-              >
-                <TouchableOpacity
-                  onPress={() => {
-                    if (photoCount !== null && photoCount < MIN_PHOTOS_TO_CONNECT) {
-                      (navigation as any).navigate('MyProfile', { scrollToPhotos: true });
-                    } else {
-                      handleUnlockBrowse();
-                    }
-                  }}
-                  onPressIn={() => {
-                    Animated.spring(buttonScale, {
-                      toValue: 0.95,
-                      useNativeDriver: true,
-                    }).start();
-                  }}
-                  onPressOut={() => {
-                    Animated.spring(buttonScale, {
-                      toValue: 1,
-                      useNativeDriver: true,
-                    }).start();
-                  }}
-                  disabled={unlocking}
-                  activeOpacity={0.9}
-                  style={styles.landingButtonTouchable}
+              {matchmakingPaused ? (
+                <View style={styles.matchmakingPausedCard}>
+                  <Text style={styles.matchmakingPausedTitle}>Matching opens soon</Text>
+                  <Text style={styles.matchmakingPausedBody}>
+                    {user?.matchmakingDisabledMessage?.trim() ||
+                      'We’ll enable Connect for everyone on launch day. Until then, finish your profile and check back.'}
+                  </Text>
+                </View>
+              ) : (
+                <Animated.View
+                  style={[
+                    styles.landingButtonContainer,
+                    {
+                      transform: [{ scale: buttonPulse }],
+                    },
+                  ]}
                 >
-                  <LinearGradient
-                    colors={['#667eea', '#764ba2', '#f093fb', '#f5576c']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={[
-                      styles.landingButton,
-                      unlocking && styles.landingButtonDisabled,
-                    ]}
+                  <TouchableOpacity
+                    onPress={() => {
+                      if (photoCount !== null && photoCount < MIN_PHOTOS_TO_CONNECT) {
+                        (navigation as any).navigate('MyProfile', { scrollToPhotos: true });
+                      } else {
+                        handleUnlockBrowse();
+                      }
+                    }}
+                    onPressIn={() => {
+                      Animated.spring(buttonScale, {
+                        toValue: 0.95,
+                        useNativeDriver: true,
+                      }).start();
+                    }}
+                    onPressOut={() => {
+                      Animated.spring(buttonScale, {
+                        toValue: 1,
+                        useNativeDriver: true,
+                      }).start();
+                    }}
+                    disabled={unlocking}
+                    activeOpacity={0.9}
+                    style={styles.landingButtonTouchable}
                   >
-                    {/* Shimmer effect overlay */}
-                    {!unlocking && photoCount !== null && photoCount >= MIN_PHOTOS_TO_CONNECT && (
-                      <Animated.View
-                        style={[
-                          styles.buttonShimmer,
-                          {
-                            transform: [{ translateX: shimmerTranslate }],
-                          },
-                        ]}
-                      />
-                    )}
-                    
-                    <Animated.View
-                      style={{
-                        transform: [{ scale: buttonScale }],
-                      }}
+                    <LinearGradient
+                      colors={['#667eea', '#764ba2', '#f093fb', '#f5576c']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={[
+                        styles.landingButton,
+                        unlocking && styles.landingButtonDisabled,
+                      ]}
                     >
-                      {unlocking ? (
-                        <ActivityIndicator color="#fff" size="large" />
-                      ) : (photoCount === null || photoCount >= MIN_PHOTOS_TO_CONNECT) ? (
-                        <Text style={styles.landingButtonText} numberOfLines={1}>
-                          Connect
-                        </Text>
-                      ) : photoCount < MIN_PHOTOS_TO_CONNECT ? (
-                        <Text style={styles.landingButtonText} numberOfLines={2}>
-                          Add 3+ Photos
-                        </Text>
-                      ) : (
-                        <Text style={styles.landingButtonText} numberOfLines={1}>
-                          Connect
-                        </Text>
+                      {/* Shimmer effect overlay */}
+                      {!unlocking && photoCount !== null && photoCount >= MIN_PHOTOS_TO_CONNECT && (
+                        <Animated.View
+                          style={[
+                            styles.buttonShimmer,
+                            {
+                              transform: [{ translateX: shimmerTranslate }],
+                            },
+                          ]}
+                        />
                       )}
-                    </Animated.View>
-                  </LinearGradient>
-                </TouchableOpacity>
-              </Animated.View>
+                      
+                      <Animated.View
+                        style={{
+                          transform: [{ scale: buttonScale }],
+                        }}
+                      >
+                        {unlocking ? (
+                          <ActivityIndicator color="#fff" size="large" />
+                        ) : (photoCount === null || photoCount >= MIN_PHOTOS_TO_CONNECT) ? (
+                          <Text style={styles.landingButtonText} numberOfLines={1}>
+                            Connect
+                          </Text>
+                        ) : photoCount < MIN_PHOTOS_TO_CONNECT ? (
+                          <Text style={styles.landingButtonText} numberOfLines={2}>
+                            Add 3+ Photos
+                          </Text>
+                        ) : (
+                          <Text style={styles.landingButtonText} numberOfLines={1}>
+                            Connect
+                          </Text>
+                        )}
+                      </Animated.View>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </Animated.View>
+              )}
               
-              <Animated.View style={[styles.landingHintWrap, { opacity: landingHintOpacity }]}>
+              <Animated.View style={[styles.landingHintWrap, { opacity: matchmakingPaused ? 1 : landingHintOpacity }]}>
                 <Text style={styles.landingHint}>
-                  {photoCount !== null && photoCount < MIN_PHOTOS_TO_CONNECT
-                    ? `Add at least ${MIN_PHOTOS_TO_CONNECT} photos in Profile to Connect`
-                    : '⛳ Use a Mulligan'}
+                  {matchmakingPaused
+                    ? 'Thanks for downloading — see you at launch'
+                    : photoCount !== null && photoCount < MIN_PHOTOS_TO_CONNECT
+                      ? `Add at least ${MIN_PHOTOS_TO_CONNECT} photos in Profile to Connect`
+                      : '⛳ Use a Mulligan'}
                 </Text>
               </Animated.View>
             </View>
@@ -2905,6 +2982,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     fontWeight: '500',
     letterSpacing: 0.3,
+  },
+  matchmakingPausedCard: {
+    width: '100%',
+    paddingVertical: 22,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderWidth: 1,
+    borderColor: 'rgba(102, 126, 234, 0.25)',
+    marginBottom: 16,
+  },
+  matchmakingPausedTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#1f2937',
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  matchmakingPausedBody: {
+    fontSize: 15,
+    color: '#4b5563',
+    textAlign: 'center',
+    lineHeight: 22,
   },
   landingFeatures: {
     flexDirection: 'row',
