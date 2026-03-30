@@ -40,3 +40,20 @@ allprojects {
         maven { url 'https://www.jitpack.io' }
     }
 }
+
+// Sentry Gradle runs sentry-cli for source maps; without org/project/auth it fails the whole build.
+// eas.json sets SENTRY_DISABLE_AUTO_UPLOAD, but that env may not reach Gradle reliably on EAS.
+// Re-enable uploads on EAS by setting SENTRY_FORCE_EAS_SENTRY_UPLOAD=true (and SENTRY_AUTH_TOKEN + sentry.properties).
+gradle.projectsEvaluated {
+    def v = System.getenv('SENTRY_DISABLE_AUTO_UPLOAD')
+    def uploadDisabled = v != null && (v.equalsIgnoreCase('true') || v == '1')
+    def onEas = System.getenv('EAS_BUILD') == 'true'
+    def forceEasUpload = System.getenv('SENTRY_FORCE_EAS_SENTRY_UPLOAD') == 'true'
+    if ((uploadDisabled || onEas) && !forceEasUpload) {
+        rootProject.subprojects.each { sub ->
+            sub.tasks.matching { t -> t.name.contains('_SentryUpload_') }.configureEach { t ->
+                t.enabled = false
+            }
+        }
+    }
+}
