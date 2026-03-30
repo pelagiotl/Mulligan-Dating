@@ -39,6 +39,52 @@ const IAP_PACKAGES = [
   { id: 4, productId: "mulligan_tokens_7", tokens: 7 },
 ];
 
+type RcWebhookEvent = {
+  type?: string;
+  id?: string;
+  app_user_id?: string;
+  product_id?: string;
+  transaction_id?: string;
+  price_in_purchased_currency?: number;
+  currency?: string;
+};
+
+/** RevenueCat POST body is `{ api_version, event: { type, app_user_id, ... } }`. Support flat body too. */
+function parseRevenueCatWebhookBody(body: Record<string, unknown> | null | undefined): RcWebhookEvent {
+  const ev =
+    body?.event && typeof body.event === "object" && body.event !== null && !Array.isArray(body.event)
+      ? (body.event as Record<string, unknown>)
+      : body;
+  const b = body ?? {};
+  return {
+    type: (ev?.type as string) ?? (b.type as string | undefined),
+    id: (ev?.id as string) ?? (b.id as string | undefined),
+    app_user_id: (ev?.app_user_id as string) ?? (b.app_user_id as string | undefined),
+    product_id: (ev?.product_id as string) ?? (b.product_id as string | undefined),
+    transaction_id: (ev?.transaction_id as string) ?? (b.transaction_id as string | undefined),
+    price_in_purchased_currency:
+      (ev?.price_in_purchased_currency as number) ?? (b.price_in_purchased_currency as number | undefined),
+    currency: (ev?.currency as string) ?? (b.currency as string | undefined),
+  };
+}
+
+/** Play Store product ids from RC may be `sku:basePlanId` — map using the store sku prefix. */
+function tokensForProductId(
+  rawProductId: string | undefined,
+  productTokens: Record<string, number>
+): number {
+  if (!rawProductId) return 0;
+  if (productTokens[rawProductId]) return productTokens[rawProductId];
+  const base = rawProductId.split(":")[0]?.trim();
+  if (base && base !== rawProductId && productTokens[base]) return productTokens[base];
+  return 0;
+}
+
+function packageIdForProductId(rawProductId: string | undefined): number {
+  const sku = rawProductId?.includes(":") ? rawProductId.split(":")[0]?.trim() : rawProductId;
+  return IAP_PACKAGES.find((p) => p.productId === sku)?.id ?? 1;
+}
+
 // Create payment intent - stubbed (was Stripe)
 paymentsRouter.post("/create-intent", authenticateToken, rateLimitAPI, async (_req: AuthRequest, res) => {
   return res.status(503).json({ error: PURCHASES_UNAVAILABLE_MSG });
@@ -56,23 +102,18 @@ paymentsRouter.post("/webhook/revenuecat", async (req: Request, res: Response) =
     return res.status(401).json({ error: "Unauthorized" });
   }
 
-  const body = req.body as {
-    type?: string;
-    id?: string;
-    app_user_id?: string;
-    product_id?: string;
-    transaction_id?: string;
-    price_in_purchased_currency?: number;
-    currency?: string;
-  };
-
-  const eventType = body?.type;
-  const eventId = body?.id;
-  const appUserId = body?.app_user_id;
-  const productId = body?.product_id;
-  const transactionId = body?.transaction_id;
+  const rc = parseRevenueCatWebhookBody(req.body as Record<string, unknown>);
+  const eventType = rc.type;
+  const eventId = rc.id;
+  const appUserId = rc.app_user_id;
+  const productId = rc.product_id;
+  const transactionId = rc.transaction_id;
+  const priceInPurchasedCurrency = rc.price_in_purchased_currency ?? 0;
 
   if (!eventType || !appUserId) {
+    console.warn("RevenueCat webhook: missing type or app_user_id", {
+      hasEventWrapper: !!(req.body as { event?: unknown })?.event,
+    });
     return res.status(400).json({ error: "Missing type or app_user_id" });
   }
 
@@ -102,7 +143,7 @@ paymentsRouter.post("/webhook/revenuecat", async (req: Request, res: Response) =
   }
 
   const productTokens = getProductTokensMap();
-  const tokensToGrant = productId ? productTokens[productId] : 0;
+  const tokensToGrant = tokensForProductId(productId, productTokens);
   if (!tokensToGrant || tokensToGrant < 1) {
     console.warn("RevenueCat webhook: unknown or zero-token product_id", productId);
     return res.status(200).json({ received: true });
@@ -119,8 +160,8 @@ paymentsRouter.post("/webhook/revenuecat", async (req: Request, res: Response) =
   if (grantCount <= 0) {
     // Still record payment so we don't reprocess, but don't grant more tokens
     const paymentId = uuidv4();
-    const amountCents = Math.round((body.price_in_purchased_currency ?? 0) * 100);
-    const packageId = IAP_PACKAGES.find((p) => p.productId === productId)?.id ?? 1;
+    const amountCents = Math.round(priceInPurchasedCurrency * 100);
+    const packageId = packageIdForProductId(productId);
     try {
       const run = db.prepare(
         `INSERT INTO payments (id, user_id, payment_intent_id, amount_cents, tokens_to_grant, package_id, status, tokens_granted_at) VALUES (?, ?, ?, ?, ?, ?, 'completed', ?)`
@@ -133,8 +174,8 @@ paymentsRouter.post("/webhook/revenuecat", async (req: Request, res: Response) =
   }
 
   const paymentId = uuidv4();
-  const amountCents = Math.round((body.price_in_purchased_currency ?? 0) * 100);
-  const packageId = IAP_PACKAGES.find((p) => p.productId === productId)?.id ?? 1;
+  const amountCents = Math.round(priceInPurchasedCurrency * 100);
+  const packageId = packageIdForProductId(productId);
   const now = new Date().toISOString();
   const tokenIds: string[] = [];
 

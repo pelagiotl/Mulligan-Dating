@@ -397,7 +397,7 @@ interface TokenDisplayProps {
 const IAP_COMING_SOON_MSG = "In-app purchases are coming soon. We're switching to a new provider—stay tuned!";
 
 export default function TokenDisplay({ compact = false, premium = false, openModalRef, performClaimRef }: TokenDisplayProps) {
-  const { user } = useAuth();
+  const { user, registerTokensBalanceRefresh } = useAuth();
   const isAdmin = user?.isAdmin || false;
   const [data, setData] = useState<TokenData | null>(null);
   const [claiming, setClaiming] = useState(false);
@@ -410,6 +410,11 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
   const [purchasing, setPurchasing] = useState(false);
   const [reupCelebration, setReupCelebration] = useState<{ message: string; onSuccess?: () => void } | null>(null);
   const [purchaseSuccess, setPurchaseSuccess] = useState<{ tokensGranted: number } | null>(null);
+
+  const balanceRef = useRef(0);
+  useEffect(() => {
+    balanceRef.current = data?.availableTokens ?? 0;
+  }, [data?.availableTokens]);
 
   const isFocused = useIsFocused();
 
@@ -497,6 +502,32 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
     }
   };
 
+  /** Bypass GET cache and poll — RevenueCat webhook grants async; /tokens is cached 60s. */
+  const syncTokensAfterPurchase = useCallback(async () => {
+    if (!user) return;
+    const start = balanceRef.current;
+    const maxAttempts = 10;
+    const delayMs = 1500;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      api.clearCache('/tokens');
+      try {
+        const tokenData = await api.get<TokenData>('/tokens', false);
+        setData(tokenData);
+        if (tokenData.availableTokens > start) return;
+      } catch (err: any) {
+        if (err?.status === 401 || err?.status === 403) return;
+      }
+      if (attempt < maxAttempts - 1) {
+        await new Promise((r) => setTimeout(r, delayMs));
+      }
+    }
+  }, [user]);
+
+  useEffect(() => {
+    registerTokensBalanceRefresh(syncTokensAfterPurchase);
+    return () => registerTokensBalanceRefresh(null);
+  }, [registerTokensBalanceRefresh, syncTokensAfterPurchase]);
+
   const revenueCatPackagesByProductId = useRef<Record<string, PurchasesPackage>>({});
 
   const fetchPackages = async (isRetry = false) => {
@@ -572,8 +603,8 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
     setPurchasing(true);
     try {
       await Purchases.purchasePackage(rcPkg);
+      await syncTokensAfterPurchase();
       await fetchPackages();
-      await fetchTokens();
       Alert.alert('Success', `${pkg.tokens} token(s) added!`);
     } catch (err: any) {
       if (err?.userCancelled) return;

@@ -46,6 +46,9 @@ interface AuthContextType {
   phoneLogin: (phoneNumber: string, code: string) => Promise<{ hasProfile: boolean }>;
   logout: () => void;
   refreshProfile: () => Promise<void>;
+  /** TokenDisplay registers; call after IAP (e.g. Settings) so Browse header balance updates. */
+  registerTokensBalanceRefresh: (callback: (() => Promise<void>) | null) => void;
+  refreshTokensBalance: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -65,6 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const lastMessageDedupeRef = useRef<{ matchId: string; at: number } | null>(null);
   const onNewMatchRef = useRef<(() => void) | null>(null);
   const logoutRef = useRef<(() => Promise<void>) | null>(null);
+  const tokensBalanceRefreshRef = useRef<(() => Promise<void>) | null>(null);
 
   const registerMatchListRefresh = useCallback((callback: (() => void) | null) => {
     onNewMatchRef.current = callback;
@@ -837,6 +841,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await fetchUser(false);
   };
 
+  const registerTokensBalanceRefresh = useCallback((callback: (() => Promise<void>) | null) => {
+    tokensBalanceRefreshRef.current = callback;
+  }, []);
+
+  const refreshTokensBalance = useCallback(async () => {
+    await tokensBalanceRefreshRef.current?.();
+  }, []);
+
   const insets = useSafeAreaInsets();
   const messageSlideAnim = useRef(new Animated.Value(-120)).current;
   const hasNotifications = messageNotifications.length > 0;
@@ -870,6 +882,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         phoneLogin,
         logout,
         refreshProfile,
+        registerTokensBalanceRefresh,
+        refreshTokensBalance,
       }}
     >
       {hasNotifications && (

@@ -36,7 +36,7 @@ const isExpoGo = Constants.appOwnership === 'expo';
 const IAP_COMING_SOON_MSG = "In-app purchases are coming soon. We're switching to a new provider—stay tuned!";
 
 export default function SettingsScreen() {
-  const { user, logout, refreshProfile } = useAuth();
+  const { user, logout, refreshProfile, refreshTokensBalance } = useAuth();
   const navigation = useNavigation();
   const [settings, setSettings] = useState<SettingsData | null>(null);
   const [emailDraft, setEmailDraft] = useState('');
@@ -298,6 +298,7 @@ export default function SettingsScreen() {
     setPurchasing(true);
     try {
       await Purchases.purchasePackage(rcPkg);
+      await refreshTokensBalance();
       await fetchPackages();
       refreshProfile?.();
       Alert.alert('Success', `${pkg.tokens} token(s) added! Use them to connect with more people.`);
@@ -307,7 +308,7 @@ export default function SettingsScreen() {
     } finally {
       setPurchasing(false);
     }
-  }, [refreshProfile]);
+  }, [refreshProfile, refreshTokensBalance]);
 
   const handleDeleteAccount = useCallback(async () => {
     setError('');
