@@ -26,19 +26,20 @@ async function main() {
     process.exit(1);
   }
 
-  const sharp = require('sharp');
+  const Jimp = require('jimp');
 
-  await sharp(iconPath)
-    .resize(SAFE_ZONE, SAFE_ZONE)
-    .extend({
-      top: PAD,
-      bottom: PAD,
-      left: PAD,
-      right: PAD,
-      background: { r: 0, g: 0, b: 0, alpha: 0 },
-    })
-    .png()
-    .toFile(outPath);
+  const icon = await Jimp.read(iconPath);
+  icon.cover(SAFE_ZONE, SAFE_ZONE);
+
+  const canvas = await new Promise((resolve, reject) => {
+    new Jimp(SIZE, SIZE, 0x00000000, (err, image) => {
+      if (err) reject(err);
+      else resolve(image);
+    });
+  });
+
+  canvas.composite(icon, PAD, PAD);
+  await canvas.writeAsync(outPath);
 
   console.log('✅ Generated', outPath, '(icon.png scaled to 66% safe zone and centered)');
 }
