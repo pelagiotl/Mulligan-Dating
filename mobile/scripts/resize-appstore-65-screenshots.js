@@ -23,6 +23,7 @@ const INPUT_FILES = [
   'Mulligan_5-ba9d9775-e481-49a0-a5bd-b0bdbbbc1835.png',
   'Mulligan_6-e4f9471e-6dd0-4f81-8853-01e0485c9a0e.png',
   'Mulligan_7-cd589431-d5a5-4c14-b178-5cbf1978d535.png',
+  'Mulligan_7-eb869562-10d0-45e8-b467-2d2da4f35c9d.png',
 ];
 
 function createCanvas(w, h, color) {
