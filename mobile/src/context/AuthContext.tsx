@@ -69,6 +69,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const onNewMatchRef = useRef<(() => void) | null>(null);
   const logoutRef = useRef<(() => Promise<void>) | null>(null);
   const tokensBalanceRefreshRef = useRef<(() => Promise<void>) | null>(null);
+  /** Latest user for notification handlers without re-subscribing listeners on every /auth/me refresh. */
+  const userRef = useRef<User | null>(null);
+  userRef.current = user;
+  /** Avoid push + RevenueCat storms when fetchUser/refreshProfile runs in a tight loop. */
+  const lastFetchUserPushRegisterRef = useRef<{ userId: string; at: number } | null>(null);
+  const revenueCatLoggedInUserIdRef = useRef<string | null>(null);
+  const fetchUserRef = useRef<(useCache?: boolean) => Promise<void>>(async () => {});
 
   const registerMatchListRefresh = useCallback((callback: (() => void) | null) => {
     onNewMatchRef.current = callback;
@@ -252,8 +259,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Set up notification listeners for incoming push notifications
   useEffect(() => {
-    // Only set up listeners if user is logged in
-    if (!user) {
+    // Only set up listeners if user is logged in (deps use user?.id so we don't tear down on every profile refresh)
+    if (!user?.id) {
       return;
     }
 
@@ -406,7 +413,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log('❤️ Navigating to match from message liked notification:', data.matchId);
         const attemptNavigation = (attemptNumber: number = 0) => {
           const maxAttempts = 10;
-          if (navigationRef.current?.isReady() && user) {
+          if (navigationRef.current?.isReady() && userRef.current) {
             try {
               navigationRef.current.navigate('MainTabs', {
                 screen: 'Matches',
@@ -428,7 +435,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log('❤️ Navigating to match from message liked notification:', data.matchId);
         const attemptNavigation = (attemptNumber: number = 0) => {
           const maxAttempts = 10;
-          if (navigationRef.current?.isReady() && user) {
+          if (navigationRef.current?.isReady() && userRef.current) {
             try {
               navigationRef.current.navigate('MainTabs', {
                 screen: 'Matches',
@@ -453,7 +460,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const attemptNavigation = (attemptNumber: number = 0) => {
           const maxAttempts = 10; // Try for up to 5 seconds (10 attempts * 500ms)
           
-          if (navigationRef.current?.isReady() && user) {
+          if (navigationRef.current?.isReady() && userRef.current) {
             try {
               navigationRef.current.navigate('MainTabs', {
                 screen: 'Matches',
@@ -488,11 +495,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         Notifications.removeNotificationSubscription(responseListener.current);
       }
     };
-  }, [user, showMessageNotification]);
+  }, [user?.id, showMessageNotification]);
 
   // Handle cold start: app opened by tapping a notification (e.g. message when app was closed)
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
     let cancelled = false;
     Notifications.getLastNotificationResponseAsync().then((response) => {
       if (cancelled || !response) return;
@@ -543,13 +550,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setTimeout(() => attemptNavigation(), 500);
     });
     return () => { cancelled = true; };
-  }, [user]);
+  }, [user?.id]);
 
   // Re-register push when app comes to foreground (ensures token is saved if initial registration failed or was delayed)
   const lastPushRegisterRef = useRef<number>(0);
   const PUSH_REREGISTER_DEBOUNCE_MS = 20000; // at most once per 20s when foregrounding (keeps token fresh so pushes don't stop after 15–30s)
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
     const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
       if (nextState === 'background') {
         // Refresh and send push token when leaving app so backend has latest token;
@@ -576,13 +583,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
     return () => subscription.remove();
-  }, [user]);
+  }, [user?.id]);
 
   // Fallback: 3s after login, if we have a token from storage but never got a fresh one this session,
   // POST it once so the server has a token even if the user backgrounds before 5s/10s registration runs.
   const sentHydratedTokenRef = useRef(false);
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
     const t = setTimeout(() => {
       if (sentHydratedTokenRef.current) return;
       const stored = getStoredPushToken();
@@ -599,7 +606,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Second push registration attempt on cold start (5s after user is set). The first is at 1.5s in fetchUser;
   // if native modules weren't ready, this gives the recipient's device another chance to save the token.
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
     const t = setTimeout(() => {
       registerForPushNotificationsAsync().catch((e) => {
         console.warn('⚠️ Push re-register on cold start (non-critical):', e?.message || e);
@@ -611,7 +618,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Android: third registration attempt at 15s (FCM can be slow to initialize on some devices).
   // If we still have no fresh token, send the stored (hydrated) token to the server once so pushes can work.
   useEffect(() => {
-    if (!user || Platform.OS !== 'android') return;
+    if (!user?.id || Platform.OS !== 'android') return;
     const t = setTimeout(async () => {
       try {
         const fresh = await registerForPushNotificationsAsync();
@@ -629,7 +636,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // iOS: some devices (e.g. iPhone 15 Pro Max) may not provide push token until later; retry at 10s so token is sent before user backgrounds
   useEffect(() => {
-    if (!user || Platform.OS !== 'ios') return;
+    if (!user?.id || Platform.OS !== 'ios') return;
     const t = setTimeout(() => {
       registerForPushNotificationsAsync().catch(() => {});
     }, 10000);
@@ -729,20 +736,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       setProfile(data.profile || null);
 
-      // Identify user to RevenueCat for in-app purchase attribution (no-op in Expo Go)
+      const uid = data.user.id;
+      const now = Date.now();
+      const PUSH_REGISTER_MIN_INTERVAL_MS = 60_000;
+
+      // RevenueCat: only when user id changes — avoids warn spam when refreshProfile runs repeatedly
       if (Platform.OS === 'ios' || Platform.OS === 'android') {
-        try {
-          const p = Purchases.logIn(data.user.id);
-          if (p && typeof p.catch === 'function') p.catch((err: unknown) => console.warn('RevenueCat logIn failed:', err));
-        } catch (_) {}
+        if (revenueCatLoggedInUserIdRef.current !== uid) {
+          revenueCatLoggedInUserIdRef.current = uid;
+          try {
+            const p = Purchases.logIn(uid);
+            if (p && typeof p.catch === 'function') p.catch((err: unknown) => console.warn('RevenueCat logIn failed:', err));
+          } catch (_) {}
+        }
       }
 
-      // Register for push notifications if user is logged in
-      // (this handles the case where user refreshes the app and is already logged in)
-      // Run this asynchronously after a delay to ensure app is fully initialized
-      // This prevents any native module errors from crashing the app during startup
-      if (data.user) {
-        // Second registration attempt after fetchUser (native modules should be ready by now)
+      // Push: debounce per user — fetchUser/refreshProfile must not register on every /auth/me
+      const prevPush = lastFetchUserPushRegisterRef.current;
+      if (
+        data.user &&
+        (!prevPush || prevPush.userId !== uid || now - prevPush.at >= PUSH_REGISTER_MIN_INTERVAL_MS)
+      ) {
+        lastFetchUserPushRegisterRef.current = { userId: uid, at: now };
         setTimeout(async () => {
           try {
             await registerForPushNotificationsAsync();
@@ -765,6 +780,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     }
   };
+
+  fetchUserRef.current = fetchUser;
 
   const phoneLogin = async (phoneNumber: string, code: string) => {
     try {
@@ -825,6 +842,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await AsyncStorage.removeItem('AGE_GATE_ACCEPTED'); // So next login shows age gate again
     setUser(null);
     setProfile(null);
+    revenueCatLoggedInUserIdRef.current = null;
+    lastFetchUserPushRegisterRef.current = null;
   };
 
   logoutRef.current = logout;
@@ -837,12 +856,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => setOnSessionExpired(null);
   }, []);
 
-  const refreshProfile = async () => {
-    // Always bypass cache after profile mutations so navigation decisions
-    // are based on fresh server state.
+  const refreshProfile = useCallback(async () => {
     api.clearCache('/auth/me');
-    await fetchUser(false);
-  };
+    await fetchUserRef.current(false);
+  }, []);
 
   const registerTokensBalanceRefresh = useCallback((callback: (() => Promise<void>) | null) => {
     tokensBalanceRefreshRef.current = callback;

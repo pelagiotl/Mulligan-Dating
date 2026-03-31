@@ -467,7 +467,7 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
     if (user) {
       fetchTokens();
     }
-  }, [user]);
+  }, [user?.id]);
 
   // Refresh tokens when screen is focused — clear cache so count is always up to date (e.g. after admin grant)
   useFocusEffect(
@@ -476,7 +476,7 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
         api.clearCache('/tokens');
         fetchTokens();
       }
-    }, [user])
+    }, [user?.id])
   );
 
   // Periodic refresh while focused; cache (60s) avoids rate limit (429) while keeping balance reasonably fresh
@@ -486,7 +486,7 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
       fetchTokens(); // uses cache when valid, so we don't hit /tokens every 20s
     }, 30 * 1000); // every 30 seconds when focused
     return () => clearInterval(interval);
-  }, [user, isFocused]);
+  }, [user?.id, isFocused]);
 
   const fetchTokens = async () => {
     if (!user) return;
@@ -521,7 +521,7 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
         await new Promise((r) => setTimeout(r, delayMs));
       }
     }
-  }, [user]);
+  }, [user?.id]);
 
   useEffect(() => {
     registerTokensBalanceRefresh(syncTokensAfterPurchase);

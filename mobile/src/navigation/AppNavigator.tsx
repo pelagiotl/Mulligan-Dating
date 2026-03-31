@@ -39,6 +39,15 @@ export type MainTabParamList = {
   Admin: undefined;
 };
 
+/** Leaf route names when the stack is showing MainTabs (getCurrentRoute() is nested, not "MainTabs"). */
+const MAIN_TAB_SCREEN_NAMES = new Set<string>(['Browse', 'Matches', 'MyProfile', 'Settings', 'Admin']);
+
+function isInsideMainTabsFlow(routeName: string | undefined): boolean {
+  if (!routeName) return false;
+  if (routeName === 'MainTabs') return true;
+  return MAIN_TAB_SCREEN_NAMES.has(routeName);
+}
+
 const Stack = createStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
@@ -251,7 +260,7 @@ function MainTabs() {
     lazy: false,
     detachInactiveScreens: false,
     freezeOnBlur: false, // was true: froze screen when keyboard opened (tab blur), blocking typing in bio and chat
-    sceneContainerStyle: { flex: 1 },
+    sceneContainerStyle: { flex: 1, backgroundColor: '#f8f9ff' },
     tabBarActiveTintColor: '#8B1538',
     tabBarInactiveTintColor: '#94A3B8',
     tabBarStyle: {
@@ -454,9 +463,9 @@ export default function AppNavigator() {
         user &&
         gateStatusLoaded &&
         ageGatePassed === false &&
-        (currentRoute?.name === 'CreateProfile' || currentRoute?.name === 'MainTabs')
+        (currentRoute?.name === 'CreateProfile' || isInsideMainTabsFlow(currentRoute?.name))
       ) {
-        // User already on CreateProfile/MainTabs (e.g. just confirmed gate).
+        // User already on CreateProfile or a main tab (leaf name e.g. Browse, not "MainTabs").
         // Re-sync storage and avoid redirecting them back to age gate mid-flow.
         AsyncStorage.getItem('AGE_GATE_ACCEPTED').then((v) => {
           if (v === 'true') setAgeGatePassed(true);
@@ -467,7 +476,7 @@ export default function AppNavigator() {
         ageGatePassed === true &&
         !profile &&
         currentRoute?.name !== 'CreateProfile' &&
-        currentRoute?.name !== 'MainTabs'
+        !isInsideMainTabsFlow(currentRoute?.name)
       ) {
         try {
           navigationRef.current.reset({
@@ -482,7 +491,7 @@ export default function AppNavigator() {
         gateStatusLoaded &&
         ageGatePassed === true &&
         profile &&
-        currentRoute?.name !== 'MainTabs' &&
+        !isInsideMainTabsFlow(currentRoute?.name) &&
         currentRoute?.name !== 'CreateProfile'
       ) {
         try {
@@ -492,7 +501,7 @@ export default function AppNavigator() {
         }
       }
     }
-  }, [loading, user, profile, isNavigationReady, gateStatusLoaded, ageGatePassed]);
+  }, [loading, user?.id, profile?.id, isNavigationReady, gateStatusLoaded, ageGatePassed]);
 
   // Brief seamless splash while checking auth and (if logged in) age gate status
   if (loading || (user && !gateStatusLoaded)) {

@@ -657,6 +657,10 @@ export default function BrowseScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   const isFocused = useIsFocused();
+  /** useIsFocused() can be false on the first paint; hiding then causes a black screen (transparent scene over default black). */
+  const browseWasFocusedRef = useRef(false);
+  if (isFocused) browseWasFocusedRef.current = true;
+  const hideBrowseWhenBlurred = !isFocused && browseWasFocusedRef.current;
   const { profile: userProfile, user, isAuthenticated, refreshProfile } = useAuth();
   const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
   
@@ -1339,12 +1343,13 @@ export default function BrowseScreen() {
 
   // When user returns to Connect tab with no profile (e.g. after "no one to match", or "all caught up"), show landing
   // so they always see the Connect button instead of a blank or empty state.
+  const userProfileId = userProfile?.id;
   useFocusEffect(
     useCallback(() => {
-      if (currentProfile === null && !loading && !unlocking && userProfile) {
+      if (currentProfile === null && !loading && !unlocking && userProfileId) {
         clearCelebrationAndConnectingState();
       }
-    }, [currentProfile, loading, unlocking, userProfile, clearCelebrationAndConnectingState])
+    }, [currentProfile, loading, unlocking, userProfileId, clearCelebrationAndConnectingState])
   );
 
   // Fetch user's photo count when on landing page (for 5-photo minimum to Connect)
@@ -1835,7 +1840,7 @@ export default function BrowseScreen() {
       style={[
         styles.container,
         showLandingPage && { backgroundColor: 'transparent' },
-        !isFocused && { opacity: 0, pointerEvents: 'none' as const },
+        hideBrowseWhenBlurred && { opacity: 0, pointerEvents: 'none' as const },
       ]}
     >
       {/* Beautiful gradient background (matching web version) - full screen behind everything */}
