@@ -3,6 +3,8 @@ package app.mulligandating
 import android.os.Build
 import android.os.Bundle
 
+import androidx.activity.enableEdgeToEdge
+
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
@@ -15,7 +17,9 @@ class MainActivity : ReactActivity() {
     // Set the theme to AppTheme BEFORE onCreate to support
     // coloring the background, status bar, and navigation bar.
     // This is required for expo-splash-screen.
-    setTheme(R.style.AppTheme);
+    setTheme(R.style.AppTheme)
+    // Modern edge-to-edge (replaces deprecated statusBarColor-only setup; required for targetSdk 35).
+    enableEdgeToEdge()
     super.onCreate(null)
   }
 

@@ -8,7 +8,8 @@ buildscript {
         targetSdkVersion = Integer.parseInt(findProperty('android.targetSdkVersion') ?: '34')
         kotlinVersion = findProperty('android.kotlinVersion') ?: '1.9.25'
 
-        ndkVersion = "26.1.10909125"
+        // NDK r28+ defaults to 16 KB ELF alignment (Google Play page-size requirement).
+        ndkVersion = "28.0.12674087"
     }
     repositories {
         google()

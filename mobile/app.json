@@ -3,7 +3,7 @@
     "name": "Mulligan",
     "slug": "mulligan",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "splash": {
@@ -16,6 +16,13 @@
       "bundleIdentifier": "app.mulligandating",
       "buildNumber": "191",
       "infoPlist": {
+        "UISupportedInterfaceOrientations": [
+          "UIInterfaceOrientationPortrait"
+        ],
+        "UISupportedInterfaceOrientations~ipad": [
+          "UIInterfaceOrientationPortrait",
+          "UIInterfaceOrientationPortraitUpsideDown"
+        ],
         "NSLocationWhenInUseUsageDescription": "Mulligan uses your location to find matches near you.",
         "NSPhotoLibraryUsageDescription": "Mulligan needs access to your photos to upload profile pictures.",
         "NSCameraUsageDescription": "Mulligan needs access to your camera to take profile pictures and send photos or videos in chat.",
@@ -61,7 +68,7 @@
           "android": {
             "compileSdkVersion": 35,
             "targetSdkVersion": 35,
-            "ndkVersion": "27.1.12297006",
+            "ndkVersion": "28.0.12674087",
             "packagingOptions": {
               "jniLibs": {
                 "useLegacyPackaging": false
