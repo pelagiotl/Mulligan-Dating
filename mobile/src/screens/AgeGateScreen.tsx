@@ -19,14 +19,14 @@ type AgeGateNavProp = StackNavigationProp<RootStackParamList, 'AgeGate'>;
 export default function AgeGateScreen() {
   const navigation = useNavigation<AgeGateNavProp>();
   const route = useRoute<AgeGateRouteProp>();
-  const nextRoute = route.params?.nextRoute ?? 'CreateProfile';
+  const nextRoute = route.params?.nextRoute ?? 'MainTabs';
 
   const handleConfirm = async () => {
     try {
       await AsyncStorage.setItem(AGE_GATE_STORAGE_KEY, 'true');
       navigation.reset({
         index: 0,
-        routes: [nextRoute === 'MainTabs' ? { name: 'MainTabs' } : { name: 'CreateProfile' }],
+        routes: [nextRoute === 'CreateProfile' ? { name: 'CreateProfile' } : { name: 'MainTabs' }],
       });
     } catch (e) {
       Alert.alert('Error', 'Could not save. Please try again.');

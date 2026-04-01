@@ -8,6 +8,7 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { apiCache, APICache } from './apiCache';
 import { getStoredPushToken, shouldSendTokenToServer } from './pushTokenStore';
+import { safeClearTimeout } from './safeTimers';
 
 // API URL - use EXPO_PUBLIC_ for production builds, fallback to hardcoded production URL
 export const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://mulligan-backend.onrender.com';
@@ -287,7 +288,7 @@ async function request<T = any>(endpoint: string, options: RequestOptions = {}, 
     try {
       return await fetch(url, buildFetchInit(controller.signal));
     } finally {
-      clearTimeout(attemptTid);
+      safeClearTimeout(attemptTid);
     }
   };
 
@@ -477,6 +478,9 @@ async function request<T = any>(endpoint: string, options: RequestOptions = {}, 
       if (data.code) {
         (apiError as any).code = data.code;
       }
+      if (data.missing !== undefined) {
+        (apiError as any).missing = data.missing;
+      }
       if (data.canClaimWeeklyToken !== undefined) {
         (apiError as any).canClaimWeeklyToken = data.canClaimWeeklyToken;
       }
@@ -608,6 +612,10 @@ export const api = {
     // Clear related cache entries on PUT
     if (endpoint.includes('/profile') || endpoint.includes('/preferences')) {
       apiCache.clear(APICache.getCacheKey('/profile'));
+    }
+    if (endpoint.includes('/profile/basics')) {
+      apiCache.clear(APICache.getCacheKey('/profile'));
+      apiCache.clear(APICache.getCacheKey('/auth/me'));
     }
     if (endpoint.includes('/settings')) {
       apiCache.clear(APICache.getCacheKey('/settings'));

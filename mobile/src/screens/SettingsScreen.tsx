@@ -36,9 +36,11 @@ const isExpoGo = Constants.appOwnership === 'expo';
 const IAP_COMING_SOON_MSG = "In-app purchases are coming soon. We're switching to a new provider—stay tuned!";
 
 export default function SettingsScreen() {
-  const { user, logout, refreshProfile, refreshTokensBalance } = useAuth();
+  const { user, profile, logout, refreshProfile, refreshTokensBalance } = useAuth();
   const navigation = useNavigation();
   const [settings, setSettings] = useState<SettingsData | null>(null);
+  const [displayNameDraft, setDisplayNameDraft] = useState('');
+  const [displayNameSaving, setDisplayNameSaving] = useState(false);
   const [emailDraft, setEmailDraft] = useState('');
   const [emailSaving, setEmailSaving] = useState(false);
   const [emailPassword, setEmailPassword] = useState('');
@@ -158,6 +160,15 @@ export default function SettingsScreen() {
     }
   }, [user]);
 
+  useEffect(() => {
+    if (!profile) {
+      setDisplayNameDraft('');
+      return;
+    }
+    const p = profile as { display_name?: string; displayName?: string };
+    setDisplayNameDraft((p.display_name ?? p.displayName ?? '').trim());
+  }, [profile]);
+
   const fetchSettings = async () => {
     try {
       setLoading(true);
@@ -171,6 +182,27 @@ export default function SettingsScreen() {
       setError(err?.message || 'Failed to load settings');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const saveDisplayName = async () => {
+    setError('');
+    setSuccess('');
+    const name = displayNameDraft.trim();
+    if (name.length < 2) {
+      setError('Name must be at least 2 characters');
+      return;
+    }
+    setDisplayNameSaving(true);
+    try {
+      await api.put('/profile/basics', { displayName: name });
+      api.clearCache('/auth/me');
+      await refreshProfile();
+      setSuccess('Name saved.');
+    } catch (err: any) {
+      setError(err?.message || 'Failed to save name');
+    } finally {
+      setDisplayNameSaving(false);
     }
   };
 
@@ -578,6 +610,65 @@ export default function SettingsScreen() {
           <Text style={styles.emailCardHint}>
             Current: {settings?.email ? settings.email : 'none'}
           </Text>
+        </View>
+
+        <View style={styles.emailCard}>
+          <Text style={styles.emailCardLabel}>Display name</Text>
+          <Text style={styles.emailCardSubLabel}>
+            Shown to people you connect with. You need a name, location, and three photos before you can use Connect.
+          </Text>
+          <TextInput
+            value={displayNameDraft}
+            onChangeText={setDisplayNameDraft}
+            placeholder="Your first name or nickname"
+            placeholderTextColor="rgba(255,255,255,0.65)"
+            autoCapitalize="words"
+            autoCorrect={false}
+            maxLength={50}
+            style={styles.emailInput}
+          />
+          <TouchableOpacity
+            style={[styles.emailSaveButton, displayNameSaving ? styles.buttonDisabled : undefined]}
+            onPress={() => void saveDisplayName()}
+            disabled={displayNameSaving}
+            activeOpacity={0.85}
+          >
+            <LinearGradient
+              colors={['#fff', '#f8f9ff']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.emailSaveButtonGradient}
+            >
+              {displayNameSaving ? (
+                <ActivityIndicator color="#667eea" />
+              ) : (
+                <Text style={styles.emailSaveText}>Save name</Text>
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.pushNotificationsRowWrap}>
+          <TouchableOpacity
+            style={styles.pushNotificationsRow}
+            onPress={() => (navigation as any).navigate('MyProfile')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.pushNotificationsRowIcon}>📍</Text>
+            <Text style={styles.pushNotificationsRowText}>Location, bio & preferences (Profile tab)</Text>
+            <Text style={styles.pushNotificationsRowChevron}>›</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.pushNotificationsRowWrap}>
+          <TouchableOpacity
+            style={styles.pushNotificationsRow}
+            onPress={() => (navigation as any).navigate('MyProfile', { scrollToPhotos: true })}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.pushNotificationsRowIcon}>📷</Text>
+            <Text style={styles.pushNotificationsRowText}>Photos (need 3 to Connect)</Text>
+            <Text style={styles.pushNotificationsRowChevron}>›</Text>
+          </TouchableOpacity>
         </View>
       </Animated.View>
 

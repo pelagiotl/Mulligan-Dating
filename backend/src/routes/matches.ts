@@ -9,6 +9,10 @@ import { geocodeLocation, calculateDistanceMiles } from "../utils/geocoding.js";
 import { getActiveMatchingRegion, isInRegion, isLikelyInRegionByText, REGION_MAX_DISTANCE_MILES } from "../config/regions.js";
 import { getHiddenFromBrowseUserIds } from "../config/hiddenFromBrowse.js";
 import { isMatchmakingGloballyDisabled, matchmakingDisabledJson } from "../config/matchmaking.js";
+import {
+  connectSetupErrorPayload,
+  getConnectSetupViolationsForUser,
+} from "../utils/connectRequirements.js";
 import { uploadChatImage, uploadChatVideo, uploadChatAudio } from "../middleware/upload.js";
 import { uploadToCloudinary, uploadToCloudinaryMedia, isCloudinaryConfigured } from "../services/cloudinary.js";
 
@@ -486,21 +490,10 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
       return res.status(400).json({ error: "Please complete your profile first" });
     }
 
-    // Photo requirement temporarily removed - will be added back later
-    // const userPhotoCountResult = db
-    //   .prepare("SELECT COUNT(*) as count FROM photos WHERE profile_id = ?")
-    //   .get([userProfile.id]);
-    // const userPhotoCount = (userPhotoCountResult instanceof Promise
-    //   ? await userPhotoCountResult
-    //   : userPhotoCountResult) as { count: number } | undefined;
-
-    // if (!userPhotoCount || userPhotoCount.count < 1) {
-    //   return res.status(400).json({ 
-    //     error: "You need at least 1 photo uploaded to use a mulligan token",
-    //     photoCount: userPhotoCount?.count || 0,
-    //     required: 1
-    //   });
-    // }
+    const connectViolations = await getConnectSetupViolationsForUser(userId);
+    if (connectViolations.length > 0) {
+      return res.status(400).json(connectSetupErrorPayload(connectViolations));
+    }
 
     // Check if target user profile exists and load gender for preference check
     const targetProfileResult = db

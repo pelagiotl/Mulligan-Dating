@@ -191,8 +191,19 @@ authRouter.get('/me', authenticateToken, async (req: AuthRequest, res) => {
       profile = await (profileStmt.get(req.userId) as Promise<any>);
     } catch (profileError) {
       console.error('Profile query error in /auth/me:', profileError);
-      // Don't fail the request if profile query fails, just return null
       profile = null;
+    }
+
+    if (!profile) {
+      try {
+        const { ensureStubProfile } = await import('../utils/ensureStubProfile.js');
+        await ensureStubProfile(req.userId!);
+        const profileStmt = db.prepare('SELECT * FROM profiles WHERE user_id = ?');
+        profile = await (profileStmt.get(req.userId) as Promise<any>);
+      } catch (stubErr) {
+        console.error('ensureStubProfile in /auth/me:', stubErr);
+        profile = null;
+      }
     }
 
     const hasPushToken = !!(user.push_token && typeof user.push_token === 'string' && user.push_token.trim().length > 0);

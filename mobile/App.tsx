@@ -16,6 +16,9 @@ import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { AuthProvider } from './src/context/AuthContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import { initSentry, captureException, captureMessage } from './src/utils/sentry';
+import { safeClearTimeout } from './src/utils/safeTimers';
+
+// LogBox noise filters live in root `index.js` (runs before this file in production entry).
 
 // Initialize Sentry early (before anything else that might crash)
 // This will capture native crashes and JavaScript errors
@@ -27,6 +30,11 @@ if (typeof ErrorUtils !== 'undefined') {
   const originalGlobalHandler = ErrorUtils.getGlobalHandler();
   
   ErrorUtils.setGlobalHandler((error: Error, isFatal?: boolean) => {
+    const msg = error?.message || '';
+    if (/native is disabled/i.test(msg) || /clearTimeout called with an invalid handle/i.test(msg)) {
+      return;
+    }
+
     // Enhanced logging with more context
     const errorInfo = {
       message: error.message,
@@ -119,6 +127,15 @@ if (typeof global !== 'undefined') {
   
   (global as any).onunhandledrejection = (event: PromiseRejectionEvent) => {
     const reason = event.reason;
+    const errorMessageEarly = reason instanceof Error ? reason.message : String(reason ?? '');
+    if (
+      /native is disabled/i.test(errorMessageEarly) ||
+      /clearTimeout called with an invalid handle/i.test(errorMessageEarly)
+    ) {
+      event.preventDefault?.();
+      return;
+    }
+
     const errorDetails = reason instanceof Error ? {
       message: reason.message,
       stack: reason.stack,
@@ -139,8 +156,7 @@ if (typeof global !== 'undefined') {
       console.error('Failed to capture promise rejection in Sentry:', sentryError);
     }
     
-    // Check if this is a non-critical native module error
-    const errorMessage = reason?.message || String(reason || '');
+    const errorMessage = reason instanceof Error ? reason.message : String(reason || '');
     const isNonCriticalNativeError =
       errorMessage.includes('notification') ||
       errorMessage.includes('push') ||
@@ -172,6 +188,16 @@ if (typeof global !== 'undefined') {
 
 export default function App() {
   const [isMounted, setIsMounted] = React.useState(false);
+
+  // NOBRIDGE can install JSI timers after `index.js` first patch — re-wrap once the root is up.
+  React.useEffect(() => {
+    try {
+      const { installHermesTimerPatches } = require('./src/utils/installHermesTimerPatch');
+      installHermesTimerPatches();
+    } catch (_) {
+      /* non-fatal */
+    }
+  }, []);
 
   // Initialize RevenueCat (iOS/Android only). In Expo Go, use Test Store key so SDK doesn't throw.
   React.useEffect(() => {
@@ -213,7 +239,7 @@ export default function App() {
       });
     }, 2000);
 
-    return () => clearTimeout(timer);
+    return () => safeClearTimeout(timer);
   }, []);
 
   return (

@@ -3,6 +3,8 @@
  * Delays function execution until after a specified time has passed since the last invocation
  */
 
+import { safeClearTimeout } from './safeTimers';
+
 export function debounce<T extends (...args: any[]) => any>(
   func: T,
   wait: number
@@ -15,9 +17,7 @@ export function debounce<T extends (...args: any[]) => any>(
       func(...args);
     };
 
-    if (timeout) {
-      clearTimeout(timeout);
-    }
+    safeClearTimeout(timeout);
     timeout = setTimeout(later, wait);
   };
 }

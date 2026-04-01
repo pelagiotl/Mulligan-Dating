@@ -744,10 +744,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (Platform.OS === 'ios' || Platform.OS === 'android') {
         if (revenueCatLoggedInUserIdRef.current !== uid) {
           revenueCatLoggedInUserIdRef.current = uid;
-          try {
-            const p = Purchases.logIn(uid);
-            if (p && typeof p.catch === 'function') p.catch((err: unknown) => console.warn('RevenueCat logIn failed:', err));
-          } catch (_) {}
+          void (async () => {
+            try {
+              await Purchases.logIn(uid);
+            } catch (err: unknown) {
+              const m = err instanceof Error ? err.message : String(err);
+              if (!/native is disabled/i.test(m) && __DEV__) {
+                console.warn('RevenueCat logIn failed:', err);
+              }
+            }
+          })();
         }
       }
 
@@ -831,10 +837,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.warn('⚠️  Failed to clear push token (non-critical):', pushError);
     }
     if (Platform.OS === 'ios' || Platform.OS === 'android') {
-      try {
-        const p = Purchases.logOut();
-        if (p && typeof p.catch === 'function') p.catch((err: unknown) => console.warn('RevenueCat logOut failed:', err));
-      } catch (_) {}
+      void (async () => {
+        try {
+          await Purchases.logOut();
+        } catch (err: unknown) {
+          const m = err instanceof Error ? err.message : String(err);
+          if (!/native is disabled/i.test(m) && __DEV__) {
+            console.warn('RevenueCat logOut failed:', err);
+          }
+        }
+      })();
     }
     clearTokenCache();
     api.clearCache(); // Prevent next account from seeing previous user's cached profile/data

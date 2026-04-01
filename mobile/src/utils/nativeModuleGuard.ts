@@ -4,18 +4,19 @@
  * This helps prevent crashes during startup
  */
 
+import { safeClearTimeout } from './safeTimers';
+
 let appInitialized = false;
-let initializationTimeout: NodeJS.Timeout | null = null;
+let initializationTimeout: ReturnType<typeof setTimeout> | null = null;
 
 /**
  * Mark app as initialized (call this after app has mounted)
  */
 export function markAppInitialized() {
   appInitialized = true;
-  if (initializationTimeout) {
-    clearTimeout(initializationTimeout);
-    initializationTimeout = null;
-  }
+  const tid = initializationTimeout;
+  initializationTimeout = null;
+  safeClearTimeout(tid);
 }
 
 /**
@@ -73,6 +74,14 @@ export async function safeNativeModuleCall<T>(
   try {
     return await fn();
   } catch (error: any) {
+    const msg = String(error?.message ?? error ?? '');
+    // Bridgeless / Expo Go: some native stacks reject with this before the native runtime is ready.
+    if (/native is disabled/i.test(msg) && !required) {
+      if (__DEV__) {
+        console.warn(`⚠️ [NativeModuleGuard] ${moduleName}: native disabled — skipping (non-fatal)`);
+      }
+      return fallbackValue;
+    }
     console.error(`❌ [NativeModuleGuard] Error in ${moduleName}:`, {
       message: error?.message || String(error),
       name: error?.name || 'Unknown',
@@ -82,11 +91,13 @@ export async function safeNativeModuleCall<T>(
   }
 }
 
-// Auto-initialize after a delay (fallback in case markAppInitialized isn't called)
-// This gives the app 3 seconds to fully mount — silent so we don't spam the console
+// Auto-initialize after a delay (fallback in case markAppInitialized isn't called).
+// Do NOT call markAppInitialized() from inside this timer: clearing this same timeout from its callback
+// throws "clearTimeout called with an invalid handle" on Hermes / NOBRIDGE.
 initializationTimeout = setTimeout(() => {
+  initializationTimeout = null;
   if (!appInitialized) {
-    markAppInitialized();
+    appInitialized = true;
   }
 }, 3000);
 

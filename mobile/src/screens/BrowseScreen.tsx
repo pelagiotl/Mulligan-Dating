@@ -32,10 +32,13 @@ import MatchCelebration from '../components/MatchCelebration';
 import LegalFooter from '../components/LegalFooter';
 import NoTokensModal from '../components/NoTokensModal';
 import OptimizedImage from '../components/OptimizedImage';
+import {
+  MIN_PHOTOS_TO_CONNECT,
+  getConnectSetupMissing,
+  isConnectSetupComplete,
+} from '../utils/connectSetup';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
-const MIN_PHOTOS_TO_CONNECT = 3;
 
 const MAX_DISTANCE_OPTIONS: (number | null)[] = [10, 25, 50, 100, 250, 500, null]; // null = Any distance
 
@@ -738,6 +741,9 @@ export default function BrowseScreen() {
   const [canClaimTokens, setCanClaimTokens] = useState<boolean>(false); // Track if user can claim tokens
   const [photoCount, setPhotoCount] = useState<number | null>(null); // User's photo count (for 5-photo minimum)
   const [photoCountLoading, setPhotoCountLoading] = useState(false); // True while fetching count so we don't briefly show wrong state
+  const profileConnectKey = `${(userProfile as { display_name?: string } | null)?.display_name ?? ''}|${userProfile?.displayName ?? ''}|${userProfile?.location ?? ''}`;
+  const connectReady = isConnectSetupComplete(userProfile, photoCount);
+  const connectMissing = getConnectSetupMissing(userProfile, photoCount);
   const socketRef = useRef<Socket | null>(null);
   const matchIdFromConnectRef = useRef<string | null>(null);
   const openTokenModalRef = useRef<(() => void) | null>(null);
@@ -890,7 +896,6 @@ export default function BrowseScreen() {
       return;
     }
 
-    // Require at least 5 photos to Connect
     let count = photoCount;
     if (count === null) {
       try {
@@ -901,12 +906,25 @@ export default function BrowseScreen() {
         count = 0;
       }
     }
-    if (count < MIN_PHOTOS_TO_CONNECT) {
-      Alert.alert(
-        'Add More Photos',
-        `Add at least ${MIN_PHOTOS_TO_CONNECT} photos to your profile in the Profile tab to start matching with others.`,
-        [{ text: 'OK' }]
-      );
+    const missing = getConnectSetupMissing(userProfile, count);
+    if (missing.length > 0) {
+      const first = missing[0];
+      const msg =
+        first === 'name'
+          ? 'Add your name in Settings (at least 2 characters) before you can Connect.'
+          : first === 'location'
+            ? 'Add your city and state on your Profile (e.g. Medford, Oregon) before you can Connect.'
+            : `Add at least ${MIN_PHOTOS_TO_CONNECT} photos on your Profile before you can Connect.`;
+      Alert.alert('Finish your profile', msg, [
+        {
+          text: first === 'name' ? 'Open Settings' : 'Open Profile',
+          onPress: () => {
+            if (first === 'name') (navigation as any).navigate('Settings');
+            else (navigation as any).navigate('MyProfile', first === 'photos' ? { scrollToPhotos: true } : undefined);
+          },
+        },
+        { text: 'OK', style: 'cancel' },
+      ]);
       return;
     }
     
@@ -990,6 +1008,27 @@ export default function BrowseScreen() {
         setCurrentProfile(null);
         void refreshProfile();
         Alert.alert('Matching not open yet', errorMessage, [{ text: 'OK' }]);
+        return;
+      }
+
+      if (err?.status === 400 && err?.code === 'CONNECT_SETUP_INCOMPLETE') {
+        unlockErrorHandledRef.current = true;
+        setIsAutoMatching(false);
+        setLoading(false);
+        setBrowseUnlocked(false);
+        setCurrentProfile(null);
+        const missing = Array.isArray((err as any).missing) ? (err as any).missing as string[] : [];
+        const first = missing[0];
+        Alert.alert('Finish your profile', errorMessage, [
+          {
+            text: first === 'name' ? 'Open Settings' : 'Open Profile',
+            onPress: () => {
+              if (first === 'name') (navigation as any).navigate('Settings');
+              else (navigation as any).navigate('MyProfile', first === 'photos' ? { scrollToPhotos: true } : undefined);
+            },
+          },
+          { text: 'OK', style: 'cancel' },
+        ]);
         return;
       }
       
@@ -1112,7 +1151,7 @@ export default function BrowseScreen() {
         setBrowseUnlocked(true);
       }
     }
-  }, [unlocking, isAuthenticated, user, photoCount, handleConnect, refreshProfile]);
+  }, [unlocking, isAuthenticated, user, userProfile, photoCount, handleConnect, refreshProfile, navigation]);
 
   const fetchProfile = useCallback(async () => {
     try {
@@ -1371,7 +1410,7 @@ export default function BrowseScreen() {
       }
     })();
     return () => { cancelled = true; setPhotoCountLoading(false); };
-  }, [showLandingPage, isAuthenticated, isFocused]);
+  }, [showLandingPage, isAuthenticated, isFocused, profileConnectKey]);
 
   useEffect(() => {
     if (hasFetched && offset > 0) {
@@ -1736,6 +1775,21 @@ export default function BrowseScreen() {
             Alert.alert('Matching not open yet', err.message || 'Check back soon.', [{ text: 'OK' }]);
             return;
           }
+          if (apiErr.status === 400 && apiErr.code === 'CONNECT_SETUP_INCOMPLETE') {
+            const missing = Array.isArray((apiErr as any).missing) ? ((apiErr as any).missing as string[]) : [];
+            const first = missing[0];
+            Alert.alert('Finish your profile', err.message || 'Complete your profile to connect.', [
+              {
+                text: first === 'name' ? 'Open Settings' : 'Open Profile',
+                onPress: () => {
+                  if (first === 'name') (navigation as any).navigate('Settings');
+                  else (navigation as any).navigate('MyProfile', first === 'photos' ? { scrollToPhotos: true } : undefined);
+                },
+              },
+              { text: 'OK', style: 'cancel' },
+            ]);
+            return;
+          }
           if (apiErr.status === 400 && apiErr.code === 'AT_MATCH_LIMIT') {
             setMatchLimitCanExpand(!!apiErr.canExpand);
             setMatchLimitProfile(profile);
@@ -1793,7 +1847,7 @@ export default function BrowseScreen() {
           setBrowseUnlocked(true);
         }
       });
-  }, [isAutoMatching, user, refreshProfile]);
+  }, [isAutoMatching, user, refreshProfile, navigation]);
 
   const handleCelebrationClose = useCallback(() => {
     clearCelebrationAndConnectingState();
@@ -1996,11 +2050,19 @@ export default function BrowseScreen() {
                 >
                   <TouchableOpacity
                     onPress={() => {
-                      if (photoCount !== null && photoCount < MIN_PHOTOS_TO_CONNECT) {
-                        (navigation as any).navigate('MyProfile', { scrollToPhotos: true });
-                      } else {
+                      if (unlocking) return;
+                      if (connectReady) {
                         handleUnlockBrowse();
+                        return;
                       }
+                      if (photoCount === null) {
+                        handleUnlockBrowse();
+                        return;
+                      }
+                      const m = connectMissing[0];
+                      if (m === 'name') (navigation as any).navigate('Settings');
+                      else if (m === 'location') (navigation as any).navigate('MyProfile');
+                      else if (m === 'photos') (navigation as any).navigate('MyProfile', { scrollToPhotos: true });
                     }}
                     onPressIn={() => {
                       Animated.spring(buttonScale, {
@@ -2028,7 +2090,7 @@ export default function BrowseScreen() {
                       ]}
                     >
                       {/* Shimmer effect overlay */}
-                      {!unlocking && photoCount !== null && photoCount >= MIN_PHOTOS_TO_CONNECT && (
+                      {!unlocking && connectReady && (
                         <Animated.View
                           style={[
                             styles.buttonShimmer,
@@ -2046,17 +2108,25 @@ export default function BrowseScreen() {
                       >
                         {unlocking ? (
                           <ActivityIndicator color="#fff" size="large" />
-                        ) : (photoCount === null || photoCount >= MIN_PHOTOS_TO_CONNECT) ? (
+                        ) : connectReady ? (
                           <Text style={styles.landingButtonText} numberOfLines={1}>
                             Connect
                           </Text>
-                        ) : photoCount < MIN_PHOTOS_TO_CONNECT ? (
+                        ) : photoCount === null ? (
+                          <Text style={styles.landingButtonText} numberOfLines={1}>
+                            Connect
+                          </Text>
+                        ) : connectMissing[0] === 'name' ? (
                           <Text style={styles.landingButtonText} numberOfLines={2}>
-                            Add 3+ Photos
+                            Add your name
+                          </Text>
+                        ) : connectMissing[0] === 'location' ? (
+                          <Text style={styles.landingButtonText} numberOfLines={2}>
+                            Add location
                           </Text>
                         ) : (
-                          <Text style={styles.landingButtonText} numberOfLines={1}>
-                            Connect
+                          <Text style={styles.landingButtonText} numberOfLines={2}>
+                            Add 3+ photos
                           </Text>
                         )}
                       </Animated.View>
@@ -2069,8 +2139,12 @@ export default function BrowseScreen() {
                 <Text style={styles.landingHint}>
                   {matchmakingPaused
                     ? 'Thanks for downloading — see you at launch'
-                    : photoCount !== null && photoCount < MIN_PHOTOS_TO_CONNECT
-                      ? `Add at least ${MIN_PHOTOS_TO_CONNECT} photos in Profile to Connect`
+                    : !connectReady && photoCount !== null
+                      ? connectMissing[0] === 'name'
+                        ? 'Add your name in Settings to Connect'
+                        : connectMissing[0] === 'location'
+                          ? 'Add city & state on Profile to Connect'
+                          : `Add at least ${MIN_PHOTOS_TO_CONNECT} photos on Profile to Connect`
                       : '⛳ Use a Mulligan'}
                 </Text>
               </Animated.View>
@@ -2129,13 +2203,13 @@ export default function BrowseScreen() {
         <View style={styles.noProfileContainer}>
           <Text style={styles.noProfileEmoji}>🚀</Text>
           <Text style={styles.noProfileText}>
-            Create your profile to start discovering people!
+            We couldn’t load your profile. Open Settings or try logging in again.
           </Text>
           <TouchableOpacity
             style={styles.createButton}
-            onPress={() => navigation.navigate('CreateProfile' as never)}
+            onPress={() => navigation.navigate('Settings' as never)}
           >
-            <Text style={styles.createButtonText}>Create Profile</Text>
+            <Text style={styles.createButtonText}>Open Settings</Text>
           </TouchableOpacity>
         </View>
       ) : !currentProfile && !loading ? (

@@ -138,6 +138,73 @@ profileRouter.post('/', authenticateToken, rateLimitAPI, async (req: AuthRequest
   }
 });
 
+const locationFieldSchema = z
+  .string()
+  .max(100, 'Location must be at most 100 characters')
+  .optional()
+  .nullable()
+  .refine(
+    (val) => {
+      if (val == null || val.trim() === '') return true;
+      const t = val.trim();
+      const i = t.indexOf(',');
+      if (i === -1) return false;
+      return t.slice(0, i).trim().length > 0 && t.slice(i + 1).trim().length > 0;
+    },
+    { message: 'Location must include both city and state (e.g. Medford, Oregon)' }
+  );
+
+const profileBasicsSchema = z
+  .object({
+    displayName: z
+      .string()
+      .min(2, 'Name must be at least 2 characters')
+      .max(50, 'Name must be at most 50 characters')
+      .refine((val) => val.trim().length >= 2, 'Name cannot be only whitespace')
+      .optional(),
+    location: locationFieldSchema,
+  })
+  .refine((body) => body.displayName !== undefined || body.location !== undefined, {
+    message: 'Provide displayName and/or location to update',
+  });
+
+// Partial update for display name and/or location (e.g. Settings after skipping onboarding wizard)
+profileRouter.put('/basics', authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const body = profileBasicsSchema.parse(req.body);
+    const userId = req.userId!;
+
+    const profileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
+    const row = await (profileStmt.get([userId]) as Promise<{ id: string } | undefined>);
+    if (!row) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+
+    const updates: string[] = [];
+    const values: unknown[] = [];
+    if (body.displayName !== undefined) {
+      updates.push('display_name = ?');
+      values.push(sanitizeText(body.displayName, 50));
+    }
+    if (body.location !== undefined) {
+      updates.push('location = ?');
+      values.push(body.location ? sanitizeText(body.location, 100) : null);
+    }
+    updates.push('updated_at = CURRENT_TIMESTAMP');
+    values.push(userId);
+
+    const sql = `UPDATE profiles SET ${updates.join(', ')} WHERE user_id = ?`;
+    await (db.prepare(sql).run(values) as Promise<unknown>);
+    res.json({ message: 'Profile updated' });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors[0].message });
+    }
+    console.error('PUT /profile/basics error:', error);
+    res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
 // Get current user's profile
 profileRouter.get('/', authenticateToken, async (req: AuthRequest, res) => {
   try {

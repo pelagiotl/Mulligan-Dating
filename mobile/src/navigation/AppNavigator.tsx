@@ -109,14 +109,13 @@ const FastTabBarButton = React.memo(function FastTabBarButton(
     if (requiresProfile && !profile && !loading) {
       Alert.alert(
         'Profile Required',
-        'Please create your profile first to access this feature.',
+        'We could not load your profile. Open Settings to finish setup, or try logging in again.',
         [
           {
-            text: 'Create Profile',
+            text: 'Open Settings',
             onPress: () => {
               try {
-                const root = (navigation as any).getParent?.();
-                if (root?.navigate) root.navigate('CreateProfile');
+                (navigation as any).navigate('Settings');
               } catch (err) {
                 console.error('Navigation error:', err);
               }
@@ -401,7 +400,7 @@ export default function AppNavigator() {
     setIsNavigationReady(true);
   }, []);
 
-  // Open straight to Connect; when auth completes, redirect to PhoneLogin, AgeGate, CreateProfile, or MainTabs
+  // Open straight to Connect; when auth completes, redirect to PhoneLogin, AgeGate, or MainTabs (CreateProfile remains available from Profile for deep edits)
   React.useEffect(() => {
     if (!loading && isNavigationReady && navigationRef.current && (!user || gateStatusLoaded)) {
       const currentRoute = navigationRef.current.getCurrentRoute();
@@ -421,9 +420,7 @@ export default function AppNavigator() {
           if (ageGatePassed === true) {
             navigationRef.current.reset({
               index: 0,
-              routes: profile
-                ? [{ name: 'MainTabs' }]
-                : [{ name: 'CreateProfile' }],
+              routes: [{ name: 'MainTabs' }],
             });
           } else {
             AsyncStorage.getItem('AGE_GATE_ACCEPTED').then((v) => {
@@ -431,15 +428,13 @@ export default function AppNavigator() {
                 setAgeGatePassed(true);
                 navigationRef.current?.reset({
                   index: 0,
-                  routes: profile
-                    ? [{ name: 'MainTabs' }]
-                    : [{ name: 'CreateProfile' }],
+                  routes: [{ name: 'MainTabs' }],
                 });
                 return;
               }
               navigationRef.current?.reset({
                 index: 0,
-                routes: [{ name: 'AgeGate', params: { nextRoute: profile ? 'MainTabs' : 'CreateProfile' } }],
+                routes: [{ name: 'AgeGate', params: { nextRoute: 'MainTabs' } }],
               });
             });
           }
@@ -474,23 +469,6 @@ export default function AppNavigator() {
         user &&
         gateStatusLoaded &&
         ageGatePassed === true &&
-        !profile &&
-        currentRoute?.name !== 'CreateProfile' &&
-        !isInsideMainTabsFlow(currentRoute?.name)
-      ) {
-        try {
-          navigationRef.current.reset({
-            index: 0,
-            routes: [{ name: 'CreateProfile' }],
-          });
-        } catch (err) {
-          console.error('Navigation error in AppNavigator:', err);
-        }
-      } else if (
-        user &&
-        gateStatusLoaded &&
-        ageGatePassed === true &&
-        profile &&
         !isInsideMainTabsFlow(currentRoute?.name) &&
         currentRoute?.name !== 'CreateProfile'
       ) {
@@ -501,7 +479,7 @@ export default function AppNavigator() {
         }
       }
     }
-  }, [loading, user?.id, profile?.id, isNavigationReady, gateStatusLoaded, ageGatePassed]);
+  }, [loading, user?.id, isNavigationReady, gateStatusLoaded, ageGatePassed]);
 
   // Brief seamless splash while checking auth and (if logged in) age gate status
   if (loading || (user && !gateStatusLoaded)) {

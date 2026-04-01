@@ -8,6 +8,10 @@ import { getActiveMatchingRegion, isInRegion, isLikelyInRegionByText, REGION_MAX
 import { expireOldMatches } from '../utils/expireMatches.js';
 import { getHiddenFromBrowseUserIds } from '../config/hiddenFromBrowse.js';
 import { isMatchmakingGloballyDisabled, matchmakingDisabledJson } from '../config/matchmaking.js';
+import {
+  connectSetupErrorPayload,
+  getConnectSetupViolationsForUser,
+} from '../utils/connectRequirements.js';
 
 // Check if using PostgreSQL
 const usePostgres = !!process.env.DATABASE_URL;
@@ -63,6 +67,11 @@ usersRouter.post('/unlock-browse', authenticateToken, async (req: AuthRequest, r
 
     if (!token) {
       return res.status(400).json({ error: "No tokens available. Claim your weekly token!" });
+    }
+
+    const connectViolations = await getConnectSetupViolationsForUser(userId);
+    if (connectViolations.length > 0) {
+      return res.status(400).json(connectSetupErrorPayload(connectViolations));
     }
 
     const updateUserResult = db.prepare(

@@ -53,7 +53,7 @@ function initializeNotificationHandler() {
         notificationHandlerInitialized = true;
       } catch (error) {
         console.warn('⚠️  Failed to set notification handler (non-critical):', error);
-        throw error; // Re-throw so safeNativeModuleCall can handle it
+        // Do not rethrow — avoids unhandled rejections when the native bridge rejects (e.g. NOBRIDGE / "Native is disabled").
       }
     },
     'Notifications.setNotificationHandler',
