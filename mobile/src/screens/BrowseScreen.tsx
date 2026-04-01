@@ -588,6 +588,53 @@ const AnimatedLogo = memo(function AnimatedLogo() {
   );
 });
 
+// Animated Emoji Component for feature icons
+function AnimatedEmoji({ emoji, delay = 0 }: { emoji: string; delay?: number }) {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const scaleLoop = Animated.loop(
+      Animated.sequence([
+        Animated.delay(delay),
+        Animated.timing(scaleAnim, { toValue: 1.15, duration: 1500, useNativeDriver: true }),
+        Animated.timing(scaleAnim, { toValue: 1, duration: 1500, useNativeDriver: true }),
+      ])
+    );
+    scaleLoop.start();
+    const rotateLoop = Animated.loop(
+      Animated.sequence([
+        Animated.delay(delay),
+        Animated.timing(rotateAnim, { toValue: 1, duration: 4000, useNativeDriver: true }),
+        Animated.timing(rotateAnim, { toValue: 0, duration: 4000, useNativeDriver: true }),
+      ])
+    );
+    rotateLoop.start();
+    return () => {
+      scaleLoop.stop();
+      rotateLoop.stop();
+    };
+  }, [delay]);
+
+  const rotate = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['-5deg', '5deg'],
+  });
+
+  return (
+    <Animated.View
+      style={{
+        transform: [
+          { scale: scaleAnim },
+          { rotate },
+        ],
+      }}
+    >
+      <Text style={styles.featureIcon}>{emoji}</Text>
+    </Animated.View>
+  );
+}
+
 interface Photo {
   id: string;
   url: string;
@@ -2012,6 +2059,27 @@ export default function BrowseScreen() {
                 />
               ) : null}
 
+              <View style={styles.landingFeatures}>
+                <View style={styles.featureItem}>
+                  <AnimatedEmoji emoji="✨" delay={0} />
+                  <Text style={styles.featureText} numberOfLines={2}>
+                    Quality{'\n'}Matches
+                  </Text>
+                </View>
+                <View style={styles.featureItem}>
+                  <AnimatedEmoji emoji="🎯" delay={500} />
+                  <Text style={styles.featureText} numberOfLines={2}>
+                    Shared{'\n'}Interests
+                  </Text>
+                </View>
+                <View style={styles.featureItem}>
+                  <AnimatedEmoji emoji="💝" delay={1000} />
+                  <Text style={styles.featureText} numberOfLines={2} adjustsFontSizeToFit={true} minimumFontScale={0.85}>
+                    Meaningful{'\n'}Connections
+                  </Text>
+                </View>
+              </View>
+
               {matchmakingPaused ? (
                 <View style={styles.matchmakingPausedCard}>
                   <Text style={styles.matchmakingPausedTitle}>Matching opens soon</Text>
@@ -3065,6 +3133,41 @@ const styles = StyleSheet.create({
     color: '#4b5563',
     textAlign: 'center',
     lineHeight: 22,
+  },
+  landingFeatures: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'stretch',
+    width: '100%',
+    marginBottom: 48,
+    paddingHorizontal: 12,
+    gap: 10,
+  },
+  featureItem: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+    maxWidth: 110,
+    minWidth: 90,
+    paddingHorizontal: 6,
+    paddingVertical: 12,
+  },
+  featureIcon: {
+    fontSize: 32,
+    marginBottom: 10,
+  },
+  featureText: {
+    fontSize: 10,
+    color: '#444',
+    textAlign: 'center',
+    fontWeight: '700',
+    lineHeight: 15,
+    width: '100%',
+    marginTop: 4,
+    letterSpacing: 0.05,
+    includeFontPadding: false,
+    flexWrap: 'wrap',
+    paddingHorizontal: 1,
   },
   landingButtonContainer: {
     width: '100%',
