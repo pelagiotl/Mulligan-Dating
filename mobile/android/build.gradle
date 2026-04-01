@@ -17,7 +17,8 @@ buildscript {
     }
     dependencies {
         classpath 'com.google.gms:google-services:4.4.1'
-        classpath('com.android.tools.build:gradle')
+        // 8.8.x: bundle + uncompressed JNI get PAGE_ALIGNMENT_16K in AAB (Play 16 KB check). RN 0.76 ships 8.6 by default.
+        classpath('com.android.tools.build:gradle:8.8.2')
         classpath('com.facebook.react:react-native-gradle-plugin')
         classpath('org.jetbrains.kotlin:kotlin-gradle-plugin')
     }
