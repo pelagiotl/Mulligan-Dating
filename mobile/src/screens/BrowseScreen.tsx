@@ -28,6 +28,7 @@ import { api, prefetchToken, ensureTokenPrefetched, clearTokenCache } from '../u
 import { getPhotoUrl } from '../utils/photoUrl';
 import { useAuth } from '../context/AuthContext';
 import TokenDisplay from '../components/TokenDisplay';
+import ConnectLandingScarcity from '../components/ConnectLandingScarcity';
 import MatchCelebration from '../components/MatchCelebration';
 import LegalFooter from '../components/LegalFooter';
 import NoTokensModal from '../components/NoTokensModal';
@@ -587,53 +588,6 @@ const AnimatedLogo = memo(function AnimatedLogo() {
   );
 });
 
-// Animated Emoji Component for feature icons
-function AnimatedEmoji({ emoji, delay = 0 }: { emoji: string; delay?: number }) {
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-  const rotateAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const scaleLoop = Animated.loop(
-      Animated.sequence([
-        Animated.delay(delay),
-        Animated.timing(scaleAnim, { toValue: 1.15, duration: 1500, useNativeDriver: true }),
-        Animated.timing(scaleAnim, { toValue: 1, duration: 1500, useNativeDriver: true }),
-      ])
-    );
-    scaleLoop.start();
-    const rotateLoop = Animated.loop(
-      Animated.sequence([
-        Animated.delay(delay),
-        Animated.timing(rotateAnim, { toValue: 1, duration: 4000, useNativeDriver: true }),
-        Animated.timing(rotateAnim, { toValue: 0, duration: 4000, useNativeDriver: true }),
-      ])
-    );
-    rotateLoop.start();
-    return () => {
-      scaleLoop.stop();
-      rotateLoop.stop();
-    };
-  }, [delay]);
-
-  const rotate = rotateAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['-5deg', '5deg'],
-  });
-
-  return (
-    <Animated.View
-      style={{
-        transform: [
-          { scale: scaleAnim },
-          { rotate },
-        ],
-      }}
-    >
-      <Text style={styles.featureIcon}>{emoji}</Text>
-    </Animated.View>
-  );
-}
-
 interface Photo {
   id: string;
   url: string;
@@ -739,6 +693,14 @@ export default function BrowseScreen() {
   const [unlocking, setUnlocking] = useState(false);
   const [isAutoMatching, setIsAutoMatching] = useState(false); // Track when auto-matching to prevent UI flash
   const [canClaimTokens, setCanClaimTokens] = useState<boolean>(false); // Track if user can claim tokens
+  const [connectLandingEconomy, setConnectLandingEconomy] = useState<{
+    availableTokens: number;
+    canClaimWeeklyToken: boolean;
+    nextRefillDate: string | null;
+    activeMatches: number;
+    slotLimit: number;
+  } | null>(null);
+  const [connectLandingEconomyLoading, setConnectLandingEconomyLoading] = useState(false);
   const [photoCount, setPhotoCount] = useState<number | null>(null); // User's photo count (for 5-photo minimum)
   const [photoCountLoading, setPhotoCountLoading] = useState(false); // True while fetching count so we don't briefly show wrong state
   const profileConnectKey = `${(userProfile as { display_name?: string } | null)?.display_name ?? ''}|${userProfile?.displayName ?? ''}|${userProfile?.location ?? ''}`;
@@ -801,15 +763,42 @@ export default function BrowseScreen() {
     if (currentProfile && isAuthenticated) ensureTokenPrefetched();
   }, [currentProfile, isAuthenticated]);
 
-  const checkCanClaimTokens = async () => {
-    try {
-      const tokenData = await api.get<{ availableTokens: number; canClaimWeeklyToken: boolean }>('/tokens');
-      setCanClaimTokens(tokenData.canClaimWeeklyToken || false);
-    } catch (err) {
-      // Silently fail - non-critical
+  const refreshConnectLandingEconomy = useCallback(async () => {
+    if (!isAuthenticated) {
       setCanClaimTokens(false);
+      setConnectLandingEconomy(null);
+      setConnectLandingEconomyLoading(false);
+      return;
     }
-  };
+    setConnectLandingEconomyLoading(true);
+    try {
+      const [tokenData, matchData] = await Promise.all([
+        api.get<{
+          availableTokens: number;
+          canClaimWeeklyToken: boolean;
+          nextRefillDate?: string | null;
+        }>('/tokens', false),
+        api.get<{ count: number; slotLimit: number }>('/matches/count', false),
+      ]);
+      setCanClaimTokens(!!tokenData.canClaimWeeklyToken);
+      setConnectLandingEconomy({
+        availableTokens: Math.floor(Number(tokenData.availableTokens ?? 0)),
+        canClaimWeeklyToken: !!tokenData.canClaimWeeklyToken,
+        nextRefillDate: tokenData.nextRefillDate != null ? String(tokenData.nextRefillDate) : null,
+        activeMatches: Math.floor(Number(matchData?.count ?? 0)),
+        slotLimit: Math.floor(Number(matchData?.slotLimit ?? 50)),
+      });
+    } catch {
+      setCanClaimTokens(false);
+      setConnectLandingEconomy(null);
+    } finally {
+      setConnectLandingEconomyLoading(false);
+    }
+  }, [isAuthenticated]);
+
+  const checkCanClaimTokens = useCallback(() => {
+    void refreshConnectLandingEconomy();
+  }, [refreshConnectLandingEconomy]);
 
   const checkBrowseUnlocked = async () => {
     try {
@@ -1337,9 +1326,9 @@ export default function BrowseScreen() {
   // On focus: only refresh token/claim state so returning to tab keeps current profile and Connect button animations
   useFocusEffect(
     useCallback(() => {
-      checkCanClaimTokens();
+      void refreshConnectLandingEconomy();
       prefetchToken();
-    }, [])
+    }, [refreshConnectLandingEconomy])
   );
 
   const clearCelebrationAndConnectingState = useCallback(() => {
@@ -2009,28 +1998,20 @@ export default function BrowseScreen() {
                     'Matching will open on launch day. You can still set up your profile, add photos, and get ready.'
                   : 'Find someone who shares your interests and values'}
               </Text>
-              
-              <View style={styles.landingFeatures}>
-                <View style={styles.featureItem}>
-                  <AnimatedEmoji emoji="✨" delay={0} />
-                  <Text style={styles.featureText} numberOfLines={2}>
-                    Quality{'\n'}Matches
-                  </Text>
-                </View>
-                <View style={styles.featureItem}>
-                  <AnimatedEmoji emoji="🎯" delay={500} />
-                  <Text style={styles.featureText} numberOfLines={2}>
-                    Shared{'\n'}Interests
-                  </Text>
-                </View>
-                <View style={styles.featureItem}>
-                  <AnimatedEmoji emoji="💝" delay={1000} />
-                  <Text style={styles.featureText} numberOfLines={2} adjustsFontSizeToFit={true} minimumFontScale={0.85}>
-                    Meaningful{'\n'}Connections
-                  </Text>
-                </View>
-              </View>
-              
+
+              {isAuthenticated &&
+              !matchmakingPaused &&
+              (connectLandingEconomy !== null || connectLandingEconomyLoading) ? (
+                <ConnectLandingScarcity
+                  loading={connectLandingEconomyLoading && connectLandingEconomy === null}
+                  availableTokens={connectLandingEconomy?.availableTokens ?? 0}
+                  canClaimWeeklyToken={connectLandingEconomy?.canClaimWeeklyToken ?? false}
+                  nextRefillDate={connectLandingEconomy?.nextRefillDate ?? null}
+                  activeMatches={connectLandingEconomy?.activeMatches ?? 0}
+                  slotLimit={connectLandingEconomy?.slotLimit ?? 50}
+                />
+              ) : null}
+
               {matchmakingPaused ? (
                 <View style={styles.matchmakingPausedCard}>
                   <Text style={styles.matchmakingPausedTitle}>Matching opens soon</Text>
@@ -3084,41 +3065,6 @@ const styles = StyleSheet.create({
     color: '#4b5563',
     textAlign: 'center',
     lineHeight: 22,
-  },
-  landingFeatures: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'stretch',
-    width: '100%',
-    marginBottom: 48,
-    paddingHorizontal: 12,
-    gap: 10, // Consistent gap between all cards
-  },
-  featureItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    maxWidth: 110,
-    minWidth: 90,
-    paddingHorizontal: 6,
-    paddingVertical: 12,
-  },
-  featureIcon: {
-    fontSize: 32,
-    marginBottom: 10,
-  },
-  featureText: {
-    fontSize: 10,
-    color: '#444',
-    textAlign: 'center',
-    fontWeight: '700',
-    lineHeight: 15,
-    width: '100%',
-    marginTop: 4,
-    letterSpacing: 0.05,
-    includeFontPadding: false,
-    flexWrap: 'wrap',
-    paddingHorizontal: 1,
   },
   landingButtonContainer: {
     width: '100%',
