@@ -8,15 +8,14 @@
 import 'react-native-gesture-handler';
 
 import React from 'react';
-import { View, Platform } from 'react-native';
+import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import Constants from 'expo-constants';
-import Purchases from 'react-native-purchases';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { AuthProvider } from './src/context/AuthContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import { initSentry, captureException, captureMessage } from './src/utils/sentry';
 import { safeClearTimeout } from './src/utils/safeTimers';
+import { ensurePurchasesConfigured } from './src/utils/purchasesReady';
 
 // LogBox noise filters live in root `index.js` (runs before this file in production entry).
 
@@ -199,35 +198,9 @@ export default function App() {
     }
   }, []);
 
-  // Initialize RevenueCat (iOS/Android only). In Expo Go, use Test Store key so SDK doesn't throw.
+  // RevenueCat: single configure + warm-up (see purchasesReady — IAP awaits this before StoreKit).
   React.useEffect(() => {
-    if (Platform.OS !== 'ios' && Platform.OS !== 'android') return;
-    const isExpoGo = Constants.appOwnership === 'expo';
-    const iosKey = process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY;
-    const androidKey = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY;
-    const fallbackKey = process.env.EXPO_PUBLIC_REVENUECAT_API_KEY;
-    const testStoreKey = process.env.EXPO_PUBLIC_REVENUECAT_TEST_STORE_KEY;
-    const apiKey = isExpoGo
-      ? testStoreKey
-      : (Platform.OS === 'ios' ? (iosKey || fallbackKey) : (androidKey || fallbackKey));
-    if (!apiKey) {
-      if (__DEV__) {
-        if (isExpoGo) console.warn('[RevenueCat] Expo Go: set EXPO_PUBLIC_REVENUECAT_TEST_STORE_KEY in .env to test IAP (see https://rev.cat/sdk-test-store).');
-        else console.warn('[RevenueCat] No API key (EXPO_PUBLIC_REVENUECAT_*). IAP will show "Coming soon".');
-      }
-      return;
-    }
-    if (__DEV__) console.log('[RevenueCat] Configuring for', Platform.OS, isExpoGo ? '(Expo Go, test store)' : '');
-    try {
-      const result = Purchases.configure({ apiKey });
-      if (result && typeof result.then === 'function') {
-        result.then(() => {
-          if (__DEV__) Purchases.setLogLevel(Purchases.LOG_LEVEL.DEBUG);
-        }).catch((err: unknown) => console.warn('RevenueCat configure failed:', err));
-      }
-    } catch (err) {
-      console.warn('RevenueCat configure failed:', err);
-    }
+    void ensurePurchasesConfigured();
   }, []);
 
   React.useEffect(() => {

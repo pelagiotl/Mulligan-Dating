@@ -32,7 +32,7 @@
       </dict>
     </array>
     <key>CFBundleVersion</key>
-    <string>191</string>
+    <string>192</string>
     <key>ITSAppUsesNonExemptEncryption</key>
     <false/>
     <key>LSMinimumSystemVersion</key>
@@ -58,10 +58,6 @@
     <string>Mulligan does not use the microphone. Audio playback is used for match notifications.</string>
     <key>NSPhotoLibraryUsageDescription</key>
     <string>Mulligan needs access to your photos to upload profile pictures and send photos in chat.</string>
-    <key>UIBackgroundModes</key>
-    <array>
-      <string>audio</string>
-    </array>
     <key>UILaunchStoryboardName</key>
     <string>SplashScreen</string>
     <key>UIRequiredDeviceCapabilities</key>

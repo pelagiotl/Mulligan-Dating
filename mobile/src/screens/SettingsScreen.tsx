@@ -20,6 +20,13 @@ import Purchases from 'react-native-purchases';
 import type { PurchasesPackage } from 'react-native-purchases';
 import { api } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
+import {
+  ensurePurchasesConfigured,
+  findRevenueCatPackage,
+  formatPurchasesError,
+  getRevenueCatPackageForProductId,
+  pickCurrentOfferingPackages,
+} from '../utils/purchasesReady';
 import { navigationRef } from '../navigation/navigationRef';
 import LegalFooter from '../components/LegalFooter';
 
@@ -263,22 +270,20 @@ export default function SettingsScreen() {
       if (!isRetry) revenueCatPackagesByProductId.current = {};
       const tryRevenueCat = async (): Promise<boolean> => {
         if (list.length === 0 || Platform.OS === 'web') return false;
+        if (!(await ensurePurchasesConfigured())) return false;
         try {
           const offerings = await Purchases.getOfferings();
-          const current = offerings.current ?? (offerings as { all?: Record<string, { availablePackages: PurchasesPackage[] }> }).all?.['default'] ?? Object.values((offerings as { all?: Record<string, { availablePackages: PurchasesPackage[] }> }).all ?? {})[0];
+          const available = pickCurrentOfferingPackages(offerings);
           if (__DEV__) {
-            console.log('[IAP Settings] getOfferings: offering id=', current?.identifier ?? 'null', 'packages count=', current?.availablePackages?.length ?? 0);
-            current?.availablePackages?.forEach((p) => console.log('[IAP Settings] RC package product.identifier=', p.product.identifier));
+            console.log('[IAP Settings] getOfferings: packages count=', available.length);
+            available.forEach((p) => console.log('[IAP Settings] RC package product.identifier=', p.product.identifier));
             console.log('[IAP Settings] Backend productIds=', list.map((p) => (p as { productId?: string }).productId));
           }
-          if (current?.availablePackages?.length) {
+          if (available.length) {
             let matched = 0;
             list = list.map((pkg) => {
               const productId = (pkg as { productId?: string }).productId;
-              const rcPkg = current.availablePackages.find((p) => {
-                const id = p.product.identifier;
-                return id === productId || id?.toLowerCase() === productId?.toLowerCase() || (typeof id === 'string' && id.endsWith && productId && id.endsWith(productId));
-              });
+              const rcPkg = productId ? findRevenueCatPackage(available, productId) : undefined;
               if (rcPkg && productId) {
                 revenueCatPackagesByProductId.current[productId] = rcPkg;
                 matched++;
@@ -318,8 +323,19 @@ export default function SettingsScreen() {
   };
 
   const handlePurchase = useCallback(async (pkg: { id: number; productId?: string; tokens: number }) => {
+    if (!(await ensurePurchasesConfigured())) {
+      Alert.alert(
+        'Store unavailable',
+        'In-app purchases are still loading. Wait a moment and try again, or force-quit and reopen the app.'
+      );
+      return;
+    }
     const productId = pkg.productId;
-    const rcPkg = productId ? revenueCatPackagesByProductId.current[productId] : null;
+    let rcPkg = productId ? revenueCatPackagesByProductId.current[productId] : null;
+    if (!rcPkg && productId) {
+      rcPkg = await getRevenueCatPackageForProductId(productId);
+      if (rcPkg) revenueCatPackagesByProductId.current[productId] = rcPkg;
+    }
     if (!rcPkg) {
       const msg = isExpoGo
         ? "In-app purchases aren't available in Expo Go. Install the app from TestFlight or the App Store to buy tokens."
@@ -334,9 +350,10 @@ export default function SettingsScreen() {
       await fetchPackages();
       refreshProfile?.();
       Alert.alert('Success', `${pkg.tokens} token(s) added! Use them to connect with more people.`);
-    } catch (err: any) {
-      if (err.userCancelled) return;
-      Alert.alert('Purchase failed', err?.message || 'Something went wrong. Please try again.');
+    } catch (err: unknown) {
+      const e = err as { userCancelled?: boolean };
+      if (e?.userCancelled) return;
+      Alert.alert('Purchase failed', formatPurchasesError(err));
     } finally {
       setPurchasing(false);
     }

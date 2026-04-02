@@ -11,6 +11,13 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { api } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
+import {
+  ensurePurchasesConfigured,
+  findRevenueCatPackage,
+  formatPurchasesError,
+  getRevenueCatPackageForProductId,
+  pickCurrentOfferingPackages,
+} from '../utils/purchasesReady';
 
 interface TokenData {
   availableTokens: number;
@@ -538,22 +545,20 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
       if (!isRetry) revenueCatPackagesByProductId.current = {};
       const tryRevenueCat = async (): Promise<boolean> => {
         if (list.length === 0 || Platform.OS === 'web') return false;
+        if (!(await ensurePurchasesConfigured())) return false;
         try {
           const offerings = await Purchases.getOfferings();
-          const current = offerings.current ?? (offerings as { all?: Record<string, { availablePackages: PurchasesPackage[] }> }).all?.['default'] ?? Object.values((offerings as { all?: Record<string, { availablePackages: PurchasesPackage[] }> }).all ?? {})[0];
+          const available = pickCurrentOfferingPackages(offerings);
           if (__DEV__) {
-            console.log('[IAP] getOfferings: offering id=', current?.identifier ?? 'null', 'packages count=', current?.availablePackages?.length ?? 0);
-            current?.availablePackages?.forEach((p) => console.log('[IAP] RC package product.identifier=', p.product.identifier));
+            console.log('[IAP] getOfferings: packages count=', available.length);
+            available.forEach((p) => console.log('[IAP] RC package product.identifier=', p.product.identifier));
             console.log('[IAP] Backend productIds=', list.map((p) => p.productId));
           }
-          if (current?.availablePackages?.length) {
+          if (available.length) {
             let matched = 0;
             list = list.map((pkg) => {
               const productId = pkg.productId;
-              const rcPkg = current.availablePackages.find((p) => {
-                const id = p.product.identifier;
-                return id === productId || id?.toLowerCase() === productId?.toLowerCase() || (typeof id === 'string' && id.endsWith && productId && id.endsWith(productId));
-              });
+              const rcPkg = productId ? findRevenueCatPackage(available, productId) : undefined;
               if (rcPkg && productId) {
                 revenueCatPackagesByProductId.current[productId] = rcPkg;
                 matched++;
@@ -592,7 +597,19 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
   };
 
   const handlePurchase = async (pkg: TokenPackage) => {
-    const rcPkg = pkg.productId ? revenueCatPackagesByProductId.current[pkg.productId] : null;
+    if (!(await ensurePurchasesConfigured())) {
+      Alert.alert(
+        'Store unavailable',
+        'In-app purchases are still loading. Wait a moment and try again, or force-quit and reopen the app.'
+      );
+      return;
+    }
+    const pid = pkg.productId;
+    let rcPkg = pid ? revenueCatPackagesByProductId.current[pid] : null;
+    if (!rcPkg && pid) {
+      rcPkg = await getRevenueCatPackageForProductId(pid);
+      if (rcPkg) revenueCatPackagesByProductId.current[pid] = rcPkg;
+    }
     if (!rcPkg) {
       const msg = isExpoGo
         ? "In-app purchases aren't available in Expo Go. Install the app from TestFlight or the App Store to buy tokens."
@@ -606,9 +623,10 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
       await syncTokensAfterPurchase();
       await fetchPackages();
       Alert.alert('Success', `${pkg.tokens} token(s) added!`);
-    } catch (err: any) {
-      if (err?.userCancelled) return;
-      Alert.alert('Purchase failed', err?.message || 'Something went wrong. Please try again.');
+    } catch (err: unknown) {
+      const e = err as { userCancelled?: boolean };
+      if (e?.userCancelled) return;
+      Alert.alert('Purchase failed', formatPurchasesError(err));
     } finally {
       setPurchasing(false);
     }
