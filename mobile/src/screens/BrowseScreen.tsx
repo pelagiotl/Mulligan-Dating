@@ -67,9 +67,6 @@ function renderLocation(location: string | null | undefined) {
   );
 }
 
-/** Under “Discover People” — product positioning (aligned with marketing / web landing). */
-const CONNECT_DISCOVER_TAGLINE = 'The anti-swipe app for real-life hangs';
-
 // Connect landing mark — sparkles (aligned with Connect tab), not a heart
 const ConnectLandingLogo = memo(function ConnectLandingLogo() {
   const rotateAnim = useRef(new Animated.Value(0)).current;
@@ -163,7 +160,8 @@ function landingTabBarClearancePx(insetBottom: number): number {
     Platform.OS === 'ios'
       ? 56 + insetBottom
       : 56 + Math.max(insetBottom, 8);
-  return tabBarHeight + 52;
+  // Extra space so white card + shadow clear the floating tab bar when scrolled to end
+  return tabBarHeight + 80;
 }
 
 export default function BrowseScreen() {
@@ -1564,7 +1562,6 @@ export default function BrowseScreen() {
               >
                 Discover People
               </Animated.Text>
-              <Text style={styles.landingDiscoverTagline}>{CONNECT_DISCOVER_TAGLINE}</Text>
               {matchmakingPaused ? (
                 <Text style={styles.landingSubtitle}>
                   {user?.matchmakingDisabledMessage?.trim() ||
@@ -1739,7 +1736,6 @@ export default function BrowseScreen() {
             >
               Discover People
             </Animated.Text>
-            <Text style={styles.headerDiscoverTagline}>{CONNECT_DISCOVER_TAGLINE}</Text>
           </Animated.View>
 
           {/* Error Message */}
@@ -2408,21 +2404,11 @@ const styles = StyleSheet.create({
     color: '#1a1a1a',
     textAlign: 'center',
     marginTop: 16,
+    marginBottom: 12,
     letterSpacing: 0.5,
     textShadowColor: 'rgba(102, 126, 234, 0.2)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 8,
-  },
-  headerDiscoverTagline: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#4b5563',
-    textAlign: 'center',
-    marginTop: 8,
-    marginBottom: 4,
-    paddingHorizontal: 20,
-    lineHeight: 22,
-    letterSpacing: 0.2,
   },
   errorContainer: {
     backgroundColor: 'rgba(239, 68, 68, 0.1)',
@@ -2529,9 +2515,9 @@ const styles = StyleSheet.create({
   // Landing page styles (when browsing is locked)
   landingPageWrapper: {
     flex: 1,
-    minHeight: Dimensions.get('window').height - 100,
-    paddingTop: 64,
-    paddingBottom: 64,
+    minHeight: Dimensions.get('window').height - 140,
+    paddingTop: 60,
+    paddingBottom: 36,
     position: 'relative',
     justifyContent: 'flex-start',
   },
@@ -2544,10 +2530,10 @@ const styles = StyleSheet.create({
   landingContainer: {
     position: 'relative',
     alignSelf: 'stretch',
-    marginHorizontal: 18,
-    marginTop: 6,
-    marginBottom: 56,
-    borderRadius: 28,
+    marginHorizontal: 22,
+    marginTop: 4,
+    marginBottom: 28,
+    borderRadius: 26,
     overflow: 'visible',
   },
   // landingGradient removed - now using animated LinearGradient component
@@ -2559,12 +2545,12 @@ const styles = StyleSheet.create({
   },
   landingContent: {
     width: '100%',
-    paddingTop: 22,
-    paddingBottom: 26,
-    paddingHorizontal: 28,
+    paddingTop: 18,
+    paddingBottom: 18,
+    paddingHorizontal: 22,
     alignItems: 'center',
     backgroundColor: '#ffffff',
-    borderRadius: 28,
+    borderRadius: 26,
     shadowColor: '#1a1a2e',
     shadowOffset: { width: 0, height: 14 },
     shadowOpacity: 0.22,
@@ -2584,8 +2570,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 14,
-    gap: 14,
+    marginBottom: 10,
+    gap: 12,
   },
   logoWrapper: {
     width: 90,
@@ -2600,7 +2586,7 @@ const styles = StyleSheet.create({
     height: 90,
   },
   landingLogoText: {
-    fontSize: 36,
+    fontSize: 34,
     fontWeight: 'bold',
     color: '#000000',
     textShadowColor: 'rgba(0, 0, 0, 0.1)',
@@ -2609,32 +2595,22 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   landingTitle: {
-    fontSize: 44,
+    fontSize: 40,
     fontWeight: '900',
     color: '#000000',
-    marginBottom: 4,
+    marginBottom: 12,
     textAlign: 'center',
     letterSpacing: 1.2,
     textShadowColor: 'rgba(102, 126, 234, 0.5)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 20,
   },
-  landingDiscoverTagline: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#4a4a4a',
-    textAlign: 'center',
-    marginBottom: 14,
-    paddingHorizontal: 20,
-    lineHeight: 24,
-    letterSpacing: 0.25,
-  },
   landingSubtitle: {
-    fontSize: 17,
+    fontSize: 16,
     color: '#555',
     textAlign: 'center',
-    marginTop: 4,
-    marginBottom: 20,
+    marginTop: 2,
+    marginBottom: 14,
     lineHeight: 26,
     paddingHorizontal: 12,
     fontWeight: '500',
@@ -2665,8 +2641,8 @@ const styles = StyleSheet.create({
   },
   landingButtonContainer: {
     width: '100%',
-    marginTop: 18,
-    marginBottom: 4,
+    marginTop: 14,
+    marginBottom: 2,
   },
   landingButtonTouchable: {
     width: '100%',
@@ -2674,9 +2650,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   landingButton: {
-    paddingHorizontal: 40,
-    paddingVertical: 20,
-    borderRadius: 24,
+    paddingHorizontal: 36,
+    paddingVertical: 16,
+    borderRadius: 22,
     width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
@@ -2689,7 +2665,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.5)',
     overflow: 'hidden',
     position: 'relative',
-    minHeight: 64,
+    minHeight: 58,
   },
   buttonShimmer: {
     position: 'absolute',
@@ -2706,7 +2682,7 @@ const styles = StyleSheet.create({
   },
   landingButtonText: {
     color: '#fff',
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '900',
     marginBottom: 0,
     letterSpacing: 0.6,
@@ -2724,9 +2700,9 @@ const styles = StyleSheet.create({
   },
   landingHintWrap: {
     alignSelf: 'center',
-    marginTop: 16,
+    marginTop: 12,
     paddingHorizontal: 8,
-    paddingBottom: 2,
+    paddingBottom: 0,
   },
   landingHint: {
     fontSize: 13,

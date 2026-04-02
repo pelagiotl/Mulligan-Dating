@@ -51,8 +51,8 @@ export default function Privacy() {
         <p>We collect information you provide directly to us, including:</p>
         <ul style={{ paddingLeft: 'var(--space-6)', marginTop: 'var(--space-3)' }}>
           <li><strong>Account Information:</strong> Email address, password (hashed), age, gender</li>
-          <li><strong>Profile Information:</strong> Display name, bio, photos, location, interests, lifestyle preferences, relationship goals</li>
-          <li><strong>Matching Preferences:</strong> Age range, gender preferences, distance preferences, dealbreakers</li>
+          <li><strong>Profile Information:</strong> Display name, bio, photos, location, interests, lifestyle preferences, and optional details you add about what you&apos;re looking for</li>
+          <li><strong>Connection and discovery preferences:</strong> Age range, who you want to see in Discover, and distance preferences</li>
           <li><strong>Communication:</strong> Messages sent through the Service</li>
         </ul>
 
@@ -75,10 +75,10 @@ export default function Privacy() {
         <p>We use the information we collect to:</p>
         <ul style={{ paddingLeft: 'var(--space-6)', marginTop: 'var(--space-3)' }}>
           <li>Create and manage your account</li>
-          <li>Provide matching services and recommendations</li>
-          <li>Facilitate communication between users</li>
+          <li>Operate Discover and connection features, and personalize what we show you</li>
+          <li>Facilitate communication between users (for example, chat)</li>
           <li>Improve and personalize your experience</li>
-          <li>Analyze usage patterns and improve our algorithm</li>
+          <li>Analyze usage patterns and improve our services and relevance</li>
           <li>Send you service-related communications</li>
           <li>Detect and prevent fraud, abuse, and security issues</li>
           <li>Comply with legal obligations</li>
@@ -91,7 +91,7 @@ export default function Privacy() {
         </h2>
         <p>We do not sell your personal information. We may share your information in the following circumstances:</p>
         <ul style={{ paddingLeft: 'var(--space-6)', marginTop: 'var(--space-3)' }}>
-          <li><strong>With Other Users:</strong> Your profile information (name, age, photos, bio, interests) is visible to other users for matching purposes</li>
+          <li><strong>With Other Users:</strong> Your profile information (such as name, age, photos, bio, and interests) is visible to other users as part of using Discover and related features</li>
           <li><strong>Service Providers:</strong> We may share information with third-party service providers who perform services on our behalf (e.g., hosting, analytics)</li>
           <li><strong>Legal Requirements:</strong> We may disclose information if required by law or to protect our rights and safety</li>
           <li><strong>Business Transfers:</strong> In the event of a merger, acquisition, or sale, your information may be transferred</li>

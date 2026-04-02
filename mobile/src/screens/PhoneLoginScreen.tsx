@@ -559,6 +559,7 @@ const PhoneForm = memo(function PhoneForm({
   error: string;
   onSubmit: (phoneNumber: string) => void;
 }) {
+  const navigation = useNavigation();
   const [phoneValue, setPhoneValue] = useState('');
 
   const digits = extractDigitsFast(phoneValue);
@@ -607,7 +608,20 @@ const PhoneForm = memo(function PhoneForm({
         )}
       </TouchableOpacity>
       <Text style={styles.footer}>
-        By continuing, you agree to our Terms of Service and Privacy Policy
+        By continuing, you agree to our{' '}
+        <Text
+          style={styles.footerLink}
+          onPress={() => navigation.navigate('Terms' as never)}
+        >
+          Terms of Service
+        </Text>
+        {' '}and{' '}
+        <Text
+          style={styles.footerLink}
+          onPress={() => navigation.navigate('Privacy' as never)}
+        >
+          Privacy Policy
+        </Text>
       </Text>
     </View>
   );
@@ -769,6 +783,7 @@ export default function PhoneLoginScreen() {
           <View style={styles.header}>
             <AnimatedLogo />
             <Text style={styles.title}>Welcome to Mulligan</Text>
+            <Text style={styles.tagline}>The anti-swipe app for real-life hangs</Text>
             <Text style={styles.subtitle}>Enter your phone number to get started</Text>
           </View>
 
@@ -916,13 +931,25 @@ const styles = StyleSheet.create({
     fontSize: 30,
     fontWeight: '700',
     color: '#ffffff',
-    marginBottom: 12,
+    marginBottom: 10,
     fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', // Serif font similar to Crimson Pro
     textShadowColor: 'rgba(0, 0, 0, 0.2)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 10,
     letterSpacing: -0.5,
     flexWrap: 'nowrap',
+  },
+  tagline: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.95)',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 12,
+    paddingHorizontal: 28,
+    textShadowColor: 'rgba(0, 0, 0, 0.15)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
   },
   subtitle: {
     fontSize: 16,
@@ -1026,6 +1053,13 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
     marginTop: 20,
+    lineHeight: 18,
+  },
+  footerLink: {
+    fontSize: 12,
+    color: '#8B1538',
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
 });
 

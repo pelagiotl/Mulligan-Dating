@@ -19,7 +19,7 @@ export default function PrivacyScreen() {
       <View style={styles.section}>
         <Text style={styles.heading}>1. Introduction</Text>
         <Text style={styles.paragraph}>
-          Mulligan Dating ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our dating service.
+          Mulligan ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our platform and services.
         </Text>
       </View>
 
@@ -28,8 +28,8 @@ export default function PrivacyScreen() {
         <Text style={styles.subHeading}>2.1 Information You Provide</Text>
         <Text style={styles.paragraph}>We collect information you provide directly to us, including:</Text>
         <Text style={styles.bullet}><Text style={styles.bold}>Account Information:</Text> Email address, password (hashed), age, gender</Text>
-        <Text style={styles.bullet}><Text style={styles.bold}>Profile Information:</Text> Display name, bio, photos, location, interests, lifestyle preferences, relationship goals</Text>
-        <Text style={styles.bullet}><Text style={styles.bold}>Matching Preferences:</Text> Age range, gender preferences, distance preferences, dealbreakers</Text>
+        <Text style={styles.bullet}><Text style={styles.bold}>Profile Information:</Text> Display name, bio, photos, location, interests, lifestyle preferences, and optional details you add about what you{"'"}re looking for</Text>
+        <Text style={styles.bullet}><Text style={styles.bold}>Connection and discovery preferences:</Text> Age range, who you want to see in Discover, and distance preferences</Text>
         <Text style={styles.bullet}><Text style={styles.bold}>Communication:</Text> Messages sent through the Service</Text>
 
         <Text style={styles.subHeading}>2.2 Automatically Collected Information</Text>
@@ -44,10 +44,10 @@ export default function PrivacyScreen() {
         <Text style={styles.heading}>3. How We Use Your Information</Text>
         <Text style={styles.paragraph}>We use the information we collect to:</Text>
         <Text style={styles.bullet}>Create and manage your account</Text>
-        <Text style={styles.bullet}>Provide matching services and recommendations</Text>
-        <Text style={styles.bullet}>Facilitate communication between users</Text>
+        <Text style={styles.bullet}>Operate Discover and connection features, and personalize what we show you</Text>
+        <Text style={styles.bullet}>Facilitate communication between users (for example, chat)</Text>
         <Text style={styles.bullet}>Improve and personalize your experience</Text>
-        <Text style={styles.bullet}>Analyze usage patterns and improve our algorithm</Text>
+        <Text style={styles.bullet}>Analyze usage patterns and improve our services and relevance</Text>
         <Text style={styles.bullet}>Send you service-related communications</Text>
         <Text style={styles.bullet}>Detect and prevent fraud, abuse, and security issues</Text>
         <Text style={styles.bullet}>Comply with legal obligations</Text>
@@ -56,7 +56,7 @@ export default function PrivacyScreen() {
       <View style={styles.section}>
         <Text style={styles.heading}>4. How We Share Your Information</Text>
         <Text style={styles.paragraph}>We do not sell your personal information. We may share your information in the following circumstances:</Text>
-        <Text style={styles.bullet}><Text style={styles.bold}>With Other Users:</Text> Your profile information (name, age, photos, bio, interests) is visible to other users for matching purposes</Text>
+        <Text style={styles.bullet}><Text style={styles.bold}>With Other Users:</Text> Your profile information (such as name, age, photos, bio, and interests) is visible to other users as part of using Discover and related features</Text>
         <Text style={styles.bullet}><Text style={styles.bold}>Service Providers:</Text> We may share information with third-party service providers who perform services on our behalf (e.g., hosting, analytics)</Text>
         <Text style={styles.bullet}><Text style={styles.bold}>Legal Requirements:</Text> We may disclose information if required by law or to protect our rights and safety</Text>
         <Text style={styles.bullet}><Text style={styles.bold}>Business Transfers:</Text> In the event of a merger, acquisition, or sale, your information may be transferred</Text>
@@ -128,7 +128,7 @@ export default function PrivacyScreen() {
 
       <View style={styles.footer}>
         <Text style={styles.footerText}>
-          By using Mulligan Dating, you acknowledge that you have read, understood, and agree to this Privacy Policy.
+          By using Mulligan, you acknowledge that you have read, understood, and agree to this Privacy Policy.
         </Text>
       </View>
     </ScrollView>
