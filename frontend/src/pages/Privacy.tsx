@@ -37,7 +37,7 @@ export default function Privacy() {
           1. Introduction
         </h2>
         <p>
-          Mulligan Dating ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our dating service.
+          Mulligan ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our platform and services.
         </p>
       </div>
 
@@ -187,7 +187,7 @@ export default function Privacy() {
         borderRadius: 'var(--radius-md)'
       }}>
         <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-          By using Mulligan Dating, you acknowledge that you have read, understood, and agree to this Privacy Policy.
+          By using Mulligan, you acknowledge that you have read, understood, and agree to this Privacy Policy.
         </p>
       </div>
     </div>

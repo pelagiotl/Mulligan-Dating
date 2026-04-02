@@ -174,7 +174,7 @@ export default function MatchCelebration({ profileName, photoUrl, onClose }: Mat
               className="match-celebration-button"
               onClick={handleContinue}
             >
-              Send a Message 💌
+              Open chat 💬
             </button>
           )}
         </div>

@@ -6,6 +6,7 @@ import { getPhotoUrl } from "../utils/photoUrl";
 import MatchCelebration from "../components/MatchCelebration";
 import TokenDisplay from "../components/TokenDisplay";
 import { io, Socket } from "socket.io-client";
+import BrandMark from "../components/BrandMark";
 
 interface Photo {
   id: string;
@@ -311,7 +312,7 @@ export default function Browse() {
             const newLimit = apiErr.newLimit ?? 8;
             setConnecting(false);
             const ok = window.confirm(
-              `You've reached your limit of ${currentLimit} matches. You need 2 Mulligan tokens (1 for the match + 1 for the extra slot). Spend 2 tokens to connect?`
+              `You’ve reached your limit of ${currentLimit} active chats. You need 2 Mulligan tokens (1 to connect + 1 for the extra slot). Spend 2 tokens to connect?`
             );
             if (ok) {
               handleConnect(profile, true);
@@ -400,35 +401,15 @@ export default function Browse() {
         </div>
         <div className="loading-content">
           <div className="loading-logo-container">
-            <svg className="loading-logo" width="80" height="80" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <defs>
-                <linearGradient id="loadingHeartGradientBrowse" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
-                  <stop offset="50%" stopColor="#ffffff" stopOpacity="1" />
-                  <stop offset="100%" stopColor="#ffffff" stopOpacity="1" />
-                </linearGradient>
-                <filter id="loadingGlowBrowse">
-                  <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-                  <feMerge>
-                    <feMergeNode in="coloredBlur"/>
-                    <feMergeNode in="SourceGraphic"/>
-                  </feMerge>
-                </filter>
-              </defs>
-              <path 
-                d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z" 
-                fill="url(#loadingHeartGradientBrowse)"
-                filter="url(#loadingGlowBrowse)"
-              />
-            </svg>
+            <BrandMark size={80} className="loading-logo" alt="" />
           </div>
-          <h1 className="loading-title">Finding Amazing People</h1>
+          <h1 className="loading-title">Discovering people near you</h1>
           <div className="loading-dots">
             <span className="loading-dot"></span>
             <span className="loading-dot"></span>
             <span className="loading-dot"></span>
           </div>
-          <p className="loading-subtitle">Searching for your perfect match</p>
+          <p className="loading-subtitle">Finding people near you</p>
         </div>
       </div>
     );
@@ -467,7 +448,7 @@ export default function Browse() {
         <TokenDisplay />
         <h1 className="browse-title">Discover People</h1>
         <p className="browse-subtitle">
-          Find someone who shares your interests and values
+          Meet people nearby who share your interests—then chat and plan a hang
         </p>
       </div>
 

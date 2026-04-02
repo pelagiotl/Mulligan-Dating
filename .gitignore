@@ -53,6 +53,9 @@ Thumbs.db
 *.sublime-project
 *.sublime-workspace
 
+# Local tool venvs (e.g. icon scripts)
+.venv-icon/
+
 # Temporary files
 tmp/
 temp/

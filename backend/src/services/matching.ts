@@ -6,6 +6,7 @@ import { getCompletenessBoost } from "../utils/profileCompleteness.js";
 import { getCollaborativeRecommendations as getCollaborativeRecs } from "../utils/collaborativeFiltering.js";
 import { getSuccessScore } from "../utils/successTracking.js";
 import { getHiddenFromBrowseUserIds } from "../config/hiddenFromBrowse.js";
+import { mutualGenderPreferencesMet } from "../utils/genderPreferences.js";
 
 /**
  * STATE-OF-THE-ART MATCHING ALGORITHM
@@ -188,16 +189,6 @@ async function calculateDistance(loc1: string | null, loc2: string | null): Prom
   
   // Calculate real distance using Haversine formula
   return calculateDistanceMiles(coord1, coord2);
-}
-
-// Parse JSON string or return empty array
-function parseJsonArray(jsonStr: string | null): string[] {
-  if (!jsonStr) return [];
-  try {
-    return JSON.parse(jsonStr);
-  } catch {
-    return [];
-  }
 }
 
 /**
@@ -529,21 +520,19 @@ async function calculateInterestsOverlap(
   const userInterestNames = new Set(userInterests.map(i => i.name.toLowerCase()));
   const candidateInterestNames = new Set(candidateInterests.map(i => i.name.toLowerCase()));
 
-  // Weighted Jaccard: give more weight to shared interests
   const shared = [...userInterestNames].filter(name => candidateInterestNames.has(name));
-  const total = new Set([...userInterestNames, ...candidateInterestNames]).size;
+  const union = new Set([...userInterestNames, ...candidateInterestNames]).size;
+  const jaccard = union > 0 ? shared.length / union : 0;
+  const sumSizes = userInterestNames.size + candidateInterestNames.size;
+  const dice = sumSizes > 0 ? (2 * shared.length) / sumSizes : 0;
+  const combined = jaccard * 0.4 + dice * 0.6;
 
-  // Base Jaccard similarity
-  const jaccard = total > 0 ? shared.length / total : 0;
-  
-  // Boost score if there are many shared interests (non-linear)
   const sharedCount = shared.length;
   const boost = sharedCount > 0 ? sigmoid(sharedCount, 3, 0.5) : 0;
-  
-  // Combine base similarity with boost (weighted average)
-  const finalScore = (jaccard * 0.7 + boost * 0.3) * 10;
-  
-  return Math.min(finalScore, 10); // Cap at 10
+
+  const finalScore = (combined * 0.55 + boost * 0.45) * 10;
+
+  return Math.min(finalScore, 10);
 }
 
 function countSharedInterests(userProfileId: string, candidateProfileId: string): number {
@@ -653,8 +642,6 @@ export async function generateWeeklyMatches(userId: string): Promise<{
   const hiddenFromBrowseIds = await getHiddenFromBrowseUserIds();
   const hiddenSet = new Set(hiddenFromBrowseIds);
 
-  const userPreferredGenders = parseJsonArray(userPrefs.preferred_genders);
-
   // Check if user is premium
   const user = db
     .prepare("SELECT is_premium FROM users WHERE id = ?")
@@ -679,8 +666,6 @@ export async function generateWeeklyMatches(userId: string): Promise<{
     if (hiddenSet.has(candidate.user_id)) {
       continue;
     }
-    const candidatePreferredGenders = parseJsonArray(candidate.preferred_genders);
-
     // Check mutual age preferences
     const userAgeInRange =
       candidate.min_age <= userProfile.age &&
@@ -693,20 +678,15 @@ export async function generateWeeklyMatches(userId: string): Promise<{
       continue; // Age mismatch
     }
 
-    // Check mutual gender preferences ("Everyone" or empty = open to all; "Other" matches "Non-binary")
-    const userWantsCandidate =
-      userPreferredGenders.length === 0 ||
-      userPreferredGenders.includes('Everyone') ||
-      userPreferredGenders.includes(candidate.gender) ||
-      (candidate.gender === 'Non-binary' && userPreferredGenders.includes('Other'));
-    const candidateWantsUser =
-      candidatePreferredGenders.length === 0 ||
-      candidatePreferredGenders.includes('Everyone') ||
-      candidatePreferredGenders.includes(userProfile.gender) ||
-      (userProfile.gender === 'Non-binary' && candidatePreferredGenders.includes('Other'));
-
-    if (!userWantsCandidate || !candidateWantsUser) {
-      continue; // Gender preference mismatch
+    if (
+      !mutualGenderPreferencesMet(
+        userProfile.gender || '',
+        userPrefs.preferred_genders,
+        candidate.gender || '',
+        candidate.preferred_genders
+      )
+    ) {
+      continue;
     }
 
     // Check distance (using real geocoding)
@@ -749,7 +729,7 @@ export async function generateWeeklyMatches(userId: string): Promise<{
 
     const interestsNorm = interestsOverlap / 10; // 0–1
     const distanceNorm = distanceScore / 10; // 0–1
-    let totalScore = interestsNorm * 7 + distanceNorm * 3; // 0–10 scale before boosts
+    let totalScore = interestsNorm * 8.5 + distanceNorm * 1.5; // prefer shared “my interests” over raw distance
     
     // 10/10 FEATURES: Apply boosts
     
@@ -809,8 +789,11 @@ export async function generateWeeklyMatches(userId: string): Promise<{
     }
   }
 
-  // Sort by score (highest first)
-  candidates.sort((a, b) => b.score - a.score);
+  // Sort by score, then by raw shared interest count (prefer more overlap)
+  candidates.sort((a, b) => {
+    if (Math.abs(b.score - a.score) > 0.01) return b.score - a.score;
+    return b.sharedInterestCount - a.sharedInterestCount;
+  });
 
   // Check existing matches to avoid duplicates
   const existingMatches = db

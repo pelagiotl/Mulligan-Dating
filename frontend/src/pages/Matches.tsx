@@ -170,7 +170,7 @@ export default function Matches() {
         // Match advanced but not currently selected - still show notification
         if (data.autoAdvanced) {
           setNotification({
-            message: "🎉 Photos unlocked in one of your matches! Check it out!",
+            message: "🎉 Photos unlocked in one of your chats! Check it out!",
             type: "success"
           });
         }
@@ -515,12 +515,12 @@ export default function Matches() {
       setSelectedMatch(null);
       await fetchMatches();
       setNotification({
-        message: `You've unmatched with ${matchName}`,
+        message: `You removed the chat with ${matchName}`,
         type: "info"
       });
     } catch (error) {
       setNotification({
-        message: "Failed to unmatch. Please try again.",
+        message: "Couldn’t remove that chat. Please try again.",
         type: "error"
       });
     }
@@ -584,7 +584,7 @@ export default function Matches() {
   };
 
   if (loading) {
-    return <div className="loading-screen">Loading your matches...</div>;
+    return <div className="loading-screen">Loading your chats...</div>;
   }
 
   return (
@@ -600,9 +600,9 @@ export default function Matches() {
       {showUnmatchConfirm && selectedMatch && (
         <ConfirmModal
           isOpen={showUnmatchConfirm}
-          title="Unmatch?"
-          message={`Are you sure you want to unmatch with ${selectedMatch.otherUser.displayName}? This cannot be undone and you will lose all messages.`}
-          confirmText="Yes, Unmatch"
+          title="End this chat?"
+          message={`Remove your chat with ${selectedMatch.otherUser.displayName}? This can’t be undone and your messages will be lost.`}
+          confirmText="Yes, remove chat"
           cancelText="Cancel"
           onConfirm={handleUnmatchConfirm}
           onCancel={() => setShowUnmatchConfirm(false)}
@@ -610,12 +610,12 @@ export default function Matches() {
         />
       )}
       <div className="matches-sidebar">
-        <h2 className="matches-title">Your Matches</h2>
+        <h2 className="matches-title">Chats</h2>
 
         {matches.length === 0 ? (
           <div className="no-matches">
-            <p>No matches yet!</p>
-            <p className="hint">Browse profiles and use tokens to connect.</p>
+            <p>No chats yet!</p>
+            <p className="hint">Discover people nearby and use tokens to connect.</p>
           </div>
         ) : (
           <div className="matches-list">
@@ -697,7 +697,7 @@ export default function Matches() {
                         handleUnmatchClick();
                       }}
                     >
-                      Unmatch
+                      Remove
                     </button>
                   )}
                 </div>
@@ -813,8 +813,8 @@ export default function Matches() {
                 <h3>Waiting for {selectedMatch.otherUser.displayName}</h3>
                 <p>
                   {selectedMatch.isInitiator
-                    ? "You've sent a connection request. When they match back, you can start chatting!"
-                    : "They want to connect with you! Match back to start chatting."}
+                    ? "You sent a connection request. When they accept, you can start chatting."
+                    : "They want to connect! Accept to start chatting."}
                 </p>
                 {selectedMatch.otherUser.bio && (
                   <div className="pending-bio">
@@ -983,9 +983,9 @@ export default function Matches() {
           </>
         ) : (
           <div className="no-match-selected">
-            <div className="no-match-icon">💌</div>
-            <h3>Select a match to start chatting</h3>
-            <p>Your conversations will appear here</p>
+            <div className="no-match-icon">💬</div>
+            <h3>Select a chat to continue</h3>
+            <p>Your conversations show up here</p>
           </div>
         )}
       </div>

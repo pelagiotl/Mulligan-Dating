@@ -1,6 +1,7 @@
 import { useState, FormEvent, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import BrandMark from '../components/BrandMark'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -157,88 +158,12 @@ export default function Login() {
         <div className="auth-header-enhanced">
           <Link to="/" className="auth-logo-enhanced">
             <span className="auth-logo-icon">
-              <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                  {/* Gradient for heart */}
-                  <linearGradient id="heartGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
-                    <stop offset="50%" stopColor="#ffffff" stopOpacity="1" />
-                    <stop offset="100%" stopColor="#ffffff" stopOpacity="1" />
-                  </linearGradient>
-                  {/* Glow filter */}
-                  <filter id="glow">
-                    <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
-                    <feMerge>
-                      <feMergeNode in="coloredBlur"/>
-                      <feMergeNode in="SourceGraphic"/>
-                    </feMerge>
-                  </filter>
-                </defs>
-                
-                {/* Rotating group with arrows */}
-                <g className="logo-rotate-group">
-                  {/* Heart shape with gradient */}
-                  <path 
-                    d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z" 
-                    fill="url(#heartGradient)"
-                    className="logo-heart"
-                    filter="url(#glow)"
-                  />
-                  
-                  {/* Top right arrow - more prominent */}
-                  <g className="logo-arrow-top">
-                    <circle cx="36" cy="10" r="3" fill="currentColor" opacity="0.9" />
-                    <path 
-                      d="M30 10L36 10" 
-                      stroke="currentColor" 
-                      strokeWidth="3" 
-                      strokeLinecap="round"
-                      className="logo-arrow"
-                    />
-                    <path 
-                      d="M33 7L36 10L33 13" 
-                      stroke="currentColor" 
-                      strokeWidth="3" 
-                      strokeLinecap="round" 
-                      strokeLinejoin="round"
-                      fill="none"
-                      className="logo-arrow"
-                    />
-                  </g>
-                  
-                  {/* Bottom left arrow - more prominent */}
-                  <g className="logo-arrow-bottom">
-                    <circle cx="12" cy="38" r="3" fill="currentColor" opacity="0.9" />
-                    <path 
-                      d="M18 38L12 38" 
-                      stroke="currentColor" 
-                      strokeWidth="3" 
-                      strokeLinecap="round"
-                      className="logo-arrow"
-                    />
-                    <path 
-                      d="M15 35L12 38L15 41" 
-                      stroke="currentColor" 
-                      strokeWidth="3" 
-                      strokeLinecap="round" 
-                      strokeLinejoin="round"
-                      fill="none"
-                      className="logo-arrow"
-                    />
-                  </g>
-                  
-                  {/* Sparkle effects */}
-                  <circle cx="24" cy="8" r="1.5" fill="currentColor" opacity="0.8" className="logo-sparkle" />
-                  <circle cx="40" cy="24" r="1.5" fill="currentColor" opacity="0.8" className="logo-sparkle" />
-                  <circle cx="24" cy="40" r="1.5" fill="currentColor" opacity="0.8" className="logo-sparkle" />
-                  <circle cx="8" cy="24" r="1.5" fill="currentColor" opacity="0.8" className="logo-sparkle" />
-                </g>
-              </svg>
+              <BrandMark size={48} alt="" />
             </span>
             <span className="auth-logo-text">Mulligan</span>
           </Link>
           <h1 className="auth-title-enhanced">Welcome back</h1>
-          <p className="auth-subtitle-enhanced">Sign in to continue your journey</p>
+          <p className="auth-subtitle-enhanced">Sign in to pick up where you left off</p>
         </div>
 
         <div className={`auth-card-enhanced ${shake ? 'shake' : ''} ${success ? 'success' : ''}`}>

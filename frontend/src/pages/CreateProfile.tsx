@@ -5,6 +5,17 @@ import { useAuth } from '../context/AuthContext'
 
 const GENDER_OPTIONS = ['Man', 'Woman', 'Other']
 const PREFERRED_GENDER_OPTIONS = ['Man', 'Woman', 'Everyone']
+const PREFERRED_CONNECTION_LABELS: Record<string, string> = {
+  Man: 'Men',
+  Woman: 'Women',
+  Everyone: 'Everyone',
+}
+
+function preferredGendersPayload(g: string[]): string[] | null {
+  if (g.includes('Everyone') || g.length === 0) return null
+  const only = g.filter((x) => x === 'Man' || x === 'Woman')
+  return only.length > 0 ? only : null
+}
 const LOOKING_FOR_OPTIONS = ['Relationship', 'Something casual', 'Friendship', 'Not sure yet']
 
 const INTEREST_OPTIONS = [
@@ -48,7 +59,7 @@ export default function CreateProfile() {
   const [dealbreakers, setDealbreakers] = useState<string[]>([])
   const [qualities, setQualities] = useState<string[]>([])
 
-  // Step 4: Dating Preferences
+  // Step 4: Discover preferences (age, distance; who to show is set in step 1)
   const [minAge, setMinAge] = useState(18)
   const [preferredGenders, setPreferredGenders] = useState<string[]>([])
   const [maxDistance, setMaxDistance] = useState(50)
@@ -124,6 +135,10 @@ export default function CreateProfile() {
       }
       if (!gender || !gender.trim()) {
         setError('Please select your gender')
+        return
+      }
+      if (preferredGenders.length === 0) {
+        setError('Please choose who you’d like to connect with (select Everyone if you’re open to anyone)')
         return
       }
     }
@@ -221,9 +236,15 @@ export default function CreateProfile() {
             if (data.preferences.preferred_genders) {
               try {
                 const genders = JSON.parse(data.preferences.preferred_genders) as string[]
-                const allGenders = ['Man', 'Woman', 'Other']
-                const isEveryone = genders.length === 0 || (genders.length === 3 && allGenders.every(g => genders.includes(g)))
-                setPreferredGenders(isEveryone ? ['Everyone'] : genders)
+                const withoutOther = genders.filter((g) => g !== 'Other')
+                const legacyAllThree =
+                  genders.length === 3 && ['Man', 'Woman', 'Other'].every((g) => genders.includes(g))
+                const isEveryone =
+                  genders.includes('Everyone') ||
+                  genders.length === 0 ||
+                  legacyAllThree ||
+                  (withoutOther.length === 0 && genders.length > 0)
+                setPreferredGenders(isEveryone ? ['Everyone'] : withoutOther)
               } catch {
                 setPreferredGenders(['Everyone'])
               }
@@ -411,12 +432,12 @@ export default function CreateProfile() {
         console.log('✅ Partner qualities added successfully');
       }
 
-      // Save dating preferences
+      // Save connection preferences
       console.log('📝 Step 5: Saving preferences...');
       await api.put('/profile/preferences', {
         minAge,
         maxAge: null, // No maximum age limit
-        preferredGenders: (preferredGenders.includes('Everyone') || preferredGenders.length === 0) ? null : preferredGenders,
+        preferredGenders: preferredGendersPayload(preferredGenders),
         maxDistance,
         relationshipType: lookingFor || null
       })
@@ -462,7 +483,7 @@ export default function CreateProfile() {
       <div className="profile-wizard-header">
         <h1 className="profile-wizard-title">Create Your Profile</h1>
         <p className="profile-wizard-subtitle">
-          Tell us about yourself so we can help you find your perfect match
+          Tell us about yourself so we can show you people you might click with for hangs and shared interests
         </p>
       </div>
 
@@ -512,81 +533,116 @@ export default function CreateProfile() {
                 </div>
               </div>
 
-              <div className="profile-grid">
-                <div className="form-group">
-                  <label htmlFor="gender" className="form-label">Gender *</label>
-                  <select
-                    id="gender"
-                    className="form-select"
-                    value={gender}
-                    onChange={(e) => setGender(e.target.value)}
-                    required
-                  >
-                    <option value="">Select gender</option>
-                    {GENDER_OPTIONS.map(g => (
-                      <option key={g} value={g}>{g}</option>
-                    ))}
-                  </select>
-                </div>
+              <div className="form-group">
+                <label htmlFor="gender" className="form-label">What&apos;s your gender? *</label>
+                <select
+                  id="gender"
+                  className="form-select"
+                  value={gender}
+                  onChange={(e) => setGender(e.target.value)}
+                  required
+                >
+                  <option value="">Select gender</option>
+                  {GENDER_OPTIONS.map(g => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
+                </select>
+              </div>
 
-                <div className="form-group">
-                  <label htmlFor="location" className="form-label">
-                    Location
-                    {detectingLocation && (
-                      <span style={{ marginLeft: '0.5rem', fontSize: '0.9rem', color: '#666', fontStyle: 'italic' }}>
-                        (Detecting your location...)
-                      </span>
-                    )}
-                  </label>
-                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
-                    <input
-                      type="text"
-                      id="location"
-                      className="form-input"
-                      value={location}
-                      onChange={(e) => setLocation(e.target.value)}
-                      placeholder={detectingLocation ? "Detecting your location..." : "City, State"}
-                      disabled={detectingLocation}
-                      style={{ flex: 1 }}
-                    />
-                    {!detectingLocation && (
-                      <button
-                        type="button"
-                        onClick={detectLocation}
-                        style={{
-                          padding: '0.75rem 1.25rem',
-                          fontSize: '0.9rem',
-                          background: '#f43f5e',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '8px',
-                          cursor: 'pointer',
-                          fontWeight: '500',
-                          whiteSpace: 'nowrap',
-                          transition: 'all 0.2s',
-                          boxShadow: '0 2px 4px rgba(244, 63, 94, 0.2)'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background = '#e11d48'
-                          e.currentTarget.style.transform = 'translateY(-1px)'
-                          e.currentTarget.style.boxShadow = '0 4px 8px rgba(244, 63, 94, 0.3)'
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = '#f43f5e'
-                          e.currentTarget.style.transform = 'translateY(0)'
-                          e.currentTarget.style.boxShadow = '0 2px 4px rgba(244, 63, 94, 0.2)'
-                        }}
-                      >
-                        📍 Use My Location
-                      </button>
-                    )}
+              <div className="profile-section" style={{ marginTop: 'var(--space-6)', paddingTop: 'var(--space-6)', borderTop: '1px solid var(--border-subtle, rgba(0,0,0,0.08))' }}>
+                <h2 className="profile-section-title">🔗 Preferred connections</h2>
+                <p className="mb-4" style={{ color: 'var(--text-secondary)' }}>
+                  Mulligan Connections lets you meet people for hikes, coffee, gaming, events, or just good conversation.
+                  Gender preference helps match you with people you&apos;re most comfortable meeting.
+                </p>
+                <p className="mb-4" style={{ color: 'var(--text-primary)', fontWeight: 600, fontSize: '1.05rem' }}>
+                  Who would you like to connect with?
+                </p>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Who to show</label>
+                  <div className="interests-grid" style={{ maxHeight: '200px' }}>
+                    {PREFERRED_GENDER_OPTIONS.map(pref => (
+                      <label key={pref} className="interest-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={preferredGenders.includes(pref)}
+                          onChange={() => {
+                            if (pref === 'Everyone') {
+                              setPreferredGenders(preferredGenders.includes('Everyone') ? [] : ['Everyone'])
+                            } else if (preferredGenders.includes('Everyone')) {
+                              setPreferredGenders([pref])
+                            } else if (preferredGenders.includes(pref)) {
+                              setPreferredGenders(preferredGenders.filter(g => g !== pref))
+                            } else {
+                              setPreferredGenders([...preferredGenders, pref])
+                            }
+                          }}
+                        />
+                        <span>{PREFERRED_CONNECTION_LABELS[pref] ?? pref}</span>
+                      </label>
+                    ))}
                   </div>
-                  {!location && !detectingLocation && (
-                    <p style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: '#666', fontStyle: 'italic' }}>
-                      We'll use your location to show you matches nearby. You can also type it manually.
-                    </p>
+                  <p className="form-hint">Men, women, or everyone—your Discover feed follows this</p>
+                </div>
+              </div>
+
+              <div className="form-group" style={{ marginTop: 'var(--space-6)' }}>
+                <label htmlFor="location" className="form-label">
+                  Location
+                  {detectingLocation && (
+                    <span style={{ marginLeft: '0.5rem', fontSize: '0.9rem', color: '#666', fontStyle: 'italic' }}>
+                      (Detecting your location...)
+                    </span>
+                  )}
+                </label>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+                  <input
+                    type="text"
+                    id="location"
+                    className="form-input"
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    placeholder={detectingLocation ? "Detecting your location..." : "City, State"}
+                    disabled={detectingLocation}
+                    style={{ flex: 1 }}
+                  />
+                  {!detectingLocation && (
+                    <button
+                      type="button"
+                      onClick={detectLocation}
+                      style={{
+                        padding: '0.75rem 1.25rem',
+                        fontSize: '0.9rem',
+                        background: '#f43f5e',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        fontWeight: '500',
+                        whiteSpace: 'nowrap',
+                        transition: 'all 0.2s',
+                        boxShadow: '0 2px 4px rgba(244, 63, 94, 0.2)'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = '#e11d48'
+                        e.currentTarget.style.transform = 'translateY(-1px)'
+                        e.currentTarget.style.boxShadow = '0 4px 8px rgba(244, 63, 94, 0.3)'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = '#f43f5e'
+                        e.currentTarget.style.transform = 'translateY(0)'
+                        e.currentTarget.style.boxShadow = '0 2px 4px rgba(244, 63, 94, 0.2)'
+                      }}
+                    >
+                      📍 Use My Location
+                    </button>
                   )}
                 </div>
+                {!location && !detectingLocation && (
+                  <p style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: '#666', fontStyle: 'italic' }}>
+                    We use your location to show people nearby in Discover. You can also type it manually.
+                  </p>
+                )}
               </div>
 
               <div className="form-group">
@@ -611,7 +667,7 @@ export default function CreateProfile() {
                   className="form-textarea"
                   value={bio}
                   onChange={(e) => setBio(e.target.value)}
-                  placeholder="Tell potential matches a bit about yourself..."
+                  placeholder="Say hi—hobbies, vibe, what you like to do..."
                   maxLength={500}
                 />
                 <p className="form-hint">{bio.length}/500 characters</p>
@@ -684,9 +740,9 @@ export default function CreateProfile() {
               </div>
 
               <div className="profile-section">
-                <h2 className="profile-section-title">💕 What You Want in a Partner</h2>
+                <h2 className="profile-section-title">🎯 Interests you care about</h2>
                 <p className="mb-4" style={{ color: 'var(--text-secondary)' }}>
-                  What interests do you want your ideal match to share with you? Select at least 3.
+                  Which interests matter when you&apos;re getting to know someone? Pick at least 3.
                 </p>
 
                 <div className="interests-grid">
@@ -716,9 +772,9 @@ export default function CreateProfile() {
 
           {step === 4 && (
             <div className="profile-section">
-              <h2 className="profile-section-title">💕 Dating Preferences</h2>
+              <h2 className="profile-section-title">🔍 Discover preferences</h2>
               <p className="mb-4" style={{ color: 'var(--text-secondary)' }}>
-                Who are you looking for? Set your preferences to see the best matches.
+                Set the age range and distance for who appears in your Discover feed.
               </p>
 
               <div className="form-group">
@@ -775,33 +831,6 @@ export default function CreateProfile() {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Preferred Genders</label>
-                <div className="interests-grid" style={{ maxHeight: '200px' }}>
-                  {PREFERRED_GENDER_OPTIONS.map(gender => (
-                    <label key={gender} className="interest-checkbox">
-                      <input
-                        type="checkbox"
-                        checked={preferredGenders.includes(gender)}
-                        onChange={() => {
-                          if (gender === 'Everyone') {
-                            setPreferredGenders(preferredGenders.includes('Everyone') ? [] : ['Everyone'])
-                          } else if (preferredGenders.includes('Everyone')) {
-                            setPreferredGenders([gender])
-                          } else if (preferredGenders.includes(gender)) {
-                            setPreferredGenders(preferredGenders.filter(g => g !== gender))
-                          } else {
-                            setPreferredGenders([...preferredGenders, gender])
-                          }
-                        }}
-                      />
-                      <span>{gender}</span>
-                    </label>
-                  ))}
-                </div>
-                <p className="form-hint">Select the genders you're interested in matching with</p>
-              </div>
-
-              <div className="form-group">
                 <label htmlFor="maxDistance" className="form-label">Maximum Distance (miles)</label>
                 <input
                   type="number"
@@ -821,7 +850,7 @@ export default function CreateProfile() {
             <div className="profile-section">
               <h2 className="profile-section-title">🌱 Your Lifestyle</h2>
               <p className="profile-section-description">
-                Help us match you better by sharing your lifestyle preferences
+                Helps others get a fuller picture of you—be honest; it keeps things real
               </p>
 
               <div className="form-group">
@@ -959,7 +988,10 @@ export default function CreateProfile() {
                 type="button" 
                 className="btn btn-primary" 
                 onClick={handleNext}
-                disabled={step === 1 && (!displayName?.trim() || !age?.trim() || !gender?.trim())}
+                disabled={
+                  step === 1 &&
+                  (!displayName?.trim() || !age?.trim() || !gender?.trim() || preferredGenders.length === 0)
+                }
               >
                 Continue
               </button>

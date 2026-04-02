@@ -37,7 +37,7 @@ export default function Terms() {
           1. Acceptance of Terms
         </h2>
         <p>
-          By accessing and using Mulligan Dating ("the Service"), you accept and agree to be bound by the terms and provision of this agreement. If you do not agree to abide by the above, please do not use this service.
+          By accessing and using Mulligan ("the Service"), you accept and agree to be bound by the terms and provision of this agreement. If you do not agree to abide by the above, please do not use this service.
         </p>
       </div>
 
@@ -170,7 +170,7 @@ export default function Terms() {
         borderRadius: 'var(--radius-md)'
       }}>
         <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-          By using Mulligan Dating, you acknowledge that you have read, understood, and agree to be bound by these Terms of Service.
+          By using Mulligan, you acknowledge that you have read, understood, and agree to be bound by these Terms of Service.
         </p>
       </div>
     </div>

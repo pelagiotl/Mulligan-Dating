@@ -2016,6 +2016,19 @@ export default function MatchesScreen() {
   const chatSlideAnim = useRef(new Animated.Value(0)).current;
   const chatFadeAnim = useRef(new Animated.Value(0)).current;
 
+  const chatMediaUnlocked = useMemo(() => {
+    if (!selectedMatch || !user?.id) return false;
+    const myId = user.id;
+    const otherId = selectedMatch.otherUser.userId;
+    let my = 0;
+    let other = 0;
+    for (const m of messages) {
+      if (m.senderId === myId) my++;
+      else if (m.senderId === otherId) other++;
+    }
+    return my >= 3 && other >= 3;
+  }, [messages, selectedMatch?.id, selectedMatch?.otherUser?.userId, user?.id]);
+
   matchesRef.current = matches;
 
   // Only show matches that haven't passed their 7-day expiration (so they disappear when timer hits 0)
@@ -3042,6 +3055,13 @@ export default function MatchesScreen() {
 
   const handleSendPhoto = useCallback(async () => {
     if (!selectedMatch || sendingMessage || uploadingImage || uploadingVideo || uploadingAudio || !user) return;
+    if (!chatMediaUnlocked) {
+      Alert.alert(
+        'Not yet',
+        'Photos, video, and voice unlock after you and your match have each sent at least 3 messages in this chat.'
+      );
+      return;
+    }
     Alert.alert(
       'Send photo, video, or voice',
       undefined,
@@ -3158,7 +3178,7 @@ export default function MatchesScreen() {
         },
       ]
     );
-  }, [selectedMatch, sendingMessage, uploadingImage, uploadingVideo, uploadingAudio, user]);
+  }, [selectedMatch, sendingMessage, uploadingImage, uploadingVideo, uploadingAudio, user, chatMediaUnlocked]);
 
   const uploadAndSendImage = async (uri: string) => {
     if (!selectedMatch || !user) return;
@@ -3794,9 +3814,9 @@ export default function MatchesScreen() {
               style={styles.ageCardGradient}
             >
               <Text style={styles.ageCardEmoji}>✨</Text>
-              <Text style={styles.ageCardTitle}>Age is just a number</Text>
+              <Text style={styles.ageCardTitle}>Age is one piece of the picture</Text>
               <Text style={styles.ageCardBody}>
-                …but connection is timeless. Here's to finding someone who makes every moment count—whether you're sharing laughs, dreams, or the last slice of pizza.
+                Mulligan shows age so you have context—what matters more is shared interests, respect, and whether you actually want to meet up. Keep things kind, honest, and public when you first connect.
               </Text>
               <Text style={styles.ageCardHint}>Tap anywhere to close</Text>
             </LinearGradient>
@@ -4305,12 +4325,29 @@ export default function MatchesScreen() {
           >
             <View style={styles.inputWrapper}>
               <TouchableOpacity
-                onPress={() => setShowPhotoGuidelinesModal(true)}
+                onPress={() => {
+                  if (!chatMediaUnlocked) {
+                    Alert.alert(
+                      'Not yet',
+                      'Photos, video, and voice unlock after you and your match have each sent at least 3 messages in this chat.'
+                    );
+                    return;
+                  }
+                  setShowPhotoGuidelinesModal(true);
+                }}
                 disabled={sendingMessage || uploadingImage || uploadingVideo || uploadingAudio}
                 style={styles.photoButton}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Text style={[styles.photoButtonIcon, (uploadingImage || uploadingVideo || uploadingAudio) && { opacity: 0.6 }]}>📷</Text>
+                <Text
+                  style={[
+                    styles.photoButtonIcon,
+                    (uploadingImage || uploadingVideo || uploadingAudio) && { opacity: 0.6 },
+                    !chatMediaUnlocked && { opacity: 0.4 },
+                  ]}
+                >
+                  📷
+                </Text>
               </TouchableOpacity>
               <TextInput
                 ref={textInputRef}

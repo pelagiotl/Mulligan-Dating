@@ -23,7 +23,7 @@
           "UIInterfaceOrientationPortrait",
           "UIInterfaceOrientationPortraitUpsideDown"
         ],
-        "NSLocationWhenInUseUsageDescription": "Mulligan uses your location to find matches near you.",
+        "NSLocationWhenInUseUsageDescription": "Mulligan uses your location to show people and hangs near you.",
         "NSPhotoLibraryUsageDescription": "Mulligan needs access to your photos to upload profile pictures.",
         "NSCameraUsageDescription": "Mulligan needs access to your camera to take profile pictures and send photos or videos in chat.",
         "NSMicrophoneUsageDescription": "Mulligan needs microphone access to record voice messages in chat.",
@@ -36,7 +36,7 @@
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#8B1538"
+        "backgroundColor": "#5B21B6"
       },
       "permissions": [
         "android.permission.ACCESS_FINE_LOCATION",
@@ -77,7 +77,7 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Mulligan uses your location to find matches near you."
+          "locationAlwaysAndWhenInUsePermission": "Mulligan uses your location to show people and hangs near you."
         }
       ],
       [

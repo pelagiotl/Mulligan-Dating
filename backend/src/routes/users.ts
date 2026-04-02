@@ -11,6 +11,8 @@ import {
   connectSetupErrorPayload,
   getConnectSetupViolationsForUser,
 } from '../utils/connectRequirements.js';
+import { mutualGenderPreferencesMet } from '../utils/genderPreferences.js';
+import { interestNamesFromAggregate, interestSimilarityFromNames } from '../utils/interestSimilarity.js';
 
 // Check if using PostgreSQL
 const usePostgres = !!process.env.DATABASE_URL;
@@ -348,7 +350,50 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
       }
     }
 
-    // Fast path for offset=0 (Connect flow): first profile after distance/region filter (interests + location + age already enforced in query)
+    // Only show people whose gender prefs also include the browser (empty prefs = open to all)
+    {
+      const beforeMutual = filteredProfiles.length;
+      filteredProfiles = filteredProfiles.filter((p: ProfileWithMetadata) =>
+        mutualGenderPreferencesMet(
+          userProfile.gender || '',
+          userPrefs?.preferred_genders ?? null,
+          p.gender || '',
+          p.candidate_preferred_genders ?? null
+        )
+      );
+      if (beforeMutual !== filteredProfiles.length) {
+        console.log(
+          `📊 After mutual gender prefs: ${filteredProfiles.length} profiles (excluded ${beforeMutual - filteredProfiles.length})`
+        );
+      }
+    }
+
+    // Rank by shared "my interests" (then similarity blend, then distance) so Connect shows the strongest interest overlap first
+    const userInterestsForRanking = await (db
+      .prepare('SELECT name FROM interests WHERE profile_id = ?')
+      .all([userProfile.id]) as Promise<{ name: string }[]>);
+    const userInterestNameSet = new Set(userInterestsForRanking.map((i) => i.name.toLowerCase()));
+
+    filteredProfiles.sort((a: ProfileWithMetadata, b: ProfileWithMetadata) => {
+      const simA = interestSimilarityFromNames(
+        userInterestNameSet,
+        interestNamesFromAggregate(a.interests_list)
+      );
+      const simB = interestSimilarityFromNames(
+        userInterestNameSet,
+        interestNamesFromAggregate(b.interests_list)
+      );
+      if (simB.sharedCount !== simA.sharedCount) return simB.sharedCount - simA.sharedCount;
+      if (Math.abs(simB.blend01 - simA.blend01) > 0.0001) return simB.blend01 - simA.blend01;
+      const distA = distanceByProfileId.get(a.id);
+      const distB = distanceByProfileId.get(b.id);
+      if (distA != null && distB != null) return distA - distB;
+      if (distA != null) return -1;
+      if (distB != null) return 1;
+      return 0;
+    });
+
+    // Fast path for offset=0 (Connect flow): best interest overlap among filtered candidates
     if (offset === 0 && filteredProfiles.length > 0) {
       const p = filteredProfiles[0] as ProfileWithMetadata;
       let photoUrl: string | null = p.photo_url;
@@ -382,25 +427,19 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
       });
     }
 
-    // Score by shared interests + proximity (age/gender/distance filters already applied above)
-    const userInterests = await (db
-      .prepare("SELECT name FROM interests WHERE profile_id = ?")
-      .all([userProfile.id]) as Promise<{ name: string }[]>);
-
+    // Score by shared interests (primary) + proximity — same interest blend as pre-sort above
     const maxDistForScore =
       userPrefs?.max_distance != null && typeof userPrefs.max_distance === 'number' && userPrefs.max_distance > 0
         ? userPrefs.max_distance
         : 100;
 
     const profilesWithScores = await Promise.all(filteredProfiles.map(async (p: ProfileWithMetadata) => {
-      const candidateInterests = p.interests_list
-        ? p.interests_list.split(',').map((i: string) => i.trim().toLowerCase())
-        : [];
-      const userInterestNames = new Set(userInterests.map(i => i.name.toLowerCase()));
-      const candidateInterestNames = new Set(candidateInterests);
-      const sharedInterests = [...userInterestNames].filter(name => candidateInterestNames.has(name)).length;
-      const totalInterests = new Set([...userInterestNames, ...candidateInterestNames]).size;
-      const interestsScore = totalInterests > 0 ? sharedInterests / totalInterests : 0.5;
+      const sim = interestSimilarityFromNames(
+        userInterestNameSet,
+        interestNamesFromAggregate(p.interests_list)
+      );
+      const interestsScore = sim.blend01;
+      const sharedInterests = sim.sharedCount;
 
       const dist = distanceByProfileId.get(p.id) ?? null;
       let distanceScore = 0.5;
@@ -409,7 +448,7 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
         distanceScore = Math.exp(-3 * ratio);
       }
 
-      let matchScore = interestsScore * 0.7 + distanceScore * 0.3;
+      let matchScore = interestsScore * 0.85 + distanceScore * 0.15;
 
       const completenessBoost = await getCompletenessBoost(p.id);
       matchScore *= completenessBoost;
@@ -560,26 +599,17 @@ usersRouter.get('/diagnose/:targetUserId', authenticateToken, async (req: AuthRe
       }
     }
 
-    // Check gender filter (Other in preferences matches profile gender Non-binary)
-    let genderFilterPass = true;
-    let genderFilterReason = '';
-    if (userPrefs?.preferred_genders) {
-      try {
-        const preferredGenders = JSON.parse(userPrefs.preferred_genders) as string[];
-        const isEveryone = preferredGenders.includes('Everyone');
-        if (preferredGenders.length > 0 && !isEveryone) {
-          const targetGender = targetProfile.gender || '';
-          const matches = preferredGenders.includes(targetGender)
-            || (targetGender === 'Non-binary' && preferredGenders.includes('Other'));
-          if (!matches) {
-            genderFilterPass = false;
-            genderFilterReason = `Target gender (${targetProfile.gender}) is not in your preferred genders (${preferredGenders.join(', ')})`;
-          }
-        }
-      } catch (error) {
-        // Invalid JSON, skip
-      }
-    }
+    const targetPrefs = await (db.prepare('SELECT preferred_genders FROM preferences WHERE profile_id = ?').get([targetProfile.id]) as Promise<{ preferred_genders: string | null } | undefined>);
+
+    const genderFilterPass = mutualGenderPreferencesMet(
+      userProfile.gender || '',
+      userPrefs?.preferred_genders ?? null,
+      targetProfile.gender || '',
+      targetPrefs?.preferred_genders ?? null
+    );
+    const genderFilterReason = genderFilterPass
+      ? ''
+      : 'Filtered out: your gender preferences and theirs do not both allow this pairing (including "who I want to connect with").';
 
     // Check distance filter
     let distanceFilterPass = true;

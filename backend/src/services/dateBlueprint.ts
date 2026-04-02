@@ -264,13 +264,45 @@ export async function generateDatePlan(
   );
   const existingTitles = existingPlans.filter(p => p.title).map(p => (p.title as string).trim()).slice(0, 8);
 
+  // Prefer casual, activity-based public meetups (coffee/tea, walk, ice cream, markets, light games, culture)
   const genericKeywords = [
-    'restaurant', 'cafe', 'coffee shop', 'park', 'museum', 'activity', 'entertainment',
-    'arcade', 'mini golf', 'bookstore', 'art gallery', 'comedy club',
-    'farmers market', 'food truck', 'hiking trail', 'beach', 'bowling', 'ice skating',
-    'brunch spot', 'botanical garden', 'aquarium', 'tea house', 'juice bar',
-    'playground', 'scenic overlook', 'nature center', 'library', 'board game cafe',
-    'pottery studio', 'art class', 'cooking class', 'outdoor movie', 'food hall',
+    'coffee shop',
+    'tea house',
+    'cafe',
+    'park',
+    'hiking trail',
+    'walking trail',
+    'ice cream',
+    'frozen yogurt',
+    'farmers market',
+    'street market',
+    'mini golf',
+    'bowling',
+    'museum',
+    'bookstore',
+    'library',
+    'arcade',
+    'restaurant',
+    'activity',
+    'entertainment',
+    'art gallery',
+    'comedy club',
+    'food truck',
+    'beach',
+    'ice skating',
+    'brunch spot',
+    'botanical garden',
+    'aquarium',
+    'juice bar',
+    'playground',
+    'scenic overlook',
+    'nature center',
+    'board game cafe',
+    'pottery studio',
+    'art class',
+    'cooking class',
+    'outdoor movie',
+    'food hall',
   ];
 
   const tryVenues = (candidates: VenueSearchResult[]) => {
@@ -325,10 +357,13 @@ export async function generateDatePlan(
     ? venues[Math.floor(Math.random() * Math.min(venues.length, 5))]
     : null;
 
-  // Generate date plan using AI
+  const HANGOUT_SAFETY_NOTE =
+    'Public meetups recommended when connecting for the first time. Meet in a well-lit, busy place.';
+
+  // Generate hangout plan using AI
   const openaiApiKey = process.env.OPENAI_API_KEY;
-  let planTitle = 'First Date Plan';
-  let planDescription = 'A fun first date!';
+  let planTitle = 'Hangout Plan';
+  let planDescription = 'A fun hangout idea!';
   let conversationTopics: string[] = [];
   let budgetRange: 'low' | 'medium' | 'high' = 'medium';
 
@@ -346,21 +381,33 @@ export async function generateDatePlan(
 
       const venueInfo = selectedVenueForPlan
         ? (venueFacts
-            ? `THE date must be at this exact venue: ${selectedVenueForPlan.name}, ${selectedVenueForPlan.address}.
+            ? `THE hangout must be at this exact venue: ${selectedVenueForPlan.name}, ${selectedVenueForPlan.address}.
 
 WHAT THIS VENUE ACTUALLY IS (use ONLY these facts; do not invent anything else):
 ${venueFacts}
 
 CRITICAL: Your description MUST only describe activities that match the above. Do NOT add features that are not listed (e.g. do NOT say food trucks, live music in a park, or global cuisines unless the venue is actually that). If it is a sports complex with pool and courts, describe that. If it is a café, describe that. Never mix up venue types.`
-            : `THE date must be at this exact venue. Use ONLY this venue in the description and do not mention any other place: ${selectedVenueForPlan.name} at ${selectedVenueForPlan.address}. Do not invent features the venue does not have (e.g. no food trucks or "park" unless the venue is actually a park).`)
+            : `THE hangout must be at this exact venue. Use ONLY this venue in the description and do not mention any other place: ${selectedVenueForPlan.name} at ${selectedVenueForPlan.address}. Do not invent features the venue does not have (e.g. no food trucks or "park" unless the venue is actually a park).`)
         : 'No specific venue found, suggest a general activity (do not invent a specific venue name).';
 
       const interestsText = sharedInterests.length > 0
-        ? `Shared interests: ${sharedInterests.join(', ')}`
-        : 'No specific shared interests listed';
+        ? `SHARED INTERESTS (both people chose these — they overlap): ${sharedInterests.join(', ')}`
+        : 'No overlapping interests on file for this pair';
+
+      const sharedInterestRules =
+        sharedInterests.length > 0
+          ? `
+CRITICAL — SHARED INTERESTS:
+- The plan must clearly reflect at least one of these shared interests by name in the title OR in the first sentence of the description (e.g. hiking, board games, live music — use their actual labels).
+- At least 2 of the conversationTopics must directly relate to these shared interests (not only generic icebreakers).
+- Pick a venue/activity vibe that plausibly fits those interests when possible.
+`
+          : `
+No shared-interest overlap on file — suggest a welcoming, low-pressure public hangout anyone could enjoy.
+`;
 
       const avoidText = existingTitles.length > 0
-        ? `\nCRITICAL: Do NOT suggest anything similar to these recent plans for this couple: ${existingTitles.join(' | ')}. Pick a completely different type of date (different activity, vibe, and title).\n`
+        ? `\nCRITICAL: Do NOT suggest anything similar to these recent hangouts for this pair: ${existingTitles.join(' | ')}. Pick a completely different activity, vibe, and title.\n`
         : '';
 
       // When we have real venue facts, don't suggest a random different activity type (e.g. "food trucks" for a sports complex)
@@ -368,60 +415,70 @@ CRITICAL: Your description MUST only describe activities that match the above. D
         ? 'Keep the tone fun and conversational; describe only what this venue actually offers.'
         : (() => {
             const variationHints = [
-              'Suggest a low-key activity like mini golf, arcade, or bowling — fun and casual.',
-              'Suggest something creative: pottery class, paint-and-sip, or a craft workshop.',
-              'Suggest a food-focused date: food hall, food trucks, or a cooking class.',
-              'Suggest an outdoor date: picnic, botanical garden, farmers market, or scenic walk.',
-              'Suggest a cultural date: museum, gallery, indie cinema, or live comedy.',
-              'Suggest a cozy date: bookstore café, brunch spot, or tea house with a view.',
-              'Suggest an active date: hiking, bike ride, ice skating, or beach day.',
-              'Suggest something playful: escape room, trivia night, or board game café.',
-              'Suggest a romantic-but-casual date: sunset spot, stargazing, or waterfront walk.',
-              'Suggest a niche interest date: record store, vintage market, or flea market.',
-              'Suggest a sweet-tooth date: dessert café, chocolate tasting, or donut tour.',
-              'Suggest a nature date: aquarium, zoo, or nature center.',
-              'Suggest a local-discovery date: neighborhood walk, hidden gems, or street art tour.',
-              'Suggest a morning date: sunrise coffee, breakfast spot, or morning market.',
-              'Suggest a competitive-but-fun date: axe throwing, go-karts, or batting cages.',
-              'Suggest a chill-and-talk date: tea house, juice bar, or quiet café.',
-              'Suggest a music date: vinyl listening, open mic, or small concert (no bar focus).',
-              'Suggest a seasonal date: holiday market, outdoor movie, or fall foliage walk.',
-              'Suggest something unexpected: trampoline park, karaoke, or a themed pop-up.',
-              'Suggest a learning date: cooking class, art class, or dance lesson.',
-              'Suggest a scenic date: scenic overlook, lakeside, or garden.',
-              'Suggest a cozy indoor date: library, board game café, or bookstore.',
-              'Suggest an active outdoor date: kayaking, paddleboarding, or bike trail.',
-              'Suggest a food adventure: food hall, food trucks, or tasting tour (non-alcoholic).',
-              'Suggest a creative date: DIY workshop, craft fair, or maker space.',
-              'Suggest a relaxed date: park bench, waterfront bench, or café patio.',
+              'Coffee or tea meetup at a café — easy to chat, easy to leave.',
+              'Walk or easy hike in a park; keep it casual and public.',
+              'Grab ice cream or frozen yogurt and stroll somewhere nearby.',
+              'Check out a farmers market, street fair, or local weekend event.',
+              'Mini golf or bowling — light, playful, low pressure.',
+              'Browse a museum, bookstore, or library together.',
+              'Low-key hangout: mini golf, arcade, or bowling.',
+              'Something creative: pottery class, paint-and-sip, or a short craft workshop.',
+              'Food-focused meetup: food hall or casual lunch spot (not bar-focused).',
+              'Outdoor hangout: picnic, botanical garden, or scenic walk.',
+              'Cultural outing: gallery, indie cinema, or live comedy (public venue).',
+              'Cozy hangout: bookstore café, brunch, or tea house.',
+              'Active hangout: easy bike ride, ice skating, or beach walk.',
+              'Playful: escape room, trivia night, or board game café.',
+              'Sweet treat: dessert café or donut shop, then a short walk.',
+              'Nature outing: aquarium, zoo, or nature center.',
+              'Neighborhood stroll: coffee first, then walk main street or murals.',
+              'Morning meetup: breakfast spot or morning market.',
+              'Chill spot: tea house, juice bar, or quiet café patio.',
+              'Seasonal: holiday market, outdoor movie, or fall foliage walk.',
+              'Learning hangout: short cooking demo, art exhibit, or dance intro class.',
+              'Scenic: overlook, lakeside path, or public garden.',
+              'Relaxed: park bench, waterfront, or café patio — still public and busy.',
             ];
             return variationHints[Math.floor(Math.random() * variationHints.length)];
           })();
 
-      const prompt = `Create a FIRST DATE plan for a dating app. This must be DIFFERENT from any plan suggested before for this couple.
+      const terminologyRules = `
+TERMINOLOGY (strict):
+- Do NOT use the words "date", "dating", "romantic", or "couple" anywhere in title, description, or conversationTopics.
+- Use: meetup, hang out, grab coffee, activity, plans, connect, etc.
+- Do NOT add safety disclaimers inside the JSON; focus only on the activity.
+
+STYLE:
+- Default to casual, activity-based, daytime or early-evening public ideas (coffee/tea, walk in the park, ice cream, market, mini golf/bowling, museum/bookstore).
+`;
+
+      const prompt = `Create an IN-PERSON HANGOUT PLAN for two people who connected on Mulligan (friends / shared interests — keep it friendly and public). This must be DIFFERENT from any plan suggested before for this pair.
+${terminologyRules}
 ${interestsText}
+${sharedInterestRules}
 Location: ${meetingLocation}
 ${venueInfo}
 ${avoidText}
 
 This time: ${variationLine}
 
-Keep the date wholesome: do NOT suggest bars, wine bars, breweries, or alcohol-focused venues. Prefer coffee, food, activities, outdoors, and low-key spots.
+Keep it wholesome: do NOT suggest bars, wine bars, breweries, or alcohol-focused venues. Prefer coffee, tea, food, walking, light activities, outdoors, and low-key public spots.
 
-Generate a creative, engaging first date plan that:
-- Is appropriate for a first meeting (public, safe, not too intimate)
-- References shared interests if available, but be creative
-- Includes 3-5 conversation topics to help break the ice (make them unique)
+Generate a creative hangout plan that:
+- Feels casual and activity-led (not formal or intense)
+- Is appropriate for a first in-person meetup (public, safe, not too intimate)
+- If shared interests were listed above, the plan must visibly tie to them; otherwise stay general and welcoming
+- Includes 3-5 conversation topics (unique; when shared interests exist, at least 2 topics must relate directly to those interests)
 - Suggests a budget range (low/medium/high)
 - Is specific and actionable
 - Has a short, catchy title that is NOT the same idea as the recent plans listed above
-- If a specific venue was provided above, the description MUST describe the date at THAT venue only and MUST match what the venue actually is (no invented features).
+- If a specific venue was provided above, the description MUST describe the hangout at THAT venue only and MUST match what the venue actually is (no invented features).
 - Description must be CONCISE: 1–2 short sentences max. No long paragraphs. Punchy and scannable.
 
 Return ONLY a JSON object with this exact format:
 {
   "title": "short catchy title",
-  "description": "1–2 sentence concise summary of the date (what you do, where; no fluff)",
+  "description": "1–2 sentence concise summary of the hangout (what you do, where; no fluff)",
   "conversationTopics": ["topic 1", "topic 2", "topic 3"],
   "budgetRange": "low|medium|high"
 }`;
@@ -431,7 +488,7 @@ Return ONLY a JSON object with this exact format:
         messages: [
           {
             role: 'system',
-            content: 'You are a creative assistant that creates unique, fun, safe first date plans for dating apps. Each plan should be different and memorable. Keep descriptions brief and punchy—one or two sentences only. No long paragraphs.',
+            content: 'You create unique, casual, activity-based in-person hangout ideas for people who connected on a social app (not romantic framing). Never use the words date, dating, romantic, or couple in your JSON output. Prefer coffee/tea, walks, ice cream, markets, mini golf, bowling, museums, bookstores. When shared interests are listed, weave at least one into the title or first sentence and tie most topics to those interests. One or two sentences for description only.',
           },
           {
             role: 'user',
@@ -457,7 +514,7 @@ Return ONLY a JSON object with this exact format:
         }
       }
     } catch (error) {
-      console.error('❌ Failed to generate AI date plan:', error);
+      console.error('❌ Failed to generate AI hangout plan:', error);
     }
   }
 
@@ -476,6 +533,17 @@ Return ONLY a JSON object with this exact format:
         'What\'s something you\'ve always wanted to try?',
       ];
     }
+  }
+
+  /** Avoid accidental "date" wording in user-visible strings (whole word only). */
+  const scrubDateTerminology = (s: string) => s.replace(/\bdate\b/gi, 'meetup').replace(/\bdating\b/gi, 'connecting');
+
+  planTitle = scrubDateTerminology(planTitle);
+  planDescription = scrubDateTerminology(planDescription);
+  conversationTopics = conversationTopics.map((t) => scrubDateTerminology(t));
+
+  if (!planDescription.includes('Public meetups recommended')) {
+    planDescription = `${planDescription.trim()}\n\n${HANGOUT_SAFETY_NOTE}`;
   }
 
   // Create date plan

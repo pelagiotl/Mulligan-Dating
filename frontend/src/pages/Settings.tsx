@@ -380,7 +380,7 @@ export default function Settings() {
             <div>
               <p className="danger-warning">
                 Deleting your account will permanently remove all your data,
-                matches, and messages. This cannot be undone.
+                chats, and messages. This cannot be undone.
               </p>
               <button
                 className="btn btn-danger"

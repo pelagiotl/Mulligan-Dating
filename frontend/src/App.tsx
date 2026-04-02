@@ -15,6 +15,7 @@ import Admin from './pages/Admin'
 import Terms from './pages/Terms'
 import Privacy from './pages/Privacy'
 import Layout from './components/Layout'
+import BrandMark from './components/BrandMark'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   // Always call hooks at the top level, before any conditional returns
@@ -45,37 +46,7 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
         </div>
         <div className="loading-content">
           <div className="loading-logo-container">
-            <svg className="loading-logo" width="80" height="80" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <defs>
-                <linearGradient id="loadingHeartGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
-                  <stop offset="50%" stopColor="#ffffff" stopOpacity="1" />
-                  <stop offset="100%" stopColor="#ffffff" stopOpacity="1" />
-                </linearGradient>
-                <filter id="loadingGlow">
-                  <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-                  <feMerge>
-                    <feMergeNode in="coloredBlur"/>
-                    <feMergeNode in="SourceGraphic"/>
-                  </feMerge>
-                </filter>
-              </defs>
-              <path 
-                d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z" 
-                fill="url(#loadingHeartGradient)"
-                filter="url(#loadingGlow)"
-              />
-              <g className="loading-arrow-top">
-                <circle cx="36" cy="10" r="3" fill="currentColor" opacity="0.9" />
-                <path d="M30 10L36 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-                <path d="M33 7L36 10L33 13" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-              </g>
-              <g className="loading-arrow-bottom">
-                <circle cx="12" cy="38" r="3" fill="currentColor" opacity="0.9" />
-                <path d="M18 38L12 38" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-                <path d="M15 35L12 38L15 41" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-              </g>
-            </svg>
+            <BrandMark size={80} className="loading-logo" alt="" />
           </div>
           <h1 className="loading-title">Welcome Back</h1>
           <div className="loading-dots">
@@ -125,27 +96,7 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
         </div>
         <div className="loading-content">
           <div className="loading-logo-container">
-            <svg className="loading-logo" width="80" height="80" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <defs>
-                <linearGradient id="loadingHeartGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
-                  <stop offset="50%" stopColor="#ffffff" stopOpacity="1" />
-                  <stop offset="100%" stopColor="#ffffff" stopOpacity="1" />
-                </linearGradient>
-                <filter id="loadingGlow">
-                  <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-                  <feMerge>
-                    <feMergeNode in="coloredBlur"/>
-                    <feMergeNode in="SourceGraphic"/>
-                  </feMerge>
-                </filter>
-              </defs>
-              <path 
-                d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z" 
-                fill="url(#loadingHeartGradient)"
-                filter="url(#loadingGlow)"
-              />
-            </svg>
+            <BrandMark size={80} className="loading-logo" alt="" />
           </div>
           <h1 className="loading-title">Loading Admin</h1>
           <div className="loading-dots">
@@ -197,27 +148,7 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
         </div>
         <div className="loading-content">
           <div className="loading-logo-container">
-            <svg className="loading-logo" width="80" height="80" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <defs>
-                <linearGradient id="loadingHeartGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
-                  <stop offset="50%" stopColor="#ffffff" stopOpacity="1" />
-                  <stop offset="100%" stopColor="#ffffff" stopOpacity="1" />
-                </linearGradient>
-                <filter id="loadingGlow">
-                  <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-                  <feMerge>
-                    <feMergeNode in="coloredBlur"/>
-                    <feMergeNode in="SourceGraphic"/>
-                  </feMerge>
-                </filter>
-              </defs>
-              <path 
-                d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z" 
-                fill="url(#loadingHeartGradient)"
-                filter="url(#loadingGlow)"
-              />
-            </svg>
+            <BrandMark size={80} className="loading-logo" alt="" />
           </div>
           <h1 className="loading-title">Mulligan</h1>
           <div className="loading-dots">
@@ -491,7 +422,7 @@ function NewMatchesNotification() {
         fontSize: '1.2rem',
         animation: 'sparkle 2s ease-in-out infinite',
         animationDelay: '1s'
-      }}>💖</div>
+      }}>💬</div>
       <div style={{
         fontSize: '1.1rem',
         fontWeight: '600',
@@ -508,7 +439,7 @@ function NewMatchesNotification() {
         fontStyle: 'italic',
         textShadow: '0 1px 4px rgba(0, 0, 0, 0.2)'
       }}>
-        Click to view your matches →
+        Open Chats →
       </div>
     </div>
   )

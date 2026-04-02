@@ -139,8 +139,8 @@ interface SettingsData {
 }
 
 // Values sent to API (matching uses profile.gender: "Man" | "Woman" | "Non-binary" etc.)
-const PREFERRED_GENDERS_VALUES = ['Man', 'Woman', 'Other', 'Everyone'];
-const PREFERRED_GENDERS_LABELS: Record<string, string> = { Man: 'Men', Woman: 'Women', Other: 'Other', Everyone: 'Everyone' };
+const PREFERRED_GENDERS_VALUES = ['Man', 'Woman', 'Everyone'];
+const PREFERRED_GENDERS_LABELS: Record<string, string> = { Man: 'Men', Woman: 'Women', Everyone: 'Everyone' };
 function preferredGenderLabel(value: string) { return PREFERRED_GENDERS_LABELS[value] ?? value; }
 
 const MAX_DISTANCE_OPTIONS: (number | null)[] = [10, 25, 50, 100, 250, 500, null]; // null = Any
@@ -822,9 +822,11 @@ export default function MyProfileScreen() {
     setUpdatingField(true);
     try {
       const prefs = data.preferences;
-      const payload = (editPreferredGenders.includes('Everyone') || editPreferredGenders.length === 0)
-        ? null
-        : editPreferredGenders;
+      const cleaned = editPreferredGenders.filter((g) => g === 'Man' || g === 'Woman');
+      const payload =
+        editPreferredGenders.includes('Everyone') || editPreferredGenders.length === 0 || cleaned.length === 0
+          ? null
+          : cleaned;
       await api.put('/profile/preferences', {
         minAge: prefs?.min_age ?? null,
         maxAge: prefs?.max_age ?? null,
@@ -838,7 +840,7 @@ export default function MyProfileScreen() {
       api.clearCache('/profile');
       refreshProfile?.();
     } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Failed to update preferred genders.');
+      Alert.alert('Error', e?.message || 'Failed to update preferred connections.');
     } finally {
       setUpdatingField(false);
     }
@@ -1923,14 +1925,22 @@ export default function MyProfileScreen() {
                 </LinearGradient>
               </TouchableOpacity>
 
-              {/* Preferred genders - tappable to update */}
+              {/* Preferred connections - tappable to update */}
               <TouchableOpacity
                 activeOpacity={0.9}
                 onPress={() => {
                   let initial: string[] = [];
                   if (data?.preferences?.preferred_genders) {
                     try {
-                      initial = JSON.parse(data.preferences.preferred_genders) as string[];
+                      const raw = JSON.parse(data.preferences.preferred_genders) as string[];
+                      initial = raw.filter((g) => g === 'Man' || g === 'Woman' || g === 'Everyone');
+                      const hadLegacyOther = raw.includes('Other');
+                      const hadLegacyAllThree =
+                        raw.length === 3 &&
+                        ['Man', 'Woman', 'Other'].every((g) => raw.includes(g));
+                      if (hadLegacyAllThree || (hadLegacyOther && initial.length === 0)) {
+                        initial = ['Everyone'];
+                      }
                     } catch { initial = []; }
                   }
                   if (initial.length === 0) initial = ['Everyone'];
@@ -1947,14 +1957,16 @@ export default function MyProfileScreen() {
                   end={{ x: 1, y: 1 }}
                   style={styles.infoCardFull}
                 >
-                  <Text style={styles.infoCardEmoji}>👫</Text>
-                  <Text style={styles.infoCardLabel}>Preferred genders</Text>
+                  <Text style={styles.infoCardEmoji}>🔗</Text>
+                  <Text style={styles.infoCardLabel}>Preferred connections</Text>
                   <Text style={styles.infoCardValueFull}>
                     {(() => {
                       const pg = data?.preferences?.preferred_genders;
                       if (!pg) return 'Everyone';
                       try {
-                        const arr = JSON.parse(pg) as string[];
+                        const arr = (JSON.parse(pg) as string[]).filter(
+                          (g) => g === 'Man' || g === 'Woman' || g === 'Everyone'
+                        );
                         if (!arr.length || arr.includes('Everyone')) return 'Everyone';
                         return arr.map(preferredGenderLabel).join(', ');
                       } catch { return 'Everyone'; }
@@ -2056,8 +2068,8 @@ export default function MyProfileScreen() {
               end={{ x: 1, y: 1 }}
               style={styles.editModalGradient}
             >
-              <Text style={styles.editModalEmoji}>👫</Text>
-              <Text style={styles.editModalTitleLight}>Preferred genders</Text>
+              <Text style={styles.editModalEmoji}>🔗</Text>
+              <Text style={styles.editModalTitleLight}>Preferred connections</Text>
               <Text style={styles.editModalSubtitleLight}>Who you want to see in Connect</Text>
               <ScrollView style={styles.preferredGendersScroll} contentContainerStyle={styles.preferredGendersScrollContent} showsVerticalScrollIndicator={true}>
                 <View style={styles.editModalInner}>
@@ -2403,7 +2415,7 @@ export default function MyProfileScreen() {
           <View style={styles.sectionTitleContainer}>
             <AnimatedEmoji emoji="🎯" delay={200} />
             <Text style={styles.sectionTitle}> My Interests</Text>
-            <TouchableOpacity style={styles.sectionEditTouchable} onPress={() => navigateToCreateProfile({ initialStep: 6 })} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity style={styles.sectionEditTouchable} onPress={() => navigateToCreateProfile({ initialStep: 7 })} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Text style={styles.sectionEditLink}>Edit</Text>
             </TouchableOpacity>
           </View>

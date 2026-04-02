@@ -42,6 +42,13 @@ const GENDER_OPTIONS = ['Man', 'Woman', 'Other'];
 const PREFERRED_GENDER_OPTIONS = ['Man', 'Woman', 'Everyone'] as const;
 const PREFERRED_GENDER_LABELS: Record<string, string> = { Man: 'Men', Woman: 'Women', Everyone: 'Everyone' };
 function preferredGenderDisplayLabel(value: string) { return PREFERRED_GENDER_LABELS[value] ?? value; }
+
+/** API: null = everyone; otherwise only Man/Woman (no legacy Other). */
+function preferredGendersPayload(g: string[]): string[] | null {
+  if (g.includes('Everyone') || g.length === 0) return null;
+  const only = g.filter((x) => x === 'Man' || x === 'Woman');
+  return only.length > 0 ? only : null;
+}
 const INTEREST_OPTIONS = [
   'Travel', 'Music', 'Sports', 'Cooking', 'Reading', 'Movies', 'Fitness', 'Art',
   'Photography', 'Dancing', 'Gaming', 'Hiking', 'Yoga', 'Writing', 'Technology',
@@ -84,7 +91,7 @@ const INTEREST_EMOJIS: { [key: string]: string } = {
   'Education': '🎓',
 };
 
-const TOTAL_STEPS = 11; // 1-4 basics; 5 bio; 6 interests; 7-10 prefs; 11 photos
+const TOTAL_STEPS = 11; // 1-3 basics; 4 preferred connections; 5-6 location+bio; 7 interests; 8-10 age/distance; 11 photos
 const MIN_PHOTOS_REQUIRED = 3;
 
 export default function CreateProfileScreen() {
@@ -136,7 +143,7 @@ export default function CreateProfileScreen() {
     }
   };
   
-  // Animation values for match preferences (steps 7–10)
+  // Animation values for match preferences (steps 8–10: age / distance)
   const minAgeScale = useRef(new Animated.Value(0.95)).current;
   const minAgeOpacity = useRef(new Animated.Value(0)).current;
   const minAgeGlow = useRef(new Animated.Value(0)).current;
@@ -238,7 +245,7 @@ export default function CreateProfileScreen() {
     };
   }, [screenWidth, screenHeight]);
 
-  // Animate and focus the active basic-info field when on steps 1-5 (basics + bio)
+  // Animate and focus the active basic-info field when on steps 1-6 (basics + preferred + location + bio)
   useEffect(() => {
     const anim = (s: Animated.Value, o: Animated.Value, g: Animated.Value) => {
       Animated.parallel([
@@ -254,14 +261,18 @@ export default function CreateProfileScreen() {
       anim(firstNameScale, firstNameOpacity, firstNameGlow);
     } else if (step === 2) {
       anim(ageScale, ageOpacity, ageGlow);
-    } else if (step === 3) anim(genderScale, genderOpacity, genderGlow);
-    else if (step === 4) {
+    } else if (step === 3) {
+      anim(genderScale, genderOpacity, genderGlow);
+    } else if (step === 4) {
+      anim(preferredGendersScale, preferredGendersOpacity, preferredGendersGlow);
+    } else if (step === 5) {
       anim(locationScale, locationOpacity, locationGlow);
-    } else if (step === 5) anim(bioScale, bioOpacity, bioGlow);
-    else {
-      [firstNameScale, ageScale, genderScale, locationScale, bioScale].forEach(s => s.setValue(0.95));
-      [firstNameOpacity, ageOpacity, genderOpacity, locationOpacity, bioOpacity].forEach(o => o.setValue(0));
-      [firstNameGlow, ageGlow, genderGlow, locationGlow, bioGlow].forEach(g => g.setValue(0));
+    } else if (step === 6) {
+      anim(bioScale, bioOpacity, bioGlow);
+    } else {
+      [firstNameScale, ageScale, genderScale, preferredGendersScale, locationScale, bioScale].forEach(s => s.setValue(0.95));
+      [firstNameOpacity, ageOpacity, genderOpacity, preferredGendersOpacity, locationOpacity, bioOpacity].forEach(o => o.setValue(0));
+      [firstNameGlow, ageGlow, genderGlow, preferredGendersGlow, locationGlow, bioGlow].forEach(g => g.setValue(0));
     }
   }, [step]);
 
@@ -300,18 +311,15 @@ export default function CreateProfileScreen() {
     ]).start();
   };
 
-  // Match preferences (steps 7–10) — progressive disclosure
+  // Discover preferences (steps 8–10): min age, max age, max distance
   useEffect(() => {
-    if (step === 7) {
+    if (step === 8) {
       animateField(minAgeScale, minAgeOpacity, minAgeGlow);
     }
   }, [step]);
 
   useEffect(() => {
-    if (step === 8) animateField(maxAgeScale, maxAgeOpacity, maxAgeGlow);
-  }, [step]);
-  useEffect(() => {
-    if (step === 9) animateField(preferredGendersScale, preferredGendersOpacity, preferredGendersGlow);
+    if (step === 9) animateField(maxAgeScale, maxAgeOpacity, maxAgeGlow);
   }, [step]);
   useEffect(() => {
     if (step === 10) {
@@ -340,9 +348,15 @@ export default function CreateProfileScreen() {
           if (data.preferences.preferred_genders) {
             try {
               const genders = JSON.parse(data.preferences.preferred_genders) as string[];
-              const allGenders = ['Man', 'Woman', 'Other'];
-              const isEveryone = genders.length === 0 || (genders.length === 3 && allGenders.every(g => genders.includes(g)));
-              setPreferredGenders(isEveryone ? ['Everyone'] : genders);
+              const withoutOther = genders.filter((g) => g !== 'Other');
+              const legacyAllThree =
+                genders.length === 3 && ['Man', 'Woman', 'Other'].every((g) => genders.includes(g));
+              const isEveryone =
+                genders.includes('Everyone') ||
+                genders.length === 0 ||
+                legacyAllThree ||
+                (withoutOther.length === 0 && genders.length > 0);
+              setPreferredGenders(isEveryone ? ['Everyone'] : withoutOther);
             } catch {
               setPreferredGenders(['Everyone']);
             }
@@ -445,7 +459,7 @@ export default function CreateProfileScreen() {
               await api.put('/profile/preferences', {
                 minAge,
                 maxAge: maxAge >= minAge && maxAge <= 120 ? maxAge : null,
-                preferredGenders: (preferredGenders.includes('Everyone') || preferredGenders.length === 0) ? null : preferredGenders,
+                preferredGenders: preferredGendersPayload(preferredGenders),
                 maxDistance,
                 relationshipType: null
               });
@@ -744,6 +758,12 @@ export default function CreateProfileScreen() {
       }
     }
     if (step === 4) {
+      if (preferredGenders.length < 1) {
+        setError('Please choose who you’d like to connect with (select Everyone if you’re open to anyone)');
+        return;
+      }
+    }
+    if (step === 5) {
       if (!location?.trim()) {
         setError('Please enter your location');
         return;
@@ -753,28 +773,22 @@ export default function CreateProfileScreen() {
         return;
       }
     }
-    // Step 5 (bio) - optional
-    if (step === 6) {
+    // Step 6 (bio) - optional
+    if (step === 7) {
       if (interests.length < 3) {
         setError('Please select at least 3 interests');
         return;
       }
     }
-    if (step === 7) {
+    if (step === 8) {
       if (minAge === null || minAge < 18) {
         setError('Minimum age must be 18 or older');
         return;
       }
     }
-    if (step === 8) {
+    if (step === 9) {
       if (maxAge === null || maxAge < (minAge ?? 18)) {
         setError('Maximum age must be at least ' + (minAge ?? 18));
-        return;
-      }
-    }
-    if (step === 9) {
-      if (preferredGenders.length < 1) {
-        setError('Please select at least one preferred gender');
         return;
       }
     }
@@ -797,8 +811,6 @@ export default function CreateProfileScreen() {
     }
     
     // If moving to final step (photos), validation happens on submit
-    // (Note: They can still navigate to step 7 to upload photos, but validation happens on submit)
-    // Actually, let's allow navigation to step 7 so they can upload photos there
     
     try {
       setStep(nextStep);
@@ -1134,7 +1146,7 @@ export default function CreateProfileScreen() {
       await api.put('/profile/preferences', {
         minAge,
         maxAge: maxAge >= minAge && maxAge <= 120 ? maxAge : null,
-        preferredGenders: (preferredGenders.includes('Everyone') || preferredGenders.length === 0) ? null : preferredGenders,
+        preferredGenders: preferredGendersPayload(preferredGenders),
         maxDistance,
         relationshipType: null
       });
@@ -1172,7 +1184,7 @@ export default function CreateProfileScreen() {
       await api.put('/profile/preferences', {
         minAge,
         maxAge: maxAge >= minAge && maxAge <= 120 ? maxAge : null,
-        preferredGenders: (preferredGenders.includes('Everyone') || preferredGenders.length === 0) ? null : preferredGenders,
+        preferredGenders: preferredGendersPayload(preferredGenders),
         maxDistance,
         relationshipType: null
       });
@@ -1231,7 +1243,7 @@ export default function CreateProfileScreen() {
     );
   };
 
-  // Steps 1-5: One card per page (display name, age, gender, location, bio)
+  // Steps 1-6: One card per page (display name, age, gender, preferred connections, location, bio)
   const basicInfoStepWrapper = (content: React.ReactNode) => (
     <ScrollView style={styles.stepContent} contentContainerStyle={[styles.lifestyleScrollContent, { flexGrow: 1 }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
       {content}
@@ -1243,7 +1255,7 @@ export default function CreateProfileScreen() {
         <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.focusedFirstNameCard, keyboardVisible && styles.focusedCardWithKeyboard, { padding: keyboardVisible ? rs.cardPaddingKeyboard : rs.cardPaddingFirst }]}>
           <Text style={[styles.focusedEmoji, keyboardVisible && styles.focusedEmojiSmall, { fontSize: keyboardVisible ? rs.emojiSizeSmall : rs.emojiSize, marginBottom: keyboardVisible ? 8 : 20 }]}>👋</Text>
           <Text style={[styles.focusedTitle, keyboardVisible && styles.focusedTitleCompact, { fontSize: keyboardVisible ? rs.titleSizeCompact : rs.titleSize, marginBottom: keyboardVisible ? 8 : rs.titleMargin }]}>Welcome to Mulligan!</Text>
-          <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleCompact, { fontSize: keyboardVisible ? rs.subtitleSizeCompact : 10, marginBottom: keyboardVisible ? 20 : rs.subtitleMargin, maxWidth: '100%' }]} numberOfLines={2}>Intentional connections start with your first name</Text>
+          <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleCompact, { fontSize: keyboardVisible ? rs.subtitleSizeCompact : 10, marginBottom: keyboardVisible ? 20 : rs.subtitleMargin, maxWidth: '100%' }]} numberOfLines={2}>{"Let's start with your first name"}</Text>
           <Animated.View style={[styles.focusedInputWrapper, { shadowOpacity: firstNameGlow.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.6] }), shadowRadius: firstNameGlow.interpolate({ inputRange: [0, 1], outputRange: [8, 20] }) }]}>
             <TextInput ref={displayNameInputRef} style={[styles.focusedFirstNameInput, keyboardVisible && styles.focusedFirstNameInputKeyboard]} value={displayName} onChangeText={setDisplayName} placeholder="Your first name" placeholderTextColor="#4a5568" autoCapitalize="words" returnKeyType="next" />
           </Animated.View>
@@ -1275,7 +1287,7 @@ export default function CreateProfileScreen() {
         <LinearGradient colors={['#764ba2', '#f093fb', '#f5576c']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.focusedFieldCard, { padding: rs.cardPadding }]}>
           <Text style={[styles.focusedEmoji, { fontSize: rs.emojiSize, marginBottom: 20 }]}>⚧️</Text>
           <Text style={[styles.focusedTitle, { fontSize: rs.titleSize, marginBottom: rs.titleMargin }]}>What's your gender?</Text>
-          <Text style={[styles.focusedSubtitle, { fontSize: rs.subtitleSize, marginBottom: rs.subtitleMargin }]}>Help us match you with the right people</Text>
+          <Text style={[styles.focusedSubtitle, { fontSize: rs.subtitleSize, marginBottom: rs.subtitleMargin }]}>This is how you show up on your profile</Text>
           <View style={styles.focusedPickerWrapper}>
             <Picker selectedValue={gender || ''} onValueChange={(v) => v && setGender(v)} style={styles.focusedPicker} itemStyle={Platform.OS === 'ios' ? styles.focusedPickerItem : undefined} mode={Platform.OS === 'android' ? 'dropdown' : 'dialog'}>
               <Picker.Item label="Select gender" value="" />
@@ -1424,7 +1436,7 @@ export default function CreateProfileScreen() {
     </View>
   );
 
-  // Steps 7-10: One card per page (min age, max age, preferred genders, max distance)
+  // Steps 8-10: One card per page (min age, max age, max distance)
   const renderStep10MinAge = () => basicInfoStepWrapper(
     <View style={[styles.focusedFieldSection, { minHeight: rs.sectionMinHeight, paddingHorizontal: rs.sectionPaddingH, paddingVertical: rs.sectionPaddingV }]}>
       <Animated.View style={[{ transform: [{ scale: minAgeScale }], opacity: minAgeOpacity }]}>
@@ -1465,28 +1477,35 @@ export default function CreateProfileScreen() {
     <View style={[styles.focusedFieldSection, { minHeight: rs.sectionMinHeight, paddingHorizontal: rs.sectionPaddingH, paddingVertical: rs.sectionPaddingV }]}>
       <Animated.View style={[{ transform: [{ scale: preferredGendersScale }], opacity: preferredGendersOpacity }]}>
         <LinearGradient colors={['#4facfe', '#00f2fe', '#667eea']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.focusedFieldCard, { padding: rs.cardPadding }]}>
-          <Text style={[styles.focusedEmoji, { fontSize: rs.emojiSize, marginBottom: 20 }]}>⚧️</Text>
-          <Text style={[styles.focusedTitle, { fontSize: rs.titleSize, marginBottom: rs.titleMargin }]}>Preferred Genders</Text>
-          <Text style={[styles.focusedSubtitle, { fontSize: rs.subtitleSize, marginBottom: rs.subtitleMargin }]}>Select all that apply</Text>
+          <Text style={[styles.focusedEmoji, { fontSize: rs.emojiSize, marginBottom: 16 }]}>🔗</Text>
+          <Text style={[styles.focusedTitle, { fontSize: rs.titleSize, marginBottom: rs.titleMargin }]}>Preferred connections</Text>
+          <Text style={[styles.focusedSubtitle, { fontSize: rs.subtitleSizeSmall, lineHeight: Math.round(20 * (screenWidth / 375)), marginBottom: rs.subtitleMarginSmall }]}>
+            Mulligan Connections lets you meet people for hikes, coffee, gaming, events, or just good conversation. Gender preference helps match you with people you{"'"}re most comfortable meeting.
+          </Text>
+          <Text style={[styles.focusedTitle, { fontSize: rs.titleSizeSmall, marginBottom: 12, fontWeight: '700' }]}>Who would you like to connect with?</Text>
+          <Text style={[styles.focusedSubtitle, { fontSize: rs.subtitleSizeTiny, marginBottom: 10, opacity: 0.95 }]}>Who to show</Text>
           <View style={styles.preferencesGenderGrid}>
-            {PREFERRED_GENDER_OPTIONS.map(gender => {
-              const isSelected = preferredGenders.includes(gender);
+            {PREFERRED_GENDER_OPTIONS.map((pref) => {
+              const isSelected = preferredGenders.includes(pref);
               return (
-                <TouchableOpacity key={gender} style={styles.preferencesGenderCard} onPress={() => togglePreferredGender(gender)} activeOpacity={0.7}>
+                <TouchableOpacity key={pref} style={styles.preferencesGenderCard} onPress={() => togglePreferredGender(pref)} activeOpacity={0.7}>
                   {isSelected ? (
                     <LinearGradient colors={['#f5576c', '#f093fb', '#667eea']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.preferencesGenderCardSelected}>
-                      <Text style={styles.preferencesGenderTextSelected}>{preferredGenderDisplayLabel(gender)}</Text>
+                      <Text style={styles.preferencesGenderTextSelected}>{preferredGenderDisplayLabel(pref)}</Text>
                       <View style={styles.preferencesCheckmark}><Text style={styles.preferencesCheckmarkText}>✓</Text></View>
                     </LinearGradient>
                   ) : (
                     <View style={styles.preferencesGenderCardUnselected}>
-                      <Text style={styles.preferencesGenderText}>{preferredGenderDisplayLabel(gender)}</Text>
+                      <Text style={styles.preferencesGenderText}>{preferredGenderDisplayLabel(pref)}</Text>
                     </View>
                   )}
                 </TouchableOpacity>
               );
             })}
           </View>
+          <Text style={[styles.focusedSubtitle, { fontSize: rs.subtitleSizeTiny, marginTop: 8, marginBottom: 4, opacity: 0.9 }]}>
+            Men, women, or everyone—your Discover feed follows this
+          </Text>
           {preferredGenders.length > 0 && <Animated.View style={[styles.successIndicator, { opacity: preferredGendersOpacity }]}><Text style={styles.successText}>✓ {preferredGenders.includes('Everyone') ? 'Everyone' : `${preferredGenders.length} selected`}</Text></Animated.View>}
         </LinearGradient>
       </Animated.View>
@@ -1695,12 +1714,12 @@ export default function CreateProfileScreen() {
       {step === 1 && renderStep1DisplayName()}
       {step === 2 && renderStep2Age()}
       {step === 3 && renderStep3Gender()}
-      {step === 4 && renderStep4Location()}
-      {step === 5 && renderStep6Bio()}
-      {step === 6 && renderStep2()}
-      {step === 7 && renderStep10MinAge()}
-      {step === 8 && renderStep11MaxAge()}
-      {step === 9 && renderStep12PreferredGenders()}
+      {step === 4 && renderStep12PreferredGenders()}
+      {step === 5 && renderStep4Location()}
+      {step === 6 && renderStep6Bio()}
+      {step === 7 && renderStep2()}
+      {step === 8 && renderStep10MinAge()}
+      {step === 9 && renderStep11MaxAge()}
       {step === 10 && renderStep13MaxDistance()}
       {step === 11 && renderStep7()}
 

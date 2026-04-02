@@ -2,6 +2,7 @@ import { useState, FormEvent, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../utils/api'
+import BrandMark from '../components/BrandMark'
 
 export default function Signup() {
   const [email, setEmail] = useState('')
@@ -55,9 +56,12 @@ export default function Signup() {
     <div className="auth-page">
       <div className="auth-container">
         <div className="auth-header">
-          <Link to="/" className="auth-logo">💘 Mulligan</Link>
+          <Link to="/" className="auth-logo" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+            <BrandMark size={36} alt="" />
+            Mulligan
+          </Link>
           <h1 className="auth-title">Create your account</h1>
-          <p className="auth-subtitle">Start your journey to finding love</p>
+          <p className="auth-subtitle">Meet people nearby who share your interests</p>
         </div>
 
         <div className="auth-card">

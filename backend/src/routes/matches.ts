@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import { db } from "../database.js";
 import { authenticateToken, AuthRequest } from "../middleware/auth.js";
 import { generateWeeklyMatches, generateMatchExplanation, calculateProfileCompatibilityScore } from "../services/matching.js";
+import { mutualGenderPreferencesMet } from "../utils/genderPreferences.js";
 import { recordSuccessSignal } from "../utils/successTracking.js";
 import { rateLimitAPI } from "../middleware/security.js";
 import { geocodeLocation, calculateDistanceMiles } from "../utils/geocoding.js";
@@ -42,6 +43,29 @@ interface ProfileRow {
   bio: string | null;
   photo_url: string | null;
   looking_for: string | null;
+}
+
+const CHAT_MEDIA_MIN_MESSAGES_EACH = 3;
+const CHAT_MEDIA_LOCKED_MESSAGE =
+  "Photos, video, and voice unlock after you and your match have each sent at least 3 messages in this chat.";
+
+async function getSenderMessageCounts(
+  matchId: string,
+  user1Id: string,
+  user2Id: string
+): Promise<{ user1: number; user2: number }> {
+  const countResult = db
+    .prepare(`SELECT sender_id, COUNT(*) as count FROM messages WHERE match_id = ? GROUP BY sender_id`)
+    .all([matchId]);
+  const counts = (countResult instanceof Promise ? await countResult : countResult) as Array<{ sender_id: string; count: number }>;
+  return {
+    user1: counts.find((c) => c.sender_id === user1Id)?.count ?? 0,
+    user2: counts.find((c) => c.sender_id === user2Id)?.count ?? 0,
+  };
+}
+
+function bothUsersMetChatMediaThreshold(user1Count: number, user2Count: number): boolean {
+  return user1Count >= CHAT_MEDIA_MIN_MESSAGES_EACH && user2Count >= CHAT_MEDIA_MIN_MESSAGES_EACH;
 }
 
 // Get active match count and slot limit - MUST be before /:matchId routes so "count" isn't treated as matchId
@@ -480,11 +504,11 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
 
     // Check if user has at least 1 photo uploaded
     const userProfileResult = db
-      .prepare("SELECT id FROM profiles WHERE user_id = ?")
+      .prepare("SELECT id, gender FROM profiles WHERE user_id = ?")
       .get([userId]);
     const userProfile = (userProfileResult instanceof Promise
       ? await userProfileResult
-      : userProfileResult) as { id: string } | undefined;
+      : userProfileResult) as { id: string; gender: string } | undefined;
 
     if (!userProfile) {
       return res.status(400).json({ error: "Please complete your profile first" });
@@ -507,27 +531,24 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
       return res.status(400).json({ error: "Target user profile not found" });
     }
 
-    // Enforce gender preferences: user can only connect with profiles that match their preferred genders
     const userPrefsResult = db.prepare("SELECT preferred_genders FROM preferences WHERE profile_id = ?").get([userProfile.id]);
     const userPrefsRow = (userPrefsResult instanceof Promise ? await userPrefsResult : userPrefsResult) as { preferred_genders: string | null } | undefined;
-    if (userPrefsRow?.preferred_genders) {
-      try {
-        const preferredGenders = JSON.parse(userPrefsRow.preferred_genders) as string[];
-        const isEveryone = preferredGenders.includes('Everyone');
-        if (preferredGenders.length > 0 && !isEveryone) {
-          const targetGender = targetProfile.gender || '';
-          const matches = preferredGenders.includes(targetGender)
-            || (targetGender === 'Non-binary' && preferredGenders.includes('Other'));
-          if (!matches) {
-            return res.status(400).json({
-              error: "This person doesn't match your connection preferences. Update your preferences in Profile to connect with everyone.",
-              code: "PREFERENCE_MISMATCH",
-            });
-          }
-        }
-      } catch (_) {
-        // Invalid JSON, allow connect (fail open)
-      }
+    const targetPrefsResult = db.prepare("SELECT preferred_genders FROM preferences WHERE profile_id = ?").get([targetProfile.id]);
+    const targetPrefsRow = (targetPrefsResult instanceof Promise ? await targetPrefsResult : targetPrefsResult) as { preferred_genders: string | null } | undefined;
+
+    if (
+      !mutualGenderPreferencesMet(
+        userProfile.gender || '',
+        userPrefsRow?.preferred_genders ?? null,
+        targetProfile.gender || '',
+        targetPrefsRow?.preferred_genders ?? null
+      )
+    ) {
+      return res.status(400).json({
+        error:
+          "You and this person aren't a match based on connection preferences (including who you each want to connect with).",
+        code: "PREFERENCE_MISMATCH",
+      });
     }
 
     // Enforce both users' max distance: do not create a match if either is outside the other's distance preference.
@@ -1132,6 +1153,11 @@ matchesRouter.post("/:matchId/messages/upload-image", authenticateToken, rateLim
       return res.status(404).json({ error: "Match not found or not yet mutual" });
     }
 
+    const mediaCounts = await getSenderMessageCounts(matchId, match.user1_id, match.user2_id);
+    if (!bothUsersMetChatMediaThreshold(mediaCounts.user1, mediaCounts.user2)) {
+      return res.status(403).json({ error: CHAT_MEDIA_LOCKED_MESSAGE });
+    }
+
     if (!isCloudinaryConfigured()) {
       return res.status(503).json({ error: "Image upload is not configured" });
     }
@@ -1162,6 +1188,10 @@ matchesRouter.post("/:matchId/messages/upload-video", authenticateToken, rateLim
     ).get([matchId, userId, userId]);
     const match = (matchResult instanceof Promise ? await matchResult : matchResult) as MatchRow | undefined;
     if (!match) return res.status(404).json({ error: "Match not found or not yet mutual" });
+    const videoCounts = await getSenderMessageCounts(matchId, match.user1_id, match.user2_id);
+    if (!bothUsersMetChatMediaThreshold(videoCounts.user1, videoCounts.user2)) {
+      return res.status(403).json({ error: CHAT_MEDIA_LOCKED_MESSAGE });
+    }
     if (!isCloudinaryConfigured()) return res.status(503).json({ error: "Video upload is not configured" });
     const videoUrl = await uploadToCloudinaryMedia(file.buffer, 'chat-videos', 'video');
     res.json({ videoUrl });
@@ -1188,6 +1218,10 @@ matchesRouter.post("/:matchId/messages/upload-audio", authenticateToken, rateLim
     ).get([matchId, userId, userId]);
     const match = (matchResult instanceof Promise ? await matchResult : matchResult) as MatchRow | undefined;
     if (!match) return res.status(404).json({ error: "Match not found or not yet mutual" });
+    const audioCounts = await getSenderMessageCounts(matchId, match.user1_id, match.user2_id);
+    if (!bothUsersMetChatMediaThreshold(audioCounts.user1, audioCounts.user2)) {
+      return res.status(403).json({ error: CHAT_MEDIA_LOCKED_MESSAGE });
+    }
     if (!isCloudinaryConfigured()) return res.status(503).json({ error: "Audio upload is not configured" });
     const publicId = `${uuidv4()}.m4a`;
     const audioUrl = await uploadToCloudinaryMedia(file.buffer, 'chat-audio', 'raw', publicId);
@@ -1242,6 +1276,13 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
 
     if (!match) {
       return res.status(404).json({ error: "Match not found or not yet mutual" });
+    }
+
+    if (finalImageUrl || finalVideoUrl || finalAudioUrl) {
+      const sendMediaCounts = await getSenderMessageCounts(matchId, match.user1_id, match.user2_id);
+      if (!bothUsersMetChatMediaThreshold(sendMediaCounts.user1, sendMediaCounts.user2)) {
+        return res.status(403).json({ error: CHAT_MEDIA_LOCKED_MESSAGE });
+      }
     }
 
     const messageId = uuidv4();

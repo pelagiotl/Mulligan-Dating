@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
+import BrandMark from "../components/BrandMark";
 
 export default function Landing() {
   // Create floating particles
@@ -70,83 +71,7 @@ export default function Landing() {
         <header className="landing-header-enhanced">
           <Link to="/" className="landing-logo-enhanced">
             <span className="landing-logo-icon">
-              <svg width="40" height="40" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                  {/* Gradient for heart - all white */}
-                  <linearGradient id="heartGradientLanding" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
-                    <stop offset="50%" stopColor="#ffffff" stopOpacity="1" />
-                    <stop offset="100%" stopColor="#ffffff" stopOpacity="1" />
-                  </linearGradient>
-                  {/* Glow filter */}
-                  <filter id="glowLanding">
-                    <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
-                    <feMerge>
-                      <feMergeNode in="coloredBlur"/>
-                      <feMergeNode in="SourceGraphic"/>
-                    </feMerge>
-                  </filter>
-                </defs>
-                
-                {/* Rotating group with arrows */}
-                <g className="logo-rotate-group">
-                  {/* Heart shape with gradient */}
-                  <path 
-                    d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z" 
-                    fill="url(#heartGradientLanding)"
-                    className="logo-heart"
-                    filter="url(#glowLanding)"
-                  />
-                  
-                  {/* Top right arrow - more prominent */}
-                  <g className="logo-arrow-top">
-                    <circle cx="36" cy="10" r="3" fill="currentColor" opacity="0.9" />
-                    <path 
-                      d="M30 10L36 10" 
-                      stroke="currentColor" 
-                      strokeWidth="3" 
-                      strokeLinecap="round"
-                      className="logo-arrow"
-                    />
-                    <path 
-                      d="M33 7L36 10L33 13" 
-                      stroke="currentColor" 
-                      strokeWidth="3" 
-                      strokeLinecap="round" 
-                      strokeLinejoin="round"
-                      fill="none"
-                      className="logo-arrow"
-                    />
-                  </g>
-                  
-                  {/* Bottom left arrow - more prominent */}
-                  <g className="logo-arrow-bottom">
-                    <circle cx="12" cy="38" r="3" fill="currentColor" opacity="0.9" />
-                    <path 
-                      d="M18 38L12 38" 
-                      stroke="currentColor" 
-                      strokeWidth="3" 
-                      strokeLinecap="round"
-                      className="logo-arrow"
-                    />
-                    <path 
-                      d="M15 35L12 38L15 41" 
-                      stroke="currentColor" 
-                      strokeWidth="3" 
-                      strokeLinecap="round" 
-                      strokeLinejoin="round"
-                      fill="none"
-                      className="logo-arrow"
-                    />
-                  </g>
-                  
-                  {/* Sparkle effects */}
-                  <circle cx="24" cy="8" r="1.5" fill="currentColor" opacity="0.8" className="logo-sparkle" />
-                  <circle cx="40" cy="24" r="1.5" fill="currentColor" opacity="0.8" className="logo-sparkle" />
-                  <circle cx="24" cy="40" r="1.5" fill="currentColor" opacity="0.8" className="logo-sparkle" />
-                  <circle cx="8" cy="24" r="1.5" fill="currentColor" opacity="0.8" className="logo-sparkle" />
-                </g>
-              </svg>
+              <BrandMark size={40} alt="" />
             </span>
             <span className="landing-logo-text">Mulligan</span>
           </Link>
@@ -163,17 +88,17 @@ export default function Landing() {
         <div className="landing-hero-enhanced">
           <div className="landing-hero-content-enhanced">
             <span className="landing-tagline-enhanced">
-              ✨ Where second chances spark first connections!
+              ✨ Real people. Real hangs. Your vibe.
             </span>
 
             <h1 className="landing-title-enhanced">
-              Find your <span className="landing-title-highlight">perfect match</span> by being authentically you
+              The anti-swipe app for <span className="landing-title-highlight">real-life hangs</span>
             </h1>
 
             <p className="landing-description-enhanced">
-              Mulligan is a dating app that celebrates honesty. Share your
-              interests, define your dealbreakers, and discover people who truly
-              complement your life.
+              Mulligan helps you meet people nearby who share your interests. Be
+              upfront about what you’re into, then connect and chat when the vibe
+              is right.
             </p>
 
             <div className="landing-cta-enhanced">
@@ -196,8 +121,8 @@ export default function Landing() {
             <div className="feature-icon-enhanced">🎯</div>
             <h3 className="feature-title-enhanced">Be Honest</h3>
             <p className="feature-text-enhanced">
-              Share your interests, preferences, and dealbreakers upfront. No
-              games, no guessing.
+              Share your interests and what you’re looking for upfront—no games,
+              no guessing.
             </p>
           </div>
 
@@ -206,10 +131,10 @@ export default function Landing() {
             className="feature-card-enhanced"
           >
             <div className="feature-icon-enhanced">✨</div>
-            <h3 className="feature-title-enhanced">Find Your Match</h3>
+            <h3 className="feature-title-enhanced">Connect on interests</h3>
             <p className="feature-text-enhanced">
-              Discover people who share your values and complement your
-              lifestyle.
+              We surface people who overlap with your hobbies and passions—not
+              just a profile photo.
             </p>
           </div>
 
@@ -217,10 +142,11 @@ export default function Landing() {
             ref={(el) => (featureCardRefs.current[2] = el)}
             className="feature-card-enhanced"
           >
-            <div className="feature-icon-enhanced">💕</div>
-            <h3 className="feature-title-enhanced">Make Real Connections</h3>
+            <div className="feature-icon-enhanced">🙌</div>
+            <h3 className="feature-title-enhanced">Turn chats into plans</h3>
             <p className="feature-text-enhanced">
-              Skip the small talk and start with what matters most to you.
+              Message in the app, then take it offline when you’re ready for a
+              real hang or activity.
             </p>
           </div>
         </div>

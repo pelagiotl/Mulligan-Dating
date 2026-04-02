@@ -33,7 +33,7 @@ interface DateBlueprintProps {
   socket: Socket | null;
   currentUserId: string;
   headerMode?: boolean;
-  /** Send date plan as a chat message (Invite button) */
+  /** Send hangout plan as a chat message (Invite button) */
   onInviteToChat?: (message: string) => void;
 }
 
@@ -144,8 +144,8 @@ export default function DateBlueprint({ matchId, socket, currentUserId, headerMo
   const handleGenerate = async () => {
     Vibration.vibrate(50); // Vibrate when button is clicked
     Alert.alert(
-      'Generate Date Plan',
-      'Create an AI-powered date plan based on your shared interests and location?',
+      'Generate Hangout Plan',
+      'Create an AI-powered hangout plan based on your shared interests and location?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -159,14 +159,14 @@ export default function DateBlueprint({ matchId, socket, currentUserId, headerMo
               const planData = response.plan || response;
               if (planData && typeof planData === 'object' && 'id' in planData) {
                 setPlan(planData);
-                Alert.alert('✨ Date Plan Created!', 'Check out your personalized date plan below.');
+                Alert.alert('✨ Hangout Plan Created!', 'Check out your personalized hangout plan below.');
               } else {
                 console.error('❌ No plan in response:', response);
-                Alert.alert('Error', 'Date plan was created but could not be retrieved. Please refresh.');
+                Alert.alert('Error', 'Hangout plan was created but could not be retrieved. Please refresh.');
               }
             } catch (error: any) {
-              console.error('❌ Generate date plan error:', error);
-              const errorMessage = error?.response?.data?.error || error?.message || 'Failed to generate date plan';
+              console.error('❌ Generate hangout plan error:', error);
+              const errorMessage = error?.response?.data?.error || error?.message || 'Failed to generate hangout plan';
               Alert.alert('Error', errorMessage);
             } finally {
               setGenerating(false);
@@ -193,11 +193,11 @@ export default function DateBlueprint({ matchId, socket, currentUserId, headerMo
       const planData = response.plan || response;
       if (planData && typeof planData === 'object' && 'id' in planData) {
         setPlan(planData);
-        Alert.alert('✅ Date Updated', 'The date has been updated successfully.');
+        Alert.alert('✅ Schedule updated', 'Your meetup time has been updated.');
       }
     } catch (error: any) {
       console.error('❌ Update date error:', error);
-      Alert.alert('Error', error?.message || 'Failed to update date');
+      Alert.alert('Error', error?.message || 'Failed to update schedule');
     } finally {
       setUpdating(false);
     }
@@ -217,7 +217,7 @@ export default function DateBlueprint({ matchId, socket, currentUserId, headerMo
       }
       Alert.alert('✅ Accepted!', 'The other person will be notified.');
     } catch (error: any) {
-      Alert.alert('Error', error?.message || 'Failed to update date plan');
+      Alert.alert('Error', error?.message || 'Failed to update hangout plan');
     } finally {
       setUpdating(false);
     }
@@ -230,7 +230,7 @@ export default function DateBlueprint({ matchId, socket, currentUserId, headerMo
       const planData = response.plan || response;
       if (planData && typeof planData === 'object' && 'id' in planData) {
         setPlan(planData);
-        Alert.alert('✨ New Date Plan Created!', `Your new date plan: "${planData.title}"`);
+        Alert.alert('✨ New Hangout Plan Created!', `Your new hangout plan: "${planData.title}"`);
       } else {
         const latestPlan = await (async () => {
           try {
@@ -240,13 +240,13 @@ export default function DateBlueprint({ matchId, socket, currentUserId, headerMo
         })();
         if (latestPlan && typeof latestPlan === 'object' && 'id' in latestPlan) {
           setPlan(latestPlan);
-          Alert.alert('✨ New Date Plan Created!', `Your new date plan: "${latestPlan.title}"`);
+          Alert.alert('✨ New Hangout Plan Created!', `Your new hangout plan: "${latestPlan.title}"`);
         } else {
-          Alert.alert('✨ New Date Plan Created!', 'A new plan was generated. Take a look!');
+          Alert.alert('✨ New Hangout Plan Created!', 'A new plan was generated. Take a look!');
         }
       }
     } catch (error: any) {
-      Alert.alert('Error', error?.message || 'Failed to regenerate date plan');
+      Alert.alert('Error', error?.message || 'Failed to regenerate hangout plan');
     } finally {
       setUpdating(false);
     }
@@ -360,8 +360,8 @@ export default function DateBlueprint({ matchId, socket, currentUserId, headerMo
                         ) : (
                           <>
                             <Text style={styles.generateButtonEmoji}>📅</Text>
-                            <Text style={styles.generateButtonText}>Generate Date Plan</Text>
-                            <Text style={styles.generateButtonSubtext}>AI-powered first date suggestions</Text>
+                            <Text style={styles.generateButtonText}>Generate Hangout Plan</Text>
+                            <Text style={styles.generateButtonSubtext}>AI-powered hangout ideas from shared interests</Text>
                           </>
                         )}
                       </LinearGradient>
@@ -400,7 +400,7 @@ export default function DateBlueprint({ matchId, socket, currentUserId, headerMo
                         }}
                         activeOpacity={0.7}
                       >
-                        <Text style={styles.dateLabel}>📅 Suggested Date</Text>
+                        <Text style={styles.dateLabel}>📅 When to meet</Text>
                         <Text style={styles.dateText}>
                           {new Date(plan.suggestedDate).toLocaleDateString('en-US', {
                             weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
@@ -443,7 +443,7 @@ export default function DateBlueprint({ matchId, socket, currentUserId, headerMo
                         >
                           <View style={styles.actionButtonInner}>
                             <Text style={styles.regenerateButtonText} numberOfLines={1}>
-                              {updating ? 'Generating...' : 'New date plan'}
+                              {updating ? 'Generating...' : 'New hangout plan'}
                             </Text>
                           </View>
                         </TouchableOpacity>
@@ -479,13 +479,13 @@ export default function DateBlueprint({ matchId, socket, currentUserId, headerMo
           <View style={styles.datePickerModal}>
             <View style={styles.datePickerContainer}>
               <View style={styles.datePickerHeader}>
-                <Text style={styles.datePickerTitle}>Change Date & Time</Text>
+                <Text style={styles.datePickerTitle}>Change day & time</Text>
                 <TouchableOpacity onPress={() => setShowDatePicker(false)} style={styles.datePickerCloseButton}>
                   <Text style={styles.datePickerCloseText}>✕</Text>
                 </TouchableOpacity>
               </View>
               <View style={styles.datePickerContent}>
-                <Text style={styles.datePickerSectionTitle}>📅 Select Date</Text>
+                <Text style={styles.datePickerSectionTitle}>📅 Select day</Text>
                 <View style={styles.datePickerWheelContainer}>
                   <View style={styles.datePickerWheelOverlay} pointerEvents="none" />
                   <ScrollView
@@ -656,8 +656,8 @@ export default function DateBlueprint({ matchId, socket, currentUserId, headerMo
               ) : (
                 <>
                   <Text style={styles.generateButtonEmoji}>📅</Text>
-                  <Text style={styles.generateButtonText}>Generate Date Plan</Text>
-                  <Text style={styles.generateButtonSubtext}>AI-powered first date suggestions</Text>
+                  <Text style={styles.generateButtonText}>Generate Hangout Plan</Text>
+                  <Text style={styles.generateButtonSubtext}>AI-powered hangout ideas from shared interests</Text>
                 </>
               )}
             </LinearGradient>
@@ -697,7 +697,7 @@ export default function DateBlueprint({ matchId, socket, currentUserId, headerMo
           <View style={styles.compactContent}>
             <Text style={styles.compactEmoji}>📅</Text>
             <View style={styles.compactTextContainer}>
-              <Text style={styles.compactTitle} numberOfLines={1}>{plan?.title ?? 'Date Plan'}</Text>
+              <Text style={styles.compactTitle} numberOfLines={1}>{plan?.title ?? 'Hangout Plan'}</Text>
               <Text style={styles.compactDescription} numberOfLines={1}>{plan?.description ?? ''}</Text>
               {plan?.venueName && (
                 <Text style={styles.compactVenue} numberOfLines={1}>📍 {plan?.venueName}</Text>
@@ -799,7 +799,7 @@ export default function DateBlueprint({ matchId, socket, currentUserId, headerMo
                     }}
                     activeOpacity={0.7}
                   >
-                    <Text style={styles.dateLabel}>📅 Suggested Date</Text>
+                    <Text style={styles.dateLabel}>📅 When to meet</Text>
                     <View style={styles.dateRow}>
                       <Text style={styles.dateText}>
                         {new Date(plan.suggestedDate).toLocaleDateString('en-US', {
@@ -887,7 +887,7 @@ export default function DateBlueprint({ matchId, socket, currentUserId, headerMo
                     >
                       <View style={styles.actionButtonInner}>
                         <Text style={styles.regenerateButtonText} numberOfLines={1}>
-                          {updating ? 'Generating...' : 'New date plan'}
+                          {updating ? 'Generating...' : 'New hangout plan'}
                         </Text>
                       </View>
                     </TouchableOpacity>
@@ -927,7 +927,7 @@ export default function DateBlueprint({ matchId, socket, currentUserId, headerMo
         <View style={styles.datePickerModal}>
           <View style={styles.datePickerContainer}>
             <View style={styles.datePickerHeader}>
-              <Text style={styles.datePickerTitle}>Change Date & Time</Text>
+              <Text style={styles.datePickerTitle}>Change day & time</Text>
               <TouchableOpacity
                 onPress={() => setShowDatePicker(false)}
                 style={styles.datePickerCloseButton}
@@ -936,7 +936,7 @@ export default function DateBlueprint({ matchId, socket, currentUserId, headerMo
               </TouchableOpacity>
             </View>
             <View style={styles.datePickerContent}>
-              <Text style={styles.datePickerSectionTitle}>📅 Select Date</Text>
+              <Text style={styles.datePickerSectionTitle}>📅 Select day</Text>
               <View style={styles.datePickerWheelContainer}>
                 <View style={styles.datePickerWheelOverlay} pointerEvents="none" />
                 <ScrollView

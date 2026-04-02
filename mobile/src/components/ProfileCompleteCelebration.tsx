@@ -20,14 +20,31 @@ interface ProfileCompleteCelebrationProps {
   onClose: () => void;
 }
 
-const HEART_EMOJIS = ['❤️', '💕', '💖', '💗', '💓', '💝', '💘'];
+/** Mix of flames, sparks, bursts, and fireworks — 🔥 weighted heavier */
+const FIRE_RELATED_EMOJIS = [
+  '🔥',
+  '🔥',
+  '🔥',
+  '🔥',
+  '🔥',
+  '💥',
+  '🎆',
+  '🎇',
+  '🧨',
+  '🌋',
+  '🕯️',
+  '✨',
+  '⭐',
+];
 
-// Single heart that falls continuously in a loop (resets to top when it reaches bottom)
-function FallingHeart({ index, visible }: { index: number; visible: boolean }) {
+// Single emoji that falls continuously in a loop (resets to top when it reaches bottom)
+function FallingFire({ index, visible }: { index: number; visible: boolean }) {
   const translateY = useRef(new Animated.Value(0)).current;
   const leftPercent = useRef(5 + Math.random() * 90).current;
   const duration = useRef(3500 + Math.random() * 2500).current;
-  const heart = useRef(HEART_EMOJIS[index % HEART_EMOJIS.length]).current;
+  const fireEmoji = useRef(
+    FIRE_RELATED_EMOJIS[Math.floor(Math.random() * FIRE_RELATED_EMOJIS.length)]
+  ).current;
   const delay = useRef(Math.random() * 2000).current;
   const fontSize = useRef(22 + (index % 7) * 4).current; // 22–46px variety
   const running = useRef(true);
@@ -63,7 +80,7 @@ function FallingHeart({ index, visible }: { index: number; visible: boolean }) {
   return (
     <Animated.View
       style={[
-        styles.fallingHeart,
+        styles.fallingFire,
         {
           left: `${leftPercent}%`,
           transform: [{ translateY }],
@@ -71,7 +88,7 @@ function FallingHeart({ index, visible }: { index: number; visible: boolean }) {
       ]}
       pointerEvents="none"
     >
-      <Text style={[styles.fallingHeartEmoji, { fontSize }]}>{heart}</Text>
+      <Text style={[styles.fallingFireEmoji, { fontSize }]}>{fireEmoji}</Text>
     </Animated.View>
   );
 }
@@ -81,9 +98,9 @@ export default function ProfileCompleteCelebration({
   onClose,
 }: ProfileCompleteCelebrationProps) {
   const [showContent, setShowContent] = useState(false);
-  const [showHearts, setShowHearts] = useState(false);
+  const [showFloatingFires, setShowFloatingFires] = useState(false);
   const [showButton, setShowButton] = useState(false);
-  const HEART_COUNT = 22;
+  const FIRE_COUNT = 22;
 
   const scale = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(0)).current;
@@ -144,12 +161,12 @@ export default function ProfileCompleteCelebration({
       titleOpacity.setValue(0);
       subtitleOpacity.setValue(0);
       setShowContent(false);
-      setShowHearts(false);
+      setShowFloatingFires(false);
       setShowButton(false);
 
       // Start animations
       setTimeout(() => {
-        setShowHearts(true);
+        setShowFloatingFires(true);
         setShowContent(true);
 
         // Main card animation
@@ -231,11 +248,11 @@ export default function ProfileCompleteCelebration({
       onRequestClose={handleContinue}
     >
       <View style={styles.overlay}>
-        {/* Falling hearts - loop until user taps "Start Connecting" */}
-        {showHearts && (
-          <View style={styles.heartsContainer} pointerEvents="none">
-            {Array.from({ length: HEART_COUNT }, (_, i) => (
-              <FallingHeart key={i} index={i} visible={visible} />
+        {/* Falling fire emojis - loop until user taps "Start Connecting" */}
+        {showFloatingFires && (
+          <View style={styles.firesContainer} pointerEvents="none">
+            {Array.from({ length: FIRE_COUNT }, (_, i) => (
+              <FallingFire key={i} index={i} visible={visible} />
             ))}
           </View>
         )}
@@ -333,7 +350,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  heartsContainer: {
+  firesContainer: {
     position: 'absolute',
     top: 0,
     left: 0,
@@ -342,11 +359,11 @@ const styles = StyleSheet.create({
     zIndex: 1,
     overflow: 'hidden',
   },
-  fallingHeart: {
+  fallingFire: {
     position: 'absolute',
     top: -40,
   },
-  fallingHeartEmoji: {
+  fallingFireEmoji: {
     fontSize: 28,
   },
   cardContainer: {

@@ -97,7 +97,7 @@ export default function ProfileModal({ profile, onClose, onConnect }: ProfileMod
           const newLimit = apiErr.newLimit ?? 8;
           setLoading(false);
           const ok = window.confirm(
-            `You've reached your limit of ${currentLimit} matches. You need 2 Mulligan tokens (1 for the match + 1 for the extra slot). Spend 2 tokens to connect?`
+            `You've reached your limit of ${currentLimit} active chats. You need 2 Mulligan tokens (1 to connect + 1 for the extra slot). Spend 2 tokens to connect?`
           );
           if (ok) {
             handleConnect(true);
@@ -213,7 +213,7 @@ export default function ProfileModal({ profile, onClose, onConnect }: ProfileMod
                   </div>
                 ))}
               </div>
-              <p className="photo-hint">🔒 Photos will be revealed after matching</p>
+              <p className="photo-hint">🔒 Photos unlock after you connect and agree to reveal</p>
             </div>
           )}
 
@@ -250,7 +250,7 @@ export default function ProfileModal({ profile, onClose, onConnect }: ProfileMod
                   onClick={() => handleConnect()}
                   disabled={loading || tokenCount === 0}
                 >
-                  {loading ? "Connecting..." : "Match Back! 💘"}
+                  {loading ? "Connecting..." : "Connect back 💬"}
                 </button>
               </div>
             ) : (

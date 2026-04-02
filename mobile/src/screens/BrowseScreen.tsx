@@ -67,8 +67,8 @@ function renderLocation(location: string | null | undefined) {
   );
 }
 
-/** Under “Discover People” — makes real-world social intent obvious (incl. App Review context). */
-const CONNECT_DISCOVER_TAGLINE = 'Find people for real-life hangs & activities';
+/** Under “Discover People” — product positioning (aligned with marketing / web landing). */
+const CONNECT_DISCOVER_TAGLINE = 'The anti-swipe app for real-life hangs';
 
 // Connect landing mark — sparkles (aligned with Connect tab), not a heart
 const ConnectLandingLogo = memo(function ConnectLandingLogo() {
