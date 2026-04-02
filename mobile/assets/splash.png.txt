@@ -1,5 +1,6 @@
-Splash screen
-Size: 1284x2778
+Source splash: splash.png (see app.json expo.splash).
 
-This is a placeholder. Replace with actual image.
-For now, Expo will use defaults.
+After changing splash.png, from the mobile/ folder run:
+  bash scripts/sync-splash-native.sh
+
+Optional: node scripts/export-splash-png.js exports splash-source.svg → 1284×2778 splash.png (requires sharp).
