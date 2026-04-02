@@ -2516,7 +2516,7 @@ const styles = StyleSheet.create({
   landingPageWrapper: {
     flex: 1,
     minHeight: Dimensions.get('window').height - 140,
-    paddingTop: 60,
+    paddingTop: 74,
     paddingBottom: 36,
     position: 'relative',
     justifyContent: 'flex-start',
