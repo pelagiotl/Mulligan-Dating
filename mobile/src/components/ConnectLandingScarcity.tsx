@@ -105,22 +105,36 @@ const ConnectLandingScarcity = memo(function ConnectLandingScarcity({
             <Text style={styles.eyebrow}>Limited supply</Text>
           </View>
           <Text style={styles.tagline}>
-            Every Connect uses a Mulligan. Match slots cap how many chats stay open.
+            <Text style={styles.taglineLead}>Every Connect uses one Mulligan.</Text>
+            {'\n'}
+            <Text style={styles.taglineSoft}>You have </Text>
+            <Text style={styles.taglineFraction}>{tokensCapped}</Text>
+            <Text style={styles.taglineFractionMuted}>/{MAX_MULLIGANS}</Text>
+            <Text style={styles.taglineSoft}> left this week.</Text>
           </Text>
+          {showRefillCountdown ? (
+            <View style={styles.countdownRibbon} accessibilityLiveRegion="polite">
+              <Text style={styles.countdownRibbonLabel}>Next refill in</Text>
+              <Text style={styles.countdownRibbonTime}>
+                {refillMs != null ? formatCountdown(refillMs) : ''}
+              </Text>
+            </View>
+          ) : null}
         </View>
 
         <View style={styles.row}>
           <View
             style={[
               styles.statTile,
+              styles.statTilePrimary,
               statTileShadow,
               tokenScarce ? styles.statTileWarm : styles.statTileNeutral,
             ]}
           >
             <Text style={styles.cellLabel}>Mulligans ready</Text>
-            <Text style={[styles.cellValue, tokenScarce && styles.cellValueWarm]}>
+            <Text style={[styles.cellValueHero, tokenScarce && styles.cellValueWarm]}>
               {tokensCapped}
-              <Text style={styles.cellValueSuffix}> / {MAX_MULLIGANS}</Text>
+              <Text style={styles.cellValueHeroSuffix}> / {MAX_MULLIGANS}</Text>
             </Text>
             <Text style={styles.cellHint}>1 per Connect</Text>
           </View>
@@ -128,28 +142,21 @@ const ConnectLandingScarcity = memo(function ConnectLandingScarcity({
           <View
             style={[
               styles.statTile,
+              styles.statTileSecondary,
               statTileShadow,
               slotScarce ? styles.statTileCool : styles.statTileNeutral,
             ]}
           >
-            <Text style={styles.cellLabel}>Open match slots</Text>
-            <Text style={[styles.cellValue, slotScarce && styles.cellValueCool]}>
+            <Text style={styles.cellLabelSecondary}>Open match slots</Text>
+            <Text style={[styles.cellValueSlot, slotScarce && styles.cellValueCool]}>
               {slotsOpen}
-              <Text style={styles.cellValueSuffix}> / {slotLimit}</Text>
+              <Text style={styles.cellValueSlotSuffix}> / {slotLimit}</Text>
             </Text>
-            <Text style={styles.cellHint}>Active matches max</Text>
+            <Text style={styles.cellHint}>Active chats at once</Text>
           </View>
         </View>
 
-        {showRefillCountdown ? (
-          <View style={styles.footerInset}>
-            <View style={styles.refillDot} />
-            <Text style={styles.countdownText}>
-              Next refill in{' '}
-              <Text style={styles.countdownEmph}>{formatCountdown(refillMs)}</Text>
-            </Text>
-          </View>
-        ) : canClaimWeeklyToken && tokensCapped < MAX_MULLIGANS ? (
+        {canClaimWeeklyToken && tokensCapped < MAX_MULLIGANS ? (
           <View style={styles.footerInset}>
             <Text style={styles.countdownTextMuted}>
               Weekly Mulligans are available — tap Claim above when you’re ready.
@@ -207,7 +214,7 @@ const styles = StyleSheet.create({
   },
   headerBlock: {
     alignItems: 'center',
-    marginBottom: 18,
+    marginBottom: 14,
     paddingTop: 4,
   },
   eyebrowPill: {
@@ -227,14 +234,66 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   tagline: {
-    fontSize: 13,
-    lineHeight: 19,
-    color: 'rgba(26, 26, 46, 0.52)',
     textAlign: 'center',
-    fontWeight: '500',
     paddingHorizontal: 6,
     maxWidth: 320,
     alignSelf: 'center',
+  },
+  taglineLead: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: 'rgba(26, 26, 46, 0.58)',
+    fontWeight: '600',
+    letterSpacing: 0.15,
+  },
+  taglineSoft: {
+    fontSize: 12,
+    lineHeight: 20,
+    color: 'rgba(26, 26, 46, 0.48)',
+    fontWeight: '500',
+  },
+  taglineFraction: {
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: '800',
+    color: BURGUNDY,
+    fontVariant: ['tabular-nums'],
+  },
+  taglineFractionMuted: {
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: '700',
+    color: 'rgba(26, 26, 46, 0.35)',
+    fontVariant: ['tabular-nums'],
+  },
+  countdownRibbon: {
+    marginTop: 12,
+    alignSelf: 'stretch',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: 'rgba(139, 21, 56, 0.06)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(139, 21, 56, 0.12)',
+  },
+  countdownRibbonLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+    color: 'rgba(107, 13, 46, 0.65)',
+    textTransform: 'uppercase',
+  },
+  countdownRibbonTime: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: BURGUNDY,
+    fontVariant: ['tabular-nums'],
+    letterSpacing: 0.3,
   },
   row: {
     flexDirection: 'row',
@@ -244,10 +303,17 @@ const styles = StyleSheet.create({
   statTile: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: 14,
     paddingHorizontal: 8,
     borderRadius: 16,
     borderWidth: StyleSheet.hairlineWidth,
+  },
+  statTilePrimary: {
+    paddingVertical: 16,
+    minWidth: 0,
+  },
+  statTileSecondary: {
+    paddingVertical: 14,
+    minWidth: 0,
   },
   statTileNeutral: {
     backgroundColor: 'rgba(255, 255, 255, 0.72)',
@@ -268,11 +334,38 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     letterSpacing: 0.2,
   },
-  cellValue: {
-    fontSize: 30,
+  cellLabelSecondary: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: 'rgba(26, 26, 46, 0.4)',
+    marginBottom: 6,
+    letterSpacing: 0.15,
+    textAlign: 'center',
+  },
+  cellValueHero: {
+    fontSize: 40,
+    fontWeight: '900',
+    color: INK,
+    letterSpacing: -1.2,
+    fontVariant: ['tabular-nums'],
+  },
+  cellValueHeroSuffix: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: 'rgba(26, 26, 46, 0.28)',
+    fontVariant: ['tabular-nums'],
+  },
+  cellValueSlot: {
+    fontSize: 26,
     fontWeight: '800',
     color: INK,
-    letterSpacing: -1,
+    letterSpacing: -0.6,
+    fontVariant: ['tabular-nums'],
+  },
+  cellValueSlotSuffix: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: 'rgba(26, 26, 46, 0.3)',
     fontVariant: ['tabular-nums'],
   },
   cellValueWarm: {
@@ -280,12 +373,6 @@ const styles = StyleSheet.create({
   },
   cellValueCool: {
     color: '#5b21b6',
-  },
-  cellValueSuffix: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: 'rgba(26, 26, 46, 0.32)',
-    fontVariant: ['tabular-nums'],
   },
   cellHint: {
     marginTop: 6,
@@ -306,26 +393,6 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(26, 26, 46, 0.06)',
     gap: 10,
-  },
-  refillDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: BURGUNDY,
-    opacity: 0.55,
-  },
-  countdownText: {
-    flex: 1,
-    fontSize: 13,
-    color: 'rgba(26, 26, 46, 0.58)',
-    fontWeight: '600',
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-  countdownEmph: {
-    color: BURGUNDY,
-    fontWeight: '800',
-    fontVariant: ['tabular-nums'],
   },
   countdownTextMuted: {
     fontSize: 12,
