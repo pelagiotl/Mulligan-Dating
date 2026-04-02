@@ -892,7 +892,7 @@ export default function SettingsScreen() {
               'Debug logging',
               currently
                 ? 'Debug logging for Sentry is now OFF. Detailed flow messages will not be sent.'
-                : 'Debug logging for Sentry is now ON. When issues occur, detailed flow (e.g. NHIE points, Keep Browsing) will appear in Sentry. Tap version 7 times again to disable.',
+                : 'Debug logging for Sentry is now ON. When issues occur, detailed flow (e.g. NHIE points, Back to Connect) will appear in Sentry. Tap version 7 times again to disable.',
               [{ text: 'OK' }]
             );
           } else {

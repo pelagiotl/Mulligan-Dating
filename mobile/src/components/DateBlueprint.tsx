@@ -287,18 +287,15 @@ export default function DateBlueprint({ matchId, socket, currentUserId, headerMo
       outputRange: [-100, 100],
     });
 
+    // Keep the calendar icon visible while fetching — avoids paired spinners with MulliganMoments on chat open.
     const headerButton = (
       <Animated.View style={{ transform: [{ scale: headerPulseAnim }] }}>
         <TouchableOpacity
           onPress={handleOpenModal}
           activeOpacity={0.8}
-          style={[styles.headerIconButton, loading && styles.headerIconButtonLoading]}
+          style={styles.headerIconButton}
         >
-          {loading ? (
-            <ActivityIndicator size="small" color="rgba(255,255,255,0.9)" />
-          ) : (
-            <Text style={styles.headerIconEmoji}>📅</Text>
-          )}
+          <Text style={styles.headerIconEmoji}>📅</Text>
         </TouchableOpacity>
       </Animated.View>
     );
@@ -1120,9 +1117,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'transparent',
-  },
-  headerIconButtonLoading: {
-    opacity: 0.9,
   },
   headerIconEmoji: {
     fontSize: 24,

@@ -158,15 +158,15 @@ export default function MatchCelebration({ profileName, photoUrl, onClose }: Mat
 
         <div className="match-celebration-text">
           <h1 className="match-celebration-title">
-            <span className="match-celebration-word word-1">It's</span>
-            <span className="match-celebration-word word-2">a</span>
-            <span className="match-celebration-word word-3">Match!</span>
+            <span className="match-celebration-word word-1">You're</span>
+            <span className="match-celebration-word word-2">&nbsp;</span>
+            <span className="match-celebration-word word-3">connected! ✨</span>
           </h1>
           <p className="match-celebration-subtitle">
-            You and <strong>{profileName}</strong> liked each other
+            Start vibing with <strong>{profileName}</strong>
           </p>
           <p className="match-celebration-message">
-            Start chatting now! 💬
+            Say hi in chat 💬
           </p>
 
           {showButton && (

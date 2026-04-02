@@ -340,7 +340,7 @@ export async function sendMatchNotification(phoneNumber: string, matchName: stri
 
   try {
     const message = await twilioClient.messages.create({
-      body: `🎉 You have a new match on Mulligan! ${matchName} matched with you. Open the app to start chatting!`,
+      body: `🎉 ${matchName} connected with you on Mulligan! Open the app to say hi.`,
       from: twilioPhoneNumber,
       to: formattedPhone
     });

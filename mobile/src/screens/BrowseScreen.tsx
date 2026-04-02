@@ -15,8 +15,8 @@ import {
   Modal,
 } from 'react-native';
 import { TouchableOpacity as GestureTouchable } from 'react-native-gesture-handler';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { G, Path, Circle, Defs, LinearGradient as SvgLinearGradient, Stop, ClipPath } from 'react-native-svg';
 import { useNavigation, useRoute, useFocusEffect, useIsFocused, CommonActions } from '@react-navigation/native';
 import { setPendingOpenMatchId, clearPendingOpenMatchId } from '../utils/pendingMatchOpen';
 import { initiatorMatchIdRef, connectInitiatorAtRef } from '../utils/currentMatchView';
@@ -67,384 +67,39 @@ function renderLocation(location: string | null | undefined) {
   );
 }
 
-// Animated Heart Logo Component (matching login page exactly)
-// Memoized to prevent parent re-renders when this component updates
-const AnimatedLogo = memo(function AnimatedLogo() {
-  const rotateAnim = useRef(new Animated.Value(0)).current;
-  const heartScale = useRef(new Animated.Value(1)).current;
-  const glowAnim = useRef(new Animated.Value(0.5)).current;
-  const glowScale = useRef(new Animated.Value(1)).current;
-  const shineAnim = useRef(new Animated.Value(0)).current;
-  const borderGlowAnim = useRef(new Animated.Value(0.6)).current;
-  const arrowTopScale = useRef(new Animated.Value(1)).current;
-  const arrowTopOpacity = useRef(new Animated.Value(0.9)).current;
-  const arrowTopGlowOpacityAnim = useRef(new Animated.Value(0.8)).current;
-  const arrowBottomScale = useRef(new Animated.Value(1)).current;
-  const arrowBottomOpacity = useRef(new Animated.Value(0.9)).current;
-  const arrowBottomGlowOpacityAnim = useRef(new Animated.Value(0.8)).current;
-  const sparkle1Opacity = useRef(new Animated.Value(0.6)).current;
-  const sparkle1Scale = useRef(new Animated.Value(1)).current;
-  const sparkle1TranslateY = useRef(new Animated.Value(0)).current;
-  const sparkle1TranslateX = useRef(new Animated.Value(0)).current;
-  const sparkle2Opacity = useRef(new Animated.Value(0.6)).current;
-  const sparkle2Scale = useRef(new Animated.Value(1)).current;
-  const sparkle2TranslateY = useRef(new Animated.Value(0)).current;
-  const sparkle2TranslateX = useRef(new Animated.Value(0)).current;
-  const sparkle3Opacity = useRef(new Animated.Value(0.6)).current;
-  const sparkle3Scale = useRef(new Animated.Value(1)).current;
-  const sparkle3TranslateY = useRef(new Animated.Value(0)).current;
-  const sparkle3TranslateX = useRef(new Animated.Value(0)).current;
-  const sparkle4Opacity = useRef(new Animated.Value(0.6)).current;
-  const sparkle4Scale = useRef(new Animated.Value(1)).current;
-  const sparkle4TranslateY = useRef(new Animated.Value(0)).current;
-  const sparkle4TranslateX = useRef(new Animated.Value(0)).current;
-  // Sparkle pulse animations for brightness variation (matching login page)
-  const sparkle1Pulse = useRef(new Animated.Value(1)).current;
-  const sparkle2Pulse = useRef(new Animated.Value(1)).current;
-  const sparkle3Pulse = useRef(new Animated.Value(1)).current;
-  const sparkle4Pulse = useRef(new Animated.Value(1)).current;
-  // Sparkle glow opacity animations (for listener-driven state updates)
-  const sparkle1GlowOpacityAnim = useRef(new Animated.Value(0.8)).current;
-  const sparkle2GlowOpacityAnim = useRef(new Animated.Value(0.8)).current;
-  const sparkle3GlowOpacityAnim = useRef(new Animated.Value(0.8)).current;
-  const sparkle4GlowOpacityAnim = useRef(new Animated.Value(0.8)).current;
+/** Under “Discover People” — makes real-world social intent obvious (incl. App Review context). */
+const CONNECT_DISCOVER_TAGLINE = 'Find people for real-life hangs & activities';
 
-  // State for SVG values (react-native-svg doesn't support Animated.Value directly)
-  // Throttle updates to reduce re-renders and tab lag (was 16ms = 60/sec; 120ms = ~8/sec)
-  const lastUpdateRef = useRef<{ [key: string]: number }>({});
-  const THROTTLE_MS = 120;
-  
-  const throttledSetState = useCallback((setter: (val: number) => void, value: number, key: string) => {
-    const now = performance.now();
-    const lastUpdate = lastUpdateRef.current[key] || 0;
-    
-    if (now - lastUpdate >= THROTTLE_MS) {
-      setter(value);
-      lastUpdateRef.current[key] = now;
-    }
-  }, []);
-  
-  const [sparkle1OpacityValue, setSparkle1OpacityValue] = useState(0.6);
-  const [sparkle1ScaleValue, setSparkle1ScaleValue] = useState(1);
-  const [sparkle1TranslateYValue, setSparkle1TranslateYValue] = useState(0);
-  const [sparkle1TranslateXValue, setSparkle1TranslateXValue] = useState(0);
-  const [sparkle2OpacityValue, setSparkle2OpacityValue] = useState(0.6);
-  const [sparkle2ScaleValue, setSparkle2ScaleValue] = useState(1);
-  const [sparkle2TranslateYValue, setSparkle2TranslateYValue] = useState(0);
-  const [sparkle2TranslateXValue, setSparkle2TranslateXValue] = useState(0);
-  const [sparkle3OpacityValue, setSparkle3OpacityValue] = useState(0.6);
-  const [sparkle3ScaleValue, setSparkle3ScaleValue] = useState(1);
-  const [sparkle3TranslateYValue, setSparkle3TranslateYValue] = useState(0);
-  const [sparkle3TranslateXValue, setSparkle3TranslateXValue] = useState(0);
-  const [sparkle4OpacityValue, setSparkle4OpacityValue] = useState(0.6);
-  const [sparkle4ScaleValue, setSparkle4ScaleValue] = useState(1);
-  const [sparkle4TranslateYValue, setSparkle4TranslateYValue] = useState(0);
-  const [sparkle4TranslateXValue, setSparkle4TranslateXValue] = useState(0);
-  const [arrowTopOpacityValue, setArrowTopOpacityValue] = useState(0.9);
-  const [arrowBottomOpacityValue, setArrowBottomOpacityValue] = useState(0.9);
-  const [arrowTopGlowOpacityValue, setArrowTopGlowOpacity] = useState(0.8);
-  const [arrowBottomGlowOpacityValue, setArrowBottomGlowOpacity] = useState(0.8);
-  const [shimmerTranslateXValue, setShimmerTranslateXValue] = useState(-100);
-  const [shimmerOpacityValue, setShimmerOpacityValue] = useState(0);
-  const [sparkle1PulseValue, setSparkle1PulseValue] = useState(1);
-  const [sparkle2PulseValue, setSparkle2PulseValue] = useState(1);
-  const [sparkle3PulseValue, setSparkle3PulseValue] = useState(1);
-  const [sparkle4PulseValue, setSparkle4PulseValue] = useState(1);
-  const [sparkle1GlowOpacityValue, setSparkle1GlowOpacity] = useState(0.8);
-  const [sparkle2GlowOpacityValue, setSparkle2GlowOpacity] = useState(0.8);
-  const [sparkle3GlowOpacityValue, setSparkle3GlowOpacity] = useState(0.8);
-  const [sparkle4GlowOpacityValue, setSparkle4GlowOpacity] = useState(0.8);
+// Connect landing mark — sparkles (aligned with Connect tab), not a heart
+const ConnectLandingLogo = memo(function ConnectLandingLogo() {
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    const loops: Animated.CompositeAnimation[] = [];
-
-    // Continuous rotation (4s linear infinite - matching frontend)
     const rotateLoop = Animated.loop(
       Animated.timing(rotateAnim, {
         toValue: 1,
-        duration: 4000,
+        duration: 10000,
         useNativeDriver: true,
       })
     );
-    loops.push(rotateLoop);
+    const pulseLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(scaleAnim, { toValue: 1.07, duration: 1400, useNativeDriver: true }),
+        Animated.timing(scaleAnim, { toValue: 1, duration: 1400, useNativeDriver: true }),
+      ])
+    );
     rotateLoop.start();
-
-    // Heart beat (2s ease-in-out infinite - matching frontend keyframes)
-    const heartLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(heartScale, {
-          toValue: 1.1,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(heartScale, {
-          toValue: 1.1,
-          duration: 400,
-          useNativeDriver: true,
-        }),
-        Animated.timing(heartScale, {
-          toValue: 1,
-          duration: 1400,
-          useNativeDriver: true,
-        }),
-      ])
-    );
-    loops.push(heartLoop);
-    heartLoop.start();
-
-    // Glow pulse animation - smooth and premium
-    const glowLoop = Animated.loop(
-      Animated.sequence([
-        Animated.parallel([
-          Animated.timing(glowAnim, { toValue: 0.75, duration: 2500, useNativeDriver: true }),
-          Animated.timing(glowScale, { toValue: 1.08, duration: 2500, useNativeDriver: true }),
-          Animated.timing(borderGlowAnim, { toValue: 0.9, duration: 2500, useNativeDriver: true }),
-        ]),
-        Animated.parallel([
-          Animated.timing(glowAnim, { toValue: 0.5, duration: 2500, useNativeDriver: true }),
-          Animated.timing(glowScale, { toValue: 1, duration: 2500, useNativeDriver: true }),
-          Animated.timing(borderGlowAnim, { toValue: 0.6, duration: 2500, useNativeDriver: true }),
-        ]),
-      ])
-    );
-    loops.push(glowLoop);
-    glowLoop.start();
-
-    // Sparkle pulse animations for subtle brightness variation (matching login page)
-    const sparklePulse = (pulseAnim: Animated.Value, setter: (val: number) => void, key: string, delay: number) => {
-      const listenerId = pulseAnim.addListener(({ value }) => {
-        throttledSetState(setter, value, key);
-      });
-      const loop = Animated.loop(
-        Animated.sequence([
-          Animated.delay(delay),
-          Animated.timing(pulseAnim, { toValue: 1.3, duration: 1500, useNativeDriver: true }),
-          Animated.timing(pulseAnim, { toValue: 1, duration: 1500, useNativeDriver: true }),
-        ])
-      );
-      loops.push(loop);
-      loop.start();
-      return listenerId;
-    };
-
-    const pulse1Id = sparklePulse(sparkle1Pulse, setSparkle1PulseValue, 'sparkle1Pulse', 0);
-    const pulse2Id = sparklePulse(sparkle2Pulse, setSparkle2PulseValue, 'sparkle2Pulse', 400);
-    const pulse3Id = sparklePulse(sparkle3Pulse, setSparkle3PulseValue, 'sparkle3Pulse', 800);
-    const pulse4Id = sparklePulse(sparkle4Pulse, setSparkle4PulseValue, 'sparkle4Pulse', 1200);
-
-    // Subtle shimmer effect (matching login page)
-    const shimmerTranslateXListenerId = shineAnim.addListener(({ value }) => {
-      const translateX = (value - 0.5) * 200; // -100 to 100
-      throttledSetState(setShimmerTranslateXValue, translateX, 'shimmerTranslateX');
-    });
-    
-    const shimmerOpacityListenerId = shineAnim.addListener(({ value }) => {
-      let opacity = 0;
-      if (value >= 0.3 && value <= 0.7) {
-        opacity = 0.4;
-      } else if (value < 0.3) {
-        opacity = (value / 0.3) * 0.4;
-      } else if (value > 0.7) {
-        opacity = ((1 - value) / 0.3) * 0.4;
-      }
-      throttledSetState(setShimmerOpacityValue, opacity, 'shimmerOpacity');
-    });
-    
-    const shineLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(shineAnim, { toValue: 1, duration: 3000, useNativeDriver: true }),
-        Animated.delay(1000),
-        Animated.timing(shineAnim, { toValue: 0, duration: 0, useNativeDriver: true }),
-      ])
-    );
-    loops.push(shineLoop);
-    shineLoop.start();
-
-    // Arrow pulse animations (2s ease-in-out infinite)
-    const arrowPulse = (scale: Animated.Value, opacity: Animated.Value) => {
-      const loop = Animated.loop(
-        Animated.sequence([
-          Animated.parallel([
-            Animated.timing(scale, { toValue: 1.1, duration: 1000, useNativeDriver: true }),
-            Animated.timing(opacity, { toValue: 1, duration: 1000, useNativeDriver: true }),
-          ]),
-          Animated.parallel([
-            Animated.timing(scale, { toValue: 1, duration: 1000, useNativeDriver: true }),
-            Animated.timing(opacity, { toValue: 0.9, duration: 1000, useNativeDriver: true }),
-          ]),
-        ])
-      );
-      loops.push(loop);
-      loop.start();
-    };
-
-    arrowPulse(arrowTopScale, arrowTopOpacity);
-    arrowPulse(arrowBottomScale, arrowBottomOpacity);
-
-    // Sparkle animations (2s ease-in-out infinite with delays) - more dynamic like frontend
-    const sparkleAnim = (
-      opacity: Animated.Value,
-      scale: Animated.Value,
-      translateY: Animated.Value,
-      translateX: Animated.Value,
-      setOpacity: (val: number) => void,
-      setScale: (val: number) => void,
-      setTranslateY: (val: number) => void,
-      setTranslateX: (val: number) => void,
-      delay: number,
-      xOffset: number,
-      yOffset: number,
-      keyPrefix: string
-    ) => {
-      const opacityListenerId = opacity.addListener(({ value }) => {
-        throttledSetState(setOpacity, value, `${keyPrefix}_opacity`);
-      });
-      const scaleListenerId = scale.addListener(({ value }) => {
-        throttledSetState(setScale, value, `${keyPrefix}_scale`);
-      });
-      const translateYListenerId = translateY.addListener(({ value }) => {
-        throttledSetState(setTranslateY, value, `${keyPrefix}_translateY`);
-      });
-      const translateXListenerId = translateX.addListener(({ value }) => {
-        throttledSetState(setTranslateX, value, `${keyPrefix}_translateX`);
-      });
-      const loop = Animated.loop(
-        Animated.sequence([
-          Animated.delay(delay),
-          Animated.parallel([
-            Animated.timing(opacity, { toValue: 1, duration: 1000, useNativeDriver: true }),
-            Animated.timing(scale, { toValue: 1.5, duration: 1000, useNativeDriver: true }),
-            Animated.timing(translateY, { toValue: yOffset, duration: 1000, useNativeDriver: true }),
-            Animated.timing(translateX, { toValue: xOffset, duration: 1000, useNativeDriver: true }),
-          ]),
-          Animated.parallel([
-            Animated.timing(opacity, { toValue: 0.6, duration: 1000, useNativeDriver: true }),
-            Animated.timing(scale, { toValue: 1, duration: 1000, useNativeDriver: true }),
-            Animated.timing(translateY, { toValue: 0, duration: 1000, useNativeDriver: true }),
-            Animated.timing(translateX, { toValue: 0, duration: 1000, useNativeDriver: true }),
-          ]),
-        ])
-      );
-      loops.push(loop);
-      loop.start();
-      return { opacity: opacityListenerId, scale: scaleListenerId, translateY: translateYListenerId, translateX: translateXListenerId };
-    };
-
-    // Each sparkle moves in a different direction for more dynamic effect
-    const listener1 = sparkleAnim(
-      sparkle1Opacity, sparkle1Scale, sparkle1TranslateY, sparkle1TranslateX,
-      setSparkle1OpacityValue, setSparkle1ScaleValue, setSparkle1TranslateYValue, setSparkle1TranslateXValue,
-      0, 2, -4, 'sparkle1' // Top sparkle: moves right and up
-    );
-    const listener2 = sparkleAnim(
-      sparkle2Opacity, sparkle2Scale, sparkle2TranslateY, sparkle2TranslateX,
-      setSparkle2OpacityValue, setSparkle2ScaleValue, setSparkle2TranslateYValue, setSparkle2TranslateXValue,
-      500, -2, 0, 'sparkle2' // Right sparkle: moves left
-    );
-    const listener3 = sparkleAnim(
-      sparkle3Opacity, sparkle3Scale, sparkle3TranslateY, sparkle3TranslateX,
-      setSparkle3OpacityValue, setSparkle3ScaleValue, setSparkle3TranslateYValue, setSparkle3TranslateXValue,
-      1000, 0, 4, 'sparkle3' // Bottom sparkle: moves down
-    );
-    const listener4 = sparkleAnim(
-      sparkle4Opacity, sparkle4Scale, sparkle4TranslateY, sparkle4TranslateX,
-      setSparkle4OpacityValue, setSparkle4ScaleValue, setSparkle4TranslateYValue, setSparkle4TranslateXValue,
-      1500, -2, -2, 'sparkle4' // Left sparkle: moves left and up
-    );
-    
-    // Arrow opacity listeners
-    const arrowTopListenerId = arrowTopOpacity.addListener(({ value }) => {
-      throttledSetState(setArrowTopOpacityValue, value, 'arrowTop');
-    });
-    const arrowBottomListenerId = arrowBottomOpacity.addListener(({ value }) => {
-      throttledSetState(setArrowBottomOpacityValue, value, 'arrowBottom');
-    });
-    
-    // Arrow glow pulse animations
-    const arrowGlowPulse = (opacity: Animated.Value, setter: (val: number) => void, key: string) => {
-      const listenerId = opacity.addListener(({ value }) => {
-        throttledSetState(setter, value, key);
-      });
-      const loop = Animated.loop(
-        Animated.sequence([
-          Animated.timing(opacity, { toValue: 1, duration: 1500, useNativeDriver: true }),
-          Animated.timing(opacity, { toValue: 0.6, duration: 1500, useNativeDriver: true }),
-        ])
-      );
-      loops.push(loop);
-      loop.start();
-      return listenerId;
-    };
-
-    const arrowTopGlowListenerId = arrowGlowPulse(arrowTopGlowOpacityAnim, setArrowTopGlowOpacity, 'arrowTopGlow');
-    const arrowBottomGlowListenerId = arrowGlowPulse(arrowBottomGlowOpacityAnim, setArrowBottomGlowOpacity, 'arrowBottomGlow');
-
-    // Sparkle glow pulse animations
-    const sparkleGlowPulse = (opacity: Animated.Value, setter: (val: number) => void, key: string, delay: number) => {
-      const listenerId = opacity.addListener(({ value }) => {
-        throttledSetState(setter, value, key);
-      });
-      const loop = Animated.loop(
-        Animated.sequence([
-          Animated.delay(delay),
-          Animated.timing(opacity, { toValue: 1, duration: 1000, useNativeDriver: true }),
-          Animated.timing(opacity, { toValue: 0.7, duration: 1000, useNativeDriver: true }),
-        ])
-      );
-      loops.push(loop);
-      loop.start();
-      return listenerId;
-    };
-    
-    const sparkle1GlowListenerId = sparkleGlowPulse(sparkle1GlowOpacityAnim, setSparkle1GlowOpacity, 'sparkle1Glow', 0);
-    const sparkle2GlowListenerId = sparkleGlowPulse(sparkle2GlowOpacityAnim, setSparkle2GlowOpacity, 'sparkle2Glow', 250);
-    const sparkle3GlowListenerId = sparkleGlowPulse(sparkle3GlowOpacityAnim, setSparkle3GlowOpacity, 'sparkle3Glow', 500);
-    const sparkle4GlowListenerId = sparkleGlowPulse(sparkle4GlowOpacityAnim, setSparkle4GlowOpacity, 'sparkle4Glow', 750);
-    
+    pulseLoop.start();
     return () => {
-      loops.forEach((l) => l.stop());
-      sparkle1Opacity.removeListener(listener1.opacity);
-      sparkle1Scale.removeListener(listener1.scale);
-      sparkle1TranslateY.removeListener(listener1.translateY);
-      sparkle1TranslateX.removeListener(listener1.translateX);
-      sparkle2Opacity.removeListener(listener2.opacity);
-      sparkle2Scale.removeListener(listener2.scale);
-      sparkle2TranslateY.removeListener(listener2.translateY);
-      sparkle2TranslateX.removeListener(listener2.translateX);
-      sparkle3Opacity.removeListener(listener3.opacity);
-      sparkle3Scale.removeListener(listener3.scale);
-      sparkle3TranslateY.removeListener(listener3.translateY);
-      sparkle3TranslateX.removeListener(listener3.translateX);
-      sparkle4Opacity.removeListener(listener4.opacity);
-      sparkle4Scale.removeListener(listener4.scale);
-      sparkle4TranslateY.removeListener(listener4.translateY);
-      sparkle4TranslateX.removeListener(listener4.translateX);
-      arrowTopOpacity.removeListener(arrowTopListenerId);
-      arrowBottomOpacity.removeListener(arrowBottomListenerId);
-      arrowTopGlowOpacityAnim.removeListener(arrowTopGlowListenerId);
-      arrowBottomGlowOpacityAnim.removeListener(arrowBottomGlowListenerId);
-      sparkle1GlowOpacityAnim.removeListener(sparkle1GlowListenerId);
-      sparkle2GlowOpacityAnim.removeListener(sparkle2GlowListenerId);
-      sparkle3GlowOpacityAnim.removeListener(sparkle3GlowListenerId);
-      sparkle4GlowOpacityAnim.removeListener(sparkle4GlowListenerId);
-      shineAnim.removeListener(shimmerTranslateXListenerId);
-      shineAnim.removeListener(shimmerOpacityListenerId);
+      rotateLoop.stop();
+      pulseLoop.stop();
     };
-  }, [throttledSetState]);
+  }, [rotateAnim, scaleAnim]);
 
   const rotate = rotateAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ['0deg', '360deg'],
-  });
-
-  const glowOpacity = glowAnim.interpolate({
-    inputRange: [0.5, 0.75],
-    outputRange: [0.35, 0.55],
-  });
-
-  const borderGlowOpacity = borderGlowAnim.interpolate({
-    inputRange: [0.6, 0.9],
-    outputRange: [0.5, 0.7],
   });
 
   return (
@@ -453,187 +108,29 @@ const AnimatedLogo = memo(function AnimatedLogo() {
         style={[
           styles.logoRotateGroup,
           {
-            transform: [{ rotate }],
+            justifyContent: 'center',
+            alignItems: 'center',
+            transform: [{ rotate }, { scale: scaleAnim }],
           },
         ]}
       >
-        <Animated.View
+        <Text
+          allowFontScaling={false}
           style={{
-            transform: [{ scale: heartScale }],
+            fontSize: 56,
+            lineHeight: 60,
+            textAlign: 'center',
+            textShadowColor: 'rgba(255, 255, 255, 0.9)',
+            textShadowOffset: { width: 0, height: 0 },
+            textShadowRadius: 16,
           }}
         >
-          <Svg width={90} height={90} viewBox="0 0 48 48">
-            <Defs>
-              {/* Enhanced gradient with smoother transitions - all white (identical to login) */}
-              <SvgLinearGradient id="heartGradientBrowse" x1="0%" y1="0%" x2="100%" y2="100%">
-                <Stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
-                <Stop offset="25%" stopColor="#ffffff" stopOpacity="1" />
-                <Stop offset="50%" stopColor="#ffffff" stopOpacity="1" />
-                <Stop offset="75%" stopColor="#ffffff" stopOpacity="1" />
-                <Stop offset="100%" stopColor="#ffffff" stopOpacity="1" />
-              </SvgLinearGradient>
-              {/* Shimmer gradient for subtle shine effect */}
-              <SvgLinearGradient id="heartShimmerBrowse" x1="0%" y1="0%" x2="100%" y2="0%">
-                <Stop offset="0%" stopColor="rgba(255, 255, 255, 0)" stopOpacity="0" />
-                <Stop offset="50%" stopColor="rgba(255, 255, 255, 0.5)" stopOpacity="0.5" />
-                <Stop offset="100%" stopColor="rgba(255, 255, 255, 0)" stopOpacity="0" />
-              </SvgLinearGradient>
-              {/* Sparkle glow gradient */}
-              <SvgLinearGradient id="sparkleGlowBrowse" x1="0%" y1="0%" x2="100%" y2="100%">
-                <Stop offset="0%" stopColor="rgba(255, 255, 255, 0.8)" stopOpacity="0.8" />
-                <Stop offset="100%" stopColor="rgba(255, 255, 255, 0.4)" stopOpacity="0.4" />
-              </SvgLinearGradient>
-              {/* Clip path for shimmer effect */}
-              <ClipPath id="heartClipBrowse">
-                <Path
-                  d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z"
-                  fill="#000000"
-                />
-              </ClipPath>
-            </Defs>
-            <G>
-              {/* Heart with subtle white border for definition */}
-              <Path
-                d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z"
-                fill="url(#heartGradientBrowse)"
-                stroke="rgba(255, 255, 255, 0.9)"
-                strokeWidth="0.8"
-              />
-              {/* Subtle inner highlight for depth */}
-              <Path
-                d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z"
-                fill="none"
-                stroke="rgba(255, 255, 255, 0.25)"
-                strokeWidth="0.3"
-                opacity="0.6"
-                transform="scale(0.96) translate(0.96, 0.96)"
-              />
-              {/* Subtle shimmer effect */}
-              <G
-                opacity={shimmerOpacityValue}
-                transform={`translate(${shimmerTranslateXValue}, 0)`}
-              >
-                <Path
-                  d="M24 14C20.5 10.5 15.5 10.5 12 14C8.5 17.5 8.5 22.5 12 26C15.5 29.5 24 36 24 36C24 36 32.5 29.5 36 26C39.5 22.5 39.5 17.5 36 14C32.5 10.5 27.5 10.5 24 14Z"
-                  fill="url(#heartShimmerBrowse)"
-                  clipPath="url(#heartClipBrowse)"
-                />
-              </G>
-              {/* Top arrow - identical to login page (M30 6, M33 3, circle at 40,6) */}
-              <G>
-                <Path 
-                  d="M30 6L36 6" 
-                  stroke="#ffffff" 
-                  strokeWidth="2.5" 
-                  strokeLinecap="round" 
-                  opacity={arrowTopOpacityValue}
-                />
-                <Path 
-                  d="M33 3L36 6L33 9" 
-                  stroke="#ffffff" 
-                  strokeWidth="2.5" 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round" 
-                  fill="none" 
-                  opacity={arrowTopOpacityValue}
-                />
-                <Circle cx="40" cy="6" r="2.5" fill="#ffffff" opacity={arrowTopOpacityValue} />
-              </G>
-              {/* Bottom arrow - identical to login page */}
-              <G>
-                <Path 
-                  d="M18 38L12 38" 
-                  stroke="#ffffff" 
-                  strokeWidth="2.5" 
-                  strokeLinecap="round" 
-                  opacity={arrowBottomOpacityValue}
-                />
-                <Path 
-                  d="M15 35L12 38L15 41" 
-                  stroke="#ffffff" 
-                  strokeWidth="2.5" 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round" 
-                  fill="none" 
-                  opacity={arrowBottomOpacityValue}
-                />
-                <Circle cx="8" cy="38" r="2.5" fill="#ffffff" opacity={arrowBottomOpacityValue} />
-              </G>
-              {/* Sparkles with dynamic animations - scale, opacity, multi-directional movement, and pulse (identical to login) */}
-              <G transform={`translate(${sparkle1TranslateXValue}, ${sparkle1TranslateYValue}) scale(${sparkle1ScaleValue * sparkle1PulseValue})`}>
-                {/* Subtle glow behind sparkle - pulse affects brightness */}
-                <Circle cx="24" cy="8" r="2.2" fill="url(#sparkleGlowBrowse)" opacity={sparkle1OpacityValue * 0.3 * sparkle1PulseValue} />
-                <Circle cx="24" cy="8" r="1.5" fill="#ffffff" opacity={sparkle1OpacityValue * sparkle1PulseValue} />
-              </G>
-              <G transform={`translate(${sparkle2TranslateXValue}, ${sparkle2TranslateYValue}) scale(${sparkle2ScaleValue * sparkle2PulseValue})`}>
-                {/* Subtle glow behind sparkle - pulse affects brightness */}
-                <Circle cx="40" cy="24" r="2.2" fill="url(#sparkleGlowBrowse)" opacity={sparkle2OpacityValue * 0.3 * sparkle2PulseValue} />
-                <Circle cx="40" cy="24" r="1.5" fill="#ffffff" opacity={sparkle2OpacityValue * sparkle2PulseValue} />
-              </G>
-              <G transform={`translate(${sparkle3TranslateXValue}, ${sparkle3TranslateYValue}) scale(${sparkle3ScaleValue * sparkle3PulseValue})`}>
-                {/* Subtle glow behind sparkle - pulse affects brightness */}
-                <Circle cx="24" cy="40" r="2.2" fill="url(#sparkleGlowBrowse)" opacity={sparkle3OpacityValue * 0.3 * sparkle3PulseValue} />
-                <Circle cx="24" cy="40" r="1.5" fill="#ffffff" opacity={sparkle3OpacityValue * sparkle3PulseValue} />
-              </G>
-              <G transform={`translate(${sparkle4TranslateXValue}, ${sparkle4TranslateYValue}) scale(${sparkle4ScaleValue * sparkle4PulseValue})`}>
-                {/* Subtle glow behind sparkle - pulse affects brightness */}
-                <Circle cx="8" cy="24" r="2.2" fill="url(#sparkleGlowBrowse)" opacity={sparkle4OpacityValue * 0.3 * sparkle4PulseValue} />
-                <Circle cx="8" cy="24" r="1.5" fill="#ffffff" opacity={sparkle4OpacityValue * sparkle4PulseValue} />
-              </G>
-            </G>
-          </Svg>
-        </Animated.View>
+          ✨
+        </Text>
       </Animated.View>
     </View>
   );
 });
-
-// Animated Emoji Component for feature icons
-function AnimatedEmoji({ emoji, delay = 0 }: { emoji: string; delay?: number }) {
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-  const rotateAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const scaleLoop = Animated.loop(
-      Animated.sequence([
-        Animated.delay(delay),
-        Animated.timing(scaleAnim, { toValue: 1.15, duration: 1500, useNativeDriver: true }),
-        Animated.timing(scaleAnim, { toValue: 1, duration: 1500, useNativeDriver: true }),
-      ])
-    );
-    scaleLoop.start();
-    const rotateLoop = Animated.loop(
-      Animated.sequence([
-        Animated.delay(delay),
-        Animated.timing(rotateAnim, { toValue: 1, duration: 4000, useNativeDriver: true }),
-        Animated.timing(rotateAnim, { toValue: 0, duration: 4000, useNativeDriver: true }),
-      ])
-    );
-    rotateLoop.start();
-    return () => {
-      scaleLoop.stop();
-      rotateLoop.stop();
-    };
-  }, [delay]);
-
-  const rotate = rotateAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['-5deg', '5deg'],
-  });
-
-  return (
-    <Animated.View
-      style={{
-        transform: [
-          { scale: scaleAnim },
-          { rotate },
-        ],
-      }}
-    >
-      <Text style={styles.featureIcon}>{emoji}</Text>
-    </Animated.View>
-  );
-}
 
 interface Photo {
   id: string;
@@ -657,9 +154,22 @@ interface Profile {
   distance?: number | null;
 }
 
+/**
+ * Scroll padding below Connect landing so the white card + shadow sit above the floating tab bar.
+ * Uses full bottom inset on iOS (navigator uses half-inset for bar height only; clearance must not underestimate).
+ */
+function landingTabBarClearancePx(insetBottom: number): number {
+  const tabBarHeight =
+    Platform.OS === 'ios'
+      ? 56 + insetBottom
+      : 56 + Math.max(insetBottom, 8);
+  return tabBarHeight + 52;
+}
+
 export default function BrowseScreen() {
   const navigation = useNavigation();
   const route = useRoute();
+  const insets = useSafeAreaInsets();
   const isFocused = useIsFocused();
   /** useIsFocused() can be false on the first paint; hiding then causes a black screen (transparent scene over default black). */
   const browseWasFocusedRef = useRef(false);
@@ -1398,7 +908,7 @@ export default function BrowseScreen() {
     connectOverlayOpacity.setValue(0);
   }, []);
 
-  // When navigated with resetToLanding (e.g. "Keep Browsing" from match celebration), show Connect landing page
+  // When navigated with resetToLanding (e.g. "Back to Connect" from celebration), show Connect landing page
   useFocusEffect(
     useCallback(() => {
       const params = route.params as { resetToLanding?: boolean } | undefined;
@@ -1408,7 +918,7 @@ export default function BrowseScreen() {
     }, [route.params, navigation, clearCelebrationAndConnectingState])
   );
 
-  // When already on Browse and params get resetToLanding (Keep Browsing), clear celebration so Modal unmounts and doesn't block touches
+  // When already on Browse and params get resetToLanding, clear celebration so Modal unmounts and doesn't block touches
   useEffect(() => {
     const params = route.params as { resetToLanding?: boolean } | undefined;
     if (!params?.resetToLanding) return;
@@ -1718,7 +1228,7 @@ export default function BrowseScreen() {
     connectSpinnerOpacity.setValue(1);
     connectTextOpacity.setValue(0);
 
-    // Show "Finding your curated match" modal immediately (reveal celebration when API returns)
+    // Show celebration loading modal immediately (reveal when API returns)
     setMatchedProfile(profile);
     setMatchId(null);
     setMatchExplanation(null);
@@ -1925,6 +1435,49 @@ export default function BrowseScreen() {
     );
   }
 
+  const mulliganTokenControls = (
+    <View style={styles.tokenOverlayInner}>
+      {canClaimTokens && (
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => {
+            if (Platform.OS === 'ios') Vibration.vibrate([0, 30]);
+            else Vibration.vibrate(30);
+            performClaimRef.current?.({
+              onSuccess: () => {
+                checkCanClaimTokens();
+                setBrowseUnlocked(false);
+                setCurrentProfile(null);
+                setHasMore(true);
+              },
+              successMessage: "Congrats! You've been officially reupped and are ready to start matching! 🤑",
+            });
+          }}
+          onPressIn={() => {
+            Animated.spring(claimBannerScale, { toValue: 0.95, useNativeDriver: true }).start();
+          }}
+          onPressOut={() => {
+            Animated.spring(claimBannerScale, { toValue: 1, useNativeDriver: true }).start();
+          }}
+        >
+          <Animated.View
+            style={[
+              styles.claimTokenBanner,
+              {
+                transform: [
+                  { scale: Animated.multiply(claimBannerPulse, claimBannerScale) },
+                ],
+              },
+            ]}
+          >
+            <Text style={styles.claimTokenText}>Claim your Mulligans 😉</Text>
+          </Animated.View>
+        </TouchableOpacity>
+      )}
+      <TokenDisplay compact={true} premium={true} openModalRef={openTokenModalRef} performClaimRef={performClaimRef} />
+    </View>
+  );
+
   return (
     <View
       style={[
@@ -1948,55 +1501,23 @@ export default function BrowseScreen() {
           style={[StyleSheet.absoluteFill, { zIndex: 0 }]}
         />
       )}
-      
-      {/* Token display fixed outside ScrollView so taps are instant (no scroll gesture delay) */}
-      <View style={styles.tokenOverlay} pointerEvents="box-none">
-        <View style={styles.tokenOverlayInner}>
-          {canClaimTokens && (
-            <TouchableOpacity
-              activeOpacity={1}
-              onPress={() => {
-                if (Platform.OS === 'ios') Vibration.vibrate([0, 30]);
-                else Vibration.vibrate(30);
-                performClaimRef.current?.({
-                  onSuccess: () => {
-                    checkCanClaimTokens();
-                    // Reset to landing page so user can tap Connect and get a new profile
-                    setBrowseUnlocked(false);
-                    setCurrentProfile(null);
-                    setHasMore(true);
-                  },
-                  successMessage: "Congrats! You've been officially reupped and are ready to start matching! 🤑",
-                });
-              }}
-              onPressIn={() => {
-                Animated.spring(claimBannerScale, { toValue: 0.95, useNativeDriver: true }).start();
-              }}
-              onPressOut={() => {
-                Animated.spring(claimBannerScale, { toValue: 1, useNativeDriver: true }).start();
-              }}
-            >
-              <Animated.View
-                style={[
-                  styles.claimTokenBanner,
-                  {
-                    transform: [
-                      { scale: Animated.multiply(claimBannerPulse, claimBannerScale) },
-                    ],
-                  },
-                ]}
-              >
-                <Text style={styles.claimTokenText}>Claim your Mulligans 😉</Text>
-              </Animated.View>
-            </TouchableOpacity>
-          )}
-          <TokenDisplay compact={true} premium={true} openModalRef={openTokenModalRef} performClaimRef={performClaimRef} />
+
+      {/* Token strip: fixed overlay when browsing; inside white card on Connect landing */}
+      {!showLandingPage && (
+        <View style={styles.tokenOverlay} pointerEvents="box-none">
+          {mulliganTokenControls}
         </View>
-      </View>
+      )}
 
       <ScrollView 
         style={[styles.scrollView, showLandingPage && { backgroundColor: 'transparent' }]} 
-        contentContainerStyle={[styles.contentContainer, !showLandingPage && !needsProfile && currentProfile && !loading && { paddingBottom: 100 }]}
+        contentContainerStyle={[
+          styles.contentContainer,
+          showLandingPage && {
+            paddingBottom: landingTabBarClearancePx(insets.bottom),
+          },
+          !showLandingPage && !needsProfile && currentProfile && !loading && { paddingBottom: 100 },
+        ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         scrollEventThrottle={16}
@@ -2020,8 +1541,12 @@ export default function BrowseScreen() {
           <View style={styles.landingContainer}>
             {/* Main content */}
             <View style={styles.landingContent}>
+              <View style={styles.landingContentTop}>
+              <View style={styles.landingTokenInCard} pointerEvents="box-none">
+                {mulliganTokenControls}
+              </View>
               <View style={styles.landingLogoContainer}>
-                <AnimatedLogo />
+                <ConnectLandingLogo />
                 <Text style={styles.landingLogoText}>Mulligan</Text>
               </View>
               
@@ -2039,12 +1564,13 @@ export default function BrowseScreen() {
               >
                 Discover People
               </Animated.Text>
-              <Text style={styles.landingSubtitle}>
-                {matchmakingPaused
-                  ? user?.matchmakingDisabledMessage?.trim() ||
-                    'Matching will open on launch day. You can still set up your profile, add photos, and get ready.'
-                  : 'Find someone who shares your interests and values'}
-              </Text>
+              <Text style={styles.landingDiscoverTagline}>{CONNECT_DISCOVER_TAGLINE}</Text>
+              {matchmakingPaused ? (
+                <Text style={styles.landingSubtitle}>
+                  {user?.matchmakingDisabledMessage?.trim() ||
+                    'Matching will open on launch day. You can still set up your profile, add photos, and get ready.'}
+                </Text>
+              ) : null}
 
               {isAuthenticated &&
               !matchmakingPaused &&
@@ -2058,27 +1584,6 @@ export default function BrowseScreen() {
                   slotLimit={connectLandingEconomy?.slotLimit ?? 50}
                 />
               ) : null}
-
-              <View style={styles.landingFeatures}>
-                <View style={styles.featureItem}>
-                  <AnimatedEmoji emoji="✨" delay={0} />
-                  <Text style={styles.featureText} numberOfLines={2}>
-                    Quality{'\n'}Matches
-                  </Text>
-                </View>
-                <View style={styles.featureItem}>
-                  <AnimatedEmoji emoji="🎯" delay={500} />
-                  <Text style={styles.featureText} numberOfLines={2}>
-                    Shared{'\n'}Interests
-                  </Text>
-                </View>
-                <View style={styles.featureItem}>
-                  <AnimatedEmoji emoji="💝" delay={1000} />
-                  <Text style={styles.featureText} numberOfLines={2} adjustsFontSizeToFit={true} minimumFontScale={0.85}>
-                    Meaningful{'\n'}Connections
-                  </Text>
-                </View>
-              </View>
 
               {matchmakingPaused ? (
                 <View style={styles.matchmakingPausedCard}>
@@ -2183,7 +1688,8 @@ export default function BrowseScreen() {
                   </TouchableOpacity>
                 </Animated.View>
               )}
-              
+              </View>
+
               <Animated.View style={[styles.landingHintWrap, { opacity: matchmakingPaused ? 1 : landingHintOpacity }]}>
                 <Text style={styles.landingHint}>
                   {matchmakingPaused
@@ -2233,7 +1739,7 @@ export default function BrowseScreen() {
             >
               Discover People
             </Animated.Text>
-            <Text style={styles.subtitle}>Find someone who shares your interests and values</Text>
+            <Text style={styles.headerDiscoverTagline}>{CONNECT_DISCOVER_TAGLINE}</Text>
           </Animated.View>
 
           {/* Error Message */}
@@ -2410,13 +1916,6 @@ export default function BrowseScreen() {
               <Text style={styles.bio}>{currentProfile.bio}</Text>
             )}
 
-            {currentProfile.lookingFor && (
-              <View style={styles.lookingForContainer}>
-                <Text style={styles.lookingForLabel}>Looking for:</Text>
-                <Text style={styles.lookingForValue}>{currentProfile.lookingFor}</Text>
-              </View>
-            )}
-
             {currentProfile.interests.length > 0 && (
               <View style={styles.interestsContainer}>
                 <Text style={styles.interestsLabel}>Interests:</Text>
@@ -2451,7 +1950,7 @@ export default function BrowseScreen() {
         </>
       )}
 
-      {/* Match Celebration Modal - hide when resetToLanding so modal never blocks tab bar / Connect button after "Keep Browsing" */}
+      {/* Match Celebration Modal - hide when resetToLanding so modal never blocks tab bar / Connect button after "Back to Connect" */}
       {showMatchCelebration && matchedProfile && !(route.params as { resetToLanding?: boolean } | undefined)?.resetToLanding && (
         <MatchCelebration
           key="connect-celeb"
@@ -2914,12 +2413,15 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 8,
   },
-  subtitle: {
-    fontSize: 17,
-    color: '#666',
+  headerDiscoverTagline: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#4b5563',
     textAlign: 'center',
-    marginTop: 10,
-    fontWeight: '500',
+    marginTop: 8,
+    marginBottom: 4,
+    paddingHorizontal: 20,
+    lineHeight: 22,
     letterSpacing: 0.2,
   },
   errorContainer: {
@@ -3028,10 +2530,10 @@ const styles = StyleSheet.create({
   landingPageWrapper: {
     flex: 1,
     minHeight: Dimensions.get('window').height - 100,
-    paddingTop: 56,
-    paddingBottom: 40,
+    paddingTop: 64,
+    paddingBottom: 64,
     position: 'relative',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
   },
   landingTokenContainer: {
     position: 'absolute',
@@ -3041,40 +2543,56 @@ const styles = StyleSheet.create({
   },
   landingContainer: {
     position: 'relative',
-    marginHorizontal: 20,
-    borderRadius: 32,
-    overflow: 'hidden',
-    minHeight: 600,
+    alignSelf: 'stretch',
+    marginHorizontal: 18,
+    marginTop: 6,
+    marginBottom: 56,
+    borderRadius: 28,
+    overflow: 'visible',
   },
   // landingGradient removed - now using animated LinearGradient component
+  landingTokenInCard: {
+    width: '100%',
+    alignItems: 'flex-end',
+    marginBottom: 10,
+    zIndex: 2,
+  },
   landingContent: {
-    padding: 52,
+    width: '100%',
+    paddingTop: 22,
+    paddingBottom: 26,
+    paddingHorizontal: 28,
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)', // Glassmorphism effect
-    borderRadius: 36,
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 16 },
-    shadowOpacity: 0.3,
-    shadowRadius: 40,
-    elevation: 20,
-    borderWidth: 3,
-    borderColor: 'rgba(255, 255, 255, 0.9)',
+    backgroundColor: '#ffffff',
+    borderRadius: 28,
+    shadowColor: '#1a1a2e',
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.22,
+    shadowRadius: 32,
+    elevation: 26,
+    borderWidth: 1,
+    borderColor: 'rgba(26, 26, 46, 0.08)',
     overflow: 'hidden',
     backdropFilter: 'blur(20px)', // Note: React Native doesn't support backdrop-filter, but keeping for web compatibility
+  },
+  landingContentTop: {
+    width: '100%',
+    alignItems: 'center',
+    flexShrink: 0,
   },
   landingLogoContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 32,
-    gap: 16,
+    marginBottom: 14,
+    gap: 14,
   },
   logoWrapper: {
     width: 90,
     height: 90,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
+    marginBottom: 0,
     position: 'relative',
   },
   logoRotateGroup: {
@@ -3091,35 +2609,46 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   landingTitle: {
-    fontSize: 48,
+    fontSize: 44,
     fontWeight: '900',
     color: '#000000',
-    marginBottom: 16,
+    marginBottom: 4,
     textAlign: 'center',
-    letterSpacing: 1.5,
+    letterSpacing: 1.2,
     textShadowColor: 'rgba(102, 126, 234, 0.5)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 20,
   },
+  landingDiscoverTagline: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#4a4a4a',
+    textAlign: 'center',
+    marginBottom: 14,
+    paddingHorizontal: 20,
+    lineHeight: 24,
+    letterSpacing: 0.25,
+  },
   landingSubtitle: {
-    fontSize: 18,
+    fontSize: 17,
     color: '#555',
     textAlign: 'center',
-    marginBottom: 40,
-    lineHeight: 28,
-    paddingHorizontal: 20,
+    marginTop: 4,
+    marginBottom: 20,
+    lineHeight: 26,
+    paddingHorizontal: 12,
     fontWeight: '500',
     letterSpacing: 0.3,
   },
   matchmakingPausedCard: {
     width: '100%',
-    paddingVertical: 22,
-    paddingHorizontal: 20,
+    paddingVertical: 20,
+    paddingHorizontal: 18,
     borderRadius: 16,
     backgroundColor: 'rgba(255,255,255,0.92)',
     borderWidth: 1,
     borderColor: 'rgba(102, 126, 234, 0.25)',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   matchmakingPausedTitle: {
     fontSize: 18,
@@ -3134,44 +2663,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
   },
-  landingFeatures: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'stretch',
-    width: '100%',
-    marginBottom: 48,
-    paddingHorizontal: 12,
-    gap: 10,
-  },
-  featureItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    maxWidth: 110,
-    minWidth: 90,
-    paddingHorizontal: 6,
-    paddingVertical: 12,
-  },
-  featureIcon: {
-    fontSize: 32,
-    marginBottom: 10,
-  },
-  featureText: {
-    fontSize: 10,
-    color: '#444',
-    textAlign: 'center',
-    fontWeight: '700',
-    lineHeight: 15,
-    width: '100%',
-    marginTop: 4,
-    letterSpacing: 0.05,
-    includeFontPadding: false,
-    flexWrap: 'wrap',
-    paddingHorizontal: 1,
-  },
   landingButtonContainer: {
     width: '100%',
-    marginBottom: 16,
+    marginTop: 18,
+    marginBottom: 4,
   },
   landingButtonTouchable: {
     width: '100%',
@@ -3179,9 +2674,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   landingButton: {
-    paddingHorizontal: 48,
-    paddingVertical: 24,
-    borderRadius: 28,
+    paddingHorizontal: 40,
+    paddingVertical: 20,
+    borderRadius: 24,
     width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
@@ -3194,7 +2689,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.5)',
     overflow: 'hidden',
     position: 'relative',
-    minHeight: 70,
+    minHeight: 64,
   },
   buttonShimmer: {
     position: 'absolute',
@@ -3211,10 +2706,10 @@ const styles = StyleSheet.create({
   },
   landingButtonText: {
     color: '#fff',
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: '900',
-    marginBottom: 6,
-    letterSpacing: 0.8,
+    marginBottom: 0,
+    letterSpacing: 0.6,
     textShadowColor: 'rgba(0, 0, 0, 0.4)',
     textShadowOffset: { width: 0, height: 3 },
     textShadowRadius: 6,
@@ -3229,15 +2724,17 @@ const styles = StyleSheet.create({
   },
   landingHintWrap: {
     alignSelf: 'center',
-    marginTop: 14,
+    marginTop: 16,
+    paddingHorizontal: 8,
+    paddingBottom: 2,
   },
   landingHint: {
-    fontSize: 14,
-    color: 'rgba(60, 50, 85, 0.95)',
+    fontSize: 13,
+    color: 'rgba(60, 50, 85, 0.88)',
     textAlign: 'center',
     fontWeight: '600',
-    letterSpacing: 0.6,
-    lineHeight: 20,
+    letterSpacing: 0.4,
+    lineHeight: 19,
     fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
   },
   // Keep old styles for backward compatibility

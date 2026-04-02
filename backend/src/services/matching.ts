@@ -3,7 +3,6 @@ import { db } from "../database.js";
 import { geocodeLocation, calculateDistanceMiles } from "../utils/geocoding.js";
 import { findBestSemanticMatch } from "../utils/semanticMatching.js";
 import { getCompletenessBoost } from "../utils/profileCompleteness.js";
-import { checkDealbreakers as checkDealbreakersUtil } from "../utils/dealbreakers.js";
 import { getCollaborativeRecommendations as getCollaborativeRecs } from "../utils/collaborativeFiltering.js";
 import { getSuccessScore } from "../utils/successTracking.js";
 import { getHiddenFromBrowseUserIds } from "../config/hiddenFromBrowse.js";
@@ -47,20 +46,10 @@ interface MatchCandidate {
   userId: string;
   profileId: string;
   score: number;
-  sharedValues: number;
-  sharedInterests: number;
-  partnerQualitiesMatch: number;
-  lookingForMatch: number;
-  intentDiff: number;
-  relationshipTypeMatch: number;
+  sharedInterestCount: number;
   distanceScore: number;
   breakdown: {
-    values: number;
     interests: number;
-    qualities: number;
-    lookingFor: number;
-    intent: number;
-    relationshipType: number;
     distance: number;
   };
 }
@@ -209,14 +198,6 @@ function parseJsonArray(jsonStr: string | null): string[] {
   } catch {
     return [];
   }
-}
-
-/**
- * Check if candidate matches user's dealbreakers
- * Uses the comprehensive dealbreaker checking utility
- */
-async function checkDealbreakers(userProfileId: string, candidateProfileId: string): Promise<boolean> {
-  return await checkDealbreakersUtil(userProfileId, candidateProfileId);
 }
 
 /**
@@ -565,6 +546,16 @@ async function calculateInterestsOverlap(
   return Math.min(finalScore, 10); // Cap at 10
 }
 
+function countSharedInterests(userProfileId: string, candidateProfileId: string): number {
+  const userRaw = db.prepare("SELECT name FROM interests WHERE profile_id = ?").all(userProfileId);
+  const candRaw = db.prepare("SELECT name FROM interests WHERE profile_id = ?").all(candidateProfileId);
+  const userInterests = ensureInterestArray(userRaw);
+  const candInterests = ensureInterestArray(candRaw);
+  const us = new Set(userInterests.map((i) => i.name.toLowerCase()));
+  const cs = new Set(candInterests.map((i) => i.name.toLowerCase()));
+  return [...us].filter((n) => cs.has(n)).length;
+}
+
 /**
  * Calculate "looking for" compatibility score using TF-IDF cosine similarity
  * State-of-the-art text matching instead of simple keyword overlap
@@ -627,26 +618,15 @@ async function calculateLookingForMatch(
  * IMPROVED VERSION with dealbreakers, partner qualities, interests, and real geocoding
  */
 /**
- * Calculate profile-based compatibility score for an existing match (0-100)
- * Based on interests, partner qualities, looking for, lifestyle. Dealbreakers = 0.
+ * Profile compatibility for connections (0-100): shared interests (primary).
+ * Age and distance are enforced at match/browse time, not re-scored here.
  */
 export async function calculateProfileCompatibilityScore(
   userProfileId: string,
   otherProfileId: string
 ): Promise<number> {
-  // Dealbreakers: if either has dealbreakers violated, return 0
-  const dealbreakersPass = await checkDealbreakersUtil(userProfileId, otherProfileId);
-  if (!dealbreakersPass) return 0;
-
   const interestsScore = await calculateInterestsOverlap(userProfileId, otherProfileId);
-  const qualitiesScore = await calculatePartnerQualitiesMatch(userProfileId, otherProfileId);
-  const lookingForScore = await calculateLookingForMatch(userProfileId, otherProfileId);
-  const lifestyleScore = await calculateLifestyleMatch(userProfileId, otherProfileId);
-
-  // Weighted average (same relative weights as matching: interests 30%, qualities 40%, looking for 20%, lifestyle 30%)
-  // Normalize each from 0-10 to 0-100 and combine
-  const total = (interestsScore * 3 + qualitiesScore * 4 + lookingForScore * 2 + lifestyleScore * 3) / 12;
-  return Math.round(Math.min(100, Math.max(0, total * 10)));
+  return Math.round(Math.min(100, Math.max(0, interestsScore * 10)));
 }
 
 export async function generateWeeklyMatches(userId: string): Promise<{
@@ -673,8 +653,6 @@ export async function generateWeeklyMatches(userId: string): Promise<{
   const hiddenFromBrowseIds = await getHiddenFromBrowseUserIds();
   const hiddenSet = new Set(hiddenFromBrowseIds);
 
-  // Get user's values
-  const userValues = parseJsonArray(userPrefs.values);
   const userPreferredGenders = parseJsonArray(userPrefs.preferred_genders);
 
   // Check if user is premium
@@ -701,7 +679,6 @@ export async function generateWeeklyMatches(userId: string): Promise<{
     if (hiddenSet.has(candidate.user_id)) {
       continue;
     }
-    const candidateValues = parseJsonArray(candidate.values);
     const candidatePreferredGenders = parseJsonArray(candidate.preferred_genders);
 
     // Check mutual age preferences
@@ -759,99 +736,20 @@ export async function generateWeeklyMatches(userId: string): Promise<{
       continue; // Too far
     }
 
-    // Calculate intent difference (no longer a hard filter - just for scoring)
-    const intentDiff = Math.abs(userPrefs.intent - candidate.intent);
+    // Scoring: shared interests (primary) + proximity. Age & max distance already enforced above.
+    const interestsOverlap = await calculateInterestsOverlap(userProfile.id, candidate.id);
+    const sharedInterestCount = countSharedInterests(userProfile.id, candidate.id);
 
-    // Check shared values (at least 3) - already pre-filtered for 2+, now check for 3+
-    const sharedValues = userValues.filter((v) =>
-      candidateValues.includes(v)
-    ).length;
-    if (sharedValues < 3) {
-      continue; // Not enough shared values
-    }
-
-    // NEW: Check dealbreakers (must pass)
-    if (!(await checkDealbreakers(userProfile.id, candidate.id))) {
-      continue; // Dealbreaker matched
-    }
-
-    // NEW: Calculate interests overlap
-    const sharedInterests = await calculateInterestsOverlap(userProfile.id, candidate.id);
-
-    // NEW: Calculate partner qualities match
-    const partnerQualitiesMatch = await calculatePartnerQualitiesMatch(
-      userProfile.id,
-      candidate.id
+    const maxDistanceMiles = Math.max(
+      userPrefs.max_distance === null ? 100 : userPrefs.max_distance,
+      candidate.max_distance === null ? 100 : candidate.max_distance,
+      1
     );
+    const distanceScore = exponentialDecay(distance, maxDistanceMiles) * 10;
 
-    // NEW: Calculate "looking for" compatibility
-    const lookingForMatch = await calculateLookingForMatch(
-      userProfile.id,
-      candidate.id
-    );
-
-    // NEW: Calculate lifestyle compatibility
-    const lifestyleMatch = await calculateLifestyleMatch(
-      userProfile.id,
-      candidate.id
-    );
-
-    // Calculate distance score using exponential decay (state-of-the-art)
-    // Much better than linear - gives exponentially higher scores for closer matches
-    const maxDistance = Math.max(userPrefs.max_distance, candidate.max_distance);
-    const distanceScore = exponentialDecay(distance, maxDistance) * 10;
-
-    // STATE-OF-THE-ART SCORING SYSTEM with non-linear transformations
-    // Uses sigmoid functions for better score distribution
-    // Values: 20% weight - non-linear boost for more shared values
-    // Interests: 15% weight - already uses weighted Jaccard
-    // Partner Qualities ("What I'm Looking For"): 20% weight - importance-weighted
-    // Looking For: 10% weight - TF-IDF cosine similarity
-    // Lifestyle: 15% weight - lifestyle compatibility matching
-    // Intent: 10% weight - sigmoid for smooth intent matching
-    // Distance: 10% weight - exponential decay
-    
-    // Non-linear value scoring (more shared values = exponentially better)
-    const valuesScore = sigmoid(sharedValues, 3, 0.5) * 6; // Max 6 points (20% of 30)
-    
-    // Interests already has non-linear boost built in
-    const interestsScore = (sharedInterests / 10) * 1.5; // 15% weight
-    
-    // Partner qualities with importance weighting (already sophisticated)
-    const qualitiesScore = (partnerQualitiesMatch / 10) * 2; // 20% weight
-    
-    // Looking for uses TF-IDF cosine similarity (state-of-the-art)
-    const lookingForScore = (lookingForMatch / 10) * 1; // 10% weight
-    
-    // Lifestyle compatibility (NEW)
-    const lifestyleScore = (lifestyleMatch / 10) * 1.5; // 15% weight
-    
-    // Intent with sigmoid for smooth matching (exact match = 1, 1 diff = 0.7, 2 diff = 0.3)
-    const intentScore = sigmoid(2 - intentDiff, 0, 1.5) * 0.8; // 8% weight
-    
-    // Relationship type matching (NEW - prioritizes same relationship goals)
-    // Exact match = 1.0, different = 0.3 (still allows matching, just lower score)
-    let relationshipTypeScore = 0.3; // Default: different relationship types
-    if (userPrefs.relationship_type && candidate.relationship_type) {
-      if (userPrefs.relationship_type.toLowerCase().trim() === candidate.relationship_type.toLowerCase().trim()) {
-        relationshipTypeScore = 1.0; // Exact match - strong boost
-      }
-      // Special case: "Not sure yet" is compatible with everything (0.7 score)
-      if (userPrefs.relationship_type.toLowerCase().trim() === 'not sure yet' || 
-          candidate.relationship_type.toLowerCase().trim() === 'not sure yet') {
-        relationshipTypeScore = 0.7; // Partial boost for "not sure yet"
-      }
-    } else if (!userPrefs.relationship_type || !candidate.relationship_type) {
-      // If one or both haven't specified, give neutral score
-      relationshipTypeScore = 0.5;
-    }
-    const relationshipTypeScoreWeighted = relationshipTypeScore * 2; // 20% weight (high priority)
-    
-    // Distance uses exponential decay (already calculated above)
-    const distanceScoreWeighted = (distanceScore / 10) * 0.6; // 6% weight
-
-    // Final score with all components
-    let totalScore = valuesScore + interestsScore + qualitiesScore + lookingForScore + lifestyleScore + intentScore + relationshipTypeScoreWeighted + distanceScoreWeighted;
+    const interestsNorm = interestsOverlap / 10; // 0–1
+    const distanceNorm = distanceScore / 10; // 0–1
+    let totalScore = interestsNorm * 7 + distanceNorm * 3; // 0–10 scale before boosts
     
     // 10/10 FEATURES: Apply boosts
     
@@ -884,22 +782,12 @@ export async function generateWeeklyMatches(userId: string): Promise<{
     candidates.push({
       userId: candidate.user_id,
       profileId: candidate.id,
-      score: normalizedScore, // Use normalized score
-      sharedValues,
-      sharedInterests,
-      partnerQualitiesMatch,
-      lookingForMatch,
-      intentDiff,
-      relationshipTypeMatch: relationshipTypeScore,
+      score: normalizedScore,
+      sharedInterestCount,
       distanceScore,
       breakdown: {
-        values: valuesScore,
-        interests: interestsScore,
-        qualities: qualitiesScore,
-        lookingFor: lookingForScore,
-        intent: intentScore,
-        relationshipType: relationshipTypeScoreWeighted,
-        distance: distanceScoreWeighted,
+        interests: interestsNorm,
+        distance: distanceNorm,
       },
     });
   }
@@ -1024,8 +912,8 @@ export async function generateWeeklyMatches(userId: string): Promise<{
 }
 
 /**
- * Generate match explanation for why two users matched
- * Returns human-readable reasons for the match
+ * Generate human-readable interest overlap for the match detail card (Vibes % modal).
+ * `sharedValues` is always 0 — kept in the return type for older API clients.
  */
 export async function generateMatchExplanation(
   userProfileId: string,
@@ -1035,7 +923,6 @@ export async function generateMatchExplanation(
   sharedInterests: string[];
   sharedValues: number;
 }> {
-  // Get shared interests
   const userInterestsRaw = await (db
     .prepare("SELECT name FROM interests WHERE profile_id = ?")
     .all(userProfileId) as Promise<unknown>);
@@ -1049,33 +936,8 @@ export async function generateMatchExplanation(
   const candidateInterestNames = new Set(candidateInterests.map(i => i.name.toLowerCase()));
   const sharedInterests = [...userInterestNames].filter(name => candidateInterestNames.has(name));
 
-  // Get shared values
-  const userProfile = await (db
-    .prepare("SELECT * FROM profiles WHERE id = ?")
-    .get(userProfileId) as Promise<ProfileRow | undefined>);
-  const candidateProfile = await (db
-    .prepare("SELECT * FROM profiles WHERE id = ?")
-    .get(candidateProfileId) as Promise<ProfileRow | undefined>);
-
-  if (!userProfile || !candidateProfile) {
-    return { reasons: [], sharedInterests: [], sharedValues: 0 };
-  }
-
-  const userPrefs = await (db
-    .prepare("SELECT values FROM preferences WHERE profile_id = ?")
-    .get(userProfileId) as Promise<{ values: string | null } | undefined>);
-  const candidatePrefs = await (db
-    .prepare("SELECT values FROM preferences WHERE profile_id = ?")
-    .get(candidateProfileId) as Promise<{ values: string | null } | undefined>);
-
-  const userValues = parseJsonArray(userPrefs?.values || null);
-  const candidateValues = parseJsonArray(candidatePrefs?.values || null);
-  const sharedValues = userValues.filter(v => candidateValues.includes(v));
-
-  // Build reasons array
   const reasons: string[] = [];
 
-  // Shared interests
   if (sharedInterests.length > 0) {
     if (sharedInterests.length >= 5) {
       reasons.push(`You both love ${sharedInterests.slice(0, 3).join(', ')} and more!`);
@@ -1086,61 +948,17 @@ export async function generateMatchExplanation(
     }
   }
 
-  // Shared values
-  if (sharedValues.length >= 5) {
-    reasons.push(`You share ${sharedValues.length} core values`);
-  } else if (sharedValues.length >= 3) {
-    reasons.push(`You have ${sharedValues.length} shared values: ${sharedValues.slice(0, 3).join(', ')}`);
-  }
-
-  // Partner qualities match
-  const qualitiesMatch = await calculatePartnerQualitiesMatch(userProfileId, candidateProfileId);
-  if (qualitiesMatch >= 7) {
-    reasons.push(`They match what you're looking for`);
-  }
-
-  // Lifestyle compatibility
-  const lifestyleMatch = await calculateLifestyleMatch(userProfileId, candidateProfileId);
-  if (lifestyleMatch >= 7) {
-    reasons.push(`Similar lifestyle preferences`);
-  }
-
-  // Distance (if close) - skip geocoding to avoid delay, use simple string comparison
-  // This avoids the slow geocoding API call that was causing 10-20 second delays
-  if (userProfile.location && candidateProfile.location) {
-    // Simple check: if locations are similar strings, they're likely close
-    // Full geocoding can be done later if needed, but don't block match creation
-    const userLoc = userProfile.location.toLowerCase().trim();
-    const candidateLoc = candidateProfile.location.toLowerCase().trim();
-    
-    // If same city/state, assume close (don't block on geocoding)
-    if (userLoc === candidateLoc) {
-      reasons.push(`Same location`);
-    } else {
-      // Extract city names (first part before comma)
-      const userCity = userLoc.split(',')[0].trim();
-      const candidateCity = candidateLoc.split(',')[0].trim();
-      if (userCity === candidateCity && userCity.length > 0) {
-        reasons.push(`Same city`);
-      }
-    }
-    // Note: Full distance calculation removed to avoid blocking match creation
-    // Distance can be calculated later when viewing match details if needed
-  }
-
-  // Looking for compatibility
-  const lookingForMatch = await calculateLookingForMatch(userProfileId, candidateProfileId);
-  if (lookingForMatch >= 7 && userProfile.looking_for && candidateProfile.looking_for) {
-    reasons.push(`Looking for the same thing`);
-  }
+  const filteredReasons = reasons.filter((line) => {
+    const low = line.toLowerCase();
+    if (low.includes('looking for the same thing')) return false;
+    if (low.includes('similar lifestyle preferences')) return false;
+    return true;
+  });
 
   return {
-    reasons: reasons.slice(0, 4), // Limit to top 4 reasons
-    sharedInterests: sharedInterests.map(i => {
-      // Capitalize first letter
-      return i.charAt(0).toUpperCase() + i.slice(1);
-    }),
-    sharedValues: sharedValues.length,
+    reasons: filteredReasons.slice(0, 4),
+    sharedInterests: sharedInterests.map(i => i.charAt(0).toUpperCase() + i.slice(1)),
+    sharedValues: 0,
   };
 }
 

@@ -19,6 +19,9 @@ import { playMatchSound } from '../utils/sounds';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
+/** Floating background particles — fire matches Vibes / Connect branding. */
+const FLOATING_CELEBRATION_EMOJIS = ['🔥'] as const;
+
 interface MatchExplanation {
   reasons: string[];
   sharedInterests: string[];
@@ -31,9 +34,9 @@ interface MatchCelebrationProps {
   onClose: () => void;
   explanation?: MatchExplanation | null;
   matchId?: string | null;
-  /** When true (recipient / User B), skip "Finding your curated match" and show celebration immediately. When false (initiator / User A), show loading then reveal. */
+  /** When true (recipient / User B), skip loading card and show celebration immediately. When false (initiator / User A), show loading then reveal. */
   skipLoadingReveal?: boolean;
-  /** When true (Connect flow), show "Finding your curated match" until matchId is set, then reveal after a short delay. When false, use fixed REVEAL_DELAY_MS. */
+  /** When true (Connect flow), show loading until matchId is set, then reveal after a short delay. When false, use fixed REVEAL_DELAY_MS. */
   revealWhenMatchIdReady?: boolean;
 }
 
@@ -93,7 +96,7 @@ function ConfettiParticleComponent({ particle }: { particle: ConfettiParticle })
   );
 }
 
-// Loading state shown before match reveal: "Finding your curated match..." with animation
+// Loading state before celebration reveal (Connect flow)
 function FindingMatchLoading() {
   const dot1 = useRef(new Animated.Value(0)).current;
   const dot2 = useRef(new Animated.Value(0)).current;
@@ -147,9 +150,9 @@ function FindingMatchLoading() {
   return (
     <View style={styles.loadingCard}>
       <Animated.View style={[styles.loadingHeartWrap, { transform: [{ scale: pulse }] }]}>
-        <Text style={styles.loadingHeart}>💕</Text>
+        <Text style={styles.loadingHeart}>✨</Text>
       </Animated.View>
-      <Text style={styles.loadingTitle}>Finding your curated match</Text>
+      <Text style={styles.loadingTitle}>Finding someone for you</Text>
       <View style={styles.loadingDotsRow}>
         <Animated.View style={[styles.loadingDot, { transform: [{ translateY: translateY1 }] }]} />
         <Animated.View style={[styles.loadingDot, { transform: [{ translateY: translateY2 }] }]} />
@@ -160,7 +163,7 @@ function FindingMatchLoading() {
   );
 }
 
-const REVEAL_DELAY_MS = 7000; // "Finding your curated match..." shows for 7 seconds before reveal (Connect flow minimum)
+const REVEAL_DELAY_MS = 7000; // Minimum loading time before reveal (Connect flow)
 
 export default function MatchCelebration({
   profileName,
@@ -178,7 +181,7 @@ export default function MatchCelebration({
   const [showConfetti, setShowConfetti] = useState(false);
   const [showButton, setShowButton] = useState(false);
   const [modalVisible, setModalVisible] = useState(true);
-  /** When true, overlay uses pointerEvents="none" so touches pass through during Keep Browsing transition (avoids freeze) */
+  /** When true, overlay uses pointerEvents="none" so touches pass through during Back to Connect transition (avoids freeze) */
   const [isClosingToBrowse, setIsClosingToBrowse] = useState(false);
   const [confettiParticles] = useState<ConfettiParticle[]>(() => {
     const colors = ['#667eea', '#764ba2', '#a855f7', '#c026d3', '#ec4899', '#f472b6'];
@@ -205,10 +208,10 @@ export default function MatchCelebration({
   const buttonPulseAnim = useRef(new Animated.Value(1)).current;
   /** Ensure we only play the match sound once (effect can run twice in Strict Mode or on re-run) */
   const soundPlayedRef = useRef(false);
-  /** When the "Finding your curated match" modal opened (Connect flow); used to enforce 7s minimum */
+  /** When the loading card opened (Connect flow); used to enforce 7s minimum */
   const openedAtRef = useRef<number>(Date.now());
 
-  // Connect flow: show "Finding your curated match" for at least REVEAL_DELAY_MS (7s), then reveal when matchId is set
+  // Connect flow: show loading for at least REVEAL_DELAY_MS (7s), then reveal when matchId is set
   useEffect(() => {
     if (!revealWhenMatchIdReady || skipLoadingReveal || !matchId?.trim()) return;
     const elapsed = Date.now() - openedAtRef.current;
@@ -345,7 +348,7 @@ export default function MatchCelebration({
     };
   }, [revealed]);
 
-  // Play match sound only when the celebration card is actually visible (showContent), not when "Finding your curated match" is showing
+  // Play match sound only when the celebration card is actually visible (showContent), not during loading
   useEffect(() => {
     if (!showContent) return;
     if (soundPlayedRef.current) return;
@@ -392,12 +395,12 @@ export default function MatchCelebration({
     }
   };
 
-  /** Navigate to Connect (Browse) tab landing page and close the celebration — used by "Keep Browsing" */
+  /** Navigate to Connect (Browse) tab landing page and close the celebration — used by "Back to Connect" */
   const handleKeepBrowsing = () => {
     try {
       import('../utils/debugLogger').then(({ addBreadcrumb, debugLog }) => {
-        addBreadcrumb('MatchCelebration', 'Keep Browsing tapped', { matchId });
-        debugLog('MatchCelebration', 'Keep Browsing flow', { step: 'unblock then navigate then onClose' });
+        addBreadcrumb('MatchCelebration', 'Back to Connect tapped', { matchId });
+        debugLog('MatchCelebration', 'Back to Connect flow', { step: 'unblock then navigate then onClose' });
       });
       // Let touches pass through immediately so tab bar and Connect button stay usable (avoids freeze)
       setIsClosingToBrowse(true);
@@ -483,7 +486,7 @@ export default function MatchCelebration({
           style={StyleSheet.absoluteFill}
         />
         
-        {/* Loading state: "Finding your curated match..." */}
+        {/* Loading state before reveal */}
         {!revealed && (
           <FindingMatchLoading />
         )}
@@ -574,7 +577,7 @@ export default function MatchCelebration({
                   },
                 ]}
               >
-                It's
+                You're
               </Animated.Text>
               <Animated.Text
                 style={[
@@ -585,7 +588,7 @@ export default function MatchCelebration({
                   },
                 ]}
               >
-                {' '}a{' '}
+                {' '}
               </Animated.Text>
               <Animated.View
                 style={{
@@ -602,21 +605,21 @@ export default function MatchCelebration({
                     },
                   ]}
                 >
-                  Match! 💖
+                  connected! ✨
                 </Animated.Text>
               </Animated.View>
             </View>
 
             <View style={styles.subtitleContainer}>
               <Text style={styles.subtitle}>
-                You and <Text style={styles.bold}>{profileName}</Text> connected
+                Start vibing with <Text style={styles.bold}>{profileName}</Text>
               </Text>
             </View>
             
             {/* Match Explanation */}
             {explanation && explanation.reasons.length > 0 && (
               <View style={styles.explanationContainer}>
-                <Text style={styles.explanationTitle}>Why you matched:</Text>
+                <Text style={styles.explanationTitle}>What you have in common:</Text>
                 {explanation.reasons.map((reason, index) => (
                   <View key={index} style={styles.reasonItem}>
                     <Text style={styles.reasonBullet}>✨</Text>
@@ -657,13 +660,13 @@ export default function MatchCelebration({
                   </TouchableOpacity>
                 </Animated.View>
                 
-                {/* Keep Browsing button — go to Connect tab */}
+                {/* Back to Connect — Browse tab landing */}
                 <TouchableOpacity
                   style={styles.secondaryButton}
                   onPress={handleKeepBrowsing}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.secondaryButtonText}>Keep Browsing</Text>
+                  <Text style={styles.secondaryButtonText}>Back to Connect</Text>
                 </TouchableOpacity>
               </Animated.View>
             )}
@@ -672,7 +675,7 @@ export default function MatchCelebration({
           {/* Sparkles */}
           <SparklesComponent />
           
-          {/* Floating Hearts */}
+          {/* Floating fire (Vibes tab vibe) */}
           <FloatingHeartsComponent />
         </Animated.View>
         )}
@@ -681,7 +684,7 @@ export default function MatchCelebration({
   );
 }
 
-// Individual floating heart with its own looping animation
+// Individual floating emoji with its own looping animation
 function FloatingHeart({ index }: { index: number }) {
   const startX = useRef(Math.random() * SCREEN_WIDTH).current;
   const startY = SCREEN_HEIGHT + 20;
@@ -773,6 +776,8 @@ function FloatingHeart({ index }: { index: number }) {
     outputRange: ['0deg', '360deg'],
   });
 
+  const emoji = FLOATING_CELEBRATION_EMOJIS[index % FLOATING_CELEBRATION_EMOJIS.length];
+
   return (
     <Animated.View
       style={[
@@ -790,12 +795,12 @@ function FloatingHeart({ index }: { index: number }) {
         },
       ]}
     >
-      <Text style={styles.heartEmoji}>💖</Text>
+      <Text style={styles.heartEmoji}>{emoji}</Text>
     </Animated.View>
   );
 }
 
-// Separate component for floating hearts - renders individual hearts that loop continuously
+// Floating particles (cycles FLOATING_CELEBRATION_EMOJIS)
 function FloatingHeartsComponent() {
   return (
     <View style={styles.floatingHeartsContainer} pointerEvents="none">

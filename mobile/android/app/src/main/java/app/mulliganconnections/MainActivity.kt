@@ -1,4 +1,4 @@
-package app.mulligandating
+package app.mulliganconnections
 
 import android.os.Build
 import android.os.Bundle
@@ -25,13 +25,13 @@ class MainActivity : ReactActivity() {
 
   /**
    * Returns the name of the main component registered from JavaScript. This is used to schedule
-   * rendering of the component.
+   * rendering of the application.
    */
   override fun getMainComponentName(): String = "main"
 
   /**
    * Returns the instance of the [ReactActivityDelegate]. We use [DefaultReactActivityDelegate]
-   * which allows you to enable New Architecture with a single boolean flags [fabricEnabled]
+   * which allows you to enable the New Architecture with a single boolean flag [fabricEnabled]
    */
   override fun createReactActivityDelegate(): ReactActivityDelegate {
     return ReactActivityDelegateWrapper(
@@ -59,7 +59,7 @@ class MainActivity : ReactActivity() {
       }
 
       // Use the default back button implementation on Android S
-      // because it's doing more than [Activity.moveTaskToBack] in fact.
+      // because it is doing more than [Activity.moveTaskToBack] in fact.
       super.invokeDefaultOnBackPressed()
   }
 }

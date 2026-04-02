@@ -136,7 +136,6 @@ const ConnectLandingScarcity = memo(function ConnectLandingScarcity({
               {tokensCapped}
               <Text style={styles.cellValueHeroSuffix}> / {MAX_MULLIGANS}</Text>
             </Text>
-            <Text style={styles.cellHint}>1 per Connect</Text>
           </View>
 
           <View
@@ -152,7 +151,6 @@ const ConnectLandingScarcity = memo(function ConnectLandingScarcity({
               {slotsOpen}
               <Text style={styles.cellValueSlotSuffix}> / {slotLimit}</Text>
             </Text>
-            <Text style={styles.cellHint}>Active chats at once</Text>
           </View>
         </View>
 
@@ -177,7 +175,7 @@ const ConnectLandingScarcity = memo(function ConnectLandingScarcity({
 const styles = StyleSheet.create({
   shellOuter: {
     width: '100%',
-    marginBottom: 28,
+    marginBottom: 18,
     borderRadius: 22,
     ...Platform.select({
       ios: {
@@ -308,11 +306,11 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
   statTilePrimary: {
-    paddingVertical: 16,
+    paddingVertical: 14,
     minWidth: 0,
   },
   statTileSecondary: {
-    paddingVertical: 14,
+    paddingVertical: 12,
     minWidth: 0,
   },
   statTileNeutral: {
@@ -373,13 +371,6 @@ const styles = StyleSheet.create({
   },
   cellValueCool: {
     color: '#5b21b6',
-  },
-  cellHint: {
-    marginTop: 6,
-    fontSize: 10,
-    color: 'rgba(26, 26, 46, 0.38)',
-    fontWeight: '600',
-    letterSpacing: 0.15,
   },
   footerInset: {
     flexDirection: 'row',

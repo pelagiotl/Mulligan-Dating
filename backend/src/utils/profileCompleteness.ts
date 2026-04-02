@@ -45,67 +45,21 @@ export async function calculateCompleteness(profileId: string): Promise<number> 
     : interestsResult) as { count: number } | undefined;
   const interestsCount = interests?.count || 0;
 
-  // Count partner qualities
-  const qualitiesResult = db
-    .prepare("SELECT COUNT(*) as count FROM partner_qualities WHERE profile_id = ?")
-    .get([profileId]);
-  const qualities = (qualitiesResult instanceof Promise
-    ? await qualitiesResult
-    : qualitiesResult) as { count: number } | undefined;
-  const qualitiesCount = qualities?.count || 0;
-
-  // Check lifestyle completeness
-  const lifestyleResult = db
-    .prepare("SELECT smoking, drinking, children, pets, religion, work_life_balance FROM lifestyle WHERE profile_id = ?")
-    .get([profileId]);
-  const lifestyle = (lifestyleResult instanceof Promise
-    ? await lifestyleResult
-    : lifestyleResult) as {
-      smoking: string | null;
-      drinking: string | null;
-      children: string | null;
-      pets: string | null;
-      religion: string | null;
-      work_life_balance: string | null;
-    } | undefined;
-
-  const lifestyleFields = lifestyle ? [
-    lifestyle.smoking,
-    lifestyle.drinking,
-    lifestyle.children,
-    lifestyle.pets,
-    lifestyle.religion,
-    lifestyle.work_life_balance
-  ] : [];
-  const lifestyleComplete = lifestyleFields.filter(f => f !== null && f !== '').length >= 4; // At least 4/6 fields
-
-  // Calculate completeness score
+  // Calculate completeness score (intentional connections: profile basics + interests)
   let score = 0;
   let maxScore = 0;
 
-  // Basic info (30%)
-  maxScore += 0.3;
-  if (profile.bio && profile.bio.trim().length > 20) score += 0.1;
-  if (profile.photo_url) score += 0.1;
-  if (profile.looking_for) score += 0.05;
-  if (profile.location) score += 0.05;
+  // Basic info (40%)
+  maxScore += 0.4;
+  if (profile.bio && profile.bio.trim().length > 20) score += 0.15;
+  if (profile.photo_url) score += 0.15;
+  if (profile.location) score += 0.1;
 
-  // Interests (25%)
-  maxScore += 0.25;
-  if (interestsCount >= 5) score += 0.25;
-  else if (interestsCount >= 3) score += 0.15;
-  else if (interestsCount >= 1) score += 0.1;
-
-  // Partner qualities (25%)
-  maxScore += 0.25;
-  if (qualitiesCount >= 5) score += 0.25;
-  else if (qualitiesCount >= 3) score += 0.15;
-  else if (qualitiesCount >= 1) score += 0.1;
-
-  // Lifestyle (20%)
-  maxScore += 0.2;
-  if (lifestyleComplete) score += 0.2;
-  else if (lifestyleFields.filter(f => f !== null && f !== '').length >= 2) score += 0.1;
+  // Interests (60%)
+  maxScore += 0.6;
+  if (interestsCount >= 5) score += 0.6;
+  else if (interestsCount >= 3) score += 0.4;
+  else if (interestsCount >= 1) score += 0.25;
 
   // Normalize to 0-1
   return maxScore > 0 ? Math.min(score / maxScore, 1) : 0;

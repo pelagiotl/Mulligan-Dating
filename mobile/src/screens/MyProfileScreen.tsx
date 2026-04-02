@@ -138,8 +138,6 @@ interface SettingsData {
   showActiveStatus?: boolean;
 }
 
-const LOOKING_FOR_OPTIONS = ['Relationship', 'Something casual', 'Friendship', 'Not sure yet'];
-
 // Values sent to API (matching uses profile.gender: "Man" | "Woman" | "Non-binary" etc.)
 const PREFERRED_GENDERS_VALUES = ['Man', 'Woman', 'Other', 'Everyone'];
 const PREFERRED_GENDERS_LABELS: Record<string, string> = { Man: 'Men', Woman: 'Women', Other: 'Other', Everyone: 'Everyone' };
@@ -169,14 +167,12 @@ export default function MyProfileScreen() {
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
   const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
   const dragAnimatedValue = useRef(new Animated.ValueXY()).current;
-  // Location / Max distance / Looking for / Bio edit modals and state
+  // Location / Max distance / Bio edit modals and state
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showDistanceModal, setShowDistanceModal] = useState(false);
-  const [showLookingForModal, setShowLookingForModal] = useState(false);
   const [showPreferredGendersModal, setShowPreferredGendersModal] = useState(false);
   const [editLocation, setEditLocation] = useState('');
   const [editMaxDistance, setEditMaxDistance] = useState<number | null>(50);
-  const [editLookingFor, setEditLookingFor] = useState('');
   const [editPreferredGenders, setEditPreferredGenders] = useState<string[]>([]);
   const [showBioModal, setShowBioModal] = useState(false);
   const [editBio, setEditBio] = useState('');
@@ -575,8 +571,7 @@ export default function MyProfileScreen() {
   useEffect(() => {
     if (!data) return;
     
-    // Create animations for each section (photos, interests, dealbreakers, partner qualities, lifestyle)
-    const sectionCount = 5;
+    const sectionCount = 2;
     for (let i = 0; i < sectionCount; i++) {
       if (!sectionAnims[i]) {
         sectionAnims[i] = new Animated.Value(0);
@@ -785,30 +780,6 @@ export default function MyProfileScreen() {
       refreshProfile?.();
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Failed to update location.');
-    } finally {
-      setUpdatingField(false);
-    }
-  };
-
-  const saveLookingFor = async () => {
-    if (!data?.profile) return;
-    const val = editLookingFor.trim() || null;
-    setUpdatingField(true);
-    try {
-      await api.post('/profile', {
-        displayName: data.profile.display_name,
-        age: data.profile.age,
-        gender: data.profile.gender,
-        location: data.profile.location ?? null,
-        bio: data.profile.bio ?? null,
-        lookingFor: val,
-      });
-      setData((prev) => prev ? { ...prev, profile: { ...prev.profile, looking_for: val } } : null);
-      setShowLookingForModal(false);
-      api.clearCache('/profile');
-      refreshProfile?.();
-    } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Failed to update looking for.');
     } finally {
       setUpdatingField(false);
     }
@@ -1267,7 +1238,7 @@ export default function MyProfileScreen() {
     );
   }
 
-  const { profile, interests, dealbreakers, partnerQualities, lifestyle } = data!;
+  const { profile, interests } = data!;
 
   // Get primary photo or first photo - only use photos from the photos array
   // Don't fall back to profile.photo_url since that may be stale after deletion
@@ -1992,29 +1963,6 @@ export default function MyProfileScreen() {
                 </LinearGradient>
               </TouchableOpacity>
 
-              {/* Looking For - tappable to update */}
-              <TouchableOpacity
-                activeOpacity={0.9}
-                onPress={() => {
-                  setEditLookingFor(profile.looking_for || '');
-                  setShowLookingForModal(true);
-                  if (Platform.OS === 'ios') Vibration.vibrate(50);
-                  else Vibration.vibrate(50);
-                }}
-                style={styles.infoCardFullTouchable}
-              >
-                <LinearGradient
-                  colors={['#f5576c', '#f093fb', '#667eea']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.infoCardFull}
-                >
-                  <Text style={styles.infoCardEmoji}>💕</Text>
-                  <Text style={styles.infoCardLabel}>Looking For</Text>
-                  <Text style={styles.infoCardValueFull}>{profile.looking_for || 'Tap to add'}</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-
               {/* About Me - tappable to open edit modal (keyboard won't cover Save/Cancel) */}
               <View style={styles.bioContainer}>
                 <LinearGradient
@@ -2089,48 +2037,6 @@ export default function MyProfileScreen() {
                   <Text style={styles.editModalCancelPillText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.editModalSavePill} onPress={saveLocation} disabled={updatingField} activeOpacity={0.8}>
-                  <Text style={styles.editModalSavePillText}>{updatingField ? 'Saving...' : 'Save'}</Text>
-                </TouchableOpacity>
-              </View>
-            </LinearGradient>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Looking for edit modal - gradient card */}
-      <Modal visible={showLookingForModal} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <TouchableOpacity style={styles.modalOverlayTouchable} activeOpacity={1} onPress={() => setShowLookingForModal(false)} />
-          <View style={styles.editModalCard}>
-            <LinearGradient
-              colors={['#f5576c', '#f093fb', '#667eea']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.editModalGradient}
-            >
-              <Text style={styles.editModalEmoji}>💕</Text>
-              <Text style={styles.editModalTitleLight}>What are you looking for?</Text>
-              <Text style={styles.editModalSubtitleLight}>Help us show you better matches</Text>
-              <View style={styles.editModalInner}>
-                <View style={styles.pickerWrapper}>
-                  <Picker
-                    selectedValue={editLookingFor}
-                    onValueChange={(v) => setEditLookingFor(v || '')}
-                    style={styles.picker}
-                    itemStyle={Platform.OS === 'ios' ? styles.pickerItem : undefined}
-                  >
-                    <Picker.Item label="Select an option" value="" />
-                    {LOOKING_FOR_OPTIONS.map((opt) => (
-                      <Picker.Item key={opt} label={opt} value={opt} />
-                    ))}
-                  </Picker>
-                </View>
-              </View>
-              <View style={styles.editModalActions}>
-                <TouchableOpacity style={styles.editModalCancelPill} onPress={() => setShowLookingForModal(false)} activeOpacity={0.8}>
-                  <Text style={styles.editModalCancelPillText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.editModalSavePill} onPress={saveLookingFor} disabled={updatingField} activeOpacity={0.8}>
                   <Text style={styles.editModalSavePillText}>{updatingField ? 'Saving...' : 'Save'}</Text>
                 </TouchableOpacity>
               </View>
@@ -2497,7 +2403,7 @@ export default function MyProfileScreen() {
           <View style={styles.sectionTitleContainer}>
             <AnimatedEmoji emoji="🎯" delay={200} />
             <Text style={styles.sectionTitle}> My Interests</Text>
-            <TouchableOpacity style={styles.sectionEditTouchable} onPress={() => navigateToCreateProfile({ initialStep: 7 })} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity style={styles.sectionEditTouchable} onPress={() => navigateToCreateProfile({ initialStep: 6 })} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Text style={styles.sectionEditLink}>Edit</Text>
             </TouchableOpacity>
           </View>
@@ -2507,166 +2413,6 @@ export default function MyProfileScreen() {
                 <Text style={styles.tagText}>{interest.name}</Text>
               </View>
             ))}
-          </View>
-        </Animated.View>
-      )}
-
-      {/* Dealbreakers */}
-      {dealbreakers.length > 0 && (
-        <Animated.View 
-          style={[
-            styles.section,
-            {
-              opacity: sectionAnims[2] ?? sectionFallbackAnim,
-              transform: [
-                { 
-                  translateY: (sectionAnims[2] ?? sectionFallbackAnim).interpolate({ 
-                    inputRange: [0, 1], 
-                    outputRange: [40, 0] 
-                  }) 
-                },
-                { 
-                  scale: (sectionAnims[2] ?? sectionFallbackAnim).interpolate({ 
-                    inputRange: [0, 1], 
-                    outputRange: [0.92, 1] 
-                  }) 
-                },
-              ],
-            },
-          ]}
-        >
-          <View style={styles.sectionTitleContainer}>
-            <AnimatedEmoji emoji="🚫" delay={400} />
-            <Text style={styles.sectionTitle}> My Dealbreakers</Text>
-            <TouchableOpacity style={styles.sectionEditTouchable} onPress={() => navigateToCreateProfile({ initialStep: 8 })} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={styles.sectionEditLink}>Edit</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.tagsContainer}>
-            {dealbreakers.map((db, idx) => (
-              <View key={idx} style={styles.tag}>
-                <Text style={styles.tagText}>{db.description}</Text>
-              </View>
-            ))}
-          </View>
-        </Animated.View>
-      )}
-
-      {/* Partner Qualities */}
-      {partnerQualities.length > 0 && (
-        <Animated.View 
-          style={[
-            styles.section,
-            {
-              opacity: sectionAnims[3] ?? sectionFallbackAnim,
-              transform: [
-                { 
-                  translateY: (sectionAnims[3] ?? sectionFallbackAnim).interpolate({ 
-                    inputRange: [0, 1], 
-                    outputRange: [40, 0] 
-                  }) 
-                },
-                { 
-                  scale: (sectionAnims[3] ?? sectionFallbackAnim).interpolate({ 
-                    inputRange: [0, 1], 
-                    outputRange: [0.92, 1] 
-                  }) 
-                },
-              ],
-            },
-          ]}
-        >
-          <View style={styles.sectionTitleContainer}>
-            <AnimatedEmoji emoji="💕" delay={600} />
-            <Text style={styles.sectionTitle}> What I'm Looking For</Text>
-            <TouchableOpacity style={styles.sectionEditTouchable} onPress={() => navigateToCreateProfile({ initialStep: 9 })} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={styles.sectionEditLink}>Edit</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.tagsContainer}>
-            {partnerQualities.map((q, idx) => (
-              <View key={idx} style={styles.tag}>
-                <Text style={styles.tagText}>{q.quality}</Text>
-              </View>
-            ))}
-          </View>
-        </Animated.View>
-      )}
-
-      {/* Lifestyle */}
-      {lifestyle && (
-        <Animated.View 
-          style={[
-            styles.section,
-            {
-              opacity: sectionAnims[4] ?? sectionFallbackAnim,
-              transform: [
-                { 
-                  translateY: (sectionAnims[4] ?? sectionFallbackAnim).interpolate({ 
-                    inputRange: [0, 1], 
-                    outputRange: [40, 0] 
-                  }) 
-                },
-                { 
-                  scale: (sectionAnims[4] ?? sectionFallbackAnim).interpolate({ 
-                    inputRange: [0, 1], 
-                    outputRange: [0.92, 1] 
-                  }) 
-                },
-              ],
-            },
-          ]}
-        >
-          <View style={styles.sectionTitleContainer}>
-            <AnimatedEmoji emoji="🌱" delay={800} />
-            <Text style={styles.sectionTitle}> Lifestyle</Text>
-            <TouchableOpacity style={styles.sectionEditTouchable} onPress={() => navigateToCreateProfile({ initialStep: 14 })} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={styles.sectionEditLink}>Edit</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.lifestyleContainer}>
-            {lifestyle.smoking && (
-              <View style={styles.lifestyleItem}>
-                <Text style={styles.lifestyleLabel}>Smoking:</Text>
-                <Text style={styles.lifestyleValue}>{lifestyle.smoking}</Text>
-              </View>
-            )}
-            {lifestyle.drinking && (
-              <View style={styles.lifestyleItem}>
-                <Text style={styles.lifestyleLabel}>Drinking:</Text>
-                <Text style={styles.lifestyleValue}>{lifestyle.drinking}</Text>
-              </View>
-            )}
-            {lifestyle.children && (
-              <View style={styles.lifestyleItem}>
-                <Text style={styles.lifestyleLabel}>Children:</Text>
-                <Text style={styles.lifestyleValue}>{lifestyle.children}</Text>
-              </View>
-            )}
-            {lifestyle.pets && (
-              <View style={styles.lifestyleItem}>
-                <Text style={styles.lifestyleLabel}>Pets:</Text>
-                <Text style={styles.lifestyleValue}>{lifestyle.pets}</Text>
-              </View>
-            )}
-            {lifestyle.religion && (
-              <View style={styles.lifestyleItem}>
-                <Text style={styles.lifestyleLabel}>Religion:</Text>
-                <Text style={styles.lifestyleValue}>{lifestyle.religion}</Text>
-              </View>
-            )}
-            {lifestyle.work_life_balance && (
-              <View style={styles.lifestyleItem}>
-                <Text style={styles.lifestyleLabel}>Work-Life Balance:</Text>
-                <Text style={styles.lifestyleValue}>{lifestyle.work_life_balance}</Text>
-              </View>
-            )}
-            {lifestyle.works_out && (
-              <View style={styles.lifestyleItem}>
-                <Text style={styles.lifestyleLabel}>Works out:</Text>
-                <Text style={styles.lifestyleValue}>{lifestyle.works_out}</Text>
-              </View>
-            )}
           </View>
         </Animated.View>
       )}

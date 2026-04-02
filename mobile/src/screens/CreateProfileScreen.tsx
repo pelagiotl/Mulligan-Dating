@@ -42,8 +42,6 @@ const GENDER_OPTIONS = ['Man', 'Woman', 'Other'];
 const PREFERRED_GENDER_OPTIONS = ['Man', 'Woman', 'Everyone'] as const;
 const PREFERRED_GENDER_LABELS: Record<string, string> = { Man: 'Men', Woman: 'Women', Everyone: 'Everyone' };
 function preferredGenderDisplayLabel(value: string) { return PREFERRED_GENDER_LABELS[value] ?? value; }
-const LOOKING_FOR_OPTIONS = ['Relationship', 'Something casual', 'Friendship', 'Not sure yet'];
-
 const INTEREST_OPTIONS = [
   'Travel', 'Music', 'Sports', 'Cooking', 'Reading', 'Movies', 'Fitness', 'Art',
   'Photography', 'Dancing', 'Gaming', 'Hiking', 'Yoga', 'Writing', 'Technology',
@@ -52,7 +50,7 @@ const INTEREST_OPTIONS = [
   'Business', 'Education'
 ]
 
-// Emoji mapping for interests and qualities
+// Emoji mapping for interests
 const INTEREST_EMOJIS: { [key: string]: string } = {
   'Travel': '✈️',
   'Music': '🎵',
@@ -86,13 +84,7 @@ const INTEREST_EMOJIS: { [key: string]: string } = {
   'Education': '🎓',
 };
 
-const DEALBREAKER_OPTIONS = [
-  'Smokes cigarettes', 'Marijuana', 'Frequent drinking',
-  'Doesn\'t want children', 'Wants children',
-  'Doesn\'t like pets'
-];
-
-const TOTAL_STEPS = 15; // 1-6: basic info; 7: interests; 8: dealbreakers; 9: qualities; 10-13: min age, max age, preferred genders, max distance; 14: lifestyle; 15: photos
+const TOTAL_STEPS = 11; // 1-4 basics; 5 bio; 6 interests; 7-10 prefs; 11 photos
 const MIN_PHOTOS_REQUIRED = 3;
 
 export default function CreateProfileScreen() {
@@ -115,7 +107,6 @@ export default function CreateProfileScreen() {
   const ageCardRef = useRef<View>(null);
   const genderCardRef = useRef<View>(null);
   const locationCardRef = useRef<View>(null);
-  const lookingForCardRef = useRef<View>(null);
   const bioCardRef = useRef<View>(null);
   
   // Y positions for step 1 cards
@@ -123,20 +114,13 @@ export default function CreateProfileScreen() {
   const [ageCardY, setAgeCardY] = useState<number | null>(null);
   const [genderCardY, setGenderCardY] = useState<number | null>(null);
   const [locationCardY, setLocationCardY] = useState<number | null>(null);
-  const [lookingForCardY, setLookingForCardY] = useState<number | null>(null);
   const [bioCardY, setBioCardY] = useState<number | null>(null);
   const displayNameInputRef = useRef<TextInput>(null);
   const ageInputRef = useRef<TextInput>(null);
   const locationInputRef = useRef<TextInput>(null);
-  const scrollViewRef = useRef<ScrollView>(null);
   const genderFieldRef = useRef<View>(null);
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const displayNameTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const pendingScrollToRef = useRef<'lookingFor' | 'bio' | null>(null);
-  const skipAutoScrollRef = useRef(false); // when true (edit profile from start), don't auto-scroll to bio
-  const step5AllowScrollRef = useRef(false); // when false (just entered step 5), don't auto-scroll in preferences
-  const step6AllowScrollRef = useRef(false); // when false (just entered step 6), don't auto-scroll in lifestyle
-  const lifestyleCardYsRef = useRef<Record<string, number>>({});
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const maxAgeCardRef = useRef<View>(null);
   const preferredGendersRef = useRef<View>(null);
@@ -152,18 +136,7 @@ export default function CreateProfileScreen() {
     }
   };
   
-  // Separate viewability handler for step 5
-  
-  // Refs for lifestyle cards (for scrolling)
-  const smokingCardRef = useRef<View>(null);
-  const drinkingCardRef = useRef<View>(null);
-  const childrenCardRef = useRef<View>(null);
-  const petsCardRef = useRef<View>(null);
-  const religionCardRef = useRef<View>(null);
-  const workLifeBalanceCardRef = useRef<View>(null);
-  const worksOutCardRef = useRef<View>(null);
-  
-  // Animation values for step 4 (dating preferences)
+  // Animation values for match preferences (steps 7–10)
   const minAgeScale = useRef(new Animated.Value(0.95)).current;
   const minAgeOpacity = useRef(new Animated.Value(0)).current;
   const minAgeGlow = useRef(new Animated.Value(0)).current;
@@ -188,35 +161,9 @@ export default function CreateProfileScreen() {
   const locationScale = useRef(new Animated.Value(0.95)).current;
   const locationOpacity = useRef(new Animated.Value(0)).current;
   const locationGlow = useRef(new Animated.Value(0)).current;
-  const lookingForScale = useRef(new Animated.Value(0.95)).current;
-  const lookingForOpacity = useRef(new Animated.Value(0)).current;
-  const lookingForGlow = useRef(new Animated.Value(0)).current;
   const bioScale = useRef(new Animated.Value(0.95)).current;
   const bioOpacity = useRef(new Animated.Value(0)).current;
   const bioGlow = useRef(new Animated.Value(0)).current;
-
-  // Lifestyle field animation refs
-  const smokingScale = useRef(new Animated.Value(0.95)).current;
-  const smokingOpacity = useRef(new Animated.Value(0)).current;
-  const smokingGlow = useRef(new Animated.Value(0)).current;
-  const drinkingScale = useRef(new Animated.Value(0.95)).current;
-  const drinkingOpacity = useRef(new Animated.Value(0)).current;
-  const drinkingGlow = useRef(new Animated.Value(0)).current;
-  const childrenScale = useRef(new Animated.Value(0.95)).current;
-  const childrenOpacity = useRef(new Animated.Value(0)).current;
-  const childrenGlow = useRef(new Animated.Value(0)).current;
-  const petsScale = useRef(new Animated.Value(0.95)).current;
-  const petsOpacity = useRef(new Animated.Value(0)).current;
-  const petsGlow = useRef(new Animated.Value(0)).current;
-  const religionScale = useRef(new Animated.Value(0.95)).current;
-  const religionOpacity = useRef(new Animated.Value(0)).current;
-  const religionGlow = useRef(new Animated.Value(0)).current;
-  const workLifeBalanceScale = useRef(new Animated.Value(0.95)).current;
-  const workLifeBalanceOpacity = useRef(new Animated.Value(0)).current;
-  const workLifeBalanceGlow = useRef(new Animated.Value(0)).current;
-  const worksOutScale = useRef(new Animated.Value(0.95)).current;
-  const worksOutOpacity = useRef(new Animated.Value(0)).current;
-  const worksOutGlow = useRef(new Animated.Value(0)).current;
 
   // Step 1: Basic Info
   const [displayName, setDisplayName] = useState('');
@@ -224,17 +171,11 @@ export default function CreateProfileScreen() {
   const [gender, setGender] = useState('');
   const [location, setLocation] = useState('');
   const [bio, setBio] = useState('');
-  const [lookingFor, setLookingFor] = useState('');
   const [detectingLocation, setDetectingLocation] = useState(false);
 
-  // Step 2: Interests
   const [interests, setInterests] = useState<string[]>([]);
 
-  // Step 3: Dealbreakers & Partner Qualities
-  const [dealbreakers, setDealbreakers] = useState<string[]>([]);
-  const [qualities, setQualities] = useState<string[]>([]);
-
-  // Step 4: Dating Preferences
+  // Match preferences (age range, genders, distance)
   const [minAge, setMinAge] = useState(18);
   const [maxAge, setMaxAge] = useState(100);
   const [preferredGenders, setPreferredGenders] = useState<string[]>([]);
@@ -242,16 +183,7 @@ export default function CreateProfileScreen() {
   const [maxAgeCardY, setMaxAgeCardY] = useState<number | null>(null);
   const [preferredGendersCardY, setPreferredGendersCardY] = useState<number | null>(null);
 
-  // Step 5: Lifestyle
-  const [smoking, setSmoking] = useState('');
-  const [drinking, setDrinking] = useState('');
-  const [children, setChildren] = useState('');
-  const [pets, setPets] = useState('');
-  const [religion, setReligion] = useState('');
-  const [workLifeBalance, setWorkLifeBalance] = useState('');
-  const [worksOut, setWorksOut] = useState('');
-
-  // Step 7: Photos
+  // Photos (final step)
   const [photos, setPhotos] = useState<Array<{ id?: string; url: string; uri?: string }>>([]);
   const [uploadingSlotIndex, setUploadingSlotIndex] = useState<number | null>(null);
 
@@ -306,7 +238,7 @@ export default function CreateProfileScreen() {
     };
   }, [screenWidth, screenHeight]);
 
-  // Animate and focus the active basic-info field when on steps 1-6
+  // Animate and focus the active basic-info field when on steps 1-5 (basics + bio)
   useEffect(() => {
     const anim = (s: Animated.Value, o: Animated.Value, g: Animated.Value) => {
       Animated.parallel([
@@ -325,12 +257,11 @@ export default function CreateProfileScreen() {
     } else if (step === 3) anim(genderScale, genderOpacity, genderGlow);
     else if (step === 4) {
       anim(locationScale, locationOpacity, locationGlow);
-    } else if (step === 5) anim(lookingForScale, lookingForOpacity, lookingForGlow);
-    else if (step === 6) anim(bioScale, bioOpacity, bioGlow);
+    } else if (step === 5) anim(bioScale, bioOpacity, bioGlow);
     else {
-      [firstNameScale, ageScale, genderScale, locationScale, lookingForScale, bioScale].forEach(s => s.setValue(0.95));
-      [firstNameOpacity, ageOpacity, genderOpacity, locationOpacity, lookingForOpacity, bioOpacity].forEach(o => o.setValue(0));
-      [firstNameGlow, ageGlow, genderGlow, locationGlow, lookingForGlow, bioGlow].forEach(g => g.setValue(0));
+      [firstNameScale, ageScale, genderScale, locationScale, bioScale].forEach(s => s.setValue(0.95));
+      [firstNameOpacity, ageOpacity, genderOpacity, locationOpacity, bioOpacity].forEach(o => o.setValue(0));
+      [firstNameGlow, ageGlow, genderGlow, locationGlow, bioGlow].forEach(g => g.setValue(0));
     }
   }, [step]);
 
@@ -369,103 +300,24 @@ export default function CreateProfileScreen() {
     ]).start();
   };
 
-  // Function to manually trigger next field animation and navigate to next card
-  const triggerNextField = (fieldName: 'gender' | 'location' | 'lookingFor' | 'bio') => {
-    console.log('🎯 Triggering next field:', fieldName);
-    const fieldToCardY: Record<string, number | null> = {
-      'gender': genderCardY,
-      'location': locationCardY,
-      'lookingFor': lookingForCardY,
-      'bio': bioCardY,
-    };
-    const nextCardY = fieldToCardY[fieldName];
-    
-    if (nextCardY !== null) {
-      // Animate the field
-      if (fieldName === 'gender') {
-        animateField(genderScale, genderOpacity, genderGlow);
-      } else if (fieldName === 'location') {
-        animateField(locationScale, locationOpacity, locationGlow);
-      } else if (fieldName === 'lookingFor') {
-        animateField(lookingForScale, lookingForOpacity, lookingForGlow);
-      } else if (fieldName === 'bio') {
-        animateField(bioScale, bioOpacity, bioGlow);
-      }
-      
-      // Navigate to next card with vertical scroll
-      setTimeout(() => {
-        scrollToStep1Card(nextCardY, -20);
-      }, 300);
-    }
-  };
-
-  // Step 10 (dating preferences) - Progressive disclosure with vertical scrolling
+  // Match preferences (steps 7–10) — progressive disclosure
   useEffect(() => {
-    if (step === 10) {
+    if (step === 7) {
       animateField(minAgeScale, minAgeOpacity, minAgeGlow);
     }
   }, [step]);
 
   useEffect(() => {
-    if (step === 11) animateField(maxAgeScale, maxAgeOpacity, maxAgeGlow);
+    if (step === 8) animateField(maxAgeScale, maxAgeOpacity, maxAgeGlow);
   }, [step]);
   useEffect(() => {
-    if (step === 12) animateField(preferredGendersScale, preferredGendersOpacity, preferredGendersGlow);
+    if (step === 9) animateField(preferredGendersScale, preferredGendersOpacity, preferredGendersGlow);
   }, [step]);
   useEffect(() => {
-    if (step === 13) {
+    if (step === 10) {
       animateField(maxDistanceScale, maxDistanceOpacity, maxDistanceGlow);
     }
   }, [step]);
-
-  // Step 14 (lifestyle) - Progressive disclosure with auto-navigation
-  useEffect(() => {
-    if (step === 14) {
-      step6AllowScrollRef.current = false; // Disable auto-scroll from useEffects/onLayout on initial entry
-      animateField(smokingScale, smokingOpacity, smokingGlow);
-      // Scroll to top so user starts at smoking card
-      setTimeout(() => {
-        scrollViewRef.current?.scrollTo({ y: 0, animated: false });
-      }, 100);
-    }
-  }, [step]);
-
-  // Animate next cards as previous ones are completed (scroll happens only from Picker onValueChange)
-  useEffect(() => {
-    if (step === 14 && smoking) {
-      setTimeout(() => animateField(drinkingScale, drinkingOpacity, drinkingGlow), 300);
-    }
-  }, [smoking, step]);
-
-  useEffect(() => {
-    if (step === 14 && drinking) {
-      setTimeout(() => animateField(childrenScale, childrenOpacity, childrenGlow), 300);
-    }
-  }, [drinking, step]);
-
-  useEffect(() => {
-    if (step === 14 && children) {
-      setTimeout(() => animateField(petsScale, petsOpacity, petsGlow), 300);
-    }
-  }, [children, step]);
-
-  useEffect(() => {
-    if (step === 14 && pets) {
-      setTimeout(() => animateField(religionScale, religionOpacity, religionGlow), 300);
-    }
-  }, [pets, step]);
-
-  useEffect(() => {
-    if (step === 14 && religion) {
-      setTimeout(() => animateField(workLifeBalanceScale, workLifeBalanceOpacity, workLifeBalanceGlow), 300);
-    }
-  }, [religion, step]);
-
-  useEffect(() => {
-    if (step === 14 && workLifeBalance) {
-      setTimeout(() => animateField(worksOutScale, worksOutOpacity, worksOutGlow), 300);
-    }
-  }, [workLifeBalance, step]);
 
   // Load existing profile into form (used when editing; skip when startFromBeginning = new account/delete)
   const loadProfileForForm = useCallback(async (stepToJumpTo?: number) => {
@@ -478,15 +330,8 @@ export default function CreateProfileScreen() {
         setGender(data.profile.gender ?? '');
         setLocation(data.profile.location ?? '');
         setBio(data.profile.bio ?? '');
-        setLookingFor(data.profile.looking_for ?? '');
         if (data.interests?.length) {
           setInterests(data.interests.map((i: any) => i.name));
-        }
-        if (data.dealbreakers?.length) {
-          setDealbreakers(data.dealbreakers.map((d: any) => d.description));
-        }
-        if (data.partnerQualities?.length) {
-          setQualities(data.partnerQualities.map((q: any) => q.quality));
         }
         if (data.preferences) {
           setMinAge(data.preferences.min_age ?? 18);
@@ -505,17 +350,8 @@ export default function CreateProfileScreen() {
             setPreferredGenders(['Everyone']);
           }
         }
-        if (data.lifestyle) {
-          setSmoking(data.lifestyle.smoking ?? '');
-          setDrinking(data.lifestyle.drinking ?? '');
-          setChildren(data.lifestyle.children ?? '');
-          setPets(data.lifestyle.pets ?? '');
-          setReligion(data.lifestyle.religion ?? '');
-          setWorkLifeBalance(data.lifestyle.work_life_balance ?? '');
-          setWorksOut(data.lifestyle.works_out ?? '');
-        }
         const targetStep = stepToJumpTo ?? initialStep;
-        if (targetStep != null && targetStep >= 1 && targetStep <= 15) {
+        if (targetStep != null && targetStep >= 1 && targetStep <= 11) {
           setStep(targetStep);
         }
       }
@@ -526,7 +362,6 @@ export default function CreateProfileScreen() {
 
   // Load profile on mount and when edit params change (not when startFromBeginning = new account/delete)
   useEffect(() => {
-    if (startFromBeginning) skipAutoScrollRef.current = true;
     if (startFromBeginning) return;
     loadProfileForForm(initialStep ?? undefined);
   }, [startFromBeginning, initialStep, loadProfileForForm]);
@@ -536,12 +371,12 @@ export default function CreateProfileScreen() {
     ensureTokenPrefetched();
   }, []);
 
-  // Save profile data and load existing photos when entering step 7
+  // Save profile data and load existing photos when entering final (photos) step
   const profileSavedRef = useRef(false);
   
   useEffect(() => {
     const saveProfileAndLoadPhotos = async () => {
-      if (step === 15 && !profileSavedRef.current) {
+      if (step === 11 && !profileSavedRef.current) {
         // Mark as saving to prevent duplicate calls
         profileSavedRef.current = true;
         
@@ -571,7 +406,7 @@ export default function CreateProfileScreen() {
                 gender,
                 location,
                 bio,
-                lookingFor
+                lookingFor: null,
               });
               console.log('✅ Basic profile saved');
               
@@ -606,60 +441,17 @@ export default function CreateProfileScreen() {
             }
 
             try {
-              // Add dealbreakers
-              if (dealbreakers.length > 0) {
-                await api.put('/profile/dealbreakers', {
-                  dealbreakers: dealbreakers.map(description => ({ description }))
-                });
-                console.log('✅ Dealbreakers saved');
-              }
-            } catch (err: any) {
-              console.error('⚠️ Failed to save dealbreakers:', err?.message || err);
-              // Continue - non-critical
-            }
-
-            try {
-              // Add partner qualities
-              if (qualities.length > 0) {
-                await api.put('/profile/partner-qualities', {
-                  qualities: qualities.map(quality => ({ quality }))
-                });
-                console.log('✅ Partner qualities saved');
-              }
-            } catch (err: any) {
-              console.error('⚠️ Failed to save partner qualities:', err?.message || err);
-              // Continue - non-critical
-            }
-
-            try {
               // Save preferences
               await api.put('/profile/preferences', {
                 minAge,
                 maxAge: maxAge >= minAge && maxAge <= 120 ? maxAge : null,
                 preferredGenders: (preferredGenders.includes('Everyone') || preferredGenders.length === 0) ? null : preferredGenders,
                 maxDistance,
-                relationshipType: lookingFor || null
+                relationshipType: null
               });
               console.log('✅ Preferences saved');
             } catch (err: any) {
               console.error('⚠️ Failed to save preferences:', err?.message || err);
-              // Continue - non-critical
-            }
-
-            try {
-              // Save lifestyle
-              await api.put('/profile/lifestyle', {
-                smoking,
-                drinking,
-                children,
-                pets,
-                religion,
-                workLifeBalance,
-                worksOut
-              });
-              console.log('✅ Lifestyle saved');
-            } catch (err: any) {
-              console.error('⚠️ Failed to save lifestyle:', err?.message || err);
               // Continue - non-critical
             }
 
@@ -961,52 +753,34 @@ export default function CreateProfileScreen() {
         return;
       }
     }
-    if (step === 5) {
-      if (!lookingFor?.trim()) {
-        setError('Please select what you\'re looking for');
-        return;
-      }
-    }
-    // Step 6 (bio) - optional
-    if (step === 7) {
+    // Step 5 (bio) - optional
+    if (step === 6) {
       if (interests.length < 3) {
         setError('Please select at least 3 interests');
         return;
       }
     }
-    if (step === 9) {
-      if (qualities.length < 3) {
-        setError('Please select at least 3 qualities you want in a partner');
-        return;
-      }
-    }
-    if (step === 10) {
+    if (step === 7) {
       if (minAge === null || minAge < 18) {
         setError('Minimum age must be 18 or older');
         return;
       }
     }
-    if (step === 11) {
+    if (step === 8) {
       if (maxAge === null || maxAge < (minAge ?? 18)) {
         setError('Maximum age must be at least ' + (minAge ?? 18));
         return;
       }
     }
-    if (step === 12) {
+    if (step === 9) {
       if (preferredGenders.length < 1) {
         setError('Please select at least one preferred gender');
         return;
       }
     }
-    if (step === 13) {
+    if (step === 10) {
       if (maxDistance === null || maxDistance < 1) {
         setError('Please enter a maximum distance (at least 1 mile)');
-        return;
-      }
-    }
-    if (step === 14) {
-      if (!smoking || !drinking || !children || !pets || !religion || !workLifeBalance || !worksOut) {
-        setError('Please fill in all lifestyle fields');
         return;
       }
     }
@@ -1022,7 +796,7 @@ export default function CreateProfileScreen() {
       return;
     }
     
-    // If moving to step 15 (photos), validation happens on submit
+    // If moving to final step (photos), validation happens on submit
     // (Note: They can still navigate to step 7 to upload photos, but validation happens on submit)
     // Actually, let's allow navigation to step 7 so they can upload photos there
     
@@ -1346,7 +1120,7 @@ export default function CreateProfileScreen() {
         gender,
         location,
         bio,
-        lookingFor
+        lookingFor: null,
       });
 
       // Add interests
@@ -1356,41 +1130,16 @@ export default function CreateProfileScreen() {
         });
       }
 
-      // Add dealbreakers
-      if (dealbreakers.length > 0) {
-        await api.put('/profile/dealbreakers', {
-          dealbreakers: dealbreakers.map(description => ({ description }))
-        });
-      }
-
-      // Add partner qualities
-      if (qualities.length > 0) {
-        await api.put('/profile/partner-qualities', {
-          qualities: qualities.map(quality => ({ quality }))
-        });
-      }
-
       // Save preferences
       await api.put('/profile/preferences', {
         minAge,
         maxAge: maxAge >= minAge && maxAge <= 120 ? maxAge : null,
         preferredGenders: (preferredGenders.includes('Everyone') || preferredGenders.length === 0) ? null : preferredGenders,
         maxDistance,
-        relationshipType: lookingFor || null
+        relationshipType: null
       });
 
-      // Save lifestyle (always save, whether on step 6 or 7)
-      await api.put('/profile/lifestyle', {
-        smoking,
-        drinking,
-        children,
-        pets,
-        religion,
-        workLifeBalance,
-        worksOut
-      });
-
-      // Photos are already uploaded during step 7, just refresh profile
+      // Photos are already uploaded on the photos step; refresh profile
       await refreshProfile();
       
       // Show celebration before navigating
@@ -1413,21 +1162,11 @@ export default function CreateProfileScreen() {
         gender,
         location,
         bio,
-        lookingFor
+        lookingFor: null,
       });
       if (interests.length > 0) {
         await api.put('/profile/interests', {
           interests: interests.map((name: string) => ({ name }))
-        });
-      }
-      if (dealbreakers.length > 0) {
-        await api.put('/profile/dealbreakers', {
-          dealbreakers: dealbreakers.map((description: string) => ({ description }))
-        });
-      }
-      if (qualities.length > 0) {
-        await api.put('/profile/partner-qualities', {
-          qualities: qualities.map((quality: string) => ({ quality }))
         });
       }
       await api.put('/profile/preferences', {
@@ -1435,16 +1174,7 @@ export default function CreateProfileScreen() {
         maxAge: maxAge >= minAge && maxAge <= 120 ? maxAge : null,
         preferredGenders: (preferredGenders.includes('Everyone') || preferredGenders.length === 0) ? null : preferredGenders,
         maxDistance,
-        relationshipType: lookingFor || null
-      });
-      await api.put('/profile/lifestyle', {
-        smoking,
-        drinking,
-        children,
-        pets,
-        religion,
-        workLifeBalance,
-        worksOut
+        relationshipType: null
       });
       await refreshProfile();
     } catch (err: any) {
@@ -1453,10 +1183,9 @@ export default function CreateProfileScreen() {
       setSavingInCreateProfile(false);
     }
   }, [
-    displayName, age, gender, location, bio, lookingFor,
-    interests, dealbreakers, qualities,
+    displayName, age, gender, location, bio,
+    interests,
     minAge, maxAge, preferredGenders, maxDistance,
-    smoking, drinking, children, pets, religion, workLifeBalance, worksOut,
     refreshProfile
   ]);
 
@@ -1465,22 +1194,6 @@ export default function CreateProfileScreen() {
       setInterests(interests.filter(i => i !== interest));
     } else {
       setInterests([...interests, interest]);
-    }
-  };
-
-  const toggleDealbreaker = (dealbreaker: string) => {
-    if (dealbreakers.includes(dealbreaker)) {
-      setDealbreakers(dealbreakers.filter(d => d !== dealbreaker));
-    } else {
-      setDealbreakers([...dealbreakers, dealbreaker]);
-    }
-  };
-
-  const toggleQuality = (quality: string) => {
-    if (qualities.includes(quality)) {
-      setQualities(qualities.filter(q => q !== quality));
-    } else {
-      setQualities([...qualities, quality]);
     }
   };
 
@@ -1518,7 +1231,7 @@ export default function CreateProfileScreen() {
     );
   };
 
-  // Steps 1-6: One card per page (display name, age, gender, location, looking for, bio)
+  // Steps 1-5: One card per page (display name, age, gender, location, bio)
   const basicInfoStepWrapper = (content: React.ReactNode) => (
     <ScrollView style={styles.stepContent} contentContainerStyle={[styles.lifestyleScrollContent, { flexGrow: 1 }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
       {content}
@@ -1530,7 +1243,7 @@ export default function CreateProfileScreen() {
         <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.focusedFirstNameCard, keyboardVisible && styles.focusedCardWithKeyboard, { padding: keyboardVisible ? rs.cardPaddingKeyboard : rs.cardPaddingFirst }]}>
           <Text style={[styles.focusedEmoji, keyboardVisible && styles.focusedEmojiSmall, { fontSize: keyboardVisible ? rs.emojiSizeSmall : rs.emojiSize, marginBottom: keyboardVisible ? 8 : 20 }]}>👋</Text>
           <Text style={[styles.focusedTitle, keyboardVisible && styles.focusedTitleCompact, { fontSize: keyboardVisible ? rs.titleSizeCompact : rs.titleSize, marginBottom: keyboardVisible ? 8 : rs.titleMargin }]}>Welcome to Mulligan!</Text>
-          <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleCompact, { fontSize: keyboardVisible ? rs.subtitleSizeCompact : 10, marginBottom: keyboardVisible ? 20 : rs.subtitleMargin, maxWidth: '100%' }]} numberOfLines={2}>Let's start with your first name</Text>
+          <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleCompact, { fontSize: keyboardVisible ? rs.subtitleSizeCompact : 10, marginBottom: keyboardVisible ? 20 : rs.subtitleMargin, maxWidth: '100%' }]} numberOfLines={2}>Intentional connections start with your first name</Text>
           <Animated.View style={[styles.focusedInputWrapper, { shadowOpacity: firstNameGlow.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.6] }), shadowRadius: firstNameGlow.interpolate({ inputRange: [0, 1], outputRange: [8, 20] }) }]}>
             <TextInput ref={displayNameInputRef} style={[styles.focusedFirstNameInput, keyboardVisible && styles.focusedFirstNameInputKeyboard]} value={displayName} onChangeText={setDisplayName} placeholder="Your first name" placeholderTextColor="#4a5568" autoCapitalize="words" returnKeyType="next" />
           </Animated.View>
@@ -1581,7 +1294,7 @@ export default function CreateProfileScreen() {
         <LinearGradient colors={['#f5576c', '#4facfe', '#00f2fe']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.focusedFieldCard, keyboardVisible && styles.focusedCardWithKeyboard, { padding: keyboardVisible ? rs.cardPaddingKeyboard : rs.cardPadding }]}>
           <Text style={[styles.focusedEmoji, keyboardVisible && styles.focusedEmojiSmall, { fontSize: keyboardVisible ? rs.emojiSizeSmall : rs.emojiSize, marginBottom: keyboardVisible ? 8 : 20 }]}>📍</Text>
           <Text style={[styles.focusedTitle, keyboardVisible && styles.focusedTitleSmall, { fontSize: rs.titleSizeSmall, marginBottom: keyboardVisible ? 6 : rs.titleMargin }]}>Where are you located?</Text>
-          <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleSmall, { fontSize: rs.subtitleSizeSmall, marginBottom: keyboardVisible ? 16 : rs.subtitleMargin }]}>We'll help you find matches nearby</Text>
+          <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleSmall, { fontSize: rs.subtitleSizeSmall, marginBottom: keyboardVisible ? 16 : rs.subtitleMargin }]}>We use this to show you people nearby</Text>
           <Animated.View style={[styles.focusedInputWrapper, { shadowOpacity: locationGlow.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.6] }), shadowRadius: locationGlow.interpolate({ inputRange: [0, 1], outputRange: [8, 20] }) }]}>
             <TextInput ref={locationInputRef} style={styles.focusedLocationInput} value={location} onChangeText={(t) => handleLocationChange(t, setLocation)} placeholder="City, State" placeholderTextColor="rgba(255, 255, 255, 0.6)" editable={!detectingLocation} returnKeyType="next" />
           </Animated.View>
@@ -1589,25 +1302,6 @@ export default function CreateProfileScreen() {
             {detectingLocation ? <ActivityIndicator color="#fff" /> : <Text style={styles.focusedLocationButtonText}>📍 Use My Location</Text>}
           </TouchableOpacity>
           {hasCityAndState(location) && <Animated.View style={[styles.successIndicator, { opacity: locationOpacity }]}><Text style={styles.successText}>✓ Location set! Tap Continue</Text></Animated.View>}
-        </LinearGradient>
-      </Animated.View>
-    </View>
-  );
-
-  const renderStep5LookingFor = () => basicInfoStepWrapper(
-    <View style={[styles.focusedFieldSection, { minHeight: rs.sectionMinHeight, paddingHorizontal: rs.sectionPaddingH, paddingVertical: rs.sectionPaddingV }]}>
-      <Animated.View style={[{ transform: [{ scale: lookingForScale }], opacity: lookingForOpacity }]}>
-        <LinearGradient colors={['#4facfe', '#667eea', '#764ba2']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.focusedFieldCard, { padding: rs.cardPadding }]}>
-          <Text style={[styles.focusedEmoji, { fontSize: rs.emojiSize, marginBottom: 20 }]}>💕</Text>
-          <Text style={[styles.focusedTitle, { fontSize: rs.titleSize, marginBottom: rs.titleMargin }]}>What are you looking for?</Text>
-          <Text style={[styles.focusedSubtitle, { fontSize: rs.subtitleSize, marginBottom: rs.subtitleMargin }]}>Help us understand what you want</Text>
-          <View style={styles.focusedPickerWrapper}>
-            <Picker selectedValue={lookingFor} onValueChange={(v) => v && setLookingFor(v)} style={styles.focusedPicker} itemStyle={styles.focusedPickerItem}>
-              <Picker.Item label="Select an option" value="" enabled={false} />
-              {LOOKING_FOR_OPTIONS.map(opt => <Picker.Item key={opt} label={opt} value={opt} />)}
-            </Picker>
-          </View>
-          {lookingFor ? <Animated.View style={[styles.successIndicator, { opacity: lookingForOpacity }]}><Text style={styles.successText}>✓ Selected: {lookingFor}</Text></Animated.View> : null}
         </LinearGradient>
       </Animated.View>
     </View>
@@ -1730,195 +1424,7 @@ export default function CreateProfileScreen() {
     </View>
   );
 
-  const renderStep3 = () => (
-    <View style={styles.stepContainer}>
-      {/* Dealbreakers Section - Compact */}
-      <LinearGradient
-        colors={['#f5576c', '#f093fb', '#667eea']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.modernHeaderCondensed}
-      >
-        <Text style={styles.modernHeaderEmojiCondensed}>🚫</Text>
-        <Text style={styles.modernHeaderTitleCondensed}>Your Dealbreakers</Text>
-        <Text style={styles.modernHeaderSubtitleCondensed}>
-          What can't you compromise on? (Optional)
-        </Text>
-        <View style={styles.selectionCounterCondensed}>
-          <Text style={styles.selectionCounterTextCondensed}>
-            {dealbreakers.length} selected
-          </Text>
-        </View>
-      </LinearGradient>
-
-      <ScrollView 
-        style={styles.stepContent}
-        contentContainerStyle={styles.dealbreakersScrollContent}
-        showsVerticalScrollIndicator={true}
-        scrollIndicatorInsets={{ right: 1 }}
-      >
-        <View style={styles.dealbreakersGrid}>
-          {DEALBREAKER_OPTIONS.map((dealbreaker, index) => {
-            const isSelected = dealbreakers.includes(dealbreaker);
-            // Emoji mapping for dealbreakers
-            const dealbreakerEmojis: { [key: string]: string } = {
-              'Smokes cigarettes': '🚭',
-              'Marijuana': '🌿',
-              'Frequent drinking': '🍺',
-              'Doesn\'t want children': '👶',
-              'Wants children': '👨‍👩‍👧',
-              'Doesn\'t like pets': '🐕',
-            };
-            const emoji = dealbreakerEmojis[dealbreaker] || '⚠️';
-            return (
-              <TouchableOpacity
-                key={dealbreaker}
-                style={styles.dealbreakerCard}
-                onPress={() => toggleDealbreaker(dealbreaker)}
-                activeOpacity={0.8}
-              >
-                {isSelected ? (
-                  <LinearGradient
-                    colors={['#f5576c', '#f093fb', '#667eea']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.dealbreakerCardGradient}
-                  >
-                    <Text style={styles.dealbreakerEmoji}>{emoji}</Text>
-                    <Text 
-                      style={styles.dealbreakerTextSelected}
-                      numberOfLines={2}
-                      adjustsFontSizeToFit={false}
-                    >
-                      {dealbreaker}
-                    </Text>
-                    {isSelected && (
-                      <View style={styles.dealbreakerCheckmarkContainer}>
-                        <Text style={styles.dealbreakerCheckmark}>✓</Text>
-                      </View>
-                    )}
-                  </LinearGradient>
-                ) : (
-                  <View style={styles.dealbreakerCardUnselected}>
-                    <Text style={styles.dealbreakerEmojiUnselected}>{emoji}</Text>
-                    <Text 
-                      style={styles.dealbreakerText}
-                      numberOfLines={2}
-                      adjustsFontSizeToFit={false}
-                    >
-                      {dealbreaker}
-                    </Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      </ScrollView>
-    </View>
-  );
-
-  const renderStep4 = () => (
-    <View style={styles.stepContainer}>
-      {/* Partner Qualities Section - Minimal (more room for qualities grid) */}
-      <LinearGradient
-        colors={['#667eea', '#764ba2', '#f093fb']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.modernHeaderMinimal}
-      >
-        <Text style={styles.modernHeaderEmojiMinimal}>💕</Text>
-        <Text style={styles.modernHeaderTitleMinimal}>What You Want in a Partner</Text>
-        <Text style={styles.modernHeaderSubtitleMinimal}>
-          Select at least 3 qualities you value
-        </Text>
-        <View style={styles.selectionCounterMinimal}>
-          <Text style={styles.selectionCounterTextMinimal}>
-            {qualities.length} selected {qualities.length >= 3 && '✓'}
-          </Text>
-          {qualities.length < 3 && (
-            <Text style={styles.modernHeaderSubtitleMinimal}>
-              ({3 - qualities.length} more needed)
-            </Text>
-          )}
-        </View>
-      </LinearGradient>
-
-      <ScrollView 
-        style={styles.stepContent}
-        contentContainerStyle={styles.modernScrollContentCondensed}
-        showsVerticalScrollIndicator={true}
-        scrollIndicatorInsets={{ right: 1 }}
-      >
-        <View style={styles.modernCheckboxGridCondensed}>
-          {INTEREST_OPTIONS.map((interest, index) => {
-            const isSelected = qualities.includes(interest);
-            const emoji = INTEREST_EMOJIS[interest] || '✨';
-            return (
-              <TouchableOpacity
-                key={interest}
-                style={styles.modernInterestCardCondensed}
-                onPress={() => toggleQuality(interest)}
-                activeOpacity={0.8}
-              >
-                {isSelected ? (
-                  <LinearGradient
-                    colors={['#667eea', '#764ba2', '#f093fb']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.modernInterestCardGradientCondensed}
-                  >
-                    <Text style={styles.modernInterestEmojiCondensed}>{emoji}</Text>
-                    <Text 
-                      style={styles.modernInterestTextSelectedCondensed}
-                      numberOfLines={2}
-                      adjustsFontSizeToFit={false}
-                    >
-                      {interest}
-                    </Text>
-                    {isSelected && (
-                      <View style={styles.modernCheckmarkContainerCondensed}>
-                        <Text style={styles.modernCheckmarkCondensed}>✓</Text>
-                      </View>
-                    )}
-                  </LinearGradient>
-                ) : (
-                  <View style={styles.modernInterestCardUnselectedCondensed}>
-                    <Text style={styles.modernInterestEmojiUnselectedCondensed}>{emoji}</Text>
-                    <Text 
-                      style={styles.modernInterestTextCondensed}
-                      numberOfLines={2}
-                      adjustsFontSizeToFit={false}
-                    >
-                      {interest}
-                    </Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-        
-        {/* Scroll indicator hint */}
-        <View style={styles.scrollHintCondensed}>
-          <Text style={styles.scrollHintTextCondensed}>
-            👆 Scroll to see all {INTEREST_OPTIONS.length} qualities
-          </Text>
-        </View>
-      </ScrollView>
-      
-      {/* Fade gradient at bottom */}
-      <LinearGradient
-        colors={['transparent', 'rgba(248, 249, 250, 0.8)', '#f8f9fa']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-        style={styles.bottomFade}
-        pointerEvents="none"
-      />
-    </View>
-  );
-
-  // Steps 10-13: One card per page (min age, max age, preferred genders, max distance)
+  // Steps 7-10: One card per page (min age, max age, preferred genders, max distance)
   const renderStep10MinAge = () => basicInfoStepWrapper(
     <View style={[styles.focusedFieldSection, { minHeight: rs.sectionMinHeight, paddingHorizontal: rs.sectionPaddingH, paddingVertical: rs.sectionPaddingV }]}>
       <Animated.View style={[{ transform: [{ scale: minAgeScale }], opacity: minAgeOpacity }]}>
@@ -1993,7 +1499,7 @@ export default function CreateProfileScreen() {
         <LinearGradient colors={['#4facfe', '#00f2fe', '#667eea']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.focusedFieldCard, keyboardVisible && styles.focusedCardWithKeyboard, { padding: keyboardVisible ? rs.cardPaddingKeyboard : rs.cardPadding }]}>
           <Text style={[styles.focusedEmoji, keyboardVisible && styles.focusedEmojiSmall, { fontSize: keyboardVisible ? rs.emojiSizeSmall : rs.emojiSize, marginBottom: keyboardVisible ? 8 : 20 }]}>📍</Text>
           <Text style={[styles.focusedTitle, keyboardVisible && styles.focusedTitleSmall, { fontSize: rs.titleSizeSmall, marginBottom: keyboardVisible ? 6 : rs.titleMargin }]}>Maximum Distance</Text>
-          <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleSmall, { fontSize: rs.subtitleSizeSmall, marginBottom: keyboardVisible ? 16 : rs.subtitleMargin }]}>How far to search for matches</Text>
+          <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleSmall, { fontSize: rs.subtitleSizeSmall, marginBottom: keyboardVisible ? 16 : rs.subtitleMargin }]}>How far to search for connections</Text>
           <View style={styles.preferenceInputWrapper}>
             <View style={styles.preferenceInputContainer}>
               <TextInput ref={maxDistanceInputRef} style={styles.preferenceNumberInputLarge} value={maxDistance === null ? '' : maxDistance.toString()} onChangeText={(t) => { if (t === '' || t === '0') setMaxDistance(1); else { const v = parseInt(t); if (!isNaN(v) && v >= 1) setMaxDistance(v); } }} keyboardType="number-pad" returnKeyType="done" placeholder="50" placeholderTextColor="rgba(255, 255, 255, 0.7)" />
@@ -2005,126 +1511,6 @@ export default function CreateProfileScreen() {
       </Animated.View>
     </View>
   );
-
-  const renderStep6 = () => {
-    const lifestyleFields = [
-      { key: 'smoking', label: 'Smoking', emoji: '🚭', options: ['Non-smoker', 'Smokes Cigarettes', 'Uses Marijuana', 'Both'], value: smoking, setValue: setSmoking, scale: smokingScale, opacity: smokingOpacity, glow: smokingGlow, ref: smokingCardRef, gradient: ['#f5576c', '#f093fb', '#667eea'] },
-      { key: 'drinking', label: 'Drinking', emoji: '🥂', options: ['Non-drinker', 'Occasionally', 'Social drinker'], value: drinking, setValue: setDrinking, scale: drinkingScale, opacity: drinkingOpacity, glow: drinkingGlow, ref: drinkingCardRef, gradient: ['#667eea', '#764ba2', '#f093fb'] },
-      { key: 'children', label: 'Children', emoji: '👶', options: ['Wants children', 'Doesn\'t want children', 'Has children', 'Open to children'], value: children, setValue: setChildren, scale: childrenScale, opacity: childrenOpacity, glow: childrenGlow, ref: childrenCardRef, gradient: ['#f093fb', '#f5576c', '#4facfe'] },
-      { key: 'pets', label: 'Pets', emoji: '🐾', options: ['Loves pets', 'Has pets', 'Open to pets', 'Allergic to pets', 'Doesn\'t like pets'], value: pets, setValue: setPets, scale: petsScale, opacity: petsOpacity, glow: petsGlow, ref: petsCardRef, gradient: ['#4facfe', '#00f2fe', '#667eea'] },
-      { key: 'religion', label: 'Religion/Spirituality', emoji: '🙏', options: ['Religious', 'Spiritual', 'Not religious', 'Agnostic', 'Atheist'], value: religion, setValue: setReligion, scale: religionScale, opacity: religionOpacity, glow: religionGlow, ref: religionCardRef, gradient: ['#764ba2', '#f093fb', '#f5576c'] },
-      { key: 'workLifeBalance', label: 'Work-Life Balance', emoji: '⚖️', options: ['Workaholic', 'Balanced', 'Prioritizes leisure'], value: workLifeBalance, setValue: setWorkLifeBalance, scale: workLifeBalanceScale, opacity: workLifeBalanceOpacity, glow: workLifeBalanceGlow, ref: workLifeBalanceCardRef, gradient: ['#667eea', '#4facfe', '#00f2fe'] },
-      { key: 'worksOut', label: 'Works Out', emoji: '💪', options: ['All the time', 'Frequently', 'Sometimes', 'Never'], value: worksOut, setValue: setWorksOut, scale: worksOutScale, opacity: worksOutOpacity, glow: worksOutGlow, ref: worksOutCardRef, gradient: ['#f5576c', '#667eea', '#764ba2'] },
-    ];
-
-    // Determine which cards should be shown
-    const shouldShowCard = (index: number) => {
-      if (index === 0) return true; // First card always visible
-      // Show next card when previous is completed
-      for (let i = 0; i < index; i++) {
-        if (!lifestyleFields[i].value) return false;
-      }
-      return true;
-    };
-
-    return (
-      <View style={styles.stepContainer}>
-        {/* Modern Header */}
-        <LinearGradient
-          colors={['#667eea', '#764ba2', '#f093fb']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.modernHeaderCondensed}
-        >
-          <Text style={styles.modernHeaderEmojiCondensed}>🌱</Text>
-          <Text style={styles.modernHeaderTitleCondensed}>Your Lifestyle</Text>
-          <Text style={styles.modernHeaderSubtitleCondensed}>
-            Tell us about your lifestyle preferences
-          </Text>
-        </LinearGradient>
-
-        <ScrollView 
-          ref={scrollViewRef}
-          style={styles.stepContent}
-          contentContainerStyle={styles.lifestyleScrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {lifestyleFields.map((field, index) => {
-            const isVisible = shouldShowCard(index);
-            if (!isVisible) return null;
-
-            return (
-              <Animated.View
-                key={field.key}
-                ref={field.ref}
-                style={[
-                  styles.lifestyleCard,
-                  {
-                    transform: [{ scale: field.scale }],
-                    opacity: field.opacity,
-                  },
-                ]}
-                onLayout={(e) => {
-                  const { y } = e.nativeEvent.layout;
-                  lifestyleCardYsRef.current[field.key] = y;
-                }}
-              >
-                <LinearGradient
-                  colors={field.gradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={[styles.lifestyleCardGradient, { padding: rs.lifestyleCardPadding }]}
-                >
-                  <Text style={[styles.lifestyleEmoji, { fontSize: rs.lifestyleEmojiSize, marginBottom: 12 }]}>{field.emoji}</Text>
-                  <Text style={[styles.lifestyleTitle, { fontSize: rs.lifestyleTitleSize, marginBottom: 8 }]}>{field.label}</Text>
-                  
-                  <View style={styles.lifestylePickerWrapper}>
-                    <Picker
-                      selectedValue={field.value}
-                      onValueChange={(itemValue) => {
-                        if (itemValue && itemValue !== '') {
-                          step6AllowScrollRef.current = true;
-                          field.setValue(itemValue);
-                          // Scroll to next card only if there is one (don't scroll on last card - worksOut)
-                          const nextIndex = index + 1;
-                          const nextKey = lifestyleFields[nextIndex]?.key;
-                          if (nextKey) {
-                            // Retry scroll - next card may not have laid out yet (progressive disclosure)
-                            const tryScroll = (attempt = 0) => {
-                              const nextY = lifestyleCardYsRef.current[nextKey];
-                              if (typeof nextY === 'number') {
-                                scrollViewRef.current?.scrollTo({ y: nextY - 20, animated: true });
-                              } else if (attempt < 5) {
-                                setTimeout(() => tryScroll(attempt + 1), 150);
-                              }
-                            };
-                            setTimeout(() => tryScroll(0), 350);
-                          }
-                        }
-                      }}
-                      style={styles.lifestylePicker}
-                      itemStyle={styles.lifestylePickerItem}
-                    >
-                      <Picker.Item label={`Select ${field.label.toLowerCase()}`} value="" enabled={false} />
-                      {field.options.map(opt => (
-                        <Picker.Item key={opt} label={opt} value={opt} />
-                      ))}
-                    </Picker>
-                  </View>
-
-                  {field.value && (
-                    <View style={styles.lifestyleSelectedIndicator}>
-                      <Text style={styles.lifestyleSelectedText}>✓ {field.value}</Text>
-                    </View>
-                  )}
-                </LinearGradient>
-              </Animated.View>
-            );
-          })}
-        </ScrollView>
-      </View>
-    );
-  };
 
   const renderStep7 = () => {
     const photoSlots = Array.from({ length: 6 }, (_, i) => i);
@@ -2281,7 +1667,7 @@ export default function CreateProfileScreen() {
             </TouchableOpacity>
           </View>
         )}
-        <Text style={styles.title}>Create Your Profile</Text>
+        <Text style={styles.title}>Set up your profile</Text>
         <Text style={styles.subtitle}>Step {step} of {TOTAL_STEPS}</Text>
       </LinearGradient>
 
@@ -2310,17 +1696,13 @@ export default function CreateProfileScreen() {
       {step === 2 && renderStep2Age()}
       {step === 3 && renderStep3Gender()}
       {step === 4 && renderStep4Location()}
-      {step === 5 && renderStep5LookingFor()}
-      {step === 6 && renderStep6Bio()}
-      {step === 7 && renderStep2()}
-      {step === 8 && renderStep3()}
-      {step === 9 && renderStep4()}
-      {step === 10 && renderStep10MinAge()}
-      {step === 11 && renderStep11MaxAge()}
-      {step === 12 && renderStep12PreferredGenders()}
-      {step === 13 && renderStep13MaxDistance()}
-      {step === 14 && renderStep6()}
-      {step === 15 && renderStep7()}
+      {step === 5 && renderStep6Bio()}
+      {step === 6 && renderStep2()}
+      {step === 7 && renderStep10MinAge()}
+      {step === 8 && renderStep11MaxAge()}
+      {step === 9 && renderStep12PreferredGenders()}
+      {step === 10 && renderStep13MaxDistance()}
+      {step === 11 && renderStep7()}
 
       <View style={styles.actions}>
           {step > 1 ? (

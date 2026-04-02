@@ -36,7 +36,6 @@ import { currentMatchIdRef } from '../utils/currentMatchView';
 import { playMatchSound, playMessageSound } from '../utils/sounds';
 import { navigationRef } from '../navigation/navigationRef';
 import LegalFooter from '../components/LegalFooter';
-import CompatibilityPulse from '../components/CompatibilityPulse';
 import MulliganMoments from '../components/MulliganMoments';
 import DateBlueprint from '../components/DateBlueprint';
 import TruthOrDare from '../components/TruthOrDare';
@@ -47,6 +46,16 @@ import MatchCelebration from '../components/MatchCelebration';
 
 /** Set to true to show the Never Have I Ever game card in match detail. */
 const SHOW_NEVER_HAVE_I_EVER = false;
+
+/** Remove legacy profile-compatibility bullets (interest-only card). */
+function filterInterestCompatReasons(reasons: string[]): string[] {
+  return reasons.filter((line) => {
+    const low = line.toLowerCase();
+    if (low.includes('looking for the same thing')) return false;
+    if (low.includes('similar lifestyle preferences')) return false;
+    return true;
+  });
+}
 import * as ImagePicker from 'expo-image-picker';
 import { Video, Audio } from 'expo-av';
 
@@ -375,8 +384,8 @@ function TypingIndicator() {
   );
 }
 
-// Animated Heart Emoji Component
-function AnimatedHeartEmoji() {
+// Animated fire icon next to “Your Connections” (header)
+function AnimatedLinkHeaderIcon() {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
   const glowAnim = useRef(new Animated.Value(0.5)).current;
@@ -468,7 +477,7 @@ function AnimatedHeartEmoji() {
         },
       ]}
     >
-      {/* Glow effect behind heart */}
+      {/* Glow behind icon */}
       <Animated.View
         style={[
           styles.animatedHeartGlow,
@@ -480,9 +489,9 @@ function AnimatedHeartEmoji() {
         pointerEvents="none"
       />
       
-      {/* Gradient background */}
+      {/* Badge gradient — aligned with Connections header purples */}
       <LinearGradient
-        colors={['#ff6b9d', '#ff1493', '#ff69b4', '#ff1493']}
+        colors={['#7c8ff0', '#667eea', '#764ba2']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.animatedHeartGradient}
@@ -508,7 +517,7 @@ function AnimatedHeartEmoji() {
           ]}
           pointerEvents="none"
         />
-        <Text style={styles.animatedHeartEmoji}>💕</Text>
+        <Text style={styles.animatedHeartEmoji}>🔥</Text>
       </LinearGradient>
     </Animated.View>
   );
@@ -549,7 +558,6 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
   getStageEmoji,
   onPress, 
   onUnmatch,
-  onStagePress,
 }: {
   item: Match;
   index: number;
@@ -560,11 +568,9 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
   getStageEmoji: (stage: string) => string;
   onPress: () => void;
   onUnmatch: (id: string) => void;
-  onStagePress?: (stage: 'stage1' | 'stage2') => void;
 }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.92)).current;
-  const pulseAnim = useRef(new Animated.Value(1)).current;
   const photoScaleAnim = useRef(new Animated.Value(0.95)).current;
   const shimmerAnim = useRef(new Animated.Value(0)).current;
   const glowAnim = useRef(new Animated.Value(0.3)).current;
@@ -624,24 +630,6 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
         }),
       ])
     ).start();
-    
-    // Pulse animation for stage2 badge
-    if (item.stage === 'stage2') {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnim, {
-            toValue: 1.08,
-            duration: 1500,
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulseAnim, {
-            toValue: 1,
-            duration: 1500,
-            useNativeDriver: true,
-          }),
-        ])
-      ).start();
-    }
   }, []);
   
   const shimmerTranslate = shimmerAnim.interpolate({
@@ -724,16 +712,6 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
                 />
               </Animated.View>
             )}
-            {item.stage === 'stage2' && (
-              <Animated.View 
-                style={[
-                  styles.stage2Indicator,
-                  { transform: [{ scale: pulseAnim }] }
-                ]}
-              >
-                <Text style={styles.stage2IndicatorText}>💕</Text>
-              </Animated.View>
-            )}
             {/* Unread message badge */}
             {item.unreadCount != null && item.unreadCount > 0 ? (
               <View style={styles.unreadBadge}>
@@ -765,51 +743,27 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
             <View style={styles.badgesRow}>
               {item.profileCompatibility != null && item.stage !== 'pending' && (
                 <View style={styles.matchCardCompatibilityBadge}>
-                  <Text style={styles.matchCardCompatibilityIcon}>💕</Text>
+                  <Text style={styles.matchCardCompatibilityIcon}>🎯</Text>
                   <Text style={styles.matchCardCompatibilityText}>{item.profileCompatibility}%</Text>
                 </View>
               )}
-              <View style={styles.stageContainer}>
-                <Animated.View style={item.stage === 'stage2' ? { transform: [{ scale: pulseAnim }] } : undefined}>
-                  {(item.stage === 'stage1' || item.stage === 'stage2') && onStagePress ? (
-                    <TouchableOpacity
-                      activeOpacity={0.8}
-                      onPress={() => onStagePress(item.stage as 'stage1' | 'stage2')}
-                    >
-                      <LinearGradient
-                        colors={item.stage === 'stage1' ? ['#ff80ab', '#ff4081', '#ff80ab'] : ['#ff6b9d', '#ff1493']}
-                        locations={item.stage === 'stage1' ? [0, 0.5, 1] : undefined}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={[styles.stageBadge, getStageBadgeStyle(item.stage)]}
-                      >
-                        <Text style={styles.stageEmoji}>{getStageEmoji(item.stage)}</Text>
-                        <Text style={[styles.stageText, item.stage === 'stage2' && { color: '#fff' }, item.stage === 'stage1' && styles.stageTextStage1]}>
-                          {item.stage === 'stage1' ? 'Level 1' : 'Level 2'}
-                        </Text>
-                      </LinearGradient>
-                    </TouchableOpacity>
-                  ) : (
-                    <LinearGradient
-                      colors={item.stage === 'pending' ? ['#fff5f8', '#ffeef7'] : item.stage === 'stage1' ? ['#ff80ab', '#ff4081', '#ff80ab'] : ['#ff6b9d', '#ff1493']}
-                      locations={item.stage === 'stage1' ? [0, 0.5, 1] : undefined}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={[styles.stageBadge, getStageBadgeStyle(item.stage)]}
-                    >
-                      <Text style={styles.stageEmoji}>{getStageEmoji(item.stage)}</Text>
-                      <Text style={[styles.stageText, item.stage === 'stage2' && { color: '#fff' }, item.stage === 'stage1' && styles.stageTextStage1]}>
-                        {item.stage === 'pending' ? 'Pending' : item.stage === 'stage1' ? 'Level 1' : 'Level 2'}
-                      </Text>
-                    </LinearGradient>
-                  )}
-                </Animated.View>
-              </View>
-              {item.expiresAt && getTimeRemaining(item.expiresAt) ? (
-                <View style={styles.timerContainer}>
-                  <Text style={styles.timerEmoji}>⏳</Text>
-                  <Text style={styles.timerText}>{getTimeRemaining(item.expiresAt)}</Text>
+              {item.stage === 'pending' ? (
+                <View style={styles.stageContainer}>
+                  <LinearGradient
+                    colors={['#fff5f8', '#ffeef7']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={[styles.stageBadge, getStageBadgeStyle(item.stage)]}
+                  >
+                    <Text style={styles.stageEmoji}>{getStageEmoji(item.stage)}</Text>
+                    <Text style={styles.stageText}>Pending</Text>
+                  </LinearGradient>
                 </View>
+              ) : null}
+              {item.expiresAt && getTimeRemaining(item.expiresAt) ? (
+                <Text style={styles.timerInline}>
+                  ⏳ {getTimeRemaining(item.expiresAt)}
+                </Text>
               ) : null}
             </View>
           </View>
@@ -943,7 +897,7 @@ function EmptyStateAnimated({ navigation }: { navigation: any }) {
         <Text style={styles.emptyEmoji}>💔</Text>
       </Animated.View>
       <Animated.Text style={[styles.emptyTitle, { opacity: fadeAnim }]}>
-        No matches yet
+        No connections yet
       </Animated.Text>
       <TouchableOpacity
         style={styles.browseButton}
@@ -1013,7 +967,7 @@ function MatchProfileModal({
     : (otherUser.photos || []);
   const canSwipePhotos = match.stage === 'stage2' && allPhotos.length > 1;
 
-  // Current index for main avatar when Level 2 has multiple photos (tap left/right to cycle)
+  // Current index when all photos unlocked and multiple (tap left/right to cycle)
   const [mainPhotoIndex, setMainPhotoIndex] = useState(0);
   useEffect(() => {
     if (!visible) setMainPhotoIndex(0);
@@ -1083,11 +1037,6 @@ function MatchProfileModal({
       });
     }
   }, [visible, currentUserInterests, matchInterests, commonInterests]);
-  
-  // Calculate compatibility percentage
-  const compatibilityPercentage = matchInterests.length > 0 
-    ? Math.round((commonInterests.length / Math.max(matchInterests.length, currentUserInterests.length)) * 100)
-    : 0;
   
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -1528,7 +1477,7 @@ function MatchProfileModal({
                   ]}
                 />
                 
-                {/* Avatar with breathing effect - tappable to open full-screen; Level 2: tap left/right to cycle photos */}
+                {/* Avatar with breathing effect - tappable full-screen; when all photos unlocked, tap sides to cycle */}
                 {onPhotoPress && !canSwipePhotos && mainPhotoUrl ? (
                   <TouchableOpacity
                     onPress={() => onPhotoPress(mainPhotoUrl, canSwipePhotos ? allPhotos.map(p => getPhotoUrl(p.url)) : undefined, canSwipePhotos ? mainPhotoIndex : undefined)}
@@ -1815,18 +1764,6 @@ function MatchProfileModal({
                 </View>
               )}
 
-              {otherUser.lookingFor && (
-                <LinearGradient
-                  colors={['#fa709a', '#fee140']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={[styles.modalInfoCardFullGradient, { marginTop: 10 }]}
-                >
-                  <Text style={styles.modalInfoCardEmoji}>💝</Text>
-                  <Text style={styles.modalInfoLabel}>Looking for</Text>
-                  <Text style={styles.modalInfoValueFull}>{otherUser.lookingFor}</Text>
-                </LinearGradient>
-              )}
             </Animated.View>
             
             {/* Photos */}
@@ -1939,32 +1876,6 @@ function MatchProfileModal({
               </Animated.View>
             )}
             
-            {/* Partner Qualities (what they want in a partner) */}
-            {otherUser.partnerQualities && otherUser.partnerQualities.length > 0 && (
-              <Animated.View 
-                style={[
-                  styles.modalSection,
-                  { opacity: contentFade }
-                ]}
-              >
-                <View style={styles.modalSectionHeader}>
-                  <Text style={styles.modalSectionEmoji}>💕</Text>
-                  <Text style={styles.modalSectionTitle}>What they want in a partner</Text>
-                </View>
-                <View style={styles.modalTagsContainer}>
-                  {otherUser.partnerQualities.map((q, idx) => (
-                    <LinearGradient
-                      key={idx}
-                      colors={['#fff', '#f8f9ff']}
-                      style={styles.modalTagGradient}
-                    >
-                      <Text style={styles.modalTagText}>{q.quality}</Text>
-                    </LinearGradient>
-                  ))}
-                </View>
-              </Animated.View>
-            )}
-
             {/* Report and Block buttons */}
             {(onReport || onBlock) && (
               <Animated.View style={[styles.modalSection, { opacity: contentFade, marginTop: 8, marginBottom: 24, flexDirection: 'row', justifyContent: 'center', gap: 12 }]}>
@@ -2064,8 +1975,6 @@ export default function MatchesScreen() {
   const [reportSelectedReasonIds, setReportSelectedReasonIds] = useState<string[]>([]);
   const [reportUrgent, setReportUrgent] = useState(false);
   const [reportDetails, setReportDetails] = useState('');
-  const [stageInfoModalVisible, setStageInfoModalVisible] = useState(false);
-  const [stageInfoStage, setStageInfoStage] = useState<'stage1' | 'stage2' | null>(null);
   const [showPhotoGuidelinesModal, setShowPhotoGuidelinesModal] = useState(false);
   const [gameRequestToShow, setGameRequestToShow] = useState<PendingGameRequest | null>(null);
   const [openGameForAccept, setOpenGameForAccept] = useState<{ matchId: string; gameType: 'truth_or_dare' | 'never_have_i_ever' } | null>(null);
@@ -2085,7 +1994,7 @@ export default function MatchesScreen() {
   const [isTyping, setIsTyping] = useState(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [profileCompatibility, setProfileCompatibility] = useState<number | null>(null);
-  const [compatibilityDetails, setCompatibilityDetails] = useState<{ reasons: string[]; sharedInterests: string[]; sharedValues: number } | null>(null);
+  const [compatibilityDetails, setCompatibilityDetails] = useState<{ reasons: string[]; sharedInterests: string[] } | null>(null);
   const [showAgeCardModal, setShowAgeCardModal] = useState(false);
   const [showCompatibilityCardModal, setShowCompatibilityCardModal] = useState(false);
   const [messageLikedToast, setMessageLikedToast] = useState<{ likerName: string } | null>(null);
@@ -2140,7 +2049,7 @@ export default function MatchesScreen() {
     }
   }, [selectedMatch]);
 
-  // Fetch profile compatibility when viewing a match (interests, dealbreakers, looking for, etc.)
+  // Fetch profile compatibility when viewing a match (interest overlap → 0–100%, details for modal)
   useEffect(() => {
     if (!selectedMatch || selectedMatch.stage === 'pending') {
       setProfileCompatibility(null);
@@ -2154,9 +2063,8 @@ export default function MatchesScreen() {
         if (typeof val === 'number') {
           setProfileCompatibility(val);
           setCompatibilityDetails({
-            reasons: Array.isArray(r.reasons) ? r.reasons : [],
+            reasons: filterInterestCompatReasons(Array.isArray(r.reasons) ? r.reasons : []),
             sharedInterests: Array.isArray(r.sharedInterests) ? r.sharedInterests : [],
-            sharedValues: typeof r.sharedValues === 'number' ? r.sharedValues : 0,
           });
         } else {
           setProfileCompatibility(null);
@@ -2450,8 +2358,28 @@ export default function MatchesScreen() {
 
   // In inverted FlatList: ListHeaderComponent appears at bottom (near input), ListFooterComponent at top
   const listHeaderComponent = useMemo(
-    () => (typingUsers.size > 0 ? <TypingIndicator /> : null),
-    [typingUsers.size]
+    () => (
+      <View>
+        {selectedMatch?.stage === 'stage1' ? (
+          <TouchableOpacity
+            activeOpacity={0.85}
+            style={styles.photoUnlockHintTouchable}
+            onPress={() => {
+              const name = selectedMatch.otherUser.displayName?.trim() || 'them';
+              Alert.alert(
+                'Unlock all photos',
+                `You each see one photo at first. After you and ${name} have each sent at least 3 messages in this chat, you'll both see each other's full galleries.`,
+                [{ text: 'Got it' }]
+              );
+            }}
+          >
+            <Text style={styles.photoUnlockHintText}>📷 How photos unlock</Text>
+          </TouchableOpacity>
+        ) : null}
+        {typingUsers.size > 0 ? <TypingIndicator /> : null}
+      </View>
+    ),
+    [typingUsers.size, selectedMatch?.stage, selectedMatch?.otherUser?.displayName, selectedMatch?.id]
   );
 
   const messagesContentStyle = useMemo(
@@ -3092,7 +3020,7 @@ export default function MatchesScreen() {
         // If no message in response, keep temp message (socket will replace it, or it stays as fallback)
         console.log('No message in response, keeping temp message until socket confirms');
       }
-      // When both users have sent 2+ messages each, backend returns stage: 'stage2' — update UI immediately
+      // When each user has sent 3+ messages, backend returns stage: 'stage2' — update UI immediately
       if (response.stage === 'stage2') {
         setSelectedMatch((prev) => prev && prev.id === selectedMatch.id ? { ...prev, stage: 'stage2' } : prev);
         setMatches((prev) => prev.map((m) => m.id === selectedMatch.id ? { ...m, stage: 'stage2' } : m));
@@ -3531,17 +3459,12 @@ export default function MatchesScreen() {
   const getStageEmoji = useCallback((stage: string) => {
     switch (stage) {
       case 'stage2':
-        return '💕';
+        return '🖼️';
       case 'stage1':
-        return '💖';
+        return '📷';
       default:
         return '💌';
     }
-  }, []);
-
-  const handleStageInfoPress = useCallback((stage: 'stage1' | 'stage2') => {
-    setStageInfoStage(stage);
-    setStageInfoModalVisible(true);
   }, []);
 
   // When tab is not focused, render minimal view so leaving Matches tab is instant
@@ -3577,15 +3500,15 @@ export default function MatchesScreen() {
         >
           <View style={styles.header}>
             <View style={styles.headerTitleContainer}>
-              <AnimatedHeartEmoji />
-              <Text style={styles.headerTitle}> Your Matches</Text>
+              <AnimatedLinkHeaderIcon />
+              <Text style={styles.headerTitle}>Your Connections</Text>
             </View>
           </View>
         </LinearGradient>
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyTitle}>Please log in</Text>
           <Text style={styles.emptyText}>
-            You need to be logged in to view your matches.
+            You need to be logged in to view your connections.
           </Text>
         </View>
     </View>
@@ -3598,10 +3521,9 @@ export default function MatchesScreen() {
         <AnimatedHeaderGradient matchesCount={visibleMatches.length} gradientPos={headerGradientPos}>
           <View style={styles.header}>
             <View style={styles.headerTitleContainer}>
-              <AnimatedHeartEmoji />
-              <Text style={styles.headerTitle}> Your Matches</Text>
+              <AnimatedLinkHeaderIcon />
+              <Text style={styles.headerTitle}>Your Connections</Text>
             </View>
-            <Text style={styles.headerSubtitle}>{visibleMatches.length} {visibleMatches.length === 1 ? 'match' : 'matches'}</Text>
           </View>
         </AnimatedHeaderGradient>
         {visibleMatches.length === 0 ? (
@@ -3645,64 +3567,11 @@ export default function MatchesScreen() {
                     setSelectedMatch(item);
                   }} 
                   onUnmatch={(id) => handleUnmatch(id)}
-                  onStagePress={handleStageInfoPress}
                 />
               );
             }}
           />
         )}
-        {/* Stage Info Modal - also in list view so tapping Level 1/2 on a card shows it */}
-        <Modal
-          visible={stageInfoModalVisible}
-          animationType="fade"
-          transparent
-          onRequestClose={() => setStageInfoModalVisible(false)}
-        >
-          <TouchableOpacity
-            activeOpacity={1}
-            style={styles.stageInfoOverlay}
-            onPress={() => setStageInfoModalVisible(false)}
-          >
-            <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={styles.stageInfoCard}>
-              <LinearGradient
-                colors={stageInfoStage === 'stage2' ? ['#ff85b3', '#ff4d94', '#e91e8c'] : ['#ff6b9d', '#ff4081', '#ff80ab', '#ff1493']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.stageInfoCardGradient}
-              >
-                <View style={styles.stageInfoIconRing}>
-                  <Text style={styles.stageInfoBigEmoji}>{stageInfoStage === 'stage1' ? '💖' : '💕'}</Text>
-                </View>
-                <Text style={styles.stageInfoTitle}>
-                  {stageInfoStage === 'stage1' ? 'Level 1' : 'Level 2'}
-                </Text>
-                <Text style={styles.stageInfoSubtitle}>
-                  {stageInfoStage === 'stage1' ? 'Primary photo revealed' : 'All photos unlocked'}
-                </Text>
-                <View style={styles.stageInfoDivider} />
-                <Text style={styles.stageInfoBody}>
-                  {stageInfoStage === 'stage1'
-                    ? 'You can see each other\'s primary profile picture. Chat and send at least 2 messages each to unlock Level 2 and see all photos.'
-                    : 'You\'ve both sent 2+ messages! All profile photos are now visible to each other.'}
-                </Text>
-                <TouchableOpacity
-                  style={styles.stageInfoCloseBtn}
-                  onPress={() => setStageInfoModalVisible(false)}
-                  activeOpacity={0.8}
-                >
-                  <LinearGradient
-                    colors={['#fff', '#f8f8ff']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.stageInfoCloseBtnGradient}
-                  >
-                    <Text style={styles.stageInfoCloseText}>Got it</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              </LinearGradient>
-            </TouchableOpacity>
-          </TouchableOpacity>
-        </Modal>
       </View>
     );
   }
@@ -3775,7 +3644,7 @@ export default function MatchesScreen() {
               <Text style={[styles.chatHeaderTitle, isSmallScreen && { fontSize: 16 }]} numberOfLines={1} ellipsizeMode="tail">{selectedMatch.otherUser.displayName}</Text>
             </TouchableOpacity>
           </View>
-          {/* Bottom row: stacked pills (age, level, compatibility) + game icons */}
+          {/* Bottom row: age, photo visibility, compatibility + game icons */}
           <View style={[styles.chatHeaderBottomRow, isSmallScreen && { gap: 6 }]}>
             <View style={[styles.chatHeaderPillRow, isSmallScreen && { gap: 4 }]}>
               <TouchableOpacity
@@ -3804,41 +3673,7 @@ export default function MatchesScreen() {
                     <Text style={styles.chatHeaderStagePillText}>Pending</Text>
                   </LinearGradient>
                 </View>
-              ) : (selectedMatch.stage === 'stage1' || selectedMatch.stage === 'stage2') ? (
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  onPress={() => handleStageInfoPress(selectedMatch.stage as 'stage1' | 'stage2')}
-                  style={[styles.chatHeaderStagePillWrap, selectedMatch.stage === 'stage1' && styles.chatHeaderStagePillWrapStage1]}
-                >
-                  <LinearGradient
-                    colors={selectedMatch.stage === 'stage2' ? ['#ff85b3', '#ff4d94'] : ['#ff80ab', '#ff4081', '#ff80ab']}
-                    locations={selectedMatch.stage === 'stage1' ? [0, 0.5, 1] : undefined}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={[styles.chatHeaderStagePill, selectedMatch.stage === 'stage2' && styles.chatHeaderStagePillStage2, selectedMatch.stage === 'stage1' && styles.chatHeaderStagePillStage1]}
-                  >
-                    {selectedMatch.stage === 'stage1' && (
-                      <LinearGradient
-                        colors={['rgba(255,255,255,0.35)', 'rgba(255,255,255,0)']}
-                        style={styles.chatHeaderStagePillGloss}
-                        start={{ x: 0.5, y: 0 }}
-                        end={{ x: 0.5, y: 1 }}
-                      />
-                    )}
-                    <Text style={styles.chatHeaderStagePillEmoji}>{selectedMatch.stage === 'stage1' ? '💖' : '💕'}</Text>
-                    <Text style={[styles.chatHeaderStagePillText, selectedMatch.stage === 'stage2' && styles.chatHeaderStagePillTextStage2, selectedMatch.stage === 'stage1' && styles.chatHeaderStagePillTextStage1]}>
-                      {selectedMatch.stage === 'stage1' ? 'Level 1' : 'Level 2'}
-                    </Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              ) : (
-                <View style={styles.chatHeaderStagePillWrap}>
-                  <LinearGradient colors={['#ff85b3', '#ff4d94']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.chatHeaderStagePill, styles.chatHeaderStagePillStage2]}>
-                    <Text style={styles.chatHeaderStagePillEmoji}>💕</Text>
-                    <Text style={[styles.chatHeaderStagePillText, styles.chatHeaderStagePillTextStage2]}>Level 2</Text>
-                  </LinearGradient>
-                </View>
-              )}
+              ) : null}
               {profileCompatibility != null && selectedMatch.stage !== 'pending' && (
                 <TouchableOpacity
                   activeOpacity={0.85}
@@ -3855,7 +3690,7 @@ export default function MatchesScreen() {
                     end={{ x: 1, y: 1 }}
                     style={styles.chatHeaderCompatibilityBadge}
                   >
-                    <Text style={styles.chatHeaderCompatibilityIcon}>💕</Text>
+                    <Text style={styles.chatHeaderCompatibilityIcon}>🎯</Text>
                     <Text style={styles.chatHeaderCompatibilityText}>{profileCompatibility}%</Text>
                   </LinearGradient>
                 </TouchableOpacity>
@@ -3933,7 +3768,6 @@ export default function MatchesScreen() {
                     headerMode
                     onInviteToChat={(text) => handleSendMessage(text)}
                   />
-                  <CompatibilityPulse matchId={selectedMatch.id} socket={socketRef.current} isFocused={isFocused} />
               </View>
             )}
           </View>
@@ -3996,12 +3830,12 @@ export default function MatchesScreen() {
                 contentContainerStyle={styles.compatCardScrollContent}
                 showsVerticalScrollIndicator={true}
               >
-                <Text style={styles.compatCardEmoji}>💕</Text>
+                <Text style={styles.compatCardEmoji}>🎯</Text>
                 <Text style={styles.compatCardTitle}>
-                  {profileCompatibility != null ? `${profileCompatibility}%` : ''} Profile Match
+                  {profileCompatibility != null ? `${profileCompatibility}%` : ''} Interest match
                 </Text>
                 <Text style={styles.compatCardSubtitle}>
-                  Based on interests, values, lifestyle & what you're looking for
+                  This score reflects how your interests overlap—the more you have in common, the higher the connection.
                 </Text>
                 {(compatibilityDetails?.reasons?.length ?? 0) > 0 && (
                   <View style={styles.compatCardReasons}>
@@ -4021,14 +3855,9 @@ export default function MatchesScreen() {
                     </Text>
                   </View>
                 )}
-                {(compatibilityDetails?.sharedValues ?? 0) > 0 && (
-                  <Text style={styles.compatCardValues}>
-                    {compatibilityDetails!.sharedValues} shared value{compatibilityDetails!.sharedValues !== 1 ? 's' : ''}
-                  </Text>
-                )}
-                {(!compatibilityDetails?.reasons?.length && !compatibilityDetails?.sharedInterests?.length && !(compatibilityDetails?.sharedValues ?? 0)) && (
+                {(!compatibilityDetails?.reasons?.length && !compatibilityDetails?.sharedInterests?.length) && (
                   <Text style={styles.compatCardEmpty}>
-                    You're a solid match based on your profiles—keep the conversation going!
+                    Add more interests to your profile to see stronger overlap scores with people you vibe with.
                   </Text>
                 )}
                 <Text style={styles.ageCardHint}>Tap outside to close</Text>
@@ -4318,7 +4147,7 @@ export default function MatchesScreen() {
         }}
       />
 
-      {/* Match Celebration - when User B opens app from match notification (push or in-app); skip "Finding your curated match" */}
+      {/* Match Celebration - when User B opens app from connection notification (push or in-app); skip loading card */}
       {(() => {
         const rp = route.params as { showMatchCelebration?: boolean; matchId?: string; matchName?: string } | undefined;
         const celebrationMatchId = rp?.showMatchCelebration ? rp?.matchId : undefined;
@@ -4343,59 +4172,6 @@ export default function MatchesScreen() {
           />
         ) : null;
       })()}
-
-      {/* Stage Info Modal - explains Level 1 / Level 2 */}
-      <Modal
-        visible={stageInfoModalVisible}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setStageInfoModalVisible(false)}
-      >
-        <TouchableOpacity
-          activeOpacity={1}
-          style={styles.stageInfoOverlay}
-          onPress={() => setStageInfoModalVisible(false)}
-        >
-          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={styles.stageInfoCard}>
-            <LinearGradient
-              colors={stageInfoStage === 'stage2' ? ['#ff85b3', '#ff4d94', '#e91e8c'] : ['#ff6b9d', '#ff4081', '#ff80ab', '#ff1493']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.stageInfoCardGradient}
-            >
-              <View style={styles.stageInfoIconRing}>
-                <Text style={styles.stageInfoBigEmoji}>{stageInfoStage === 'stage1' ? '💖' : '💕'}</Text>
-              </View>
-              <Text style={styles.stageInfoTitle}>
-                {stageInfoStage === 'stage1' ? 'Level 1' : 'Level 2'}
-              </Text>
-              <Text style={styles.stageInfoSubtitle}>
-                {stageInfoStage === 'stage1' ? 'Primary photo revealed' : 'All photos unlocked'}
-              </Text>
-              <View style={styles.stageInfoDivider} />
-              <Text style={styles.stageInfoBody}>
-                {stageInfoStage === 'stage1'
-                  ? 'You can see each other\'s primary profile picture. Chat and send at least 2 messages each to unlock Level 2 and see all photos.'
-                  : 'You\'ve both sent 2+ messages! All profile photos are now visible to each other.'}
-              </Text>
-              <TouchableOpacity
-                style={styles.stageInfoCloseBtn}
-                onPress={() => setStageInfoModalVisible(false)}
-                activeOpacity={0.8}
-              >
-                <LinearGradient
-                  colors={['#fff', '#f8f8ff']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.stageInfoCloseBtnGradient}
-                >
-                  <Text style={styles.stageInfoCloseText}>Got it</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            </LinearGradient>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
 
       {/* New Features: Mulligan Moments - fixed at top (Date Blueprint moved to header) */}
       {selectedMatch && selectedMatch.stage !== 'pending' && (
@@ -4642,20 +4418,24 @@ const styles = StyleSheet.create({
   headerTitleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 6,
+    flexWrap: 'wrap',
+    gap: 8,
   },
   animatedHeartContainer: {
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
+    marginLeft: -22,
   },
   animatedHeartGlow: {
     position: 'absolute',
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#ff1493',
-    shadowColor: '#ff1493',
+    backgroundColor: '#667eea',
+    shadowColor: '#5b4bce',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 1,
     shadowRadius: 20,
@@ -4670,7 +4450,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 3,
     borderColor: '#fff',
-    shadowColor: '#ff1493',
+    shadowColor: '#4c51bf',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.6,
     shadowRadius: 12,
@@ -4694,18 +4474,13 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   headerTitle: {
-    fontSize: 36,
+    fontSize: 26,
     fontWeight: '800',
     color: '#fff',
-    letterSpacing: -0.5,
+    letterSpacing: -0.3,
     textShadowColor: 'rgba(0, 0, 0, 0.2)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
-  },
-  headerSubtitle: {
-    fontSize: 15,
-    color: 'rgba(255, 255, 255, 0.95)',
-    fontWeight: '500',
   },
   emptyContainer: {
     flex: 1,
@@ -4873,27 +4648,6 @@ const styles = StyleSheet.create({
     width: '200%',
     backgroundColor: 'rgba(255, 255, 255, 0.4)',
     transform: [{ rotate: '15deg' }],
-  },
-  stage2Indicator: {
-    position: 'absolute',
-    bottom: -2,
-    right: -2,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#fff',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 3,
-    borderColor: '#ff6b9d',
-    shadowColor: '#ff6b9d',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  stage2IndicatorText: {
-    fontSize: 14,
   },
   unreadBadge: {
     position: 'absolute',
@@ -5075,31 +4829,11 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 1,
   },
-  timerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 14,
-    backgroundColor: '#fff8f0',
-    borderWidth: 2,
-    borderColor: '#ffb84d',
-    shadowColor: '#ffb84d',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  timerEmoji: {
+  timerInline: {
     fontSize: 12,
-    marginRight: 4,
-  },
-  timerText: {
-    fontSize: 11,
-    color: '#d97706',
-    fontWeight: '700',
-    letterSpacing: 0.1,
+    color: '#b45309',
+    fontWeight: '600',
+    letterSpacing: 0.2,
   },
   unmatchButton: {
     width: 36,
@@ -5326,12 +5060,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: 'rgba(255, 255, 255, 0.95)',
   },
-  compatCardValues: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginBottom: 12,
-  },
   compatCardEmpty: {
     fontSize: 14,
     fontWeight: '600',
@@ -5452,13 +5180,6 @@ const styles = StyleSheet.create({
     minWidth: 80,
     alignSelf: 'center',
   },
-  chatHeaderStagePillWrapStage1: {
-    shadowColor: '#ff4081',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.5,
-    shadowRadius: 6,
-    elevation: 4,
-  },
   chatHeaderStagePill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -5470,42 +5191,11 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.35)',
     position: 'relative',
   },
-  chatHeaderStagePillStage1: {
-    borderColor: 'rgba(255,255,255,0.6)',
-  },
-  chatHeaderStagePillStage2: {
-    borderColor: 'rgba(255,255,255,0.5)',
-  },
-  chatHeaderStagePillGloss: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: '50%',
-    borderTopLeftRadius: 14,
-    borderTopRightRadius: 14,
-  },
-  chatHeaderStagePillEmoji: {
-    fontSize: 11,
-    marginRight: 3,
-  },
   chatHeaderStagePillText: {
     fontSize: 11,
     fontWeight: '700',
     color: '#b84d6f',
     letterSpacing: 0.3,
-  },
-  chatHeaderStagePillTextStage1: {
-    color: '#ffffff',
-    textShadowColor: 'rgba(0,0,0,0.3)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  chatHeaderStagePillTextStage2: {
-    color: '#fff',
-    textShadowColor: 'rgba(0,0,0,0.25)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 1,
   },
   chatHeaderSubtitle: {
     fontSize: 14,
@@ -5514,104 +5204,6 @@ const styles = StyleSheet.create({
   chatHeaderSubtitleInner: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  chatHeaderStageLink: {
-    textDecorationLine: 'underline',
-  },
-  stageInfoOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 28,
-  },
-  stageInfoCard: {
-    width: '100%',
-    maxWidth: 340,
-    borderRadius: 24,
-    overflow: 'hidden',
-    shadowColor: '#ff1493',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.45,
-    shadowRadius: 24,
-    elevation: 16,
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.6)',
-  },
-  stageInfoCardGradient: {
-    padding: 28,
-    paddingTop: 32,
-    paddingBottom: 28,
-  },
-  stageInfoIconRing: {
-    alignSelf: 'center',
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: 'rgba(255,255,255,0.4)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-    borderWidth: 3,
-    borderColor: 'rgba(255,255,255,0.6)',
-  },
-  stageInfoBigEmoji: {
-    fontSize: 36,
-  },
-  stageInfoTitle: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: '#fff',
-    marginBottom: 4,
-    textAlign: 'center',
-    letterSpacing: 0.5,
-    textShadowColor: 'rgba(0,0,0,0.25)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
-  },
-  stageInfoSubtitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.95)',
-    marginBottom: 16,
-    textAlign: 'center',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  stageInfoDivider: {
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.4)',
-    marginBottom: 18,
-    marginHorizontal: 8,
-  },
-  stageInfoBody: {
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.95)',
-    lineHeight: 24,
-    marginBottom: 24,
-    textAlign: 'center',
-    paddingHorizontal: 4,
-  },
-  stageInfoCloseBtn: {
-    alignSelf: 'center',
-    borderRadius: 24,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  stageInfoCloseBtnGradient: {
-    paddingVertical: 12,
-    paddingHorizontal: 32,
-    borderRadius: 24,
-  },
-  stageInfoCloseText: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#333',
-    letterSpacing: 0.3,
   },
   photoGuidelinesOverlay: {
     flex: 1,
@@ -5860,6 +5452,22 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: 'rgba(255, 255, 255, 0.9)',
     fontWeight: '600',
+  },
+  photoUnlockHintTouchable: {
+    alignSelf: 'center',
+    marginBottom: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    backgroundColor: 'rgba(102, 126, 234, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(102, 126, 234, 0.35)',
+  },
+  photoUnlockHintText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#4c51bf',
+    letterSpacing: 0.2,
   },
   typingIndicatorContainer: {
     paddingVertical: 8,

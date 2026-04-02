@@ -175,8 +175,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       socket.on('new_match', () => {
-        // Do not play match sound here. It plays only when the "It's a match" card reveals in MatchCelebration
-        // (after "Finding your curated match..."). That way the sound never plays when the loading card opens.
+        // Do not play match sound here. It plays only when the celebration card reveals in MatchCelebration
+        // (after the loading card). That way the sound never plays when the loading card opens.
         api.clearCache('/tokens');
         api.clearCache('/matches');
         // Refresh match list so User A sees the new match even when on another tab (MatchesScreen registers this callback)

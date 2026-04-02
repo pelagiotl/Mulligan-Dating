@@ -2,7 +2,6 @@ import { Router } from 'express';
 import { db } from '../database.js';
 import { authenticateToken, AuthRequest } from '../middleware/auth.js';
 import { geocodeLocation, calculateDistanceMiles } from '../utils/geocoding.js';
-import { checkDealbreakers as checkDealbreakersUtil } from '../utils/dealbreakers.js';
 import { getCompletenessBoost } from '../utils/profileCompleteness.js';
 import { getActiveMatchingRegion, isInRegion, isLikelyInRegionByText, REGION_MAX_DISTANCE_MILES } from '../config/regions.js';
 import { expireOldMatches } from '../utils/expireMatches.js';
@@ -303,6 +302,7 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
 
     // Apply distance filter (and region filter for candidates when geo-lock is on)
     let filteredProfiles = allProfiles;
+    const distanceByProfileId = new Map<string, number | null>();
     const needGeocodeLoop = (userProfile.location && userPrefs && userPrefs.max_distance !== undefined) || activeRegion;
     if (needGeocodeLoop && userProfile.location) {
       const userLocationResult = await geocodeLocation(userProfile.location);
@@ -327,6 +327,9 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
         if (activeRegion && (maxDistMiles === null || maxDistMiles > REGION_MAX_DISTANCE_MILES)) {
           maxDistMiles = REGION_MAX_DISTANCE_MILES;
         }
+        for (const row of profilesWithDistance) {
+          distanceByProfileId.set(row.profile.id, row.distance);
+        }
         filteredProfiles = profilesWithDistance
           .filter(({ distance, inRegion }) => {
             if (activeRegion && !inRegion) return false;
@@ -345,304 +348,93 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
       }
     }
 
-    // Fast path for offset=0 (Connect flow): return first eligible profile from distance-filtered pool
+    // Fast path for offset=0 (Connect flow): first profile after distance/region filter (interests + location + age already enforced in query)
     if (offset === 0 && filteredProfiles.length > 0) {
-      const fastPathLimit = Math.min(10, filteredProfiles.length);
-      for (let i = 0; i < fastPathLimit; i++) {
-        const p = filteredProfiles[i] as ProfileWithMetadata;
-        const passes = await checkDealbreakersUtil(userProfile.id, p.id);
-        if (passes) {
-          // Use profile.photo_url; if null, fall back to primary or first photo so Connect celebration has a photo
-          let photoUrl: string | null = p.photo_url;
-          if (!photoUrl || !String(photoUrl).trim()) {
-            const primaryPhoto = db.prepare('SELECT url FROM photos WHERE profile_id = ? AND is_primary = 1 LIMIT 1').get([p.id]) as { url: string } | undefined;
-            if (primaryPhoto?.url) photoUrl = primaryPhoto.url;
-            else {
-              const firstPhoto = db.prepare('SELECT url FROM photos WHERE profile_id = ? ORDER BY display_order ASC, id ASC LIMIT 1').get([p.id]) as { url: string } | undefined;
-              if (firstPhoto?.url) photoUrl = firstPhoto.url;
-            }
-          }
-          const formattedProfile = {
-            id: p.id,
-            userId: p.user_id,
-            displayName: p.display_name,
-            age: p.age,
-            gender: p.gender,
-            location: p.location,
-            bio: p.bio,
-            photoUrl,
-            lookingFor: p.looking_for,
-            interests: p.interests_list ? p.interests_list.split(',') : [],
-            distance: null as number | null,
-          };
-          console.log('✅ Browse fast path: returning first eligible profile', p.display_name);
-          return res.json({
-            profile: formattedProfile,
-            hasMore: filteredProfiles.length > 1,
-            offset: 0,
-            total: filteredProfiles.length,
-          });
+      const p = filteredProfiles[0] as ProfileWithMetadata;
+      let photoUrl: string | null = p.photo_url;
+      if (!photoUrl || !String(photoUrl).trim()) {
+        const primaryPhoto = db.prepare('SELECT url FROM photos WHERE profile_id = ? AND is_primary = 1 LIMIT 1').get([p.id]) as { url: string } | undefined;
+        if (primaryPhoto?.url) photoUrl = primaryPhoto.url;
+        else {
+          const firstPhoto = db.prepare('SELECT url FROM photos WHERE profile_id = ? ORDER BY display_order ASC, id ASC LIMIT 1').get([p.id]) as { url: string } | undefined;
+          if (firstPhoto?.url) photoUrl = firstPhoto.url;
         }
       }
-      console.log('⚠️  Browse fast path: no profile passed dealbreakers, falling back to full path');
+      const formattedProfile = {
+        id: p.id,
+        userId: p.user_id,
+        displayName: p.display_name,
+        age: p.age,
+        gender: p.gender,
+        location: p.location,
+        bio: p.bio,
+        photoUrl,
+        lookingFor: p.looking_for,
+        interests: p.interests_list ? p.interests_list.split(',') : [],
+        distance: null as number | null,
+      };
+      console.log('✅ Browse fast path: returning first profile', p.display_name);
+      return res.json({
+        profile: formattedProfile,
+        hasMore: filteredProfiles.length > 1,
+        offset: 0,
+        total: filteredProfiles.length,
+      });
     }
 
-    // NOTE: Lifestyle is NOT used for hard filtering here
-    // It will be used for scoring/preference matching instead
-    // Only dealbreakers (checked below) will hard-filter users
-    
-    // NEW: Filter by dealbreakers using comprehensive utility (now async)
-    console.log('🔍 Checking dealbreakers for', filteredProfiles.length, 'profiles...');
-    const dealbreakerResults = await Promise.all(
-      filteredProfiles.map(async (p: ProfileWithMetadata) => {
-        const passes = await checkDealbreakersUtil(userProfile.id, p.id);
-        if (!passes) {
-          console.log(`   ❌ ${p.display_name} filtered out by dealbreakers`);
-        }
-        return { profile: p, passes };
-      })
-    );
-    const beforeDealbreakers = filteredProfiles.length;
-    filteredProfiles = dealbreakerResults
-      .filter(({ passes }) => passes)
-      .map(({ profile }) => profile);
-    console.log('📊 Profiles after dealbreaker filtering:', filteredProfiles.length, beforeDealbreakers > 0 && filteredProfiles.length === 0 ? `(${beforeDealbreakers} were excluded by dealbreakers)` : '');
-
-    // NEW: Score and sort by interests overlap, partner qualities ("What I'm Looking For"), AND lifestyle compatibility
+    // Score by shared interests + proximity (age/gender/distance filters already applied above)
     const userInterests = await (db
       .prepare("SELECT name FROM interests WHERE profile_id = ?")
       .all([userProfile.id]) as Promise<{ name: string }[]>);
-    
-    const userPartnerQualities = await (db
-      .prepare("SELECT quality FROM partner_qualities WHERE profile_id = ?")
-      .all([userProfile.id]) as Promise<{ quality: string }[]>);
-    
-    const userLifestyle = await (db
-      .prepare("SELECT * FROM lifestyle WHERE profile_id = ?")
-      .get([userProfile.id]) as Promise<{
-        smoking: string | null;
-        drinking: string | null;
-        children: string | null;
-        pets: string | null;
-        religion: string | null;
-        work_life_balance: string | null;
-        works_out: string | null;
-      } | undefined>);
-    
-    // Calculate match scores for all profiles (always score, even if no preferences set)
+
+    const maxDistForScore =
+      userPrefs?.max_distance != null && typeof userPrefs.max_distance === 'number' && userPrefs.max_distance > 0
+        ? userPrefs.max_distance
+        : 100;
+
     const profilesWithScores = await Promise.all(filteredProfiles.map(async (p: ProfileWithMetadata) => {
-      // Calculate interests overlap
-      const candidateInterests = p.interests_list 
+      const candidateInterests = p.interests_list
         ? p.interests_list.split(',').map((i: string) => i.trim().toLowerCase())
         : [];
       const userInterestNames = new Set(userInterests.map(i => i.name.toLowerCase()));
       const candidateInterestNames = new Set(candidateInterests);
       const sharedInterests = [...userInterestNames].filter(name => candidateInterestNames.has(name)).length;
       const totalInterests = new Set([...userInterestNames, ...candidateInterestNames]).size;
-      const interestsScore = totalInterests > 0 ? (sharedInterests / totalInterests) : 0.5; // Default to neutral if no interests
-      
-      // Calculate partner qualities match ("What I'm Looking For")
-      // Get candidate's actual partner qualities, not just interests
-      // Note: This is synchronous for SQLite but async for PostgreSQL
-      // We'll handle both cases
-      const candidatePartnerQualitiesPromise = db
-        .prepare("SELECT quality FROM partner_qualities WHERE profile_id = ?")
-        .all([p.id]);
-      const candidatePartnerQualities = Array.isArray(candidatePartnerQualitiesPromise) 
-        ? candidatePartnerQualitiesPromise 
-        : await (candidatePartnerQualitiesPromise as Promise<{ quality: string }[]>);
-      const candidateQualityNames = new Set(candidatePartnerQualities.map(q => q.quality.toLowerCase()));
-      
-      const userQualities = userPartnerQualities.map(q => q.quality.toLowerCase());
-      const matchedQualities = userQualities.filter(q => candidateQualityNames.has(q)).length;
-      const qualitiesScore = userQualities.length > 0 ? (matchedQualities / userQualities.length) : 0.5; // Default to neutral if no qualities
-      
-      // Calculate lifestyle compatibility score
-      let lifestyleScore = 0.5; // Default to neutral if no lifestyle data
-      if (userLifestyle) {
-        const candidateLifestylePromise = db
-          .prepare("SELECT * FROM lifestyle WHERE profile_id = ?")
-          .get([p.id]);
-        const candidateLifestyle = (candidateLifestylePromise instanceof Promise
-          ? await candidateLifestylePromise
-          : candidateLifestylePromise) as {
-            smoking: string | null;
-            drinking: string | null;
-            children: string | null;
-            pets: string | null;
-            religion: string | null;
-            work_life_balance: string | null;
-            works_out: string | null;
-          } | undefined;
-        
-        if (candidateLifestyle) {
-          let matches = 0;
-          let total = 0;
-          
-          // Smoking match
-          if (userLifestyle.smoking && candidateLifestyle.smoking) {
-            total++;
-            const userSmoking = userLifestyle.smoking.toLowerCase();
-            const candidateSmoking = candidateLifestyle.smoking.toLowerCase();
-            if (userSmoking === candidateSmoking) {
-              matches += 1; // Exact match
-            } else if (
-              (userSmoking === 'non-smoker' && candidateSmoking === 'non-smoker') ||
-              (userSmoking.includes('smokes') && candidateSmoking.includes('smokes')) ||
-              (userSmoking.includes('marijuana') && candidateSmoking.includes('marijuana'))
-            ) {
-              matches += 0.5; // Partial match
-            }
-          }
-          
-          // Drinking match
-          if (userLifestyle.drinking && candidateLifestyle.drinking) {
-            total++;
-            const userDrinking = userLifestyle.drinking.toLowerCase();
-            const candidateDrinking = candidateLifestyle.drinking.toLowerCase();
-            if (userDrinking === candidateDrinking) {
-              matches += 1; // Exact match
-            } else if (
-              (userDrinking === 'non-drinker' && candidateDrinking === 'non-drinker') ||
-              (userDrinking.includes('drink') && candidateDrinking.includes('drink'))
-            ) {
-              matches += 0.5; // Partial match
-            }
-          }
-          
-          // Children match
-          if (userLifestyle.children && candidateLifestyle.children) {
-            total++;
-            const userChildren = userLifestyle.children.toLowerCase();
-            const candidateChildren = candidateLifestyle.children.toLowerCase();
-            if (userChildren === candidateChildren) {
-              matches += 1; // Exact match
-            } else if (
-              (userChildren.includes('children') && candidateChildren.includes('children')) ||
-              (userChildren.includes("doesn't want") && candidateChildren.includes("doesn't want"))
-            ) {
-              matches += 0.5; // Partial match
-            }
-          }
-          
-          // Pets match
-          if (userLifestyle.pets && candidateLifestyle.pets) {
-            total++;
-            const userPets = userLifestyle.pets.toLowerCase();
-            const candidatePets = candidateLifestyle.pets.toLowerCase();
-            if (userPets === candidatePets) {
-              matches += 1; // Exact match
-            } else if (
-              (userPets.includes('pets') && candidatePets.includes('pets')) ||
-              (userPets.includes("doesn't like") && candidatePets.includes("doesn't like"))
-            ) {
-              matches += 0.5; // Partial match
-            }
-          }
-          
-          // Religion match
-          if (userLifestyle.religion && candidateLifestyle.religion) {
-            total++;
-            const userReligion = userLifestyle.religion.toLowerCase();
-            const candidateReligion = candidateLifestyle.religion.toLowerCase();
-            if (userReligion === candidateReligion) {
-              matches += 1; // Exact match
-            } else if (
-              (userReligion === 'spiritual' && candidateReligion === 'spiritual') ||
-              (userReligion === 'agnostic' && candidateReligion === 'agnostic')
-            ) {
-              matches += 0.5; // Partial match
-            }
-          }
-          
-          // Work-life balance match
-          if (userLifestyle.work_life_balance && candidateLifestyle.work_life_balance) {
-            total++;
-            const userBalance = userLifestyle.work_life_balance.toLowerCase();
-            const candidateBalance = candidateLifestyle.work_life_balance.toLowerCase();
-            if (userBalance === candidateBalance) {
-              matches += 1; // Exact match
-            } else if (
-              (userBalance.includes('balanced') && candidateBalance.includes('balanced')) ||
-              (userBalance.includes('flexible') && candidateBalance.includes('flexible'))
-            ) {
-              matches += 0.5; // Partial match
-            }
-          }
-          
-          // Works out match - NEW field
-          if (userLifestyle.works_out && candidateLifestyle.works_out) {
-            total++;
-            const userWorksOut = userLifestyle.works_out.toLowerCase();
-            const candidateWorksOut = candidateLifestyle.works_out.toLowerCase();
-            if (userWorksOut === candidateWorksOut) {
-              matches += 1; // Exact match
-            } else if (
-              (userWorksOut === 'all the time' && candidateWorksOut === 'frequently') ||
-              (userWorksOut === 'frequently' && candidateWorksOut === 'all the time')
-            ) {
-              matches += 0.9; // Very compatible - both are active
-            } else if (
-              (userWorksOut === 'frequently' && candidateWorksOut === 'sometimes') ||
-              (userWorksOut === 'sometimes' && candidateWorksOut === 'frequently')
-            ) {
-              matches += 0.7; // Compatible - both exercise
-            } else if (
-              (userWorksOut === 'all the time' && candidateWorksOut === 'sometimes') ||
-              (userWorksOut === 'sometimes' && candidateWorksOut === 'all the time')
-            ) {
-              matches += 0.6; // Partial match
-            } else if (
-              (userWorksOut === 'never' && candidateWorksOut === 'never')
-            ) {
-              matches += 0.8; // Both don't work out - compatible
-            } else if (
-              ((userWorksOut === 'all the time' || userWorksOut === 'frequently') && 
-               candidateWorksOut === 'never') ||
-              (userWorksOut === 'never' && 
-               (candidateWorksOut === 'all the time' || candidateWorksOut === 'frequently'))
-            ) {
-              matches += 0.3; // Mismatch - one is very active, other isn't
-            }
-          }
-          
-          lifestyleScore = total > 0 ? matches / total : 0.5;
-        }
+      const interestsScore = totalInterests > 0 ? sharedInterests / totalInterests : 0.5;
+
+      const dist = distanceByProfileId.get(p.id) ?? null;
+      let distanceScore = 0.5;
+      if (dist != null && maxDistForScore > 0) {
+        const ratio = Math.min(dist / maxDistForScore, 1);
+        distanceScore = Math.exp(-3 * ratio);
       }
-      
-      // Combined score: Partner Qualities ("What I'm Looking For") 45%, Interests 30%, Lifestyle 25%
-      // Partner Qualities is highest priority since it's explicitly "What I'm Looking For"
-      let matchScore = (qualitiesScore * 0.45) + (interestsScore * 0.30) + (lifestyleScore * 0.25);
-      
-      // 10/10 FEATURES: Apply boosts
-      // 1. Profile completeness boost
+
+      let matchScore = interestsScore * 0.7 + distanceScore * 0.3;
+
       const completenessBoost = await getCompletenessBoost(p.id);
       matchScore *= completenessBoost;
-      
-      // 2. Recency boost (recently active users)
+
       const candidateUserPromise = db
         .prepare("SELECT last_active_at FROM users WHERE id = ?")
         .get([p.user_id]);
       const candidateUser = (candidateUserPromise instanceof Promise
         ? await candidateUserPromise
         : candidateUserPromise) as { last_active_at: string | null } | undefined;
-      
+
       if (candidateUser?.last_active_at) {
         const lastActive = new Date(candidateUser.last_active_at).getTime();
         const now = Date.now();
         const daysSinceActive = (now - lastActive) / (1000 * 60 * 60 * 24);
-        
         if (daysSinceActive <= 7) {
-          matchScore *= 1.05; // 5% boost if active in last 7 days
+          matchScore *= 1.05;
         } else if (daysSinceActive <= 30) {
-          matchScore *= 1.02; // 2% boost if active in last 30 days
+          matchScore *= 1.02;
         }
       }
-      
-      return { profile: p, matchScore, sharedInterests, matchedQualities, lifestyleScore };
+
+      return { profile: p, matchScore, sharedInterests };
     }));
-    
-    // Sort by match score (highest first), then by shared interests
+
     profilesWithScores.sort((a, b) => {
       if (Math.abs(b.matchScore - a.matchScore) > 0.01) {
         return b.matchScore - a.matchScore;
@@ -810,17 +602,9 @@ usersRouter.get('/diagnose/:targetUserId', authenticateToken, async (req: AuthRe
       }
     }
 
-    // Check dealbreakers
-    const dealbreakersPass = await checkDealbreakersUtil(userProfile.id, targetProfile.id);
-    let dealbreakersReason = '';
-    if (!dealbreakersPass) {
-      const userDealbreakers = await (db.prepare('SELECT description FROM dealbreakers WHERE profile_id = ?').all([userProfile.id]) as Promise<{ description: string }[]>);
-      dealbreakersReason = `Target matches one or more of your dealbreakers: ${userDealbreakers.map(d => d.description).join(', ')}`;
-    }
-
-    // Summary
-    const allChecksPass = !isRestricted && !isAlreadyMatched && !isBlocked && 
-                         ageFilterPass && genderFilterPass && distanceFilterPass && dealbreakersPass;
+    // Summary (dealbreakers removed — matching uses interests, age, location)
+    const allChecksPass = !isRestricted && !isAlreadyMatched && !isBlocked &&
+                         ageFilterPass && genderFilterPass && distanceFilterPass;
 
     res.json({
       targetUser: {
@@ -837,7 +621,6 @@ usersRouter.get('/diagnose/:targetUserId', authenticateToken, async (req: AuthRe
         ageFilter: { pass: ageFilterPass, reason: ageFilterReason || null },
         genderFilter: { pass: genderFilterPass, reason: genderFilterReason || null },
         distanceFilter: { pass: distanceFilterPass, reason: distanceFilterReason || null, distance },
-        dealbreakers: { pass: dealbreakersPass, reason: dealbreakersReason || null },
       },
       willAppearInBrowse: allChecksPass,
       summary: allChecksPass 

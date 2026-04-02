@@ -411,7 +411,7 @@ export async function initDatabase() {
   `);
 
   // Matches table - two-stage reveal system
-  // Stages: pending (one side sent), stage1 (mutual match, no photos), stage2 (photos revealed), expired
+  // Stages: pending (one side sent), stage1 (mutual — primary photo only), stage2 (each sent 3+ msgs — all photos), expired
   await execSQL(`
     CREATE TABLE IF NOT EXISTS matches (
       id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} PRIMARY KEY,

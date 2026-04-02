@@ -2,7 +2,7 @@
  * Debug logging for production diagnostics (Sentry).
  * - Breadcrumbs: always sent with errors so you see the flow that led to a crash/error.
  * - Debug messages: only when "Debug logging" is enabled (Settings → tap version 7×).
- * Use this in critical flows (NHIE, Keep Browsing, payments) so you can diagnose without rebuilding.
+ * Use this in critical flows (NHIE, Back to Connect, payments) so you can diagnose without rebuilding.
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';

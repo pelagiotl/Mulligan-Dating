@@ -69,13 +69,12 @@ const TabIcon = React.memo(function TabIcon({
             width: 44,
             height: 44,
             borderRadius: 22,
-            backgroundColor: '#8B1538',
-            opacity: 0.14,
+            backgroundColor: 'rgba(139, 21, 56, 0.08)',
             shadowColor: '#8B1538',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.25,
-            shadowRadius: 6,
-            elevation: 4,
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.12,
+            shadowRadius: 4,
+            elevation: 2,
           }}
         />
       )}
@@ -183,11 +182,11 @@ function MainTabs() {
       tabBarIcon: ({ focused }: { focused: boolean }) => (
         <TabIcon focused={focused}>
           <View style={[styles.iconContainer, focused && styles.iconContainerActive]}>
-            <Text style={styles.emojiIcon}>😍</Text>
+            <Text style={styles.emojiIcon}>👀</Text>
           </View>
         </TabIcon>
       ),
-      tabBarLabel: 'Connect',
+      tabBarLabel: 'Discover',
       tabBarButton: createTabBarButton(true),
     }),
     [createTabBarButton]
@@ -198,11 +197,23 @@ function MainTabs() {
       tabBarIcon: ({ focused }: { focused: boolean }) => (
         <TabIcon focused={focused}>
           <View style={[styles.iconContainer, focused && styles.iconContainerActive]}>
-            <Text style={styles.emojiIcon}>❤️</Text>
+            <Text style={styles.emojiIcon}>🔥</Text>
           </View>
         </TabIcon>
       ),
-      tabBarLabel: 'Matches',
+      // Scale to fit on narrow tab slots
+      tabBarLabel: ({ color }: { color: string }) => (
+        <View style={styles.tabBarLabelShrinkWrap}>
+          <Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.55}
+            style={[styles.tabBarLabelVibes, { color }]}
+          >
+            Vibes
+          </Text>
+        </View>
+      ),
       tabBarButton: createTabBarButton(true),
     }),
     [createTabBarButton]
@@ -276,7 +287,7 @@ function MainTabs() {
           ? 8 + Math.round(insets.bottom * 0.5)
           : 8 + Math.max(insets.bottom, 8),
       paddingTop: 8,
-      paddingHorizontal: 8,
+      paddingHorizontal: 4,
       elevation: 12,
       shadowColor: '#000',
       shadowOffset: { width: 0, height: -3 },
@@ -290,16 +301,17 @@ function MainTabs() {
       bottom: 0,
     },
     tabBarItemStyle: {
-      paddingHorizontal: 2,
-      minWidth: 44,
+      paddingHorizontal: 0,
+      minWidth: 0,
+      flex: 1,
     },
     tabBarLabelStyle: {
-      fontSize: 11,
+      fontSize: 10,
       fontWeight: '600' as const,
       marginTop: 4,
-      letterSpacing: 0.15,
+      letterSpacing: 0,
       marginBottom: 0,
-      paddingHorizontal: 2,
+      paddingHorizontal: 0,
       textAlign: 'center' as const,
     },
     tabBarIconStyle: {
@@ -565,12 +577,12 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   iconContainerActive: {
-    backgroundColor: 'rgba(139, 21, 56, 0.12)',
+    backgroundColor: 'rgba(139, 21, 56, 0.05)',
     shadowColor: '#8B1538',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.14,
+    shadowRadius: 5,
+    elevation: 2,
   },
   emojiContainer: {
     width: 24,
@@ -583,6 +595,21 @@ const styles = StyleSheet.create({
     lineHeight: 28,
     textAlign: 'center',
     includeFontPadding: false,
+  },
+  tabBarLabelShrinkWrap: {
+    width: '100%',
+    maxWidth: '100%',
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    marginTop: 4,
+    paddingHorizontal: 0,
+  },
+  tabBarLabelVibes: {
+    fontSize: 10,
+    fontWeight: '600',
+    textAlign: 'center',
+    width: '100%',
+    paddingHorizontal: 0,
   },
 });
 

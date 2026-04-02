@@ -114,12 +114,9 @@ export default function MulliganMoments({ matchId, socket, onStarterGenerated, c
     );
   };
 
+  // Load conversation status in the background — no spinner (was paired with DateBlueprint header spinner on chat open).
   if (checking) {
-    return (
-      <View style={[styles.container, compact && styles.containerCompact]}>
-        <ActivityIndicator size="small" color="#667eea" />
-      </View>
-    );
+    return null;
   }
 
   if (starter) {

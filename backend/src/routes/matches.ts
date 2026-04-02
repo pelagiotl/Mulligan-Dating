@@ -794,7 +794,7 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
 
     // Send HTTP response immediately so the client feels instant; run notifications after
     res.json({
-      message: "It's a match! You can now chat.",
+      message: "You're connected! You can chat now.",
       matchId,
       stage: "stage1",
       isMutual: true,
@@ -825,14 +825,14 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
             matchId,
             otherUserId: targetUserId,
             otherUserName: targetDisplayName?.display_name || 'Someone',
-            message: `🎉 It's a match! You matched with ${targetDisplayName?.display_name || 'someone'}. Start chatting now!`,
+            message: `🎉 You and ${targetDisplayName?.display_name || 'someone'} connected! Say hi in chat.`,
             stage: 'stage1',
           });
           io.to(`user:${targetUserId}`).emit('new_match', {
             matchId,
             otherUserId: userId,
             otherUserName: userDisplayName?.display_name || 'Someone',
-            message: `🎉 It's a match! ${userDisplayName?.display_name || 'Someone'} matched with you. Start chatting now!`,
+            message: `🎉 ${userDisplayName?.display_name || 'Someone'} connected with you! Say hi in chat.`,
             stage: 'stage1',
           });
           console.log(`✅ Sent match notifications to both users: ${userId} and ${targetUserId}`);
@@ -890,7 +890,7 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
   }
 });
 
-// Request to reveal photos (manual override - auto-reveal happens after 2 messages each)
+// Request to reveal photos (manual override - auto-reveal after each user sends 3+ messages)
 // This endpoint is kept for manual override if needed, but reveal is now automatic
 matchesRouter.post("/:matchId/reveal", authenticateToken, async (req: AuthRequest, res) => {
   try {
@@ -913,7 +913,7 @@ matchesRouter.post("/:matchId/reveal", authenticateToken, async (req: AuthReques
     if (match.stage !== "stage1") {
       return res.status(400).json({ 
         error: "Match must be in stage 1 to manually reveal",
-        note: "Photos automatically reveal when both users send 2+ messages each"
+        note: "Photos automatically reveal when both users send 3+ messages each"
       });
     }
 
@@ -1252,7 +1252,7 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
       await insertMessageResult;
     }
 
-    // Check if we should auto-advance to stage2 (both users have sent at least 2 messages each)
+    // Auto-advance to stage2 when each user has sent at least 3 messages
     let autoAdvanced = false;
     if (match.stage === "stage1") {
       const countResult = db
@@ -1262,8 +1262,8 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
       const user1Count = counts.find(c => c.sender_id === match.user1_id)?.count ?? 0;
       const user2Count = counts.find(c => c.sender_id === match.user2_id)?.count ?? 0;
 
-      if (user1Count >= 2 && user2Count >= 2) {
-        // Auto-advance to stage2
+      if (user1Count >= 3 && user2Count >= 3) {
+        // Auto-advance to stage2 — all photos unlocked
         const updateStageResult = db.prepare(
           `UPDATE matches SET stage = 'stage2', stage2_at = CURRENT_TIMESTAMP WHERE id = ?`
         ).run([matchId]);
@@ -1279,7 +1279,7 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
           io.to(`match:${matchId}`).emit('stage_advanced', {
             matchId,
             stage: 'stage2',
-            message: '🎉 You\'ve both sent 2+ messages! All photos are now revealed!',
+            message: '🎉 You\'ve each sent 3+ messages — all photos are unlocked!',
             autoAdvanced: true,
           });
         }
@@ -1707,8 +1707,8 @@ matchesRouter.get("/:matchId/compatibility", authenticateToken, async (req: Auth
   }
 });
 
-// Get profile-based compatibility (interests, dealbreakers, looking for, etc.)
-// Also returns match explanation (reasons, sharedInterests, sharedValues) for the detail card
+// Profile compatibility: 0–100 from shared interests (calculateProfileCompatibilityScore).
+// Explanation: interest-based reasons + sharedInterests; sharedValues always 0 (legacy field).
 matchesRouter.get("/:matchId/profile-compatibility", authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;

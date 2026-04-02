@@ -162,7 +162,7 @@ export default function Matches() {
         // Show cool notification if auto-advanced
         if (data.autoAdvanced) {
           setNotification({
-            message: "🎉 All photos unlocked! You've both sent 2+ messages!",
+            message: "🎉 All photos unlocked! You've each sent 3+ messages.",
             type: "success"
           });
         }
@@ -461,7 +461,7 @@ export default function Matches() {
     if (!selectedMatch) return;
 
     // Confirm with user
-    if (!confirm("Are you sure you want to reveal all photos now? This will bypass the automatic reveal (which happens after 2 messages each).")) {
+    if (!confirm("Are you sure you want to reveal all photos now? This will bypass the automatic reveal (which happens after each of you sends 3 messages).")) {
       return;
     }
 
@@ -531,9 +531,9 @@ export default function Matches() {
       case "pending":
         return "Waiting...";
       case "stage1":
-        return "Connected!";
+        return "1 photo";
       case "stage2":
-        return "Revealed!";
+        return "All photos";
       default:
         return stage;
     }
@@ -762,7 +762,7 @@ export default function Matches() {
                       <h4 className="reveal-unlock-title">Unlock Additional Photos</h4>
                     </div>
                     <p className="reveal-unlock-description">
-                      Keep the conversation going! Send at least 2 messages each to automatically reveal all photos.
+                      Keep the conversation going! When you&apos;ve each sent 3 messages, all photos unlock automatically.
                     </p>
                     {messageCounts && (
                       <div className="reveal-progress-container">
@@ -774,10 +774,10 @@ export default function Matches() {
                             </div>
                             <div className="reveal-progress-bar">
                               <div 
-                                className={`reveal-progress-fill ${messageCounts.user >= 2 ? 'complete' : ''}`}
-                                style={{ width: `${Math.min((messageCounts.user / 2) * 100, 100)}%` }}
+                                className={`reveal-progress-fill ${messageCounts.user >= 3 ? 'complete' : ''}`}
+                                style={{ width: `${Math.min((messageCounts.user / 3) * 100, 100)}%` }}
                               />
-                              <span className="reveal-progress-text">{messageCounts.user}/2</span>
+                              <span className="reveal-progress-text">{messageCounts.user}/3</span>
                             </div>
                           </div>
                           <div className="reveal-progress-item">
@@ -787,14 +787,14 @@ export default function Matches() {
                             </div>
                             <div className="reveal-progress-bar">
                               <div 
-                                className={`reveal-progress-fill ${messageCounts.other >= 2 ? 'complete' : ''}`}
-                                style={{ width: `${Math.min((messageCounts.other / 2) * 100, 100)}%` }}
+                                className={`reveal-progress-fill ${messageCounts.other >= 3 ? 'complete' : ''}`}
+                                style={{ width: `${Math.min((messageCounts.other / 3) * 100, 100)}%` }}
                               />
-                              <span className="reveal-progress-text">{messageCounts.other}/2</span>
+                              <span className="reveal-progress-text">{messageCounts.other}/3</span>
                             </div>
                           </div>
                         </div>
-                        {messageCounts.user >= 2 && messageCounts.other >= 2 && (
+                        {messageCounts.user >= 3 && messageCounts.other >= 3 && (
                           <div className="reveal-progress-complete">
                             <span className="reveal-complete-icon">✨</span>
                             <span>Almost there! Keep chatting to unlock photos...</span>

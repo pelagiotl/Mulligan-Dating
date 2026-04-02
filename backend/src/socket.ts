@@ -291,7 +291,7 @@ export function initializeSocket(server: HTTPServer) {
         console.warn('⚠️  Failed to update compatibility pulse (non-critical):', pulseError);
       }
 
-      // Check if we should auto-advance to stage2 (both users have sent at least 2 messages each)
+      // Auto-advance to stage2 when each user has sent at least 3 messages
       let autoAdvanced = false;
       if (match.stage === "stage1") {
         const countResult = db
@@ -300,7 +300,7 @@ export function initializeSocket(server: HTTPServer) {
         const user1Count = countResult.find((c: { sender_id: string }) => c.sender_id === match.user1_id)?.count ?? 0;
         const user2Count = countResult.find((c: { sender_id: string }) => c.sender_id === match.user2_id)?.count ?? 0;
 
-        if (user1Count >= 2 && user2Count >= 2) {
+        if (user1Count >= 3 && user2Count >= 3) {
           // Auto-advance to stage2
           db.prepare(
             `UPDATE matches SET stage = 'stage2', stage2_at = CURRENT_TIMESTAMP WHERE id = ?`
@@ -317,7 +317,7 @@ export function initializeSocket(server: HTTPServer) {
           io.to(`match:${matchId}`).emit('stage_advanced', {
             matchId,
             stage: 'stage2',
-            message: '🎉 You\'ve both sent 2+ messages! All photos are now revealed!',
+            message: '🎉 You\'ve each sent 3+ messages — all photos are unlocked!',
             autoAdvanced: true,
           });
         }
