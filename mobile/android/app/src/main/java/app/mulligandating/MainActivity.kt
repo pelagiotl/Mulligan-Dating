@@ -1,4 +1,4 @@
-package app.mulliganconnections
+package app.mulligandating
 
 import android.os.Build
 import android.os.Bundle

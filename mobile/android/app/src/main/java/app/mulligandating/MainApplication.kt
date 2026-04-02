@@ -1,4 +1,4 @@
-package app.mulliganconnections
+package app.mulligandating
 
 import android.app.Application
 import android.content.res.Configuration
