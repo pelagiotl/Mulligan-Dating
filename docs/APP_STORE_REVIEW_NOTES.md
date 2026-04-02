@@ -46,7 +46,8 @@ We have provided a screen recording (uploaded/linked below) captured on a physic
 ## 4. External services and platforms
 
 The app uses the following to deliver core functionality:
-- **Backend API:** Node.js/Express backend hosted on Render (mulligan-backend.onrender.com) for auth, profiles, matching, messages, tokens, and IAP webhook.
+- **Backend API:** Node.js/Express backend hosted on Render ([mulligan-backend.onrender.com](https://mulligan-backend.onrender.com)) for auth, profiles, matching, messages, tokens, and IAP webhook.
+- **Web app (optional):** React frontend on Render ([mulligan-frontend.onrender.com](https://mulligan-frontend.onrender.com)); mobile app is the primary client.
 - **Authentication:** Custom phone-based auth with SMS verification (e.g. Twilio or similar provider).
 - **Payments / IAP:** RevenueCat for in-app purchases (Mulligan tokens); Apple In-App Purchase for processing payments. Backend webhook receives purchase events from RevenueCat to grant tokens.
 - **Database:** PostgreSQL (production) for users, profiles, matches, messages, tokens.

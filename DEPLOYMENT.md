@@ -1,9 +1,16 @@
 # Deploying Mulligan Dating App
 
 ## Current Setup
-- **Frontend**: Running on `http://localhost:5173`
-- **Backend**: Running on `http://localhost:3001`
+- **Frontend (local)**: `http://localhost:5173`
+- **Backend (local)**: `http://localhost:3001`
 - **Database**: SQLite (local file)
+
+### Production (Render)
+
+- **Web app:** https://mulligan-frontend.onrender.com  
+- **API:** https://mulligan-backend.onrender.com  
+
+Backend must include `ALLOWED_ORIGINS=https://mulligan-frontend.onrender.com`. Frontend build must set `VITE_API_URL=https://mulligan-backend.onrender.com`.
 
 ## Quick Testing (Temporary Sharing)
 
@@ -85,15 +92,15 @@ Deploy both frontend and backend on the same platform:
 **Backend (.env)**:
 ```
 NODE_ENV=production
-FRONTEND_URL=https://your-frontend-url.com
+FRONTEND_URL=https://mulligan-frontend.onrender.com
 JWT_SECRET=your-strong-secret-key-here
 PORT=3001
-ALLOWED_ORIGINS=https://your-frontend-url.com
+ALLOWED_ORIGINS=https://mulligan-frontend.onrender.com
 ```
 
 **Frontend (.env)**:
 ```
-VITE_API_URL=https://your-backend-url.com
+VITE_API_URL=https://mulligan-backend.onrender.com
 ```
 
 ## Referral Links

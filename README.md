@@ -4,7 +4,7 @@
 
 Mulligan is a full-stack dating application that helps people find meaningful connections by focusing on what truly matters: shared interests, compatible preferences, and honest dealbreakers.
 
-4## Features
+## Features
 
 - **User Authentication** - Secure signup and login
 - **Rich Profiles** - Express yourself with interests, hobbies, and photos
@@ -40,6 +40,17 @@ npm run dev
 
 The frontend will be available at: [http://localhost:5173](http://localhost:5173)
 The backend API will be available at: [http://localhost:3001](http://localhost:3001)
+
+### Production URLs (hosted on Render)
+
+| Service | URL |
+|--------|-----|
+| **Web app** | [https://mulligan-frontend.onrender.com](https://mulligan-frontend.onrender.com) |
+| **Backend API** | [https://mulligan-backend.onrender.com](https://mulligan-backend.onrender.com) |
+
+**Backend environment (Render):** set `ALLOWED_ORIGINS=https://mulligan-frontend.onrender.com` (comma-separated if you add more origins). Optionally set `FRONTEND_URL` to the same for referral / redirect docs.
+
+**Frontend build (Render or CI):** set `VITE_API_URL=https://mulligan-backend.onrender.com` so the web app calls the API.
 
 ### Geocoding Setup (Optional but Recommended)
 
