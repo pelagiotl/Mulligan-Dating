@@ -783,7 +783,7 @@ export default function PhoneLoginScreen() {
           <View style={styles.header}>
             <AnimatedLogo />
             <Text style={styles.title}>Welcome to Mulligan</Text>
-            <Text style={styles.tagline}>The anti-swipe app for real-life hangs</Text>
+            <Text style={styles.tagline}>Meet cool people. Actually hangout.</Text>
             <Text style={styles.subtitle}>Enter your phone number to get started</Text>
           </View>
 

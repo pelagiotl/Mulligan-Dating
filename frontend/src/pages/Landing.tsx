@@ -92,7 +92,8 @@ export default function Landing() {
             </span>
 
             <h1 className="landing-title-enhanced">
-              The anti-swipe app for <span className="landing-title-highlight">real-life hangs</span>
+              Meet cool people.{' '}
+              <span className="landing-title-highlight">Actually hangout.</span>
             </h1>
 
             <p className="landing-description-enhanced">

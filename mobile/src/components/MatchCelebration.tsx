@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Animated,
   Dimensions,
+  useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, CommonActions } from '@react-navigation/native';
@@ -21,6 +22,9 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 /** Floating background particles — fire matches Vibes / Connect branding. */
 const FLOATING_CELEBRATION_EMOJIS = ['🔥'] as const;
+
+/** NBSP keeps "connected!" on one line (avoids orphan "!" on narrow widths, e.g. iPhone SE). */
+const TITLE_CONNECTED_TAIL = 'connected\u00a0!\u00a0🔥';
 
 interface MatchExplanation {
   reasons: string[];
@@ -150,9 +154,9 @@ function FindingMatchLoading() {
   return (
     <View style={styles.loadingCard}>
       <Animated.View style={[styles.loadingHeartWrap, { transform: [{ scale: pulse }] }]}>
-        <Text style={styles.loadingHeart}>✨</Text>
+        <Text style={styles.loadingHeart}>👋</Text>
       </Animated.View>
-      <Text style={styles.loadingTitle}>Finding someone for you</Text>
+      <Text style={styles.loadingTitle}>Finishing your Connect…</Text>
       <View style={styles.loadingDotsRow}>
         <Animated.View style={[styles.loadingDot, { transform: [{ translateY: translateY1 }] }]} />
         <Animated.View style={[styles.loadingDot, { transform: [{ translateY: translateY2 }] }]} />
@@ -174,6 +178,7 @@ export default function MatchCelebration({
   skipLoadingReveal = false,
   revealWhenMatchIdReady = false,
 }: MatchCelebrationProps) {
+  const { width: windowWidth } = useWindowDimensions();
   const navigation = useNavigation();
   // Init from prop so User B (skipLoadingReveal=true) shows celebration immediately; User A (false) always sees loading first
   const [revealed, setRevealed] = useState(() => skipLoadingReveal);
@@ -567,10 +572,16 @@ export default function MatchCelebration({
 
           {/* Text content with staggered animations */}
           <View style={styles.textContainer}>
-            <View style={styles.titleContainer}>
+            <View
+              style={[
+                styles.titleContainer,
+                { maxWidth: windowWidth - 24 },
+              ]}
+            >
               <Animated.Text
                 style={[
                   styles.titleWord,
+                  windowWidth <= 375 && styles.titleWordCompact,
                   {
                     transform: [{ translateY: word1TranslateY }],
                     opacity: word1Opacity,
@@ -582,6 +593,7 @@ export default function MatchCelebration({
               <Animated.Text
                 style={[
                   styles.titleWord,
+                  windowWidth <= 375 && styles.titleWordCompact,
                   {
                     transform: [{ translateY: word2TranslateY }],
                     opacity: word2Opacity,
@@ -593,19 +605,21 @@ export default function MatchCelebration({
               <Animated.View
                 style={{
                   transform: [{ scale: heartBeatAnim }],
+                  maxWidth: windowWidth - 24,
                 }}
               >
                 <Animated.Text
                   style={[
                     styles.titleWord,
                     styles.titleWordMatch,
+                    windowWidth <= 375 && styles.titleWordMatchCompact,
                     {
                       transform: [{ translateY: word3TranslateY }],
                       opacity: word3Opacity,
                     },
                   ]}
                 >
-                  connected! ✨
+                  {TITLE_CONNECTED_TAIL}
                 </Animated.Text>
               </Animated.View>
             </View>
@@ -622,7 +636,7 @@ export default function MatchCelebration({
                 <Text style={styles.explanationTitle}>What you have in common:</Text>
                 {explanation.reasons.map((reason, index) => (
                   <View key={index} style={styles.reasonItem}>
-                    <Text style={styles.reasonBullet}>✨</Text>
+                    <Text style={styles.reasonBullet}>{'\u2022'}</Text>
                     <Text style={styles.reasonText}>{reason}</Text>
                   </View>
                 ))}
@@ -654,7 +668,7 @@ export default function MatchCelebration({
                     >
                       <View style={styles.buttonContent}>
                         <Text style={styles.buttonText}>Send a Message</Text>
-                        <Text style={styles.buttonEmoji}> 💌</Text>
+                        <Text style={styles.buttonEmoji}> 💬</Text>
                       </View>
                     </LinearGradient>
                   </TouchableOpacity>
@@ -672,9 +686,6 @@ export default function MatchCelebration({
             )}
           </View>
 
-          {/* Sparkles */}
-          <SparklesComponent />
-          
           {/* Floating fire (Vibes tab vibe) */}
           <FloatingHeartsComponent />
         </Animated.View>
@@ -806,117 +817,6 @@ function FloatingHeartsComponent() {
     <View style={styles.floatingHeartsContainer} pointerEvents="none">
       {Array.from({ length: 10 }).map((_, i) => (
         <FloatingHeart key={i} index={i} />
-      ))}
-    </View>
-  );
-}
-
-// Separate component for animated sparkles
-function SparklesComponent() {
-  const sparkles = Array.from({ length: 16 }).map((_, i) => {
-    const angle = (i * 360) / 16;
-    const radius = 120;
-    const x = Math.cos((angle * Math.PI) / 180) * radius;
-    const y = Math.sin((angle * Math.PI) / 180) * radius;
-    const opacity = useRef(new Animated.Value(0)).current;
-    const scale = useRef(new Animated.Value(0)).current;
-    const rotate = useRef(new Animated.Value(0)).current;
-
-    useEffect(() => {
-      // Single animation sequence - sparkles animate once and fade out
-      // This avoids native driver conflicts from looping
-      Animated.sequence([
-        Animated.parallel([
-          Animated.timing(opacity, {
-            toValue: 1,
-            duration: 400,
-            delay: i * 80,
-            useNativeDriver: true,
-          }),
-          Animated.spring(scale, {
-            toValue: 1,
-            friction: 3,
-            tension: 50,
-            delay: i * 80,
-            useNativeDriver: true,
-          }),
-          Animated.timing(rotate, {
-            toValue: 1,
-            duration: 2000,
-            delay: i * 80,
-            useNativeDriver: true,
-          }),
-        ]),
-        Animated.parallel([
-          Animated.timing(opacity, {
-            toValue: 0.3,
-            duration: 600,
-            delay: 800,
-            useNativeDriver: true,
-          }),
-          Animated.timing(scale, {
-            toValue: 0.8,
-            duration: 600,
-            delay: 800,
-            useNativeDriver: true,
-          }),
-        ]),
-        Animated.parallel([
-          Animated.timing(opacity, {
-            toValue: 1,
-            duration: 600,
-            useNativeDriver: true,
-          }),
-          Animated.spring(scale, {
-            toValue: 1.2,
-            friction: 3,
-            tension: 50,
-            useNativeDriver: true,
-          }),
-        ]),
-        Animated.parallel([
-          Animated.timing(opacity, {
-            toValue: 0,
-            duration: 400,
-            useNativeDriver: true,
-          }),
-          Animated.timing(scale, {
-            toValue: 0,
-            duration: 400,
-            useNativeDriver: true,
-          }),
-        ]),
-      ]).start();
-    }, []);
-
-    const rotation = rotate.interpolate({
-      inputRange: [0, 1],
-      outputRange: ['0deg', '360deg'],
-    });
-
-    return { x, y, opacity, scale, rotation, key: i };
-  });
-
-  return (
-    <View style={styles.sparklesContainer} pointerEvents="none">
-      {sparkles.map((sparkle) => (
-        <Animated.View
-          key={sparkle.key}
-          style={[
-            styles.sparkle,
-            {
-              transform: [
-                { translateX: sparkle.x },
-                { translateY: sparkle.y },
-                { scale: sparkle.scale },
-                { rotate: sparkle.rotation },
-              ],
-              opacity: sparkle.opacity,
-            },
-          ]}
-        >
-          <Text style={styles.sparkleText}>✨</Text>
-        </Animated.View>
       ))}
     </View>
   );
@@ -1075,6 +975,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     flexWrap: 'wrap',
     justifyContent: 'center',
+    alignSelf: 'center',
   },
   titleWord: {
     fontSize: 40,
@@ -1084,12 +985,19 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
   },
+  titleWordCompact: {
+    fontSize: 34,
+  },
   titleWordMatch: {
     color: '#c026d3',
     fontSize: 48,
     textShadowColor: 'rgba(196, 38, 211, 0.4)',
     textShadowOffset: { width: 0, height: 4 },
     textShadowRadius: 10,
+    textAlign: 'center',
+  },
+  titleWordMatchCompact: {
+    fontSize: 40,
   },
   subtitleContainer: {
     marginBottom: 12,
@@ -1133,6 +1041,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginRight: 8,
     marginTop: 2,
+    color: '#c026d3',
+    fontWeight: '700',
   },
   reasonText: {
     flex: 1,
@@ -1196,25 +1106,6 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     letterSpacing: 0.3,
-  },
-  sparklesContainer: {
-    position: 'absolute',
-    width: 240,
-    height: 240,
-    top: 10,
-    left: '50%',
-    marginLeft: -120,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sparkle: {
-    position: 'absolute',
-  },
-  sparkleText: {
-    fontSize: 28,
-    textShadowColor: 'rgba(255, 255, 255, 0.8)',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 8,
   },
   floatingHeartsContainer: {
     position: 'absolute',
