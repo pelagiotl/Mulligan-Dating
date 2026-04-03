@@ -146,7 +146,7 @@ const ConnectLandingScarcity = memo(function ConnectLandingScarcity({
               slotScarce ? styles.statTileCool : styles.statTileNeutral,
             ]}
           >
-            <Text style={styles.cellLabelSecondary}>Open match slots</Text>
+            <Text style={styles.cellLabelSecondary}>Open connections</Text>
             <Text style={[styles.cellValueSlot, slotScarce && styles.cellValueCool]}>
               {slotsOpen}
               <Text style={styles.cellValueSlotSuffix}> / {slotLimit}</Text>
