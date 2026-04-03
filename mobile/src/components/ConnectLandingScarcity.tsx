@@ -234,7 +234,6 @@ const styles = StyleSheet.create({
   tagline: {
     textAlign: 'center',
     paddingHorizontal: 6,
-    maxWidth: 320,
     alignSelf: 'center',
   },
   taglineLead: {

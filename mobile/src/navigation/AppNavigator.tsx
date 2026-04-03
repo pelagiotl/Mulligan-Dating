@@ -201,19 +201,7 @@ function MainTabs() {
           </View>
         </TabIcon>
       ),
-      // Scale to fit on narrow tab slots
-      tabBarLabel: ({ color }: { color: string }) => (
-        <View style={styles.tabBarLabelShrinkWrap}>
-          <Text
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.55}
-            style={[styles.tabBarLabelVibes, { color }]}
-          >
-            Vibes
-          </Text>
-        </View>
-      ),
+      tabBarLabel: 'Vibes',
       tabBarButton: createTabBarButton(true),
     }),
     [createTabBarButton]
@@ -595,21 +583,6 @@ const styles = StyleSheet.create({
     lineHeight: 28,
     textAlign: 'center',
     includeFontPadding: false,
-  },
-  tabBarLabelShrinkWrap: {
-    width: '100%',
-    maxWidth: '100%',
-    alignSelf: 'stretch',
-    alignItems: 'center',
-    marginTop: 4,
-    paddingHorizontal: 0,
-  },
-  tabBarLabelVibes: {
-    fontSize: 10,
-    fontWeight: '600',
-    textAlign: 'center',
-    width: '100%',
-    paddingHorizontal: 0,
   },
 });
 

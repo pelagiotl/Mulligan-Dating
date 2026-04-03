@@ -13,6 +13,7 @@ import {
   Platform,
   Vibration,
   Modal,
+  useWindowDimensions,
 } from 'react-native';
 import { TouchableOpacity as GestureTouchable } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -168,6 +169,36 @@ export default function BrowseScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   const insets = useSafeAreaInsets();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  /** iPad / large tablets: white Connect card should fill the viewport (not a short strip on gradient). */
+  const connectLandingFillTablet =
+    windowWidth >= 768 || (Platform.OS === 'ios' && Platform.isPad);
+  const connectLandingFillStyles = useMemo(() => {
+    if (!connectLandingFillTablet) return undefined;
+    const tabClear = landingTabBarClearancePx(insets.bottom);
+    const wrapperPadTop = 74;
+    const wrapperPadBottom = 36;
+    const containerVMargin = 4 + 28;
+    const minPageWrapperH = windowHeight - insets.top - tabClear;
+    const minWhiteH = Math.max(
+      440,
+      minPageWrapperH - wrapperPadTop - wrapperPadBottom - containerVMargin
+    );
+    return {
+      // Padding (not margin) on wrapper avoids width:100% + horizontal margin overflow on iPad.
+      pageWrapper: {
+        minHeight: minPageWrapperH,
+        paddingLeft: Math.max(40, insets.left),
+        paddingRight: Math.max(40, insets.right),
+      },
+      container: { flexGrow: 1 as const, minHeight: minWhiteH },
+      content: {
+        flexGrow: 1 as const,
+        minHeight: minWhiteH,
+        justifyContent: 'space-between' as const,
+      },
+    };
+  }, [connectLandingFillTablet, windowHeight, insets.top, insets.bottom, insets.left, insets.right]);
   const isFocused = useIsFocused();
   /** useIsFocused() can be false on the first paint; hiding then causes a black screen (transparent scene over default black). */
   const browseWasFocusedRef = useRef(false);
@@ -1535,10 +1566,10 @@ export default function BrowseScreen() {
 
         {/* Browse Locked State - Beautiful Landing Page */}
         {showLandingPage ? (
-          <View style={styles.landingPageWrapper}>
-          <View style={styles.landingContainer}>
+          <View style={[styles.landingPageWrapper, connectLandingFillStyles?.pageWrapper]}>
+          <View style={[styles.landingContainer, connectLandingFillStyles?.container]}>
             {/* Main content */}
-            <View style={styles.landingContent}>
+            <View style={[styles.landingContent, connectLandingFillStyles?.content]}>
               <View style={styles.landingContentTop}>
               <View style={styles.landingTokenInCard} pointerEvents="box-none">
                 {mulliganTokenControls}
@@ -2516,6 +2547,9 @@ const styles = StyleSheet.create({
   landingPageWrapper: {
     flex: 1,
     minHeight: Dimensions.get('window').height - 140,
+    alignSelf: 'stretch',
+    paddingLeft: 22,
+    paddingRight: 22,
     paddingTop: 74,
     paddingBottom: 36,
     position: 'relative',
@@ -2530,7 +2564,6 @@ const styles = StyleSheet.create({
   landingContainer: {
     position: 'relative',
     alignSelf: 'stretch',
-    marginHorizontal: 22,
     marginTop: 4,
     marginBottom: 28,
     borderRadius: 26,
