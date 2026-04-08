@@ -45,19 +45,12 @@ export default function Settings() {
   const [displayNameSaving, setDisplayNameSaving] = useState(false);
   const [activeStatusSaving, setActiveStatusSaving] = useState(false);
 
-  // Password change
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [changingPassword, setChangingPassword] = useState(false);
-
   // Email change
   const [newEmail, setNewEmail] = useState("");
-  const [emailPassword, setEmailPassword] = useState("");
   const [changingEmail, setChangingEmail] = useState(false);
 
   // Delete account
-  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -241,38 +234,6 @@ export default function Settings() {
     }
   };
 
-  const handleChangePassword = async (e: FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setSuccess("");
-
-    if (newPassword !== confirmPassword) {
-      setError("New passwords don't match");
-      return;
-    }
-
-    if (newPassword.length < 8) {
-      setError("Password must be at least 8 characters");
-      return;
-    }
-
-    setChangingPassword(true);
-    try {
-      await api.post("/settings/change-password", {
-        currentPassword,
-        newPassword,
-      });
-      setSuccess("Password changed successfully!");
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to change password");
-    } finally {
-      setChangingPassword(false);
-    }
-  };
-
   const handleChangeEmail = async (e: FormEvent) => {
     e.preventDefault();
     setError("");
@@ -282,11 +243,9 @@ export default function Settings() {
     try {
       await api.put("/settings/email", {
         email: newEmail,
-        password: emailPassword,
       });
       setSuccess("Email changed successfully!");
       setNewEmail("");
-      setEmailPassword("");
       await fetchSettings(); // Refresh settings
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to change email");
@@ -299,14 +258,14 @@ export default function Settings() {
     e.preventDefault();
     setError("");
 
-    if (!deletePassword) {
-      setError("Password required to delete account");
+    if (deleteConfirmText.trim().toUpperCase() !== "DELETE") {
+      setError("Type DELETE to confirm permanent account deletion.");
       return;
     }
 
     setDeleting(true);
     try {
-      await api.post("/settings/delete-account", { password: deletePassword });
+      await api.post("/settings/delete-account", {});
       logout();
       navigate("/");
     } catch (err) {
@@ -324,7 +283,7 @@ export default function Settings() {
       <div className="settings-container">
         <div className="settings-header">
           <h1 className="page-title"><span>⚙️</span> Settings</h1>
-          <p className="page-subtitle">Manage your account preferences and security</p>
+          <p className="page-subtitle">Manage your account preferences</p>
         </div>
 
         {error && <div className="auth-error">{error}</div>}
@@ -496,57 +455,6 @@ export default function Settings() {
           )}
         </div>
 
-        {/* Change Password */}
-        <div className="settings-section">
-          <h2 className="settings-section-title">
-            <span>🔐</span> Change Password
-          </h2>
-          <form onSubmit={handleChangePassword} className="settings-form">
-            <div className="form-group">
-              <label htmlFor="currentPassword">Current Password</label>
-              <input
-                type="password"
-                id="currentPassword"
-                className="form-input"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                required
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="newPassword">New Password</label>
-              <input
-                type="password"
-                id="newPassword"
-                className="form-input"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                required
-                minLength={8}
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="confirmPassword">Confirm New Password</label>
-              <input
-                type="password"
-                id="confirmPassword"
-                className="form-input"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                minLength={8}
-              />
-            </div>
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={changingPassword}
-            >
-              {changingPassword ? "Changing..." : "Change Password"}
-            </button>
-          </form>
-        </div>
-
         {/* Change Email */}
         <div className="settings-section">
           <h2 className="settings-section-title">
@@ -560,27 +468,10 @@ export default function Settings() {
                 id="newEmail"
                 className="form-input"
                 value={newEmail}
-                onChange={(e) => {
-                  console.log('Email input onChange:', e.target.value);
-                  setNewEmail(e.target.value);
-                }}
-                onFocus={(e) => console.log('Email input focused')}
-                onClick={(e) => console.log('Email input clicked')}
+                onChange={(e) => setNewEmail(e.target.value)}
                 placeholder="you@example.com"
                 required
                 autoComplete="email"
-                style={{ pointerEvents: 'auto', zIndex: 1, position: 'relative' }}
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="emailPassword">Current Password</label>
-              <input
-                type="password"
-                id="emailPassword"
-                className="form-input"
-                value={emailPassword}
-                onChange={(e) => setEmailPassword(e.target.value)}
-                required
               />
             </div>
             <button
@@ -614,17 +505,19 @@ export default function Settings() {
           ) : (
             <form onSubmit={handleDeleteAccount} className="settings-form">
               <p className="danger-warning">
-                Are you absolutely sure? Type your password to confirm.
+                This cannot be undone. Type <strong>DELETE</strong> below to confirm.
               </p>
               <div className="form-group">
-                <label htmlFor="deletePassword">Password</label>
+                <label htmlFor="deleteConfirmText">Confirmation</label>
                 <input
-                  type="password"
-                  id="deletePassword"
+                  type="text"
+                  id="deleteConfirmText"
                   className="form-input"
-                  value={deletePassword}
-                  onChange={(e) => setDeletePassword(e.target.value)}
-                  required
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  placeholder="DELETE"
+                  autoComplete="off"
+                  spellCheck={false}
                 />
               </div>
               <div className="form-actions">
@@ -633,7 +526,7 @@ export default function Settings() {
                   className="btn btn-secondary"
                   onClick={() => {
                     setShowDeleteConfirm(false);
-                    setDeletePassword("");
+                    setDeleteConfirmText("");
                   }}
                 >
                   Cancel

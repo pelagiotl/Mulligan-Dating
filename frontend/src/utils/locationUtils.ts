@@ -1,7 +1,21 @@
-/** City and state required for profile location (e.g. "Medford, Oregon"). */
+/** Returns true if trimmed value has at least one comma with non-empty city and state. */
 export function hasCityAndState(location: string): boolean {
   const t = location.trim();
-  const i = t.indexOf(",");
-  if (i === -1) return false;
-  return t.slice(0, i).trim().length > 0 && t.slice(i + 1).trim().length > 0;
+  const commaIdx = t.indexOf(",");
+  if (commaIdx === -1) return false;
+  const city = t.slice(0, commaIdx).trim();
+  const state = t.slice(commaIdx + 1).trim();
+  return city.length > 0 && state.length > 0;
+}
+
+/**
+ * When the user types a space after the city (no comma yet), replace with ", "
+ * so they get "City, " and can type state.
+ */
+export function handleLocationChange(newValue: string, setValue: (v: string) => void): void {
+  if (newValue.endsWith(" ") && !newValue.slice(0, -1).includes(",")) {
+    setValue(newValue.slice(0, -1).trimEnd() + ", ");
+  } else {
+    setValue(newValue);
+  }
 }

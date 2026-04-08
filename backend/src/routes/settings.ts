@@ -6,11 +6,6 @@ import { authenticateToken, AuthRequest } from "../middleware/auth.js";
 
 export const settingsRouter = Router();
 
-const changePasswordSchema = z.object({
-  currentPassword: z.string(),
-  newPassword: z.string().min(8, "Password must be at least 8 characters"),
-});
-
 // Get user settings/info
 settingsRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
   try {
@@ -40,69 +35,19 @@ settingsRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
   }
 });
 
-// Change password
-settingsRouter.post("/change-password", authenticateToken, async (req: AuthRequest, res) => {
-  try {
-    const userId = req.userId!;
-    const { currentPassword, newPassword } = changePasswordSchema.parse(req.body);
-
-    // Get current user
-    const user = await (db
-      .prepare("SELECT password FROM users WHERE id = ?")
-      .get(userId) as Promise<{ password: string } | undefined>);
-
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
-
-    // Verify current password
-    const validPassword = await bcrypt.compare(currentPassword, user.password);
-    if (!validPassword) {
-      return res.status(401).json({ error: "Current password is incorrect" });
-    }
-
-    // Hash new password
-    const hashedPassword = await bcrypt.hash(newPassword, 12);
-
-    // Update password
-    await (db.prepare("UPDATE users SET password = ? WHERE id = ?").run([hashedPassword, userId]) as Promise<any>);
-
-    res.json({ message: "Password changed successfully" });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors[0].message });
-    }
-    console.error("Change password error:", error);
-    res.status(500).json({ error: "Failed to change password" });
-  }
-});
-
-// Delete account
+// Delete account — authenticated session only (phone-first app; no password re-entry)
 settingsRouter.post("/delete-account", authenticateToken, async (req: AuthRequest, res) => {
   const userId = req.userId!;
-  const { password } = (req.body || {}) as { password?: string };
 
   try {
-    const user = await (db
-      .prepare("SELECT password FROM users WHERE id = ?")
-      .get(userId) as Promise<{ password: string | null } | undefined>);
+    const row = await (db
+      .prepare("SELECT id FROM users WHERE id = ?")
+      .get(userId) as Promise<{ id: string } | undefined>);
 
-    if (!user) {
+    if (!row) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    // Phone-auth users have no password; allow deletion with just JWT
-    if (user.password) {
-      if (!password) {
-        return res.status(400).json({ error: "Password required to delete account" });
-      }
-      const validPassword = await bcrypt.compare(password, user.password);
-      if (!validPassword) {
-        return res.status(401).json({ error: "Password is incorrect" });
-      }
-    }
-
-    // Delete user (cascade will delete profile, matches, messages, etc.)
     await (db.prepare("DELETE FROM users WHERE id = ?").run([userId]) as Promise<any>);
 
     res.json({ message: "Account deleted successfully" });
