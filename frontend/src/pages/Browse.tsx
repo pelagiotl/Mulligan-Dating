@@ -1,12 +1,12 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../utils/api";
 import { useAuth } from "../context/AuthContext";
 import { getPhotoUrl } from "../utils/photoUrl";
 import MatchCelebration from "../components/MatchCelebration";
 import TokenDisplay from "../components/TokenDisplay";
+import ConnectLandingMark from "../components/ConnectLandingMark";
 import { io, Socket } from "socket.io-client";
-import BrandMark from "../components/BrandMark";
 
 interface Photo {
   id: string;
@@ -30,6 +30,83 @@ interface Profile {
   distance?: number | null;
 }
 
+/** Connect tab loading — same chrome as iOS Connect landing + public `/`. */
+function BrowseConnectLandingLoader() {
+  return (
+    <div className="browse-page-native native-app-screen connect-landing-page">
+      <div className="connect-landing">
+        <div className="connect-landing__card">
+          <div className="connect-landing__logo-row">
+            <ConnectLandingMark />
+            <span className="connect-landing__brand">Mulligan</span>
+          </div>
+
+          <h1 className="connect-landing__title">Discover People</h1>
+          <p className="connect-landing__subtitle">
+            Find someone who shares your interests and values
+          </p>
+
+          <div className="connect-landing__features">
+            <div className="connect-landing__feature">
+              <span className="connect-landing__feature-emoji">✨</span>
+              <span className="connect-landing__feature-text">
+                Quality
+                <br />
+                Matches
+              </span>
+            </div>
+            <div className="connect-landing__feature">
+              <span className="connect-landing__feature-emoji">🎯</span>
+              <span className="connect-landing__feature-text">
+                Shared
+                <br />
+                Interests
+              </span>
+            </div>
+            <div className="connect-landing__feature">
+              <span className="connect-landing__feature-emoji">💝</span>
+              <span className="connect-landing__feature-text">
+                Meaningful
+                <br />
+                Connections
+              </span>
+            </div>
+          </div>
+
+          <div
+            className="connect-landing__cta connect-landing__cta--loading"
+            aria-live="polite"
+            aria-busy="true"
+          >
+            <span className="connect-landing__spinner" />
+            <span>Finding people…</span>
+          </div>
+
+          <p className="connect-landing__hint">⛳ Use a Mulligan</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BrowseLocation({ location }: { location?: string }) {
+  if (!location) return null;
+  const parts = location.split(",").map((s) => s.trim());
+  const city = parts[0] || "";
+  const stateRest = parts.slice(1).join(", ") || "";
+  if (!stateRest) {
+    return <div className="browse-native-location">📍 {location}</div>;
+  }
+  return (
+    <div className="browse-native-location">
+      <span aria-hidden>📍 </span>
+      <span>{city}</span>
+      <span>, </span>
+      <span>{stateRest}</span>
+    </div>
+  );
+}
+
 export default function Browse() {
   const { profile: userProfile } = useAuth();
   const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
@@ -44,6 +121,48 @@ export default function Browse() {
   const [matchNotification, setMatchNotification] = useState<{ message: string; type: "success" | "info" | "warning" | "error" } | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const navigate = useNavigate();
+  const photoRailRef = useRef<HTMLDivElement>(null);
+  const [photoIndex, setPhotoIndex] = useState(0);
+
+  const displayPhotos = useMemo(() => {
+    if (!currentProfile) return [] as { id: string; url: string }[];
+    const raw = currentProfile.photos?.length
+      ? [...currentProfile.photos].sort(
+          (a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0)
+        )
+      : [];
+    if (raw.length) {
+      return raw.map((p) => ({ id: p.id, url: getPhotoUrl(p.url) }));
+    }
+    if (currentProfile.photoUrl) {
+      return [{ id: "legacy", url: getPhotoUrl(currentProfile.photoUrl) }];
+    }
+    return [];
+  }, [currentProfile]);
+
+  useEffect(() => {
+    setPhotoIndex(0);
+    const el = photoRailRef.current;
+    if (el) el.scrollLeft = 0;
+  }, [currentProfile?.id]);
+
+  const onPhotoRailScroll = useCallback(() => {
+    const el = photoRailRef.current;
+    if (!el || displayPhotos.length <= 1) return;
+    const w = el.clientWidth || 1;
+    const idx = Math.min(
+      displayPhotos.length - 1,
+      Math.max(0, Math.round(el.scrollLeft / w))
+    );
+    setPhotoIndex(idx);
+  }, [displayPhotos.length]);
+
+  const scrollToPhoto = useCallback((i: number) => {
+    const el = photoRailRef.current;
+    if (!el) return;
+    const w = el.clientWidth;
+    el.scrollTo({ left: i * w, behavior: "smooth" });
+  }, []);
 
   // Define fetchProfile first with useCallback before using it in useEffect
   const fetchProfile = useCallback(async () => {
@@ -375,167 +494,192 @@ export default function Browse() {
     // Don't return error, show create profile button instead
   }
 
-  // Render loading screen
   if (loading) {
-    return (
-      <div className="loading-screen-immersive">
-        <div className="loading-bg-gradient"></div>
-        <div className="loading-particles">
-          {Array.from({ length: 30 }).map((_, i) => (
-            <div
-              key={i}
-              className="loading-particle"
-              style={{
-                left: `${Math.random() * 100}%`,
-                top: `${Math.random() * 100}%`,
-                animationDelay: `${Math.random() * 3}s`,
-                animationDuration: `${10 + Math.random() * 10}s`
-              }}
-            />
-          ))}
-        </div>
-        <div className="loading-orbs">
-          <div className="loading-orb loading-orb-1"></div>
-          <div className="loading-orb loading-orb-2"></div>
-          <div className="loading-orb loading-orb-3"></div>
-        </div>
-        <div className="loading-content">
-          <div className="loading-logo-container">
-            <BrandMark size={80} className="loading-logo" alt="" />
-          </div>
-          <h1 className="loading-title">Discovering people near you</h1>
-          <div className="loading-dots">
-            <span className="loading-dot"></span>
-            <span className="loading-dot"></span>
-            <span className="loading-dot"></span>
-          </div>
-          <p className="loading-subtitle">Finding people near you</p>
-        </div>
-      </div>
-    );
+    return <BrowseConnectLandingLoader />;
   }
 
   return (
-    <div>
-      {/* Match notification */}
+    <div className="browse-page-native native-app-screen">
       {matchNotification && (
         <div
           style={{
-            position: 'fixed',
-            top: '20px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            backgroundColor: matchNotification.type === 'success' ? '#10b981' : '#ef4444',
-            color: 'white',
-            padding: '16px 24px',
-            borderRadius: '8px',
-            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+            position: "fixed",
+            top: "20px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            backgroundColor:
+              matchNotification.type === "success" ? "#10b981" : "#ef4444",
+            color: "white",
+            padding: "16px 24px",
+            borderRadius: "8px",
+            boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
             zIndex: 1000,
-            maxWidth: '90%',
-            textAlign: 'center',
-            cursor: 'pointer',
+            maxWidth: "90%",
+            textAlign: "center",
+            cursor: "pointer",
           }}
           onClick={() => {
             setMatchNotification(null);
-            navigate('/matches');
+            navigate("/matches");
           }}
         >
           {matchNotification.message}
         </div>
       )}
 
-      <div className="browse-header">
-        <TokenDisplay />
-        <h1 className="browse-title">Discover People</h1>
-        <p className="browse-subtitle">
-          Meet people nearby who share your interests—then chat and plan a hang
-        </p>
-      </div>
-
       {needsProfile ? (
-        <>
-          <div className="profile-arrow-indicator">
-            <div className="arrow-line"></div>
-            <div className="arrow-head">↓</div>
-          </div>
+        <div className="browse-native-needs-profile">
+          <div className="browse-native-needs-profile-emoji">📝</div>
           {error && (
-            <div style={{ 
-              textAlign: 'center', 
-              marginTop: 'var(--space-4)', 
-              color: 'var(--text-secondary)',
-              fontSize: '0.9rem',
-              padding: '0 var(--space-4)'
-            }}>
-              {error}
-            </div>
-          )}
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '20px' }}>
-            <button 
-              onClick={() => navigate("/create-profile")}
-              className="browse-connect-button immersive-button"
+            <p
+              style={{
+                color: "var(--text-secondary)",
+                marginBottom: "1rem",
+                fontSize: "0.95rem",
+              }}
             >
-              <span className="button-glow"></span>
-              <span className="button-shine"></span>
-              <span className="button-content">
-                Create Profile <span className="rocket-emoji">🚀</span>
-              </span>
-            </button>
-          </div>
-        </>
+              {error}
+            </p>
+          )}
+          <p>Complete your profile to start discovering people.</p>
+          <button
+            type="button"
+            onClick={() => navigate("/create-profile")}
+            className="btn btn-primary"
+            style={{ marginTop: "1.25rem" }}
+          >
+            Create Profile 🚀
+          </button>
+        </div>
       ) : !currentProfile && !loading ? (
-        <div className="no-profiles">
-          <div className="no-profiles-icon">🔍</div>
-          <h2>No more profiles</h2>
-          <p>You've seen everyone! Check back later for new people.</p>
+        <div className="browse-native-caught-up">
+          <div className="browse-native-caught-up-card">
+            <div className="browse-native-caught-up-ring">🔍</div>
+            <h2>You're all caught up</h2>
+            <p>
+              You&apos;ve seen everyone for now. Check back later for new people.
+            </p>
+          </div>
         </div>
       ) : currentProfile ? (
-        <div className="browse-immersive-container">
-          {error && (
-            <div style={{ 
-              textAlign: 'center', 
-              marginBottom: 'var(--space-4)', 
-              color: 'var(--error-color, #ef4444)',
-              fontSize: '0.9rem',
-              padding: 'var(--space-3) var(--space-4)',
-              background: 'rgba(239, 68, 68, 0.1)',
-              borderRadius: '8px',
-              border: '1px solid rgba(239, 68, 68, 0.3)',
-              margin: '0 auto var(--space-4)',
-              maxWidth: '600px'
-            }}>
-              ⚠️ {error}
+        <>
+          <div className="browse-native-token-fixed">
+            <TokenDisplay />
+          </div>
+          <div className="browse-native-scroll">
+            <header className="browse-native-header">
+              <h1>Discover People</h1>
+              <p>Find someone who shares your interests and values</p>
+            </header>
+            {error && (
+              <div className="browse-native-error" role="alert">
+                ⚠️ {error}
+              </div>
+            )}
+            <div className="browse-native-card-shell">
+              <article className="browse-native-card">
+                <div
+                  ref={photoRailRef}
+                  className="browse-native-photo-rail"
+                  onScroll={onPhotoRailScroll}
+                >
+                  {displayPhotos.length === 0 ? (
+                    <div className="browse-native-photo-slide">
+                      <div className="browse-native-photo-placeholder">
+                        {(currentProfile.displayName || "?").charAt(0).toUpperCase()}
+                      </div>
+                    </div>
+                  ) : (
+                    displayPhotos.map((ph, i) => (
+                      <div
+                        key={ph.id}
+                        className="browse-native-photo-slide"
+                      >
+                        <img
+                          src={ph.url}
+                          alt={`${currentProfile.displayName} — photo ${i + 1}`}
+                          loading="lazy"
+                        />
+                      </div>
+                    ))
+                  )}
+                </div>
+                {displayPhotos.length > 1 && (
+                  <div className="browse-native-dots" role="tablist" aria-label="Photos">
+                    {displayPhotos.map((ph, i) => (
+                      <button
+                        key={ph.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={i === photoIndex}
+                        className={
+                          i === photoIndex
+                            ? "browse-native-dot browse-native-dot--active"
+                            : "browse-native-dot"
+                        }
+                        onClick={() => scrollToPhoto(i)}
+                      />
+                    ))}
+                  </div>
+                )}
+                <div className="browse-native-info">
+                  <div className="browse-native-name-row">
+                    <span className="browse-native-name">
+                      {currentProfile.displayName}
+                    </span>
+                    <span className="browse-native-age">{currentProfile.age}</span>
+                  </div>
+                  <BrowseLocation location={currentProfile.location} />
+                  {typeof currentProfile.distance === "number" && (
+                    <div className="browse-native-distance">
+                      {Math.round(currentProfile.distance)} mi away
+                    </div>
+                  )}
+                  {currentProfile.bio ? (
+                    <p className="browse-native-bio">{currentProfile.bio}</p>
+                  ) : null}
+                  {currentProfile.lookingFor ? (
+                    <div className="browse-native-looking">
+                      <span className="browse-native-looking-label">
+                        Looking for:
+                      </span>
+                      <span className="browse-native-looking-value">
+                        {currentProfile.lookingFor}
+                      </span>
+                    </div>
+                  ) : null}
+                  {currentProfile.interests?.length ? (
+                    <>
+                      <div className="browse-native-interests-label">
+                        Interests
+                      </div>
+                      <div className="browse-native-interests">
+                        {currentProfile.interests.map((tag) => (
+                          <span
+                            key={tag}
+                            className="browse-native-interest-tag"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    </>
+                  ) : null}
+                </div>
+              </article>
             </div>
-          )}
-          <div className="button-wrapper">
-            <div className="sparkle sparkle-1">✨</div>
-            <div className="sparkle sparkle-2">💫</div>
-            <div className="sparkle sparkle-3">⭐</div>
-            <div className="sparkle sparkle-4">✨</div>
-            <div className="sparkle sparkle-5">💫</div>
-            <div className="sparkle sparkle-6">⭐</div>
-            <div className="particle-ring ring-1"></div>
-            <div className="particle-ring ring-2"></div>
-            <div className="particle-ring ring-3"></div>
-            <button 
-              className={`browse-connect-button immersive-button ${connecting ? 'connecting' : ''}`}
+          </div>
+          <div className="browse-native-connect-bar">
+            <button
+              type="button"
+              className="browse-native-connect-btn"
               onClick={() => !connecting && handleConnect(currentProfile)}
               disabled={connecting}
             >
-              <span className="button-glow"></span>
-              <span className="button-shine"></span>
-              <span className="button-content">
-                {connecting ? "Connecting..." : "Connect (Use Token) 🎟️"}
-              </span>
-              <span className="button-particles">
-                <span className="particle"></span>
-                <span className="particle"></span>
-                <span className="particle"></span>
-                <span className="particle"></span>
-                <span className="particle"></span>
-              </span>
+              {connecting ? "Connecting..." : "Connect & Match 🎟️"}
             </button>
           </div>
-        </div>
+        </>
       ) : null}
 
       {showMatchCelebration && matchedProfile && (() => {

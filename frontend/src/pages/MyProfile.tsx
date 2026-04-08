@@ -162,7 +162,7 @@ export default function MyProfile() {
   });
 
   return (
-    <div className="my-profile">
+    <div className="my-profile native-app-screen">
       <div className="my-profile-header">
         {profilePhotoUrl && (
           <div className="my-profile-avatar">

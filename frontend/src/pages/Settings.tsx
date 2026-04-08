@@ -174,7 +174,7 @@ export default function Settings() {
   }
 
   return (
-    <div className="settings-page">
+    <div className="settings-page native-app-screen">
       <div className="settings-container">
         <div className="settings-header">
           <h1 className="page-title"><span>⚙️</span> Settings</h1>

@@ -1,0 +1,714 @@
+/**
+ * Web UI aligned with React Native screens (colors, typography, Connect card, Matches shell).
+ * Works with Layout mobile tab shell + desktop.
+ */
+
+:root {
+  --native-ink: #1a1a2e;
+  --native-text-muted: #666;
+  --native-text-soft: #555;
+  --native-interest-border: #e0e7ff;
+  --native-gradient-connect: linear-gradient(135deg, #667eea 0%, #764ba2 35%, #f093fb 70%, #f5576c 100%);
+}
+
+/* ─── Browse (Connect) — profile card matches BrowseScreen ─── */
+.browse-page-native {
+  position: relative;
+  min-height: 60vh;
+  background: var(--native-screen-bg, #f8f9ff);
+}
+
+.browse-native-token-fixed {
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right, 0px));
+  top: max(72px, calc(env(safe-area-inset-top, 0px) + 56px));
+  z-index: 95;
+  max-width: min(340px, calc(100vw - 32px));
+  pointer-events: auto;
+}
+
+.browse-native-token-fixed .token-display {
+  margin: 0;
+  max-width: 100%;
+  padding: 10px 14px;
+  border-radius: 18px;
+  border-color: rgba(139, 21, 56, 0.2);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.2);
+}
+
+.browse-native-token-fixed .token-icon-large {
+  font-size: 1.75rem;
+}
+
+.browse-native-token-fixed .token-number {
+  font-size: 1.75rem;
+}
+
+.browse-native-token-fixed .token-label {
+  font-size: 0.7rem;
+  display: none;
+}
+
+@media (min-width: 901px) {
+  .browse-native-token-fixed {
+    position: absolute;
+    top: 0;
+    right: 0;
+  }
+}
+
+.browse-native-scroll {
+  padding-top: 8px;
+  padding-bottom: 120px;
+}
+
+.browse-native-header {
+  text-align: center;
+  margin-bottom: 1rem;
+  padding: 0 12px;
+}
+
+.browse-native-header h1 {
+  font-family: var(--font-display);
+  font-size: clamp(1.75rem, 5vw, 2.25rem);
+  font-weight: 700;
+  color: var(--native-ink);
+  margin-bottom: 0.35rem;
+  text-shadow: 0 2px 6px rgba(102, 126, 234, 0.12);
+}
+
+.browse-native-header p {
+  font-size: 0.95rem;
+  color: var(--native-text-muted);
+  font-weight: 500;
+}
+
+.browse-native-error {
+  text-align: center;
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 10px;
+  color: #b91c1c;
+  font-size: 0.9rem;
+  max-width: 560px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.browse-native-card-shell {
+  display: flex;
+  justify-content: center;
+  padding: 0 20px 24px;
+}
+
+.browse-native-card {
+  width: 100%;
+  max-width: min(560px, calc(100vw - 40px));
+  background: #fff;
+  border-radius: 32px;
+  overflow: hidden;
+  box-shadow:
+    0 12px 40px rgba(102, 126, 234, 0.18),
+    0 0 0 1px rgba(255, 255, 255, 0.8);
+}
+
+.browse-native-photo-rail {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  aspect-ratio: 1 / 1.2;
+  max-height: 72vh;
+}
+
+.browse-native-photo-rail::-webkit-scrollbar {
+  display: none;
+}
+
+.browse-native-photo-slide {
+  flex: 0 0 100%;
+  width: 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  position: relative;
+}
+
+.browse-native-photo-slide img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.browse-native-photo-placeholder {
+  width: 100%;
+  height: 100%;
+  min-height: 280px;
+  background: #8b1538;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: clamp(3rem, 15vw, 5rem);
+  font-weight: 800;
+}
+
+.browse-native-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 0 4px;
+  background: #fff;
+}
+
+.browse-native-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.browse-native-dot--active {
+  width: 24px;
+  background: #667eea;
+}
+
+.browse-native-info {
+  padding: 24px;
+  background: #fff;
+}
+
+.browse-native-name-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.browse-native-name {
+  font-size: clamp(1.75rem, 5vw, 2.125rem);
+  font-weight: 900;
+  color: #1a1a1a;
+  letter-spacing: -0.03em;
+  text-shadow: 0 2px 6px rgba(102, 126, 234, 0.12);
+}
+
+.browse-native-age {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #666;
+}
+
+.browse-native-location {
+  font-size: 1.05rem;
+  color: var(--native-text-soft);
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+
+.browse-native-distance {
+  font-size: 0.95rem;
+  color: #888;
+  font-weight: 500;
+  margin-bottom: 16px;
+}
+
+.browse-native-bio {
+  font-size: 1.05rem;
+  line-height: 1.55;
+  color: #1a1a1a;
+  margin-bottom: 20px;
+}
+
+.browse-native-looking {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+  font-size: 0.9rem;
+}
+
+.browse-native-looking-label {
+  font-weight: 600;
+  color: #666;
+}
+
+.browse-native-looking-value {
+  color: #333;
+}
+
+.browse-native-interests-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.browse-native-interests {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.browse-native-interest-tag {
+  background: #f8f9ff;
+  padding: 10px 18px;
+  border-radius: 22px;
+  border: 2px solid var(--native-interest-border);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #667eea;
+  box-shadow: 0 3px 6px rgba(102, 126, 234, 0.12);
+}
+
+.browse-native-connect-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 90;
+  padding: 16px 24px calc(16px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px) + var(--native-tab-offset, 0px));
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  background: linear-gradient(to top, rgba(248, 249, 255, 0.98) 60%, transparent);
+}
+
+.app-layout--native-mobile-shell .browse-native-connect-bar {
+  --native-tab-offset: 52px;
+}
+
+@media (min-width: 901px) {
+  .browse-native-connect-bar {
+    --native-tab-offset: 0px;
+    position: sticky;
+    bottom: 0;
+    margin-top: -100px;
+    padding-top: 48px;
+    background: linear-gradient(to top, var(--native-screen-bg, #f8f9ff) 55%, transparent);
+  }
+}
+
+.browse-native-connect-btn {
+  pointer-events: auto;
+  width: 100%;
+  max-width: min(520px, calc(100vw - 48px));
+  border: none;
+  border-radius: 28px;
+  padding: 18px 20px;
+  font-size: 15px;
+  font-weight: 900;
+  color: #fff;
+  cursor: pointer;
+  background: var(--native-gradient-connect);
+  box-shadow:
+    0 8px 24px rgba(102, 126, 234, 0.45),
+    0 0 0 2px rgba(255, 255, 255, 0.3) inset;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.browse-native-connect-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.browse-native-connect-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.browse-native-needs-profile {
+  text-align: center;
+  padding: 48px 24px;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.browse-native-needs-profile-emoji {
+  font-size: 3rem;
+  margin-bottom: 16px;
+}
+
+.browse-native-needs-profile p {
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+}
+
+.browse-native-caught-up {
+  display: flex;
+  justify-content: center;
+  padding: 32px 20px 100px;
+}
+
+.browse-native-caught-up-card {
+  width: 100%;
+  max-width: 380px;
+  border-radius: 28px;
+  padding: 36px 28px;
+  text-align: center;
+  background: linear-gradient(135deg, #f8f7ff 0%, #ffffff 45%, #fff5f8 100%);
+  box-shadow: 0 16px 40px rgba(102, 126, 234, 0.15);
+  border: 2px solid rgba(255, 255, 255, 0.9);
+}
+
+.browse-native-caught-up-ring {
+  width: 80px;
+  height: 80px;
+  border-radius: 40px;
+  background: rgba(102, 126, 234, 0.14);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 20px;
+  font-size: 2.5rem;
+}
+
+.browse-native-caught-up-card h2 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--native-ink);
+  margin-bottom: 12px;
+}
+
+.browse-native-caught-up-card p {
+  font-size: 1rem;
+  line-height: 1.5;
+  color: #555;
+}
+
+/* ─── Connect landing (iOS BrowseScreen Connect tab — shared by public / & Browse loading) ─── */
+.connect-landing-page {
+  min-height: min(100vh, 100dvh);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px calc(24px + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+}
+
+.app-layout--native-mobile-shell .connect-landing-page {
+  padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+}
+
+.connect-landing {
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
+}
+
+.connect-landing__card {
+  position: relative;
+  padding: clamp(2rem, 6vw, 3.25rem) clamp(1.25rem, 5vw, 2rem) 2rem;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 36px;
+  border: 3px solid rgba(255, 255, 255, 0.9);
+  box-shadow:
+    0 16px 40px rgba(102, 126, 234, 0.28),
+    0 0 0 1px rgba(102, 126, 234, 0.06);
+}
+
+.connect-landing__logo-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 1.75rem;
+  flex-wrap: wrap;
+}
+
+.connect-landing__logo-icon {
+  width: 72px;
+  height: 72px;
+  color: #5b6bc6;
+  filter: drop-shadow(0 4px 14px rgba(102, 126, 234, 0.35));
+  animation: logoPulse 3s ease-in-out infinite;
+}
+
+.connect-landing__logo-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.connect-landing__brand {
+  font-size: clamp(1.75rem, 5vw, 2.25rem);
+  font-weight: 800;
+  color: #0f0f0f;
+  letter-spacing: 0.03em;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+}
+
+.connect-landing__title {
+  font-family: var(--font-display, system-ui);
+  font-size: clamp(1.85rem, 6vw, 2.75rem);
+  font-weight: 900;
+  color: #0f0f0f;
+  letter-spacing: 0.06em;
+  margin: 0 0 0.75rem;
+  line-height: 1.15;
+  text-shadow: 0 2px 20px rgba(102, 126, 234, 0.35);
+}
+
+.connect-landing__subtitle {
+  font-size: 1.05rem;
+  line-height: 1.55;
+  color: #555;
+  font-weight: 500;
+  margin: 0 0 2rem;
+  padding: 0 0.5rem;
+  letter-spacing: 0.02em;
+}
+
+.connect-landing__features {
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  gap: 0.65rem;
+  margin-bottom: 2rem;
+  width: 100%;
+  padding: 0 0.25rem;
+}
+
+.connect-landing__feature {
+  flex: 1;
+  min-width: 0;
+  max-width: 7.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0.65rem 0.35rem;
+}
+
+.connect-landing__feature-emoji {
+  font-size: 1.75rem;
+  line-height: 1;
+  margin-bottom: 0.45rem;
+}
+
+.connect-landing__feature-text {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #444;
+  line-height: 1.35;
+  text-align: center;
+  letter-spacing: 0.02em;
+}
+
+.connect-landing__cta {
+  width: 100%;
+  border-radius: 28px;
+  min-height: 4.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  background: var(--native-gradient-connect);
+  border: 3px solid rgba(255, 255, 255, 0.45);
+  box-shadow:
+    0 10px 28px rgba(102, 126, 234, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  margin-bottom: 0.85rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.connect-landing__cta--loading {
+  cursor: default;
+  opacity: 0.95;
+}
+
+.connect-landing__spinner {
+  width: 1.35rem;
+  height: 1.35rem;
+  border: 3px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: connectLandingSpin 0.75s linear infinite;
+}
+
+@keyframes connectLandingSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.connect-landing__hint {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #666;
+  margin: 0;
+}
+
+a.connect-landing__cta {
+  text-decoration: none;
+  color: #fff;
+  box-sizing: border-box;
+}
+
+a.connect-landing__cta:hover {
+  color: #fff;
+}
+
+/* Public marketing page (`/`) — shell like native app background */
+.landing-public-root {
+  min-height: min(100vh, 100dvh);
+  display: flex;
+  flex-direction: column;
+  background: var(--native-screen-bg, #f8f9ff);
+  color: var(--native-ink, #1a1a2e);
+}
+
+.landing-public-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: max(12px, env(safe-area-inset-top, 0px)) 20px 12px;
+  background: var(--native-tab-bar-bg, #fafafa);
+  border-bottom: 1px solid rgba(139, 21, 56, 0.08);
+  flex-shrink: 0;
+}
+
+.landing-public-nav__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-decoration: none;
+  color: var(--native-primary, #8b1538);
+  font-weight: 800;
+  font-size: 1.15rem;
+  letter-spacing: 0.02em;
+}
+
+.landing-public-nav__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.landing-public-nav__link {
+  padding: 0.5rem 0.85rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--native-primary, #8b1538);
+  border-radius: 12px;
+  border: 2px solid transparent;
+}
+
+.landing-public-nav__link:hover {
+  background: rgba(139, 21, 56, 0.06);
+}
+
+.landing-public-nav__cta {
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-decoration: none;
+  color: #fff;
+  background: linear-gradient(135deg, #8b1538 0%, #6b0d2e 100%);
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(139, 21, 56, 0.25);
+}
+
+.landing-public-nav__cta:hover {
+  color: #fff;
+  filter: brightness(1.05);
+}
+
+.landing-public-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 16px 28px;
+}
+
+.connect-landing__subcta {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #667eea;
+  text-decoration: none;
+}
+
+.connect-landing__subcta:hover {
+  text-decoration: underline;
+}
+
+.connect-landing__legal {
+  margin-top: 1.25rem;
+  font-size: 0.8rem;
+  color: #777;
+  line-height: 1.45;
+}
+
+.connect-landing__legal a {
+  color: #667eea;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.connect-landing__legal a:hover {
+  text-decoration: underline;
+}
+
+/* ─── Shared “native app” surfaces (Profile, Settings, Create profile) ─── */
+.native-app-screen {
+  color: var(--native-ink);
+}
+
+.native-app-screen .page-title,
+.native-app-screen .profile-wizard-title,
+.native-app-screen .my-profile-name {
+  color: var(--native-ink);
+}
+
+.native-app-screen .btn-primary {
+  background: linear-gradient(135deg, #8b1538 0%, #6b0d2e 100%);
+  box-shadow: 0 4px 16px rgba(139, 21, 56, 0.35);
+}
+
+.native-app-screen .btn-primary:hover:not(:disabled) {
+  box-shadow: 0 6px 22px rgba(139, 21, 56, 0.45);
+}
+
+/* ─── Matches — align with mobile list + burgundy accents ─── */
+.matches-page.native-app-screen {
+  background: var(--native-screen-bg, #f8f9ff);
+}
+
+.matches-page.native-app-screen .matches-title {
+  color: var(--native-ink);
+  font-family: var(--font-display);
+}
+
+.matches-page.native-app-screen .matches-sidebar {
+  background: #fff;
+  border-right: 1px solid rgba(139, 21, 56, 0.08);
+}
+
+.matches-page.native-app-screen .match-item.active {
+  border-left: 4px solid #8b1538;
+  background: rgba(139, 21, 56, 0.06);
+}
+
+.matches-page.native-app-screen .matches-main {
+  background: #fff;
+}

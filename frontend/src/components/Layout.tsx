@@ -14,6 +14,9 @@ export default function Layout() {
   const [tokenCount, setTokenCount] = useState<number | null>(null)
 
   const isActive = (path: string) => location.pathname === path
+  /** Match native MainTabs: hide top links + show bottom bar on phone (not during profile wizard). */
+  const nativeMobileShell =
+    isAuthenticated && location.pathname !== '/create-profile'
 
   // Fetch token count when authenticated
   useEffect(() => {
@@ -35,7 +38,9 @@ export default function Layout() {
   }
 
   return (
-    <div className="app-layout">
+    <div
+      className={`app-layout${nativeMobileShell ? ' app-layout--native-mobile-shell' : ''}`}
+    >
       <MaintenanceBanner />
       <nav className="navbar">
         <div className="navbar-inner">
@@ -92,16 +97,18 @@ export default function Layout() {
               <Link 
                 to="/browse" 
                 className={`navbar-link ${isActive('/browse') ? 'active' : ''}`}
+                aria-label="Connect"
               >
-                <span>💫</span> Discover
+                <span>😍</span> Connect
               </Link>
             </li>
             <li>
               <Link 
                 to="/matches" 
                 className={`navbar-link ${isActive('/matches') ? 'active' : ''}`}
+                aria-label="Matches"
               >
-                <span>💬</span> Chats
+                <span>❤️</span> Matches
               </Link>
             </li>
             <li>
@@ -109,7 +116,7 @@ export default function Layout() {
                 to="/profile" 
                 className={`navbar-link ${isActive('/profile') ? 'active' : ''}`}
               >
-                <span>👤</span> My Profile
+                <span>👤</span> Profile
               </Link>
             </li>
             <li>
@@ -126,11 +133,11 @@ export default function Layout() {
                   to="/admin" 
                   className={`navbar-link ${isActive('/admin') ? 'active' : ''}`}
                 >
-                  <span>🔐</span> Admin
+                  <span>👑</span> Admin
                 </Link>
               </li>
             )}
-            <li>
+            <li className="navbar-logout-desktop">
               <button 
                 onClick={() => {
                   logout()
@@ -149,8 +156,57 @@ export default function Layout() {
       <main className="main-content">
         <Outlet />
       </main>
+
+      {nativeMobileShell && (
+        <nav className="app-bottom-tabs" aria-label="Main navigation">
+          <Link
+            to="/browse"
+            className={`app-bottom-tabs__item${isActive('/browse') ? ' app-bottom-tabs__item--active' : ''}`}
+            aria-label="Connect"
+          >
+            {isActive('/browse') && <span className="app-bottom-tabs__glow" aria-hidden />}
+            <span className="app-bottom-tabs__emoji">😍</span>
+            <span className="app-bottom-tabs__label">Connect</span>
+          </Link>
+          <Link
+            to="/matches"
+            className={`app-bottom-tabs__item${isActive('/matches') ? ' app-bottom-tabs__item--active' : ''}`}
+            aria-label="Matches"
+          >
+            {isActive('/matches') && <span className="app-bottom-tabs__glow" aria-hidden />}
+            <span className="app-bottom-tabs__emoji">❤️</span>
+            <span className="app-bottom-tabs__label">Matches</span>
+          </Link>
+          <Link
+            to="/profile"
+            className={`app-bottom-tabs__item${isActive('/profile') ? ' app-bottom-tabs__item--active' : ''}`}
+          >
+            {isActive('/profile') && <span className="app-bottom-tabs__glow" aria-hidden />}
+            <span className="app-bottom-tabs__emoji">👤</span>
+            <span className="app-bottom-tabs__label">Profile</span>
+          </Link>
+          <Link
+            to="/settings"
+            className={`app-bottom-tabs__item${isActive('/settings') ? ' app-bottom-tabs__item--active' : ''}`}
+          >
+            {isActive('/settings') && <span className="app-bottom-tabs__glow" aria-hidden />}
+            <span className="app-bottom-tabs__emoji">⚙️</span>
+            <span className="app-bottom-tabs__label">Settings</span>
+          </Link>
+          {isAdmin && (
+            <Link
+              to="/admin"
+              className={`app-bottom-tabs__item${isActive('/admin') ? ' app-bottom-tabs__item--active' : ''}`}
+            >
+              {isActive('/admin') && <span className="app-bottom-tabs__glow" aria-hidden />}
+              <span className="app-bottom-tabs__emoji">👑</span>
+              <span className="app-bottom-tabs__label">Admin</span>
+            </Link>
+          )}
+        </nav>
+      )}
       
-      <footer style={{
+      <footer className="app-footer-global" style={{
         padding: 'var(--space-6) var(--space-8)',
         textAlign: 'center',
         borderTop: '1px solid var(--border-light)',

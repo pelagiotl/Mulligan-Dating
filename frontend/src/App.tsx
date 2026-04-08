@@ -367,7 +367,6 @@ function NewMatchesNotification() {
         animation: 'slideDown 0.5s ease-out, pulse 2s ease-in-out infinite',
         backdropFilter: 'blur(10px)',
         border: '2px solid rgba(255, 255, 255, 0.2)',
-        position: 'relative',
         overflow: 'hidden',
       }}
       onClick={() => {

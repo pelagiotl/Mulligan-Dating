@@ -1,0 +1,9 @@
+{
+  "name": "Mulligan",
+  "short_name": "Mulligan",
+  "description": "Mulligan — Connect, Matches, and real connections on the web",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8f9ff",
+  "theme_color": "#8b1538"
+}

@@ -101,7 +101,7 @@ export default function PhoneLogin() {
 
   if (step === 'phone') {
     return (
-      <div className="auth-page-enhanced">
+      <div className="auth-page-enhanced native-app-screen">
         {/* Animated background gradient */}
         <div className="auth-bg-gradient"></div>
         
@@ -192,7 +192,7 @@ export default function PhoneLogin() {
   }
 
   return (
-    <div className="auth-page-enhanced">
+    <div className="auth-page-enhanced native-app-screen">
       {/* Animated background gradient */}
       <div className="auth-bg-gradient"></div>
       

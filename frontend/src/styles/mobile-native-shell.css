@@ -1,0 +1,142 @@
+/**
+ * Mobile web layout aligned with React Native MainTabs (AppNavigator).
+ * Active breakpoint: max-width 900px — phones and narrow tablets.
+ */
+
+:root {
+  --native-primary: #8b1538;
+  --native-screen-bg: #f8f9ff;
+  --native-tab-bar-bg: #fafafa;
+  --native-tab-inactive: #94a3b8;
+  --native-tab-height: 56px;
+  --native-tab-safe-bottom: max(env(safe-area-inset-bottom, 0px), 8px);
+}
+
+@media (max-width: 900px) {
+  .app-layout--native-mobile-shell .navbar-nav,
+  .app-layout--native-mobile-shell .navbar-link.logout {
+    display: none !important;
+  }
+
+  .app-layout--native-mobile-shell .navbar-inner {
+    max-width: 100%;
+    padding-inline: var(--space-4);
+  }
+
+  .app-layout--native-mobile-shell .navbar {
+    padding-block: var(--space-3);
+    padding-inline: var(--space-4);
+    border-bottom: 1px solid rgba(139, 21, 56, 0.08);
+    background: var(--native-tab-bar-bg);
+  }
+
+  .app-layout--native-mobile-shell .navbar-logo {
+    color: var(--native-primary);
+  }
+
+  .app-layout--native-mobile-shell .navbar-logo-icon {
+    color: var(--native-primary);
+  }
+
+  .app-layout--native-mobile-shell .navbar-token-badge {
+    margin-left: auto !important;
+    margin-right: 0 !important;
+  }
+
+  .app-layout--native-mobile-shell .main-content {
+    max-width: 100%;
+    margin: 0;
+    padding: var(--space-4);
+    padding-bottom: calc(var(--native-tab-height) + var(--native-tab-safe-bottom) + var(--space-6));
+    background: var(--native-screen-bg);
+    min-height: calc(100vh - var(--native-tab-height));
+  }
+
+  .app-layout--native-mobile-shell .app-footer-global {
+    display: none;
+  }
+
+  body:has(.app-layout--native-mobile-shell) {
+    background: var(--native-screen-bg);
+  }
+
+  .app-bottom-tabs {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 200;
+    height: calc(var(--native-tab-height) + var(--native-tab-safe-bottom));
+    padding-bottom: var(--native-tab-safe-bottom);
+    padding-top: 8px;
+    padding-inline: 4px;
+    background: var(--native-tab-bar-bg);
+    border-top-left-radius: 24px;
+    border-top-right-radius: 24px;
+    box-shadow: 0 -3px 12px rgba(0, 0, 0, 0.08);
+    align-items: flex-start;
+    justify-content: space-around;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .app-bottom-tabs__item {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 4px;
+    padding: 0 2px;
+    text-decoration: none;
+    color: var(--native-tab-inactive);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    font-family: var(--font-body);
+    position: relative;
+  }
+
+  .app-bottom-tabs__item--active {
+    color: var(--native-primary);
+  }
+
+  .app-bottom-tabs__glow {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    margin-left: -22px;
+    border-radius: 22px;
+    background: var(--native-primary);
+    opacity: 0.14;
+    pointer-events: none;
+    transform: translateY(-2px);
+  }
+
+  .app-bottom-tabs__emoji {
+    font-size: 22px;
+    line-height: 1;
+    position: relative;
+    z-index: 1;
+  }
+
+  .app-bottom-tabs__label {
+    text-align: center;
+    line-height: 1.15;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    position: relative;
+    z-index: 1;
+  }
+}
+
+@media (min-width: 901px) {
+  .app-bottom-tabs {
+    display: none !important;
+  }
+}

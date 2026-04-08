@@ -5,6 +5,8 @@ import App from './App.tsx'
 import { AuthProvider } from './context/AuthContext.tsx'
 import ErrorBoundary from './ErrorBoundary.tsx'
 import './styles/index.css'
+import './styles/mobile-native-shell.css'
+import './styles/native-ui-parity.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

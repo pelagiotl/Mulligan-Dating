@@ -479,7 +479,7 @@ export default function CreateProfile() {
   }
 
   return (
-    <div className="profile-wizard">
+    <div className="profile-wizard native-app-screen">
       <div className="profile-wizard-header">
         <h1 className="profile-wizard-title">Create Your Profile</h1>
         <p className="profile-wizard-subtitle">
