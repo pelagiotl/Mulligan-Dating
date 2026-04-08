@@ -30,10 +30,28 @@ interface Profile {
   distance?: number | null;
 }
 
-/** Connect tab loading — same chrome as iOS Connect landing + public `/`. */
-function BrowseConnectLandingLoader() {
+type ConnectLandingMode = "loading" | "gate";
+
+function BrowseConnectLandingChrome({
+  mode,
+  onConnect,
+  unlocking,
+  gateError,
+}: {
+  mode: ConnectLandingMode;
+  onConnect?: () => void;
+  unlocking?: boolean;
+  gateError?: string;
+}) {
+  const isGate = mode === "gate";
+
   return (
     <div className="browse-page-native native-app-screen connect-landing-page">
+      {isGate && (
+        <div className="browse-native-token-fixed">
+          <TokenDisplay />
+        </div>
+      )}
       <div className="connect-landing">
         <div className="connect-landing__card">
           <div className="connect-landing__logo-row">
@@ -73,14 +91,40 @@ function BrowseConnectLandingLoader() {
             </div>
           </div>
 
-          <div
-            className="connect-landing__cta connect-landing__cta--loading"
-            aria-live="polite"
-            aria-busy="true"
-          >
-            <span className="connect-landing__spinner" />
-            <span>Finding people…</span>
-          </div>
+          {isGate ? (
+            <>
+              {gateError ? (
+                <div className="browse-native-error" role="alert" style={{ marginBottom: "1rem" }}>
+                  ⚠️ {gateError}
+                </div>
+              ) : null}
+              <button
+                type="button"
+                className="connect-landing__cta"
+                onClick={() => onConnect?.()}
+                disabled={unlocking}
+                aria-busy={unlocking}
+              >
+                {unlocking ? (
+                  <>
+                    <span className="connect-landing__spinner" />
+                    <span>Connecting…</span>
+                  </>
+                ) : (
+                  "Connect"
+                )}
+              </button>
+            </>
+          ) : (
+            <div
+              className="connect-landing__cta connect-landing__cta--loading"
+              aria-live="polite"
+              aria-busy="true"
+            >
+              <span className="connect-landing__spinner" />
+              <span>Finding people…</span>
+            </div>
+          )}
 
           <p className="connect-landing__hint">⛳ Use a Mulligan</p>
         </div>
@@ -108,11 +152,15 @@ function BrowseLocation({ location }: { location?: string }) {
 }
 
 export default function Browse() {
-  const { profile: userProfile } = useAuth();
+  const { profile: userProfile, loading: authLoading } = useAuth();
+  /** Mirrors mobile Connect tab: no /users/browse until user taps Connect (unlock-browse) this session. */
+  const [browseSessionActive, setBrowseSessionActive] = useState(false);
+  const [unlockingBrowse, setUnlockingBrowse] = useState(false);
+  const [gateError, setGateError] = useState("");
   const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true); // Used in fetchProfile
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [connecting, setConnecting] = useState(false);
   const [showMatchCelebration, setShowMatchCelebration] = useState(false);
@@ -232,6 +280,19 @@ export default function Browse() {
       
       const errorLower = errorMessage.toLowerCase();
       const status = err?.status || err?.response?.status;
+
+      if (
+        status === 403 &&
+        (errorLower.includes("browsing is locked") ||
+          errorLower.includes("use a token to unlock") ||
+          errorLower.includes("requiresToken"))
+      ) {
+        setCurrentProfile(null);
+        setBrowseSessionActive(false);
+        setError("");
+        setGateError("");
+        return;
+      }
       
       // Check for various profile-related error messages
       if (
@@ -259,16 +320,23 @@ export default function Browse() {
     }
   }, [offset]);
 
-  // Initial fetch on mount - only once
-  useEffect(() => {
-    if (!hasFetched) {
-      console.log('🔵 Initial mount - fetching profile');
-      // Clear error state when component mounts
-      setError("");
-      fetchProfile();
+  const handleUnlockBrowse = useCallback(async () => {
+    if (unlockingBrowse || !userProfile) return;
+    setUnlockingBrowse(true);
+    setGateError("");
+    setError("");
+    try {
+      await api.post("/users/unlock-browse", {});
+    } catch (err: any) {
+      const msg = err?.message || String(err || "Failed to unlock browsing");
+      setGateError(msg);
+      setUnlockingBrowse(false);
+      return;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only run once on mount
+    setBrowseSessionActive(true);
+    setUnlockingBrowse(false);
+    await fetchProfile();
+  }, [unlockingBrowse, userProfile, fetchProfile]);
 
   // Refetch when offset changes (for pagination) - only if we've already fetched once
   useEffect(() => {
@@ -482,10 +550,9 @@ export default function Browse() {
     setOffset(prev => prev + 1);
   };
 
-  // Check if user needs to create profile
-  // Use AuthContext profile state as the source of truth
-  // If userProfile exists in AuthContext, they have a profile
-  const needsProfile = !userProfile && !loading;
+  const needsProfile = !userProfile && !authLoading && !loading;
+  const showConnectGate =
+    !!userProfile && !browseSessionActive && !authLoading && !loading;
   
   // If there's an error but we don't have a profile, treat it as a profile creation issue
   // This is a fallback to ensure users can always create a profile
@@ -494,8 +561,19 @@ export default function Browse() {
     // Don't return error, show create profile button instead
   }
 
-  if (loading) {
-    return <BrowseConnectLandingLoader />;
+  if (authLoading || loading) {
+    return <BrowseConnectLandingChrome mode="loading" />;
+  }
+
+  if (showConnectGate) {
+    return (
+      <BrowseConnectLandingChrome
+        mode="gate"
+        onConnect={handleUnlockBrowse}
+        unlocking={unlockingBrowse}
+        gateError={gateError}
+      />
+    );
   }
 
   return (
@@ -551,7 +629,7 @@ export default function Browse() {
             Create Profile 🚀
           </button>
         </div>
-      ) : !currentProfile && !loading ? (
+      ) : browseSessionActive && hasFetched && !currentProfile && !loading ? (
         <div className="browse-native-caught-up">
           <div className="browse-native-caught-up-card">
             <div className="browse-native-caught-up-ring">🔍</div>

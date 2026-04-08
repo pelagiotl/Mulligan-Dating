@@ -563,6 +563,16 @@ a.connect-landing__cta:hover {
   color: #fff;
 }
 
+button.connect-landing__cta {
+  cursor: pointer;
+  font: inherit;
+}
+
+button.connect-landing__cta:disabled {
+  opacity: 0.88;
+  cursor: not-allowed;
+}
+
 /* Public marketing page (`/`) — shell like native app background */
 .landing-public-root {
   min-height: min(100vh, 100dvh);
