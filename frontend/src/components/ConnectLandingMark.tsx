@@ -12,8 +12,10 @@ export default function ConnectLandingMark() {
         <defs>
           <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#667eea" />
-            <stop offset="45%" stopColor="#764ba2" />
-            <stop offset="100%" stopColor="#f093fb" />
+            <stop offset="25%" stopColor="#764ba2" />
+            <stop offset="50%" stopColor="#f093fb" />
+            <stop offset="75%" stopColor="#f5576c" />
+            <stop offset="100%" stopColor="#4facfe" />
           </linearGradient>
           <filter id={filterId}>
             <feGaussianBlur stdDeviation="1.5" result="coloredBlur" />

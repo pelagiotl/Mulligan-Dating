@@ -153,7 +153,16 @@ export default function Layout() {
         </div>
       </nav>
       
-      <main className="main-content">
+      <main
+        className="main-content"
+        data-native-shell-bg={
+          nativeMobileShell
+            ? location.pathname === "/browse"
+              ? "browse"
+              : "gradient"
+            : undefined
+        }
+      >
         <Outlet />
       </main>
 

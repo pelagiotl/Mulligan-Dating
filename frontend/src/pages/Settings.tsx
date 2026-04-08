@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, FormEvent, useCallback } from "react";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../utils/api";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import type { Package } from "@revenuecat/purchases-js";
 import {
   fetchWebPackagesByProductId,
@@ -16,6 +16,7 @@ interface SettingsData {
   email: string;
   createdAt: string;
   lastActiveAt: string | null;
+  showActiveStatus?: boolean;
 }
 
 interface TokenPackage {
@@ -32,7 +33,7 @@ interface TokenPackage {
 
 
 export default function Settings() {
-  const { logout, user } = useAuth();
+  const { logout, user, profile, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [settings, setSettings] = useState<SettingsData | null>(null);
@@ -40,6 +41,9 @@ export default function Settings() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  const [displayNameDraft, setDisplayNameDraft] = useState("");
+  const [displayNameSaving, setDisplayNameSaving] = useState(false);
+  const [activeStatusSaving, setActiveStatusSaving] = useState(false);
 
   // Password change
   const [currentPassword, setCurrentPassword] = useState("");
@@ -190,6 +194,53 @@ export default function Settings() {
     fetchPackages();
   }, [fetchPackages]);
 
+  useEffect(() => {
+    if (!profile) {
+      setDisplayNameDraft("");
+      return;
+    }
+    setDisplayNameDraft((profile.displayName ?? "").trim());
+  }, [profile]);
+
+  const saveDisplayName = async () => {
+    setError("");
+    setSuccess("");
+    const name = displayNameDraft.trim();
+    if (name.length < 2) {
+      setError("Name must be at least 2 characters");
+      return;
+    }
+    setDisplayNameSaving(true);
+    try {
+      await api.put("/profile/basics", { displayName: name });
+      setSuccess("Display name saved.");
+      setTimeout(() => setSuccess(""), 4000);
+      await refreshProfile();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save name");
+    } finally {
+      setDisplayNameSaving(false);
+    }
+  };
+
+  const toggleActiveStatusSetting = async () => {
+    if (!settings || activeStatusSaving) return;
+    const next = !(settings.showActiveStatus !== false);
+    setActiveStatusSaving(true);
+    setError("");
+    try {
+      await api.put("/settings/active-status", { showActiveStatus: next });
+      setSettings((prev) => (prev ? { ...prev, showActiveStatus: next } : null));
+      setSuccess(next ? "Matches can see your last active time." : "Last active hidden from matches.");
+      setTimeout(() => setSuccess(""), 5000);
+      await refreshProfile();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update");
+    } finally {
+      setActiveStatusSaving(false);
+    }
+  };
+
   const handleChangePassword = async (e: FormEvent) => {
     e.preventDefault();
     setError("");
@@ -279,46 +330,108 @@ export default function Settings() {
         {error && <div className="auth-error">{error}</div>}
         {success && <div className="auth-success">{success}</div>}
 
-        {/* Account Info */}
+        {/* Account — layout aligned with mobile Settings (stats + profile shortcuts) */}
         <div className="settings-section">
           <h2 className="settings-section-title">
-            <span>👤</span> Account Information
+            <span>👤</span> Account
           </h2>
-          <div className="settings-info">
+          {settings && (
+            <div className="settings-stats-row">
+              <div className="settings-stat-card settings-stat-card--member">
+                <span className="settings-stat-emoji">🎉</span>
+                <span className="settings-stat-label">Member Since</span>
+                <span className="settings-stat-value">
+                  {settings.createdAt
+                    ? new Date(settings.createdAt).toLocaleDateString("en-US", {
+                        month: "short",
+                        year: "numeric",
+                      })
+                    : "—"}
+                </span>
+              </div>
+              <div className="settings-stat-card settings-stat-card--active">
+                <span className="settings-stat-emoji">🟢</span>
+                <span className="settings-stat-label">Last Active</span>
+                <span className="settings-stat-value">
+                  {settings.lastActiveAt
+                    ? new Date(settings.lastActiveAt).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                      })
+                    : "Just now"}
+                </span>
+              </div>
+            </div>
+          )}
+
+          <div className="settings-active-toggle-row">
+            <div>
+              <strong>Show last active to matches</strong>
+              <p className="settings-hint">
+                When off, others won&apos;t see your last active time in Matches (same as Profile tab toggle).
+              </p>
+            </div>
+            <button
+              type="button"
+              className={`settings-toggle-btn ${settings?.showActiveStatus !== false ? "is-on" : "is-off"}`}
+              onClick={() => void toggleActiveStatusSetting()}
+              disabled={!settings || activeStatusSaving}
+            >
+              {activeStatusSaving ? "…" : settings?.showActiveStatus !== false ? "On" : "Off"}
+            </button>
+          </div>
+
+          <div className="settings-info" style={{ marginTop: "var(--space-4)" }}>
             <div className="info-item">
               <label data-emoji="📧">📧 Email</label>
-              <span>{settings?.email}</span>
+              <span>{settings?.email || "—"}</span>
             </div>
-            <div className="info-item">
-              <label data-emoji="🎉">🎉 Member Since</label>
-              <span>
-                {settings?.createdAt
-                  ? new Date(settings.createdAt).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric'
-                    })
-                  : "N/A"}
-              </span>
-            </div>
-            <div className="info-item">
-              <label data-emoji="🟢">🟢 Last Active</label>
-              <span>
-                {settings?.lastActiveAt
-                  ? new Date(settings.lastActiveAt).toLocaleString()
-                  : "Just now"}
-              </span>
-            </div>
+          </div>
+
+          <div className="settings-subsection">
+            <label className="settings-field-label" htmlFor="displayNameSettings">
+              Display name
+            </label>
+            <p className="settings-hint">
+              Shown to people you connect with. Edit location, distance, and who you want to meet on the{" "}
+              <Link to="/profile">Profile</Link> tab.
+            </p>
+            <input
+              id="displayNameSettings"
+              className="form-input"
+              value={displayNameDraft}
+              onChange={(e) => setDisplayNameDraft(e.target.value)}
+              maxLength={50}
+              placeholder="Your first name or nickname"
+            />
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              style={{ marginTop: "var(--space-2)" }}
+              onClick={() => void saveDisplayName()}
+              disabled={displayNameSaving}
+            >
+              {displayNameSaving ? "Saving…" : "Save name"}
+            </button>
+          </div>
+
+          <div className="settings-quick-links">
+            <Link className="settings-quick-link" to="/profile">
+              <span>📍</span> Location, bio &amp; preferences
+            </Link>
+            <Link className="settings-quick-link" to="/profile#my-photos">
+              <span>📷</span> Photos (need 3 to Connect)
+            </Link>
           </div>
         </div>
 
-        {/* Buy Tokens */}
+        {/* Tokens — same flow as mobile; web lists packages inline when RC key is set */}
         <div className="settings-section">
           <h2 className="settings-section-title">
-            <span>💳</span> Buy Tokens
+            <span>💳</span> Tokens
           </h2>
           <p className="settings-description" style={{ marginBottom: 'var(--space-4)' }}>
-            Purchase tokens to connect with more people. Tokens don't expire!
+            Need more tokens? Purchase Mulligan tokens to connect with more people.
           </p>
           {!isRevenueCatWebConfigured() && (
             <p className="settings-description" style={{ marginBottom: "var(--space-3)", fontSize: "0.9rem" }}>

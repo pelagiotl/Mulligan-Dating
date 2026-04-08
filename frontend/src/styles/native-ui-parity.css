@@ -8,7 +8,17 @@
   --native-text-muted: #666;
   --native-text-soft: #555;
   --native-interest-border: #e0e7ff;
-  --native-gradient-connect: linear-gradient(135deg, #667eea 0%, #764ba2 35%, #f093fb 70%, #f5576c 100%);
+  /* Expo LinearGradient parity: start (0,0) → end (1,1) ≈ 135deg; same stops as BrowseScreen / Settings / MyProfile */
+  --native-gradient-screen: linear-gradient(
+    135deg,
+    #667eea 0%,
+    #764ba2 25%,
+    #f093fb 50%,
+    #f5576c 75%,
+    #4facfe 100%
+  );
+  --native-gradient-connect: var(--native-gradient-screen);
+  --native-gradient-header-3: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
 }
 
 /* ─── Browse (Connect) — profile card matches BrowseScreen ─── */
@@ -16,6 +26,16 @@
   position: relative;
   min-height: 60vh;
   background: var(--native-screen-bg, #f8f9ff);
+}
+
+.browse-page-native.connect-landing-page {
+  background: transparent;
+}
+
+@media (max-width: 900px) {
+  .app-layout--native-mobile-shell .browse-page-native:not(.connect-landing-page) {
+    background: transparent;
+  }
 }
 
 .browse-native-token-fixed {
@@ -387,12 +407,29 @@
 
 /* ─── Connect landing (iOS BrowseScreen Connect tab — shared by public / & Browse loading) ─── */
 .connect-landing-page {
+  position: relative;
+  z-index: 1;
   min-height: min(100vh, 100dvh);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px 16px calc(24px + env(safe-area-inset-bottom, 0px));
   box-sizing: border-box;
+  background: transparent;
+}
+
+.connect-landing-page::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: var(--native-gradient-screen);
+  pointer-events: none;
+}
+
+.connect-landing-page > * {
+  position: relative;
+  z-index: 1;
 }
 
 .app-layout--native-mobile-shell .connect-landing-page {
@@ -573,13 +610,29 @@ button.connect-landing__cta:disabled {
   cursor: not-allowed;
 }
 
-/* Public marketing page (`/`) — shell like native app background */
+/* Public marketing page (`/`) — full-bleed gradient like iOS Connect landing */
 .landing-public-root {
+  position: relative;
+  z-index: 0;
   min-height: min(100vh, 100dvh);
   display: flex;
   flex-direction: column;
-  background: var(--native-screen-bg, #f8f9ff);
+  background: transparent;
   color: var(--native-ink, #1a1a2e);
+}
+
+.landing-public-root::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: var(--native-gradient-screen);
+  pointer-events: none;
+}
+
+.landing-public-root > * {
+  position: relative;
+  z-index: 1;
 }
 
 .landing-public-nav {
@@ -702,6 +755,14 @@ button.connect-landing__cta:disabled {
 /* ─── Matches — align with mobile list + burgundy accents ─── */
 .matches-page.native-app-screen {
   background: var(--native-screen-bg, #f8f9ff);
+}
+
+@media (max-width: 900px) {
+  .app-layout--native-mobile-shell .matches-page.native-app-screen,
+  .app-layout--native-mobile-shell .my-profile.native-app-screen,
+  .app-layout--native-mobile-shell .settings-page.native-app-screen {
+    background: transparent;
+  }
 }
 
 .matches-page.native-app-screen .matches-title {
