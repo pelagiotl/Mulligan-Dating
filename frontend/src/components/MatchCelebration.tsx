@@ -14,8 +14,12 @@ interface MatchCelebrationProps {
   onClose: () => void;
   matchId?: string | null;
   explanation?: MatchExplanation | null;
-  /** Recipient flows can skip the “finding match” beat (web browse connect always passes matchId). */
+  /** Recipient flows can skip the “finding match” beat. */
   skipLoadingReveal?: boolean;
+  /**
+   * Initiator (Connect tab): wait at least REVEAL_DELAY_MS from overlay open, then reveal once matchId is set (mirrors mobile).
+   */
+  revealWhenMatchIdReady?: boolean;
 }
 
 /**
@@ -78,6 +82,7 @@ export default function MatchCelebration({
   matchId,
   explanation,
   skipLoadingReveal = false,
+  revealWhenMatchIdReady = false,
 }: MatchCelebrationProps) {
   const [revealed, setRevealed] = useState(() => skipLoadingReveal);
   const [showContent, setShowContent] = useState(false);
@@ -87,17 +92,26 @@ export default function MatchCelebration({
   const openedAtRef = useRef(Date.now());
   const navigate = useNavigate();
 
-  // “Finding your curated match” — at least REVEAL_DELAY_MS, aligned with mobile when matchId is present
+  useEffect(() => {
+    openedAtRef.current = Date.now();
+    soundPlayedRef.current = false;
+  }, []);
+
   useEffect(() => {
     if (skipLoadingReveal) {
       setRevealed(true);
       return;
     }
-    const elapsed = Date.now() - openedAtRef.current;
-    const remaining = Math.max(0, REVEAL_DELAY_MS - elapsed);
-    const t = window.setTimeout(() => setRevealed(true), remaining);
+    if (revealWhenMatchIdReady) {
+      if (!matchId?.trim()) return;
+      const elapsed = Date.now() - openedAtRef.current;
+      const remaining = Math.max(0, REVEAL_DELAY_MS - elapsed);
+      const t = window.setTimeout(() => setRevealed(true), remaining);
+      return () => clearTimeout(t);
+    }
+    const t = window.setTimeout(() => setRevealed(true), REVEAL_DELAY_MS);
     return () => clearTimeout(t);
-  }, [skipLoadingReveal, matchId]);
+  }, [skipLoadingReveal, revealWhenMatchIdReady, matchId]);
 
   useEffect(() => {
     if (!revealed) return;
@@ -106,26 +120,22 @@ export default function MatchCelebration({
     const timer2 = setTimeout(() => setShowConfetti(true), 300);
     const timer3 = setTimeout(() => setShowButton(true), 2000);
 
-    if (!soundPlayedRef.current) {
-      const soundTimer = setTimeout(() => {
-        playFireworkSound();
-        soundPlayedRef.current = true;
-      }, 300);
-
-      return () => {
-        clearTimeout(timer1);
-        clearTimeout(timer2);
-        clearTimeout(timer3);
-        clearTimeout(soundTimer);
-      };
-    }
-
     return () => {
       clearTimeout(timer1);
       clearTimeout(timer2);
       clearTimeout(timer3);
     };
   }, [revealed]);
+
+  useEffect(() => {
+    if (!showContent) return;
+    if (soundPlayedRef.current) return;
+    soundPlayedRef.current = true;
+    const t = window.setTimeout(() => {
+      playFireworkSound();
+    }, 180);
+    return () => clearTimeout(t);
+  }, [showContent]);
 
   const handleSendMessage = () => {
     onClose();
@@ -205,9 +215,11 @@ export default function MatchCelebration({
               <span className="match-celebration-word word-3">Match! 💖</span>
             </h1>
             <p className="match-celebration-subtitle">
-              You and <strong>{profileName}</strong> connected
+              You&apos;re connected!
             </p>
-            <p className="match-celebration-message">Start chatting now! 💬</p>
+            <p className="match-celebration-message">
+              Start messaging <strong>{profileName}</strong> 💬
+            </p>
 
             {explanation && explanation.reasons.length > 0 && (
               <div className="match-celebration-explanation">

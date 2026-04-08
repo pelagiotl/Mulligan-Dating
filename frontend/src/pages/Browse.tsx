@@ -30,7 +30,7 @@ interface Profile {
   distance?: number | null;
 }
 
-type ConnectLandingMode = "loading" | "gate";
+type ConnectLandingMode = "loading" | "gate" | "auto-connecting";
 
 function BrowseConnectLandingChrome({
   mode,
@@ -44,10 +44,11 @@ function BrowseConnectLandingChrome({
   gateError?: string;
 }) {
   const isGate = mode === "gate";
+  const showTokenStrip = isGate || mode === "auto-connecting";
 
   return (
     <div className="browse-page-native native-app-screen connect-landing-page">
-      {isGate && (
+      {showTokenStrip && (
         <div className="browse-native-token-fixed">
           <TokenDisplay />
         </div>
@@ -91,7 +92,16 @@ function BrowseConnectLandingChrome({
             </div>
           </div>
 
-          {isGate ? (
+          {mode === "auto-connecting" ? (
+            <div
+              className="connect-landing__cta connect-landing__cta--loading"
+              aria-live="polite"
+              aria-busy="true"
+            >
+              <span className="connect-landing__spinner" />
+              <span>Finding your curated match…</span>
+            </div>
+          ) : isGate ? (
             <>
               {gateError ? (
                 <div className="browse-native-error" role="alert" style={{ marginBottom: "1rem" }}>
@@ -156,6 +166,8 @@ export default function Browse() {
   /** Mirrors mobile Connect tab: no /users/browse until user taps Connect (unlock-browse) this session. */
   const [browseSessionActive, setBrowseSessionActive] = useState(false);
   const [unlockingBrowse, setUnlockingBrowse] = useState(false);
+  /** True while unlock-browse + first auto /matches/connect runs (mirrors mobile isAutoMatching). */
+  const [isAutoMatching, setIsAutoMatching] = useState(false);
   const [gateError, setGateError] = useState("");
   const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
   const [offset, setOffset] = useState(0);
@@ -172,6 +184,13 @@ export default function Browse() {
   const navigate = useNavigate();
   const photoRailRef = useRef<HTMLDivElement>(null);
   const [photoIndex, setPhotoIndex] = useState(0);
+  const handleConnectRef = useRef<(profile: Profile, expandSlot?: boolean) => Promise<void>>(
+    async () => {}
+  );
+  const browseSessionActiveRef = useRef(false);
+  useEffect(() => {
+    browseSessionActiveRef.current = browseSessionActive;
+  }, [browseSessionActive]);
 
   const displayPhotos = useMemo(() => {
     if (!currentProfile) return [] as { id: string; url: string }[];
@@ -321,24 +340,6 @@ export default function Browse() {
     }
   }, [offset]);
 
-  const handleUnlockBrowse = useCallback(async () => {
-    if (unlockingBrowse || !userProfile) return;
-    setUnlockingBrowse(true);
-    setGateError("");
-    setError("");
-    try {
-      await api.post("/users/unlock-browse", {});
-    } catch (err: any) {
-      const msg = err?.message || String(err || "Failed to unlock browsing");
-      setGateError(msg);
-      setUnlockingBrowse(false);
-      return;
-    }
-    setBrowseSessionActive(true);
-    setUnlockingBrowse(false);
-    await fetchProfile();
-  }, [unlockingBrowse, userProfile, fetchProfile]);
-
   // Refetch when offset changes (for pagination) - only if we've already fetched once
   useEffect(() => {
     if (hasFetched && offset > 0) {
@@ -393,156 +394,193 @@ export default function Browse() {
     };
   }, [userProfile]); // Reconnect if user changes
 
-  const playConnectSound = () => {
-    try {
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const duration = 0.4;
-      const sampleRate = audioContext.sampleRate;
-      const frameCount = sampleRate * duration;
-      const buffer = audioContext.createBuffer(1, frameCount, sampleRate);
-      const data = buffer.getChannelData(0);
+  const handleConnect = useCallback(
+    async (profile: Profile, expandSlot?: boolean) => {
+      if (connecting) return;
 
-      for (let i = 0; i < frameCount; i++) {
-        const t = i / sampleRate;
-        const progress = t / duration;
-        
-        // Layer 1: Quick upward sweep (whoosh up)
-        const sweep1 = Math.sin(2 * Math.PI * (400 + progress * 800) * t);
-        
-        // Layer 2: Resonant tone that builds and releases
-        const toneFreq = 600 + Math.sin(progress * Math.PI * 2) * 200;
-        const tone = Math.sin(2 * Math.PI * toneFreq * t);
-        
-        // Layer 3: High frequency sparkle
-        const sparkle = Math.sin(2 * Math.PI * (2000 - progress * 1000) * t) * 0.5;
-        
-        // Layer 4: Low frequency thump for impact
-        const thump = Math.sin(2 * Math.PI * 80 * t) * Math.exp(-progress * 8);
-        
-        // Envelope: Quick attack, smooth release
-        let envelope;
-        if (progress < 0.1) {
-          envelope = progress * 10; // Quick attack
-        } else {
-          envelope = Math.pow(1 - (progress - 0.1) / 0.9, 2); // Smooth release
-        }
-        
-        // Combine all layers with different weights
-        const combined = (
-          sweep1 * 0.3 +
-          tone * 0.4 +
-          sparkle * 0.2 +
-          thump * 0.1
-        ) * envelope;
-        
-        data[i] = Math.max(-1, Math.min(1, combined)); // Clamp to valid range
-      }
+      const hadBrowseSession = browseSessionActiveRef.current;
 
-      const source = audioContext.createBufferSource();
-      source.buffer = buffer;
-      
-      // Add a subtle reverb-like effect with a gain node
-      const gainNode = audioContext.createGain();
-      gainNode.gain.value = 0.6; // Volume control
-      
-      source.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      source.start(0);
-    } catch (err) {
-      // Silently fail if audio context is not available
-      console.debug('Audio not available');
-    }
-  };
-
-  const handleConnect = async (profile: Profile, expandSlot?: boolean) => {
-    if (connecting) return; // Prevent double-clicks
-    
-    setConnecting(true);
-    setError("");
-    
-    // Play cool connect sound when connecting
-    playConnectSound();
-    
-    try {
-      // Consume token and create match immediately
-      const result = await api.post<{ message: string; isMutual: boolean; matchId: string; stage: string }>(
-        "/matches/connect",
-        { targetUserId: profile.userId, expandSlot: expandSlot || false }
-      );
-
-      console.log('✅ Connect successful:', result);
-
-      console.log('✅ Connect successful, showing celebration');
-
-      // Reset connecting state immediately since the API call succeeded
-      setConnecting(false);
-
-      // Show match celebration
+      setConnecting(true);
+      setError("");
       setMatchedProfile(profile);
-      setCelebrationMatchId(result.matchId ?? null);
+      setCelebrationMatchId(null);
       setShowMatchCelebration(true);
-      
-      // Move to next profile after celebration (handled by handleCelebrationClose)
-    } catch (err) {
-      console.error('❌ Connect error:', err);
-      
-      // Extract error message - ApiError has a status property
-      let errorMessage = 'Failed to connect. Please try again.';
-      
-      if (err instanceof Error) {
-        errorMessage = err.message || errorMessage;
-        
-        // Check if it's an ApiError (which has a status property)
-        if ('status' in err) {
-          const apiErr = err as Error & { status: number; code?: string; canExpand?: boolean; currentLimit?: number; newLimit?: number };
-          // Check if at match limit - offer to expand slot with extra token
-          if (apiErr.status === 400 && apiErr.code === 'AT_MATCH_LIMIT' && apiErr.canExpand) {
-            const currentLimit = apiErr.currentLimit ?? 20;
-            const newLimit = apiErr.newLimit ?? 8;
-            setConnecting(false);
-            const ok = window.confirm(
-              `You’ve reached your limit of ${currentLimit} active chats. You need 2 Mulligan tokens (1 to connect + 1 for the extra slot). Spend 2 tokens to connect?`
-            );
-            if (ok) {
-              handleConnect(profile, true);
-            }
-            return;
-          }
-          // Provide more specific error messages based on status code
-          if (apiErr.status === 400) {
-            // Bad request - likely validation error or missing requirements (no token, no photos, etc.)
-            errorMessage = err.message || 'Cannot connect. Please check that both you and the other person have photos uploaded and you have available tokens.';
-          } else if (apiErr.status === 401) {
-            errorMessage = 'Session expired. Please log in again.';
-          } else if (apiErr.status === 404) {
-            errorMessage = 'Profile not found. Please refresh and try again.';
-          } else if (apiErr.status === 408) {
-            errorMessage = 'Request timed out. The server may be slow. Please try again.';
-          }
+
+      type ConnectResult = {
+        message?: string;
+        isMutual?: boolean;
+        matchId?: string;
+        stage?: string;
+        existingMatch?: boolean;
+      };
+
+      try {
+        const result = await api.post<ConnectResult>("/matches/connect", {
+          targetUserId: profile.userId,
+          expandSlot: expandSlot || false,
+        });
+
+        setConnecting(false);
+
+        if (!result?.matchId) {
+          setShowMatchCelebration(false);
+          setMatchedProfile(null);
+          setCelebrationMatchId(null);
+          setError("Connection did not complete. Please try again.");
+          setTimeout(() => setError(""), 8000);
+          if (!hadBrowseSession) setBrowseSessionActive(false);
+          return;
         }
-      } else if (err && typeof err === 'object' && 'message' in err) {
-        errorMessage = String((err as any).message) || errorMessage;
+
+        if (result.existingMatch) {
+          setShowMatchCelebration(false);
+          setMatchedProfile(null);
+          setCelebrationMatchId(null);
+          navigate("/matches", { state: { openMatchId: result.matchId } });
+          return;
+        }
+
+        setCelebrationMatchId(result.matchId);
+        setBrowseSessionActive(true);
+
+        const hasPhoto =
+          !!profile.photoUrl || !!(profile.photos && profile.photos.length > 0);
+        if (!hasPhoto && profile.id) {
+          api
+            .get<{ photos: Photo[] }>(`/photos/profile/${profile.id}`)
+            .then((photosData) => {
+              if (photosData?.photos?.length) {
+                const primary =
+                  photosData.photos.find((p) => p.isPrimary) || photosData.photos[0];
+                setMatchedProfile((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        photos: photosData.photos,
+                        photoUrl: primary?.url ?? prev.photoUrl,
+                      }
+                    : null
+                );
+              }
+            })
+            .catch(() => {});
+        }
+      } catch (err) {
+        console.error("❌ Connect error:", err);
+
+        setShowMatchCelebration(false);
+        setMatchedProfile(null);
+        setCelebrationMatchId(null);
+        setConnecting(false);
+        if (!hadBrowseSession) setBrowseSessionActive(false);
+
+        let errorMessage = "Failed to connect. Please try again.";
+
+        if (err instanceof Error) {
+          errorMessage = err.message || errorMessage;
+
+          if ("status" in err) {
+            const apiErr = err as Error & {
+              status: number;
+              code?: string;
+              canExpand?: boolean;
+              currentLimit?: number;
+              newLimit?: number;
+            };
+            if (apiErr.status === 400 && apiErr.code === "AT_MATCH_LIMIT" && apiErr.canExpand) {
+              const currentLimit = apiErr.currentLimit ?? 20;
+              const ok = window.confirm(
+                `You’ve reached your limit of ${currentLimit} active chats. You need 2 Mulligan tokens (1 to connect + 1 for the extra slot). Spend 2 tokens to connect?`
+              );
+              if (ok) {
+                void handleConnectRef.current(profile, true);
+              }
+              return;
+            }
+            if (apiErr.status === 400) {
+              errorMessage =
+                err.message ||
+                "Cannot connect. Please check that both you and the other person have photos uploaded and you have available tokens.";
+            } else if (apiErr.status === 401) {
+              errorMessage = "Session expired. Please log in again.";
+            } else if (apiErr.status === 404) {
+              errorMessage = "Profile not found. Please refresh and try again.";
+            } else if (apiErr.status === 408) {
+              errorMessage = "Request timed out. The server may be slow. Please try again.";
+            }
+          }
+        } else if (err && typeof err === "object" && "message" in err) {
+          errorMessage = String((err as { message: unknown }).message) || errorMessage;
+        }
+
+        setError(errorMessage);
+        setTimeout(() => setError(""), 8000);
       }
-      
-      console.error('❌ Connect error details:', {
-        error: err,
-        errorMessage,
-        profileId: profile?.id,
-        userId: profile?.userId,
-        errorType: err instanceof Error ? err.constructor.name : typeof err,
-        hasStatus: err instanceof Error && 'status' in err ? (err as any).status : 'N/A'
-      });
-      
-      // Show error
-      setError(errorMessage);
-      
-      // Clear error after 8 seconds (longer so user can read it)
-      setTimeout(() => setError(""), 8000);
-      
-      // Reset connecting state
-      setConnecting(false);
+    },
+    [connecting, navigate]
+  );
+
+  handleConnectRef.current = handleConnect;
+
+  const handleUnlockBrowse = useCallback(async () => {
+    if (unlockingBrowse || !userProfile || isAutoMatching) return;
+    setUnlockingBrowse(true);
+    setIsAutoMatching(true);
+    setGateError("");
+    setError("");
+
+    const runBrowseAndConnect = async () => {
+      const data = await api.get<{
+        profile: Profile | null;
+        hasMore: boolean;
+        offset: number;
+        total: number;
+      }>(`/users/browse?offset=0`);
+
+      if (!data.profile) {
+        setCurrentProfile(null);
+        setHasMore(data.hasMore);
+        setHasFetched(true);
+        setBrowseSessionActive(false);
+        setGateError(
+          "No one new to match with right now. Try widening distance or check back later."
+        );
+        return;
+      }
+
+      setCurrentProfile(data.profile);
+      setHasMore(data.hasMore);
+      setHasFetched(true);
+      await handleConnectRef.current(data.profile);
+    };
+
+    try {
+      try {
+        await api.post("/users/unlock-browse", {});
+      } catch (unlockErr: unknown) {
+        const unlockMsg = String(
+          (unlockErr as { message?: string })?.message || ""
+        ).toLowerCase();
+        if (
+          !unlockMsg.includes("already unlocked") &&
+          !unlockMsg.includes("browsing is already unlocked")
+        ) {
+          throw unlockErr;
+        }
+      }
+      await runBrowseAndConnect();
+    } catch (err: unknown) {
+      const msg =
+        (err as { message?: string })?.message ||
+        String(err || "Failed to unlock browsing");
+      setGateError(msg);
+      setBrowseSessionActive(false);
+      setCurrentProfile(null);
+    } finally {
+      setUnlockingBrowse(false);
+      setIsAutoMatching(false);
     }
-  };
+  }, [unlockingBrowse, userProfile, isAutoMatching]);
 
   const handleCelebrationClose = () => {
     console.log('🎉 Celebration closed, moving to next profile');
@@ -555,7 +593,11 @@ export default function Browse() {
 
   const needsProfile = !userProfile && !authLoading && !loading;
   const showConnectGate =
-    !!userProfile && !browseSessionActive && !authLoading && !loading;
+    !!userProfile &&
+    !browseSessionActive &&
+    !authLoading &&
+    !loading &&
+    !isAutoMatching;
   
   // If there's an error but we don't have a profile, treat it as a profile creation issue
   // This is a fallback to ensure users can always create a profile
@@ -564,7 +606,8 @@ export default function Browse() {
     // Don't return error, show create profile button instead
   }
 
-  if (authLoading || loading) {
+  /* Full-page loading only before first browse payload; offset refetches keep the stack mounted */
+  if (authLoading || (loading && !hasFetched)) {
     return <BrowseConnectLandingChrome mode="loading" />;
   }
 
@@ -581,6 +624,8 @@ export default function Browse() {
 
   return (
     <div className="browse-page-native native-app-screen">
+      {isAutoMatching ? <BrowseConnectLandingChrome mode="auto-connecting" /> : null}
+
       {matchNotification && (
         <div
           style={{
@@ -632,7 +677,11 @@ export default function Browse() {
             Create Profile 🚀
           </button>
         </div>
-      ) : browseSessionActive && hasFetched && !currentProfile && !loading ? (
+      ) : browseSessionActive &&
+        hasFetched &&
+        !currentProfile &&
+        !loading &&
+        !isAutoMatching ? (
         <div className="browse-native-caught-up">
           <div className="browse-native-caught-up-card">
             <div className="browse-native-caught-up-ring">🔍</div>
@@ -642,7 +691,11 @@ export default function Browse() {
             </p>
           </div>
         </div>
-      ) : currentProfile ? (
+      ) : browseSessionActive &&
+        hasFetched &&
+        currentProfile &&
+        !showMatchCelebration &&
+        !isAutoMatching ? (
         <>
           <div className="browse-native-token-fixed">
             <TokenDisplay />
@@ -771,6 +824,7 @@ export default function Browse() {
             profileName={matchedProfile.displayName}
             photoUrl={photoUrl}
             matchId={celebrationMatchId}
+            revealWhenMatchIdReady
             onClose={handleCelebrationClose}
           />
         );
