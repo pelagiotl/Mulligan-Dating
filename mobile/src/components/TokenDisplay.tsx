@@ -1025,14 +1025,16 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
         </TouchableOpacity>
       ) : (
         <Text style={styles.cannotClaimText}>
-          {data.availableTokens >= 3
-            ? 'You already have 3 tokens. Use them to connect!'
-            : 'You can claim 3 tokens next week!'}
+          {data.availableTokens >= 7
+            ? 'You already have 7 tokens. Use them to connect!'
+            : data.nextRefillDate
+              ? `Next weekly refill: ${new Date(data.nextRefillDate).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}.`
+              : 'You can claim more tokens on your next weekly refill.'}
         </Text>
       )}
 
       <Text style={styles.infoText}>
-        Use tokens to connect with people. Get 3 new tokens each week!
+        Use tokens to connect with people. Get 7 tokens weekly (up to 7 max).
       </Text>
 
       {/* Buy More Button - Only show when tokens are 0 or very low */}

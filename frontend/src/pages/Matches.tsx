@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { io, Socket } from "socket.io-client";
 import { api } from "../utils/api";
 import { useAuth } from "../context/AuthContext";
@@ -52,6 +53,8 @@ interface Message {
 
 export default function Matches() {
   const { user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [matches, setMatches] = useState<Match[]>([]);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -253,6 +256,18 @@ export default function Matches() {
   useEffect(() => {
     fetchMatches();
   }, []);
+
+  // Open a specific thread when arriving from match celebration (Browse → Send a Message)
+  useEffect(() => {
+    if (loading) return;
+    const state = location.state as { openMatchId?: string } | null | undefined;
+    const id = state?.openMatchId;
+    if (!id) return;
+    if (matches.length === 0) return;
+    const m = matches.find((x) => x.id === id);
+    if (m) setSelectedMatch(m);
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [loading, matches, location.state, location.pathname, navigate]);
 
   // Join/leave match room when selected match changes
   useEffect(() => {

@@ -1,7 +1,16 @@
-import { useState, useEffect, FormEvent } from "react";
+import { useState, useEffect, useRef, FormEvent, useCallback } from "react";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../utils/api";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import type { Package } from "@revenuecat/purchases-js";
+import {
+  fetchWebPackagesByProductId,
+  formatPricePerToken,
+  getRevenueCatPurchases,
+  isRevenueCatWebConfigured,
+  isUserCancelledPurchase,
+  matchRcPackage,
+} from "../lib/revenuecatWeb";
 
 interface SettingsData {
   email: string;
@@ -11,15 +20,19 @@ interface SettingsData {
 
 interface TokenPackage {
   id: number;
+  productId?: string;
   tokens: number;
   price: number;
   priceFormatted: string;
   pricePerToken: string;
+  available?: boolean;
+  wouldExceedLimit?: boolean;
+  maxTokensCanBuy?: number;
 }
 
 
 export default function Settings() {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [settings, setSettings] = useState<SettingsData | null>(null);
@@ -44,25 +57,11 @@ export default function Settings() {
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  // Token purchase
+  // Token purchase (prices + checkout via RevenueCat Web Billing when VITE_REVENUECAT_WEB_API_KEY is set)
   const [packages, setPackages] = useState<TokenPackage[]>([]);
   const [loadingPackages, setLoadingPackages] = useState(false);
   const [purchasing, setPurchasing] = useState<number | null>(null);
-
-  useEffect(() => {
-    fetchSettings();
-    fetchPackages();
-    
-    // Check for payment success/cancel in URL
-    const paymentStatus = searchParams.get("payment");
-    if (paymentStatus === "success") {
-      setSuccess("Payment successful! Your tokens have been added.");
-      setSearchParams({}); // Clear URL params
-    } else if (paymentStatus === "canceled") {
-      setError("Payment was canceled.");
-      setSearchParams({}); // Clear URL params
-    }
-  }, [searchParams, setSearchParams]);
+  const revenueCatByProductId = useRef<Record<string, Package>>({});
 
   const fetchSettings = async () => {
     try {
@@ -75,25 +74,121 @@ export default function Settings() {
     }
   };
 
-  const fetchPackages = async () => {
+  const fetchPackages = useCallback(async () => {
     setLoadingPackages(true);
     try {
       const data = await api.get<{ packages: TokenPackage[] }>("/payments/packages");
-      setPackages(data.packages || []);
+      let list = data.packages || [];
+      revenueCatByProductId.current = {};
+
+      if (isRevenueCatWebConfigured() && user?.id) {
+        try {
+          const map = await fetchWebPackagesByProductId(user.id);
+          revenueCatByProductId.current = map;
+          list = list.map((pkg) => {
+            const productId = pkg.productId;
+            const rcPkg = matchRcPackage(map, productId);
+            if (rcPkg && productId) {
+              return {
+                ...pkg,
+                priceFormatted: rcPkg.webBillingProduct.price.formattedPrice,
+                pricePerToken: formatPricePerToken(rcPkg, pkg.tokens),
+              };
+            }
+            return pkg;
+          });
+        } catch (rcErr) {
+          console.warn("[RevenueCat Web] getOfferings failed:", rcErr);
+        }
+      }
+
+      list = list.map((pkg) => {
+        if (pkg.priceFormatted) return pkg;
+        return {
+          ...pkg,
+          priceFormatted: isRevenueCatWebConfigured() ? "—" : "Web setup required",
+          pricePerToken: "—",
+        };
+      });
+
+      setPackages(list);
     } catch (err) {
       setPackages([]);
     } finally {
       setLoadingPackages(false);
     }
-  };
+  }, [user?.id]);
 
-  const handlePurchase = async (_packageId: number) => {
+  const handlePurchase = async (pkg: TokenPackage) => {
     setError("");
     setSuccess("");
-    setSuccess("In-app purchases are coming soon. We're switching to a new provider—stay tuned!");
-    setTimeout(() => setSuccess(""), 5000);
+
+    if (!user?.id) {
+      setError("You must be logged in to purchase tokens.");
+      return;
+    }
+
+    if (!isRevenueCatWebConfigured()) {
+      setError(
+        "Web purchases need RevenueCat Web Billing. Set VITE_REVENUECAT_WEB_API_KEY in your frontend build (Render) to your Web Billing public API key. See RevenueCat → Web Billing app."
+      );
+      return;
+    }
+
+    const rcPkg = matchRcPackage(revenueCatByProductId.current, pkg.productId);
+    if (!rcPkg) {
+      setError(
+        "This package has no price from RevenueCat. In the RC dashboard, add Web Billing products whose IDs match your mobile product IDs (e.g. mulligan_tokens_7), attach them to the current offering, then refresh."
+      );
+      return;
+    }
+
+    if (pkg.available === false) {
+      setError("You cannot purchase this package right now.");
+      return;
+    }
+    if (pkg.wouldExceedLimit) {
+      setError(
+        `This would exceed your 7 token cap. You can buy at most ${pkg.maxTokensCanBuy ?? 0} more token(s).`
+      );
+      return;
+    }
+
+    setPurchasing(pkg.id);
+    try {
+      const purchases = await getRevenueCatPurchases(user.id);
+      await purchases.purchase({
+        rcPackage: rcPkg,
+        customerEmail: settings?.email ?? undefined,
+      });
+      setSuccess(`${pkg.tokens} token(s) added! If your balance does not update within a minute, pull to refresh or re-open Settings.`);
+      setTimeout(() => setSuccess(""), 8000);
+      await fetchPackages();
+    } catch (err: unknown) {
+      if (isUserCancelledPurchase(err)) return;
+      const msg =
+        err instanceof Error ? err.message : "Purchase failed. Please try again.";
+      setError(msg);
+    } finally {
+      setPurchasing(null);
+    }
   };
 
+  useEffect(() => {
+    fetchSettings();
+    const paymentStatus = searchParams.get("payment");
+    if (paymentStatus === "success") {
+      setSuccess("Payment successful! Your tokens have been added.");
+      setSearchParams({});
+    } else if (paymentStatus === "canceled") {
+      setError("Payment was canceled.");
+      setSearchParams({});
+    }
+  }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    fetchPackages();
+  }, [fetchPackages]);
 
   const handleChangePassword = async (e: FormEvent) => {
     e.preventDefault();
@@ -225,7 +320,14 @@ export default function Settings() {
           <p className="settings-description" style={{ marginBottom: 'var(--space-4)' }}>
             Purchase tokens to connect with more people. Tokens don't expire!
           </p>
-          
+          {!isRevenueCatWebConfigured() && (
+            <p className="settings-description" style={{ marginBottom: "var(--space-3)", fontSize: "0.9rem" }}>
+              To enable checkout on the web, add{" "}
+              <code style={{ fontSize: "0.85em" }}>VITE_REVENUECAT_WEB_API_KEY</code> in Render (Web Billing public key)
+              and configure Web Billing products in RevenueCat. See <code>frontend/src/lib/revenuecatWeb.ts</code> for a short checklist.
+            </p>
+          )}
+
           {loadingPackages ? (
             <div style={{ padding: 'var(--space-4)', textAlign: 'center' }}>Loading packages...</div>
           ) : packages.length > 0 ? (
@@ -238,7 +340,7 @@ export default function Settings() {
                     borderRadius: 'var(--radius-lg)',
                     padding: 'var(--space-4)',
                     textAlign: 'center',
-                    background: pkg.id === 3 || pkg.id === 10 ? 'rgba(244, 63, 94, 0.05)' : 'var(--bg-secondary)',
+                    background: pkg.id === 3 || pkg.id === 4 ? 'rgba(244, 63, 94, 0.05)' : 'var(--bg-secondary)',
                   }}
                 >
                   <div style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: 'var(--space-2)' }}>
@@ -248,17 +350,24 @@ export default function Settings() {
                     {pkg.priceFormatted}
                   </div>
                   <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>
-                    ${pkg.pricePerToken} per token
+                    {pkg.pricePerToken !== "—" ? `${pkg.pricePerToken} per token` : "—"}
                   </div>
-                  {(pkg.id === 3 || pkg.id === 10) && (
+                  {(pkg.id === 3 || pkg.id === 4) && (
                     <div style={{ fontSize: '0.75rem', color: 'var(--color-rose-600)', fontWeight: '600', marginBottom: 'var(--space-2)' }}>
                       ⭐ Best Value
                     </div>
                   )}
                   <button
                     className="btn btn-primary"
-                    onClick={() => handlePurchase(pkg.id)}
-                    disabled={purchasing === pkg.id}
+                    type="button"
+                    onClick={() => handlePurchase(pkg)}
+                    disabled={
+                      purchasing === pkg.id ||
+                      pkg.available === false ||
+                      pkg.wouldExceedLimit === true ||
+                      pkg.priceFormatted === "—" ||
+                      pkg.priceFormatted === "Web setup required"
+                    }
                     style={{ width: '100%', marginTop: 'var(--space-2)' }}
                   >
                     {purchasing === pkg.id ? "Processing..." : "Buy Now"}

@@ -165,6 +165,7 @@ export default function Browse() {
   const [connecting, setConnecting] = useState(false);
   const [showMatchCelebration, setShowMatchCelebration] = useState(false);
   const [matchedProfile, setMatchedProfile] = useState<Profile | null>(null);
+  const [celebrationMatchId, setCelebrationMatchId] = useState<string | null>(null);
   const [hasFetched, setHasFetched] = useState(false); // Track if we've fetched at least once
   const [matchNotification, setMatchNotification] = useState<{ message: string; type: "success" | "info" | "warning" | "error" } | null>(null);
   const socketRef = useRef<Socket | null>(null);
@@ -478,6 +479,7 @@ export default function Browse() {
 
       // Show match celebration
       setMatchedProfile(profile);
+      setCelebrationMatchId(result.matchId ?? null);
       setShowMatchCelebration(true);
       
       // Move to next profile after celebration (handled by handleCelebrationClose)
@@ -546,6 +548,7 @@ export default function Browse() {
     console.log('🎉 Celebration closed, moving to next profile');
     setShowMatchCelebration(false);
     setMatchedProfile(null);
+    setCelebrationMatchId(null);
     // Move to next profile after celebration
     setOffset(prev => prev + 1);
   };
@@ -767,6 +770,7 @@ export default function Browse() {
           <MatchCelebration
             profileName={matchedProfile.displayName}
             photoUrl={photoUrl}
+            matchId={celebrationMatchId}
             onClose={handleCelebrationClose}
           />
         );
