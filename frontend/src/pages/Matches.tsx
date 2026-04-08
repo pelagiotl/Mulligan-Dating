@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { io, Socket } from "socket.io-client";
 import { api } from "../utils/api";
 import { useAuth } from "../context/AuthContext";
@@ -599,7 +599,11 @@ export default function Matches() {
   };
 
   if (loading) {
-    return <div className="loading-screen">Loading your matches...</div>;
+    return (
+      <div className="matches-native-loading native-app-screen" aria-busy="true">
+        <div className="loading-screen">Loading your matches...</div>
+      </div>
+    );
   }
 
   return (
@@ -631,6 +635,9 @@ export default function Matches() {
           <div className="no-matches">
             <p>No matches yet!</p>
             <p className="hint">Use Connect and your tokens to match with people.</p>
+            <Link to="/browse" className="matches-empty-cta">
+              ✨ Browse People
+            </Link>
           </div>
         ) : (
           <div className="matches-list">
