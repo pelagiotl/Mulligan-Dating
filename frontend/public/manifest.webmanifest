@@ -5,5 +5,13 @@
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f8f9ff",
-  "theme_color": "#8b1538"
+  "theme_color": "#8b1538",
+  "icons": [
+    {
+      "src": "/app-icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
 }
