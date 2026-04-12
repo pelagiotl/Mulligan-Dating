@@ -1,4 +1,4 @@
-/** App icon (purple–pink M) from `/app-icon.png` — keep in sync with mobile `assets/icon.png`. */
+/** App icon from `/app-icon.png` — keep in sync with mobile `assets/icon.png`. */
 export default function BrandMark({
   size = 40,
   className = '',
