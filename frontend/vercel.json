@@ -4,6 +4,16 @@
   "devCommand": "npm run dev",
   "installCommand": "cd frontend && npm install",
   "framework": "vite",
+  "headers": [
+    {
+      "source": "/favicon.png",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600, must-revalidate" }]
+    },
+    {
+      "source": "/app-icon.png",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600, must-revalidate" }]
+    }
+  ],
   "rewrites": [
     {
       "source": "/(.*)",

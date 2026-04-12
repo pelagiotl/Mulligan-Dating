@@ -1,4 +1,4 @@
-/** App icon from `/app-icon.png` — keep in sync with mobile `assets/icon.png`. */
+/** App icon from `/app-icon.png` — keep in sync with mobile `assets/icon.png`; bump ?v= with index.html when icons change. */
 export default function BrandMark({
   size = 40,
   className = '',
@@ -11,7 +11,7 @@ export default function BrandMark({
   const radius = Math.max(6, Math.round(size * 0.22))
   return (
     <img
-      src="/app-icon.png"
+      src="/app-icon.png?v=20260411"
       alt={alt}
       width={size}
       height={size}
