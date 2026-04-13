@@ -1,11 +1,15 @@
 import { Link } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import ConnectLandingMark from "../components/ConnectLandingMark";
+import WebTokenPurchase from "../components/WebTokenPurchase";
 
 /**
  * Public home — same Connect landing card as iOS BrowseScreen (Connect tab).
  * In-app tabs match native: Connect, Matches.
  */
 export default function Landing() {
+  const { isAuthenticated, loading: authLoading } = useAuth();
+
   return (
     <div className="landing-public-root native-app-screen">
       <header className="landing-public-nav">
@@ -70,6 +74,18 @@ export default function Landing() {
             </Link>
 
             <p className="connect-landing__hint">⛳ Use a Mulligan</p>
+
+            {!authLoading && !isAuthenticated && (
+              <p className="landing-token-chill-guest">
+                Already playing?{" "}
+                <Link to="/login" className="landing-token-chill-guest__link">
+                  Log in
+                </Link>{" "}
+                to top up Mulligan tokens — no pressure.
+              </p>
+            )}
+
+            {!authLoading && isAuthenticated && <WebTokenPurchase variant="landing" />}
 
             <p className="connect-landing__legal">
               By continuing, you agree to our{" "}

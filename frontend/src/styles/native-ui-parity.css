@@ -734,6 +734,164 @@ button.connect-landing__cta:disabled {
   text-decoration: underline;
 }
 
+/* Subtle token top-up on public landing (below “Use a Mulligan”) */
+.landing-token-chill-guest {
+  margin: 0.35rem 0 0;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #888;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.landing-token-chill-guest__link {
+  color: #667eea;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.landing-token-chill-guest__link:hover {
+  text-decoration: underline;
+}
+
+.landing-token-chill {
+  margin-top: 0.5rem;
+  width: 100%;
+}
+
+.landing-token-chill__toggle {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0.45rem 0.5rem;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: center;
+  font: inherit;
+  border-radius: 10px;
+  transition: background 0.15s ease;
+}
+
+.landing-token-chill__toggle:hover {
+  background: rgba(102, 126, 234, 0.06);
+}
+
+.landing-token-chill__toggle-label {
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.landing-token-chill__muted {
+  color: #888;
+  font-weight: 500;
+}
+
+.landing-token-chill__accent {
+  color: #667eea;
+  font-weight: 700;
+}
+
+.landing-token-chill__chevron {
+  color: #aaa;
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+.landing-token-chill__fallback {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  color: #999;
+  text-align: center;
+  line-height: 1.4;
+}
+
+.landing-token-chill__fallback a {
+  color: #667eea;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.landing-token-chill__fallback a:hover {
+  text-decoration: underline;
+}
+
+.landing-token-chill__fallback--inpanel {
+  margin: 0;
+  padding: 0.35rem 0.25rem;
+}
+
+.landing-token-chill__hint {
+  margin: 0 0 0.5rem;
+  font-size: 0.72rem;
+  color: #999;
+  text-align: center;
+  line-height: 1.35;
+}
+
+.landing-token-chill__panel {
+  margin-top: 0.5rem;
+  padding: 0.65rem 0.45rem 0.5rem;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.42);
+  border: 1px solid rgba(139, 21, 56, 0.08);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+}
+
+.landing-token-chill__msg {
+  margin: 0 0 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.landing-token-chill__msg--err {
+  background: rgba(220, 38, 38, 0.08);
+  color: #b91c1c;
+}
+
+.landing-token-chill__msg--ok {
+  background: rgba(22, 163, 74, 0.1);
+  color: #15803d;
+}
+
+.landing-token-chill__overlay.anet-hosted-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+}
+
+.landing-token-chill__overlay .anet-hosted-overlay__dialog {
+  width: 100%;
+  max-width: 520px;
+  background: var(--bg-primary, #fff);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+}
+
+.landing-token-chill__overlay .anet-hosted-overlay__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border-medium, #e5e7eb);
+}
+
+.landing-token-chill__overlay .anet-hosted-overlay__iframe {
+  width: 100%;
+  height: min(720px, 85vh);
+  border: none;
+  display: block;
+  background: #fff;
+}
+
 /* ─── Shared “native app” surfaces (Profile, Settings, Create profile) ─── */
 .native-app-screen {
   color: var(--native-ink);
