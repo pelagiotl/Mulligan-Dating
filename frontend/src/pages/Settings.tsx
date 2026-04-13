@@ -31,6 +31,24 @@ interface TokenPackage {
   maxTokensCanBuy?: number;
 }
 
+function parseAnetIframeQuery(q: string): Record<string, string> {
+  const raw = q.startsWith("#") ? q.slice(1) : q;
+  const search = raw.includes("=") && !raw.startsWith("?") ? `?${raw}` : raw.startsWith("?") ? raw : `?${raw}`;
+  const sp = new URLSearchParams(search);
+  const out: Record<string, string> = {};
+  sp.forEach((v, k) => {
+    out[k] = v;
+  });
+  return out;
+}
+
+declare global {
+  interface Window {
+    AuthorizeNetIFrame?: {
+      onReceiveCommunication: (querystr: string) => void;
+    };
+  }
+}
 
 export default function Settings() {
   const { logout, user, profile, refreshProfile } = useAuth();
@@ -54,10 +72,15 @@ export default function Settings() {
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  // Token purchase (prices + checkout via RevenueCat Web Billing when VITE_REVENUECAT_WEB_API_KEY is set)
+  // Token purchase: RevenueCat Web when VITE_REVENUECAT_WEB_API_KEY is set; else Authorize.Net Accept Hosted when backend has gateway credentials
   const [packages, setPackages] = useState<TokenPackage[]>([]);
   const [loadingPackages, setLoadingPackages] = useState(false);
   const [purchasing, setPurchasing] = useState<number | null>(null);
+  const [authorizeNetCheckoutEnabled, setAuthorizeNetCheckoutEnabled] = useState(false);
+  const [anetModalOpen, setAnetModalOpen] = useState(false);
+  const [anetFormToken, setAnetFormToken] = useState<string | null>(null);
+  const [anetHostedUrl, setAnetHostedUrl] = useState<string | null>(null);
+  const anetFormSubmittedRef = useRef(false);
   const revenueCatByProductId = useRef<Record<string, Package>>({});
 
   const fetchSettings = async () => {
@@ -74,7 +97,11 @@ export default function Settings() {
   const fetchPackages = useCallback(async () => {
     setLoadingPackages(true);
     try {
-      const data = await api.get<{ packages: TokenPackage[] }>("/payments/packages");
+      const data = await api.get<{
+        packages: TokenPackage[];
+        webCheckoutProvider?: string | null;
+      }>("/payments/packages");
+      setAuthorizeNetCheckoutEnabled(data.webCheckoutProvider === "authorizenet");
       let list = data.packages || [];
       revenueCatByProductId.current = {};
 
@@ -104,7 +131,7 @@ export default function Settings() {
         return {
           ...pkg,
           priceFormatted: isRevenueCatWebConfigured() ? "—" : "Web setup required",
-          pricePerToken: "—",
+          pricePerToken: isRevenueCatWebConfigured() ? "—" : "",
         };
       });
 
@@ -125,21 +152,6 @@ export default function Settings() {
       return;
     }
 
-    if (!isRevenueCatWebConfigured()) {
-      setError(
-        "Web purchases need RevenueCat Web Billing. Set VITE_REVENUECAT_WEB_API_KEY in your frontend build (Render) to your Web Billing public API key. See RevenueCat → Web Billing app."
-      );
-      return;
-    }
-
-    const rcPkg = matchRcPackage(revenueCatByProductId.current, pkg.productId);
-    if (!rcPkg) {
-      setError(
-        "This package has no price from RevenueCat. In the RC dashboard, add Web Billing products whose IDs match your mobile product IDs (e.g. mulligan_tokens_7), attach them to the current offering, then refresh."
-      );
-      return;
-    }
-
     if (pkg.available === false) {
       setError("You cannot purchase this package right now.");
       return;
@@ -151,24 +163,60 @@ export default function Settings() {
       return;
     }
 
-    setPurchasing(pkg.id);
-    try {
-      const purchases = await getRevenueCatPurchases(user.id);
-      await purchases.purchase({
-        rcPackage: rcPkg,
-        customerEmail: settings?.email ?? undefined,
-      });
-      setSuccess(`${pkg.tokens} token(s) added! If your balance does not update within a minute, pull to refresh or re-open Settings.`);
-      setTimeout(() => setSuccess(""), 8000);
-      await fetchPackages();
-    } catch (err: unknown) {
-      if (isUserCancelledPurchase(err)) return;
-      const msg =
-        err instanceof Error ? err.message : "Purchase failed. Please try again.";
-      setError(msg);
-    } finally {
-      setPurchasing(null);
+    if (isRevenueCatWebConfigured()) {
+      const rcPkg = matchRcPackage(revenueCatByProductId.current, pkg.productId);
+      if (!rcPkg) {
+        setError(
+          "This package has no price from RevenueCat. In the RC dashboard, add Web Billing products whose IDs match your mobile product IDs (e.g. mulligan_tokens_7), attach them to the current offering, then refresh."
+        );
+        return;
+      }
+
+      setPurchasing(pkg.id);
+      try {
+        const purchases = await getRevenueCatPurchases(user.id);
+        await purchases.purchase({
+          rcPackage: rcPkg,
+          customerEmail: settings?.email ?? undefined,
+        });
+        setSuccess(
+          `${pkg.tokens} token(s) added! If your balance does not update within a minute, pull to refresh or re-open Settings.`
+        );
+        setTimeout(() => setSuccess(""), 8000);
+        await fetchPackages();
+        await refreshProfile();
+      } catch (err: unknown) {
+        if (isUserCancelledPurchase(err)) return;
+        const msg = err instanceof Error ? err.message : "Purchase failed. Please try again.";
+        setError(msg);
+      } finally {
+        setPurchasing(null);
+      }
+      return;
     }
+
+    if (authorizeNetCheckoutEnabled) {
+      setPurchasing(pkg.id);
+      try {
+        const res = await api.post<{ token: string; hostedPaymentUrl: string }>("/payments/create-checkout", {
+          packageId: pkg.id,
+        });
+        anetFormSubmittedRef.current = false;
+        setAnetFormToken(res.token);
+        setAnetHostedUrl(res.hostedPaymentUrl);
+        setAnetModalOpen(true);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Could not start checkout.";
+        setError(msg);
+      } finally {
+        setPurchasing(null);
+      }
+      return;
+    }
+
+    setError(
+      "Web checkout is not configured. Either set VITE_REVENUECAT_WEB_API_KEY (RevenueCat Web Billing) on the frontend, or set AUTHNET_API_LOGIN + AUTHNET_TRANSACTION_KEY (or AUTHORIZENET_* equivalents) and FRONTEND_URL on the backend for hosted card payments."
+    );
   };
 
   useEffect(() => {
@@ -186,6 +234,87 @@ export default function Settings() {
   useEffect(() => {
     fetchPackages();
   }, [fetchPackages]);
+
+  useEffect(() => {
+    if (!anetModalOpen) {
+      delete window.AuthorizeNetIFrame;
+      return;
+    }
+
+    window.AuthorizeNetIFrame = {
+      onReceiveCommunication: (querystr: string) => {
+        const params = parseAnetIframeQuery(querystr);
+        const action = params.action || "";
+
+        if (action === "cancel") {
+          setAnetModalOpen(false);
+          setAnetFormToken(null);
+          setAnetHostedUrl(null);
+          anetFormSubmittedRef.current = false;
+          setError("Payment was canceled.");
+          return;
+        }
+
+        if (action === "transactResponse" || action === "transactionResponse") {
+          const raw = params.response;
+          if (!raw) return;
+          void (async () => {
+            try {
+              const decoded = decodeURIComponent(raw.replace(/\+/g, " "));
+              const payload = JSON.parse(decoded) as { transId?: string };
+              const transId = payload.transId?.trim();
+              if (!transId) {
+                setError("Payment response did not include a transaction id.");
+                return;
+              }
+              const result = await api.post<{ ok?: boolean; tokens_granted?: number }>(
+                "/payments/confirm-authorizenet",
+                { transId }
+              );
+              setAnetModalOpen(false);
+              setAnetFormToken(null);
+              setAnetHostedUrl(null);
+              anetFormSubmittedRef.current = false;
+              const n = result.tokens_granted ?? 0;
+              setSuccess(
+                n > 0
+                  ? `${n} token(s) added to your account.`
+                  : "Payment recorded. You may already be at the token cap."
+              );
+              setTimeout(() => setSuccess(""), 8000);
+              await fetchPackages();
+              await refreshProfile();
+            } catch (e: unknown) {
+              const msg = e instanceof Error ? e.message : "Could not confirm payment.";
+              setError(msg);
+            }
+          })();
+        }
+      },
+    };
+
+    return () => {
+      delete window.AuthorizeNetIFrame;
+    };
+  }, [anetModalOpen, fetchPackages, refreshProfile]);
+
+  useEffect(() => {
+    if (!anetModalOpen || !anetFormToken || !anetHostedUrl) return;
+    if (anetFormSubmittedRef.current) return;
+    anetFormSubmittedRef.current = true;
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = anetHostedUrl;
+    form.target = "anetHostedIframe";
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = "token";
+    input.value = anetFormToken;
+    form.appendChild(input);
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+  }, [anetModalOpen, anetFormToken, anetHostedUrl]);
 
   useEffect(() => {
     if (!profile) {
@@ -392,11 +521,21 @@ export default function Settings() {
           <p className="settings-description" style={{ marginBottom: 'var(--space-4)' }}>
             Need more tokens? Purchase Mulligan tokens to connect with more people.
           </p>
-          {!isRevenueCatWebConfigured() && (
+          {!isRevenueCatWebConfigured() && !authorizeNetCheckoutEnabled && (
             <p className="settings-description" style={{ marginBottom: "var(--space-3)", fontSize: "0.9rem" }}>
-              To enable checkout on the web, add{" "}
-              <code style={{ fontSize: "0.85em" }}>VITE_REVENUECAT_WEB_API_KEY</code> in Render (Web Billing public key)
-              and configure Web Billing products in RevenueCat. See <code>frontend/src/lib/revenuecatWeb.ts</code> for a short checklist.
+              To enable checkout on the web, either add{" "}
+              <code style={{ fontSize: "0.85em" }}>VITE_REVENUECAT_WEB_API_KEY</code> (RevenueCat Web Billing public key)
+              on the frontend, or set <code style={{ fontSize: "0.85em" }}>AUTHNET_API_LOGIN</code> /{" "}
+              <code style={{ fontSize: "0.85em" }}>AUTHNET_TRANSACTION_KEY</code> (or{" "}
+              <code style={{ fontSize: "0.85em" }}>AUTHORIZENET_*</code>) plus{" "}
+              <code style={{ fontSize: "0.85em" }}>FRONTEND_URL</code> on the backend for hosted card payments (Authorize.Net
+              / Payment Cloud). See <code>frontend/src/lib/revenuecatWeb.ts</code> for RevenueCat setup.
+            </p>
+          )}
+          {authorizeNetCheckoutEnabled && !isRevenueCatWebConfigured() && (
+            <p className="settings-description" style={{ marginBottom: "var(--space-3)", fontSize: "0.9rem" }}>
+              Secure card checkout opens in a frame from your payment provider. After paying, wait for confirmation
+              before closing the window.
             </p>
           )}
 
@@ -422,7 +561,9 @@ export default function Settings() {
                     {pkg.priceFormatted}
                   </div>
                   <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }}>
-                    {pkg.pricePerToken !== "—" ? `${pkg.pricePerToken} per token` : "—"}
+                    {pkg.pricePerToken && pkg.pricePerToken !== "—"
+                      ? `${pkg.pricePerToken} per token`
+                      : "—"}
                   </div>
                   {(pkg.id === 3 || pkg.id === 4) && (
                     <div style={{ fontSize: '0.75rem', color: 'var(--color-rose-600)', fontWeight: '600', marginBottom: 'var(--space-2)' }}>
@@ -432,13 +573,15 @@ export default function Settings() {
                   <button
                     className="btn btn-primary"
                     type="button"
-                    onClick={() => handlePurchase(pkg)}
+                    onClick={() => void handlePurchase(pkg)}
                     disabled={
                       purchasing === pkg.id ||
                       pkg.available === false ||
                       pkg.wouldExceedLimit === true ||
                       pkg.priceFormatted === "—" ||
-                      pkg.priceFormatted === "Web setup required"
+                      pkg.priceFormatted === "Web setup required" ||
+                      (!isRevenueCatWebConfigured() &&
+                        !authorizeNetCheckoutEnabled)
                     }
                     style={{ width: '100%', marginTop: 'var(--space-2)' }}
                   >
@@ -543,6 +686,68 @@ export default function Settings() {
           )}
         </div>
       </div>
+
+      {anetModalOpen && (
+        <div
+          className="anet-hosted-overlay"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 10000,
+            background: "rgba(0,0,0,0.55)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "var(--space-3)",
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: "520px",
+              background: "var(--bg-primary, #fff)",
+              borderRadius: "var(--radius-lg, 12px)",
+              overflow: "hidden",
+              boxShadow: "0 20px 50px rgba(0,0,0,0.25)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "var(--space-3)",
+                borderBottom: "1px solid var(--border-medium, #e5e7eb)",
+              }}
+            >
+              <strong>Secure checkout</strong>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => {
+                  setAnetModalOpen(false);
+                  setAnetFormToken(null);
+                  setAnetHostedUrl(null);
+                  anetFormSubmittedRef.current = false;
+                }}
+              >
+                Close
+              </button>
+            </div>
+            <iframe
+              title="Card payment"
+              name="anetHostedIframe"
+              style={{
+                width: "100%",
+                height: "min(720px, 85vh)",
+                border: "none",
+                display: "block",
+                background: "#fff",
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

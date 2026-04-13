@@ -569,6 +569,21 @@ export async function initDatabase() {
     )
   `);
 
+  // Authorize.Net / Accept Hosted: pending web checkouts (invoice id = session id, max 20 chars)
+  await execSQL(`
+    CREATE TABLE IF NOT EXISTS web_checkout_sessions (
+      id ${usePostgres ? 'VARCHAR(20)' : 'TEXT'} PRIMARY KEY,
+      user_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      package_id ${usePostgres ? 'INT' : 'INTEGER'} NOT NULL,
+      tokens ${usePostgres ? 'INT' : 'INTEGER'} NOT NULL,
+      amount_cents ${usePostgres ? 'INT' : 'INTEGER'} NOT NULL,
+      status ${usePostgres ? 'VARCHAR(20)' : 'TEXT'} DEFAULT 'pending',
+      created_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+  await execSQL(`CREATE INDEX IF NOT EXISTS idx_web_checkout_user ON web_checkout_sessions(user_id)`);
+
   // SUCCESS SIGNAL TRACKING: Track real success indicators for learning
   // Success signals: match creation, message engagement, stage advancement
   await execSQL(`
