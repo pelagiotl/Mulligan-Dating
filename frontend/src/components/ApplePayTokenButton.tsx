@@ -51,6 +51,14 @@ function canUseApplePayJs(S: ApplePaySessionCtor, merchantId: string): boolean {
   return S.canMakePayments();
 }
 
+/** True when Apple Pay JS can run in this browser (Safari on Mac/iOS with Wallet, etc.). */
+export function isApplePayJsAvailableForMerchant(merchantId: string): boolean {
+  if (typeof window === "undefined") return false;
+  const S = getApplePaySession();
+  if (!S || !merchantId.trim()) return false;
+  return canUseApplePayJs(S, merchantId);
+}
+
 type ApplePayTokenButtonProps = {
   packageId: number;
   tokens: number;

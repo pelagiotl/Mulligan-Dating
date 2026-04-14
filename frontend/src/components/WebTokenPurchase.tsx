@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, type CSSProperties } from "react";
 import { Link } from "react-router-dom";
-import ApplePayTokenButton from "./ApplePayTokenButton";
+import ApplePayTokenButton, { isApplePayJsAvailableForMerchant } from "./ApplePayTokenButton";
 import type { Package } from "@revenuecat/purchases-js";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../utils/api";
@@ -390,6 +390,31 @@ export default function WebTokenPurchase({ variant, customerEmail }: WebTokenPur
         </div>
       ) : packages.length > 0 ? (
         <div style={gridStyle}>
+          {authorizeNetCheckoutEnabled &&
+            !applePayWebEnabled &&
+            !isRevenueCatWebConfigured() && (
+              <div style={{ gridColumn: "1 / -1" }}>
+                <p
+                  className={variant === "landing" ? undefined : "settings-description"}
+                  style={{
+                    marginBottom: variant === "landing" ? "0.5rem" : "var(--space-3)",
+                    fontSize: variant === "landing" ? "0.75rem" : "0.88rem",
+                    color: "var(--text-secondary)",
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {variant === "settings" ? (
+                    <>
+                      Card checkout works. <strong>Pay with Apple Pay</strong> is hidden because the payment server does
+                      not report Apple Pay on the Web as ready yet (check <code>APPLE_PAY_MERCHANT_ID</code>, identity
+                      cert/key, and <code>FRONTEND_URL</code> on the backend, then redeploy).
+                    </>
+                  ) : (
+                    <>Card checkout works. Apple Pay will show here when it is enabled for this site.</>
+                  )}
+                </p>
+              </div>
+            )}
           {packages.map((pkg) => (
             <div key={pkg.id} style={cardStyle(pkg)}>
               <div
@@ -462,24 +487,39 @@ export default function WebTokenPurchase({ variant, customerEmail }: WebTokenPur
                 !pkg.wouldExceedLimit &&
                 pkg.priceFormatted !== "—" &&
                 pkg.priceFormatted !== "Web setup required" && (
-                  <ApplePayTokenButton
-                    packageId={pkg.id}
-                    tokens={pkg.tokens}
-                    merchantId={applePayMerchantId}
-                    compact={variant === "landing"}
-                    disabled={purchasing === pkg.id}
-                    onSuccess={(msg) => {
-                      setTokenSuccess(msg);
-                      setTimeout(() => setTokenSuccess(""), 8000);
-                      void fetchPackages();
-                      void refreshProfile();
-                    }}
-                    onError={(msg) => setTokenError(msg)}
-                    onFinally={() => {
-                      void fetchPackages();
-                      void refreshProfile();
-                    }}
-                  />
+                  <>
+                    <ApplePayTokenButton
+                      packageId={pkg.id}
+                      tokens={pkg.tokens}
+                      merchantId={applePayMerchantId}
+                      compact={variant === "landing"}
+                      disabled={purchasing === pkg.id}
+                      onSuccess={(msg) => {
+                        setTokenSuccess(msg);
+                        setTimeout(() => setTokenSuccess(""), 8000);
+                        void fetchPackages();
+                        void refreshProfile();
+                      }}
+                      onError={(msg) => setTokenError(msg)}
+                      onFinally={() => {
+                        void fetchPackages();
+                        void refreshProfile();
+                      }}
+                    />
+                    {!isApplePayJsAvailableForMerchant(applePayMerchantId) && (
+                      <p
+                        style={{
+                          marginTop: "0.35rem",
+                          fontSize: variant === "landing" ? "0.68rem" : "0.8rem",
+                          color: "var(--text-secondary)",
+                          lineHeight: 1.35,
+                        }}
+                      >
+                        Apple Pay only appears in <strong>Safari</strong> on iPhone or Mac, with a card in Wallet. Chrome
+                        and most other browsers do not support Apple Pay on the web.
+                      </p>
+                    )}
+                  </>
                 )}
             </div>
           ))}
