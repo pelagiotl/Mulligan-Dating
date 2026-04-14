@@ -1,3 +1,5 @@
+import { isWebPushConfigured } from "./webPushDelivery.js";
+
 // Expo Push Notification service
 // To use this, you need an Expo account (free) and push notification certificates
 
@@ -30,10 +32,10 @@ try {
 }
 
 /**
- * Check if Expo Push Notification service is available
+ * True if any out-of-app push path is available (Expo native and/or Web Push / PWA).
  */
 export function isPushNotificationConfigured(): boolean {
-  return expo !== null;
+  return expo !== null || isWebPushConfigured();
 }
 
 /**

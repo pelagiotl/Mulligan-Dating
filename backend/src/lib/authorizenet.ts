@@ -222,3 +222,90 @@ export async function getTransactionDetails(transId: string): Promise<Transactio
 export function newCheckoutInvoiceId(): string {
   return crypto.randomBytes(8).toString("hex");
 }
+
+export type ApplePayCreateTransactionResult = {
+  transId: string;
+  responseCode: string;
+  authCode?: string;
+};
+
+function firstTransactionMessage(json: Record<string, unknown>): string | undefined {
+  const tr = json.transactionResponse as Record<string, unknown> | undefined;
+  if (!tr) return undefined;
+  const messages = tr.messages as { message?: unknown } | undefined;
+  const arr = messages?.message;
+  if (Array.isArray(arr) && arr[0] && typeof arr[0] === "object") {
+    const row = arr[0] as { text?: string; description?: string };
+    return row.text || row.description;
+  }
+  return undefined;
+}
+
+function firstTransactionError(json: Record<string, unknown>): string | undefined {
+  const tr = json.transactionResponse as Record<string, unknown> | undefined;
+  if (!tr) return undefined;
+  const errors = tr.errors as { error?: unknown } | undefined;
+  const arr = errors?.error;
+  if (Array.isArray(arr) && arr[0] && typeof arr[0] === "object") {
+    const row = arr[0] as { errorText?: string; errorCode?: string };
+    return row.errorText || row.errorCode;
+  }
+  return undefined;
+}
+
+/**
+ * Apple Pay (web or in-app) — opaqueData descriptor per Authorize.Net samples.
+ */
+export async function createApplePayAuthCaptureTransaction(params: {
+  amountDollars: string;
+  invoiceNumber: string;
+  description: string;
+  /** Base64-encoded JSON of Apple Pay `payment.token` (ApplePayPaymentToken). */
+  applePayOpaqueDataValueBase64: string;
+}): Promise<ApplePayCreateTransactionResult> {
+  const auth = merchantAuth();
+  if (params.invoiceNumber.length > 20) {
+    throw new Error("invoiceNumber must be at most 20 characters");
+  }
+
+  const body = {
+    createTransactionRequest: {
+      merchantAuthentication: auth,
+      refId: params.invoiceNumber,
+      transactionRequest: {
+        transactionType: "authCaptureTransaction",
+        amount: params.amountDollars,
+        payment: {
+          opaqueData: {
+            dataDescriptor: "COMMON.APPLE.INAPP.PAYMENT",
+            dataValue: params.applePayOpaqueDataValueBase64,
+          },
+        },
+        order: {
+          invoiceNumber: params.invoiceNumber,
+          description: params.description,
+        },
+      },
+    },
+  };
+
+  const json = await authorizeNetJsonRequest(body);
+  const topOk = (json.messages as { resultCode?: string } | undefined)?.resultCode === "Ok";
+  const tr = json.transactionResponse as Record<string, unknown> | undefined;
+  const responseCode = String(tr?.responseCode ?? "");
+  const transId = String(tr?.transId ?? "");
+  if (topOk && responseCode === "1" && transId) {
+    return {
+      transId,
+      responseCode,
+      authCode: tr?.authCode as string | undefined,
+    };
+  }
+
+  const err =
+    firstTransactionError(json) ||
+    firstTransactionMessage(json) ||
+    (json.messages as { message?: { text?: string }[] })?.message?.[0]?.text ||
+    JSON.stringify(tr?.errors ?? tr ?? json);
+  throw new Error(`Apple Pay charge failed: ${err}`);
+}

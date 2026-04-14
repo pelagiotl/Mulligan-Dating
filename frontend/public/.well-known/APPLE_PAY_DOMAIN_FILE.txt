@@ -1,0 +1,17 @@
+Apple Pay on the web — domain verification file
+
+1. In Apple Developer: Certificates, Identifiers & Profiles → your Merchant ID →
+   Apple Pay Payment Processing / Merchant Domains → add your production web origin
+   (same hostname as FRONTEND_URL, e.g. app.example.com).
+
+2. Download the file named exactly:
+   apple-developer-merchantid-domain-association
+
+3. Place it in this folder (frontend/public/.well-known/) with that exact name and NO .txt extension.
+   Vite/Render static deploy will serve it at:
+   https://YOUR_ORIGIN/.well-known/apple-developer-merchantid-domain-association
+
+4. Redeploy the frontend and wait until Apple shows the domain as verified.
+
+Do not commit the real association file to a public repo if you consider it sensitive;
+use your host’s secret file mechanism if needed.

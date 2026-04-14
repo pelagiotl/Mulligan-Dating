@@ -67,7 +67,7 @@ export async function rateLimitAuth(req: Request, res: Response, next: NextFunct
   // Don't consume auth limit for read/register endpoints called on every app open (req.path is relative to mount /api/auth)
   const p = (req.path || '').replace(/\/$/, '');
   if (req.method === 'GET' && (p === '/me' || p === 'me')) return next();
-  if (req.method === 'POST' && (p === '/push-token' || p === 'push-token')) return next();
+  if (req.method === 'POST' && (p === '/push-token' || p === 'push-token' || p === '/web-push-subscription' || p === 'web-push-subscription')) return next();
 
   try {
     // For login attempts, use email + IP to avoid shared IP issues behind load balancers
@@ -199,7 +199,8 @@ export async function rateLimitAPI(req: Request, res: Response, next: NextFuncti
     if (/^\/matches\/[^/]+\/never-have-i-ever\/?$/.test(req.path)) return next();
     if (/^\/matches\/[^/]+\/messages\/?$/.test(req.path)) return next();
   }
-  if (req.method === 'POST' && (req.path === '/auth/push-token' || req.path === '/auth/push-token/')) {
+  if (req.method === 'POST' && (req.path === '/auth/push-token' || req.path === '/auth/push-token/' ||
+      req.path === '/auth/web-push-subscription' || req.path === '/auth/web-push-subscription/')) {
     return next(); // Called on every app open and with retries; don't burn API limit
   }
   // SMS login flow: don't consume API limit so users can always request/verify code (still limited by rateLimitAuth per IP)

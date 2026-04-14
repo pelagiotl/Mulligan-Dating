@@ -584,6 +584,20 @@ export async function initDatabase() {
   `);
   await execSQL(`CREATE INDEX IF NOT EXISTS idx_web_checkout_user ON web_checkout_sessions(user_id)`);
 
+  // Web Push (PWA / browser) — separate from Expo native push_token
+  await execSQL(`
+    CREATE TABLE IF NOT EXISTS web_push_subscriptions (
+      id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} PRIMARY KEY,
+      user_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      endpoint ${usePostgres ? 'TEXT' : 'TEXT'} NOT NULL UNIQUE,
+      p256dh ${usePostgres ? 'TEXT' : 'TEXT'} NOT NULL,
+      auth ${usePostgres ? 'TEXT' : 'TEXT'} NOT NULL,
+      created_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+  await execSQL(`CREATE INDEX IF NOT EXISTS idx_web_push_subscriptions_user ON web_push_subscriptions(user_id)`);
+
   // SUCCESS SIGNAL TRACKING: Track real success indicators for learning
   // Success signals: match creation, message engagement, stage advancement
   await execSQL(`

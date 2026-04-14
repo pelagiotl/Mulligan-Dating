@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, type CSSProperties } from "react";
 import { Link } from "react-router-dom";
+import ApplePayTokenButton from "./ApplePayTokenButton";
 import type { Package } from "@revenuecat/purchases-js";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../utils/api";
@@ -58,6 +59,8 @@ export default function WebTokenPurchase({ variant, customerEmail }: WebTokenPur
   const [loadingPackages, setLoadingPackages] = useState(false);
   const [purchasing, setPurchasing] = useState<number | null>(null);
   const [authorizeNetCheckoutEnabled, setAuthorizeNetCheckoutEnabled] = useState(false);
+  const [applePayWebEnabled, setApplePayWebEnabled] = useState(false);
+  const [applePayMerchantId, setApplePayMerchantId] = useState<string | null>(null);
   const [anetModalOpen, setAnetModalOpen] = useState(false);
   const [anetFormToken, setAnetFormToken] = useState<string | null>(null);
   const [anetHostedUrl, setAnetHostedUrl] = useState<string | null>(null);
@@ -75,8 +78,16 @@ export default function WebTokenPurchase({ variant, customerEmail }: WebTokenPur
         packages: TokenPackage[];
         webCheckoutProvider?: string | null;
         availableTokens?: number;
+        applePayWebEnabled?: boolean;
+        applePayMerchantId?: string;
       }>("/payments/packages");
       setAuthorizeNetCheckoutEnabled(data.webCheckoutProvider === "authorizenet");
+      setApplePayWebEnabled(!!data.applePayWebEnabled);
+      setApplePayMerchantId(
+        typeof data.applePayMerchantId === "string" && data.applePayMerchantId.trim()
+          ? data.applePayMerchantId.trim()
+          : null
+      );
       if (typeof data.availableTokens === "number") {
         setAvailableTokens(data.availableTokens);
       }
@@ -348,6 +359,13 @@ export default function WebTokenPurchase({ variant, customerEmail }: WebTokenPur
             <p className="settings-description" style={{ marginBottom: "var(--space-3)", fontSize: "0.9rem" }}>
               Secure card checkout opens in a frame from your payment provider. After paying, wait for confirmation before
               closing the window.
+              {applePayWebEnabled && (
+                <>
+                  {" "}
+                  On iPhone or Mac Safari you can also use <strong>Pay with Apple Pay</strong> when it appears below each
+                  package.
+                </>
+              )}
             </p>
           )}
         </>
@@ -436,6 +454,33 @@ export default function WebTokenPurchase({ variant, customerEmail }: WebTokenPur
                     ? "Buy"
                     : "Buy Now"}
               </button>
+              {authorizeNetCheckoutEnabled &&
+                applePayWebEnabled &&
+                applePayMerchantId &&
+                !isRevenueCatWebConfigured() &&
+                pkg.available !== false &&
+                !pkg.wouldExceedLimit &&
+                pkg.priceFormatted !== "—" &&
+                pkg.priceFormatted !== "Web setup required" && (
+                  <ApplePayTokenButton
+                    packageId={pkg.id}
+                    tokens={pkg.tokens}
+                    merchantId={applePayMerchantId}
+                    compact={variant === "landing"}
+                    disabled={purchasing === pkg.id}
+                    onSuccess={(msg) => {
+                      setTokenSuccess(msg);
+                      setTimeout(() => setTokenSuccess(""), 8000);
+                      void fetchPackages();
+                      void refreshProfile();
+                    }}
+                    onError={(msg) => setTokenError(msg)}
+                    onFinally={() => {
+                      void fetchPackages();
+                      void refreshProfile();
+                    }}
+                  />
+                )}
             </div>
           ))}
         </div>

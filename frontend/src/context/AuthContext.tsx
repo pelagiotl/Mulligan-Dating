@@ -1,10 +1,14 @@
 import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react'
 import { api } from '../utils/api'
+import { browserSupportsWebPush, getVapidPublicKey, registerWebPush } from '../lib/webPush'
 
 interface User {
   id: string
   email: string
   isAdmin?: boolean
+  hasPushToken?: boolean
+  webPushConfigured?: boolean
+  webPushSubscriptionCount?: number
 }
 
 interface Profile {
@@ -28,6 +32,8 @@ interface AuthContextType {
   phoneLogin: (phoneNumber: string, code: string) => Promise<{ hasProfile: boolean }>
   logout: () => void
   refreshProfile: () => Promise<void>
+  /** Re-fetch /auth/me (e.g. after saving Web Push subscription). */
+  refreshSession: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
@@ -56,6 +62,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    if (!user?.id || !user.webPushConfigured || !getVapidPublicKey()) return
+    if (!browserSupportsWebPush()) return
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
+    const t = window.setTimeout(() => {
+      registerWebPush().catch((e) => console.warn('[WebPush] background register:', e))
+    }, 2800)
+    return () => window.clearTimeout(t)
+  }, [user?.id, user?.webPushConfigured])
 
   const fetchUser = async () => {
     setLoading(true)
@@ -91,7 +107,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser({
         id: data.user.id,
         email: data.user.email,
-        isAdmin: data.user.isAdmin || false
+        isAdmin: data.user.isAdmin || false,
+        hasPushToken: !!data.user.hasPushToken,
+        webPushConfigured: !!data.user.webPushConfigured,
+        webPushSubscriptionCount: typeof data.user.webPushSubscriptionCount === 'number' ? data.user.webPushSubscriptionCount : 0,
       })
       setProfile(data.profile || null)
     } catch (error: any) {
@@ -264,6 +283,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const refreshSession = async () => {
+    await fetchUser()
+  }
+
   return (
     <AuthContext.Provider value={{ 
       user, 
@@ -275,7 +298,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signup,
       phoneLogin,
       logout,
-      refreshProfile 
+      refreshProfile,
+      refreshSession,
     }}>
       {children}
     </AuthContext.Provider>

@@ -213,7 +213,9 @@ export function initializeSocket(server: HTTPServer) {
 
       // Send push notification to the other user (OS shows it when app is backgrounded/closed)
       try {
-        const { isPushNotificationConfigured, isExpoPushToken } = await import('./services/pushNotifications.js');
+        const { isPushNotificationConfigured, isExpoPushToken, sendMessagePushNotification, getMessagePushThrottleDelayMs, recordMessagePushSent } =
+          await import('./services/pushNotifications.js');
+        const { sendWebPushToUser, isWebPushConfigured } = await import('./services/webPushDelivery.js');
         const hasExpoToken = !!process.env.EXPO_ACCESS_TOKEN;
         let otherUserRowResult = db.prepare("SELECT push_token, push_notify_messages, push_token_fail_count FROM users WHERE id = ?").get(otherUserId);
         if (otherUserRowResult instanceof Promise) otherUserRowResult = await otherUserRowResult;
@@ -223,43 +225,52 @@ export function initializeSocket(server: HTTPServer) {
         const wantsMessagePush = otherUserRow?.push_notify_messages === undefined || otherUserRow?.push_notify_messages === null || otherUserRow.push_notify_messages !== 0;
         console.log(`📲 Push (message): recipient=${otherUserId} hasToken=${!!token} validFormat=${tokenValid} wantsMessagePush=${wantsMessagePush} EXPO_ACCESS_TOKEN=${hasExpoToken ? 'set' : 'NOT SET'}`);
         if (!isPushNotificationConfigured()) {
-          console.warn('⚠️  Push notification service not configured (install expo-server-sdk and set EXPO_ACCESS_TOKEN on Render)');
-        } else if (tokenValid && wantsMessagePush) {
+          console.warn('⚠️  Push not configured (Expo + EXPO_ACCESS_TOKEN and/or VAPID keys for Web Push)');
+        } else if (wantsMessagePush) {
           const messagePreview = content.trim().length > 50 ? content.trim().substring(0, 50) + '...' : content.trim();
-          const { sendMessagePushNotification, getMessagePushThrottleDelayMs, recordMessagePushSent } = await import('./services/pushNotifications.js');
-          const delayMs = getMessagePushThrottleDelayMs(otherUserId);
-          const doSend = async () => {
-            let result = await sendMessagePushNotification(token!, profile.display_name, messagePreview, matchId, userId);
-            if (!result.sent && !result.invalidToken) {
-              await new Promise((r) => setTimeout(r, 1500));
-              result = await sendMessagePushNotification(token!, profile.display_name, messagePreview, matchId, userId);
+          if (tokenValid) {
+            const delayMs = getMessagePushThrottleDelayMs(otherUserId);
+            const doSend = async () => {
+              let result = await sendMessagePushNotification(token!, profile.display_name, messagePreview, matchId, userId);
+              if (!result.sent && !result.invalidToken) {
+                await new Promise((r) => setTimeout(r, 1500));
+                result = await sendMessagePushNotification(token!, profile.display_name, messagePreview, matchId, userId);
+              }
+              if (result.invalidToken) {
+                try {
+                  db.prepare('UPDATE users SET push_token = NULL, push_token_fail_count = 0 WHERE id = ?').run(otherUserId);
+                  console.log(`📲 Push: cleared invalid token for user ${otherUserId} (DeviceNotRegistered — they’ll re-register when app opens)`);
+                } catch (_) {}
+              }
+              if (result.sent) {
+                recordMessagePushSent(otherUserId);
+                try {
+                  db.prepare('UPDATE users SET push_token_fail_count = 0 WHERE id = ?').run(otherUserId);
+                } catch (_) {}
+                console.log(`✅ Push (message) sent to ${otherUserId}`);
+              } else if (!result.invalidToken) {
+                console.warn(`⚠️  Push (message) to ${otherUserId} failed (check Render logs above for Expo error)`);
+              }
+            };
+            if (delayMs > 0) {
+              setTimeout(() => doSend().catch((e: any) => console.warn('⚠️  Push (message) exception:', e?.message || e)), delayMs);
+            } else {
+              await doSend();
             }
-            if (result.invalidToken) {
-              try {
-                db.prepare('UPDATE users SET push_token = NULL, push_token_fail_count = 0 WHERE id = ?').run(otherUserId);
-                console.log(`📲 Push: cleared invalid token for user ${otherUserId} (DeviceNotRegistered — they’ll re-register when app opens)`);
-              } catch (_) {}
-            }
-            if (result.sent) {
-              recordMessagePushSent(otherUserId);
-              try {
-                db.prepare('UPDATE users SET push_token_fail_count = 0 WHERE id = ?').run(otherUserId);
-              } catch (_) {}
-              console.log(`✅ Push (message) sent to ${otherUserId}`);
-            } else if (!result.invalidToken) {
-              console.warn(`⚠️  Push (message) to ${otherUserId} failed (check Render logs above for Expo error)`);
-            }
-          };
-          if (delayMs > 0) {
-            setTimeout(() => doSend().catch((e: any) => console.warn('⚠️  Push (message) exception:', e?.message || e)), delayMs);
+          } else if (!token) {
+            console.warn(`📲 PUSH_SKIP recipient=${otherUserId} reason=NO_EXPO_TOKEN (Web Push may still deliver if subscribed in browser)`);
           } else {
-            await doSend();
+            console.warn(`📲 PUSH_SKIP recipient=${otherUserId} reason=INVALID_EXPO_TOKEN_FORMAT`);
           }
-        } else {
-          if (!token) {
-            console.warn(`📲 PUSH_SKIP recipient=${otherUserId} reason=NO_TOKEN — Recipient must open the app, allow notifications, and have token saved (e.g. wait for "Push token saved to backend" or retry).`);
-          } else {
-            console.warn(`📲 PUSH_SKIP recipient=${otherUserId} reason=INVALID_TOKEN_FORMAT`);
+          if (isWebPushConfigured()) {
+            const n = await sendWebPushToUser(otherUserId, {
+              title: profile.display_name,
+              body: messagePreview,
+              tag: `msg-${matchId}`,
+              url: "/matches",
+              data: { type: "new_message", matchId, senderId: userId },
+            });
+            if (n > 0) console.log(`✅ Web Push (message) → ${otherUserId} (${n} subscription(s))`);
           }
         }
       } catch (pushError: any) {

@@ -5,7 +5,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
 import { db } from '../database.js';
 import { generateToken, authenticateToken, AuthRequest } from '../middleware/auth.js';
-import { sanitizeText, rateLimitAuth, rateLimitSignup } from '../middleware/security.js';
+import { sanitizeText, rateLimitAuth, rateLimitSignup, rateLimitAPI } from '../middleware/security.js';
+import { isWebPushConfigured } from '../services/webPushDelivery.js';
 
 export const authRouter = Router();
 
@@ -207,7 +208,17 @@ authRouter.get('/me', authenticateToken, async (req: AuthRequest, res) => {
     }
 
     const hasPushToken = !!(user.push_token && typeof user.push_token === 'string' && user.push_token.trim().length > 0);
-    
+
+    let webPushSubscriptionCount = 0;
+    try {
+      const cnt = await (db
+        .prepare('SELECT COUNT(*) as c FROM web_push_subscriptions WHERE user_id = ?')
+        .get(user.id) as Promise<{ c: number } | undefined>);
+      webPushSubscriptionCount = Number(cnt?.c ?? 0);
+    } catch {
+      webPushSubscriptionCount = 0;
+    }
+
     const matchmakingOff = isMatchmakingGloballyDisabled();
     res.json({
       user: {
@@ -217,6 +228,8 @@ authRouter.get('/me', authenticateToken, async (req: AuthRequest, res) => {
         isAdmin: user.is_admin === 1,
         createdAt: user.created_at,
         hasPushToken, // so app can show "Push registered" and debug message notifications
+        webPushConfigured: isWebPushConfigured(),
+        webPushSubscriptionCount,
       },
       profile,
       matchmakingEnabled: !matchmakingOff,
@@ -228,6 +241,45 @@ authRouter.get('/me', authenticateToken, async (req: AuthRequest, res) => {
       error: 'Failed to fetch user data',
       details: error instanceof Error ? error.message : String(error)
     });
+  }
+});
+
+const webPushSubscriptionSchema = z.object({
+  endpoint: z.string().url(),
+  keys: z.object({
+    p256dh: z.string().min(1),
+    auth: z.string().min(1),
+  }),
+  expirationTime: z.union([z.number(), z.null()]).optional(),
+});
+
+// Save Web Push subscription (PWA / Chrome / Safari 16.4+ on home screen)
+authRouter.post('/web-push-subscription', authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    if (!isWebPushConfigured()) {
+      return res.status(503).json({ error: 'Web Push is not configured (VAPID keys) on this server.' });
+    }
+    const parsed = webPushSubscriptionSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: 'Invalid subscription payload' });
+    }
+    const userId = req.userId!;
+    const { endpoint, keys } = parsed.data;
+    const id = uuidv4();
+
+    const del = db.prepare('DELETE FROM web_push_subscriptions WHERE endpoint = ?').run([endpoint]);
+    if (del instanceof Promise) await del;
+
+    const ins = db
+      .prepare('INSERT INTO web_push_subscriptions (id, user_id, endpoint, p256dh, auth) VALUES (?, ?, ?, ?, ?)')
+      .run([id, userId, endpoint, keys.p256dh, keys.auth]);
+    if (ins instanceof Promise) await ins;
+
+    console.log(`📲 Web Push subscription saved for user ${userId} (endpoint …${endpoint.slice(-24)})`);
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('web-push-subscription error:', error);
+    res.status(500).json({ error: 'Failed to save Web Push subscription' });
   }
 });
 

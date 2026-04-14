@@ -8674,3 +8674,35 @@ img {
   }
 }
 
+/* Apple Pay on the Web — token purchase (Authorize.Net) */
+.apple-pay-token-btn {
+  display: block;
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  color: #fff;
+  background: #000;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.1s ease;
+}
+
+.apple-pay-token-btn:hover:not(:disabled) {
+  opacity: 0.92;
+}
+
+.apple-pay-token-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.apple-pay-token-btn--compact {
+  font-size: 0.85rem;
+  padding: 0.45rem 0.55rem;
+  margin-top: 0.35rem;
+}
+

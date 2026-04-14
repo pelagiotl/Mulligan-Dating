@@ -5,12 +5,19 @@ import { db } from "../database.js";
 import { authenticateToken, AuthRequest } from "../middleware/auth.js";
 import { rateLimitAPI } from "../middleware/security.js";
 import {
+  createApplePayAuthCaptureTransaction,
   createHostedPaymentPageToken,
   getAuthorizeNetHostedFormUrl,
   getTransactionDetails,
   isAuthorizeNetConfigured,
   newCheckoutInvoiceId,
 } from "../lib/authorizenet.js";
+import {
+  applePayDisplayName,
+  applePayWebMerchantId,
+  isApplePayWebConfigured,
+  requestApplePayMerchantSession,
+} from "../lib/applePayWeb.js";
 
 export const paymentsRouter = Router();
 
@@ -289,6 +296,8 @@ paymentsRouter.get("/packages", authenticateToken, async (req: AuthRequest, res)
       packages,
       availableTokens,
       webCheckoutProvider: anet ? "authorizenet" : null,
+      applePayWebEnabled: anet && isApplePayWebConfigured(),
+      applePayMerchantId: anet && isApplePayWebConfigured() ? applePayWebMerchantId() : undefined,
     });
   } catch (error) {
     console.error("Packages GET error:", error);
@@ -302,6 +311,19 @@ const checkoutBodySchema = z.object({
 
 const confirmBodySchema = z.object({
   transId: z.string().min(4).max(64),
+});
+
+const applePayValidateSchema = z.object({
+  validationURL: z.string().url().max(2048),
+});
+
+const applePayCompleteSchema = z.object({
+  checkoutId: z.string().min(8).max(24),
+  paymentToken: z
+    .object({
+      paymentData: z.unknown(),
+    })
+    .passthrough(),
 });
 
 // Authorize.Net Accept Hosted: returns token + URL for iframe POST (web only)
@@ -499,6 +521,197 @@ paymentsRouter.post("/confirm-authorizenet", authenticateToken, rateLimitAPI, as
   } catch (error) {
     console.error("confirm-authorizenet: grant failed", error);
     return res.status(500).json({ error: "Failed to grant tokens" });
+  }
+});
+
+// Apple Pay on the Web — merchant session (browser calls after ApplePaySession begins)
+paymentsRouter.post("/apple-pay/validate-merchant", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  if (!isApplePayWebConfigured()) {
+    return res.status(503).json({ error: "Apple Pay web is not configured on this server." });
+  }
+  const parsed = applePayValidateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid request" });
+  }
+  try {
+    const merchantSession = await requestApplePayMerchantSession(parsed.data.validationURL);
+    return res.json({ merchantSession });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Merchant validation failed";
+    console.error("apple-pay/validate-merchant:", msg);
+    return res.status(502).json({ error: msg });
+  }
+});
+
+// Apple Pay — create pending checkout row (same limits as Accept Hosted)
+paymentsRouter.post("/apple-pay/prepare", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  if (!isAuthorizeNetConfigured() || !isApplePayWebConfigured()) {
+    return res.status(503).json({ error: PURCHASES_UNAVAILABLE_MSG });
+  }
+
+  const parsed = checkoutBodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid packageId" });
+  }
+
+  const userId = req.userId!;
+  const packageId = parsed.data.packageId;
+  const pkg = IAP_PACKAGES.find((p) => p.id === packageId);
+  if (!pkg) {
+    return res.status(400).json({ error: "Unknown package" });
+  }
+
+  const amountCents = WEB_PACKAGE_AMOUNT_CENTS[packageId];
+  if (!amountCents) {
+    return res.status(400).json({ error: "Unknown package amount" });
+  }
+
+  const tokensResult = db.prepare(`SELECT * FROM mulligan_tokens WHERE user_id = ? ORDER BY granted_at DESC`).all([userId]);
+  const allTokens = (tokensResult instanceof Promise ? await tokensResult : tokensResult) as any[];
+  const availableTokens = allTokens.filter((t: any) => !t.used_at && !t.returned_at).length;
+  const maxCanBuy = Math.max(0, 7 - availableTokens);
+  if (maxCanBuy < pkg.tokens) {
+    return res.status(400).json({
+      error:
+        maxCanBuy <= 0
+          ? "You are at the 7 token limit."
+          : `You can buy at most ${maxCanBuy} more token(s). Pick a smaller package.`,
+    });
+  }
+
+  const sessionId = newCheckoutInvoiceId();
+  const amountDollars = (amountCents / 100).toFixed(2);
+
+  try {
+    const ins = db
+      .prepare(
+        `INSERT INTO web_checkout_sessions (id, user_id, package_id, tokens, amount_cents, status) VALUES (?, ?, ?, ?, ?, 'pending')`
+      )
+      .run([sessionId, userId, packageId, pkg.tokens, amountCents]);
+    if (ins instanceof Promise) await ins;
+  } catch (e) {
+    console.error("apple-pay/prepare: insert session failed", e);
+    return res.status(500).json({ error: "Could not start checkout" });
+  }
+
+  return res.json({
+    checkoutId: sessionId,
+    merchantIdentifier: applePayWebMerchantId(),
+    displayName: applePayDisplayName(),
+    countryCode: "US",
+    currencyCode: "USD",
+    supportedNetworks: ["visa", "masterCard", "amex", "discover"],
+    merchantCapabilities: ["supports3DS"],
+    total: {
+      label: `Mulligan — ${pkg.tokens} token(s)`,
+      amount: amountDollars,
+      type: "final",
+    },
+    amountCents,
+  });
+});
+
+// Apple Pay — charge + grant tokens
+paymentsRouter.post("/apple-pay/complete", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  if (!isAuthorizeNetConfigured() || !isApplePayWebConfigured()) {
+    return res.status(503).json({ error: PURCHASES_UNAVAILABLE_MSG });
+  }
+
+  const parsed = applePayCompleteSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid Apple Pay payload" });
+  }
+
+  const { checkoutId, paymentToken } = parsed.data;
+  const userId = req.userId!;
+
+  let session: {
+    id: string;
+    user_id: string;
+    package_id: number;
+    tokens: number;
+    amount_cents: number;
+    status: string;
+    created_at: string;
+  } | undefined;
+
+  try {
+    const row = db.prepare("SELECT * FROM web_checkout_sessions WHERE id = ?").get(checkoutId);
+    session = (row instanceof Promise ? await row : row) as typeof session;
+  } catch {
+    session = undefined;
+  }
+
+  if (!session || session.status !== "pending") {
+    return res.status(400).json({ error: "No matching checkout session." });
+  }
+  if (session.user_id !== userId) {
+    return res.status(403).json({ error: "Checkout does not belong to this account." });
+  }
+
+  const createdMs = new Date(session.created_at).getTime();
+  if (!Number.isFinite(createdMs) || Date.now() - createdMs > 45 * 60 * 1000) {
+    return res.status(400).json({ error: "Checkout expired. Start again." });
+  }
+
+  const amountDollars = (session.amount_cents / 100).toFixed(2);
+  const opaqueBase64 = Buffer.from(JSON.stringify(paymentToken), "utf8").toString("base64");
+
+  let transId: string;
+  try {
+    const result = await createApplePayAuthCaptureTransaction({
+      amountDollars,
+      invoiceNumber: checkoutId,
+      description: `Mulligan ${session.tokens} token(s)`,
+      applePayOpaqueDataValueBase64: opaqueBase64,
+    });
+    transId = result.transId;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Payment failed";
+    console.error("apple-pay/complete: Authorize.Net", msg);
+    try {
+      const del = db.prepare("DELETE FROM web_checkout_sessions WHERE id = ?").run([checkoutId]);
+      if (del instanceof Promise) await del;
+    } catch {
+      // ignore
+    }
+    return res.status(400).json({ error: msg });
+  }
+
+  const idempotencyKey = `anet_apple_${transId}`;
+  try {
+    const existingResult = db.prepare("SELECT id FROM payments WHERE payment_intent_id = ?").get(idempotencyKey);
+    const existing = (existingResult instanceof Promise ? await existingResult : existingResult) as { id: string } | undefined;
+    if (existing) {
+      const upd = db.prepare("UPDATE web_checkout_sessions SET status = 'completed' WHERE id = ?").run([checkoutId]);
+      if (upd instanceof Promise) await upd;
+      return res.json({ ok: true, already_processed: true, tokens_granted: 0 });
+    }
+  } catch {
+    // continue
+  }
+
+  try {
+    const { grantCount, capped } = await grantTokensAfterPurchase({
+      userId: session.user_id,
+      idempotencyKey,
+      amountCents: session.amount_cents,
+      tokensToGrant: session.tokens,
+      packageId: session.package_id,
+      source: "web",
+    });
+
+    const upd = db.prepare("UPDATE web_checkout_sessions SET status = 'completed' WHERE id = ?").run([checkoutId]);
+    if (upd instanceof Promise) await upd;
+
+    console.log(`Authorize.Net Apple Pay: granted ${grantCount} token(s) to user ${session.user_id} (trans ${transId})`);
+    return res.json({ ok: true, tokens_granted: grantCount, capped });
+  } catch (error) {
+    console.error("apple-pay/complete: grant failed after charge", error, "transId=", transId);
+    return res.status(500).json({
+      error: "Payment succeeded but token grant failed. Contact support with this reference.",
+      transId,
+    });
   }
 });
 

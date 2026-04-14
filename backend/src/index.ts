@@ -656,7 +656,20 @@ async function startServer() {
     console.log('🔄 Initializing database...');
     await initDatabase();
     console.log('✅ Database initialized successfully');
-    
+
+    const { initWebPushFromEnv } = await import("./services/webPushDelivery.js");
+    initWebPushFromEnv();
+
+    const { isApplePayWebConfigured } = await import("./lib/applePayWeb.js");
+    const { isAuthorizeNetConfigured } = await import("./lib/authorizenet.js");
+    if (isAuthorizeNetConfigured() && isApplePayWebConfigured()) {
+      console.log("✅ Apple Pay on the Web: /payments/apple-pay/* enabled");
+    } else if (isAuthorizeNetConfigured()) {
+      console.log(
+        "ℹ️  Apple Pay web: add APPLE_PAY_MERCHANT_ID + APPLE_PAY_IDENTITY_CERT_PEM + APPLE_PAY_IDENTITY_KEY_PEM (+ domain association file on frontend) to enable in-app Apple Pay checkout"
+      );
+    }
+
     // Initialize cron scheduler (async, won't block server startup)
     initCronScheduler();
     

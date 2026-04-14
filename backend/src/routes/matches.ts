@@ -862,6 +862,7 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
         }
 
         const { sendMatchPushNotification, isPushNotificationConfigured, isExpoPushToken } = await import('../services/pushNotifications.js');
+        const { sendWebPushToUser, isWebPushConfigured } = await import('../services/webPushDelivery.js');
         const userPushRow = (await (db
           .prepare("SELECT push_token, push_notify_matches FROM users WHERE id = ?")
           .get([userId]) as Promise<{ push_token: string | null; push_notify_matches: number | null } | undefined>)) as { push_token: string | null; push_notify_matches: number | null } | undefined;
@@ -877,23 +878,29 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
         }
 
         const sendMatchPushTo = async (recipientId: string, token: string | null, wants: boolean, matchName: string, label: string) => {
-          if (!token || !token.trim()) {
-            console.log(`📲 Match push skipped for ${recipientId} (${label}): no push token — user should open app, allow notifications, and ensure token is saved.`);
-            return;
-          }
           if (!wants) {
             console.log(`📲 Match push skipped for ${recipientId} (${label}): match notifications disabled.`);
             return;
           }
-          if (!isExpoPushToken(token)) {
-            console.warn(`📲 Match push skipped for ${recipientId} (${label}): invalid Expo token format (prefix ExponentPushToken[...]).`);
-            return;
+          if (token && token.trim() && isExpoPushToken(token)) {
+            const sent = await sendMatchPushNotification(token, matchName, matchId);
+            if (sent) {
+              console.log(`✅ Sent match push (Expo) to ${recipientId} (${label})`);
+            } else {
+              console.warn(`📲 Match push (Expo) failed for ${recipientId} (${label}): send returned false.`);
+            }
+          } else if (!token || !token.trim()) {
+            console.log(`📲 Match push: no Expo token for ${recipientId} (${label}); Web Push may still deliver.`);
           }
-          const sent = await sendMatchPushNotification(token, matchName, matchId);
-          if (sent) {
-            console.log(`✅ Sent match push to ${recipientId} (${label})`);
-          } else {
-            console.warn(`📲 Match push failed for ${recipientId} (${label}): send returned false. Check logs above for Expo/Android errors.`);
+          if (isWebPushConfigured()) {
+            const n = await sendWebPushToUser(recipientId, {
+              title: "🎉 New connection!",
+              body: `${matchName} connected with you. Say hi!`,
+              tag: `match-${matchId}`,
+              url: "/matches",
+              data: { type: "new_match", matchId, matchName },
+            });
+            if (n > 0) console.log(`✅ Sent match Web Push to ${recipientId} (${label}, ${n} sub(s))`);
           }
         };
 
@@ -1075,11 +1082,22 @@ matchesRouter.post("/:matchId/messages/:messageId/like", authenticateToken, rate
 
     try {
       const { sendMessageLikedPushNotification, isPushNotificationConfigured, isExpoPushToken } = await import("../services/pushNotifications.js");
+      const { sendWebPushToUser, isWebPushConfigured } = await import("../services/webPushDelivery.js");
       const rowResult = db.prepare("SELECT push_token, push_notify_messages FROM users WHERE id = ?").get([msg.sender_id]);
       const row = (rowResult instanceof Promise ? await rowResult : rowResult) as { push_token: string | null; push_notify_messages: number | null } | undefined;
       const wantsPush = row?.push_notify_messages === undefined || row?.push_notify_messages === null || row.push_notify_messages !== 0;
       if (row?.push_token && isExpoPushToken(row.push_token) && wantsPush && isPushNotificationConfigured()) {
         await sendMessageLikedPushNotification(row.push_token, likerName, matchId, messageId);
+      }
+      if (wantsPush && isWebPushConfigured()) {
+        const n = await sendWebPushToUser(msg.sender_id, {
+          title: "❤️ Message loved",
+          body: `${likerName} loved your message`,
+          tag: `liked-${messageId}`,
+          url: "/matches",
+          data: { type: "message_liked", matchId, messageId, likerName },
+        });
+        if (n > 0) console.log(`✅ Web Push (message liked) → sender ${msg.sender_id} (${n})`);
       }
     } catch (pushErr) {
       console.warn("Push (message liked) failed:", pushErr);
@@ -1340,6 +1358,7 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
     // Send push notification to the other user (OS shows when app is backgrounded/closed)
     try {
       const { sendMessagePushNotification, isPushNotificationConfigured, isExpoPushToken, getMessagePushThrottleDelayMs, recordMessagePushSent } = await import('../services/pushNotifications.js');
+      const { sendWebPushToUser, isWebPushConfigured } = await import('../services/webPushDelivery.js');
       const hasExpoToken = !!process.env.EXPO_ACCESS_TOKEN;
       let otherUserRowResult = db.prepare("SELECT push_token, push_notify_messages, push_token_fail_count FROM users WHERE id = ?").get([otherUserId]);
       if (otherUserRowResult instanceof Promise) otherUserRowResult = await otherUserRowResult;
@@ -1415,30 +1434,30 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
                 }
               } catch (e) { console.warn('⚠️  Throttled push failed:', e); }
             }, throttleDelayMs);
-            return;
-          }
-          const result = await sendMessagePushNotification(token!, senderName, messagePreview, matchId, userId, messageId);
-          if (result.invalidToken) {
-            await handleInvalidTokenForRecipient();
-            console.log(`📲 PUSH_MSG_SKIP recipient=${otherUserId} reason=invalid_token`);
-          } else if (result.sent) {
-            recordMessagePushSent(otherUserId);
-            try {
-              db.prepare('UPDATE users SET push_token_fail_count = 0 WHERE id = ?').run([otherUserId]);
-            } catch (_) {}
-            console.log(`📲 PUSH_MSG_SENT recipient=${otherUserId}`);
           } else {
-            console.warn(`📲 PUSH_MSG_SKIP recipient=${otherUserId} reason=expo_send_failed — retrying once in-request`);
-            // One in-request retry (no setTimeout so it runs before response; avoids lost push when process sleeps)
-            await new Promise((r) => setTimeout(r, 1500));
-            const retryResult = await sendMessagePushNotification(token!, senderName, messagePreview, matchId, userId, messageId);
-            if (retryResult.invalidToken) await handleInvalidTokenForRecipient();
-            else if (retryResult.sent) {
+            const result = await sendMessagePushNotification(token!, senderName, messagePreview, matchId, userId, messageId);
+            if (result.invalidToken) {
+              await handleInvalidTokenForRecipient();
+              console.log(`📲 PUSH_MSG_SKIP recipient=${otherUserId} reason=invalid_token`);
+            } else if (result.sent) {
               recordMessagePushSent(otherUserId);
-              try { db.prepare('UPDATE users SET push_token_fail_count = 0 WHERE id = ?').run([otherUserId]); } catch (_) {}
-              console.log(`📲 PUSH_MSG_SENT recipient=${otherUserId} (in-request retry)`);
+              try {
+                db.prepare('UPDATE users SET push_token_fail_count = 0 WHERE id = ?').run([otherUserId]);
+              } catch (_) {}
+              console.log(`📲 PUSH_MSG_SENT recipient=${otherUserId}`);
             } else {
-              console.warn(`📲 PUSH_MSG_SKIP recipient=${otherUserId} still failed after retry`);
+              console.warn(`📲 PUSH_MSG_SKIP recipient=${otherUserId} reason=expo_send_failed — retrying once in-request`);
+              // One in-request retry (no setTimeout so it runs before response; avoids lost push when process sleeps)
+              await new Promise((r) => setTimeout(r, 1500));
+              const retryResult = await sendMessagePushNotification(token!, senderName, messagePreview, matchId, userId, messageId);
+              if (retryResult.invalidToken) await handleInvalidTokenForRecipient();
+              else if (retryResult.sent) {
+                recordMessagePushSent(otherUserId);
+                try { db.prepare('UPDATE users SET push_token_fail_count = 0 WHERE id = ?').run([otherUserId]); } catch (_) {}
+                console.log(`📲 PUSH_MSG_SENT recipient=${otherUserId} (in-request retry)`);
+              } else {
+                console.warn(`📲 PUSH_MSG_SKIP recipient=${otherUserId} still failed after retry`);
+              }
             }
           }
         } else {
@@ -1468,6 +1487,16 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
               }, delayMs);
             });
           }
+        }
+        if (isWebPushConfigured()) {
+          const n = await sendWebPushToUser(otherUserId, {
+            title: senderName,
+            body: messagePreview,
+            tag: messageId ? `msg-${matchId}-${messageId}` : `msg-${matchId}`,
+            url: "/matches",
+            data: { type: "new_message", matchId, senderId: userId, ...(messageId ? { messageId } : {}) },
+          });
+          if (n > 0) console.log(`✅ Web Push (message REST) → ${otherUserId} (${n} sub(s))`);
         }
       }
     } catch (pushError) {
@@ -1963,6 +1992,7 @@ matchesRouter.post("/:matchId/unlock-game", authenticateToken, rateLimitAPI, asy
         const io = getIO();
         if (io) io.to(`match:${matchId}`).emit('new_message', { id: notifyMsgId, matchId, content: notifyContent, imageUrl: null, senderId: userId, senderName, sentAt: new Date().toISOString(), readAt: null });
         const { sendMessagePushNotification, isPushNotificationConfigured, isExpoPushToken } = await import('../services/pushNotifications.js');
+        const { sendWebPushToUser, isWebPushConfigured } = await import('../services/webPushDelivery.js');
         if (isPushNotificationConfigured()) {
           let otherTokenRow = db.prepare('SELECT push_token, push_notify_messages FROM users WHERE id = ?').get([otherUserId]);
           if (otherTokenRow instanceof Promise) otherTokenRow = await otherTokenRow;
@@ -1970,6 +2000,16 @@ matchesRouter.post("/:matchId/unlock-game", authenticateToken, rateLimitAPI, asy
           const wants = row?.push_notify_messages === undefined || row?.push_notify_messages === null || row.push_notify_messages !== 0;
           if (wants && row?.push_token && isExpoPushToken(row.push_token)) {
             await sendMessagePushNotification(row.push_token, senderName, notifyContent, matchId, userId);
+          }
+          if (wants && isWebPushConfigured()) {
+            const n = await sendWebPushToUser(otherUserId, {
+              title: senderName,
+              body: notifyContent,
+              tag: `msg-${matchId}`,
+              url: "/matches",
+              data: { type: "new_message", matchId, senderId: userId },
+            });
+            if (n > 0) console.log(`✅ Web Push (ToD unlock msg) → ${otherUserId} (${n})`);
           }
         }
       } catch (e) {
@@ -2102,6 +2142,9 @@ matchesRouter.post("/:matchId/game-request", authenticateToken, rateLimitAPI, as
 
     try {
       const { sendGameRequestPushNotification, isPushNotificationConfigured, isExpoPushToken } = await import('../services/pushNotifications.js');
+      const { sendWebPushToUser, isWebPushConfigured } = await import('../services/webPushDelivery.js');
+      const gameLabel = gameType === 'truth_or_dare' ? 'Truth or Dare' : 'Never Have I Ever';
+      const emoji = gameType === 'truth_or_dare' ? '🎲' : '🙊';
       if (isPushNotificationConfigured()) {
         let toUserRowResult = db.prepare('SELECT push_token, push_notify_messages FROM users WHERE id = ?').get(toUserId);
         if (toUserRowResult instanceof Promise) toUserRowResult = await toUserRowResult;
@@ -2117,6 +2160,16 @@ matchesRouter.post("/:matchId/game-request", authenticateToken, rateLimitAPI, as
             requestId
           );
           console.log(`✅ Sent game request push notification to ${toUserId}`);
+        }
+        if (wantsMessagePush && isWebPushConfigured()) {
+          const n = await sendWebPushToUser(toUserId, {
+            title: `${emoji} Game invite`,
+            body: `${fromUserName} wants to play ${gameLabel} with you!`,
+            tag: `game-req-${requestId}`,
+            url: "/matches",
+            data: { type: "game_request", matchId, fromUserId: userId, fromUserName, gameType, requestId },
+          });
+          if (n > 0) console.log(`✅ Web Push (game request) → ${toUserId} (${n})`);
         }
       }
     } catch (pushErr) {
@@ -2980,16 +3033,18 @@ matchesRouter.post("/:matchId/date-plan/:planId/action", authenticateToken, rate
     if (action === 'accept') {
       try {
         const { sendMessagePushNotification, isPushNotificationConfigured, isExpoPushToken } = await import('../services/pushNotifications.js');
-        
+        const { sendWebPushToUser, isWebPushConfigured } = await import('../services/webPushDelivery.js');
+
         if (isPushNotificationConfigured()) {
           const otherUserRowResult = db.prepare('SELECT push_token, push_notify_messages FROM users WHERE id = ?').get([otherUserId]);
           const otherUserRow = (otherUserRowResult instanceof Promise ? await otherUserRowResult : otherUserRowResult) as { push_token: string | null; push_notify_messages: number | null } | undefined;
           const wantsMessagePush = otherUserRow?.push_notify_messages === undefined || otherUserRow?.push_notify_messages === null || otherUserRow.push_notify_messages !== 0;
+          const dateBody = `wants to confirm the date plan: "${plan.title}"`;
           if (wantsMessagePush && otherUserRow?.push_token && isExpoPushToken(otherUserRow.push_token)) {
             await sendMessagePushNotification(
               otherUserRow.push_token,
               currentUserName,
-              `wants to confirm the date plan: "${plan.title}"`,
+              dateBody,
               matchId,
               userId
             );
@@ -2997,7 +3052,17 @@ matchesRouter.post("/:matchId/date-plan/:planId/action", authenticateToken, rate
           } else if (!wantsMessagePush) {
             console.log(`ℹ️  User ${otherUserId} has message notifications disabled, skipping push`);
           } else {
-            console.log(`ℹ️  No valid push token for user ${otherUserId}, skipping push notification`);
+            console.log(`ℹ️  No valid Expo push token for user ${otherUserId} (Web Push may still deliver)`);
+          }
+          if (wantsMessagePush && isWebPushConfigured()) {
+            const n = await sendWebPushToUser(otherUserId, {
+              title: currentUserName,
+              body: dateBody,
+              tag: `dateplan-${planId}`,
+              url: "/matches",
+              data: { type: "new_message", matchId, senderId: userId, planId },
+            });
+            if (n > 0) console.log(`✅ Web Push (date plan) → ${otherUserId} (${n})`);
           }
         }
       } catch (pushError) {
