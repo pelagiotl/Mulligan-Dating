@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api } from "../utils/api";
 
 type PrepareResponse = {
@@ -71,8 +71,15 @@ type ApplePayTokenButtonProps = {
 };
 
 /**
- * Apple Pay on the Web for Mulligan token packs (Authorize.Net opaqueData).
- * Renders nothing if ApplePaySession is unavailable or cannot pay.
+ * Apple Pay on the Web — Authorize.Net opaqueData.
+ *
+ * Safari requires `new ApplePaySession` inside a *direct* user activation, and
+ * rejects it if React state updates run first in the same tick (userActivation
+ * can be consumed). We therefore:
+ * - Prefetch `/apple-pay/prepare` on pointerenter / focus.
+ * - Use a **native** `click` listener (capture) on the button so `new` runs from
+ *   the DOM event path, not only React’s delegated handler.
+ * - Call `session.begin()` before any `setState` from this path.
  */
 export default function ApplePayTokenButton({
   packageId,
@@ -84,96 +91,220 @@ export default function ApplePayTokenButton({
   onError,
   onFinally,
 }: ApplePayTokenButtonProps) {
-  const [busy, setBusy] = useState(false);
+  const [preparing, setPreparing] = useState(false);
+  const [sessionOpen, setSessionOpen] = useState(false);
+  const [needsSecondTap, setNeedsSecondTap] = useState(false);
 
-  const run = useCallback(async () => {
-    const S = getApplePaySession();
-    if (!S || !canUseApplePayJs(S, merchantId)) {
-      onError("Apple Pay is not available on this device or browser.");
-      return;
-    }
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
 
-    setBusy(true);
-    try {
-      const prep = await api.post<PrepareResponse>("/payments/apple-pay/prepare", { packageId });
-      const request: Record<string, unknown> = {
-        countryCode: prep.countryCode,
-        currencyCode: prep.currencyCode,
-        merchantIdentifier: prep.merchantIdentifier,
-        supportedNetworks: prep.supportedNetworks,
-        merchantCapabilities: prep.merchantCapabilities,
-        total: prep.total,
-      };
+  const prepRef = useRef<PrepareResponse | null>(null);
+  const prepPackageIdRef = useRef<number | null>(null);
+  const prepareInFlightRef = useRef(false);
 
-      const session = new S(applePaySessionVersion(S), request);
+  const packageIdRef = useRef(packageId);
+  const merchantIdRef = useRef(merchantId);
+  const disabledRef = useRef(disabled);
+  const sessionOpenRef = useRef(false);
+  const onSuccessRef = useRef(onSuccess);
+  const onErrorRef = useRef(onError);
+  const onFinallyRef = useRef(onFinally);
 
-      session.onvalidatemerchant = async (event) => {
+  packageIdRef.current = packageId;
+  merchantIdRef.current = merchantId;
+  disabledRef.current = disabled;
+  onSuccessRef.current = onSuccess;
+  onErrorRef.current = onError;
+  onFinallyRef.current = onFinally;
+
+  const clearPrepRefsOnly = useCallback(() => {
+    prepRef.current = null;
+    prepPackageIdRef.current = null;
+  }, []);
+
+  const clearPrep = useCallback(() => {
+    clearPrepRefsOnly();
+    setNeedsSecondTap(false);
+  }, [clearPrepRefsOnly]);
+
+  useEffect(() => {
+    clearPrep();
+    prepareInFlightRef.current = false;
+    setPreparing(false);
+    setSessionOpen(false);
+    sessionOpenRef.current = false;
+  }, [packageId, merchantId, clearPrep]);
+
+  const runPrepare = useCallback(
+    (fromPointerPrefetch: boolean) => {
+      if (prepareInFlightRef.current) return;
+      if (prepPackageIdRef.current === packageId && prepRef.current) return;
+
+      prepareInFlightRef.current = true;
+      setPreparing(true);
+      if (!fromPointerPrefetch) setNeedsSecondTap(false);
+
+      void api
+        .post<PrepareResponse>("/payments/apple-pay/prepare", { packageId })
+        .then((prep) => {
+          prepRef.current = prep;
+          prepPackageIdRef.current = packageId;
+          if (!fromPointerPrefetch) setNeedsSecondTap(true);
+        })
+        .catch((e) => {
+          clearPrep();
+          onError(e instanceof Error ? e.message : "Could not start Apple Pay.");
+        })
+        .finally(() => {
+          prepareInFlightRef.current = false;
+          setPreparing(false);
+        });
+    },
+    [packageId, onError, clearPrep]
+  );
+
+  /** Must stay synchronous from native click until session.begin(); no setState before begin(). */
+  const openApplePaySessionSync = useCallback((prep: PrepareResponse, S: ApplePaySessionCtor) => {
+    const request: Record<string, unknown> = {
+      countryCode: prep.countryCode,
+      currencyCode: prep.currencyCode,
+      merchantIdentifier: prep.merchantIdentifier,
+      supportedNetworks: prep.supportedNetworks,
+      merchantCapabilities: prep.merchantCapabilities,
+      total: prep.total,
+    };
+
+    clearPrepRefsOnly();
+
+    const session = new S(applePaySessionVersion(S), request);
+
+    session.onvalidatemerchant = async (event) => {
+      try {
+        const { merchantSession } = await api.post<{ merchantSession: unknown }>(
+          "/payments/apple-pay/validate-merchant",
+          { validationURL: event.validationURL }
+        );
+        session.completeMerchantValidation(merchantSession);
+      } catch (e) {
+        console.warn("[Apple Pay] validate merchant failed", e);
+        session.abort();
+        onErrorRef.current(e instanceof Error ? e.message : "Could not validate with Apple.");
+        setSessionOpen(false);
+        sessionOpenRef.current = false;
+        onFinallyRef.current?.();
+      }
+    };
+
+    session.onpaymentauthorized = async (event) => {
+      try {
+        const token = event.payment.token as Record<string, unknown>;
+        const result = await api.post<{ ok?: boolean; tokens_granted?: number; error?: string }>(
+          "/payments/apple-pay/complete",
+          { checkoutId: prep.checkoutId, paymentToken: token }
+        );
+        session.completePayment(S.STATUS_SUCCESS);
+        const n = result.tokens_granted ?? 0;
+        onSuccessRef.current(
+          n > 0
+            ? `${n} token(s) added to your account.`
+            : "Payment recorded. You may already be at the token cap."
+        );
+      } catch (e) {
+        console.warn("[Apple Pay] complete failed", e);
+        session.completePayment(S.STATUS_FAILURE);
+        onErrorRef.current(e instanceof Error ? e.message : "Payment could not be completed.");
+      } finally {
+        setSessionOpen(false);
+        sessionOpenRef.current = false;
+        onFinallyRef.current?.();
+      }
+    };
+
+    session.oncancel = () => {
+      setSessionOpen(false);
+      sessionOpenRef.current = false;
+      setNeedsSecondTap(false);
+      onFinallyRef.current?.();
+    };
+
+    session.begin();
+
+    /* Keep user-activation stack "clean" for WebKit; sync ref for guards immediately. */
+    sessionOpenRef.current = true;
+    queueMicrotask(() => {
+      setSessionOpen(true);
+      setNeedsSecondTap(false);
+    });
+  }, [clearPrepRefsOnly]);
+
+  const runPrepareRef = useRef(runPrepare);
+  runPrepareRef.current = runPrepare;
+
+  const openApplePaySessionSyncRef = useRef(openApplePaySessionSync);
+  openApplePaySessionSyncRef.current = openApplePaySessionSync;
+
+  useLayoutEffect(() => {
+    const el = buttonRef.current;
+    if (!el) return;
+
+    const onNativeClick = (ev: MouseEvent) => {
+      if (ev.button !== 0) return;
+      if (disabledRef.current || sessionOpenRef.current) return;
+
+      const S = getApplePaySession();
+      const mid = merchantIdRef.current;
+      if (!S || !canUseApplePayJs(S, mid)) {
+        onErrorRef.current("Apple Pay is not available on this device or browser.");
+        return;
+      }
+
+      const prep = prepRef.current;
+      const pkgId = packageIdRef.current;
+      const prepOk = prep && prepPackageIdRef.current === pkgId;
+
+      if (prepOk) {
         try {
-          const { merchantSession } = await api.post<{ merchantSession: unknown }>(
-            "/payments/apple-pay/validate-merchant",
-            { validationURL: event.validationURL }
-          );
-          session.completeMerchantValidation(merchantSession);
+          openApplePaySessionSyncRef.current(prep, S);
         } catch (e) {
-          console.warn("[Apple Pay] validate merchant failed", e);
-          session.abort();
-          onError(e instanceof Error ? e.message : "Could not validate with Apple.");
-          setBusy(false);
-          onFinally?.();
+          onErrorRef.current(e instanceof Error ? e.message : "Could not start Apple Pay.");
+          setSessionOpen(false);
+          sessionOpenRef.current = false;
         }
-      };
+        return;
+      }
 
-      session.onpaymentauthorized = async (event) => {
-        try {
-          const token = event.payment.token as Record<string, unknown>;
-          const result = await api.post<{ ok?: boolean; tokens_granted?: number; error?: string }>(
-            "/payments/apple-pay/complete",
-            { checkoutId: prep.checkoutId, paymentToken: token }
-          );
-          session.completePayment(S.STATUS_SUCCESS);
-          const n = result.tokens_granted ?? 0;
-          onSuccess(
-            n > 0
-              ? `${n} token(s) added to your account.`
-              : "Payment recorded. You may already be at the token cap."
-          );
-        } catch (e) {
-          console.warn("[Apple Pay] complete failed", e);
-          session.completePayment(S.STATUS_FAILURE);
-          onError(e instanceof Error ? e.message : "Payment could not be completed.");
-        } finally {
-          setBusy(false);
-          onFinally?.();
-        }
-      };
+      if (prepareInFlightRef.current) return;
 
-      session.oncancel = () => {
-        setBusy(false);
-        onFinally?.();
-      };
+      runPrepareRef.current(false);
+    };
 
-      session.begin();
-    } catch (e) {
-      onError(e instanceof Error ? e.message : "Could not start Apple Pay.");
-      setBusy(false);
-      onFinally?.();
-    }
-  }, [merchantId, onError, onFinally, onSuccess, packageId]);
+    el.addEventListener("click", onNativeClick, true);
+    return () => el.removeEventListener("click", onNativeClick, true);
+  }, [packageId, merchantId]);
+
+  const handlePointerIntent = useCallback(() => {
+    if (disabledRef.current || sessionOpenRef.current) return;
+    if (prepPackageIdRef.current === packageId && prepRef.current) return;
+    runPrepare(true);
+  }, [packageId, runPrepare]);
 
   const S = typeof window !== "undefined" ? getApplePaySession() : undefined;
   if (!S || !canUseApplePayJs(S, merchantId)) {
     return null;
   }
 
+  const label = preparing ? "…" : needsSecondTap ? "Tap again for Apple Pay" : "Pay with Apple Pay";
+
   return (
     <button
+      ref={buttonRef}
       type="button"
       className={compact ? "apple-pay-token-btn apple-pay-token-btn--compact" : "apple-pay-token-btn"}
-      onClick={() => void run()}
-      disabled={disabled || busy}
+      onPointerEnter={handlePointerIntent}
+      onFocus={handlePointerIntent}
+      disabled={disabled || preparing || sessionOpen}
       aria-label={`Apple Pay — ${tokens} Mulligan token${tokens === 1 ? "" : "s"}`}
     >
-      {busy ? "…" : "Pay with Apple Pay"}
+      {label}
     </button>
   );
 }
