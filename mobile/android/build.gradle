@@ -9,7 +9,8 @@ buildscript {
         kotlinVersion = findProperty('android.kotlinVersion') ?: '1.9.25'
 
         // NDK r28+ defaults to 16 KB ELF alignment (Google Play page-size requirement).
-        ndkVersion = "28.0.12674087"
+        // Optional: set android.ndkVersion in gradle.properties (e.g. 26.1.10909125) if NDK 28 is missing/corrupt locally.
+        ndkVersion = findProperty('android.ndkVersion') ?: '28.0.12674087'
     }
     repositories {
         google()
