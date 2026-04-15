@@ -1,10 +1,17 @@
-import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useRef, ReactNode, useMemo } from 'react'
 import { api } from '../utils/api'
 import { browserSupportsWebPush, getVapidPublicKey, registerWebPush } from '../lib/webPush'
+
+/** Same as mobile `MainTabs`: owner line always sees admin UI (API `requireAdmin` already matches this number). */
+function isOwnerAdminPhone(phone: string | null | undefined): boolean {
+  if (!phone) return false
+  return /^(1)?5413163939$/.test(phone.replace(/\D/g, ''))
+}
 
 interface User {
   id: string
   email: string
+  phoneNumber?: string | null
   isAdmin?: boolean
   hasPushToken?: boolean
   webPushConfigured?: boolean
@@ -107,6 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser({
         id: data.user.id,
         email: data.user.email,
+        phoneNumber: data.user.phoneNumber ?? null,
         isAdmin: data.user.isAdmin || false,
         hasPushToken: !!data.user.hasPushToken,
         webPushConfigured: !!data.user.webPushConfigured,
@@ -287,12 +295,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await fetchUser()
   }
 
+  const isAdmin = useMemo(
+    () => !!(user?.isAdmin || isOwnerAdminPhone(user?.phoneNumber)),
+    [user?.isAdmin, user?.phoneNumber]
+  )
+
   return (
     <AuthContext.Provider value={{ 
       user, 
       profile, 
       isAuthenticated: !!user,
-      isAdmin: user?.isAdmin || false,
+      isAdmin,
       loading, 
       login, 
       signup,
