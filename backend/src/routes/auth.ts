@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
 import { db } from '../database.js';
-import { generateToken, authenticateToken, AuthRequest } from '../middleware/auth.js';
+import { generateToken, authenticateToken, AuthRequest, userHasAdminAccess } from '../middleware/auth.js';
 import { sanitizeText, rateLimitAuth, rateLimitSignup, rateLimitAPI } from '../middleware/security.js';
 import { isWebPushConfigured } from '../services/webPushDelivery.js';
 
@@ -220,12 +220,13 @@ authRouter.get('/me', authenticateToken, async (req: AuthRequest, res) => {
     }
 
     const matchmakingOff = isMatchmakingGloballyDisabled();
+    const isAdmin = userHasAdminAccess(user.id, user.is_admin, user.phone_number);
     res.json({
       user: {
         id: user.id,
         email: user.email,
         phoneNumber: user.phone_number,
-        isAdmin: user.is_admin === 1,
+        isAdmin,
         createdAt: user.created_at,
         hasPushToken, // so app can show "Push registered" and debug message notifications
         webPushConfigured: isWebPushConfigured(),

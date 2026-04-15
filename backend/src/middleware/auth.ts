@@ -115,6 +115,21 @@ function getAdminUserIds(): string[] {
   return raw.split(',').map((id) => id.trim()).filter((id) => id.length > 0);
 }
 
+/** Same rules as `requireAdmin` — use for `/auth/me` so web/mobile UI matches API without duplicating phone checks client-side. */
+export function userHasAdminAccess(
+  userId: string,
+  is_admin: number | null | undefined,
+  phone_number: string | null | undefined
+): boolean {
+  if (is_admin === 1) return true;
+  if (getAdminUserIds().includes(userId)) return true;
+  const phoneDigits = (phone_number || '').replace(/\D/g, '');
+  const isOwnerPhone = phoneDigits === OWNER_PHONE_DIGITS || phoneDigits === '1' + OWNER_PHONE_DIGITS;
+  if (isOwnerPhone) return true;
+  const adminPhones = getAdminPhones();
+  return adminPhones.some((ap) => phoneDigits === ap || phoneDigits === '1' + ap);
+}
+
 // Admin authentication middleware
 export async function requireAdmin(req: AuthRequest, res: Response, next: NextFunction) {
   if (!req.userId) {
@@ -126,19 +141,7 @@ export async function requireAdmin(req: AuthRequest, res: Response, next: NextFu
     const userStmt = db.prepare('SELECT is_admin, phone_number FROM users WHERE id = ?');
     const user = await (userStmt.get(req.userId) as Promise<{ is_admin: number; phone_number: string | null } | null>);
     
-    if (!user) {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-
-    const isDbAdmin = user.is_admin === 1;
-    const adminUserIds = getAdminUserIds();
-    const isAdminById = adminUserIds.includes(req.userId);
-    const phoneDigits = (user.phone_number || '').replace(/\D/g, '');
-    const isOwnerPhone = phoneDigits === OWNER_PHONE_DIGITS || phoneDigits === '1' + OWNER_PHONE_DIGITS;
-    const adminPhones = getAdminPhones();
-    const isAdminByPhone = adminPhones.some((ap) => phoneDigits === ap || phoneDigits === '1' + ap);
-    
-    if (!isDbAdmin && !isAdminById && !isOwnerPhone && !isAdminByPhone) {
+    if (!user || !userHasAdminAccess(req.userId, user.is_admin, user.phone_number)) {
       return res.status(403).json({ error: 'Admin access required' });
     }
     

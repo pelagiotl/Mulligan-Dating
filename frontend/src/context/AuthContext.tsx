@@ -111,11 +111,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error('Invalid response from server')
       }
       
+      const u = data.user
+      const phoneNumber = u.phoneNumber ?? u.phone_number ?? null
+      const serverIsAdmin = !!(u.isAdmin ?? u.is_admin)
       setUser({
-        id: data.user.id,
-        email: data.user.email,
-        phoneNumber: data.user.phoneNumber ?? null,
-        isAdmin: data.user.isAdmin || false,
+        id: u.id,
+        email: u.email,
+        phoneNumber,
+        isAdmin: serverIsAdmin,
         hasPushToken: !!data.user.hasPushToken,
         webPushConfigured: !!data.user.webPushConfigured,
         webPushSubscriptionCount: typeof data.user.webPushSubscriptionCount === 'number' ? data.user.webPushSubscriptionCount : 0,
@@ -297,7 +300,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const isAdmin = useMemo(
     () => !!(user?.isAdmin || isOwnerAdminPhone(user?.phoneNumber)),
-    [user?.isAdmin, user?.phoneNumber]
+    [user?.isAdmin, user?.phoneNumber],
   )
 
   return (
