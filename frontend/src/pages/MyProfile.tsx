@@ -87,6 +87,123 @@ function parsePreferredGendersInitial(raw: string | null | undefined): string[] 
   }
 }
 
+const INTEREST_EDIT_OPTIONS = [
+  "Travel", "Music", "Sports", "Cooking", "Reading", "Movies", "Fitness", "Art",
+  "Photography", "Dancing", "Gaming", "Hiking", "Yoga", "Writing", "Technology",
+  "Fashion", "Animals", "Volunteering", "Coffee", "Nightlife", "Comedy",
+  "Beach", "Camping", "Board Games", "Tattoos", "Meditation", "History", "Science",
+  "Business", "Education",
+] as const;
+
+const INTEREST_EDIT_EMOJIS: Record<string, string> = {
+  Travel: "✈️",
+  Music: "🎵",
+  Sports: "⚽",
+  Cooking: "👨‍🍳",
+  Reading: "📚",
+  Movies: "🎬",
+  Fitness: "💪",
+  Art: "🎨",
+  Photography: "📸",
+  Dancing: "💃",
+  Gaming: "🎮",
+  Hiking: "🥾",
+  Yoga: "🧘",
+  Writing: "✍️",
+  Technology: "💻",
+  Fashion: "👗",
+  Animals: "🐾",
+  Volunteering: "🤝",
+  Coffee: "☕",
+  Nightlife: "🌃",
+  Comedy: "😂",
+  Beach: "🏖️",
+  Camping: "⛺",
+  "Board Games": "🎲",
+  Tattoos: "🖋️",
+  Meditation: "🧘‍♀️",
+  History: "📜",
+  Science: "🔬",
+  Business: "💼",
+  Education: "🎓",
+};
+
+const PARTNER_QUALITY_EDIT_OPTIONS = [
+  "Kindness",
+  "Sense of humor",
+  "Communication",
+  "Emotional maturity",
+  "Shared values",
+  "Ambition",
+  "Loyalty",
+  "Open-mindedness",
+  "Adventure",
+  "Family-oriented",
+  "Physical attraction",
+  "Intellectual curiosity",
+  "Creativity",
+  "Financial stability",
+  "Fitness & health",
+] as const;
+
+const DEALBREAKER_SUGGESTIONS = [
+  "Smoking",
+  "Heavy drinking",
+  "Different politics",
+  "Different religion",
+  "Long distance",
+  "Doesn’t want kids",
+  "Wants kids soon",
+  "Not active / fit",
+  "Nightlife often",
+  "Doesn’t like pets",
+  "Messy lifestyle",
+  "Prefer not to say",
+] as const;
+
+const LIFESTYLE_FIELD_OPTIONS = {
+  smoking: ["", "Non-smoker", "Social smoker", "Smoker", "Trying to quit", "Prefer not to say"],
+  drinking: ["", "Non-drinker", "Socially", "Regularly", "Sober-curious", "Prefer not to say"],
+  children: ["", "Want kids", "Don’t want kids", "Open to either", "Have kids", "Prefer not to say"],
+  pets: ["", "Love pets", "Allergic", "No pets", "Open to pets", "Prefer not to say"],
+  religion: ["", "Very important", "Somewhat important", "Spiritual not religious", "Not important", "Prefer not to say"],
+  workLifeBalance: ["", "Career-focused", "Balanced", "Life-first", "Flexible", "Prefer not to say"],
+  worksOut: ["", "Daily", "Often", "Sometimes", "Rarely", "Prefer not to say"],
+} as const;
+
+type LifestyleForm = {
+  smoking: string;
+  drinking: string;
+  children: string;
+  pets: string;
+  religion: string;
+  workLifeBalance: string;
+  worksOut: string;
+};
+
+function lifestyleFormFromApi(l: ProfileData["lifestyle"]): LifestyleForm {
+  if (!l) {
+    return {
+      smoking: "",
+      drinking: "",
+      children: "",
+      pets: "",
+      religion: "",
+      workLifeBalance: "",
+      worksOut: "",
+    };
+  }
+  return {
+    smoking: l.smoking || "",
+    drinking: l.drinking || "",
+    children: l.children || "",
+    pets: l.pets || "",
+    religion: l.religion || "",
+    workLifeBalance: l.work_life_balance || "",
+    worksOut: l.works_out || "",
+  };
+}
+
 export default function MyProfile() {
   const { refreshProfile } = useAuth();
   const [data, setData] = useState<ProfileData | null>(null);
@@ -107,6 +224,18 @@ export default function MyProfile() {
   const [detectingLocation, setDetectingLocation] = useState(false);
   const [updatingField, setUpdatingField] = useState(false);
   const [updatingActiveStatus, setUpdatingActiveStatus] = useState(false);
+
+  const [showInterestsModal, setShowInterestsModal] = useState(false);
+  const [editInterests, setEditInterests] = useState<string[]>([]);
+  const [showDealbreakersModal, setShowDealbreakersModal] = useState(false);
+  const [editDealbreakers, setEditDealbreakers] = useState<string[]>([]);
+  const [dealbreakerDraft, setDealbreakerDraft] = useState("");
+  const [showQualitiesModal, setShowQualitiesModal] = useState(false);
+  const [editQualities, setEditQualities] = useState<string[]>([]);
+  const [showLifestyleModal, setShowLifestyleModal] = useState(false);
+  const [editLifestyle, setEditLifestyle] = useState<LifestyleForm>(() => lifestyleFormFromApi(null));
+  const [showLookingModal, setShowLookingModal] = useState(false);
+  const [editLookingFor, setEditLookingFor] = useState("");
 
   const fetchPhotos = async () => {
     try {
@@ -358,6 +487,135 @@ export default function MyProfile() {
     }
   };
 
+  const refreshProfileData = async () => {
+    const next = await api.get<ProfileData>("/profile");
+    setData(next);
+  };
+
+  const saveInterests = async () => {
+    if (editInterests.length < 3) {
+      setError("Please pick at least 3 interests.");
+      return;
+    }
+    setUpdatingField(true);
+    setError("");
+    try {
+      await api.put("/profile/interests", {
+        interests: editInterests.map((name) => ({ name })),
+      });
+      await refreshProfileData();
+      setShowInterestsModal(false);
+      await refreshProfile();
+    } catch (e: unknown) {
+      setError((e as Error)?.message || "Failed to update interests.");
+    } finally {
+      setUpdatingField(false);
+    }
+  };
+
+  const saveDealbreakers = async () => {
+    setUpdatingField(true);
+    setError("");
+    try {
+      await api.put("/profile/dealbreakers", { dealbreakers: editDealbreakers });
+      await refreshProfileData();
+      setShowDealbreakersModal(false);
+      setDealbreakerDraft("");
+      await refreshProfile();
+    } catch (e: unknown) {
+      setError((e as Error)?.message || "Failed to update dealbreakers.");
+    } finally {
+      setUpdatingField(false);
+    }
+  };
+
+  const saveQualities = async () => {
+    setUpdatingField(true);
+    setError("");
+    try {
+      await api.put("/profile/partner-qualities", {
+        qualities: editQualities.map((quality) => ({ quality, importance: 5 })),
+      });
+      await refreshProfileData();
+      setShowQualitiesModal(false);
+      await refreshProfile();
+    } catch (e: unknown) {
+      setError((e as Error)?.message || "Failed to update what you're looking for.");
+    } finally {
+      setUpdatingField(false);
+    }
+  };
+
+  const saveLifestyle = async () => {
+    setUpdatingField(true);
+    setError("");
+    try {
+      await api.put("/profile/lifestyle", {
+        smoking: editLifestyle.smoking || null,
+        drinking: editLifestyle.drinking || null,
+        children: editLifestyle.children || null,
+        pets: editLifestyle.pets || null,
+        religion: editLifestyle.religion || null,
+        workLifeBalance: editLifestyle.workLifeBalance || null,
+        worksOut: editLifestyle.worksOut || null,
+      });
+      await refreshProfileData();
+      setShowLifestyleModal(false);
+      await refreshProfile();
+    } catch (e: unknown) {
+      setError((e as Error)?.message || "Failed to update lifestyle.");
+    } finally {
+      setUpdatingField(false);
+    }
+  };
+
+  const saveLookingFor = async () => {
+    if (!data?.profile) return;
+    const val = editLookingFor.trim() || null;
+    setUpdatingField(true);
+    setError("");
+    try {
+      await api.post("/profile", {
+        displayName: data.profile.display_name,
+        age: data.profile.age,
+        gender: data.profile.gender,
+        location: data.profile.location ?? null,
+        bio: data.profile.bio ?? null,
+        lookingFor: val,
+      });
+      setData((prev) => (prev ? { ...prev, profile: { ...prev.profile, looking_for: val } } : null));
+      setShowLookingModal(false);
+      await refreshProfile();
+    } catch (e: unknown) {
+      setError((e as Error)?.message || "Failed to update looking for.");
+    } finally {
+      setUpdatingField(false);
+    }
+  };
+
+  const toggleInterestEdit = (name: string) => {
+    setEditInterests((prev) =>
+      prev.includes(name) ? prev.filter((x) => x !== name) : [...prev, name]
+    );
+  };
+
+  const toggleDealbreakerEdit = (text: string) => {
+    setEditDealbreakers((prev) =>
+      prev.includes(text) ? prev.filter((x) => x !== text) : [...prev, text]
+    );
+  };
+
+  const addCustomDealbreaker = () => {
+    const t = dealbreakerDraft.trim();
+    if (!t || editDealbreakers.includes(t)) return;
+    setEditDealbreakers((prev) => [...prev, t]);
+    setDealbreakerDraft("");
+  };
+
+  const toggleQualityEdit = (q: string) => {
+    setEditQualities((prev) => (prev.includes(q) ? prev.filter((x) => x !== q) : [...prev, q]));
+  };
+
   const toggleEveryone = (checked: boolean) => {
     if (checked) setEditPreferredGenders(["Everyone"]);
   };
@@ -542,12 +800,22 @@ export default function MyProfile() {
           </button>
 
           <div className="my-profile-meta-group" style={{ marginTop: "var(--space-4)" }}>
-            {profile.looking_for && (
-              <div className="my-profile-meta-item">
+            <div className="my-profile-meta-item my-profile-meta-item--row">
+              <div>
                 <span className="my-profile-meta-label">Looking for</span>
-                <span className="my-profile-meta-value">{profile.looking_for}</span>
+                <span className="my-profile-meta-value">{profile.looking_for || "—"}</span>
               </div>
-            )}
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => {
+                  setEditLookingFor(profile.looking_for || "");
+                  setShowLookingModal(true);
+                }}
+              >
+                Edit
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -564,11 +832,23 @@ export default function MyProfile() {
         />
       </div>
 
-      {interests.length > 0 && (
-        <div className="profile-detail-section">
+      <div className="profile-detail-section">
+        <div className="profile-detail-title-row">
           <h2 className="profile-detail-title">
             <span>🎯</span> My Interests
           </h2>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => {
+              setEditInterests(interests.map((i) => i.name));
+              setShowInterestsModal(true);
+            }}
+          >
+            Edit
+          </button>
+        </div>
+        {interests.length > 0 ? (
           <div className="profile-card-interests">
             {interests.map((interest, idx) => (
               <span key={idx} className="interest-tag">
@@ -576,14 +856,29 @@ export default function MyProfile() {
               </span>
             ))}
           </div>
-        </div>
-      )}
+        ) : (
+          <p className="my-profile-empty-hint">No interests yet — tap Edit to add (pick at least 3).</p>
+        )}
+      </div>
 
-      {dealbreakers.length > 0 && (
-        <div className="profile-detail-section">
+      <div className="profile-detail-section">
+        <div className="profile-detail-title-row">
           <h2 className="profile-detail-title">
             <span>🚫</span> My Dealbreakers
           </h2>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => {
+              setEditDealbreakers(dealbreakers.map((d) => d.description));
+              setDealbreakerDraft("");
+              setShowDealbreakersModal(true);
+            }}
+          >
+            Edit
+          </button>
+        </div>
+        {dealbreakers.length > 0 ? (
           <div className="profile-card-interests">
             {dealbreakers.map((db, idx) => (
               <span key={idx} className="interest-tag">
@@ -591,14 +886,28 @@ export default function MyProfile() {
               </span>
             ))}
           </div>
-        </div>
-      )}
+        ) : (
+          <p className="my-profile-empty-hint">No dealbreakers yet — tap Edit to add.</p>
+        )}
+      </div>
 
-      {partnerQualities.length > 0 && (
-        <div className="profile-detail-section">
+      <div className="profile-detail-section">
+        <div className="profile-detail-title-row">
           <h2 className="profile-detail-title">
             <span>💕</span> What I&apos;m Looking For
           </h2>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => {
+              setEditQualities(partnerQualities.map((q) => q.quality));
+              setShowQualitiesModal(true);
+            }}
+          >
+            Edit
+          </button>
+        </div>
+        {partnerQualities.length > 0 ? (
           <div className="profile-card-interests">
             {partnerQualities.map((q, idx) => (
               <span key={idx} className="interest-tag">
@@ -606,53 +915,76 @@ export default function MyProfile() {
               </span>
             ))}
           </div>
-        </div>
-      )}
+        ) : (
+          <p className="my-profile-empty-hint">No qualities listed yet — tap Edit to choose what matters to you.</p>
+        )}
+      </div>
 
-      {lifestyle && (
-        <div className="profile-detail-section">
+      <div className="profile-detail-section">
+        <div className="profile-detail-title-row">
           <h2 className="profile-detail-title">
             <span>🌱</span> Lifestyle
           </h2>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => {
+              setEditLifestyle(lifestyleFormFromApi(lifestyle));
+              setShowLifestyleModal(true);
+            }}
+          >
+            Edit
+          </button>
+        </div>
+        {lifestyle &&
+        (lifestyle.smoking ||
+          lifestyle.drinking ||
+          lifestyle.children ||
+          lifestyle.pets ||
+          lifestyle.religion ||
+          lifestyle.work_life_balance ||
+          lifestyle.works_out) ? (
           <div className="profile-lifestyle">
-            {lifestyle.smoking && (
+            {lifestyle.smoking ? (
               <div className="lifestyle-item">
                 <strong>Smoking:</strong> {lifestyle.smoking}
               </div>
-            )}
-            {lifestyle.drinking && (
+            ) : null}
+            {lifestyle.drinking ? (
               <div className="lifestyle-item">
                 <strong>Drinking:</strong> {lifestyle.drinking}
               </div>
-            )}
-            {lifestyle.children && (
+            ) : null}
+            {lifestyle.children ? (
               <div className="lifestyle-item">
                 <strong>Children:</strong> {lifestyle.children}
               </div>
-            )}
-            {lifestyle.pets && (
+            ) : null}
+            {lifestyle.pets ? (
               <div className="lifestyle-item">
                 <strong>Pets:</strong> {lifestyle.pets}
               </div>
-            )}
-            {lifestyle.religion && (
+            ) : null}
+            {lifestyle.religion ? (
               <div className="lifestyle-item">
                 <strong>Religion:</strong> {lifestyle.religion}
               </div>
-            )}
-            {lifestyle.work_life_balance && (
+            ) : null}
+            {lifestyle.work_life_balance ? (
               <div className="lifestyle-item">
                 <strong>Work-Life Balance:</strong> {lifestyle.work_life_balance}
               </div>
-            )}
-            {lifestyle.works_out && (
+            ) : null}
+            {lifestyle.works_out ? (
               <div className="lifestyle-item">
                 <strong>Works out:</strong> {lifestyle.works_out}
               </div>
-            )}
+            ) : null}
           </div>
-        </div>
-      )}
+        ) : (
+          <p className="my-profile-empty-hint">Lifestyle not set — tap Edit to add preferences.</p>
+        )}
+      </div>
 
       <div className="text-center mt-8">
         <Link to="/create-profile" className="btn btn-secondary">
@@ -781,6 +1113,213 @@ export default function MyProfile() {
                 Save
               </button>
               <button type="button" className="btn btn-ghost" onClick={() => setShowBioModal(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showLookingModal && (
+        <div className="my-profile-modal-overlay" role="dialog" aria-modal="true">
+          <div className="my-profile-modal-backdrop" onClick={() => setShowLookingModal(false)} />
+          <div className="my-profile-modal-card">
+            <h3>Looking for</h3>
+            <p className="my-profile-modal-sub">What you want others to know about what you&apos;re seeking</p>
+            <textarea
+              className="form-input"
+              rows={4}
+              maxLength={500}
+              value={editLookingFor}
+              onChange={(e) => setEditLookingFor(e.target.value)}
+              placeholder="e.g. Something serious, new friends, activity partners…"
+            />
+            <div className="my-profile-modal-actions">
+              <button type="button" className="btn btn-primary" onClick={() => void saveLookingFor()} disabled={updatingField}>
+                Save
+              </button>
+              <button type="button" className="btn btn-ghost" onClick={() => setShowLookingModal(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showInterestsModal && (
+        <div className="my-profile-modal-overlay" role="dialog" aria-modal="true">
+          <div className="my-profile-modal-backdrop" onClick={() => setShowInterestsModal(false)} />
+          <div className="my-profile-modal-card my-profile-modal-card--scroll">
+            <h3>My interests</h3>
+            <p className="my-profile-modal-sub">Select at least 3 ({editInterests.length} selected)</p>
+            <div className="create-profile-interests-grid my-profile-edit-grid">
+              {INTEREST_EDIT_OPTIONS.map((interest) => {
+                const selected = editInterests.includes(interest);
+                const em = INTEREST_EDIT_EMOJIS[interest] || "✨";
+                return (
+                  <button
+                    key={interest}
+                    type="button"
+                    className={`create-profile-interest-tile ${selected ? "is-selected" : ""}`}
+                    onClick={() => toggleInterestEdit(interest)}
+                  >
+                    <span className="create-profile-interest-emoji">{em}</span>
+                    <span className="create-profile-interest-label">{interest}</span>
+                    {selected ? <span className="create-profile-interest-check">✓</span> : null}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="my-profile-modal-actions">
+              <button type="button" className="btn btn-primary" onClick={() => void saveInterests()} disabled={updatingField}>
+                Save
+              </button>
+              <button type="button" className="btn btn-ghost" onClick={() => setShowInterestsModal(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDealbreakersModal && (
+        <div className="my-profile-modal-overlay" role="dialog" aria-modal="true">
+          <div className="my-profile-modal-backdrop" onClick={() => setShowDealbreakersModal(false)} />
+          <div className="my-profile-modal-card my-profile-modal-card--scroll">
+            <h3>Dealbreakers</h3>
+            <p className="my-profile-modal-sub">Tap suggestions or add your own (saved as a simple list).</p>
+            <div className="profile-card-interests" style={{ marginBottom: "var(--space-3)" }}>
+              {editDealbreakers.map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  className="interest-tag my-profile-tag-removable"
+                  onClick={() => setEditDealbreakers((prev) => prev.filter((x) => x !== d))}
+                  title="Remove"
+                >
+                  {d} ×
+                </button>
+              ))}
+            </div>
+            <p className="my-profile-modal-sub" style={{ marginTop: 0 }}>
+              Suggestions
+            </p>
+            <div className="profile-card-interests" style={{ marginBottom: "var(--space-3)" }}>
+              {DEALBREAKER_SUGGESTIONS.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  className={`interest-tag ${editDealbreakers.includes(s) ? "my-profile-tag-on" : ""}`}
+                  onClick={() => toggleDealbreakerEdit(s)}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+            <div className="my-profile-inline-add">
+              <input
+                className="form-input"
+                value={dealbreakerDraft}
+                onChange={(e) => setDealbreakerDraft(e.target.value)}
+                placeholder="Custom dealbreaker"
+                maxLength={500}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addCustomDealbreaker();
+                  }
+                }}
+              />
+              <button type="button" className="btn btn-secondary" onClick={addCustomDealbreaker}>
+                Add
+              </button>
+            </div>
+            <div className="my-profile-modal-actions">
+              <button type="button" className="btn btn-primary" onClick={() => void saveDealbreakers()} disabled={updatingField}>
+                Save
+              </button>
+              <button type="button" className="btn btn-ghost" onClick={() => setShowDealbreakersModal(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showQualitiesModal && (
+        <div className="my-profile-modal-overlay" role="dialog" aria-modal="true">
+          <div className="my-profile-modal-backdrop" onClick={() => setShowQualitiesModal(false)} />
+          <div className="my-profile-modal-card my-profile-modal-card--scroll">
+            <h3>What I&apos;m looking for</h3>
+            <p className="my-profile-modal-sub">Qualities that matter to you in a match ({editQualities.length} selected)</p>
+            <div className="create-profile-interests-grid my-profile-edit-grid">
+              {PARTNER_QUALITY_EDIT_OPTIONS.map((q) => {
+                const selected = editQualities.includes(q);
+                return (
+                  <button
+                    key={q}
+                    type="button"
+                    className={`create-profile-interest-tile ${selected ? "is-selected" : ""}`}
+                    onClick={() => toggleQualityEdit(q)}
+                  >
+                    <span className="create-profile-interest-emoji">✨</span>
+                    <span className="create-profile-interest-label">{q}</span>
+                    {selected ? <span className="create-profile-interest-check">✓</span> : null}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="my-profile-modal-actions">
+              <button type="button" className="btn btn-primary" onClick={() => void saveQualities()} disabled={updatingField}>
+                Save
+              </button>
+              <button type="button" className="btn btn-ghost" onClick={() => setShowQualitiesModal(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showLifestyleModal && (
+        <div className="my-profile-modal-overlay" role="dialog" aria-modal="true">
+          <div className="my-profile-modal-backdrop" onClick={() => setShowLifestyleModal(false)} />
+          <div className="my-profile-modal-card my-profile-modal-card--scroll">
+            <h3>Lifestyle</h3>
+            <p className="my-profile-modal-sub">Leave blank if you prefer not to say.</p>
+            {(
+              [
+                ["smoking", "Smoking"] as const,
+                ["drinking", "Drinking"] as const,
+                ["children", "Children"] as const,
+                ["pets", "Pets"] as const,
+                ["religion", "Religion"] as const,
+                ["workLifeBalance", "Work-life balance"] as const,
+                ["worksOut", "Works out"] as const,
+              ] as const
+            ).map(([key, label]) => (
+              <label key={key} className="my-profile-lifestyle-field">
+                <span>{label}</span>
+                <select
+                  className="form-input"
+                  value={editLifestyle[key]}
+                  onChange={(e) =>
+                    setEditLifestyle((prev) => ({ ...prev, [key]: e.target.value }))
+                  }
+                >
+                  {LIFESTYLE_FIELD_OPTIONS[key].map((opt) => (
+                    <option key={opt || "unset"} value={opt}>
+                      {opt || "— Not set —"}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ))}
+            <div className="my-profile-modal-actions">
+              <button type="button" className="btn btn-primary" onClick={() => void saveLifestyle()} disabled={updatingField}>
+                Save
+              </button>
+              <button type="button" className="btn btn-ghost" onClick={() => setShowLifestyleModal(false)}>
                 Cancel
               </button>
             </div>

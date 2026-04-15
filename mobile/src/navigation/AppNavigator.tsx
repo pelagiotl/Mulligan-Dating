@@ -264,8 +264,7 @@ function MainTabs() {
     tabBarStyle: {
       backgroundColor: '#FAFAFA',
       borderTopWidth: 0,
-      // Include bottom safe inset on both platforms so the bar sits flush with the screen bottom
-      // while labels/icons stay above gesture / 3-button nav.
+      // Include bottom safe inset so labels/icons sit above gesture / 3-button nav.
       height:
         Platform.OS === 'ios'
           ? 56 + Math.round(insets.bottom * 0.5)
@@ -283,10 +282,16 @@ function MainTabs() {
       shadowRadius: 12,
       borderTopLeftRadius: 24,
       borderTopRightRadius: 24,
-      position: 'absolute' as const,
-      left: 0,
-      right: 0,
-      bottom: 0,
+      // iOS: float the bar over scroll content. Android: avoid absolute+bottom:0 — on many devices
+      // that sits above the true window bottom and leaves a gap; default flow anchors to the bottom.
+      ...(Platform.OS === 'ios'
+        ? ({
+            position: 'absolute' as const,
+            left: 0,
+            right: 0,
+            bottom: 0,
+          } as const)
+        : {}),
     },
     tabBarItemStyle: {
       paddingHorizontal: 0,

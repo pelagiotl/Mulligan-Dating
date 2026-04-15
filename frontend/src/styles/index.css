@@ -4256,6 +4256,38 @@ img {
   transform: scale(1.1) translateZ(0);
 }
 
+.profile-detail-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-5);
+}
+
+.profile-detail-title-row .profile-detail-title {
+  margin-bottom: 0;
+}
+
+.my-profile-empty-hint {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--text-secondary, #64748b);
+}
+
+.my-profile-meta-item--row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.btn-sm {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.875rem;
+}
+
 .profile-lifestyle {
   display: flex;
   flex-direction: column;
@@ -4538,6 +4570,49 @@ img {
   max-width: 420px;
   width: 100%;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.2);
+}
+
+.my-profile-modal-card--scroll {
+  max-width: min(560px, 100%);
+  max-height: min(90vh, 720px);
+  overflow-y: auto;
+}
+
+.my-profile-edit-grid {
+  margin-bottom: var(--space-2);
+}
+
+.my-profile-inline-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.my-profile-inline-add .form-input {
+  flex: 1;
+  min-width: 160px;
+}
+
+.my-profile-lifestyle-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-bottom: var(--space-3);
+  font-weight: 600;
+  color: var(--color-wine-900, #4a0d1f);
+  font-size: 0.9rem;
+}
+
+.my-profile-tag-removable {
+  cursor: pointer;
+  border: none;
+  font: inherit;
+}
+
+.my-profile-tag-on {
+  outline: 2px solid var(--color-rose-500, #f43f5e);
+  outline-offset: 1px;
 }
 
 .my-profile-modal-card h3 {
