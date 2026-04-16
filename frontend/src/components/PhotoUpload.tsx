@@ -23,6 +23,7 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -32,6 +33,46 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
       fetchMyPhotos();
     }
   }, [profileId]);
+
+  useEffect(() => {
+    if (lightboxIndex === null) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [lightboxIndex]);
+
+  useEffect(() => {
+    if (lightboxIndex === null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setLightboxIndex(null);
+        return;
+      }
+      const n = photos.length;
+      if (n === 0) return;
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        setLightboxIndex((i) => (i === null ? null : (i + n - 1) % n));
+      }
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        setLightboxIndex((i) => (i === null ? null : (i + 1) % n));
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lightboxIndex, photos.length]);
+
+  useEffect(() => {
+    setLightboxIndex((i) => {
+      if (i === null) return null;
+      const n = photos.length;
+      if (n === 0) return null;
+      return i >= n ? n - 1 : i;
+    });
+  }, [photos]);
 
   const fetchPhotos = async () => {
     if (!profileId) return;
@@ -314,8 +355,27 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
 
   // Sort photos by displayOrder to ensure correct order
   const sortedPhotos = [...photos].sort((a, b) => a.displayOrder - b.displayOrder);
-  console.log('📸 PhotoUpload: Photos loaded:', sortedPhotos.length, 'of', maxPhotos);
-  console.log('📸 PhotoUpload: Photo display orders:', sortedPhotos.map(p => p.displayOrder));
+
+  const safeLightboxIndex =
+    lightboxIndex !== null && sortedPhotos.length > 0
+      ? Math.min(lightboxIndex, sortedPhotos.length - 1)
+      : null;
+
+  const openLightboxAt = (photoId: string) => {
+    const idx = sortedPhotos.findIndex((p) => p.id === photoId);
+    if (idx >= 0) setLightboxIndex(idx);
+  };
+
+  const closeLightbox = () => setLightboxIndex(null);
+
+  const goLightbox = (delta: number) => {
+    const n = sortedPhotos.length;
+    if (n === 0) return;
+    setLightboxIndex((i) => {
+      if (i === null) return null;
+      return (i + delta + n) % n;
+    });
+  };
   
   // Create array of slots: first show all photos, then fill remaining with empty slots
   const slots: Array<{ index: number; photo: Photo | null }> = [];
@@ -330,8 +390,6 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
     slots.push({ index: i, photo: null });
   }
   
-  console.log('📸 PhotoUpload: Created', slots.length, 'slots (', sortedPhotos.length, 'filled,', slots.length - sortedPhotos.length, 'empty)');
-
   return (
     <div className="photo-upload">
       {error && <div className="auth-error">{error}</div>}
@@ -368,29 +426,45 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
             return (
               <div key={slot.photo.id} className="photo-item">
                 <div className="photo-container">
-                  <img 
-                    src={getPhotoUrl(slot.photo.url) || '#'} 
-                    alt={`Photo ${slot.index + 1}`} 
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.style.display = 'none';
-                    }}
-                  />
+                  <button
+                    type="button"
+                    className="photo-upload-thumb"
+                    onClick={() => openLightboxAt(slot.photo!.id)}
+                    aria-label={`View photo ${slot.index + 1} larger`}
+                  >
+                    <img
+                      src={getPhotoUrl(slot.photo.url) || "#"}
+                      alt={`Photo ${slot.index + 1}`}
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = "none";
+                      }}
+                      draggable={false}
+                    />
+                  </button>
                   {slot.photo.isPrimary && <div className="photo-primary-badge">⭐ Primary</div>}
                   {!profileId && (
                     <div className="photo-actions">
                       {!slot.photo.isPrimary && (
                         <button
+                          type="button"
                           className="btn btn-sm btn-secondary"
-                          onClick={() => handleSetPrimary(slot.photo!.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void handleSetPrimary(slot.photo!.id);
+                          }}
                           title="Set as primary"
                         >
                           ⭐
                         </button>
                       )}
                       <button
+                        type="button"
                         className="btn btn-sm btn-danger"
-                        onClick={() => handleDeletePhoto(slot.photo!.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleDeletePhoto(slot.photo!.id);
+                        }}
                         title="Delete photo"
                       >
                         🗑️
@@ -420,6 +494,55 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
           }
         })}
       </div>
+
+      {safeLightboxIndex !== null && sortedPhotos.length > 0 && (
+        <div
+          className="photo-lightbox-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Enlarged photos"
+        >
+          <div className="photo-lightbox-backdrop" onClick={closeLightbox} aria-hidden />
+          <button type="button" className="photo-lightbox-close" onClick={closeLightbox} aria-label="Close">
+            ×
+          </button>
+          {sortedPhotos.length > 1 && (
+            <button
+              type="button"
+              className="photo-lightbox-nav photo-lightbox-nav--prev"
+              onClick={() => goLightbox(-1)}
+              aria-label="Previous photo"
+            >
+              ‹
+            </button>
+          )}
+          <div className="photo-lightbox-content" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={getPhotoUrl(sortedPhotos[safeLightboxIndex].url) || "#"}
+              alt={`Photo ${safeLightboxIndex + 1} of ${sortedPhotos.length}`}
+              className="photo-lightbox-img"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = "none";
+              }}
+              draggable={false}
+            />
+            <div className="photo-lightbox-caption">
+              {safeLightboxIndex + 1} / {sortedPhotos.length}
+              {sortedPhotos[safeLightboxIndex].isPrimary ? <span className="photo-lightbox-primary-tag"> · Primary</span> : null}
+            </div>
+          </div>
+          {sortedPhotos.length > 1 && (
+            <button
+              type="button"
+              className="photo-lightbox-nav photo-lightbox-nav--next"
+              onClick={() => goLightbox(1)}
+              aria-label="Next photo"
+            >
+              ›
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

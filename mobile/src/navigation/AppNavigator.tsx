@@ -186,7 +186,7 @@ function MainTabs() {
           </View>
         </TabIcon>
       ),
-      tabBarLabel: 'Discover',
+      tabBarLabel: 'Connect',
       tabBarButton: createTabBarButton(true),
     }),
     [createTabBarButton]
@@ -201,7 +201,7 @@ function MainTabs() {
           </View>
         </TabIcon>
       ),
-      tabBarLabel: 'Vibes',
+      tabBarLabel: 'Matches',
       tabBarButton: createTabBarButton(true),
     }),
     [createTabBarButton]

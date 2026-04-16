@@ -13,6 +13,18 @@ const PREFERRED_GENDER_LABELS: Record<string, string> = {
 };
 const MAX_DISTANCE_OPTIONS: (number | null)[] = [10, 25, 50, 100, 250, 500, null];
 
+/** Canonical values stored in `looking_for` (profile API). */
+const LOOKING_FOR_OPTIONS = [
+  "Relationship",
+  "Something casual",
+  "Friendship",
+  "Not sure yet",
+] as const;
+
+function isCanonicalLookingFor(v: string | null | undefined): v is (typeof LOOKING_FOR_OPTIONS)[number] {
+  return !!v && (LOOKING_FOR_OPTIONS as readonly string[]).includes(v);
+}
+
 interface ProfileData {
   profile: {
     id: string;
@@ -216,10 +228,12 @@ export default function MyProfile() {
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showDistanceModal, setShowDistanceModal] = useState(false);
   const [showPreferredModal, setShowPreferredModal] = useState(false);
+  const [showLookingForModal, setShowLookingForModal] = useState(false);
   const [showBioModal, setShowBioModal] = useState(false);
   const [editLocation, setEditLocation] = useState("");
   const [editMaxDistance, setEditMaxDistance] = useState<number | null>(50);
   const [editPreferredGenders, setEditPreferredGenders] = useState<string[]>(["Everyone"]);
+  const [editLookingFor, setEditLookingFor] = useState("");
   const [editBio, setEditBio] = useState("");
   const [detectingLocation, setDetectingLocation] = useState(false);
   const [updatingField, setUpdatingField] = useState(false);
@@ -234,8 +248,6 @@ export default function MyProfile() {
   const [editQualities, setEditQualities] = useState<string[]>([]);
   const [showLifestyleModal, setShowLifestyleModal] = useState(false);
   const [editLifestyle, setEditLifestyle] = useState<LifestyleForm>(() => lifestyleFormFromApi(null));
-  const [showLookingModal, setShowLookingModal] = useState(false);
-  const [editLookingFor, setEditLookingFor] = useState("");
 
   const fetchPhotos = async () => {
     try {
@@ -463,6 +475,35 @@ export default function MyProfile() {
     }
   };
 
+  const saveLookingFor = async () => {
+    if (!data?.profile) return;
+    const raw = editLookingFor.trim();
+    const lookingFor = raw === "" ? null : raw;
+    if (lookingFor !== null && !isCanonicalLookingFor(lookingFor)) {
+      setError("Please choose one of the listed options.");
+      return;
+    }
+    setUpdatingField(true);
+    setError("");
+    try {
+      await api.post("/profile", {
+        displayName: data.profile.display_name,
+        age: data.profile.age,
+        gender: data.profile.gender,
+        location: data.profile.location ?? null,
+        bio: data.profile.bio ?? null,
+        lookingFor,
+      });
+      setData((prev) => (prev ? { ...prev, profile: { ...prev.profile, looking_for: lookingFor } } : null));
+      setShowLookingForModal(false);
+      await refreshProfile();
+    } catch (e: unknown) {
+      setError((e as Error)?.message || "Failed to update looking for.");
+    } finally {
+      setUpdatingField(false);
+    }
+  };
+
   const saveBio = async () => {
     if (!data?.profile) return;
     const val = editBio.trim() || null;
@@ -564,30 +605,6 @@ export default function MyProfile() {
       await refreshProfile();
     } catch (e: unknown) {
       setError((e as Error)?.message || "Failed to update lifestyle.");
-    } finally {
-      setUpdatingField(false);
-    }
-  };
-
-  const saveLookingFor = async () => {
-    if (!data?.profile) return;
-    const val = editLookingFor.trim() || null;
-    setUpdatingField(true);
-    setError("");
-    try {
-      await api.post("/profile", {
-        displayName: data.profile.display_name,
-        age: data.profile.age,
-        gender: data.profile.gender,
-        location: data.profile.location ?? null,
-        bio: data.profile.bio ?? null,
-        lookingFor: val,
-      });
-      setData((prev) => (prev ? { ...prev, profile: { ...prev.profile, looking_for: val } } : null));
-      setShowLookingModal(false);
-      await refreshProfile();
-    } catch (e: unknown) {
-      setError((e as Error)?.message || "Failed to update looking for.");
     } finally {
       setUpdatingField(false);
     }
@@ -784,6 +801,24 @@ export default function MyProfile() {
 
           <button
             type="button"
+            className="my-profile-full-card my-profile-full-card--looking"
+            onClick={() => {
+              const cur = profile.looking_for ?? "";
+              setEditLookingFor(isCanonicalLookingFor(cur) ? cur : "");
+              setShowLookingForModal(true);
+            }}
+          >
+            <span className="my-profile-full-card-emoji">❤️</span>
+            <span className="my-profile-full-card-label">Looking for</span>
+            <span className="my-profile-full-card-value">
+              {profile.looking_for?.trim()
+                ? profile.looking_for
+                : "Tap to choose"}
+            </span>
+          </button>
+
+          <button
+            type="button"
             className="my-profile-bio-block"
             onClick={() => {
               setEditBio(profile.bio || "");
@@ -799,24 +834,6 @@ export default function MyProfile() {
             </p>
           </button>
 
-          <div className="my-profile-meta-group" style={{ marginTop: "var(--space-4)" }}>
-            <div className="my-profile-meta-item my-profile-meta-item--row">
-              <div>
-                <span className="my-profile-meta-label">Looking for</span>
-                <span className="my-profile-meta-value">{profile.looking_for || "—"}</span>
-              </div>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() => {
-                  setEditLookingFor(profile.looking_for || "");
-                  setShowLookingModal(true);
-                }}
-              >
-                Edit
-              </button>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -996,24 +1013,46 @@ export default function MyProfile() {
       {showLocationModal && (
         <div className="my-profile-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="loc-title">
           <div className="my-profile-modal-backdrop" onClick={() => setShowLocationModal(false)} />
-          <div className="my-profile-modal-card">
-            <h3 id="loc-title">Update location</h3>
-            <p className="my-profile-modal-sub">City and state required (e.g. Medford, Oregon)</p>
-            <input
-              className="form-input"
-              value={editLocation}
-              onChange={(e) => setEditLocation(e.target.value)}
-              placeholder="City, State"
-            />
-            <div className="my-profile-modal-actions">
-              <button type="button" className="btn btn-secondary" onClick={() => void detectLocation()} disabled={detectingLocation}>
+          <div className="my-profile-modal-card my-profile-modal-card--location" role="document">
+            <button
+              type="button"
+              className="my-profile-modal-close"
+              aria-label="Close"
+              onClick={() => setShowLocationModal(false)}
+            >
+              ×
+            </button>
+            <div className="my-profile-modal-head">
+              <span className="my-profile-modal-icon" aria-hidden>
+                📍
+              </span>
+              <div>
+                <h3 id="loc-title">Update location</h3>
+                <p className="my-profile-modal-sub">City and state (e.g. Medford, Oregon)</p>
+              </div>
+            </div>
+            <div className="my-profile-modal-body">
+              <input
+                className="form-input"
+                value={editLocation}
+                onChange={(e) => setEditLocation(e.target.value)}
+                placeholder="City, State"
+              />
+              <button
+                type="button"
+                className="btn btn-secondary my-profile-modal-loc-detect"
+                onClick={() => void detectLocation()}
+                disabled={detectingLocation}
+              >
                 {detectingLocation ? "Detecting…" : "Use my location"}
+              </button>
+            </div>
+            <div className="my-profile-modal-actions">
+              <button type="button" className="btn btn-ghost" onClick={() => setShowLocationModal(false)}>
+                Cancel
               </button>
               <button type="button" className="btn btn-primary" onClick={() => void saveLocation()} disabled={updatingField}>
                 Save
-              </button>
-              <button type="button" className="btn btn-ghost" onClick={() => setShowLocationModal(false)}>
-                Cancel
               </button>
             </div>
           </div>
@@ -1021,31 +1060,104 @@ export default function MyProfile() {
       )}
 
       {showDistanceModal && (
-        <div className="my-profile-modal-overlay" role="dialog" aria-modal="true">
+        <div className="my-profile-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="dist-title">
           <div className="my-profile-modal-backdrop" onClick={() => setShowDistanceModal(false)} />
-          <div className="my-profile-modal-card">
-            <h3>Max distance</h3>
-            <p className="my-profile-modal-sub">Used when matching with people nearby</p>
-            <select
-              className="form-input"
-              value={editMaxDistance === null ? "any" : String(editMaxDistance)}
-              onChange={(e) => {
-                const v = e.target.value;
-                setEditMaxDistance(v === "any" ? null : parseInt(v, 10));
-              }}
+          <div className="my-profile-modal-card my-profile-modal-card--distance" role="document">
+            <button
+              type="button"
+              className="my-profile-modal-close"
+              aria-label="Close"
+              onClick={() => setShowDistanceModal(false)}
             >
-              {MAX_DISTANCE_OPTIONS.map((opt) => (
-                <option key={opt === null ? "any" : opt} value={opt === null ? "any" : String(opt)}>
-                  {opt === null ? "Any distance" : `${opt} mi`}
-                </option>
-              ))}
-            </select>
+              ×
+            </button>
+            <div className="my-profile-modal-head">
+              <span className="my-profile-modal-icon" aria-hidden>
+                📏
+              </span>
+              <div>
+                <h3 id="dist-title">Max distance</h3>
+                <p className="my-profile-modal-sub">How far to search for people to connect with</p>
+              </div>
+            </div>
+            <div className="my-profile-modal-body">
+              <select
+                className="form-input form-select"
+                value={editMaxDistance === null ? "any" : String(editMaxDistance)}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setEditMaxDistance(v === "any" ? null : parseInt(v, 10));
+                }}
+              >
+                {MAX_DISTANCE_OPTIONS.map((opt) => (
+                  <option key={opt === null ? "any" : opt} value={opt === null ? "any" : String(opt)}>
+                    {opt === null ? "Any distance" : `${opt} mi`}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="my-profile-modal-actions">
+              <button type="button" className="btn btn-ghost" onClick={() => setShowDistanceModal(false)}>
+                Cancel
+              </button>
               <button type="button" className="btn btn-primary" onClick={() => void saveMaxDistance()} disabled={updatingField}>
                 Save
               </button>
-              <button type="button" className="btn btn-ghost" onClick={() => setShowDistanceModal(false)}>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showLookingForModal && (
+        <div className="my-profile-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="looking-title">
+          <div className="my-profile-modal-backdrop" onClick={() => setShowLookingForModal(false)} />
+          <div className="my-profile-modal-card my-profile-modal-card--looking" role="document">
+            <button
+              type="button"
+              className="my-profile-modal-close"
+              aria-label="Close"
+              onClick={() => setShowLookingForModal(false)}
+            >
+              ×
+            </button>
+            <div className="my-profile-modal-head">
+              <span className="my-profile-modal-icon" aria-hidden>
+                ❤️
+              </span>
+              <div>
+                <h3 id="looking-title">Looking for</h3>
+                <p className="my-profile-modal-sub">What you&apos;re hoping to find on Mulligan</p>
+              </div>
+            </div>
+            {profile.looking_for && !isCanonicalLookingFor(profile.looking_for) ? (
+              <p className="my-profile-modal-legacy-hint">
+                Your profile currently says &ldquo;{profile.looking_for}&rdquo;. Pick an option below to update it.
+              </p>
+            ) : null}
+            <div className="my-profile-modal-body">
+              <label className="my-profile-modal-field-label" htmlFor="looking-for-select">
+                Choose one
+              </label>
+              <select
+                id="looking-for-select"
+                className="form-input form-select"
+                value={editLookingFor}
+                onChange={(e) => setEditLookingFor(e.target.value)}
+              >
+                <option value="">Select an option…</option>
+                {LOOKING_FOR_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="my-profile-modal-actions">
+              <button type="button" className="btn btn-ghost" onClick={() => setShowLookingForModal(false)}>
                 Cancel
+              </button>
+              <button type="button" className="btn btn-primary" onClick={() => void saveLookingFor()} disabled={updatingField}>
+                Save
               </button>
             </div>
           </div>
@@ -1053,43 +1165,66 @@ export default function MyProfile() {
       )}
 
       {showPreferredModal && (
-        <div className="my-profile-modal-overlay" role="dialog" aria-modal="true">
+        <div className="my-profile-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="pref-title">
           <div className="my-profile-modal-backdrop" onClick={() => setShowPreferredModal(false)} />
-          <div className="my-profile-modal-card">
-            <h3>Preferred connections</h3>
-            <p className="my-profile-modal-sub">Who you want to see in discovery</p>
-            <label className="my-profile-check-row">
-              <input
-                type="checkbox"
-                checked={editPreferredGenders.includes("Everyone")}
-                onChange={(e) => toggleEveryone(e.target.checked)}
-              />
-              Everyone
-            </label>
-            <label className="my-profile-check-row">
-              <input
-                type="checkbox"
-                checked={editPreferredGenders.includes("Man")}
-                disabled={editPreferredGenders.includes("Everyone")}
-                onChange={(e) => toggleGenderOption("Man", e.target.checked)}
-              />
-              Men
-            </label>
-            <label className="my-profile-check-row">
-              <input
-                type="checkbox"
-                checked={editPreferredGenders.includes("Woman")}
-                disabled={editPreferredGenders.includes("Everyone")}
-                onChange={(e) => toggleGenderOption("Woman", e.target.checked)}
-              />
-              Women
-            </label>
+          <div className="my-profile-modal-card my-profile-modal-card--preferred" role="document">
+            <button
+              type="button"
+              className="my-profile-modal-close"
+              aria-label="Close"
+              onClick={() => setShowPreferredModal(false)}
+            >
+              ×
+            </button>
+            <div className="my-profile-modal-head">
+              <span className="my-profile-modal-icon" aria-hidden>
+                🔗
+              </span>
+              <div>
+                <h3 id="pref-title">Preferred connections</h3>
+                <p className="my-profile-modal-sub">Who you want to see in Connect</p>
+              </div>
+            </div>
+            <div className="my-profile-modal-body">
+              <div className="my-profile-pref-grid" role="group" aria-label="Preferred connections">
+                <button
+                  type="button"
+                  className={`my-profile-pref-chip ${editPreferredGenders.includes("Everyone") ? "is-selected" : ""}`}
+                  onClick={() => toggleEveryone(true)}
+                >
+                  Everyone
+                  {editPreferredGenders.includes("Everyone") ? <span className="my-profile-pref-chip-check">✓</span> : null}
+                </button>
+                <button
+                  type="button"
+                  className={`my-profile-pref-chip ${editPreferredGenders.includes("Man") ? "is-selected" : ""}`}
+                  disabled={editPreferredGenders.includes("Everyone")}
+                  onClick={() => toggleGenderOption("Man", !editPreferredGenders.includes("Man"))}
+                >
+                  Men
+                  {editPreferredGenders.includes("Man") && !editPreferredGenders.includes("Everyone") ? (
+                    <span className="my-profile-pref-chip-check">✓</span>
+                  ) : null}
+                </button>
+                <button
+                  type="button"
+                  className={`my-profile-pref-chip ${editPreferredGenders.includes("Woman") ? "is-selected" : ""}`}
+                  disabled={editPreferredGenders.includes("Everyone")}
+                  onClick={() => toggleGenderOption("Woman", !editPreferredGenders.includes("Woman"))}
+                >
+                  Women
+                  {editPreferredGenders.includes("Woman") && !editPreferredGenders.includes("Everyone") ? (
+                    <span className="my-profile-pref-chip-check">✓</span>
+                  ) : null}
+                </button>
+              </div>
+            </div>
             <div className="my-profile-modal-actions">
-              <button type="button" className="btn btn-primary" onClick={() => void savePreferredGenders()} disabled={updatingField}>
-                Save
-              </button>
               <button type="button" className="btn btn-ghost" onClick={() => setShowPreferredModal(false)}>
                 Cancel
+              </button>
+              <button type="button" className="btn btn-primary" onClick={() => void savePreferredGenders()} disabled={updatingField}>
+                Save
               </button>
             </div>
           </div>
@@ -1097,49 +1232,30 @@ export default function MyProfile() {
       )}
 
       {showBioModal && (
-        <div className="my-profile-modal-overlay" role="dialog" aria-modal="true">
+        <div className="my-profile-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="bio-modal-title">
           <div className="my-profile-modal-backdrop" onClick={() => setShowBioModal(false)} />
-          <div className="my-profile-modal-card">
-            <h3>About me</h3>
-            <textarea
-              className="form-input"
-              rows={5}
-              maxLength={500}
-              value={editBio}
-              onChange={(e) => setEditBio(e.target.value)}
-            />
+          <div className="my-profile-modal-card" role="document">
+            <button type="button" className="my-profile-modal-close" aria-label="Close" onClick={() => setShowBioModal(false)}>
+              ×
+            </button>
+            <div className="my-profile-modal-head">
+              <span className="my-profile-modal-icon" aria-hidden>
+                💬
+              </span>
+              <div>
+                <h3 id="bio-modal-title">About me</h3>
+                <p className="my-profile-modal-sub">Up to 500 characters</p>
+              </div>
+            </div>
+            <div className="my-profile-modal-body">
+              <textarea className="form-input form-textarea" rows={5} maxLength={500} value={editBio} onChange={(e) => setEditBio(e.target.value)} />
+            </div>
             <div className="my-profile-modal-actions">
-              <button type="button" className="btn btn-primary" onClick={() => void saveBio()} disabled={updatingField}>
-                Save
-              </button>
               <button type="button" className="btn btn-ghost" onClick={() => setShowBioModal(false)}>
                 Cancel
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showLookingModal && (
-        <div className="my-profile-modal-overlay" role="dialog" aria-modal="true">
-          <div className="my-profile-modal-backdrop" onClick={() => setShowLookingModal(false)} />
-          <div className="my-profile-modal-card">
-            <h3>Looking for</h3>
-            <p className="my-profile-modal-sub">What you want others to know about what you&apos;re seeking</p>
-            <textarea
-              className="form-input"
-              rows={4}
-              maxLength={500}
-              value={editLookingFor}
-              onChange={(e) => setEditLookingFor(e.target.value)}
-              placeholder="e.g. Something serious, new friends, activity partners…"
-            />
-            <div className="my-profile-modal-actions">
-              <button type="button" className="btn btn-primary" onClick={() => void saveLookingFor()} disabled={updatingField}>
+              <button type="button" className="btn btn-primary" onClick={() => void saveBio()} disabled={updatingField}>
                 Save
-              </button>
-              <button type="button" className="btn btn-ghost" onClick={() => setShowLookingModal(false)}>
-                Cancel
               </button>
             </div>
           </div>
