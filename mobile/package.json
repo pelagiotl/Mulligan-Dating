@@ -10,11 +10,13 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "generate:adaptive-icon": "node scripts/generate-adaptive-icon-from-icon.js",
-    "sync:native-assets": "bash scripts/sync-native-from-assets.sh"
+    "sync:native-assets": "bash scripts/sync-native-from-assets.sh",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "1.23.1",
     "@react-native-picker/picker": "2.9.0",
+    "@react-native/gradle-plugin": "^0.76.9",
     "@react-navigation/bottom-tabs": "^6.5.0",
     "@react-navigation/native": "^6.1.0",
     "@react-navigation/stack": "^6.3.0",
@@ -48,6 +50,7 @@
     "@types/react": "~18.3.12",
     "eas-cli": ">= 16.28.0",
     "jimp": "^0.16.13",
+    "patch-package": "^8.0.1",
     "typescript": "~5.3.3"
   },
   "private": true
