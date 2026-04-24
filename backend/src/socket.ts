@@ -6,6 +6,27 @@ import { v4 as uuidv4 } from 'uuid';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'mulligan-secret-key-change-in-production';
 
+/** Must stay in sync with Express CORS in `index.ts` — browsers send Origin on the Socket.IO handshake too. */
+function isSocketOriginAllowed(origin: string | undefined): boolean {
+  if (!origin) return true;
+  if (process.env.NODE_ENV !== 'production') {
+    return (
+      origin.includes('localhost') ||
+      origin.includes('127.0.0.1') ||
+      origin.includes('ngrok') ||
+      origin === 'null' ||
+      origin.includes('expo')
+    );
+  }
+  const fromEnv = (process.env.ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (fromEnv.length > 0 && fromEnv.includes(origin)) return true;
+  if (origin.includes('render.com') || origin.includes('expo')) return true;
+  return false;
+}
+
 interface AuthenticatedSocket extends Socket {
   userId?: string;
 }
@@ -19,15 +40,7 @@ export function initializeSocket(server: HTTPServer) {
   const io = new SocketIOServer(server, {
     cors: {
       origin: (origin, callback) => {
-        // Allow: no origin (mobile/native apps), localhost, ngrok, or production
-        const allowed =
-          !origin ||
-          origin.includes('localhost') ||
-          origin.includes('ngrok') ||
-          origin === 'null' ||
-          origin.includes('render.com') ||
-          origin.includes('expo');
-        callback(null, allowed);
+        callback(null, isSocketOriginAllowed(origin));
       },
       credentials: true,
     },

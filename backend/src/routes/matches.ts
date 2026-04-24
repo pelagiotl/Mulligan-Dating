@@ -1005,7 +1005,7 @@ matchesRouter.get("/:matchId/messages", authenticateToken, async (req: AuthReque
            WHERE m.match_id = ?
            ORDER BY m.sent_at DESC
            LIMIT ?
-         ) ORDER BY sent_at ASC`
+         ) AS msg_window ORDER BY msg_window.sent_at ASC`
       )
       .all([matchId, MESSAGES_LIMIT]);
     const messages = (messagesResult instanceof Promise

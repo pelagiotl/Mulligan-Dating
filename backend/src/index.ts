@@ -217,7 +217,7 @@ app.get("/child-safety", (_req, res) => {
 
 // CORS configuration
 const allowedOrigins = process.env.NODE_ENV === 'production' 
-  ? (process.env.ALLOWED_ORIGINS?.split(',') || [])
+  ? (process.env.ALLOWED_ORIGINS?.split(',') || []).map((s) => s.trim()).filter(Boolean)
   : ["http://localhost:5173", "http://localhost:5174", "http://127.0.0.1:5173", "http://127.0.0.1:5174"];
 
 app.use(

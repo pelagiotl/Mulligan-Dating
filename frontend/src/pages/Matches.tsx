@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { io, Socket } from "socket.io-client";
-import { api } from "../utils/api";
+import { api, ApiError } from "../utils/api";
 import { useAuth } from "../context/AuthContext";
 import { getPhotoUrl } from "../utils/photoUrl";
 import Notification from "../components/Notification";
@@ -69,6 +69,11 @@ export default function Matches() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const selectedMatchIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    selectedMatchIdRef.current = selectedMatch?.id ?? null;
+  }, [selectedMatch?.id]);
 
   // Initialize WebSocket connection
   useEffect(() => {
@@ -86,6 +91,10 @@ export default function Matches() {
 
     socket.on('connect', () => {
       console.log('✅ Connected to WebSocket server');
+      const openId = selectedMatchIdRef.current;
+      if (openId) {
+        socket.emit('join_match', openId);
+      }
     });
 
     socket.on('disconnect', () => {
@@ -101,7 +110,11 @@ export default function Matches() {
     });
 
     // Handle new messages
-    socket.on('new_message', (message: Message) => {
+    socket.on('new_message', (message: Message & { matchId?: string }) => {
+      const openId = selectedMatchIdRef.current;
+      if (message.matchId && openId && message.matchId !== openId) {
+        return;
+      }
       setMessages((prev) => {
         // Check if message already exists (avoid duplicates)
         if (prev.some((m) => m.id === message.id)) {
@@ -393,55 +406,72 @@ export default function Matches() {
         
         setMessageCounts({ user: userValidCount, other: otherValidCount });
       }
-    } catch {
-      // Ignore
+    } catch (err) {
+      console.error("Failed to fetch messages:", err);
     }
   };
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedMatch || sendingMessage) return;
-    
-    if (!socketRef.current || !socketRef.current.connected) {
-      setNotification({
-        message: "Not connected to server. Please refresh the page.",
-        type: "error"
-      });
-      return;
-    }
 
     const messageContent = newMessage.trim();
+    const matchId = selectedMatch.id;
     setNewMessage("");
     setIsTyping(false);
-    setSendingMessage(true);
-    
-    // Clear typing timeout
+
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
-    
-    // Stop typing indicator
-    socketRef.current.emit('stop_typing', { matchId: selectedMatch.id });
-    
-    // Send message via WebSocket
-    try {
-      socketRef.current.emit('send_message', {
-        matchId: selectedMatch.id,
-        content: messageContent,
-      });
-      console.log('Message sent:', messageContent);
-    } catch (error) {
-      console.error('Error sending message:', error);
-      setNotification({
-        message: "Failed to send message. Please try again.",
-        type: "error"
-      });
-      setSendingMessage(false);
+
+    if (socketRef.current?.connected) {
+      socketRef.current.emit('stop_typing', { matchId });
     }
 
-    // Reset sending state after a delay (message will appear via new_message event)
-    setTimeout(() => {
+    setSendingMessage(true);
+
+    try {
+      const data = await api.post<{
+        message: Message;
+        autoAdvanced?: boolean;
+        stage?: string;
+      }>(`/matches/${matchId}/messages`, { content: messageContent });
+
+      // Show the sent message immediately (GET /messages can fail on PG if misconfigured; POST still saves)
+      setMessages((prev) => {
+        const m = data.message;
+        if (prev.some((x) => x.id === m.id)) return prev;
+        return [...prev, { ...m, isOwn: true }];
+      });
+
+      await fetchMessages(matchId);
+
+      if (data.autoAdvanced && data.stage === "stage2") {
+        setMatches((prev) =>
+          prev.map((m) => (m.id === matchId ? { ...m, stage: "stage2" as const } : m))
+        );
+        setSelectedMatch((prev) =>
+          prev && prev.id === matchId ? { ...prev, stage: "stage2" as const } : prev
+        );
+        setNotification({
+          message: "🎉 All photos unlocked! You've each sent 3+ messages.",
+          type: "success",
+        });
+        const matchForPhotos = { ...selectedMatch, id: matchId, stage: "stage2" as const };
+        fetchMatchPhotos(matchForPhotos);
+      }
+    } catch (error) {
+      console.error("Failed to send message:", error);
+      setNewMessage(messageContent);
+      const msg =
+        error instanceof ApiError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : "Failed to send message. Please try again.";
+      setNotification({ message: msg, type: "error" });
+    } finally {
       setSendingMessage(false);
-    }, 1000);
+    }
   };
 
   // Handle typing indicator
