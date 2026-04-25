@@ -19,6 +19,10 @@
       "env": {
         "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       },
+      "android": {
+        "image": "sdk-52",
+        "ndk": "28.0.12674087"
+      },
       "ios": {
         "image": "macos-sequoia-15.6-xcode-26.2"
       }
