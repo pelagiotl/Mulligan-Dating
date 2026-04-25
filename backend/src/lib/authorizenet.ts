@@ -268,44 +268,54 @@ export async function createApplePayAuthCaptureTransaction(params: {
     throw new Error("invoiceNumber must be at most 20 characters");
   }
 
-  const body = {
-    createTransactionRequest: {
-      merchantAuthentication: auth,
-      refId: params.invoiceNumber,
-      transactionRequest: {
-        transactionType: "authCaptureTransaction",
-        amount: params.amountDollars,
-        payment: {
-          opaqueData: {
-            dataDescriptor: "COMMON.APPLE.INAPP.PAYMENT",
-            dataValue: params.applePayOpaqueDataValueBase64,
+  // Web + iOS homescreen (standalone Safari) can return Apple Pay payloads that
+  // Authorize.Net accepts under WEB descriptor, while native/in-app flows may
+  // still require INAPP descriptor. Try WEB first, then INAPP as fallback.
+  const descriptors = ["COMMON.APPLE.WEB.PAYMENT", "COMMON.APPLE.INAPP.PAYMENT"] as const;
+  const errors: string[] = [];
+
+  for (const descriptor of descriptors) {
+    const body = {
+      createTransactionRequest: {
+        merchantAuthentication: auth,
+        refId: params.invoiceNumber,
+        transactionRequest: {
+          transactionType: "authCaptureTransaction",
+          amount: params.amountDollars,
+          payment: {
+            opaqueData: {
+              dataDescriptor: descriptor,
+              dataValue: params.applePayOpaqueDataValueBase64,
+            },
+          },
+          order: {
+            invoiceNumber: params.invoiceNumber,
+            description: params.description,
           },
         },
-        order: {
-          invoiceNumber: params.invoiceNumber,
-          description: params.description,
-        },
       },
-    },
-  };
-
-  const json = await authorizeNetJsonRequest(body);
-  const topOk = (json.messages as { resultCode?: string } | undefined)?.resultCode === "Ok";
-  const tr = json.transactionResponse as Record<string, unknown> | undefined;
-  const responseCode = String(tr?.responseCode ?? "");
-  const transId = String(tr?.transId ?? "");
-  if (topOk && responseCode === "1" && transId) {
-    return {
-      transId,
-      responseCode,
-      authCode: tr?.authCode as string | undefined,
     };
+
+    const json = await authorizeNetJsonRequest(body);
+    const topOk = (json.messages as { resultCode?: string } | undefined)?.resultCode === "Ok";
+    const tr = json.transactionResponse as Record<string, unknown> | undefined;
+    const responseCode = String(tr?.responseCode ?? "");
+    const transId = String(tr?.transId ?? "");
+    if (topOk && responseCode === "1" && transId) {
+      return {
+        transId,
+        responseCode,
+        authCode: tr?.authCode as string | undefined,
+      };
+    }
+
+    const err =
+      firstTransactionError(json) ||
+      firstTransactionMessage(json) ||
+      (json.messages as { message?: { text?: string }[] })?.message?.[0]?.text ||
+      JSON.stringify(tr?.errors ?? tr ?? json);
+    errors.push(`${descriptor}: ${err}`);
   }
 
-  const err =
-    firstTransactionError(json) ||
-    firstTransactionMessage(json) ||
-    (json.messages as { message?: { text?: string }[] })?.message?.[0]?.text ||
-    JSON.stringify(tr?.errors ?? tr ?? json);
-  throw new Error(`Apple Pay charge failed: ${err}`);
+  throw new Error(`Apple Pay charge failed: ${errors.join(" | ")}`);
 }
