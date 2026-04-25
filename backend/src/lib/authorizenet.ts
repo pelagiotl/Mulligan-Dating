@@ -280,7 +280,6 @@ export async function createApplePayAuthCaptureTransaction(params: {
         transactionRequest: {
           transactionType: "authCaptureTransaction",
           amount: params.amountDollars,
-          retail: { marketType: "0" },
           payment: {
             opaqueData: {
               dataDescriptor: descriptor,
