@@ -71,13 +71,32 @@
   display: none;
 }
 
-/* iPhone webapp shell: keep token card compact and visually centered on Connect landing. */
+/* Connect landing on phone / PWA: token in-flow above the card (fixed + transform overlapped
+   the Discover People card and lost stacking vs .connect-landing-page > *). */
+@media (max-width: 900px) {
+  .connect-landing-page {
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: clamp(14px, 4vw, 22px);
+  }
+
+  .connect-landing-page .browse-native-token-fixed {
+    position: relative;
+    left: auto;
+    right: auto;
+    top: auto;
+    transform: none;
+    max-width: min(340px, calc(100vw - 32px));
+    width: 100%;
+    z-index: 2;
+    flex-shrink: 0;
+  }
+}
+
+/* Narrow phones: slightly tighter token card on Connect landing. */
 @media (max-width: 480px) {
   .connect-landing-page .browse-native-token-fixed {
-    left: 50%;
-    right: auto;
-    transform: translateX(-50%);
-    top: max(64px, calc(env(safe-area-inset-top, 0px) + 44px));
     max-width: min(300px, calc(100vw - 28px));
   }
 
