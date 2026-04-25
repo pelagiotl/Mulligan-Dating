@@ -655,7 +655,8 @@ paymentsRouter.post("/apple-pay/complete", authenticateToken, rateLimitAPI, asyn
   }
 
   const amountDollars = (session.amount_cents / 100).toFixed(2);
-  const opaqueBase64 = Buffer.from(JSON.stringify(paymentToken), "utf8").toString("base64");
+  // Authorize.Net expects Base64(JSON.stringify(token.paymentData)), not the full ApplePayPaymentToken.
+  const opaqueBase64 = Buffer.from(JSON.stringify(paymentToken.paymentData), "utf8").toString("base64");
 
   let transId: string;
   try {

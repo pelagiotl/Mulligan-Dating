@@ -260,7 +260,7 @@ export async function createApplePayAuthCaptureTransaction(params: {
   amountDollars: string;
   invoiceNumber: string;
   description: string;
-  /** Base64-encoded JSON of Apple Pay `payment.token` (ApplePayPaymentToken). */
+  /** Base64-encoded JSON of Apple Pay `payment.token.paymentData` only. */
   applePayOpaqueDataValueBase64: string;
 }): Promise<ApplePayCreateTransactionResult> {
   const auth = merchantAuth();
@@ -268,10 +268,8 @@ export async function createApplePayAuthCaptureTransaction(params: {
     throw new Error("invoiceNumber must be at most 20 characters");
   }
 
-  // Web + iOS homescreen (standalone Safari) can return Apple Pay payloads that
-  // Authorize.Net accepts under WEB descriptor, while native/in-app flows may
-  // still require INAPP descriptor. Try WEB first, then INAPP as fallback.
-  const descriptors = ["COMMON.APPLE.WEB.PAYMENT", "COMMON.APPLE.INAPP.PAYMENT"] as const;
+  // Official samples use INAPP; Safari / PWA web checkout sometimes needs WEB. Try both.
+  const descriptors = ["COMMON.APPLE.INAPP.PAYMENT", "COMMON.APPLE.WEB.PAYMENT"] as const;
   const errors: string[] = [];
 
   for (const descriptor of descriptors) {
@@ -282,6 +280,7 @@ export async function createApplePayAuthCaptureTransaction(params: {
         transactionRequest: {
           transactionType: "authCaptureTransaction",
           amount: params.amountDollars,
+          retail: { marketType: "0" },
           payment: {
             opaqueData: {
               dataDescriptor: descriptor,
