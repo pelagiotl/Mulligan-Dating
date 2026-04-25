@@ -71,6 +71,53 @@
   display: none;
 }
 
+/* iPhone webapp shell: keep token card compact and visually centered on Connect landing. */
+@media (max-width: 480px) {
+  .connect-landing-page .browse-native-token-fixed {
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    top: max(64px, calc(env(safe-area-inset-top, 0px) + 44px));
+    max-width: min(300px, calc(100vw - 28px));
+  }
+
+  .connect-landing-page .browse-native-token-fixed .token-display {
+    border-radius: 16px;
+    padding: 8px 12px;
+  }
+
+  .connect-landing-page .browse-native-token-fixed .token-display-header-gradient {
+    padding: 12px 14px;
+  }
+
+  .connect-landing-page .browse-native-token-fixed .token-display-header-emoji {
+    font-size: 1.45rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .connect-landing-page .browse-native-token-fixed .token-display-header-number {
+    font-size: 2rem;
+  }
+
+  .connect-landing-page .browse-native-token-fixed .token-display-header-cap {
+    font-size: 1rem;
+  }
+
+  .connect-landing-page .browse-native-token-fixed .token-display-header-label {
+    font-size: 0.8rem;
+  }
+
+  .connect-landing-page .browse-native-token-fixed .token-display-body {
+    padding: 12px 14px;
+    gap: 0.5rem;
+  }
+
+  .connect-landing-page .browse-native-token-fixed .token-display-footer-hint {
+    font-size: 0.78rem;
+    line-height: 1.35;
+  }
+}
+
 @media (min-width: 901px) {
   .browse-native-token-fixed {
     position: absolute;
