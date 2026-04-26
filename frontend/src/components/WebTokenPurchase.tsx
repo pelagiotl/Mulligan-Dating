@@ -12,6 +12,7 @@ import {
   isUserCancelledPurchase,
   matchRcPackage,
 } from "../lib/revenuecatWeb";
+import { emitTokenBalanceUpdated } from "../lib/tokenBalanceEvents";
 
 export type WebTokenPurchaseVariant = "settings" | "landing";
 
@@ -90,6 +91,7 @@ export default function WebTokenPurchase({ variant, customerEmail }: WebTokenPur
       );
       if (typeof data.availableTokens === "number") {
         setAvailableTokens(data.availableTokens);
+        emitTokenBalanceUpdated(data.availableTokens);
       }
       let list = data.packages || [];
       revenueCatByProductId.current = {};

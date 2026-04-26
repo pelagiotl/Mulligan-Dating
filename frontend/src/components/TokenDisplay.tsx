@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { api } from "../utils/api";
 import { TOKEN_MAX } from "../constants/tokens";
+import { emitTokenBalanceUpdated } from "../lib/tokenBalanceEvents";
 
 interface TokenData {
   availableTokens: number;
@@ -37,6 +38,7 @@ export default function TokenDisplay() {
       setError("");
       const tokenData = await api.get<TokenData>("/tokens");
       setData(tokenData);
+      emitTokenBalanceUpdated(tokenData.availableTokens);
       console.log("✅ Tokens fetched:", tokenData);
     } catch (err) {
       console.error("❌ Failed to fetch tokens:", err);

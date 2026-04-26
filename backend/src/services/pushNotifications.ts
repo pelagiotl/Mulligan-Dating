@@ -161,8 +161,8 @@ export async function sendMatchPushNotification(
     const message: any = {
       to: pushToken,
       sound: 'match-sound', // Custom match sound (match-sound.mp3 in app bundle)
-      title: '🎉 New connection!',
-      body: `${matchName} connected with you. Say hi!`,
+      title: '😍 New match!',
+      body: `${matchName} matched with you. Say hi!`,
       data: {
         type: 'new_match',
         matchId,

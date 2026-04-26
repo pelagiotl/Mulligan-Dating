@@ -2,6 +2,10 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../utils/api'
+import {
+  TOKEN_BALANCE_UPDATED_EVENT,
+  type TokenBalanceDetail,
+} from '../lib/tokenBalanceEvents'
 import MaintenanceBanner from './MaintenanceBanner'
 import BrandMark from './BrandMark'
 
@@ -26,6 +30,20 @@ export default function Layout() {
       setTokenCount(null)
     }
   }, [isAuthenticated])
+
+  // Navbar badge: stay in sync when TokenDisplay (or elsewhere) refreshes balance
+  useEffect(() => {
+    const onBalance = (e: Event) => {
+      const ce = e as CustomEvent<TokenBalanceDetail>
+      const n = ce.detail?.availableTokens
+      if (typeof n === 'number' && !Number.isNaN(n)) {
+        setTokenCount(n)
+      }
+    }
+    window.addEventListener(TOKEN_BALANCE_UPDATED_EVENT, onBalance as EventListener)
+    return () =>
+      window.removeEventListener(TOKEN_BALANCE_UPDATED_EVENT, onBalance as EventListener)
+  }, [])
 
   const fetchTokenCount = async () => {
     try {

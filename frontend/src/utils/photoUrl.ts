@@ -14,6 +14,11 @@ export function getPhotoUrl(url: string | null | undefined): string {
   if (url.startsWith("http")) {
     return url;
   }
+
+  // Protocol-relative CDN URLs
+  if (url.startsWith("//")) {
+    return `https:${url}`;
+  }
   
   // Get the backend API URL from environment variables (same logic as api.ts)
   const API_URL: string = (import.meta.env as any).VITE_API_URL || (import.meta.env as any).VITE_NGROK_URL || '';

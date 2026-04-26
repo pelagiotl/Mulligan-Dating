@@ -195,8 +195,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // Store new matches notification to show immediately
           const matchNames = newMatches.map(m => m.otherUser.displayName).join(', ')
           const message = newMatches.length === 1 
-            ? `🎉 New connection with ${matchNames} — open Chats to say hi!`
-            : `🎉 ${newMatches.length} new chats: ${matchNames} — open Chats to catch up`
+            ? `😍 New match! ${matchNames} matched with you. Say hi! — open Chats.`
+            : `😍 ${newMatches.length} new matches: ${matchNames} — open Chats to say hi!`
           
           console.log('✅ New matches found on login:', newMatches.length, matchNames)
           console.log('✅ Storing notification in localStorage:', message)

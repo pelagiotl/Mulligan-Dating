@@ -1,0 +1,23 @@
+node_modules
+.expo
+android/.gradle
+android/build
+android/app/build
+android/app/.cxx
+android/.cxx
+ios/Pods
+ios/build
+ios/DerivedData*
+.DS_Store
+node_modules_bad_*
+node_modules_old_*
+_trash_node_modules_old
+.git
+*.log
+package-lock 2.json
+package-lock 3.json
+*.bak
+app 2.json
+*-firebase-adminsdk-*.json
+app-store-connect-screenshots
+app-store-screenshots-*

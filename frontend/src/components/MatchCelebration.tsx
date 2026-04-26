@@ -11,7 +11,12 @@ interface MatchExplanation {
 interface MatchCelebrationProps {
   profileName: string;
   photoUrl?: string;
-  onClose: () => void;
+  /** Legacy / ProfileModal: used when `onKeepBrowsing` / `onOpenChat` are not set. */
+  onClose?: () => void;
+  /** Browse: return user to Connect landing without advancing browse offset. */
+  onKeepBrowsing?: () => void;
+  /** Browse: dismiss overlay and open Matches (parent handles navigation). */
+  onOpenChat?: () => void;
   matchId?: string | null;
   explanation?: MatchExplanation | null;
   /** Recipient flows can skip the “finding match” beat. */
@@ -79,6 +84,8 @@ export default function MatchCelebration({
   profileName,
   photoUrl,
   onClose,
+  onKeepBrowsing,
+  onOpenChat,
   matchId,
   explanation,
   skipLoadingReveal = false,
@@ -138,7 +145,11 @@ export default function MatchCelebration({
   }, [showContent]);
 
   const handleSendMessage = () => {
-    onClose();
+    if (onOpenChat) {
+      onOpenChat();
+      return;
+    }
+    onClose?.();
     if (matchId?.trim()) {
       navigate("/matches", { state: { openMatchId: matchId.trim() } });
     } else {
@@ -147,7 +158,11 @@ export default function MatchCelebration({
   };
 
   const handleKeepBrowsing = () => {
-    onClose();
+    if (onKeepBrowsing) {
+      onKeepBrowsing();
+      return;
+    }
+    onClose?.();
   };
 
   const confettiColors = ["#667eea", "#764ba2", "#a855f7", "#c026d3", "#ec4899", "#f472b6"];

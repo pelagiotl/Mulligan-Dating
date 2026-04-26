@@ -7,6 +7,7 @@ import MatchCelebration from "../components/MatchCelebration";
 import TokenDisplay from "../components/TokenDisplay";
 import ConnectLandingMark from "../components/ConnectLandingMark";
 import { io, Socket } from "socket.io-client";
+import { emitTokenBalanceUpdated } from "../lib/tokenBalanceEvents";
 
 interface Photo {
   id: string;
@@ -180,6 +181,8 @@ export default function Browse() {
   const [celebrationMatchId, setCelebrationMatchId] = useState<string | null>(null);
   const [hasFetched, setHasFetched] = useState(false); // Track if we've fetched at least once
   const [matchNotification, setMatchNotification] = useState<{ message: string; type: "success" | "info" | "warning" | "error" } | null>(null);
+  const matchNotificationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showMatchCelebrationRef = useRef(false);
   const socketRef = useRef<Socket | null>(null);
   const navigate = useNavigate();
   const photoRailRef = useRef<HTMLDivElement>(null);
@@ -191,6 +194,18 @@ export default function Browse() {
   useEffect(() => {
     browseSessionActiveRef.current = browseSessionActive;
   }, [browseSessionActive]);
+
+  useEffect(() => {
+    showMatchCelebrationRef.current = showMatchCelebration;
+  }, [showMatchCelebration]);
+
+  const clearMatchNotification = useCallback(() => {
+    if (matchNotificationTimeoutRef.current) {
+      clearTimeout(matchNotificationTimeoutRef.current);
+      matchNotificationTimeoutRef.current = null;
+    }
+    setMatchNotification(null);
+  }, []);
 
   const displayPhotos = useMemo(() => {
     if (!currentProfile) return [] as { id: string; url: string }[];
@@ -371,24 +386,33 @@ export default function Browse() {
       console.log('❌ Browse: Disconnected from WebSocket server');
     });
 
-    // Listen for new match notifications
+    // Listen for new match notifications (skip while celebration overlay is open — same match)
     socket.on('new_match', (data: { matchId: string; otherUserId: string; otherUserName: string; message: string; stage: string }) => {
       console.log('🎉 Browse: New match notification received:', data);
-      
-      // Show notification
+
+      if (showMatchCelebrationRef.current) {
+        return;
+      }
+
+      if (matchNotificationTimeoutRef.current) {
+        clearTimeout(matchNotificationTimeoutRef.current);
+      }
       setMatchNotification({
         message: data.message,
         type: "success"
       });
-
-      // Auto-dismiss notification after 5 seconds
-      setTimeout(() => {
+      matchNotificationTimeoutRef.current = setTimeout(() => {
         setMatchNotification(null);
+        matchNotificationTimeoutRef.current = null;
       }, 5000);
     });
 
     // Cleanup on unmount
     return () => {
+      if (matchNotificationTimeoutRef.current) {
+        clearTimeout(matchNotificationTimeoutRef.current);
+        matchNotificationTimeoutRef.current = null;
+      }
       socket.disconnect();
       socketRef.current = null;
     };
@@ -402,6 +426,7 @@ export default function Browse() {
 
       setConnecting(true);
       setError("");
+      clearMatchNotification();
       setMatchedProfile(profile);
       setCelebrationMatchId(null);
       setShowMatchCelebration(true);
@@ -442,6 +467,13 @@ export default function Browse() {
 
         setCelebrationMatchId(result.matchId);
         setBrowseSessionActive(true);
+
+        try {
+          const td = await api.get<{ availableTokens: number }>("/tokens");
+          emitTokenBalanceUpdated(td.availableTokens);
+        } catch {
+          /* non-fatal — navbar refreshes on next navigation */
+        }
 
         const hasPhoto =
           !!profile.photoUrl || !!(profile.photos && profile.photos.length > 0);
@@ -517,7 +549,7 @@ export default function Browse() {
         setTimeout(() => setError(""), 8000);
       }
     },
-    [connecting, navigate]
+    [connecting, navigate, clearMatchNotification]
   );
 
   handleConnectRef.current = handleConnect;
@@ -582,14 +614,32 @@ export default function Browse() {
     }
   }, [unlockingBrowse, userProfile, isAutoMatching]);
 
-  const handleCelebrationClose = () => {
-    console.log('🎉 Celebration closed, moving to next profile');
+  /** After “Keep Browsing”: return to Connect landing (user taps Connect again for a new match). */
+  const handleCelebrationKeepBrowsing = useCallback(() => {
+    clearMatchNotification();
     setShowMatchCelebration(false);
     setMatchedProfile(null);
     setCelebrationMatchId(null);
-    // Move to next profile after celebration
-    setOffset(prev => prev + 1);
-  };
+    setBrowseSessionActive(false);
+    setCurrentProfile(null);
+    setOffset(0);
+    setError("");
+    setGateError("");
+  }, [clearMatchNotification]);
+
+  /** After “Send a Message”: close overlay and open the chat thread. */
+  const handleCelebrationOpenChat = useCallback(() => {
+    const mid = celebrationMatchId?.trim();
+    clearMatchNotification();
+    setShowMatchCelebration(false);
+    setMatchedProfile(null);
+    setCelebrationMatchId(null);
+    if (mid) {
+      navigate("/matches", { state: { openMatchId: mid } });
+    } else {
+      navigate("/matches");
+    }
+  }, [celebrationMatchId, navigate, clearMatchNotification]);
 
   const needsProfile = !userProfile && !authLoading && !loading;
   const showConnectGate =
@@ -626,7 +676,7 @@ export default function Browse() {
     <div className="browse-page-native native-app-screen">
       {isAutoMatching ? <BrowseConnectLandingChrome mode="auto-connecting" /> : null}
 
-      {matchNotification && (
+      {matchNotification && !showMatchCelebration && (
         <div
           style={{
             position: "fixed",
@@ -639,7 +689,7 @@ export default function Browse() {
             padding: "16px 24px",
             borderRadius: "8px",
             boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
-            zIndex: 1000,
+            zIndex: 10002,
             maxWidth: "90%",
             textAlign: "center",
             cursor: "pointer",
@@ -825,7 +875,8 @@ export default function Browse() {
             photoUrl={photoUrl}
             matchId={celebrationMatchId}
             revealWhenMatchIdReady
-            onClose={handleCelebrationClose}
+            onKeepBrowsing={handleCelebrationKeepBrowsing}
+            onOpenChat={handleCelebrationOpenChat}
           />
         );
       })()}

@@ -71,6 +71,10 @@ keys/
 **/firebase-adminsdk-*.json
 mobile/mulligan-ba16c-firebase-adminsdk-*.json
 
+# Mobile local trash / duplicate Finder copies (see mobile/.gitignore)
+mobile/_trash_node_modules_old/
+mobile/node_modules_bad_*/
+
 
 
 

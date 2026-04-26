@@ -66,6 +66,7 @@ export default function Matches() {
   const [messageCounts, setMessageCounts] = useState<{ user: number; other: number } | null>(null);
   const [notification, setNotification] = useState<{ message: string; type: "success" | "info" | "warning" | "error" } | null>(null);
   const [showUnmatchConfirm, setShowUnmatchConfirm] = useState(false);
+  const [photoLightboxUrl, setPhotoLightboxUrl] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -296,8 +297,8 @@ export default function Matches() {
       // Fetch initial messages
       fetchMessages(selectedMatch.id);
       
-      // Fetch photos if in stage2
-      if (selectedMatch.stage === "stage2" && !selectedMatch.otherUser.photos) {
+      // Fetch photos if in stage2 and list missing or empty (server may send full set; avoid redundant /photos overwrite)
+      if (selectedMatch.stage === "stage2" && !selectedMatch.otherUser.photos?.length) {
         fetchMatchPhotos(selectedMatch);
       }
 
@@ -333,20 +334,32 @@ export default function Matches() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  useEffect(() => {
+    if (!photoLightboxUrl) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPhotoLightboxUrl(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [photoLightboxUrl]);
+
   const fetchMatches = async () => {
     try {
       const data = await api.get<{ matches: Match[] }>("/matches");
       // Fetch photos for each match in stage2
       const matchesWithPhotos = await Promise.all(
         data.matches.map(async (match) => {
-          if (match.stage === "stage2") {
+          if (match.stage === "stage2" && match.otherUser.profileId) {
+            // GET /matches already includes full `photos` for stage2 — only refetch if absent/empty
+            if (match.otherUser.photos && match.otherUser.photos.length > 0) {
+              return match;
+            }
             try {
-              // Get profile ID from other user
-              const profileData = await api.get<{ profile: { id: string } }>(`/users/${match.otherUser.userId}`);
-              const photosData = await api.get<{ photos: Photo[] }>(`/photos/profile/${profileData.profile.id}`);
+              const photosData = await api.get<{ photos: Photo[] }>(
+                `/photos/profile/${match.otherUser.profileId}`
+              );
               match.otherUser.photos = photosData.photos;
             } catch {
-              // Photos might not exist
               match.otherUser.photos = [];
             }
           }
@@ -443,7 +456,7 @@ export default function Matches() {
         return [...prev, { ...m, isOwn: true }];
       });
 
-      await fetchMessages(matchId);
+      void fetchMessages(matchId);
 
       if (data.autoAdvanced && data.stage === "stage2") {
         setMatches((prev) =>
@@ -657,6 +670,30 @@ export default function Matches() {
           onCancel={() => setShowUnmatchConfirm(false)}
           type="danger"
         />
+      )}
+      {photoLightboxUrl && (
+        <div
+          className="match-photo-lightbox"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Full size photo"
+          onClick={() => setPhotoLightboxUrl(null)}
+        >
+          <button
+            type="button"
+            className="match-photo-lightbox-close"
+            aria-label="Close"
+            onClick={() => setPhotoLightboxUrl(null)}
+          >
+            ×
+          </button>
+          <img
+            src={photoLightboxUrl}
+            alt=""
+            className="match-photo-lightbox-img"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
       )}
       <div className="matches-sidebar">
         <h2 className="matches-title">Your Matches</h2>
@@ -952,19 +989,33 @@ export default function Matches() {
                   <div className="stage2-photos-section">
                     <h4>📸 {selectedMatch.otherUser.displayName}'s Photos</h4>
                     <div className="match-photos-grid">
-                      {selectedMatch.otherUser.photos.map((photo) => (
-                        <div key={photo.id} className="match-photo-item">
-                          <img 
-                            src={getPhotoUrl(photo.url)} 
-                            alt={`${selectedMatch.otherUser.displayName} photo ${photo.displayOrder + 1}`}
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              target.style.display = 'none';
-                            }}
-                          />
-                          {photo.isPrimary && <div className="photo-primary-badge-small">⭐</div>}
-                        </div>
-                      ))}
+                      {selectedMatch.otherUser.photos.map((photo) => {
+                        const src = getPhotoUrl(photo.url);
+                        return (
+                          <div key={photo.id} className="match-photo-item">
+                            <img
+                              src={src}
+                              alt={`${selectedMatch.otherUser.displayName} photo ${photo.displayOrder + 1}`}
+                              role="button"
+                              tabIndex={0}
+                              onClick={() => setPhotoLightboxUrl(src)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                  e.preventDefault();
+                                  setPhotoLightboxUrl(src);
+                                }
+                              }}
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = "none";
+                              }}
+                            />
+                            {photo.isPrimary && (
+                              <div className="photo-primary-badge-small">⭐</div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}

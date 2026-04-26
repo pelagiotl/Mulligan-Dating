@@ -10,6 +10,31 @@ import path from "path";
 
 export const photosRouter = Router();
 
+/** Normalize is_primary from SQLite (0/1) or Postgres (boolean). */
+function rowIsPrimary(v: unknown): boolean {
+  return v === 1 || v === true || v === "1";
+}
+
+/**
+ * When Cloudinary is enabled, URLs may be https, protocol-relative, or legacy
+ * relative paths — do not drop rows just because they lack an "http" prefix.
+ */
+function filterPhotosForResponse(
+  photos: Array<{ url: string }>
+): Array<{ url: string }> {
+  const nonEmpty = photos.filter((p) => typeof p.url === "string" && p.url.length > 0);
+  if (isCloudinaryConfigured()) {
+    return nonEmpty;
+  }
+  return nonEmpty.filter((p) => {
+    if (p.url.startsWith("http://") || p.url.startsWith("https://") || p.url.startsWith("//")) {
+      return true;
+    }
+    const filePath = path.join(process.cwd(), p.url);
+    return fs.existsSync(filePath);
+  });
+}
+
 // Helper function to clean up orphaned photos (database records without files)
 async function cleanupOrphanedPhotos(profileId: string): Promise<number> {
   try {
@@ -488,25 +513,14 @@ photosRouter.get("/profile/:profileId", authenticateToken, async (req: AuthReque
     // Ensure photos is always an array
     const photos = Array.isArray(photosResult) ? photosResult : [];
 
-    // Filter out photos where files don't exist (only for local storage)
-    // Cloudinary URLs are always valid
-    const validPhotos = isCloudinaryConfigured()
-      ? photos.filter((p) => p.url.startsWith('http://') || p.url.startsWith('https://'))
-      : photos.filter((p) => {
-          // Skip Cloudinary URLs
-          if (p.url.startsWith('http://') || p.url.startsWith('https://')) {
-            return true;
-          }
-          const filePath = path.join(process.cwd(), p.url);
-          return fs.existsSync(filePath);
-        });
+    const validPhotos = filterPhotosForResponse(photos);
 
     res.json({
       photos: validPhotos.map((p) => ({
         id: p.id,
         url: p.url,
         displayOrder: p.display_order,
-        isPrimary: p.is_primary === 1,
+        isPrimary: rowIsPrimary(p.is_primary),
         createdAt: p.created_at,
       })),
     });
@@ -544,25 +558,14 @@ photosRouter.get("/me", authenticateToken, async (req: AuthRequest, res) => {
     // Ensure photos is always an array
     const photos = Array.isArray(photosResult) ? photosResult : [];
 
-    // Filter out photos where files don't exist (only for local storage)
-    // Cloudinary URLs are always valid
-    const validPhotos = isCloudinaryConfigured()
-      ? photos.filter((p) => p.url.startsWith('http://') || p.url.startsWith('https://'))
-      : photos.filter((p) => {
-          // Skip Cloudinary URLs
-          if (p.url.startsWith('http://') || p.url.startsWith('https://')) {
-            return true;
-          }
-          const filePath = path.join(process.cwd(), p.url);
-          return fs.existsSync(filePath);
-        });
+    const validPhotos = filterPhotosForResponse(photos);
 
     res.json({
       photos: validPhotos.map((p) => ({
         id: p.id,
         url: p.url,
         displayOrder: p.display_order,
-        isPrimary: p.is_primary === 1,
+        isPrimary: rowIsPrimary(p.is_primary),
         createdAt: p.created_at,
       })),
     });

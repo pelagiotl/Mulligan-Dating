@@ -218,7 +218,7 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
         allPhotosByProfileMap.get(photo.profile_id)!.push({
           id: photo.id,
           url: photo.url,
-          isPrimary: photo.is_primary === 1,
+          isPrimary: photo.is_primary === 1 || photo.is_primary === true,
           displayOrder: photo.display_order ?? 0,
         });
       });
@@ -846,14 +846,14 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
             matchId,
             otherUserId: targetUserId,
             otherUserName: targetDisplayName?.display_name || 'Someone',
-            message: `🎉 You and ${targetDisplayName?.display_name || 'someone'} connected! Say hi in chat.`,
+            message: `😍 New match! You and ${targetDisplayName?.display_name || 'someone'} matched — say hi in chat.`,
             stage: 'stage1',
           });
           io.to(`user:${targetUserId}`).emit('new_match', {
             matchId,
             otherUserId: userId,
             otherUserName: userDisplayName?.display_name || 'Someone',
-            message: `🎉 ${userDisplayName?.display_name || 'Someone'} connected with you! Say hi in chat.`,
+            message: `😍 New match! ${userDisplayName?.display_name || 'Someone'} matched with you. Say hi!`,
             stage: 'stage1',
           });
           console.log(`✅ Sent match notifications to both users: ${userId} and ${targetUserId}`);
@@ -894,8 +894,8 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
           }
           if (isWebPushConfigured()) {
             const n = await sendWebPushToUser(recipientId, {
-              title: "🎉 New connection!",
-              body: `${matchName} connected with you. Say hi!`,
+              title: "😍 New match!",
+              body: `${matchName} matched with you. Say hi!`,
               tag: `match-${matchId}`,
               url: "/matches",
               data: { type: "new_match", matchId, matchName },
@@ -1345,18 +1345,65 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
       }
     }
 
-    // Track success signal: message exchanged
     const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
-    await recordSuccessSignal(userId, otherUserId, matchId, "message_exchanged");
 
-    // If auto-advanced, track stage advanced signal
-    if (autoAdvanced) {
-      await recordSuccessSignal(match.user1_id, match.user2_id, matchId, "stage_advanced");
-      await recordSuccessSignal(match.user2_id, match.user1_id, matchId, "stage_advanced");
+    const senderProfileResult = db
+      .prepare("SELECT display_name FROM profiles WHERE user_id = ?")
+      .get([userId]);
+    const senderProfile = (senderProfileResult instanceof Promise
+      ? await senderProfileResult
+      : senderProfileResult) as { display_name: string } | undefined;
+    const senderName = senderProfile?.display_name || "Someone";
+    const sentAt = new Date().toISOString();
+
+    const realtimePayload = {
+      id: messageId,
+      matchId,
+      content: sanitizedContent,
+      imageUrl: finalImageUrl,
+      videoUrl: finalVideoUrl || null,
+      audioUrl: finalAudioUrl || null,
+      senderId: userId,
+      senderName,
+      sentAt,
+      readAt: null as null,
+    };
+
+    // Real-time path first: socket + HTTP response must not wait on push or analytics.
+    try {
+      const { getIO } = await import('../socket.js');
+      const io = getIO();
+      if (io) {
+        io.to(`match:${matchId}`).emit('new_message', realtimePayload);
+        io.to(`user:${otherUserId}`).emit('new_message', realtimePayload);
+        console.log(`✅ Emitted socket event for new message in match ${matchId}`);
+      }
+    } catch (socketError) {
+      console.warn('⚠️  Failed to emit socket event for message (non-critical):', socketError);
     }
 
-    // Send push notification to the other user (OS shows when app is backgrounded/closed)
-    try {
+    res.json({
+      message: {
+        ...realtimePayload,
+        isOwn: true,
+      },
+      autoAdvanced,
+      stage: autoAdvanced ? "stage2" : match.stage,
+    });
+
+    void (async () => {
+      try {
+        await recordSuccessSignal(userId, otherUserId, matchId, "message_exchanged");
+        if (autoAdvanced) {
+          await recordSuccessSignal(match.user1_id, match.user2_id, matchId, "stage_advanced");
+          await recordSuccessSignal(match.user2_id, match.user1_id, matchId, "stage_advanced");
+        }
+      } catch (e) {
+        console.warn("⚠️  recordSuccessSignal (message REST):", e);
+      }
+
+      // Send push notification to the other user (OS shows when app is backgrounded/closed)
+      try {
       const { sendMessagePushNotification, isPushNotificationConfigured, isExpoPushToken, getMessagePushThrottleDelayMs, recordMessagePushSent } = await import('../services/pushNotifications.js');
       const { sendWebPushToUser, isWebPushConfigured } = await import('../services/webPushDelivery.js');
       const hasExpoToken = !!process.env.EXPO_ACCESS_TOKEN;
@@ -1385,13 +1432,6 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
       const tokenPreview = token ? `${token.substring(0, 28)}...` : 'null';
       console.log(`📲 Push (message): recipient=${otherUserId} hasToken=${!!token} validFormat=${tokenValid} wantsMessagePush=${wantsMessagePush} EXPO_ACCESS_TOKEN=${hasExpoToken ? 'set' : 'NOT SET'}`);
 
-      const senderProfileResult = db
-        .prepare("SELECT display_name FROM profiles WHERE user_id = ?")
-        .get([userId]);
-      const senderProfile = (senderProfileResult instanceof Promise
-        ? await senderProfileResult
-        : senderProfileResult) as { display_name: string } | undefined;
-      const senderName = senderProfile?.display_name || 'Someone';
       let messagePreview: string;
       if (sanitizedContent && sanitizedContent.length > 0) {
         messagePreview = sanitizedContent.length > 50 ? sanitizedContent.substring(0, 50) + '...' : sanitizedContent;
@@ -1502,63 +1542,7 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
     } catch (pushError) {
       console.warn('⚠️  Push notification error (non-critical):', pushError);
     }
-
-    // Emit socket event to notify all users in the match (for real-time updates)
-    try {
-      const { getIO } = await import('../socket.js');
-      const io = getIO();
-      if (io) {
-        // Get sender's profile name for socket event
-        const senderProfileResult = db
-          .prepare("SELECT display_name FROM profiles WHERE user_id = ?")
-          .get([userId]);
-        const senderProfile = (senderProfileResult instanceof Promise
-          ? await senderProfileResult
-          : senderProfileResult) as { display_name: string } | undefined;
-        
-        const message = {
-          id: messageId,
-          matchId,
-          content: sanitizedContent,
-          imageUrl: finalImageUrl,
-          videoUrl: finalVideoUrl || null,
-          audioUrl: finalAudioUrl || null,
-          senderId: userId,
-          senderName: senderProfile?.display_name || 'Someone',
-          sentAt: new Date().toISOString(),
-          readAt: null,
-        };
-        
-        io.to(`match:${matchId}`).emit('new_message', message);
-        // Also emit to recipient's user room (reliable delivery - user room always joined on connect)
-        io.to(`user:${otherUserId}`).emit('new_message', message);
-        console.log(`✅ Emitted socket event for new message in match ${matchId}`);
-      }
-    } catch (socketError) {
-      // Socket events are optional, don't fail message sending if socket fails
-      console.warn('⚠️  Failed to emit socket event for message (non-critical):', socketError);
-    }
-
-    const senderProfileResult = db
-      .prepare("SELECT display_name FROM profiles WHERE user_id = ?")
-      .get([userId]);
-    const senderProfile = (senderProfileResult instanceof Promise ? await senderProfileResult : senderProfileResult) as { display_name: string } | undefined;
-
-    res.json({
-      message: {
-        id: messageId,
-        content: sanitizedContent,
-        imageUrl: finalImageUrl,
-        videoUrl: finalVideoUrl || null,
-        audioUrl: finalAudioUrl || null,
-        senderId: userId,
-        senderName: senderProfile?.display_name || 'Someone',
-        sentAt: new Date().toISOString(),
-        isOwn: true,
-      },
-      autoAdvanced,
-      stage: autoAdvanced ? "stage2" : match.stage,
-    });
+    })();
   } catch (error) {
     console.error("Send message error:", error);
     const errorMessage = error instanceof Error ? error.message : String(error);

@@ -20,6 +20,27 @@ web-build/
 # Google Service Account key (never commit)
 google-play-service-account.json
 
+# Local / backup junk (never commit)
+_trash_node_modules_old/
+node_modules_bad_*/
+ios/DerivedDataCI/
+*.bak
+app 2.json
+package-lock 2.json
+package-lock 3.json
+android/.gitignore 2
+android/build 2.gradle
+android/build 3.gradle
+android/build 2/
+android/gradle 2.properties
+android/gradle 3.properties
+android/gradlew 2
+android/gradlew 2.bat
+android/sentry 2.properties
+android/settings 2.gradle
+android/app/build/
+android/app/.cxx/
+
 
 
 
