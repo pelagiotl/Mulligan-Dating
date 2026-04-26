@@ -15,13 +15,20 @@ function rowIsPrimary(v: unknown): boolean {
   return v === 1 || v === true || v === "1";
 }
 
+/** Row shape from photos table SELECT used by list endpoints. */
+type PhotoListRow = {
+  id: string;
+  url: string;
+  display_order: number;
+  is_primary: unknown;
+  created_at: string;
+};
+
 /**
  * When Cloudinary is enabled, URLs may be https, protocol-relative, or legacy
  * relative paths — do not drop rows just because they lack an "http" prefix.
  */
-function filterPhotosForResponse(
-  photos: Array<{ url: string }>
-): Array<{ url: string }> {
+function filterPhotosForResponse(photos: PhotoListRow[]): PhotoListRow[] {
   const nonEmpty = photos.filter((p) => typeof p.url === "string" && p.url.length > 0);
   if (isCloudinaryConfigured()) {
     return nonEmpty;

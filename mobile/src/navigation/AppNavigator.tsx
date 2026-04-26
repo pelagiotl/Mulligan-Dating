@@ -275,23 +275,20 @@ function MainTabs() {
           : 8 + Math.max(insets.bottom, 8),
       paddingTop: 8,
       paddingHorizontal: 4,
-      elevation: 12,
       shadowColor: '#000',
       shadowOffset: { width: 0, height: -3 },
       shadowOpacity: 0.08,
       shadowRadius: 12,
       borderTopLeftRadius: 24,
       borderTopRightRadius: 24,
-      // iOS: float the bar over scroll content. Android: avoid absolute+bottom:0 — on many devices
-      // that sits above the true window bottom and leaves a gap; default flow anchors to the bottom.
-      ...(Platform.OS === 'ios'
-        ? ({
-            position: 'absolute' as const,
-            left: 0,
-            right: 0,
-            bottom: 0,
-          } as const)
-        : {}),
+      // Pin to the physical bottom on both platforms. Edge-to-edge (Android enableEdgeToEdge) needs
+      // this; without it the bar can sit in flex layout above the window inset and look "floating".
+      position: 'absolute' as const,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      zIndex: 1000,
+      elevation: 24,
     },
     tabBarItemStyle: {
       paddingHorizontal: 0,

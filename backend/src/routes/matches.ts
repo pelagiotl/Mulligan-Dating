@@ -218,7 +218,7 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
         allPhotosByProfileMap.get(photo.profile_id)!.push({
           id: photo.id,
           url: photo.url,
-          isPrimary: photo.is_primary === 1 || photo.is_primary === true,
+          isPrimary: photo.is_primary === 1 || (photo.is_primary as unknown) === true,
           displayOrder: photo.display_order ?? 0,
         });
       });
