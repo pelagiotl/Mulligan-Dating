@@ -27,6 +27,7 @@ import {
   getRevenueCatPackageForProductId,
   pickCurrentOfferingPackages,
 } from '../utils/purchasesReady';
+import { purchaseTokensWithGooglePay } from '../utils/googlePay';
 import { navigationRef } from '../navigation/navigationRef';
 import LegalFooter from '../components/LegalFooter';
 
@@ -269,7 +270,7 @@ export default function SettingsScreen() {
       let list = response.packages || [];
       if (!isRetry) revenueCatPackagesByProductId.current = {};
       const tryRevenueCat = async (): Promise<boolean> => {
-        if (list.length === 0 || Platform.OS === 'web') return false;
+        if (list.length === 0 || Platform.OS !== 'ios') return false;
         if (!(await ensurePurchasesConfigured())) return false;
         try {
           const offerings = await Purchases.getOfferings();
@@ -323,6 +324,28 @@ export default function SettingsScreen() {
   };
 
   const handlePurchase = useCallback(async (pkg: { id: number; productId?: string; tokens: number }) => {
+    if (Platform.OS === 'android') {
+      setPurchasing(true);
+      try {
+        const pkgWithPrice = packages.find((p) => p.id === pkg.id);
+        const result = await purchaseTokensWithGooglePay({
+          id: pkg.id,
+          tokens: pkg.tokens,
+          price: pkgWithPrice?.price ?? 0,
+        });
+        await refreshTokensBalance();
+        await fetchPackages();
+        refreshProfile?.();
+        const granted = result.tokens_granted ?? pkg.tokens;
+        Alert.alert('Success', `${granted} token(s) added! Use them to connect with more people.`);
+      } catch (err: any) {
+        Alert.alert('Purchase failed', err?.message || 'Google Pay purchase failed. Please try again.');
+      } finally {
+        setPurchasing(false);
+      }
+      return;
+    }
+
     if (!(await ensurePurchasesConfigured())) {
       Alert.alert(
         'Store unavailable',
@@ -357,7 +380,7 @@ export default function SettingsScreen() {
     } finally {
       setPurchasing(false);
     }
-  }, [refreshProfile, refreshTokensBalance]);
+  }, [packages, refreshProfile, refreshTokensBalance]);
 
   const handleDeleteAccount = useCallback(async () => {
     setError('');

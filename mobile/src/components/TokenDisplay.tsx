@@ -18,6 +18,7 @@ import {
   getRevenueCatPackageForProductId,
   pickCurrentOfferingPackages,
 } from '../utils/purchasesReady';
+import { purchaseTokensWithGooglePay } from '../utils/googlePay';
 
 interface TokenData {
   availableTokens: number;
@@ -544,7 +545,7 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
       let list = response.packages || [];
       if (!isRetry) revenueCatPackagesByProductId.current = {};
       const tryRevenueCat = async (): Promise<boolean> => {
-        if (list.length === 0 || Platform.OS === 'web') return false;
+        if (list.length === 0 || Platform.OS !== 'ios') return false;
         if (!(await ensurePurchasesConfigured())) return false;
         try {
           const offerings = await Purchases.getOfferings();
@@ -597,6 +598,26 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
   };
 
   const handlePurchase = async (pkg: TokenPackage) => {
+    if (Platform.OS === 'android') {
+      setPurchasing(true);
+      try {
+        const result = await purchaseTokensWithGooglePay({
+          id: pkg.id,
+          tokens: pkg.tokens,
+          price: pkg.price,
+        });
+        await syncTokensAfterPurchase();
+        await fetchPackages();
+        setPurchaseSuccess({ tokensGranted: result.tokens_granted ?? pkg.tokens });
+      } catch (err: any) {
+        const msg = err?.message || 'Google Pay purchase failed. Please try again.';
+        Alert.alert('Purchase failed', msg);
+      } finally {
+        setPurchasing(false);
+      }
+      return;
+    }
+
     if (!(await ensurePurchasesConfigured())) {
       Alert.alert(
         'Store unavailable',
