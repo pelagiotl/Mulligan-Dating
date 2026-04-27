@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { io, Socket } from "socket.io-client";
 import { api, ApiError } from "../utils/api";
@@ -6,6 +6,8 @@ import { useAuth } from "../context/AuthContext";
 import { getPhotoUrl } from "../utils/photoUrl";
 import Notification from "../components/Notification";
 import ConfirmModal from "../components/ConfirmModal";
+import TruthOrDareWeb from "../components/TruthOrDareWeb";
+import GameRequestModalWeb, { type PendingGameRequestWeb } from "../components/GameRequestModalWeb";
 
 interface Photo {
   id: string;
@@ -25,6 +27,7 @@ interface Match {
   isInitiator: boolean;
   userWantsReveal?: boolean;
   otherWantsReveal?: boolean;
+  gameUnlocks?: { truth_or_dare: boolean; never_have_i_ever: boolean };
   otherUser: {
     userId: string;
     displayName: string;
@@ -38,7 +41,113 @@ interface Match {
     interests: string[];
     values: string[];
     partnerQualities: Array<{ quality: string; importance: number }>;
+    lookingFor?: string | null;
+    dealbreakers?: string[];
   };
+}
+
+type PhotoLightboxState = { urls: string[]; index: number };
+
+function matchHasProfileDetails(ou: Match["otherUser"]): boolean {
+  return !!(
+    ou.bio ||
+    ou.lookingFor ||
+    (ou.partnerQualities?.length ?? 0) > 0 ||
+    (ou.interests?.length ?? 0) > 0 ||
+    (ou.values?.length ?? 0) > 0 ||
+    (ou.dealbreakers?.length ?? 0) > 0
+  );
+}
+
+/** Shared profile blocks for stage1 (horizontal) and stage2 (stacked). */
+function MatchOtherProfileSections({
+  otherUser,
+  variant,
+}: {
+  otherUser: Match["otherUser"];
+  variant: "stage1" | "stage2";
+}) {
+  const hasAny =
+    !!otherUser.bio ||
+    !!otherUser.lookingFor ||
+    (otherUser.partnerQualities?.length ?? 0) > 0 ||
+    (otherUser.interests?.length ?? 0) > 0 ||
+    (otherUser.values?.length ?? 0) > 0 ||
+    (otherUser.dealbreakers?.length ?? 0) > 0;
+  if (!hasAny) return null;
+
+  const blocks = (
+    <>
+      {otherUser.lookingFor ? (
+        <div className={variant === "stage1" ? "stage1-section" : "stage2-profile-block"}>
+          <h4>Looking for</h4>
+          <p className="stage2-profile-text">{otherUser.lookingFor}</p>
+        </div>
+      ) : null}
+      {otherUser.bio ? (
+        <div className={variant === "stage1" ? "stage1-section" : "stage2-profile-block"}>
+          <h4>About</h4>
+          <p className="stage1-bio stage2-profile-text">{otherUser.bio}</p>
+        </div>
+      ) : null}
+      {(otherUser.partnerQualities?.length ?? 0) > 0 ? (
+        <div className={variant === "stage1" ? "stage1-section" : "stage2-profile-block"}>
+          <h4>What they&apos;re looking for</h4>
+          <div className="qualities-list">
+            {otherUser.partnerQualities.map((q, idx) => (
+              <div key={idx} className="quality-item">
+                <span className="quality-name">{q.quality}</span>
+                <span className="quality-importance">{"⭐".repeat(q.importance)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {(otherUser.interests?.length ?? 0) > 0 ? (
+        <div className={variant === "stage1" ? "stage1-section" : "stage2-profile-block"}>
+          <h4>Interests</h4>
+          <div className="profile-card-interests">
+            {otherUser.interests.map((interest) => (
+              <span key={interest} className="interest-tag">
+                {interest}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {(otherUser.values?.length ?? 0) > 0 ? (
+        <div className={variant === "stage1" ? "stage1-section" : "stage2-profile-block"}>
+          <h4>Values</h4>
+          <div className="profile-card-interests">
+            {otherUser.values.map((value) => (
+              <span key={value} className="value-tag">
+                {value}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {(otherUser.dealbreakers?.length ?? 0) > 0 ? (
+        <div className={variant === "stage1" ? "stage1-section" : "stage2-profile-block"}>
+          <h4>Dealbreakers</h4>
+          <ul className="stage2-dealbreakers-list">
+            {otherUser.dealbreakers!.map((d, i) => (
+              <li key={i}>{d}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </>
+  );
+
+  if (variant === "stage1") {
+    return (
+      <div className="stage1-profile-info">
+        <div className="stage1-sections-grid">{blocks}</div>
+      </div>
+    );
+  }
+  return <div className="stage2-profile-sections-inner">{blocks}</div>;
 }
 
 interface Message {
@@ -66,15 +175,64 @@ export default function Matches() {
   const [messageCounts, setMessageCounts] = useState<{ user: number; other: number } | null>(null);
   const [notification, setNotification] = useState<{ message: string; type: "success" | "info" | "warning" | "error" } | null>(null);
   const [showUnmatchConfirm, setShowUnmatchConfirm] = useState(false);
-  const [photoLightboxUrl, setPhotoLightboxUrl] = useState<string | null>(null);
+  const [photoLightbox, setPhotoLightbox] = useState<PhotoLightboxState | null>(null);
+  const [mobileShowMatchList, setMobileShowMatchList] = useState(true);
+  const [isNarrow, setIsNarrow] = useState(
+    () => typeof window !== "undefined" && window.innerWidth <= 900
+  );
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const selectedMatchIdRef = useRef<string | null>(null);
+  const matchesRef = useRef<Match[]>([]);
+  const lightboxTouchX = useRef<number | null>(null);
+  const [gameRequestToShow, setGameRequestToShow] = useState<PendingGameRequestWeb | null>(null);
+  const [openGameForAccept, setOpenGameForAccept] = useState<{
+    matchId: string;
+    gameType: "truth_or_dare" | "never_have_i_ever";
+  } | null>(null);
+
+  const closeLightbox = useCallback(() => setPhotoLightbox(null), []);
+
+  const stepLightbox = useCallback((delta: number) => {
+    setPhotoLightbox((prev) => {
+      if (!prev) return null;
+      const next = prev.index + delta;
+      if (next < 0 || next >= prev.urls.length) return prev;
+      return { ...prev, index: next };
+    });
+  }, []);
+
+  const openPhotoLightbox = useCallback((photos: Photo[], startPhoto: Photo) => {
+    const sorted = [...photos].sort((a, b) => a.displayOrder - b.displayOrder);
+    const urls = sorted.map((p) => getPhotoUrl(p.url));
+    const idx = sorted.findIndex((p) => p.id === startPhoto.id);
+    setPhotoLightbox({ urls, index: idx >= 0 ? idx : 0 });
+  }, []);
 
   useEffect(() => {
     selectedMatchIdRef.current = selectedMatch?.id ?? null;
   }, [selectedMatch?.id]);
+
+  useEffect(() => {
+    matchesRef.current = matches;
+  }, [matches]);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 900px)");
+    const apply = () => setIsNarrow(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+
+  useEffect(() => {
+    if (!isNarrow) setMobileShowMatchList(true);
+  }, [isNarrow]);
+
+  useEffect(() => {
+    if (!selectedMatch) setMobileShowMatchList(true);
+  }, [selectedMatch]);
 
   // Initialize WebSocket connection
   useEffect(() => {
@@ -261,6 +419,72 @@ export default function Matches() {
       }
     });
 
+    socket.on(
+      "game_request_received",
+      (data: {
+        requestId: string;
+        matchId: string;
+        fromUserId: string;
+        fromUserName: string;
+        gameType: "truth_or_dare" | "never_have_i_ever";
+      }) => {
+        setGameRequestToShow({
+          requestId: data.requestId,
+          matchId: data.matchId,
+          fromUserId: data.fromUserId,
+          fromUserName: data.fromUserName,
+          gameType: data.gameType,
+        });
+        const m = matchesRef.current.find((x) => x.id === data.matchId);
+        if (m) setSelectedMatch(m);
+      }
+    );
+
+    socket.on(
+      "game_request_responded",
+      (data: { requestId: string; matchId: string; gameType: string; accepted: boolean }) => {
+        if (!data.accepted) return;
+        const m = matchesRef.current.find((x) => x.id === data.matchId);
+        if (m) {
+          setSelectedMatch(m);
+          if (data.gameType === "truth_or_dare" || data.gameType === "never_have_i_ever") {
+            setOpenGameForAccept({
+              matchId: data.matchId,
+              gameType: data.gameType,
+            });
+          }
+        }
+      }
+    );
+
+    socket.on("game_unlocked", (data: { matchId: string; gameType: string }) => {
+      const key =
+        data.gameType === "truth_or_dare" ? ("truth_or_dare" as const) : ("never_have_i_ever" as const);
+      setMatches((prev) =>
+        prev.map((m) =>
+          m.id === data.matchId
+            ? {
+                ...m,
+                gameUnlocks: {
+                  ...(m.gameUnlocks || { truth_or_dare: false, never_have_i_ever: false }),
+                  [key]: true,
+                },
+              }
+            : m
+        )
+      );
+      setSelectedMatch((prev) => {
+        if (!prev || prev.id !== data.matchId) return prev;
+        return {
+          ...prev,
+          gameUnlocks: {
+            ...(prev.gameUnlocks || { truth_or_dare: false, never_have_i_ever: false }),
+            [key]: true,
+          },
+        };
+      });
+    });
+
     return () => {
       socket.disconnect();
     };
@@ -335,15 +559,17 @@ export default function Matches() {
   }, [messages]);
 
   useEffect(() => {
-    if (!photoLightboxUrl) return;
+    if (!photoLightbox) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setPhotoLightboxUrl(null);
+      if (e.key === "Escape") closeLightbox();
+      if (e.key === "ArrowLeft") stepLightbox(-1);
+      if (e.key === "ArrowRight") stepLightbox(1);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [photoLightboxUrl]);
+  }, [photoLightbox, closeLightbox, stepLightbox]);
 
-  const fetchMatches = async () => {
+  const fetchMatches = async (): Promise<Match[]> => {
     try {
       const data = await api.get<{ matches: Match[] }>("/matches");
       // Fetch photos for each match in stage2
@@ -367,10 +593,12 @@ export default function Matches() {
         })
       );
       setMatches(matchesWithPhotos);
+      return matchesWithPhotos;
     } catch (error) {
       console.error("Failed to fetch matches:", error);
       // Set empty matches array on error
       setMatches([]);
+      return [];
     } finally {
       setLoading(false);
     }
@@ -475,6 +703,59 @@ export default function Matches() {
     } catch (error) {
       console.error("Failed to send message:", error);
       setNewMessage(messageContent);
+      const msg =
+        error instanceof ApiError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : "Failed to send message. Please try again.";
+      setNotification({ message: msg, type: "error" });
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
+  /** Send a fixed string (e.g. Truth or Dare prompt) without using the message input field. */
+  const sendChatText = async (messageContent: string) => {
+    const trimmed = messageContent.trim();
+    if (!trimmed || !selectedMatch || sendingMessage) return;
+    const matchId = selectedMatch.id;
+    setIsTyping(false);
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+    if (socketRef.current?.connected) {
+      socketRef.current.emit("stop_typing", { matchId });
+    }
+    setSendingMessage(true);
+    try {
+      const data = await api.post<{
+        message: Message;
+        autoAdvanced?: boolean;
+        stage?: string;
+      }>(`/matches/${matchId}/messages`, { content: trimmed });
+      setMessages((prev) => {
+        const m = data.message;
+        if (prev.some((x) => x.id === m.id)) return prev;
+        return [...prev, { ...m, isOwn: true }];
+      });
+      void fetchMessages(matchId);
+      if (data.autoAdvanced && data.stage === "stage2") {
+        setMatches((prev) =>
+          prev.map((m) => (m.id === matchId ? { ...m, stage: "stage2" as const } : m))
+        );
+        setSelectedMatch((prev) =>
+          prev && prev.id === matchId ? { ...prev, stage: "stage2" as const } : prev
+        );
+        setNotification({
+          message: "🎉 All photos unlocked! You've each sent 3+ messages.",
+          type: "success",
+        });
+        const matchForPhotos = { ...selectedMatch, id: matchId, stage: "stage2" as const };
+        fetchMatchPhotos(matchForPhotos);
+      }
+    } catch (error) {
+      console.error("Failed to send message:", error);
       const msg =
         error instanceof ApiError
           ? error.message
@@ -650,7 +931,11 @@ export default function Matches() {
   }
 
   return (
-    <div className="matches-page native-app-screen">
+    <div
+      className={`matches-page native-app-screen${
+        isNarrow && selectedMatch && !mobileShowMatchList ? " matches-page--mobile-conversation" : ""
+      }`}
+    >
       {notification && (
         <Notification
           message={notification.message}
@@ -671,28 +956,107 @@ export default function Matches() {
           type="danger"
         />
       )}
-      {photoLightboxUrl && (
+      <GameRequestModalWeb
+        request={gameRequestToShow}
+        onClose={() => setGameRequestToShow(null)}
+        onAccepted={(matchId, gameType) => {
+          setGameRequestToShow(null);
+          const gameKey =
+            gameType === "truth_or_dare" ? ("truth_or_dare" as const) : ("never_have_i_ever" as const);
+          const m = matches.find((x) => x.id === matchId);
+          if (m) {
+            const updated: Match = {
+              ...m,
+              gameUnlocks: {
+                ...(m.gameUnlocks || { truth_or_dare: false, never_have_i_ever: false }),
+                [gameKey]: true,
+              },
+            };
+            setSelectedMatch(updated);
+            setMatches((prev) => prev.map((x) => (x.id === matchId ? updated : x)));
+          }
+          if (gameType === "truth_or_dare") {
+            setOpenGameForAccept({ matchId, gameType: "truth_or_dare" });
+          } else {
+            setNotification({
+              message: "Never Have I Ever is available in the mobile app for full play.",
+              type: "info",
+            });
+          }
+        }}
+      />
+
+      {photoLightbox && photoLightbox.urls.length > 0 && (
         <div
           className="match-photo-lightbox"
           role="dialog"
           aria-modal="true"
-          aria-label="Full size photo"
-          onClick={() => setPhotoLightboxUrl(null)}
+          aria-label={`Photo ${photoLightbox.index + 1} of ${photoLightbox.urls.length}`}
+          onClick={closeLightbox}
         >
           <button
             type="button"
             className="match-photo-lightbox-close"
             aria-label="Close"
-            onClick={() => setPhotoLightboxUrl(null)}
+            onClick={(e) => {
+              e.stopPropagation();
+              closeLightbox();
+            }}
           >
             ×
           </button>
-          <img
-            src={photoLightboxUrl}
-            alt=""
-            className="match-photo-lightbox-img"
+          {photoLightbox.urls.length > 1 && (
+            <button
+              type="button"
+              className="match-photo-lightbox-nav match-photo-lightbox-nav--prev"
+              aria-label="Previous photo"
+              onClick={(e) => {
+                e.stopPropagation();
+                stepLightbox(-1);
+              }}
+            >
+              ‹
+            </button>
+          )}
+          {photoLightbox.urls.length > 1 && (
+            <button
+              type="button"
+              className="match-photo-lightbox-nav match-photo-lightbox-nav--next"
+              aria-label="Next photo"
+              onClick={(e) => {
+                e.stopPropagation();
+                stepLightbox(1);
+              }}
+            >
+              ›
+            </button>
+          )}
+          <div
+            className="match-photo-lightbox-center"
             onClick={(e) => e.stopPropagation()}
-          />
+            onTouchStart={(e) => {
+              lightboxTouchX.current = e.changedTouches[0].clientX;
+            }}
+            onTouchEnd={(e) => {
+              const start = lightboxTouchX.current;
+              lightboxTouchX.current = null;
+              if (start == null) return;
+              const dx = e.changedTouches[0].clientX - start;
+              if (dx > 56) stepLightbox(-1);
+              else if (dx < -56) stepLightbox(1);
+            }}
+          >
+            <img
+              src={photoLightbox.urls[photoLightbox.index]}
+              alt=""
+              className="match-photo-lightbox-img"
+            />
+            {photoLightbox.urls.length > 1 && (
+              <div className="match-photo-lightbox-counter">
+                {photoLightbox.index + 1} / {photoLightbox.urls.length}
+              </div>
+            )}
+          </div>
         </div>
       )}
       <div className="matches-sidebar">
@@ -712,7 +1076,12 @@ export default function Matches() {
               <div
                 key={match.id}
                 className={`match-item ${selectedMatch?.id === match.id ? "active" : ""}`}
-                onClick={() => setSelectedMatch(match)}
+                onClick={() => {
+                  setSelectedMatch(match);
+                  if (typeof window !== "undefined" && window.innerWidth <= 900) {
+                    setMobileShowMatchList(false);
+                  }
+                }}
               >
                 <div className="match-avatar">
                   {(() => {
@@ -799,6 +1168,15 @@ export default function Matches() {
       <div className="matches-main">
         {selectedMatch ? (
           <>
+            {isNarrow && !mobileShowMatchList && (
+              <button
+                type="button"
+                className="matches-mobile-back-btn"
+                onClick={() => setMobileShowMatchList(true)}
+              >
+                ← All matches
+              </button>
+            )}
             <div className="chat-header">
               <div className="chat-user-info">
                 <div className="chat-avatar">
@@ -843,7 +1221,72 @@ export default function Matches() {
                 </div>
               </div>
 
+              {selectedMatch.stage !== "pending" && user && (
+                <div className="chat-header-games">
+                  <TruthOrDareWeb
+                    matchId={selectedMatch.id}
+                    socket={socketRef.current}
+                    onSendToChat={sendChatText}
+                    onBeforeUnlockPrompt={async () => {
+                      const list = await fetchMatches();
+                      const id = selectedMatchIdRef.current;
+                      const m = list.find((x) => x.id === id);
+                      if (m?.gameUnlocks?.truth_or_dare) {
+                        setSelectedMatch(m);
+                        return true;
+                      }
+                      return false;
+                    }}
+                    onUnlockWithToken={async () => {
+                      await api.post(`/matches/${selectedMatch.id}/unlock-game`, {
+                        gameType: "truth_or_dare",
+                      });
+                      const list = await fetchMatches();
+                      const id = selectedMatch.id;
+                      const m = list.find((x) => x.id === id);
+                      if (m) {
+                        setSelectedMatch({
+                          ...m,
+                          gameUnlocks: {
+                            ...(m.gameUnlocks || { truth_or_dare: false, never_have_i_ever: false }),
+                            truth_or_dare: true,
+                          },
+                        });
+                        setMatches((prev) =>
+                          prev.map((x) =>
+                            x.id === id
+                              ? {
+                                  ...x,
+                                  gameUnlocks: {
+                                    ...(x.gameUnlocks || { truth_or_dare: false, never_have_i_ever: false }),
+                                    truth_or_dare: true,
+                                  },
+                                }
+                              : x
+                          )
+                        );
+                      }
+                    }}
+                    openForAccept={
+                      openGameForAccept?.gameType === "truth_or_dare" &&
+                      openGameForAccept?.matchId === selectedMatch.id
+                    }
+                    onOpenedForAccept={() => setOpenGameForAccept(null)}
+                    gameUnlockedByToken={!!selectedMatch.gameUnlocks?.truth_or_dare}
+                  />
+                </div>
+              )}
+
               <div className="match-actions">
+                {isNarrow && selectedMatch.stage !== "pending" && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm chat-header-unmatch-btn"
+                    onClick={handleUnmatchClick}
+                  >
+                    Remove match
+                  </button>
+                )}
                 {selectedMatch.stage === "stage1" && (
                   <div className="reveal-unlock-card">
                     <div className="reveal-unlock-header">
@@ -927,62 +1370,16 @@ export default function Matches() {
             ) : (
               <>
                 {selectedMatch.stage === "stage1" && (
-                  <div className="stage1-profile-info">
-                    <div className="stage1-sections-grid">
-                      {selectedMatch.otherUser.bio && (
-                        <div className="stage1-section">
-                          <h4>About {selectedMatch.otherUser.displayName}</h4>
-                          <p className="stage1-bio">
-                            {selectedMatch.otherUser.bio}
-                          </p>
-                        </div>
-                      )}
+                  <MatchOtherProfileSections otherUser={selectedMatch.otherUser} variant="stage1" />
+                )}
 
-                      {selectedMatch.otherUser.partnerQualities.length > 0 && (
-                        <div className="stage1-section">
-                          <h4>What They're Looking For</h4>
-                          <div className="qualities-list">
-                            {selectedMatch.otherUser.partnerQualities.map(
-                              (q, idx) => (
-                                <div key={idx} className="quality-item">
-                                  <span className="quality-name">{q.quality}</span>
-                                  <span className="quality-importance">
-                                    {"⭐".repeat(q.importance)}
-                                  </span>
-                                </div>
-                              )
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {selectedMatch.otherUser.interests.length > 0 && (
-                        <div className="stage1-section">
-                          <h4>Shared Interests</h4>
-                          <div className="profile-card-interests">
-                            {selectedMatch.otherUser.interests.map((interest) => (
-                              <span key={interest} className="interest-tag">
-                                {interest}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {selectedMatch.otherUser.values.length > 0 && (
-                        <div className="stage1-section">
-                          <h4>Their Values</h4>
-                          <div className="profile-card-interests">
-                            {selectedMatch.otherUser.values.map((value) => (
-                              <span key={value} className="value-tag">
-                                {value}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                {selectedMatch.stage === "stage2" && matchHasProfileDetails(selectedMatch.otherUser) && (
+                  <details className="stage2-profile-details" open>
+                    <summary className="stage2-profile-summary">
+                      About {selectedMatch.otherUser.displayName}
+                    </summary>
+                    <MatchOtherProfileSections otherUser={selectedMatch.otherUser} variant="stage2" />
+                  </details>
                 )}
 
                 {selectedMatch.stage === "stage2" && selectedMatch.otherUser.photos && selectedMatch.otherUser.photos.length > 0 && (
@@ -998,11 +1395,13 @@ export default function Matches() {
                               alt={`${selectedMatch.otherUser.displayName} photo ${photo.displayOrder + 1}`}
                               role="button"
                               tabIndex={0}
-                              onClick={() => setPhotoLightboxUrl(src)}
+                              onClick={() =>
+                                openPhotoLightbox(selectedMatch.otherUser.photos!, photo)
+                              }
                               onKeyDown={(e) => {
                                 if (e.key === "Enter" || e.key === " ") {
                                   e.preventDefault();
-                                  setPhotoLightboxUrl(src);
+                                  openPhotoLightbox(selectedMatch.otherUser.photos!, photo);
                                 }
                               }}
                               onError={(e) => {

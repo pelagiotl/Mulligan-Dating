@@ -29,7 +29,7 @@ import { api, prefetchToken, ensureTokenPrefetched, clearTokenCache } from '../u
 import { getPhotoUrl } from '../utils/photoUrl';
 import { useAuth } from '../context/AuthContext';
 import TokenDisplay from '../components/TokenDisplay';
-import ConnectLandingScarcity from '../components/ConnectLandingScarcity';
+import ConnectLandingValueProps from '../components/ConnectLandingValueProps';
 import MatchCelebration from '../components/MatchCelebration';
 import LegalFooter from '../components/LegalFooter';
 import NoTokensModal from '../components/NoTokensModal';
@@ -279,14 +279,6 @@ export default function BrowseScreen() {
   const [unlocking, setUnlocking] = useState(false);
   const [isAutoMatching, setIsAutoMatching] = useState(false); // Track when auto-matching to prevent UI flash
   const [canClaimTokens, setCanClaimTokens] = useState<boolean>(false); // Track if user can claim tokens
-  const [connectLandingEconomy, setConnectLandingEconomy] = useState<{
-    availableTokens: number;
-    canClaimWeeklyToken: boolean;
-    nextRefillDate: string | null;
-    activeMatches: number;
-    slotLimit: number;
-  } | null>(null);
-  const [connectLandingEconomyLoading, setConnectLandingEconomyLoading] = useState(false);
   const [photoCount, setPhotoCount] = useState<number | null>(null); // User's photo count (for 5-photo minimum)
   const [photoCountLoading, setPhotoCountLoading] = useState(false); // True while fetching count so we don't briefly show wrong state
   const profileConnectKey = `${(userProfile as { display_name?: string } | null)?.display_name ?? ''}|${userProfile?.displayName ?? ''}|${userProfile?.location ?? ''}`;
@@ -352,33 +344,17 @@ export default function BrowseScreen() {
   const refreshConnectLandingEconomy = useCallback(async () => {
     if (!isAuthenticated) {
       setCanClaimTokens(false);
-      setConnectLandingEconomy(null);
-      setConnectLandingEconomyLoading(false);
       return;
     }
-    setConnectLandingEconomyLoading(true);
     try {
-      const [tokenData, matchData] = await Promise.all([
-        api.get<{
-          availableTokens: number;
-          canClaimWeeklyToken: boolean;
-          nextRefillDate?: string | null;
-        }>('/tokens', false),
-        api.get<{ count: number; slotLimit: number }>('/matches/count', false),
-      ]);
+      const tokenData = await api.get<{
+        availableTokens: number;
+        canClaimWeeklyToken: boolean;
+        nextRefillDate?: string | null;
+      }>('/tokens', false);
       setCanClaimTokens(!!tokenData.canClaimWeeklyToken);
-      setConnectLandingEconomy({
-        availableTokens: Math.floor(Number(tokenData.availableTokens ?? 0)),
-        canClaimWeeklyToken: !!tokenData.canClaimWeeklyToken,
-        nextRefillDate: tokenData.nextRefillDate != null ? String(tokenData.nextRefillDate) : null,
-        activeMatches: Math.floor(Number(matchData?.count ?? 0)),
-        slotLimit: Math.floor(Number(matchData?.slotLimit ?? 50)),
-      });
     } catch {
       setCanClaimTokens(false);
-      setConnectLandingEconomy(null);
-    } finally {
-      setConnectLandingEconomyLoading(false);
     }
   }, [isAuthenticated]);
 
@@ -1061,11 +1037,12 @@ export default function BrowseScreen() {
 
   const needsProfile = !userProfile && !loading;
   const matchmakingPaused = !!(user && user.matchmakingEnabled === false);
+  const hasActiveProfile = !!(currentProfile?.id && currentProfile?.userId);
 
   // Show landing page when: browsing is locked, auto-matching, no profile to show, or server paused matchmaking
   const showLandingPage =
     (!needsProfile && !showMatchCelebration) &&
-    ((browseUnlocked === false || isAutoMatching) || (currentProfile === null && !loading) || matchmakingPaused);
+    ((browseUnlocked === false || isAutoMatching) || (!hasActiveProfile && !loading) || matchmakingPaused);
 
   // Button pulse animation (only when landing page is shown)
   // MUST be before any early returns
@@ -1204,13 +1181,13 @@ export default function BrowseScreen() {
   }, [noProfilesCurrentPrefs, noProfilesSelectedDistance]);
 
   useEffect(() => {
-    const shouldShowConnectButton = currentProfile && !showLandingPage && !needsProfile && !loading;
+    const shouldShowConnectButton = hasActiveProfile && !showLandingPage && !needsProfile && !loading;
     if (!shouldShowConnectButton) stopConnectButtonAnimations();
     return () => stopConnectButtonAnimations();
-  }, [currentProfile, showLandingPage, needsProfile, loading, stopConnectButtonAnimations]);
+  }, [hasActiveProfile, showLandingPage, needsProfile, loading, stopConnectButtonAnimations]);
 
   // Restart Connect button animations when returning to Connect tab. Use ref so delayed callback sees current visibility (avoids re-renders from checkCanClaimTokens etc. cancelling the start).
-  const shouldShowConnectButton = currentProfile && !showLandingPage && !needsProfile && !loading;
+  const shouldShowConnectButton = hasActiveProfile && !showLandingPage && !needsProfile && !loading;
   shouldShowConnectButtonRef.current = shouldShowConnectButton;
 
   // When tab gains focus and Connect button is visible, ensure animations are running (content stays mounted when unfocused so they keep running)
@@ -1428,12 +1405,13 @@ export default function BrowseScreen() {
     clearCelebrationAndConnectingState();
   }, [clearCelebrationAndConnectingState]);
 
-  const photos = currentProfile?.photos || [];
+  const activeProfile = hasActiveProfile ? currentProfile : null;
+  const photos = activeProfile?.photos || [];
   const primaryPhoto = photos.find((p) => p.isPrimary) || photos[0];
   const profilePhotoUrl = primaryPhoto
     ? getPhotoUrl(primaryPhoto.url)
-    : currentProfile?.photoUrl
-    ? getPhotoUrl(currentProfile.photoUrl)
+    : activeProfile?.photoUrl
+    ? getPhotoUrl(activeProfile.photoUrl)
     : null;
 
   // Stop profile card glow loop when tab loses focus to avoid leaked native animation callbacks
@@ -1445,7 +1423,7 @@ export default function BrowseScreen() {
   }, [isFocused]);
 
   // When tab not focused: keep full content mounted but hidden so Connect button animations keep running; when we return they're still active.
-  const showConnectButton = currentProfile && !showLandingPage && !needsProfile && !loading;
+  const showConnectButton = hasActiveProfile && !showLandingPage && !needsProfile && !loading;
 
   // Only show initial loading screen if we're not auto-matching (auto-matching should show landing page)
   if (loading && !hasFetched && !isAutoMatching) {
@@ -1545,7 +1523,7 @@ export default function BrowseScreen() {
           showLandingPage && {
             paddingBottom: landingTabBarClearancePx(insets.bottom),
           },
-          !showLandingPage && !needsProfile && currentProfile && !loading && { paddingBottom: 100 },
+          !showLandingPage && !needsProfile && hasActiveProfile && !loading && { paddingBottom: 100 },
         ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -1600,18 +1578,7 @@ export default function BrowseScreen() {
                 </Text>
               ) : null}
 
-              {isAuthenticated &&
-              !matchmakingPaused &&
-              (connectLandingEconomy !== null || connectLandingEconomyLoading) ? (
-                <ConnectLandingScarcity
-                  loading={connectLandingEconomyLoading && connectLandingEconomy === null}
-                  availableTokens={connectLandingEconomy?.availableTokens ?? 0}
-                  canClaimWeeklyToken={connectLandingEconomy?.canClaimWeeklyToken ?? false}
-                  nextRefillDate={connectLandingEconomy?.nextRefillDate ?? null}
-                  activeMatches={connectLandingEconomy?.activeMatches ?? 0}
-                  slotLimit={connectLandingEconomy?.slotLimit ?? 50}
-                />
-              ) : null}
+              {isAuthenticated && !matchmakingPaused ? <ConnectLandingValueProps /> : null}
 
               {matchmakingPaused ? (
                 <View style={styles.matchmakingPausedCard}>
@@ -1794,7 +1761,7 @@ export default function BrowseScreen() {
             <Text style={styles.createButtonText}>Open Settings</Text>
           </TouchableOpacity>
         </View>
-      ) : !currentProfile && !loading ? (
+      ) : !hasActiveProfile && !loading ? (
         <View style={styles.noMoreWrapper}>
           <LinearGradient
             colors={['#f8f7ff', '#ffffff', '#fff5f8']}
@@ -1811,7 +1778,7 @@ export default function BrowseScreen() {
             </Text>
           </LinearGradient>
         </View>
-      ) : currentProfile ? (
+      ) : hasActiveProfile && currentProfile ? (
         <Animated.View 
           style={[
             styles.profileCard,
@@ -2229,7 +2196,7 @@ export default function BrowseScreen() {
       </ScrollView>
 
       {/* Full-screen loading overlay - shows IMMEDIATELY on tap (Animated, no React re-render) */}
-      {!showLandingPage && currentProfile && (
+      {!showLandingPage && hasActiveProfile && (
         <Animated.View
           pointerEvents={connecting ? 'auto' : 'none'}
           style={[
@@ -2248,7 +2215,7 @@ export default function BrowseScreen() {
       )}
 
       {/* Connect Button - OUTSIDE ScrollView. Mounts fresh when returning to tab (minimal view when blurred); onLayout stops any stale ref then starts animations. */}
-      {!showLandingPage && !needsProfile && currentProfile && !loading && (
+      {!showLandingPage && !needsProfile && hasActiveProfile && !loading && (
         <View
           style={styles.connectButtonFixed}
           pointerEvents="box-none"

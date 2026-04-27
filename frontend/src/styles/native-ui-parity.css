@@ -1123,6 +1123,16 @@ button.connect-landing__cta:disabled {
   -webkit-backdrop-filter: blur(20px);
 }
 
+@media (max-width: 900px) {
+  .matches-page.native-app-screen.matches-page--mobile-conversation .matches-sidebar {
+    display: none;
+  }
+
+  .matches-page.native-app-screen.matches-page--mobile-conversation .matches-main {
+    max-height: none;
+  }
+}
+
 .matches-page.native-app-screen .chat-header {
   background: var(--native-gradient-matches-header);
   border-bottom: none;
@@ -1332,4 +1342,329 @@ button.connect-landing__cta:disabled {
   .app-layout--native-mobile-shell .matches-native-loading::before {
     display: none;
   }
+}
+
+/* Matches — Truth or Dare (web parity with app) */
+.matches-page.native-app-screen .chat-header-games {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0 0.5rem;
+}
+
+.tod-web-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.tod-web-header-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.tod-web-header-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+
+.tod-web-header-btn--locked {
+  opacity: 0.92;
+}
+
+.tod-web-header-btn--live {
+  background: linear-gradient(135deg, #ff0080, #ff3399, #cc0066);
+  border-color: rgba(255, 255, 255, 0.35);
+  animation: tod-header-pulse 2.2s ease-in-out infinite;
+}
+
+@keyframes tod-header-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+.tod-web-header-emoji {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.tod-web-timer-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.95);
+  background: rgba(0, 0, 0, 0.2);
+  padding: 0.2rem 0.45rem;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+.tod-web-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.tod-web-modal {
+  width: 100%;
+  max-width: 380px;
+  border-radius: 22px;
+  overflow: hidden;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+}
+
+.tod-web-modal-gradient {
+  background: linear-gradient(145deg, #ff0080, #ff3399, #cc0066, #ff66b2, #ff0080);
+  padding: 1.35rem 1.25rem 1.1rem;
+  color: #fff;
+  text-align: center;
+}
+
+.tod-web-modal-title {
+  margin: 0 0 0.75rem;
+  font-size: 1.35rem;
+  font-weight: 800;
+}
+
+.tod-web-session-timer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.15);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.tod-web-session-label {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.9;
+}
+
+.tod-web-session-value {
+  font-variant-numeric: tabular-nums;
+}
+
+.tod-web-expired,
+.tod-web-loading {
+  margin: 0.5rem 0 1rem;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  opacity: 0.95;
+}
+
+.tod-web-choose-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.95rem;
+  opacity: 0.95;
+}
+
+.tod-web-choose-row {
+  display: flex;
+  gap: 0.65rem;
+  margin-bottom: 0.5rem;
+}
+
+.tod-web-choice {
+  flex: 1;
+  border: none;
+  border-radius: 14px;
+  padding: 0.85rem 0.5rem;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.tod-web-choice--truth {
+  background: linear-gradient(145deg, #7c4dff, #651fff);
+}
+
+.tod-web-choice--dare {
+  background: linear-gradient(145deg, #ff1744, #f50057);
+}
+
+.tod-web-choice-emoji {
+  font-size: 1.5rem;
+}
+
+.tod-web-prompt-card {
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 14px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  text-align: left;
+}
+
+.tod-web-prompt-text {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.45;
+  font-weight: 600;
+}
+
+.tod-web-prompt-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.tod-web-send-chat {
+  border: none;
+  border-radius: 12px;
+  padding: 0.75rem;
+  font-weight: 800;
+  color: #fff;
+  cursor: pointer;
+  background: linear-gradient(145deg, #7c4dff, #651fff);
+}
+
+.tod-web-another {
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 12px;
+  padding: 0.55rem;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+}
+
+.tod-web-close {
+  width: 100%;
+  margin-top: 0.25rem;
+  border: none;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-weight: 700;
+  padding: 0.55rem;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+/* Game request invite modal */
+.game-request-modal-web-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10060;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+}
+
+.game-request-modal-web-card {
+  width: 100%;
+  max-width: 340px;
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+}
+
+.game-request-modal-web-card--truth_or_dare .game-request-modal-web-inner {
+  background: linear-gradient(160deg, #ff0080, #ff3399, #cc0066, #ff66b2);
+}
+
+.game-request-modal-web-card--never_have_i_ever .game-request-modal-web-inner {
+  background: linear-gradient(160deg, #00b894, #00cec9, #55efc4);
+}
+
+.game-request-modal-web-inner {
+  padding: 1.75rem 1.35rem 1.25rem;
+  text-align: center;
+  color: #fff;
+}
+
+.game-request-modal-web-emoji {
+  font-size: 2.75rem;
+  display: block;
+  margin-bottom: 0.35rem;
+}
+
+.game-request-modal-web-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.4rem;
+  font-weight: 800;
+}
+
+.game-request-modal-web-body {
+  margin: 0 0 1.25rem;
+  font-size: 1rem;
+  line-height: 1.45;
+  opacity: 0.96;
+}
+
+.game-request-modal-web-loading {
+  margin: 0.5rem 0;
+  font-weight: 600;
+}
+
+.game-request-modal-web-actions {
+  display: flex;
+  gap: 0.65rem;
+  margin-bottom: 0.75rem;
+}
+
+.game-request-modal-web-accept {
+  flex: 1;
+  border: none;
+  border-radius: 14px;
+  padding: 0.85rem;
+  font-weight: 800;
+  font-size: 1rem;
+  color: #fff;
+  cursor: pointer;
+  background: linear-gradient(145deg, #00e676, #00b386);
+}
+
+.game-request-modal-web-decline {
+  flex: 1;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 14px;
+  padding: 0.85rem;
+  font-weight: 700;
+  font-size: 1rem;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.18);
+  cursor: pointer;
+}
+
+.game-request-modal-web-later {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.88);
+  text-decoration: underline;
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 0.35rem;
 }
