@@ -6,7 +6,9 @@ import { authenticateToken, AuthRequest } from "../middleware/auth.js";
 import { rateLimitAPI } from "../middleware/security.js";
 import {
   createApplePayAuthCaptureTransaction,
+  createGooglePayAuthCaptureTransaction,
   createHostedPaymentPageToken,
+  getAuthorizeNetPaymentGatewayId,
   getAuthorizeNetHostedFormUrl,
   getTransactionDetails,
   isAuthorizeNetConfigured,
@@ -324,6 +326,12 @@ const applePayCompleteSchema = z.object({
       paymentData: z.unknown(),
     })
     .passthrough(),
+});
+
+const googlePayCompleteSchema = z.object({
+  packageId: z.coerce.number().int().min(1).max(99),
+  /** Raw Google Pay token blob string from tokenizationData.token. */
+  googlePayToken: z.string().min(16).max(12000),
 });
 
 // Authorize.Net Accept Hosted: returns token + URL for iframe POST (web only)
@@ -709,6 +717,103 @@ paymentsRouter.post("/apple-pay/complete", authenticateToken, rateLimitAPI, asyn
     return res.json({ ok: true, tokens_granted: grantCount, capped });
   } catch (error) {
     console.error("apple-pay/complete: grant failed after charge", error, "transId=", transId);
+    return res.status(500).json({
+      error: "Payment succeeded but token grant failed. Contact support with this reference.",
+      transId,
+    });
+  }
+});
+
+// Google Pay (Android app): app sends Google Pay token blob; server charges via Authorize.Net opaqueData.
+paymentsRouter.get("/google-pay/config", authenticateToken, async (_req: AuthRequest, res) => {
+  const merchantId = process.env.GOOGLE_PAY_MERCHANT_ID?.trim() || "";
+  const gatewayMerchantId = getAuthorizeNetPaymentGatewayId() || "";
+  const enabled = Boolean(isAuthorizeNetConfigured() && merchantId && gatewayMerchantId);
+  return res.json({
+    enabled,
+    merchantId,
+    gateway: "authorizenet",
+    gatewayMerchantId,
+  });
+});
+
+paymentsRouter.post("/google-pay/complete", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  if (!isAuthorizeNetConfigured()) {
+    return res.status(503).json({ error: PURCHASES_UNAVAILABLE_MSG });
+  }
+
+  const parsed = googlePayCompleteSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid Google Pay payload" });
+  }
+
+  const { packageId, googlePayToken } = parsed.data;
+  const userId = req.userId!;
+  const pkg = IAP_PACKAGES.find((p) => p.id === packageId);
+  if (!pkg) {
+    return res.status(400).json({ error: "Unknown package" });
+  }
+  const amountCents = WEB_PACKAGE_AMOUNT_CENTS[packageId];
+  if (!amountCents) {
+    return res.status(400).json({ error: "Unknown package amount" });
+  }
+
+  const tokensResult = db.prepare(`SELECT * FROM mulligan_tokens WHERE user_id = ? ORDER BY granted_at DESC`).all([userId]);
+  const allTokens = (tokensResult instanceof Promise ? await tokensResult : tokensResult) as any[];
+  const availableTokens = allTokens.filter((t: any) => !t.used_at && !t.returned_at).length;
+  const maxCanBuy = Math.max(0, 7 - availableTokens);
+  if (maxCanBuy < pkg.tokens) {
+    return res.status(400).json({
+      error:
+        maxCanBuy <= 0
+          ? "You are at the 7 token limit."
+          : `You can buy at most ${maxCanBuy} more token(s). Pick a smaller package.`,
+    });
+  }
+
+  const sessionId = newCheckoutInvoiceId();
+  const amountDollars = (amountCents / 100).toFixed(2);
+  const googlePayTokenBase64 = Buffer.from(googlePayToken, "utf8").toString("base64");
+
+  let transId: string;
+  try {
+    const result = await createGooglePayAuthCaptureTransaction({
+      amountDollars,
+      invoiceNumber: sessionId,
+      description: `Mulligan ${pkg.tokens} token(s)`,
+      googlePayOpaqueDataValueBase64: googlePayTokenBase64,
+    });
+    transId = result.transId;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Payment failed";
+    console.error("google-pay/complete: Authorize.Net", msg);
+    return res.status(400).json({ error: msg });
+  }
+
+  const idempotencyKey = `anet_gpay_${transId}`;
+  try {
+    const existingResult = db.prepare("SELECT id FROM payments WHERE payment_intent_id = ?").get(idempotencyKey);
+    const existing = (existingResult instanceof Promise ? await existingResult : existingResult) as { id: string } | undefined;
+    if (existing) {
+      return res.json({ ok: true, already_processed: true, tokens_granted: 0 });
+    }
+  } catch {
+    // continue
+  }
+
+  try {
+    const { grantCount, capped } = await grantTokensAfterPurchase({
+      userId,
+      idempotencyKey,
+      amountCents,
+      tokensToGrant: pkg.tokens,
+      packageId: pkg.id,
+      source: "iap",
+    });
+    console.log(`Authorize.Net Google Pay: granted ${grantCount} token(s) to user ${userId} (trans ${transId})`);
+    return res.json({ ok: true, tokens_granted: grantCount, capped });
+  } catch (error) {
+    console.error("google-pay/complete: grant failed after charge", error, "transId=", transId);
     return res.status(500).json({
       error: "Payment succeeded but token grant failed. Contact support with this reference.",
       transId,

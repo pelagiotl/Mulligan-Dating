@@ -50,6 +50,14 @@ function apiEndpoint(): string {
   return useSandbox() ? SANDBOX_API : PROD_API;
 }
 
+/** Payment Gateway ID used by Google Pay tokenization (gatewayMerchantId). */
+export function getAuthorizeNetPaymentGatewayId(): string | undefined {
+  return (
+    process.env.AUTHORIZENET_PAYMENT_GATEWAY_ID?.trim() ||
+    process.env.AUTHNET_PAYMENT_GATEWAY_ID?.trim()
+  );
+}
+
 function merchantAuth() {
   const name = envApiLogin();
   const transactionKey = envTransactionKey();
@@ -229,6 +237,12 @@ export type ApplePayCreateTransactionResult = {
   authCode?: string;
 };
 
+export type GooglePayCreateTransactionResult = {
+  transId: string;
+  responseCode: string;
+  authCode?: string;
+};
+
 function firstTransactionMessage(json: Record<string, unknown>): string | undefined {
   const tr = json.transactionResponse as Record<string, unknown> | undefined;
   if (!tr) return undefined;
@@ -316,4 +330,62 @@ export async function createApplePayAuthCaptureTransaction(params: {
   }
 
   throw new Error(`Apple Pay charge failed: ${errors.join(" | ")}`);
+}
+
+/**
+ * Google Pay (Android) — opaqueData descriptor per Authorize.Net samples.
+ */
+export async function createGooglePayAuthCaptureTransaction(params: {
+  amountDollars: string;
+  invoiceNumber: string;
+  description: string;
+  /** Base64-encoded Google Pay payment blob token. */
+  googlePayOpaqueDataValueBase64: string;
+}): Promise<GooglePayCreateTransactionResult> {
+  const auth = merchantAuth();
+  if (params.invoiceNumber.length > 20) {
+    throw new Error("invoiceNumber must be at most 20 characters");
+  }
+
+  const body = {
+    createTransactionRequest: {
+      merchantAuthentication: auth,
+      refId: params.invoiceNumber,
+      transactionRequest: {
+        transactionType: "authCaptureTransaction",
+        amount: params.amountDollars,
+        marketType: "0",
+        payment: {
+          opaqueData: {
+            dataDescriptor: "COMMON.GOOGLE.INAPP.PAYMENT",
+            dataValue: params.googlePayOpaqueDataValueBase64,
+          },
+        },
+        order: {
+          invoiceNumber: params.invoiceNumber,
+          description: params.description,
+        },
+      },
+    },
+  };
+
+  const json = await authorizeNetJsonRequest(body);
+  const topOk = (json.messages as { resultCode?: string } | undefined)?.resultCode === "Ok";
+  const tr = json.transactionResponse as Record<string, unknown> | undefined;
+  const responseCode = String(tr?.responseCode ?? "");
+  const transId = String(tr?.transId ?? "");
+  if (topOk && responseCode === "1" && transId) {
+    return {
+      transId,
+      responseCode,
+      authCode: tr?.authCode as string | undefined,
+    };
+  }
+
+  const err =
+    firstTransactionError(json) ||
+    firstTransactionMessage(json) ||
+    (json.messages as { message?: { text?: string }[] })?.message?.[0]?.text ||
+    JSON.stringify(tr?.errors ?? tr ?? json);
+  throw new Error(`Google Pay charge failed: ${err}`);
 }
