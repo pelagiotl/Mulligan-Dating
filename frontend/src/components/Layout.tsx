@@ -23,11 +23,12 @@ export default function Layout() {
   const isActive = (path: string) => location.pathname === path
   const connectPath =
     isAuthenticated && !authLoading && !profile ? '/create-profile' : '/browse'
-  /** Hide main nav Connect entry while user is in the create-profile wizard (splash still offers browse). */
-  const hideConnectNav = location.pathname === '/create-profile'
+  /** Create-profile wizard uses its own header; hide global navbar (incl. any Connect link). Trailing slash safe. */
+  const normalizedPath = (location.pathname || '/').replace(/\/+$/, '') || '/'
+  const isCreateProfileWizard = normalizedPath === '/create-profile'
   /** Match native MainTabs: hide top links + show bottom bar on phone (not during profile wizard). */
   const nativeMobileShell =
-    isAuthenticated && location.pathname !== '/create-profile'
+    isAuthenticated && !isCreateProfileWizard
 
   // Fetch token count when authenticated
   useEffect(() => {
@@ -78,51 +79,51 @@ export default function Layout() {
       className={`app-layout${nativeMobileShell ? ' app-layout--native-mobile-shell' : ''}`}
     >
       <MaintenanceBanner />
-      <nav className="navbar">
-        <div className="navbar-inner">
-          <Link to={connectPath} className="navbar-logo">
-            <span className="navbar-logo-icon">
-              <BrandMark size={32} alt="" />
-            </span>
-            <span className="navbar-logo-text">Mulligan</span>
-          </Link>
-          
-          {/* Token Count Badge */}
-          {isAuthenticated && tokenCount !== null && (
-            <button
-              type="button"
-              className="navbar-token-badge"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                padding: '0.5rem 0.875rem',
-                marginLeft: 'var(--space-6)',
-                background: 'linear-gradient(135deg, rgba(244, 63, 94, 0.12) 0%, rgba(244, 63, 94, 0.08) 100%)',
-                border: '1.5px solid rgba(244, 63, 94, 0.25)',
-                borderRadius: 'var(--radius-xl)',
-                color: 'var(--color-rose-600)',
-                fontWeight: 700,
-                fontSize: '0.875rem',
-                letterSpacing: '0.01em',
-                boxShadow: '0 2px 8px rgba(244, 63, 94, 0.15)',
-                transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-              }}
-              onClick={() => setShowTokenModal(true)}
-              aria-haspopup="dialog"
-              aria-expanded={showTokenModal}
-              aria-controls="navbar-token-dialog"
-            >
-              <span style={{ fontSize: '1rem' }} aria-hidden>🎟️</span>
-              <span>{tokenCount}</span>
-              <span className="sr-only">Open token details</span>
-            </button>
-          )}
-          
-          <ul className="navbar-nav">
-            {!hideConnectNav ? (
+      {!isCreateProfileWizard ? (
+        <nav className="navbar">
+          <div className="navbar-inner">
+            <Link to={connectPath} className="navbar-logo">
+              <span className="navbar-logo-icon">
+                <BrandMark size={32} alt="" />
+              </span>
+              <span className="navbar-logo-text">Mulligan</span>
+            </Link>
+
+            {/* Token Count Badge */}
+            {isAuthenticated && tokenCount !== null && (
+              <button
+                type="button"
+                className="navbar-token-badge"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  padding: '0.5rem 0.875rem',
+                  marginLeft: 'var(--space-6)',
+                  background: 'linear-gradient(135deg, rgba(244, 63, 94, 0.12) 0%, rgba(244, 63, 94, 0.08) 100%)',
+                  border: '1.5px solid rgba(244, 63, 94, 0.25)',
+                  borderRadius: 'var(--radius-xl)',
+                  color: 'var(--color-rose-600)',
+                  fontWeight: 700,
+                  fontSize: '0.875rem',
+                  letterSpacing: '0.01em',
+                  boxShadow: '0 2px 8px rgba(244, 63, 94, 0.15)',
+                  transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+                onClick={() => setShowTokenModal(true)}
+                aria-haspopup="dialog"
+                aria-expanded={showTokenModal}
+                aria-controls="navbar-token-dialog"
+              >
+                <span style={{ fontSize: '1rem' }} aria-hidden>🎟️</span>
+                <span>{tokenCount}</span>
+                <span className="sr-only">Open token details</span>
+              </button>
+            )}
+
+            <ul className="navbar-nav">
               <li>
                 <Link
                   to={connectPath}
@@ -132,57 +133,48 @@ export default function Layout() {
                   <span>😍</span> Connect
                 </Link>
               </li>
-            ) : null}
-            <li>
-              <Link 
-                to="/matches" 
-                className={`navbar-link ${isActive('/matches') ? 'active' : ''}`}
-                aria-label="Matches"
-              >
-                <span>❤️</span> Matches
-              </Link>
-            </li>
-            <li>
-              <Link 
-                to="/profile" 
-                className={`navbar-link ${isActive('/profile') ? 'active' : ''}`}
-              >
-                <span>👤</span> Profile
-              </Link>
-            </li>
-            <li>
-              <Link 
-                to="/settings" 
-                className={`navbar-link ${isActive('/settings') ? 'active' : ''}`}
-              >
-                <span>⚙️</span> Settings
-              </Link>
-            </li>
-            {isAdmin && (
               <li>
-                <Link 
-                  to="/admin" 
-                  className={`navbar-link ${isActive('/admin') ? 'active' : ''}`}
+                <Link
+                  to="/matches"
+                  className={`navbar-link ${isActive('/matches') ? 'active' : ''}`}
+                  aria-label="Matches"
                 >
-                  <span>👑</span> Admin
+                  <span>❤️</span> Matches
                 </Link>
               </li>
-            )}
-            <li className="navbar-logout-desktop">
-              <button 
-                onClick={() => {
-                  logout()
-                  navigate('/login')
-                }}
-                className="navbar-link logout"
-                style={{ background: 'none', border: 'none', cursor: 'pointer' }}
-              >
-                Log out
-              </button>
-            </li>
-          </ul>
-        </div>
-      </nav>
+              <li>
+                <Link to="/profile" className={`navbar-link ${isActive('/profile') ? 'active' : ''}`}>
+                  <span>👤</span> Profile
+                </Link>
+              </li>
+              <li>
+                <Link to="/settings" className={`navbar-link ${isActive('/settings') ? 'active' : ''}`}>
+                  <span>⚙️</span> Settings
+                </Link>
+              </li>
+              {isAdmin && (
+                <li>
+                  <Link to="/admin" className={`navbar-link ${isActive('/admin') ? 'active' : ''}`}>
+                    <span>👑</span> Admin
+                  </Link>
+                </li>
+              )}
+              <li className="navbar-logout-desktop">
+                <button
+                  onClick={() => {
+                    logout()
+                    navigate('/login')
+                  }}
+                  className="navbar-link logout"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                >
+                  Log out
+                </button>
+              </li>
+            </ul>
+          </div>
+        </nav>
+      ) : null}
       
       <main
         className="main-content"
