@@ -157,7 +157,19 @@ async function uploadOnePhoto(file: File): Promise<SlotPhoto> {
 
 export default function CreateProfile() {
   const navigate = useNavigate();
-  const { refreshProfile } = useAuth();
+  const { refreshProfile, logout } = useAuth();
+
+  const handleChangePhoneNumber = () => {
+    if (
+      !window.confirm(
+        "You will sign out and return to the phone number screen so you can use a different number. Continue?"
+      )
+    ) {
+      return;
+    }
+    logout();
+    navigate("/login", { replace: true });
+  };
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -599,6 +611,16 @@ export default function CreateProfile() {
   return (
     <div className="create-profile-wizard native-app-screen">
       <header className="create-profile-hero">
+        <div className="create-profile-hero-top">
+          <span aria-hidden />
+          <button
+            type="button"
+            className="create-profile-change-phone"
+            onClick={handleChangePhoneNumber}
+          >
+            Wrong number?
+          </button>
+        </div>
         <h1 className="create-profile-hero-title">Set up your profile</h1>
         <p className="create-profile-hero-step">
           Step {step} of {TOTAL_STEPS}
