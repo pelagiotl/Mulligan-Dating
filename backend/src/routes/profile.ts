@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { canonicalizeInterestName } from '../constants/profilePickLists.js';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
 import { db } from '../database.js';
@@ -431,14 +432,21 @@ profileRouter.put('/partner-qualities', authenticateToken, rateLimitAPI, async (
     const deleteStmt = db.prepare('DELETE FROM partner_qualities WHERE profile_id = ?');
     await (deleteStmt.run([profileResult.id]) as Promise<any>);
 
-    // Insert new partner qualities
+    // Insert new partner qualities (must match canonical interest labels for matching)
     if (qualities.length > 0) {
       const insertStmt = db.prepare('INSERT INTO partner_qualities (id, profile_id, quality, importance) VALUES (?, ?, ?, ?)');
       for (const quality of qualities) {
         const qualityId = uuidv4();
-        const qualityName = typeof quality === 'string' ? quality : quality.quality;
+        const rawName = typeof quality === 'string' ? quality : quality.quality;
+        const canonical = canonicalizeInterestName(String(rawName || ''));
+        if (!canonical) {
+          return res.status(400).json({
+            error: 'Each "what I\'m looking for" item must match a My Interests option.',
+            invalidQuality: rawName,
+          });
+        }
         const importance = typeof quality === 'object' && quality.importance ? quality.importance : 5;
-        await (insertStmt.run([qualityId, profileResult.id, sanitizeText(qualityName, 100), importance]) as Promise<any>);
+        await (insertStmt.run([qualityId, profileResult.id, sanitizeText(canonical, 100), importance]) as Promise<any>);
       }
     }
 

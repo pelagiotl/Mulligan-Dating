@@ -851,7 +851,7 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
                     <View style={styles.tokenInfoCard}>
                       <Text style={styles.tokenInfoText}>
                         💡 <Text style={styles.tokenInfoTextBold}>How tokens work:</Text>
-                        {'\n'}• Use tokens to connect with people
+                        {'\n'}• Use tokens to match with people
                         {'\n'}• Get 7 tokens weekly
                       </Text>
                     </View>
@@ -1047,7 +1047,7 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
       ) : (
         <Text style={styles.cannotClaimText}>
           {data.availableTokens >= 7
-            ? 'You already have 7 tokens. Use them to connect!'
+            ? 'You already have 7 tokens. Use them to match!'
             : data.nextRefillDate
               ? `Next weekly refill: ${new Date(data.nextRefillDate).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}.`
               : 'You can claim more tokens on your next weekly refill.'}
@@ -1055,7 +1055,7 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
       )}
 
       <Text style={styles.infoText}>
-        Use tokens to connect with people. Get 7 tokens weekly (up to 7 max).
+        Use tokens to match with people. Get 7 tokens weekly (up to 7 max).
       </Text>
 
       {/* Buy More Button - Only show when tokens are 0 or very low */}

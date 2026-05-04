@@ -4,6 +4,7 @@
   "main": "index.js",
   "scripts": {
     "start": "expo start",
+    "start:quick": "expo start --scheme app.mulligandating --offline",
     "dev": "expo start",
     "android": "expo run:android",
     "android:all-arch": "expo run:android -- --all-arch",

@@ -161,12 +161,12 @@ export default function CreateProfile() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [showCelebration, setShowCelebration] = useState(false);
   const [profileReadyForPhotos, setProfileReadyForPhotos] = useState(false);
   const profileSavedRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingSlotIndex, setPendingSlotIndex] = useState<number | null>(null);
   const [uploadingSlot, setUploadingSlot] = useState<number | null>(null);
+  const [showProfileReadySplash, setShowProfileReadySplash] = useState(false);
 
   const [displayName, setDisplayName] = useState("");
   const [age, setAge] = useState("");
@@ -564,7 +564,7 @@ export default function CreateProfile() {
         relationshipType: null,
       });
       await refreshProfile();
-      setShowCelebration(true);
+      setShowProfileReadySplash(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create profile");
     } finally {
@@ -690,13 +690,9 @@ export default function CreateProfile() {
           focusCard(
             "ocean",
             "🔗",
-            "Preferred connections",
+            "Preferred matches",
             "Who would you like to connect with?",
             <>
-              <p className="create-profile-pref-intro">
-                Mulligan Connections lets you meet people for hikes, coffee, gaming, events, or just good conversation.
-                Gender preference helps match you with people you&apos;re most comfortable meeting.
-              </p>
               <p className="create-profile-pref-label">Who to show</p>
               <div className="create-profile-gender-grid">
                 {PREFERRED_GENDER_OPTIONS.map((pref) => {
@@ -950,7 +946,17 @@ export default function CreateProfile() {
           <span />
         )}
         {step < TOTAL_STEPS ? (
-          <button type="button" className="create-profile-btn create-profile-btn--next" onClick={handleNext}>
+          <button
+            type="button"
+            className="create-profile-btn create-profile-btn--next"
+            disabled={step === 5 && (!hasCityAndState(location) || detectingLocation)}
+            title={
+              step === 5 && !hasCityAndState(location)
+                ? "Enter city and state (e.g. Medford, Oregon) or use your location"
+                : undefined
+            }
+            onClick={handleNext}
+          >
             Continue →
           </button>
         ) : (
@@ -965,21 +971,25 @@ export default function CreateProfile() {
         )}
       </div>
 
-      {showCelebration ? (
-        <div className="create-profile-celebration" role="dialog" aria-modal="true" aria-labelledby="profile-celebration-title">
-          <div className="create-profile-celebration-bg" aria-hidden />
-          <div className="create-profile-celebration-card">
-            <h2 id="profile-celebration-title">You&apos;re all set! 🎉</h2>
-            <p>Your profile is live. Time to connect.</p>
+      {showProfileReadySplash ? (
+        <div
+          className="create-profile-ready-splash"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="profile-ready-title"
+        >
+          <div className="create-profile-ready-card">
+            <h2 id="profile-ready-title">Nice — you&apos;re in.</h2>
+            <p className="create-profile-ready-sub">
+              Your profile&apos;s live. When you&apos;re ready, we&apos;ll show you people you might actually click with —
+              low stakes, your pace.
+            </p>
             <button
               type="button"
-              className="create-profile-btn create-profile-btn--next"
-              onClick={() => {
-                setShowCelebration(false);
-                navigate("/browse", { replace: true });
-              }}
+              className="create-profile-btn create-profile-btn--next create-profile-ready-cta"
+              onClick={() => navigate("/browse", { replace: true })}
             >
-              Start connecting
+              Let&apos;s go →
             </button>
           </div>
         </div>

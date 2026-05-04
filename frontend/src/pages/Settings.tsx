@@ -1,7 +1,7 @@
 import { useState, useEffect, FormEvent } from "react";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../utils/api";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import WebTokenPurchase from "../components/WebTokenPurchase";
 import {
   browserSupportsWebPush,
@@ -19,6 +19,7 @@ interface SettingsData {
 export default function Settings() {
   const { logout, profile, refreshProfile, user, refreshSession } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [settings, setSettings] = useState<SettingsData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -49,6 +50,15 @@ export default function Settings() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (loading) return;
+    if (location.hash === "#tokens") {
+      requestAnimationFrame(() => {
+        document.getElementById("tokens")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+  }, [loading, location.hash]);
 
   useEffect(() => {
     fetchSettings();
@@ -254,6 +264,30 @@ export default function Settings() {
           </div>
 
           <div className="settings-subsection">
+            <h3 className="settings-inline-section-title">
+              <span aria-hidden>📬</span> Change email
+            </h3>
+            <form onSubmit={handleChangeEmail} className="settings-form">
+              <div className="form-group">
+                <label htmlFor="newEmail">New email</label>
+                <input
+                  type="email"
+                  id="newEmail"
+                  className="form-input"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  required
+                  autoComplete="email"
+                />
+              </div>
+              <button type="submit" className="btn btn-primary" disabled={changingEmail}>
+                {changingEmail ? "Changing…" : "Change email"}
+              </button>
+            </form>
+          </div>
+
+          <div className="settings-subsection">
             <label className="settings-field-label" htmlFor="displayNameSettings">
               Display name
             </label>
@@ -291,7 +325,7 @@ export default function Settings() {
         </div>
 
         {/* Tokens — shared with landing page (WebTokenPurchase) */}
-        <div className="settings-section">
+        <div id="tokens" className="settings-section">
           <h2 className="settings-section-title">
             <span>💳</span> Tokens
           </h2>
@@ -349,35 +383,6 @@ export default function Settings() {
               )}
             </>
           )}
-        </div>
-
-        {/* Change Email */}
-        <div className="settings-section">
-          <h2 className="settings-section-title">
-            <span>📬</span> Change Email
-          </h2>
-          <form onSubmit={handleChangeEmail} className="settings-form">
-            <div className="form-group">
-              <label htmlFor="newEmail">New Email</label>
-              <input
-                type="email"
-                id="newEmail"
-                className="form-input"
-                value={newEmail}
-                onChange={(e) => setNewEmail(e.target.value)}
-                placeholder="you@example.com"
-                required
-                autoComplete="email"
-              />
-            </div>
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={changingEmail}
-            >
-              {changingEmail ? "Changing..." : "Change Email"}
-            </button>
-          </form>
         </div>
 
         {/* Delete Account */}

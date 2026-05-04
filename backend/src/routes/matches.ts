@@ -14,6 +14,7 @@ import {
   connectSetupErrorPayload,
   getConnectSetupViolationsForUser,
 } from "../utils/connectRequirements.js";
+import { checkDealbreakers } from "../utils/dealbreakers.js";
 import { uploadChatImage, uploadChatVideo, uploadChatAudio } from "../middleware/upload.js";
 import { uploadToCloudinary, uploadToCloudinaryMedia, isCloudinaryConfigured } from "../services/cloudinary.js";
 
@@ -290,6 +291,31 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
       });
     }
 
+    // Batch fetch dealbreaker labels (what each profile won't accept in a match)
+    const dealbreakersMap = new Map<string, string[]>();
+    if (profileIdsArray.length > 0) {
+      try {
+        const placeholders = profileIdsArray.map(() => '?').join(',');
+        const dbRows = db
+          .prepare(
+            `SELECT profile_id, description FROM dealbreakers WHERE profile_id IN (${placeholders}) ORDER BY profile_id, id`
+          )
+          .all(profileIdsArray);
+        const rows = (dbRows instanceof Promise ? await dbRows : dbRows) as {
+          profile_id: string;
+          description: string;
+        }[];
+        rows.forEach((row) => {
+          if (!dealbreakersMap.has(row.profile_id)) {
+            dealbreakersMap.set(row.profile_id, []);
+          }
+          dealbreakersMap.get(row.profile_id)!.push(row.description);
+        });
+      } catch {
+        // dealbreakers table may be missing on older DBs
+      }
+    }
+
     // Batch fetch all unread message counts
     const unreadCountsMap = new Map<string, number>(); // matchId -> unreadCount
     if (allMatchIds.length > 0) {
@@ -397,6 +423,7 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
       const interests = otherProfileId ? (interestsMap.get(otherProfileId) || []) : [];
       const values = otherProfileId ? (preferencesMap.get(otherProfileId) || []) : [];
       const partnerQualities = otherProfileId ? (partnerQualitiesMap.get(otherProfileId) || []) : [];
+      const dealbreakers = otherProfileId ? (dealbreakersMap.get(otherProfileId) || []) : [];
       const unreadMessageCount = unreadCountsMap.get(m.id) || 0;
       const gameUnlocks = gameUnlocksMap.get(m.id) || { truth_or_dare: false, never_have_i_ever: false };
       const compatibilityScore = compatibilityScoresMap.get(m.id) ?? null;
@@ -436,6 +463,7 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
           interests,
           values,
           partnerQualities,
+          dealbreakers,
           lastActiveAt: otherUser.show_active_status ? (otherUser.last_active_at || null) : null,
           ...(photos !== undefined && { photos }),
         },
@@ -548,6 +576,18 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
         error:
           "You and this person aren't a match based on connection preferences (including who you each want to connect with).",
         code: "PREFERENCE_MISMATCH",
+      });
+    }
+
+    // Same vetoes as browse: no new rules, only ensures Connect cannot bypass dealbreaker + lifestyle checks.
+    const dealbreakersAllowPair =
+      (await checkDealbreakers(userProfile.id, targetProfile.id)) &&
+      (await checkDealbreakers(targetProfile.id, userProfile.id));
+    if (!dealbreakersAllowPair) {
+      return res.status(400).json({
+        error:
+          "This connection isn’t possible with one or both of your current dealbreaker or lifestyle settings. If your preferences changed, update them on Profile and try again.",
+        code: "DEALBREAKER_MISMATCH",
       });
     }
 

@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../utils/api'
 import {
@@ -8,16 +8,21 @@ import {
 } from '../lib/tokenBalanceEvents'
 import MaintenanceBanner from './MaintenanceBanner'
 import BrandMark from './BrandMark'
+import TokenDisplay from './TokenDisplay'
+import WebTokenPurchase from './WebTokenPurchase'
 
 export default function Layout() {
   // Always call hooks at the top level, before any conditional logic
   // This ensures hooks are called in the same order on every render
-  const { logout, isAdmin, isAuthenticated } = useAuth()
+  const { logout, isAdmin, isAuthenticated, profile, loading: authLoading, user } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const [tokenCount, setTokenCount] = useState<number | null>(null)
+  const [showTokenModal, setShowTokenModal] = useState(false)
 
   const isActive = (path: string) => location.pathname === path
+  const connectPath =
+    isAuthenticated && !authLoading && !profile ? '/create-profile' : '/browse'
   /** Match native MainTabs: hide top links + show bottom bar on phone (not during profile wizard). */
   const nativeMobileShell =
     isAuthenticated && location.pathname !== '/create-profile'
@@ -55,6 +60,17 @@ export default function Layout() {
     }
   }
 
+  const closeTokenModal = useCallback(() => setShowTokenModal(false), [])
+
+  useEffect(() => {
+    if (!showTokenModal) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeTokenModal()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [showTokenModal, closeTokenModal])
+
   return (
     <div
       className={`app-layout${nativeMobileShell ? ' app-layout--native-mobile-shell' : ''}`}
@@ -62,7 +78,7 @@ export default function Layout() {
       <MaintenanceBanner />
       <nav className="navbar">
         <div className="navbar-inner">
-          <Link to="/browse" className="navbar-logo">
+          <Link to={connectPath} className="navbar-logo">
             <span className="navbar-logo-icon">
               <BrandMark size={32} alt="" />
             </span>
@@ -71,8 +87,8 @@ export default function Layout() {
           
           {/* Token Count Badge */}
           {isAuthenticated && tokenCount !== null && (
-            <Link 
-              to="/settings" 
+            <button
+              type="button"
               className="navbar-token-badge"
               style={{
                 display: 'inline-flex',
@@ -84,36 +100,29 @@ export default function Layout() {
                 border: '1.5px solid rgba(244, 63, 94, 0.25)',
                 borderRadius: 'var(--radius-xl)',
                 color: 'var(--color-rose-600)',
-                textDecoration: 'none',
                 fontWeight: 700,
                 fontSize: '0.875rem',
                 letterSpacing: '0.01em',
                 boxShadow: '0 2px 8px rgba(244, 63, 94, 0.15)',
                 transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                fontFamily: 'inherit',
               }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(244, 63, 94, 0.18) 0%, rgba(244, 63, 94, 0.12) 100%)'
-                e.currentTarget.style.transform = 'translateY(-2px)'
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(244, 63, 94, 0.25)'
-                e.currentTarget.style.borderColor = 'rgba(244, 63, 94, 0.35)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(244, 63, 94, 0.12) 0%, rgba(244, 63, 94, 0.08) 100%)'
-                e.currentTarget.style.transform = 'translateY(0)'
-                e.currentTarget.style.boxShadow = '0 2px 8px rgba(244, 63, 94, 0.15)'
-                e.currentTarget.style.borderColor = 'rgba(244, 63, 94, 0.25)'
-              }}
+              onClick={() => setShowTokenModal(true)}
+              aria-haspopup="dialog"
+              aria-expanded={showTokenModal}
+              aria-controls="navbar-token-dialog"
             >
-              <span style={{ fontSize: '1rem' }}>🎟️</span>
+              <span style={{ fontSize: '1rem' }} aria-hidden>🎟️</span>
               <span>{tokenCount}</span>
-            </Link>
+              <span className="sr-only">Open token details</span>
+            </button>
           )}
           
           <ul className="navbar-nav">
             <li>
               <Link 
-                to="/browse" 
+                to={connectPath} 
                 className={`navbar-link ${isActive('/browse') ? 'active' : ''}`}
                 aria-label="Connect"
               >
@@ -187,7 +196,7 @@ export default function Layout() {
       {nativeMobileShell && (
         <nav className="app-bottom-tabs" aria-label="Main navigation">
           <Link
-            to="/browse"
+            to={connectPath}
             className={`app-bottom-tabs__item${isActive('/browse') ? ' app-bottom-tabs__item--active' : ''}`}
             aria-label="Connect"
           >
@@ -233,6 +242,51 @@ export default function Layout() {
         </nav>
       )}
       
+      {showTokenModal ? (
+        <div className="navbar-token-modal-overlay" role="presentation">
+          <button
+            type="button"
+            className="navbar-token-modal-backdrop"
+            aria-label="Close token details"
+            onClick={closeTokenModal}
+          />
+          <div
+            id="navbar-token-dialog"
+            className="navbar-token-modal-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="navbar-token-modal-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="navbar-token-modal-head">
+              <h2 id="navbar-token-modal-title">Mulligan tokens</h2>
+              <button
+                type="button"
+                className="navbar-token-modal-close"
+                onClick={closeTokenModal}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            <p className="navbar-token-modal-lede">
+              You have <strong>{tokenCount}</strong> available. Use tokens to match with people — claim your weekly refill
+              or buy more when you&apos;re running low.
+            </p>
+            <TokenDisplay />
+            <div className="navbar-token-modal-purchase">
+              <p className="navbar-token-modal-purchase-label">Get more tokens</p>
+              <WebTokenPurchase variant="settings" customerEmail={user?.email} />
+            </div>
+            <div className="navbar-token-modal-footer">
+              <Link to="/settings#tokens" className="btn btn-ghost btn-sm" onClick={closeTokenModal}>
+                Open full Settings
+              </Link>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <footer className="app-footer-global" style={{
         padding: 'var(--space-6) var(--space-8)',
         textAlign: 'center',

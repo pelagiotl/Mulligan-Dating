@@ -120,7 +120,7 @@ export default function TokenDisplay() {
 
   const cannotClaimMessage =
     data.availableTokens >= TOKEN_MAX
-      ? `You're at your maximum of ${TOKEN_MAX} tokens. Use them to connect with people!`
+      ? `You're at your maximum of ${TOKEN_MAX} tokens. Use them to match with people!`
       : refillFormatted
         ? `Next weekly refill: ${refillFormatted}. You'll get up to ${TOKEN_MAX} tokens.`
         : "Weekly tokens aren't ready to claim yet. Check back after your refill date.";
@@ -172,7 +172,7 @@ export default function TokenDisplay() {
         )}
 
         <p className="token-info token-display-footer-hint">
-          Use tokens to connect with people. Get {TOKEN_MAX} tokens weekly (up to {TOKEN_MAX} max).
+          Use tokens to match with people. Get {TOKEN_MAX} tokens weekly (up to {TOKEN_MAX} max).
         </p>
       </div>
     </div>

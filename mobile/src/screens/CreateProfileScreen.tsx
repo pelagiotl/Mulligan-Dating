@@ -1480,7 +1480,7 @@ export default function CreateProfileScreen() {
           <Text style={[styles.focusedEmoji, { fontSize: rs.emojiSize, marginBottom: 16 }]}>🔗</Text>
           <Text style={[styles.focusedTitle, { fontSize: rs.titleSize, marginBottom: rs.titleMargin }]}>Preferred connections</Text>
           <Text style={[styles.focusedSubtitle, { fontSize: rs.subtitleSizeSmall, lineHeight: Math.round(20 * (screenWidth / 375)), marginBottom: rs.subtitleMarginSmall }]}>
-            Mulligan Connections lets you meet people for hikes, coffee, gaming, events, or just good conversation. Gender preference helps match you with people you{"'"}re most comfortable meeting.
+            Mulligan Dating lets you meet people for hikes, coffee, gaming, events, or just good conversation. Gender preference helps match you with people you{"'"}re most comfortable meeting.
           </Text>
           <Text style={[styles.focusedTitle, { fontSize: rs.titleSizeSmall, marginBottom: 12, fontWeight: '700' }]}>Who would you like to connect with?</Text>
           <Text style={[styles.focusedSubtitle, { fontSize: rs.subtitleSizeTiny, marginBottom: 10, opacity: 0.95 }]}>Who to show</Text>

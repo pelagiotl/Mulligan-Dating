@@ -264,29 +264,32 @@ function MainTabs() {
     tabBarStyle: {
       backgroundColor: '#FAFAFA',
       borderTopWidth: 0,
-      // Include bottom safe inset so labels/icons sit above gesture / 3-button nav.
+      // Include bottom safe inset so labels/icons sit above gesture / 3-button nav,
+      // but do not add extra fixed bottom gap on Android (looks "floating").
       height:
         Platform.OS === 'ios'
           ? 56 + Math.round(insets.bottom * 0.5)
-          : 56 + Math.max(insets.bottom, 8),
+          : 56 + insets.bottom,
       paddingBottom:
         Platform.OS === 'ios'
           ? 8 + Math.round(insets.bottom * 0.5)
-          : 8 + Math.max(insets.bottom, 8),
+          : Math.max(insets.bottom, 0),
       paddingTop: 8,
       paddingHorizontal: 4,
       shadowColor: '#000',
       shadowOffset: { width: 0, height: -3 },
       shadowOpacity: 0.08,
       shadowRadius: 12,
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
-      // Pin to the physical bottom on both platforms. Edge-to-edge (Android enableEdgeToEdge) needs
-      // this; without it the bar can sit in flex layout above the window inset and look "floating".
-      position: 'absolute' as const,
-      left: 0,
-      right: 0,
-      bottom: 0,
+      // Keep iOS rounded aesthetic; Android should look docked to the bottom edge.
+      borderTopLeftRadius: Platform.OS === 'ios' ? 24 : 0,
+      borderTopRightRadius: Platform.OS === 'ios' ? 24 : 0,
+      // On Android, keep the tab bar in normal layout flow so it docks flush to the bottom.
+      // iOS keeps absolute positioning for the glassy floating style.
+      position: Platform.OS === 'ios' ? ('absolute' as const) : ('relative' as const),
+      left: Platform.OS === 'ios' ? 0 : undefined,
+      right: Platform.OS === 'ios' ? 0 : undefined,
+      bottom: Platform.OS === 'ios' ? 0 : undefined,
+      marginBottom: 0,
       zIndex: 1000,
       elevation: 24,
     },

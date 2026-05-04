@@ -11,7 +11,7 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false)
   const [success, setSuccess] = useState(false)
   const [shake, setShake] = useState(false)
-  const { login, isAuthenticated } = useAuth()
+  const { login, isAuthenticated, profile, loading: authLoading } = useAuth()
   const navigate = useNavigate()
 
   // Reset error state when component mounts
@@ -19,11 +19,10 @@ export default function Login() {
     setError('')
     setLoading(false)
     
-    // If already authenticated, redirect to browse
-    if (isAuthenticated) {
-      navigate('/browse')
+    if (!authLoading && isAuthenticated) {
+      navigate(profile ? '/browse' : '/create-profile')
     }
-  }, [isAuthenticated, navigate])
+  }, [isAuthenticated, profile, authLoading, navigate])
 
   // Create floating particles
   const [particles] = useState(() => {

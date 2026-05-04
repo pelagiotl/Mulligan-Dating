@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Navigate } from "react-router-dom";
 import { api } from "../utils/api";
 import { useAuth } from "../context/AuthContext";
 import { getPhotoUrl } from "../utils/photoUrl";
@@ -641,7 +641,6 @@ export default function Browse() {
     }
   }, [celebrationMatchId, navigate, clearMatchNotification]);
 
-  const needsProfile = !userProfile && !authLoading && !loading;
   const showConnectGate =
     !!userProfile &&
     !browseSessionActive &&
@@ -649,11 +648,8 @@ export default function Browse() {
     !loading &&
     !isAutoMatching;
   
-  // If there's an error but we don't have a profile, treat it as a profile creation issue
-  // This is a fallback to ensure users can always create a profile
-  if (error && !userProfile && !loading) {
-    console.log('Error detected but no profile - showing create profile option:', error);
-    // Don't return error, show create profile button instead
+  if (!authLoading && !userProfile) {
+    return <Navigate to="/create-profile" replace />;
   }
 
   /* Full-page loading only before first browse payload; offset refetches keep the stack mounted */
@@ -703,31 +699,7 @@ export default function Browse() {
         </div>
       )}
 
-      {needsProfile ? (
-        <div className="browse-native-needs-profile">
-          <div className="browse-native-needs-profile-emoji">📝</div>
-          {error && (
-            <p
-              style={{
-                color: "var(--text-secondary)",
-                marginBottom: "1rem",
-                fontSize: "0.95rem",
-              }}
-            >
-              {error}
-            </p>
-          )}
-          <p>Complete your profile to start discovering people.</p>
-          <button
-            type="button"
-            onClick={() => navigate("/create-profile")}
-            className="btn btn-primary"
-            style={{ marginTop: "1.25rem" }}
-          >
-            Create Profile 🚀
-          </button>
-        </div>
-      ) : browseSessionActive &&
+      {browseSessionActive &&
         hasFetched &&
         !currentProfile &&
         !loading &&

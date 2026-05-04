@@ -70,7 +70,7 @@ interface SettingsRow {
   showActiveStatus?: boolean;
 }
 
-function formatPreferredConnectionsLabel(preferredGendersJson: string | null | undefined): string {
+function formatPreferredMatchesLabel(preferredGendersJson: string | null | undefined): string {
   if (!preferredGendersJson) return "Everyone";
   try {
     const arr = (JSON.parse(preferredGendersJson) as string[]).filter(
@@ -140,37 +140,21 @@ const INTEREST_EDIT_EMOJIS: Record<string, string> = {
   Education: "🎓",
 };
 
-const PARTNER_QUALITY_EDIT_OPTIONS = [
-  "Kindness",
-  "Sense of humor",
-  "Communication",
-  "Emotional maturity",
-  "Shared values",
-  "Ambition",
-  "Loyalty",
-  "Open-mindedness",
-  "Adventure",
-  "Family-oriented",
-  "Physical attraction",
-  "Intellectual curiosity",
-  "Creativity",
-  "Financial stability",
-  "Fitness & health",
-] as const;
+/** Same labels as interests so browse + compatibility can align "what I want" with their interests. */
+const PARTNER_QUALITY_EDIT_OPTIONS = INTEREST_EDIT_OPTIONS;
+
+function isCanonicalPartnerQuality(v: string): v is (typeof INTEREST_EDIT_OPTIONS)[number] {
+  return (INTEREST_EDIT_OPTIONS as readonly string[]).includes(v);
+}
 
 const DEALBREAKER_SUGGESTIONS = [
-  "Smoking",
-  "Heavy drinking",
-  "Different politics",
-  "Different religion",
-  "Long distance",
-  "Doesn’t want kids",
-  "Wants kids soon",
-  "Not active / fit",
-  "Nightlife often",
-  "Doesn’t like pets",
-  "Messy lifestyle",
-  "Prefer not to say",
+  "Smokes cigarettes",
+  "Marijuana",
+  "Frequent drinking",
+  "Doesn't want children",
+  "Wants children",
+  "Doesn't workout",
+  "Doesn't like pets",
 ] as const;
 
 const LIFESTYLE_FIELD_OPTIONS = {
@@ -182,6 +166,87 @@ const LIFESTYLE_FIELD_OPTIONS = {
   workLifeBalance: ["", "Career-focused", "Balanced", "Life-first", "Flexible", "Prefer not to say"],
   worksOut: ["", "Daily", "Often", "Sometimes", "Rarely", "Prefer not to say"],
 } as const;
+
+type LifestyleFieldKey = keyof typeof LIFESTYLE_FIELD_OPTIONS;
+
+const LIFESTYLE_SECTION_EMOJI: Record<LifestyleFieldKey, string> = {
+  smoking: "🚭",
+  drinking: "🥂",
+  children: "👶",
+  pets: "🐾",
+  religion: "✨",
+  workLifeBalance: "⚖️",
+  worksOut: "💪",
+};
+
+/** Emoji shown next to each select option (empty = not set). */
+const LIFESTYLE_OPTION_EMOJI: Record<LifestyleFieldKey, Record<string, string>> = {
+  smoking: {
+    "": "◻️",
+    "Non-smoker": "🚭",
+    "Social smoker": "🌬️",
+    "Smoker": "🚬",
+    "Trying to quit": "🌱",
+    "Prefer not to say": "🤫",
+  },
+  drinking: {
+    "": "◻️",
+    "Non-drinker": "🧊",
+    "Socially": "🥂",
+    "Regularly": "🍺",
+    "Sober-curious": "🫧",
+    "Prefer not to say": "🤫",
+  },
+  children: {
+    "": "◻️",
+    "Want kids": "👶",
+    "Don’t want kids": "✋",
+    "Open to either": "🤝",
+    "Have kids": "👨‍👧",
+    "Prefer not to say": "🤫",
+  },
+  pets: {
+    "": "◻️",
+    "Love pets": "😻",
+    "Allergic": "🤧",
+    "No pets": "🏠",
+    "Open to pets": "🐕",
+    "Prefer not to say": "🤫",
+  },
+  religion: {
+    "": "◻️",
+    "Very important": "⛪",
+    "Somewhat important": "🙏",
+    "Spiritual not religious": "🌙",
+    "Not important": "➖",
+    "Prefer not to say": "🤫",
+  },
+  workLifeBalance: {
+    "": "◻️",
+    "Career-focused": "💼",
+    "Balanced": "⚖️",
+    "Life-first": "🌴",
+    "Flexible": "🔄",
+    "Prefer not to say": "🤫",
+  },
+  worksOut: {
+    "": "◻️",
+    "Daily": "🔥",
+    "Often": "💪",
+    "Sometimes": "🚶",
+    "Rarely": "🛋️",
+    "Prefer not to say": "🤫",
+  },
+};
+
+function lifestyleSelectOptionLabel(field: LifestyleFieldKey, value: string): string {
+  if (value === "") {
+    const e = LIFESTYLE_OPTION_EMOJI[field][""] ?? "◻️";
+    return `${e} Not set — skip or keep private`;
+  }
+  const emoji = LIFESTYLE_OPTION_EMOJI[field][value] ?? "•";
+  return `${emoji} ${value}`;
+}
 
 type LifestyleForm = {
   smoking: string;
@@ -469,7 +534,7 @@ export default function MyProfile() {
       setShowPreferredModal(false);
       await refreshProfile();
     } catch (e: unknown) {
-      setError((e as Error)?.message || "Failed to update preferred connections.");
+      setError((e as Error)?.message || "Failed to update preferred matches.");
     } finally {
       setUpdatingField(false);
     }
@@ -793,9 +858,9 @@ export default function MyProfile() {
             }}
           >
             <span className="my-profile-full-card-emoji">🔗</span>
-            <span className="my-profile-full-card-label">Preferred connections</span>
+            <span className="my-profile-full-card-label">Preferred matches</span>
             <span className="my-profile-full-card-value">
-              {formatPreferredConnectionsLabel(data.preferences?.preferred_genders ?? null)}
+              {formatPreferredMatchesLabel(data.preferences?.preferred_genders ?? null)}
             </span>
           </button>
 
@@ -924,13 +989,17 @@ export default function MyProfile() {
             Edit
           </button>
         </div>
-        {partnerQualities.length > 0 ? (
+            {partnerQualities.length > 0 ? (
           <div className="profile-card-interests">
-            {partnerQualities.map((q, idx) => (
-              <span key={idx} className="interest-tag">
-                {q.quality}
-              </span>
-            ))}
+            {partnerQualities.map((q, idx) => {
+              const em =
+                isCanonicalPartnerQuality(q.quality) ? INTEREST_EDIT_EMOJIS[q.quality] : "✨";
+              return (
+                <span key={idx} className="interest-tag">
+                  {em} {q.quality}
+                </span>
+              );
+            })}
           </div>
         ) : (
           <p className="my-profile-empty-hint">No qualities listed yet — tap Edit to choose what matters to you.</p>
@@ -1077,7 +1146,7 @@ export default function MyProfile() {
               </span>
               <div>
                 <h3 id="dist-title">Max distance</h3>
-                <p className="my-profile-modal-sub">How far to search for people to connect with</p>
+                <p className="my-profile-modal-sub">How far to search for potential matches</p>
               </div>
             </div>
             <div className="my-profile-modal-body">
@@ -1181,12 +1250,12 @@ export default function MyProfile() {
                 🔗
               </span>
               <div>
-                <h3 id="pref-title">Preferred connections</h3>
-                <p className="my-profile-modal-sub">Who you want to see in Connect</p>
+                <h3 id="pref-title">Preferred matches</h3>
+                <p className="my-profile-modal-sub">Who you want to see when browsing for matches</p>
               </div>
             </div>
             <div className="my-profile-modal-body">
-              <div className="my-profile-pref-grid" role="group" aria-label="Preferred connections">
+              <div className="my-profile-pref-grid" role="group" aria-label="Preferred matches">
                 <button
                   type="button"
                   className={`my-profile-pref-chip ${editPreferredGenders.includes("Everyone") ? "is-selected" : ""}`}
@@ -1378,7 +1447,9 @@ export default function MyProfile() {
                     className={`create-profile-interest-tile ${selected ? "is-selected" : ""}`}
                     onClick={() => toggleQualityEdit(q)}
                   >
-                    <span className="create-profile-interest-emoji">✨</span>
+                    <span className="create-profile-interest-emoji" aria-hidden>
+                      {INTEREST_EDIT_EMOJIS[q]}
+                    </span>
                     <span className="create-profile-interest-label">{q}</span>
                     {selected ? <span className="create-profile-interest-check">✓</span> : null}
                   </button>
@@ -1398,40 +1469,75 @@ export default function MyProfile() {
       )}
 
       {showLifestyleModal && (
-        <div className="my-profile-modal-overlay" role="dialog" aria-modal="true">
+        <div className="my-profile-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="lifestyle-modal-title">
           <div className="my-profile-modal-backdrop" onClick={() => setShowLifestyleModal(false)} />
-          <div className="my-profile-modal-card my-profile-modal-card--scroll">
-            <h3>Lifestyle</h3>
-            <p className="my-profile-modal-sub">Leave blank if you prefer not to say.</p>
-            {(
-              [
-                ["smoking", "Smoking"] as const,
-                ["drinking", "Drinking"] as const,
-                ["children", "Children"] as const,
-                ["pets", "Pets"] as const,
-                ["religion", "Religion"] as const,
-                ["workLifeBalance", "Work-life balance"] as const,
-                ["worksOut", "Works out"] as const,
-              ] as const
-            ).map(([key, label]) => (
-              <label key={key} className="my-profile-lifestyle-field">
-                <span>{label}</span>
-                <select
-                  className="form-input"
-                  value={editLifestyle[key]}
-                  onChange={(e) =>
-                    setEditLifestyle((prev) => ({ ...prev, [key]: e.target.value }))
-                  }
-                >
-                  {LIFESTYLE_FIELD_OPTIONS[key].map((opt) => (
-                    <option key={opt || "unset"} value={opt}>
-                      {opt || "— Not set —"}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ))}
-            <div className="my-profile-modal-actions">
+          <div className="my-profile-modal-card my-profile-modal-card--scroll my-profile-modal-card--lifestyle">
+            <div className="my-profile-lifestyle-modal-hero">
+              <div className="my-profile-lifestyle-modal-hero-icon" aria-hidden>
+                🌱
+              </div>
+              <div className="my-profile-lifestyle-modal-hero-text">
+                <h3 id="lifestyle-modal-title">Lifestyle</h3>
+                <p className="my-profile-modal-sub my-profile-lifestyle-modal-tagline">
+                  Quick snapshot of your day-to-day — leave anything blank if you&apos;d rather not say.
+                </p>
+              </div>
+            </div>
+
+            <div className="my-profile-lifestyle-stack">
+              {(
+                [
+                  ["smoking", "Smoking"] as const,
+                  ["drinking", "Drinking"] as const,
+                  ["children", "Children"] as const,
+                  ["pets", "Pets"] as const,
+                  ["religion", "Religion"] as const,
+                  ["workLifeBalance", "Work-life balance"] as const,
+                  ["worksOut", "Works out"] as const,
+                ] as const
+              ).map(([key, label]) => {
+                const fieldKey = key as LifestyleFieldKey;
+                const sectionEmoji = LIFESTYLE_SECTION_EMOJI[fieldKey];
+                const current = editLifestyle[key];
+                const currentEmoji =
+                  current === ""
+                    ? LIFESTYLE_OPTION_EMOJI[fieldKey][""] ?? "◻️"
+                    : LIFESTYLE_OPTION_EMOJI[fieldKey][current] ?? "✓";
+                return (
+                  <div key={key} className="my-profile-lifestyle-card">
+                    <div className="my-profile-lifestyle-card-top">
+                      <span className="my-profile-lifestyle-section-emoji" aria-hidden>
+                        {sectionEmoji}
+                      </span>
+                      <label className="my-profile-lifestyle-card-label" htmlFor={`lifestyle-select-${key}`}>
+                        {label}
+                      </label>
+                    </div>
+                    <div className="my-profile-lifestyle-select-wrap">
+                      <span className="my-profile-lifestyle-value-emoji" aria-hidden>
+                        {currentEmoji}
+                      </span>
+                      <select
+                        id={`lifestyle-select-${key}`}
+                        className="my-profile-lifestyle-select"
+                        value={editLifestyle[key]}
+                        onChange={(e) =>
+                          setEditLifestyle((prev) => ({ ...prev, [key]: e.target.value }))
+                        }
+                      >
+                        {LIFESTYLE_FIELD_OPTIONS[fieldKey].map((opt) => (
+                          <option key={opt || "unset"} value={opt}>
+                            {lifestyleSelectOptionLabel(fieldKey, opt)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="my-profile-modal-actions my-profile-lifestyle-modal-actions">
               <button type="button" className="btn btn-primary" onClick={() => void saveLifestyle()} disabled={updatingField}>
                 Save
               </button>

@@ -1,4 +1,5 @@
 import { db } from "../database.js";
+import { CANONICAL_DEALBREAKER_LOWERCASE } from "../constants/profilePickLists.js";
 
 interface ProfileRow {
   id: string;
@@ -12,19 +13,22 @@ interface ProfileRow {
   looking_for: string | null;
 }
 
+function norm(s: string | null | undefined): string {
+  if (!s) return "";
+  return s
+    .toLowerCase()
+    .replace(/\u2019/g, "'")
+    .replace(/\u2018/g, "'")
+    .trim();
+}
+
 /**
  * Dealbreaker semantics: each dealbreaker means "I don't want to match with people who [X]".
- * We EXCLUDE a candidate when their lifestyle/interests match that description.
+ * Returns true if the candidate is allowed, false if they should be excluded.
  *
- * Examples:
- * - "Doesn't like pets" → exclude only if candidate's lifestyle is "Doesn't like pets" (not if they love pets).
- * - "Wants children" → exclude if candidate "Doesn't want children" (user wants someone who wants kids).
- * - "Doesn't want children" → exclude if candidate "Doesn't want children" (user wants someone open to/wants kids).
- * - "Religious" → exclude if candidate is religious/spiritual (user doesn't want religious partners).
- * - "Not religious" → exclude if candidate is not religious/atheist/agnostic (user wants religious partners).
+ * Lifestyle strings follow the web profile editor (`MyProfile` / `LIFESTYLE_FIELD_OPTIONS`).
  */
 export async function checkDealbreakers(userProfileId: string, candidateProfileId: string): Promise<boolean> {
-  // Get user's dealbreakers
   const userDealbreakersResult = db
     .prepare("SELECT description FROM dealbreakers WHERE profile_id = ?")
     .all([userProfileId]);
@@ -33,10 +37,9 @@ export async function checkDealbreakers(userProfileId: string, candidateProfileI
     : userDealbreakersResult) as { description: string }[];
 
   if (userDealbreakers.length === 0) {
-    return true; // No dealbreakers, always pass
+    return true;
   }
 
-  // Get candidate's profile info
   const candidateProfileResult = db
     .prepare("SELECT * FROM profiles WHERE id = ?")
     .get([candidateProfileId]);
@@ -45,18 +48,16 @@ export async function checkDealbreakers(userProfileId: string, candidateProfileI
     : candidateProfileResult) as ProfileRow | undefined;
 
   if (!candidateProfile) {
-    return false; // Can't check, exclude to be safe
+    return false;
   }
 
-  // Get candidate's interests, dealbreakers, and lifestyle
   const candidateInterestsResult = db
     .prepare("SELECT name FROM interests WHERE profile_id = ?")
     .all([candidateProfileId]);
   const candidateInterests = (candidateInterestsResult instanceof Promise
     ? await candidateInterestsResult
     : candidateInterestsResult) as { name: string }[];
-  
-  // Ensure candidateInterests is always an array
+
   const candidateInterestsArray = Array.isArray(candidateInterests) ? candidateInterests : [];
 
   const candidateDealbreakersResult = db
@@ -65,8 +66,7 @@ export async function checkDealbreakers(userProfileId: string, candidateProfileI
   const candidateDealbreakers = (candidateDealbreakersResult instanceof Promise
     ? await candidateDealbreakersResult
     : candidateDealbreakersResult) as { description: string }[];
-  
-  // Ensure candidateDealbreakers is always an array
+
   const candidateDealbreakersArray = Array.isArray(candidateDealbreakers) ? candidateDealbreakers : [];
 
   const candidateLifestyleResult = db
@@ -84,153 +84,171 @@ export async function checkDealbreakers(userProfileId: string, candidateProfileI
       works_out: string | null;
     } | undefined;
 
-  // Build candidate text for keyword matching (fallback)
-  const candidateInterestsText = candidateInterestsArray.map((i: { name: string }) => i.name).join(' ');
-  const candidateText = `${candidateProfile.bio || ''} ${candidateProfile.display_name || ''} ${candidateProfile.location || ''} ${candidateInterestsText}`.toLowerCase();
+  const candidateInterestsText = candidateInterestsArray.map((i: { name: string }) => i.name).join(" ");
+  const candidateText = `${candidateProfile.bio || ""} ${candidateProfile.display_name || ""} ${candidateProfile.location || ""} ${candidateInterestsText}`.toLowerCase();
 
-  // Check each of the user's dealbreakers
   for (const dealbreaker of userDealbreakers) {
-    const dealbreakerLower = dealbreaker.description.toLowerCase();
+    const dealbreakerLower = norm(dealbreaker.description);
 
-    // Method 1: Check if candidate has this as their own dealbreaker (they also don't want it)
-    // This is a positive signal - they're aligned, so we can include them
     const candidateHasSameDealbreaker = candidateDealbreakersArray.some(
-      (db: { description: string }) => db.description.toLowerCase() === dealbreakerLower
+      (db: { description: string }) => norm(db.description) === dealbreakerLower
     );
     if (candidateHasSameDealbreaker) {
-      continue; // They share the same dealbreaker, so it's not a problem
+      continue;
     }
 
-    // Method 2: Check lifestyle data (MOST ACCURATE)
-    // Semantics: user's dealbreaker = "I don't want to match with people who [X]" → exclude candidate if candidate is X
     if (candidateLifestyle) {
-      // Smokes cigarettes = exclude when candidate smokes cigarettes (or both)
-      if (dealbreakerLower === 'smokes cigarettes' && candidateLifestyle.smoking) {
-        const candidateSmoking = candidateLifestyle.smoking.toLowerCase();
-        if (candidateSmoking === 'smokes cigarettes' || candidateSmoking === 'both') {
-          return false; // Candidate smokes cigarettes, exclude them
+      // Cigarettes / tobacco (UI: Smoker, Social smoker, …)
+      if (
+        (dealbreakerLower === "smokes cigarettes" ||
+          dealbreakerLower === "smoking" ||
+          dealbreakerLower === "smokes") &&
+        candidateLifestyle.smoking
+      ) {
+        const s = norm(candidateLifestyle.smoking);
+        if (s === "smoker" || s === "social smoker") {
+          return false;
         }
       }
 
-      // Marijuana = exclude when candidate uses marijuana (or both)
-      if (dealbreakerLower === 'marijuana' && candidateLifestyle.smoking) {
-        const candidateSmoking = candidateLifestyle.smoking.toLowerCase();
-        if (candidateSmoking === 'uses marijuana' || candidateSmoking === 'both') {
-          return false; // Candidate uses marijuana, exclude them
+      // Cannabis — no dedicated lifestyle field; use interests + legacy smoking text
+      if (dealbreakerLower === "marijuana") {
+        const interestHit = candidateInterestsArray.some((i) => {
+          const n = norm(i.name);
+          return (
+            n === "marijuana" ||
+            n === "cannabis" ||
+            n === "weed" ||
+            n.includes("marijuana") ||
+            n.includes("cannabis")
+          );
+        });
+        const smokingHint = norm(candidateLifestyle.smoking);
+        if (interestHit || smokingHint.includes("marijuana") || smokingHint === "both") {
+          return false;
         }
       }
 
-      // Frequent drinking = exclude when candidate drinks frequently (social drinker or frequently; no "frequently" in app UI, so social drinker is used)
-      if (dealbreakerLower === 'frequent drinking' && candidateLifestyle.drinking) {
-        const candidateDrinking = candidateLifestyle.drinking.toLowerCase();
-        if (candidateDrinking === 'social drinker' || candidateDrinking === 'frequently') {
-          return false; // Candidate drinks frequently, exclude them
+      // Drinking (UI: Non-drinker, Socially, Regularly, …)
+      if (dealbreakerLower === "frequent drinking" && candidateLifestyle.drinking) {
+        const d = norm(candidateLifestyle.drinking);
+        if (d === "regularly") {
+          return false;
         }
       }
 
-      // Drinks alcohol = exclude when candidate drinks at all (any level)
-      if (dealbreakerLower === 'drinks alcohol' && candidateLifestyle.drinking) {
-        const candidateDrinking = candidateLifestyle.drinking.toLowerCase();
-        if (candidateDrinking === 'social drinker' || candidateDrinking === 'occasionally' || candidateDrinking === 'frequently') {
-          return false; // Candidate drinks alcohol, exclude them
+      if (dealbreakerLower === "heavy drinking" && candidateLifestyle.drinking) {
+        const d = norm(candidateLifestyle.drinking);
+        if (d === "regularly" || d === "socially") {
+          return false;
         }
       }
 
-      // Doesn't want children = "I don't want someone who doesn't want children" → exclude only if candidate has "Doesn't want children"
-      if (dealbreakerLower === "doesn't want children" && candidateLifestyle.children) {
-        const candidateChildren = candidateLifestyle.children.toLowerCase();
-        if (candidateChildren === "doesn't want children") {
-          return false; // Candidate doesn't want children, exclude them
-        }
-      }
-      // Wants children = "I don't want someone who doesn't want children" → exclude if candidate doesn't want children
-      if (dealbreakerLower === 'wants children' && candidateLifestyle.children) {
-        const candidateChildren = candidateLifestyle.children.toLowerCase();
-        if (candidateChildren === "doesn't want children") {
-          return false; // Candidate doesn't want children, exclude them
+      // Children (UI: "Don't want kids", "Want kids", …)
+      if (
+        (dealbreakerLower === "doesn't want children" || dealbreakerLower === "doesn't want kids") &&
+        candidateLifestyle.children
+      ) {
+        const c = norm(candidateLifestyle.children);
+        if (c === "don't want kids" || c === "doesn't want kids") {
+          return false;
         }
       }
 
-      // Doesn't like pets dealbreaker = "I don't want someone who doesn't like pets"
-      // Exclude only candidates whose lifestyle is "Doesn't like pets" (not people who love/have pets)
+      if (
+        (dealbreakerLower === "wants children" ||
+          dealbreakerLower === "wants kids" ||
+          dealbreakerLower === "wants kids soon") &&
+        candidateLifestyle.children
+      ) {
+        const c = norm(candidateLifestyle.children);
+        if (c === "don't want kids" || c === "doesn't want kids") {
+          return false;
+        }
+      }
+
+      // Fitness (UI: Daily, Often, Sometimes, Rarely)
+      if (
+        (dealbreakerLower === "doesn't workout" || dealbreakerLower === "doesn't work out") &&
+        candidateLifestyle.works_out
+      ) {
+        const w = norm(candidateLifestyle.works_out);
+        if (w === "rarely" || w === "sometimes") {
+          return false;
+        }
+      }
+
+      // Pets (UI includes "No pets")
       if (dealbreakerLower === "doesn't like pets" && candidateLifestyle.pets) {
-        const candidatePets = candidateLifestyle.pets.toLowerCase();
-        if (candidatePets === "doesn't like pets") {
-          return false; // Candidate doesn't like pets, exclude them
+        const p = norm(candidateLifestyle.pets);
+        if (p === "no pets" || p.includes("don't like")) {
+          return false;
         }
       }
 
-      // Allergic to pets = "I'm allergic, don't want someone with pets" → exclude when candidate has pets (or loves pets, as they may get pets)
-      if (dealbreakerLower === 'allergic to pets' && candidateLifestyle.pets) {
-        const candidatePets = candidateLifestyle.pets.toLowerCase();
-        if (candidatePets === 'has pets' || candidatePets === 'loves pets') {
-          return false; // Candidate has or likely has pets, exclude them
+      // Legacy / extra rows still stored in DB
+      if (dealbreakerLower === "drinks alcohol" && candidateLifestyle.drinking) {
+        const d = norm(candidateLifestyle.drinking);
+        if (d === "socially" || d === "regularly" || d === "social drinker" || d === "occasionally" || d === "frequently") {
+          return false;
         }
       }
 
-      // Religious = "I don't want religious partners" → exclude when candidate is religious or spiritual
-      if (dealbreakerLower === 'religious' && candidateLifestyle.religion) {
-        const candidateReligion = candidateLifestyle.religion.toLowerCase();
-        if (candidateReligion === 'religious' || candidateReligion === 'spiritual') {
-          return false; // Candidate is religious/spiritual, exclude them
-        }
-      }
-      // Not religious = "I don't want non-religious partners" → exclude when candidate is not religious
-      if (dealbreakerLower === 'not religious' && candidateLifestyle.religion) {
-        const candidateReligion = candidateLifestyle.religion.toLowerCase();
-        if (candidateReligion === 'not religious' || candidateReligion === 'atheist' || candidateReligion === 'agnostic') {
-          return false; // Candidate is not religious, exclude them
+      if (dealbreakerLower === "allergic to pets" && candidateLifestyle.pets) {
+        const p = norm(candidateLifestyle.pets);
+        if (p === "love pets" || p === "open to pets") {
+          return false;
         }
       }
 
-      // Workaholic = exclude when candidate is a workaholic
-      if (dealbreakerLower === 'workaholic' && candidateLifestyle.work_life_balance) {
-        const candidateBalance = candidateLifestyle.work_life_balance.toLowerCase();
-        if (candidateBalance === 'workaholic') {
-          return false; // Candidate is a workaholic, exclude them
+      if (dealbreakerLower === "religious" && candidateLifestyle.religion) {
+        const r = norm(candidateLifestyle.religion);
+        if (r === "very important" || r === "somewhat important" || r === "spiritual not religious") {
+          return false;
         }
       }
-      // Drug use = no lifestyle field in app; handled by Method 3 (interests) or Method 4 (keyword in bio) if needed
+
+      if (dealbreakerLower === "not religious" && candidateLifestyle.religion) {
+        const r = norm(candidateLifestyle.religion);
+        if (r === "not important") {
+          return false;
+        }
+      }
+
+      if (dealbreakerLower === "workaholic" && candidateLifestyle.work_life_balance) {
+        const b = norm(candidateLifestyle.work_life_balance);
+        if (b === "career-focused" || b === "workaholic") {
+          return false;
+        }
+      }
     }
 
-    // Method 3: Check if dealbreaker appears in candidate's interests (for lifestyle dealbreakers)
-    // For example: "Smoking" in interests means they smoke
     const candidateHasInInterests = candidateInterestsArray.some(
-      (i: { name: string }) => i.name.toLowerCase() === dealbreakerLower
+      (i: { name: string }) => norm(i.name) === dealbreakerLower
     );
     if (candidateHasInInterests) {
-      return false; // Candidate has this trait, exclude them
+      return false;
     }
 
-    // Method 4: Keyword matching in profile text (bio, name, location) - fallback
-    // Split dealbreaker into keywords and check if they appear
-    const keywords = dealbreakerLower.split(/\s+/).filter(k => k.length > 2);
-    if (keywords.length > 0 && keywords.some(keyword => candidateText.includes(keyword))) {
-      // Additional check: make sure it's not a false positive
-      // For example, "smoking" in "non-smoking" should not match
+    // Keyword fallback only for non-canonical chips (avoids brittle substring matches on curated list)
+    if (CANONICAL_DEALBREAKER_LOWERCASE.has(dealbreakerLower)) {
+      continue;
+    }
+
+    const keywords = dealbreakerLower.split(/\s+/).filter((k) => k.length > 2);
+    if (keywords.length > 0 && keywords.some((keyword) => candidateText.includes(keyword))) {
       const exactMatch = candidateText.includes(dealbreakerLower);
-      if (exactMatch || keywords.every(k => candidateText.includes(k))) {
-        // Double-check for negations (e.g., "non-smoking", "doesn't smoke")
-        const negationPatterns = ['non-', "doesn't", "don't", "won't", "not ", "never ", "no "];
-        const hasNegation = negationPatterns.some(neg => 
-          candidateText.includes(neg + dealbreakerLower) || 
-          candidateText.includes(neg + keywords[0])
+      if (exactMatch || keywords.every((k) => candidateText.includes(k))) {
+        const negationPatterns = ["non-", "doesn't", "don't", "won't", "not ", "never ", "no "];
+        const hasNegation = negationPatterns.some(
+          (neg) => candidateText.includes(neg + dealbreakerLower) || candidateText.includes(neg + keywords[0])
         );
         if (!hasNegation) {
-          return false; // Dealbreaker matched, exclude
+          return false;
         }
       }
     }
   }
 
-  return true; // No dealbreakers matched, include
+  return true;
 }
-
-
-
-
-
-
-
-
-

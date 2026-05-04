@@ -12,7 +12,12 @@ import {
   getConnectSetupViolationsForUser,
 } from '../utils/connectRequirements.js';
 import { mutualGenderPreferencesMet } from '../utils/genderPreferences.js';
-import { interestNamesFromAggregate, interestSimilarityFromNames } from '../utils/interestSimilarity.js';
+import {
+  interestNamesFromAggregate,
+  interestSimilarityFromNames,
+  countPartnerQualityInterestHits,
+} from '../utils/interestSimilarity.js';
+import { checkDealbreakers } from '../utils/dealbreakers.js';
 
 // Check if using PostgreSQL
 const usePostgres = !!process.env.DATABASE_URL;
@@ -368,22 +373,44 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
       }
     }
 
-    // Rank by shared "my interests" (then similarity blend, then distance) so Connect shows the strongest interest overlap first
+    // Exclude pairs that violate either side's dealbreakers vs the other's lifestyle/interests
+    {
+      const beforeDeal = filteredProfiles.length;
+      const kept: ProfileWithMetadata[] = [];
+      for (const p of filteredProfiles) {
+        const okTowardCandidate = await checkDealbreakers(userProfile.id, p.id);
+        const okTowardUser = await checkDealbreakers(p.id, userProfile.id);
+        if (okTowardCandidate && okTowardUser) kept.push(p);
+      }
+      filteredProfiles = kept;
+      if (beforeDeal !== filteredProfiles.length) {
+        console.log(
+          `📊 After mutual dealbreakers: ${filteredProfiles.length} profiles (${beforeDeal - filteredProfiles.length} excluded)`
+        );
+      }
+    }
+
+    // Rank by shared "my interests" + overlap between "what I'm looking for" and their interests
     const userInterestsForRanking = await (db
       .prepare('SELECT name FROM interests WHERE profile_id = ?')
       .all([userProfile.id]) as Promise<{ name: string }[]>);
     const userInterestNameSet = new Set(userInterestsForRanking.map((i) => i.name.toLowerCase()));
 
+    const userPQRaw = await (db
+      .prepare('SELECT quality FROM partner_qualities WHERE profile_id = ?')
+      .all([userProfile.id]) as Promise<{ quality: string }[]>);
+    const userPQLower = (Array.isArray(userPQRaw) ? userPQRaw : []).map((r) => r.quality.toLowerCase());
+
     filteredProfiles.sort((a: ProfileWithMetadata, b: ProfileWithMetadata) => {
-      const simA = interestSimilarityFromNames(
-        userInterestNameSet,
-        interestNamesFromAggregate(a.interests_list)
-      );
-      const simB = interestSimilarityFromNames(
-        userInterestNameSet,
-        interestNamesFromAggregate(b.interests_list)
-      );
-      if (simB.sharedCount !== simA.sharedCount) return simB.sharedCount - simA.sharedCount;
+      const namesA = interestNamesFromAggregate(a.interests_list);
+      const namesB = interestNamesFromAggregate(b.interests_list);
+      const simA = interestSimilarityFromNames(userInterestNameSet, namesA);
+      const simB = interestSimilarityFromNames(userInterestNameSet, namesB);
+      const pqHitsA = countPartnerQualityInterestHits(userPQLower, namesA);
+      const pqHitsB = countPartnerQualityInterestHits(userPQLower, namesB);
+      const totalA = simA.sharedCount + pqHitsA;
+      const totalB = simB.sharedCount + pqHitsB;
+      if (totalB !== totalA) return totalB - totalA;
       if (Math.abs(simB.blend01 - simA.blend01) > 0.0001) return simB.blend01 - simA.blend01;
       const distA = distanceByProfileId.get(a.id);
       const distB = distanceByProfileId.get(b.id);
@@ -632,7 +659,7 @@ usersRouter.get('/diagnose/:targetUserId', authenticateToken, async (req: AuthRe
       }
     }
 
-    // Summary (dealbreakers removed — matching uses interests, age, location)
+    // Summary: browse applies mutual dealbreakers vs lifestyle/interests, then ranks by interests + "looking for" vs their interests
     const allChecksPass = !isRestricted && !isAlreadyMatched && !isBlocked &&
                          ageFilterPass && genderFilterPass && distanceFilterPass;
 

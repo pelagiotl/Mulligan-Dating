@@ -33,3 +33,16 @@ export function interestSimilarityFromNames(
   const blend01 = Math.min(1, jaccard * 0.4 + dice * 0.6);
   return { sharedCount: shared, jaccard, dice, blend01 };
 }
+
+/** How many of the user's "what I'm looking for" labels appear in the candidate's interest list (lowercased names). */
+export function countPartnerQualityInterestHits(
+  userQualityNamesLower: string[],
+  candidateInterestNamesLower: string[]
+): number {
+  const c = new Set(candidateInterestNamesLower);
+  let n = 0;
+  for (const q of userQualityNamesLower) {
+    if (c.has(q)) n += 1;
+  }
+  return n;
+}

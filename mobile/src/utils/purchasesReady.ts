@@ -65,12 +65,18 @@ export function findRevenueCatPackage(
   packages: PurchasesPackage[],
   productId: string
 ): PurchasesPackage | undefined {
+  const wanted = productId?.trim().toLowerCase();
+  if (!wanted) return undefined;
   return packages.find((p) => {
-    const id = p.product.identifier;
+    const id = p.product.identifier?.trim();
+    const idLower = id?.toLowerCase();
+    const idSkuLower = idLower?.split(':')[0];
     return (
-      id === productId ||
-      id?.toLowerCase() === productId?.toLowerCase() ||
-      (typeof id === 'string' && productId && id.endsWith(productId))
+      idLower === wanted ||
+      idSkuLower === wanted ||
+      // Some stores/SDK paths can append metadata to identifiers.
+      (typeof idLower === 'string' && idLower.startsWith(`${wanted}:`)) ||
+      (typeof idLower === 'string' && idLower.endsWith(`:${wanted}`))
     );
   });
 }

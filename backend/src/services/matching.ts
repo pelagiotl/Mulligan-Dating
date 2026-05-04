@@ -448,7 +448,11 @@ async function calculatePartnerQualitiesMatch(
     .prepare("SELECT name FROM interests WHERE profile_id = ?")
     .all(candidateProfileId) as Promise<{ name: string }[]>);
   const candidateInterests = Array.isArray(candidateInterestsRaw) ? candidateInterestsRaw : [];
-  
+
+  const candidateInterestNamesLower = new Set(
+    candidateInterests.map((i) => i.name.toLowerCase())
+  );
+
   const candidateText = `${candidateProfile.bio || ''} ${candidateInterests.map(i => i.name).join(' ')}`.toLowerCase();
   
   let totalScore = 0;
@@ -464,6 +468,9 @@ async function calculatePartnerQualitiesMatch(
     // Method 1: Exact match in partner_qualities (most accurate)
     if (candidateQualityNamesLower.has(qualityLower)) {
       matchScore = 1.0; // Full match
+    } else if (candidateInterestNamesLower.has(qualityLower)) {
+      // Qualities are aligned with interest labels: strong signal when they listed that interest
+      matchScore = 1.0;
     } else {
       // Method 2: Semantic similarity matching (NEW - 10/10 feature)
       const semanticMatch = findBestSemanticMatch(qualityName, candidateQualityNames);
@@ -615,7 +622,9 @@ export async function calculateProfileCompatibilityScore(
   otherProfileId: string
 ): Promise<number> {
   const interestsScore = await calculateInterestsOverlap(userProfileId, otherProfileId);
-  return Math.round(Math.min(100, Math.max(0, interestsScore * 10)));
+  const qualitiesScore = await calculatePartnerQualitiesMatch(userProfileId, otherProfileId);
+  const blended = interestsScore * 0.65 + qualitiesScore * 0.35;
+  return Math.round(Math.min(100, Math.max(0, blended * 10)));
 }
 
 export async function generateWeeklyMatches(userId: string): Promise<{

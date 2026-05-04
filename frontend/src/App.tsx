@@ -165,15 +165,14 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 }
 
 function AuthRedirectRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, loading } = useAuth()
+  const { isAuthenticated, loading, profile } = useAuth()
   
   if (loading) {
     return <div>Loading...</div>
   }
   
-  // Simple check: if authenticated, redirect to browse
   if (isAuthenticated) {
-    return <Navigate to="/browse" replace />
+    return <Navigate to={profile ? '/browse' : '/create-profile'} replace />
   }
   
   return <>{children}</>
