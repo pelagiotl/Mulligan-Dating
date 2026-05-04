@@ -23,6 +23,8 @@ export default function Layout() {
   const isActive = (path: string) => location.pathname === path
   const connectPath =
     isAuthenticated && !authLoading && !profile ? '/create-profile' : '/browse'
+  /** Hide main nav Connect entry while user is in the create-profile wizard (splash still offers browse). */
+  const hideConnectNav = location.pathname === '/create-profile'
   /** Match native MainTabs: hide top links + show bottom bar on phone (not during profile wizard). */
   const nativeMobileShell =
     isAuthenticated && location.pathname !== '/create-profile'
@@ -120,15 +122,17 @@ export default function Layout() {
           )}
           
           <ul className="navbar-nav">
-            <li>
-              <Link 
-                to={connectPath} 
-                className={`navbar-link ${isActive('/browse') ? 'active' : ''}`}
-                aria-label="Connect"
-              >
-                <span>😍</span> Connect
-              </Link>
-            </li>
+            {!hideConnectNav ? (
+              <li>
+                <Link
+                  to={connectPath}
+                  className={`navbar-link ${isActive('/browse') ? 'active' : ''}`}
+                  aria-label="Connect"
+                >
+                  <span>😍</span> Connect
+                </Link>
+              </li>
+            ) : null}
             <li>
               <Link 
                 to="/matches" 
