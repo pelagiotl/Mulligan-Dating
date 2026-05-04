@@ -101,12 +101,64 @@ async function request<T = any>(endpoint: string, options: RequestInit = {}): Pr
   }
 }
 
+/** POST multipart (e.g. chat image/video/audio). Do not set Content-Type — browser sets boundary. */
+async function requestForm<T = unknown>(endpoint: string, formData: FormData): Promise<T> {
+  const token = localStorage.getItem('token')
+  const headers: HeadersInit = {}
+  if (token) {
+    (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`
+  }
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 120000)
+  const url = `${BASE_URL}${endpoint}`
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: formData,
+      signal: controller.signal,
+    })
+    clearTimeout(timeoutId)
+    const contentType = response.headers.get('content-type')
+    const hasJson = contentType && contentType.includes('application/json')
+    let data: unknown = {}
+    if (hasJson) {
+      const text = await response.text()
+      if (text) {
+        try {
+          data = JSON.parse(text)
+        } catch {
+          throw new ApiError(response.status, `Invalid response from server: ${text.substring(0, 100)}`)
+        }
+      }
+    }
+    if (!response.ok) {
+      const d = data as { error?: string; code?: string }
+      const apiError = new ApiError(response.status, d.error || `Request failed with status ${response.status}`)
+      if (d.code) (apiError as { code?: string }).code = d.code
+      throw apiError
+    }
+    return data as T
+  } catch (error) {
+    clearTimeout(timeoutId)
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new ApiError(408, 'Upload timed out. Please try again with a smaller file or better connection.')
+    }
+    if (error instanceof ApiError) throw error
+    if (error instanceof Error && (error.message.includes('Failed to fetch') || error.message.includes('NetworkError'))) {
+      throw new ApiError(0, `Connection failed while uploading. (${url})`)
+    }
+    throw new ApiError(0, error instanceof Error ? error.message : 'Network error')
+  }
+}
+
 export const api = {
   get: <T>(endpoint: string) => request<T>(endpoint),
   post: <T>(endpoint: string, body: unknown) => request<T>(endpoint, {
     method: 'POST',
     body: JSON.stringify(body)
   }),
+  postForm: <T>(endpoint: string, formData: FormData) => requestForm<T>(endpoint, formData),
   put: <T>(endpoint: string, body: unknown) => request<T>(endpoint, {
     method: 'PUT',
     body: JSON.stringify(body)

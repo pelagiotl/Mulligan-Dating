@@ -1281,7 +1281,21 @@ matchesRouter.post("/:matchId/messages/upload-audio", authenticateToken, rateLim
       return res.status(403).json({ error: CHAT_MEDIA_LOCKED_MESSAGE });
     }
     if (!isCloudinaryConfigured()) return res.status(503).json({ error: "Audio upload is not configured" });
-    const publicId = `${uuidv4()}.m4a`;
+    const mime = String(file.mimetype || "")
+      .toLowerCase()
+      .split(";")[0]
+      .trim();
+    const extFromMime: Record<string, string> = {
+      "audio/mpeg": "mp3",
+      "audio/mp3": "mp3",
+      "audio/mp4": "m4a",
+      "audio/x-m4a": "m4a",
+      "audio/aac": "aac",
+      "audio/webm": "webm",
+      "audio/ogg": "ogg",
+    };
+    const ext = extFromMime[mime] || "m4a";
+    const publicId = `${uuidv4()}.${ext}`;
     const audioUrl = await uploadToCloudinaryMedia(file.buffer, 'chat-audio', 'raw', publicId);
     res.json({ audioUrl });
   } catch (error) {

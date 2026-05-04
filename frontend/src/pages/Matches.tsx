@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { io, Socket } from "socket.io-client";
 import { api, ApiError } from "../utils/api";
@@ -158,7 +158,13 @@ interface Message {
   sentAt: string;
   readAt?: string | null;
   isOwn: boolean;
+  imageUrl?: string | null;
+  videoUrl?: string | null;
+  audioUrl?: string | null;
 }
+
+const CHAT_MEDIA_LOCKED_HINT =
+  "Photos, video, and voice unlock after you and your match have each sent at least 3 messages in this chat.";
 
 export default function Matches() {
   const { user } = useAuth();
@@ -191,6 +197,52 @@ export default function Matches() {
     matchId: string;
     gameType: "truth_or_dare" | "never_have_i_ever";
   } | null>(null);
+
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
+  const [uploadingAudio, setUploadingAudio] = useState(false);
+  const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
+  const [pendingImagePreviewUrl, setPendingImagePreviewUrl] = useState<string | null>(null);
+  const [pendingVideoFile, setPendingVideoFile] = useState<File | null>(null);
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  const imageFileInputRef = useRef<HTMLInputElement>(null);
+  const videoFileInputRef = useRef<HTMLInputElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const voiceChunksRef = useRef<Blob[]>([]);
+
+  const chatMediaUnlocked = useMemo(() => {
+    if (!selectedMatch || !user?.id) return false;
+    const myId = user.id;
+    const otherId = selectedMatch.otherUser.userId;
+    let my = 0;
+    let other = 0;
+    for (const m of messages) {
+      if (m.senderId === myId) my++;
+      else if (m.senderId === otherId) other++;
+    }
+    return my >= 3 && other >= 3;
+  }, [messages, selectedMatch?.id, selectedMatch?.otherUser?.userId, user?.id]);
+
+  const voiceCanceledRef = useRef(false);
+
+  useEffect(() => {
+    return () => {
+      if (pendingImagePreviewUrl) URL.revokeObjectURL(pendingImagePreviewUrl);
+    };
+  }, [pendingImagePreviewUrl]);
+
+  const clearPendingImage = useCallback(() => {
+    setPendingImageFile(null);
+    setPendingImagePreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+  }, []);
+
+  const clearPendingVideo = useCallback(() => {
+    setPendingVideoFile(null);
+  }, []);
 
   const closeLightbox = useCallback(() => setPhotoLightbox(null), []);
 
@@ -652,54 +704,274 @@ export default function Matches() {
     }
   };
 
-  const handleSendMessage = async () => {
-    if (!newMessage.trim() || !selectedMatch || sendingMessage) return;
-
-    const messageContent = newMessage.trim();
-    const matchId = selectedMatch.id;
-    setNewMessage("");
+  const stopTypingForSend = (matchId: string) => {
     setIsTyping(false);
-
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
     }
+    socketRef.current?.emit("stop_typing", { matchId });
+  };
 
-    if (socketRef.current?.connected) {
-      socketRef.current.emit('stop_typing', { matchId });
+  const onMessageSentSuccess = (
+    data: { message: Message; autoAdvanced?: boolean; stage?: string },
+    matchId: string,
+    snap: Match | null
+  ) => {
+    setMessages((prev) => {
+      const m = data.message;
+      if (prev.some((x) => x.id === m.id)) return prev;
+      return [...prev, { ...m, isOwn: true }];
+    });
+    void fetchMessages(matchId);
+    if (data.autoAdvanced && data.stage === "stage2" && snap) {
+      setMatches((prev) =>
+        prev.map((m) => (m.id === matchId ? { ...m, stage: "stage2" as const } : m))
+      );
+      setSelectedMatch((prev) =>
+        prev && prev.id === matchId ? { ...prev, stage: "stage2" as const } : prev
+      );
+      setNotification({
+        message: "🎉 All photos unlocked! You've each sent 3+ messages.",
+        type: "success",
+      });
+      const matchForPhotos = { ...snap, id: matchId, stage: "stage2" as const };
+      fetchMatchPhotos(matchForPhotos);
     }
+  };
 
+  const requireChatMediaUnlocked = () => {
+    if (chatMediaUnlocked) return true;
+    setNotification({ message: CHAT_MEDIA_LOCKED_HINT, type: "info" });
+    return false;
+  };
+
+  function pickVoiceMimeType(): string | undefined {
+    const candidates = [
+      "audio/webm;codecs=opus",
+      "audio/webm",
+      "audio/mp4",
+      "audio/ogg;codecs=opus",
+      "audio/ogg",
+    ];
+    return candidates.find((t) => typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(t));
+  }
+
+  const cancelVoiceRecording = useCallback(() => {
+    voiceCanceledRef.current = true;
+    const mr = mediaRecorderRef.current;
+    mediaRecorderRef.current = null;
+    voiceChunksRef.current = [];
+    if (mr && mr.state !== "inactive") {
+      try {
+        mr.stop();
+      } catch {
+        /* ignore */
+      }
+    }
+    mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
+    mediaStreamRef.current = null;
+    setIsRecordingVoice(false);
+  }, []);
+
+  const startVoiceRecording = async () => {
+    if (!selectedMatch || !user) return;
+    if (!requireChatMediaUnlocked()) return;
+    if (sendingMessage || uploadingImage || uploadingVideo || uploadingAudio || isRecordingVoice) return;
+    if (pendingImageFile || pendingVideoFile) {
+      setNotification({
+        message: "Send or clear your photo or video attachment first.",
+        type: "warning",
+      });
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+      voiceChunksRef.current = [];
+      voiceCanceledRef.current = false;
+      const mime = pickVoiceMimeType();
+      const rec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+      rec.ondataavailable = (ev) => {
+        if (ev.data.size > 0) voiceChunksRef.current.push(ev.data);
+      };
+      rec.addEventListener("stop", () => {
+        void (async () => {
+          stream.getTracks().forEach((t) => t.stop());
+          mediaStreamRef.current = null;
+          mediaRecorderRef.current = null;
+          setIsRecordingVoice(false);
+          const canceled = voiceCanceledRef.current;
+          voiceCanceledRef.current = false;
+          const chunks = voiceChunksRef.current;
+          voiceChunksRef.current = [];
+          if (canceled || !chunks.length) return;
+          const blob = new Blob(chunks, { type: rec.mimeType || "audio/webm" });
+          if (!blob.size) return;
+          const matchIdNow = selectedMatchIdRef.current;
+          if (!matchIdNow) return;
+          const isMp4ish = blob.type.includes("mp4");
+          const name = isMp4ish ? "voice.m4a" : "voice.webm";
+          const file = new File([blob], name, {
+            type: isMp4ish ? "audio/mp4" : blob.type || "audio/webm",
+          });
+          setUploadingAudio(true);
+          try {
+            const fd = new FormData();
+            fd.append("audio", file);
+            const { audioUrl } = await api.postForm<{ audioUrl: string }>(
+              `/matches/${matchIdNow}/messages/upload-audio`,
+              fd
+            );
+            if (!audioUrl) throw new Error("No audio URL returned");
+            stopTypingForSend(matchIdNow);
+            const snap = matchesRef.current.find((m) => m.id === matchIdNow) ?? null;
+            const data = await api.post<{
+              message: Message;
+              autoAdvanced?: boolean;
+              stage?: string;
+            }>(`/matches/${matchIdNow}/messages`, { audioUrl });
+            onMessageSentSuccess(data, matchIdNow, snap);
+          } catch (error) {
+            console.error("Voice send failed:", error);
+            const msg =
+              error instanceof ApiError
+                ? error.message
+                : error instanceof Error
+                  ? error.message
+                  : "Failed to send voice message.";
+            setNotification({ message: msg, type: "error" });
+          } finally {
+            setUploadingAudio(false);
+          }
+        })();
+      });
+      mediaRecorderRef.current = rec;
+      rec.start(200);
+      setIsRecordingVoice(true);
+    } catch {
+      setNotification({
+        message: "Microphone access is required to record a voice message.",
+        type: "error",
+      });
+    }
+  };
+
+  const finishVoiceRecording = () => {
+    const mr = mediaRecorderRef.current;
+    if (mr && mr.state === "recording") {
+      voiceCanceledRef.current = false;
+      mr.stop();
+    }
+  };
+
+  const uploadChatImageAndSend = async (file: File) => {
+    if (!selectedMatch) return;
+    const matchId = selectedMatch.id;
+    const snap = selectedMatch;
+    setUploadingImage(true);
+    const caption = newMessage.trim();
+    try {
+      const fd = new FormData();
+      fd.append("image", file);
+      const { imageUrl } = await api.postForm<{ imageUrl: string }>(
+        `/matches/${matchId}/messages/upload-image`,
+        fd
+      );
+      if (!imageUrl) throw new Error("No image URL returned");
+      stopTypingForSend(matchId);
+      const body: Record<string, string> = { imageUrl };
+      if (caption) body.content = caption;
+      const data = await api.post<{
+        message: Message;
+        autoAdvanced?: boolean;
+        stage?: string;
+      }>(`/matches/${matchId}/messages`, body);
+      setNewMessage("");
+      clearPendingImage();
+      onMessageSentSuccess(data, matchId, snap);
+    } catch (error) {
+      console.error("Image send failed:", error);
+      const msg =
+        error instanceof ApiError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : "Failed to send photo.";
+      setNotification({ message: msg, type: "error" });
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const uploadChatVideoAndSend = async (file: File) => {
+    if (!selectedMatch) return;
+    const matchId = selectedMatch.id;
+    const snap = selectedMatch;
+    setUploadingVideo(true);
+    const caption = newMessage.trim();
+    try {
+      const fd = new FormData();
+      fd.append("video", file);
+      const { videoUrl } = await api.postForm<{ videoUrl: string }>(
+        `/matches/${matchId}/messages/upload-video`,
+        fd
+      );
+      if (!videoUrl) throw new Error("No video URL returned");
+      stopTypingForSend(matchId);
+      const body: Record<string, string> = { videoUrl };
+      if (caption) body.content = caption;
+      const data = await api.post<{
+        message: Message;
+        autoAdvanced?: boolean;
+        stage?: string;
+      }>(`/matches/${matchId}/messages`, body);
+      setNewMessage("");
+      clearPendingVideo();
+      onMessageSentSuccess(data, matchId, snap);
+    } catch (error) {
+      console.error("Video send failed:", error);
+      const msg =
+        error instanceof ApiError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : "Failed to send video. Use MP4 or MOV.";
+      setNotification({ message: msg, type: "error" });
+    } finally {
+      setUploadingVideo(false);
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!selectedMatch || sendingMessage) return;
+    if (uploadingImage || uploadingVideo || uploadingAudio) return;
+    const matchId = selectedMatch.id;
+    const snap = selectedMatch;
+
+    if (pendingImageFile) {
+      if (!requireChatMediaUnlocked()) return;
+      await uploadChatImageAndSend(pendingImageFile);
+      return;
+    }
+    if (pendingVideoFile) {
+      if (!requireChatMediaUnlocked()) return;
+      await uploadChatVideoAndSend(pendingVideoFile);
+      return;
+    }
+    if (!newMessage.trim()) return;
+
+    const messageContent = newMessage.trim();
+    setNewMessage("");
+    stopTypingForSend(matchId);
     setSendingMessage(true);
-
     try {
       const data = await api.post<{
         message: Message;
         autoAdvanced?: boolean;
         stage?: string;
       }>(`/matches/${matchId}/messages`, { content: messageContent });
-
-      // Show the sent message immediately (GET /messages can fail on PG if misconfigured; POST still saves)
-      setMessages((prev) => {
-        const m = data.message;
-        if (prev.some((x) => x.id === m.id)) return prev;
-        return [...prev, { ...m, isOwn: true }];
-      });
-
-      void fetchMessages(matchId);
-
-      if (data.autoAdvanced && data.stage === "stage2") {
-        setMatches((prev) =>
-          prev.map((m) => (m.id === matchId ? { ...m, stage: "stage2" as const } : m))
-        );
-        setSelectedMatch((prev) =>
-          prev && prev.id === matchId ? { ...prev, stage: "stage2" as const } : prev
-        );
-        setNotification({
-          message: "🎉 All photos unlocked! You've each sent 3+ messages.",
-          type: "success",
-        });
-        const matchForPhotos = { ...selectedMatch, id: matchId, stage: "stage2" as const };
-        fetchMatchPhotos(matchForPhotos);
-      }
+      onMessageSentSuccess(data, matchId, snap);
     } catch (error) {
       console.error("Failed to send message:", error);
       setNewMessage(messageContent);
@@ -720,13 +992,8 @@ export default function Matches() {
     const trimmed = messageContent.trim();
     if (!trimmed || !selectedMatch || sendingMessage) return;
     const matchId = selectedMatch.id;
-    setIsTyping(false);
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
-    if (socketRef.current?.connected) {
-      socketRef.current.emit("stop_typing", { matchId });
-    }
+    const snap = selectedMatch;
+    stopTypingForSend(matchId);
     setSendingMessage(true);
     try {
       const data = await api.post<{
@@ -734,26 +1001,7 @@ export default function Matches() {
         autoAdvanced?: boolean;
         stage?: string;
       }>(`/matches/${matchId}/messages`, { content: trimmed });
-      setMessages((prev) => {
-        const m = data.message;
-        if (prev.some((x) => x.id === m.id)) return prev;
-        return [...prev, { ...m, isOwn: true }];
-      });
-      void fetchMessages(matchId);
-      if (data.autoAdvanced && data.stage === "stage2") {
-        setMatches((prev) =>
-          prev.map((m) => (m.id === matchId ? { ...m, stage: "stage2" as const } : m))
-        );
-        setSelectedMatch((prev) =>
-          prev && prev.id === matchId ? { ...prev, stage: "stage2" as const } : prev
-        );
-        setNotification({
-          message: "🎉 All photos unlocked! You've each sent 3+ messages.",
-          type: "success",
-        });
-        const matchForPhotos = { ...selectedMatch, id: matchId, stage: "stage2" as const };
-        fetchMatchPhotos(matchForPhotos);
-      }
+      onMessageSentSuccess(data, matchId, snap);
     } catch (error) {
       console.error("Failed to send message:", error);
       const msg =
@@ -766,6 +1014,42 @@ export default function Matches() {
     } finally {
       setSendingMessage(false);
     }
+  };
+
+  useEffect(() => {
+    clearPendingImage();
+    clearPendingVideo();
+    cancelVoiceRecording();
+  }, [selectedMatch?.id, clearPendingImage, clearPendingVideo, cancelVoiceRecording]);
+
+  const openImagePicker = () => {
+    if (!requireChatMediaUnlocked()) return;
+    imageFileInputRef.current?.click();
+  };
+
+  const openVideoPicker = () => {
+    if (!requireChatMediaUnlocked()) return;
+    videoFileInputRef.current?.click();
+  };
+
+  const onImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f || !f.type.startsWith("image/")) return;
+    clearPendingVideo();
+    setPendingImagePreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(f);
+    });
+    setPendingImageFile(f);
+  };
+
+  const onVideoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    clearPendingImage();
+    setPendingVideoFile(f);
   };
 
   // Handle typing indicator
@@ -1431,7 +1715,42 @@ export default function Matches() {
                           key={msg.id}
                           className={`message ${msg.isOwn ? "own" : "other"}`}
                         >
-                          <div className="message-content">{msg.content}</div>
+                          <div className="message-content">
+                            {msg.imageUrl ? (
+                              <a
+                                href={getPhotoUrl(msg.imageUrl) || msg.imageUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="message-media-link"
+                              >
+                                <img
+                                  src={getPhotoUrl(msg.imageUrl) || msg.imageUrl}
+                                  alt=""
+                                  className="message-image"
+                                />
+                              </a>
+                            ) : null}
+                            {msg.videoUrl ? (
+                              <video
+                                className="message-video"
+                                src={getPhotoUrl(msg.videoUrl) || msg.videoUrl}
+                                controls
+                                playsInline
+                                preload="metadata"
+                              />
+                            ) : null}
+                            {msg.audioUrl ? (
+                              <audio
+                                className="message-audio"
+                                controls
+                                preload="metadata"
+                                src={getPhotoUrl(msg.audioUrl) || msg.audioUrl || undefined}
+                              />
+                            ) : null}
+                            {msg.content?.trim() ? (
+                              <div className="message-text">{msg.content}</div>
+                            ) : null}
+                          </div>
                           <div className="message-time">
                             {new Date(msg.sentAt).toLocaleTimeString([], {
                               hour: "2-digit",
@@ -1449,12 +1768,115 @@ export default function Matches() {
                 </div>
 
                 <div className="message-input-container">
+                  <input
+                    ref={imageFileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/gif,image/webp"
+                    className="message-file-input-hidden"
+                    onChange={onImageFileChange}
+                    aria-hidden
+                  />
+                  <input
+                    ref={videoFileInputRef}
+                    type="file"
+                    accept="video/mp4,video/quicktime,video/x-m4v,.mp4,.mov"
+                    className="message-file-input-hidden"
+                    onChange={onVideoFileChange}
+                    aria-hidden
+                  />
+                  {!chatMediaUnlocked && (
+                    <p className="chat-media-lock-hint">{CHAT_MEDIA_LOCKED_HINT}</p>
+                  )}
+                  {pendingImagePreviewUrl ? (
+                    <div className="chat-pending-media">
+                      <img src={pendingImagePreviewUrl} alt="" className="chat-pending-thumb" />
+                      <button type="button" className="chat-pending-remove" onClick={clearPendingImage}>
+                        Remove photo
+                      </button>
+                    </div>
+                  ) : null}
+                  {pendingVideoFile ? (
+                    <div className="chat-pending-media">
+                      <span className="chat-pending-video-label">
+                        Video: {pendingVideoFile.name}
+                      </span>
+                      <button type="button" className="chat-pending-remove" onClick={clearPendingVideo}>
+                        Remove video
+                      </button>
+                    </div>
+                  ) : null}
+                  {isRecordingVoice ? (
+                    <div className="chat-voice-recording-bar">
+                      <span className="chat-voice-dot" aria-hidden />
+                      <span>Recording…</span>
+                      <button type="button" className="btn btn-ghost chat-voice-btn" onClick={cancelVoiceRecording}>
+                        Cancel
+                      </button>
+                      <button type="button" className="btn btn-primary chat-voice-btn" onClick={finishVoiceRecording}>
+                        Send recording
+                      </button>
+                    </div>
+                  ) : null}
+                  {(uploadingImage || uploadingVideo || uploadingAudio) && (
+                    <div className="chat-uploading-bar" role="status">
+                      {uploadingImage && "Sending photo…"}
+                      {uploadingVideo && "Sending video…"}
+                      {uploadingAudio && "Sending voice…"}
+                    </div>
+                  )}
                   {typingUsers.size > 0 && (
                     <div className="typing-indicator">
                       {selectedMatch.otherUser.displayName} is typing...
                     </div>
                   )}
                   <div className="message-input-wrapper">
+                    <div className="message-input-attachments" title="Add photo, video, or voice (unlocks after 3 messages each)">
+                      <button
+                        type="button"
+                        className="message-attach-btn"
+                        onClick={openImagePicker}
+                        disabled={
+                          sendingMessage ||
+                          uploadingImage ||
+                          uploadingVideo ||
+                          uploadingAudio ||
+                          isRecordingVoice
+                        }
+                        aria-label="Attach photo"
+                      >
+                        📷
+                      </button>
+                      <button
+                        type="button"
+                        className="message-attach-btn"
+                        onClick={openVideoPicker}
+                        disabled={
+                          sendingMessage ||
+                          uploadingImage ||
+                          uploadingVideo ||
+                          uploadingAudio ||
+                          isRecordingVoice
+                        }
+                        aria-label="Attach video"
+                      >
+                        🎥
+                      </button>
+                      <button
+                        type="button"
+                        className="message-attach-btn"
+                        onClick={() => void startVoiceRecording()}
+                        disabled={
+                          sendingMessage ||
+                          uploadingImage ||
+                          uploadingVideo ||
+                          uploadingAudio ||
+                          isRecordingVoice
+                        }
+                        aria-label="Record voice message"
+                      >
+                        🎤
+                      </button>
+                    </div>
                     <input
                       type="text"
                       className="message-input"
@@ -1466,17 +1888,25 @@ export default function Matches() {
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && !e.shiftKey) {
                           e.preventDefault();
-                          handleSendMessage();
+                          void handleSendMessage();
                         }
                       }}
                       placeholder="Type a message..."
+                      disabled={uploadingImage || uploadingVideo || uploadingAudio}
                     />
                     <button
+                      type="button"
                       className="btn btn-primary send-btn"
-                      onClick={handleSendMessage}
-                      disabled={sendingMessage || !newMessage.trim()}
+                      onClick={() => void handleSendMessage()}
+                      disabled={
+                        sendingMessage ||
+                        uploadingImage ||
+                        uploadingVideo ||
+                        uploadingAudio ||
+                        (!newMessage.trim() && !pendingImageFile && !pendingVideoFile)
+                      }
                     >
-                      Send
+                      {sendingMessage || uploadingImage || uploadingVideo || uploadingAudio ? "…" : "Send"}
                     </button>
                   </div>
                 </div>

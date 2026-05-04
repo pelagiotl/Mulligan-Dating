@@ -156,12 +156,25 @@ export const uploadChatVideo = multer({
 }).single('video');
 
 // Audio filter for chat (voice messages)
-const audioMimes = ['audio/mpeg', 'audio/mp4', 'audio/x-m4a', 'audio/aac', 'audio/mp3'];
+const audioMimes = [
+  'audio/mpeg',
+  'audio/mp4',
+  'audio/x-m4a',
+  'audio/aac',
+  'audio/mp3',
+  'audio/webm',
+  'audio/ogg',
+];
+function normalizeAudioMime(mime: string): string {
+  const m = mime.toLowerCase().split(';')[0].trim();
+  return m;
+}
 const audioFilter: multer.Options['fileFilter'] = (req, file, cb) => {
   if (file.originalname.includes('..') || file.originalname.includes('/')) {
     return cb(new Error('Invalid file name'));
   }
-  if (audioMimes.includes(file.mimetype)) return cb(null, true);
+  const base = normalizeAudioMime(file.mimetype || '');
+  if (audioMimes.includes(base)) return cb(null, true);
   cb(new Error(`Invalid type. Allowed: ${audioMimes.join(', ')}`));
 };
 export const uploadChatAudio = multer({
