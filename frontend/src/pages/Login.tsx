@@ -55,7 +55,7 @@ export default function Login() {
       // Wait a moment to ensure any previous logout state has cleared
       await new Promise(resolve => setTimeout(resolve, 50))
       
-      const { hasProfile } = await login(email, password)
+      const { connectSetupComplete: ready } = await login(email, password)
       
       // Show success animation
       setSuccess(true)
@@ -63,7 +63,7 @@ export default function Login() {
       
       // Wait for success animation, then navigate
       await new Promise(resolve => setTimeout(resolve, 800))
-      navigate(hasProfile ? '/browse' : '/create-profile')
+      navigate(ready ? '/browse' : '/create-profile')
     } catch (err: any) {
       console.error('Login error details:', {
         error: err,

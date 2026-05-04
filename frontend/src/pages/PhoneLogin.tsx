@@ -87,10 +87,10 @@ export default function PhoneLogin() {
 
     try {
       // Use phoneLogin from AuthContext which handles token storage and user fetching
-      const { hasProfile } = await phoneLogin(phoneNumber, code)
+      const { connectSetupComplete: ready } = await phoneLogin(phoneNumber, code)
       
       // Navigate after successful login
-      navigate(hasProfile ? '/browse' : '/create-profile', { replace: true })
+      navigate(ready ? '/browse' : '/create-profile', { replace: true })
     } catch (err: any) {
       setShake(true)
       setTimeout(() => setShake(false), 600)

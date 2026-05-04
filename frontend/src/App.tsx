@@ -165,16 +165,25 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 }
 
 function AuthRedirectRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, loading, profile } = useAuth()
+  const { isAuthenticated, loading, connectSetupComplete } = useAuth()
   
   if (loading) {
     return <div>Loading...</div>
   }
   
   if (isAuthenticated) {
-    return <Navigate to={profile ? '/browse' : '/create-profile'} replace />
+    return <Navigate to={connectSetupComplete ? '/browse' : '/create-profile'} replace />
   }
   
+  return <>{children}</>
+}
+
+/** Connect/Matches require the same setup as unlock-browse (name, city+state, min photos). Stub profiles stay on the wizard. */
+function RequireConnectSetup({ children }: { children: React.ReactNode }) {
+  const { connectSetupComplete } = useAuth()
+  if (!connectSetupComplete) {
+    return <Navigate to="/create-profile" replace />
+  }
   return <>{children}</>
 }
 
@@ -456,8 +465,8 @@ export default function App() {
         <Route path="/privacy" element={<Privacy />} />
         <Route element={<Layout />}>
           <Route path="/create-profile" element={<PrivateRoute><CreateProfile /></PrivateRoute>} />
-          <Route path="/browse" element={<PrivateRoute><Browse /></PrivateRoute>} />
-          <Route path="/matches" element={<PrivateRoute><Matches /></PrivateRoute>} />
+          <Route path="/browse" element={<PrivateRoute><RequireConnectSetup><Browse /></RequireConnectSetup></PrivateRoute>} />
+          <Route path="/matches" element={<PrivateRoute><RequireConnectSetup><Matches /></RequireConnectSetup></PrivateRoute>} />
           <Route path="/profile" element={<PrivateRoute><MyProfile /></PrivateRoute>} />
           <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
           <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />

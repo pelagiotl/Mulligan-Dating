@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useRef, ReactNode, useMemo } from 'react'
 import { api } from '../utils/api'
 import { browserSupportsWebPush, getVapidPublicKey, registerWebPush } from '../lib/webPush'
+import { computeConnectSetupComplete } from '../utils/connectProfileEligibility'
 
 /** Same as mobile `MainTabs`: owner line always sees admin UI (API `requireAdmin` already matches this number). */
 function isOwnerAdminPhone(phone: string | null | undefined): boolean {
@@ -31,12 +32,14 @@ interface Profile {
 interface AuthContextType {
   user: User | null
   profile: Profile | null
+  /** True when name, city/state location, and min photos satisfy Connect rules (stub profiles are false). */
+  connectSetupComplete: boolean
   isAuthenticated: boolean
   isAdmin: boolean
   loading: boolean
-  login: (email: string, password: string) => Promise<{ hasProfile: boolean }>
+  login: (email: string, password: string) => Promise<{ connectSetupComplete: boolean }>
   signup: (email: string, password: string, acceptTerms?: boolean, acceptPrivacy?: boolean) => Promise<void>
-  phoneLogin: (phoneNumber: string, code: string) => Promise<{ hasProfile: boolean }>
+  phoneLogin: (phoneNumber: string, code: string) => Promise<{ connectSetupComplete: boolean }>
   logout: () => void
   refreshProfile: () => Promise<void>
   /** Re-fetch /auth/me (e.g. after saving Web Push subscription). */
@@ -48,6 +51,7 @@ const AuthContext = createContext<AuthContextType | null>(null)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [connectSetupComplete, setConnectSetupComplete] = useState(false)
   const [loading, setLoading] = useState(true)
   const abortControllerRef = useRef<AbortController | null>(null)
 
@@ -60,11 +64,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem('token')
         setUser(null)
         setProfile(null)
+        setConnectSetupComplete(false)
         setLoading(false)
       })
     } else {
       setUser(null)
       setProfile(null)
+      setConnectSetupComplete(false)
       setLoading(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -80,8 +86,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.clearTimeout(t)
   }, [user?.id, user?.webPushConfigured])
 
-  const fetchUser = async () => {
+  const fetchUser = async (): Promise<{ connectSetupComplete: boolean }> => {
     setLoading(true)
+    setConnectSetupComplete(false)
     try {
       // Cancel any pending requests
       if (abortControllerRef.current) {
@@ -96,15 +103,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!token) {
         setUser(null)
         setProfile(null)
-        setLoading(false)
-        return
+        setConnectSetupComplete(false)
+        return { connectSetupComplete: false }
       }
       
       const data: any = await api.get('/auth/me')
       
       // Check if request was aborted
       if (abortControllerRef.current?.signal.aborted) {
-        return
+        return { connectSetupComplete: false }
       }
       
       if (!data || !data.user) {
@@ -123,17 +130,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         webPushConfigured: !!data.user.webPushConfigured,
         webPushSubscriptionCount: typeof data.user.webPushSubscriptionCount === 'number' ? data.user.webPushSubscriptionCount : 0,
       })
-      setProfile(data.profile || null)
+      const rawProfile = data.profile || null
+      setProfile(rawProfile)
+
+      let photoCount = 0
+      try {
+        const pm = await api.get<{ photos?: unknown[] }>('/photos/me')
+        photoCount = Array.isArray(pm.photos) ? pm.photos.length : 0
+      } catch {
+        photoCount = 0
+      }
+
+      const complete = computeConnectSetupComplete(rawProfile, photoCount)
+      setConnectSetupComplete(complete)
+      return { connectSetupComplete: complete }
     } catch (error: any) {
       // Ignore aborted requests
       if (error?.name === 'AbortError' || abortControllerRef.current?.signal.aborted) {
-        return
+        return { connectSetupComplete: false }
       }
       
       // Clear invalid token and reset state
       localStorage.removeItem('token')
       setUser(null)
       setProfile(null)
+      setConnectSetupComplete(false)
       // Re-throw so login can handle it
       throw error
     } finally {
@@ -153,6 +174,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Reset state before login
       setUser(null)
       setProfile(null)
+      setConnectSetupComplete(false)
       
       const data: any = await api.post('/auth/login', { email, password })
       
@@ -163,7 +185,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem('token', data.token)
       
       // Fetch user data - it handles loading state itself
-      await fetchUser()
+      const { connectSetupComplete: ready } = await fetchUser()
       
       // Check for new matches created since last login
       // Do this immediately after login to show notification right away
@@ -225,12 +247,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem('lastLoginTime', new Date().toISOString())
       }
       
-      // Return hasProfile
-      return { hasProfile: data.hasProfile || false }
+      return { connectSetupComplete: ready }
     } catch (error: any) {
       localStorage.removeItem('token')
       setUser(null)
       setProfile(null)
+      setConnectSetupComplete(false)
       setLoading(false)
       throw error
     }
@@ -247,7 +269,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser({ id: data.userId, email })
   }
 
-  const phoneLogin = async (phoneNumber: string, code: string): Promise<{ hasProfile: boolean }> => {
+  const phoneLogin = async (phoneNumber: string, code: string): Promise<{ connectSetupComplete: boolean }> => {
     const data: any = await api.post('/sms/verify-code', {
       phoneNumber,
       code,
@@ -258,10 +280,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Store token
     localStorage.setItem('token', data.token)
     
-    // Fetch user data immediately
-    await fetchUser()
-    
-    return { hasProfile: data.hasProfile || false }
+    const { connectSetupComplete: ready } = await fetchUser()
+    return { connectSetupComplete: ready }
   }
 
   const logout = () => {
@@ -275,6 +295,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('token')
     setUser(null)
     setProfile(null)
+    setConnectSetupComplete(false)
     setLoading(false)
   }
 
@@ -284,13 +305,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data.profile) {
         setProfile(data.profile)
         console.log('Profile refreshed:', data.profile)
+        let photoCount = 0
+        try {
+          const pm = await api.get<{ photos?: unknown[] }>('/photos/me')
+          photoCount = Array.isArray(pm.photos) ? pm.photos.length : 0
+        } catch {
+          photoCount = 0
+        }
+        setConnectSetupComplete(computeConnectSetupComplete(data.profile, photoCount))
       } else {
         setProfile(null)
+        setConnectSetupComplete(false)
       }
     } catch (error) {
       console.error('Failed to refresh profile:', error)
       // Profile might not exist yet, set to null
       setProfile(null)
+      setConnectSetupComplete(false)
     }
   }
 
@@ -307,6 +338,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider value={{ 
       user, 
       profile, 
+      connectSetupComplete,
       isAuthenticated: !!user,
       isAdmin,
       loading, 

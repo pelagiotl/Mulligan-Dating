@@ -157,7 +157,7 @@ async function uploadOnePhoto(file: File): Promise<SlotPhoto> {
 
 export default function CreateProfile() {
   const navigate = useNavigate();
-  const { refreshProfile, logout } = useAuth();
+  const { refreshProfile } = useAuth();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -572,11 +572,6 @@ export default function CreateProfile() {
     }
   };
 
-  const handleLogout = async () => {
-    await logout();
-    navigate("/login", { replace: true });
-  };
-
   const minAgeOptions = Array.from({ length: 103 }, (_, i) => 18 + i);
   const maxAgeOptions = Array.from({ length: 121 - minAge }, (_, i) => minAge + i);
 
@@ -604,12 +599,6 @@ export default function CreateProfile() {
   return (
     <div className="create-profile-wizard native-app-screen">
       <header className="create-profile-hero">
-        <div className="create-profile-hero-top">
-          <span />
-          <button type="button" className="create-profile-logout" onClick={() => void handleLogout()}>
-            Log out
-          </button>
-        </div>
         <h1 className="create-profile-hero-title">Set up your profile</h1>
         <p className="create-profile-hero-step">
           Step {step} of {TOTAL_STEPS}

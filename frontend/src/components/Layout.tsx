@@ -14,7 +14,7 @@ import WebTokenPurchase from './WebTokenPurchase'
 export default function Layout() {
   // Always call hooks at the top level, before any conditional logic
   // This ensures hooks are called in the same order on every render
-  const { logout, isAdmin, isAuthenticated, profile, loading: authLoading, user } = useAuth()
+  const { logout, isAdmin, isAuthenticated, connectSetupComplete, loading: authLoading, user } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const [tokenCount, setTokenCount] = useState<number | null>(null)
@@ -22,7 +22,7 @@ export default function Layout() {
 
   const isActive = (path: string) => location.pathname === path
   const connectPath =
-    isAuthenticated && !authLoading && !profile ? '/create-profile' : '/browse'
+    isAuthenticated && !authLoading && !connectSetupComplete ? '/create-profile' : '/browse'
   /** Create-profile wizard uses its own header; hide global navbar (incl. any Connect link). Trailing slash safe. */
   const normalizedPath = (location.pathname || '/').replace(/\/+$/, '') || '/'
   const isCreateProfileWizard = normalizedPath === '/create-profile'
