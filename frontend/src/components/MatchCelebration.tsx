@@ -398,6 +398,9 @@ export default function MatchCelebration({
               </div>
             </button>
           </div>
+          {resolvedGalleryUrls.length > 0 ? (
+            <p className="match-celebration-photo-hint">Tap photo to enlarge</p>
+          ) : null}
 
           {showPartnerMeta ? (
             <p className="match-celebration-partner-meta">
@@ -412,6 +415,15 @@ export default function MatchCelebration({
             </p>
           ) : null}
 
+          {showProfilePanel && partnerProfileDetail ? (
+            <details className="match-celebration-profile-details" open>
+              <summary className="match-celebration-profile-summary">
+                {`View ${profileName}'s interests, dealbreakers & preferences`}
+              </summary>
+              <MatchCelebrationPartnerSections detail={partnerProfileDetail} />
+            </details>
+          ) : null}
+
           <div className="match-celebration-text">
             <h1 className="match-celebration-title">
               <span className="match-celebration-word word-1">It&apos;s</span>
@@ -422,10 +434,6 @@ export default function MatchCelebration({
             <p className="match-celebration-message">
               Start messaging <strong>{profileName}</strong> 💬
             </p>
-
-            {showProfilePanel && partnerProfileDetail ? (
-              <MatchCelebrationPartnerSections detail={partnerProfileDetail} />
-            ) : null}
 
             {explanation && explanation.reasons.length > 0 && (
               <div className="match-celebration-explanation">
