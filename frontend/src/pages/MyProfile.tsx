@@ -99,6 +99,25 @@ function parsePreferredGendersInitial(raw: string | null | undefined): string[] 
   }
 }
 
+/** Web profile modal uses everyone | men-only | women-only selection. */
+type PreferredMatchesChoice = "everyone" | "men" | "women";
+
+function preferredChoiceFromSelection(genders: string[]): PreferredMatchesChoice {
+  const everyone = genders.includes("Everyone");
+  const hasMan = genders.includes("Man");
+  const hasWoman = genders.includes("Woman");
+  if (everyone || (hasMan && hasWoman)) return "everyone";
+  if (hasMan) return "men";
+  if (hasWoman) return "women";
+  return "everyone";
+}
+
+function preferredGendersForChoice(choice: PreferredMatchesChoice): string[] {
+  if (choice === "everyone") return ["Everyone"];
+  if (choice === "men") return ["Man"];
+  return ["Woman"];
+}
+
 const INTEREST_EDIT_OPTIONS = [
   "Travel", "Music", "Sports", "Cooking", "Reading", "Movies", "Fitness", "Art",
   "Photography", "Dancing", "Gaming", "Hiking", "Yoga", "Writing", "Technology",
@@ -156,6 +175,26 @@ const DEALBREAKER_SUGGESTIONS = [
   "Doesn't workout",
   "Doesn't like pets",
 ] as const;
+
+/** Only these preset dealbreakers are editable in the web profile UI. */
+const DEALBREAKER_CANONICAL_SET = new Set<string>(DEALBREAKER_SUGGESTIONS);
+
+const DEALBREAKER_EMOJI: Record<(typeof DEALBREAKER_SUGGESTIONS)[number], string> = {
+  "Smokes cigarettes": "🚬",
+  Marijuana: "🌿",
+  "Frequent drinking": "🍷",
+  "Doesn't want children": "👶❌",
+  "Wants children": "👪",
+  "Doesn't workout": "🛋️",
+  "Doesn't like pets": "🐕❌",
+};
+
+function canonicalDealbreakerLabel(raw: string | null | undefined): (typeof DEALBREAKER_SUGGESTIONS)[number] | null {
+  if (!raw?.trim()) return null;
+  const t = raw.trim().toLowerCase();
+  const found = DEALBREAKER_SUGGESTIONS.find((s) => s.toLowerCase() === t);
+  return found ?? null;
+}
 
 const LIFESTYLE_FIELD_OPTIONS = {
   smoking: ["", "Non-smoker", "Social smoker", "Smoker", "Trying to quit", "Prefer not to say"],
@@ -308,11 +347,20 @@ export default function MyProfile() {
   const [editInterests, setEditInterests] = useState<string[]>([]);
   const [showDealbreakersModal, setShowDealbreakersModal] = useState(false);
   const [editDealbreakers, setEditDealbreakers] = useState<string[]>([]);
-  const [dealbreakerDraft, setDealbreakerDraft] = useState("");
   const [showQualitiesModal, setShowQualitiesModal] = useState(false);
   const [editQualities, setEditQualities] = useState<string[]>([]);
   const [showLifestyleModal, setShowLifestyleModal] = useState(false);
   const [editLifestyle, setEditLifestyle] = useState<LifestyleForm>(() => lifestyleFormFromApi(null));
+  const [showAvatarLightbox, setShowAvatarLightbox] = useState(false);
+
+  useEffect(() => {
+    if (!showAvatarLightbox) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowAvatarLightbox(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showAvatarLightbox]);
 
   const fetchPhotos = async () => {
     try {
@@ -623,10 +671,11 @@ export default function MyProfile() {
     setUpdatingField(true);
     setError("");
     try {
-      await api.put("/profile/dealbreakers", { dealbreakers: editDealbreakers });
+      await api.put("/profile/dealbreakers", {
+        dealbreakers: editDealbreakers.filter((d) => DEALBREAKER_CANONICAL_SET.has(d)),
+      });
       await refreshProfileData();
       setShowDealbreakersModal(false);
-      setDealbreakerDraft("");
       await refreshProfile();
     } catch (e: unknown) {
       setError((e as Error)?.message || "Failed to update dealbreakers.");
@@ -682,37 +731,13 @@ export default function MyProfile() {
   };
 
   const toggleDealbreakerEdit = (text: string) => {
+    if (!DEALBREAKER_CANONICAL_SET.has(text)) return;
     setEditDealbreakers((prev) =>
       prev.includes(text) ? prev.filter((x) => x !== text) : [...prev, text]
     );
   };
-
-  const addCustomDealbreaker = () => {
-    const t = dealbreakerDraft.trim();
-    if (!t || editDealbreakers.includes(t)) return;
-    setEditDealbreakers((prev) => [...prev, t]);
-    setDealbreakerDraft("");
-  };
-
   const toggleQualityEdit = (q: string) => {
     setEditQualities((prev) => (prev.includes(q) ? prev.filter((x) => x !== q) : [...prev, q]));
-  };
-
-  const toggleEveryone = (checked: boolean) => {
-    if (checked) setEditPreferredGenders(["Everyone"]);
-  };
-
-  const toggleGenderOption = (g: "Man" | "Woman", checked: boolean) => {
-    setEditPreferredGenders((prev) => {
-      let next = prev.filter((x) => x !== "Everyone");
-      if (checked) {
-        if (!next.includes(g)) next = [...next, g];
-      } else {
-        next = next.filter((x) => x !== g);
-      }
-      if (next.length === 0) return ["Everyone"];
-      return next;
-    });
   };
 
   if (loading) {
@@ -745,6 +770,8 @@ export default function MyProfile() {
       ? getPhotoUrl(profile.photo_url)
       : null;
 
+  const preferredMatchesChoice = preferredChoiceFromSelection(editPreferredGenders);
+
   return (
     <div className="my-profile native-app-screen">
       {error && (
@@ -755,15 +782,21 @@ export default function MyProfile() {
 
       <div className="my-profile-header">
         {profilePhotoUrl && (
-          <div className="my-profile-avatar">
+          <button
+            type="button"
+            className="my-profile-avatar"
+            aria-label={`View larger photo — ${profile.display_name}`}
+            onClick={() => setShowAvatarLightbox(true)}
+          >
             <img
               src={profilePhotoUrl}
-              alt={profile.display_name}
+              alt=""
+              draggable={false}
               onError={(e) => {
                 (e.target as HTMLImageElement).style.display = "none";
               }}
             />
-          </div>
+          </button>
         )}
         <div className="my-profile-info">
           <h1 className="my-profile-name">{profile.display_name}</h1>
@@ -952,8 +985,14 @@ export default function MyProfile() {
             type="button"
             className="btn btn-secondary btn-sm"
             onClick={() => {
-              setEditDealbreakers(dealbreakers.map((d) => d.description));
-              setDealbreakerDraft("");
+              const next = Array.from(
+                new Set(
+                  dealbreakers
+                    .map((d) => canonicalDealbreakerLabel(d.description))
+                    .filter((x): x is NonNullable<typeof x> => x != null),
+                ),
+              );
+              setEditDealbreakers(next);
               setShowDealbreakersModal(true);
             }}
           >
@@ -962,11 +1001,16 @@ export default function MyProfile() {
         </div>
         {dealbreakers.length > 0 ? (
           <div className="profile-card-interests">
-            {dealbreakers.map((db, idx) => (
-              <span key={idx} className="interest-tag">
-                {db.description}
-              </span>
-            ))}
+            {dealbreakers.map((db, idx) => {
+              const canon = canonicalDealbreakerLabel(db.description);
+              const em = canon ? DEALBREAKER_EMOJI[canon] : "🚫";
+              const label = canon ?? db.description;
+              return (
+                <span key={idx} className="interest-tag">
+                  <span aria-hidden>{em}</span> {label}
+                </span>
+              );
+            })}
           </div>
         ) : (
           <p className="my-profile-empty-hint">No dealbreakers yet — tap Edit to add.</p>
@@ -1233,6 +1277,33 @@ export default function MyProfile() {
         </div>
       )}
 
+      {showAvatarLightbox && profilePhotoUrl ? (
+        <div
+          className="my-profile-photo-lightbox-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Profile photo"
+        >
+          <button
+            type="button"
+            className="my-profile-photo-lightbox-backdrop"
+            aria-label="Close enlarged photo"
+            onClick={() => setShowAvatarLightbox(false)}
+          />
+          <div className="my-profile-photo-lightbox-content">
+            <button
+              type="button"
+              className="my-profile-photo-lightbox-close"
+              aria-label="Close"
+              onClick={() => setShowAvatarLightbox(false)}
+            >
+              ×
+            </button>
+            <img src={profilePhotoUrl} alt={profile.display_name} className="my-profile-photo-lightbox-img" />
+          </div>
+        </div>
+      ) : null}
+
       {showPreferredModal && (
         <div className="my-profile-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="pref-title">
           <div className="my-profile-modal-backdrop" onClick={() => setShowPreferredModal(false)} />
@@ -1255,36 +1326,47 @@ export default function MyProfile() {
               </div>
             </div>
             <div className="my-profile-modal-body">
-              <div className="my-profile-pref-grid" role="group" aria-label="Preferred matches">
+              <div className="my-profile-pref-grid" role="radiogroup" aria-label="Preferred matches">
                 <button
                   type="button"
-                  className={`my-profile-pref-chip ${editPreferredGenders.includes("Everyone") ? "is-selected" : ""}`}
-                  onClick={() => toggleEveryone(true)}
+                  role="radio"
+                  aria-checked={preferredMatchesChoice === "everyone"}
+                  className={`my-profile-pref-chip ${preferredMatchesChoice === "everyone" ? "is-selected" : ""}`}
+                  onClick={() => setEditPreferredGenders(preferredGendersForChoice("everyone"))}
                 >
+                  <span className="my-profile-pref-chip-emoji" aria-hidden>
+                    🌍
+                  </span>
                   Everyone
-                  {editPreferredGenders.includes("Everyone") ? <span className="my-profile-pref-chip-check">✓</span> : null}
-                </button>
-                <button
-                  type="button"
-                  className={`my-profile-pref-chip ${editPreferredGenders.includes("Man") ? "is-selected" : ""}`}
-                  disabled={editPreferredGenders.includes("Everyone")}
-                  onClick={() => toggleGenderOption("Man", !editPreferredGenders.includes("Man"))}
-                >
-                  Men
-                  {editPreferredGenders.includes("Man") && !editPreferredGenders.includes("Everyone") ? (
+                  {preferredMatchesChoice === "everyone" ? (
                     <span className="my-profile-pref-chip-check">✓</span>
                   ) : null}
                 </button>
                 <button
                   type="button"
-                  className={`my-profile-pref-chip ${editPreferredGenders.includes("Woman") ? "is-selected" : ""}`}
-                  disabled={editPreferredGenders.includes("Everyone")}
-                  onClick={() => toggleGenderOption("Woman", !editPreferredGenders.includes("Woman"))}
+                  role="radio"
+                  aria-checked={preferredMatchesChoice === "men"}
+                  className={`my-profile-pref-chip ${preferredMatchesChoice === "men" ? "is-selected" : ""}`}
+                  onClick={() => setEditPreferredGenders(preferredGendersForChoice("men"))}
                 >
-                  Women
-                  {editPreferredGenders.includes("Woman") && !editPreferredGenders.includes("Everyone") ? (
-                    <span className="my-profile-pref-chip-check">✓</span>
-                  ) : null}
+                  <span className="my-profile-pref-chip-emoji" aria-hidden>
+                    👨
+                  </span>
+                  Men only
+                  {preferredMatchesChoice === "men" ? <span className="my-profile-pref-chip-check">✓</span> : null}
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={preferredMatchesChoice === "women"}
+                  className={`my-profile-pref-chip ${preferredMatchesChoice === "women" ? "is-selected" : ""}`}
+                  onClick={() => setEditPreferredGenders(preferredGendersForChoice("women"))}
+                >
+                  <span className="my-profile-pref-chip-emoji" aria-hidden>
+                    👩
+                  </span>
+                  Women only
+                  {preferredMatchesChoice === "women" ? <span className="my-profile-pref-chip-check">✓</span> : null}
                 </button>
               </div>
             </div>
@@ -1368,63 +1450,52 @@ export default function MyProfile() {
       )}
 
       {showDealbreakersModal && (
-        <div className="my-profile-modal-overlay" role="dialog" aria-modal="true">
+        <div className="my-profile-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="dealbreakers-modal-title">
           <div className="my-profile-modal-backdrop" onClick={() => setShowDealbreakersModal(false)} />
-          <div className="my-profile-modal-card my-profile-modal-card--scroll">
-            <h3>Dealbreakers</h3>
-            <p className="my-profile-modal-sub">Tap suggestions or add your own (saved as a simple list).</p>
-            <div className="profile-card-interests" style={{ marginBottom: "var(--space-3)" }}>
-              {editDealbreakers.map((d) => (
-                <button
-                  key={d}
-                  type="button"
-                  className="interest-tag my-profile-tag-removable"
-                  onClick={() => setEditDealbreakers((prev) => prev.filter((x) => x !== d))}
-                  title="Remove"
-                >
-                  {d} ×
-                </button>
-              ))}
+          <div className="my-profile-modal-card my-profile-modal-card--scroll my-profile-modal-card--dealbreakers" role="document">
+            <button
+              type="button"
+              className="my-profile-modal-close"
+              aria-label="Close"
+              onClick={() => setShowDealbreakersModal(false)}
+            >
+              ×
+            </button>
+            <div className="my-profile-modal-head">
+              <span className="my-profile-modal-icon" aria-hidden>
+                🚫
+              </span>
+              <div>
+                <h3 id="dealbreakers-modal-title">Dealbreakers</h3>
+                <p className="my-profile-modal-sub">Hard passes — tap to toggle ({editDealbreakers.length} on)</p>
+              </div>
             </div>
-            <p className="my-profile-modal-sub" style={{ marginTop: 0 }}>
-              Suggestions
-            </p>
-            <div className="profile-card-interests" style={{ marginBottom: "var(--space-3)" }}>
-              {DEALBREAKER_SUGGESTIONS.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  className={`interest-tag ${editDealbreakers.includes(s) ? "my-profile-tag-on" : ""}`}
-                  onClick={() => toggleDealbreakerEdit(s)}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-            <div className="my-profile-inline-add">
-              <input
-                className="form-input"
-                value={dealbreakerDraft}
-                onChange={(e) => setDealbreakerDraft(e.target.value)}
-                placeholder="Custom dealbreaker"
-                maxLength={500}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    addCustomDealbreaker();
-                  }
-                }}
-              />
-              <button type="button" className="btn btn-secondary" onClick={addCustomDealbreaker}>
-                Add
-              </button>
+            <div className="create-profile-interests-grid my-profile-edit-grid my-profile-dealbreaker-grid">
+              {DEALBREAKER_SUGGESTIONS.map((s) => {
+                const selected = editDealbreakers.includes(s);
+                const em = DEALBREAKER_EMOJI[s];
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    className={`create-profile-interest-tile my-profile-dealbreaker-tile ${selected ? "is-selected" : ""}`}
+                    onClick={() => toggleDealbreakerEdit(s)}
+                  >
+                    <span className="create-profile-interest-emoji" aria-hidden>
+                      {em}
+                    </span>
+                    <span className="create-profile-interest-label">{s}</span>
+                    {selected ? <span className="create-profile-interest-check">✓</span> : null}
+                  </button>
+                );
+              })}
             </div>
             <div className="my-profile-modal-actions">
-              <button type="button" className="btn btn-primary" onClick={() => void saveDealbreakers()} disabled={updatingField}>
-                Save
-              </button>
               <button type="button" className="btn btn-ghost" onClick={() => setShowDealbreakersModal(false)}>
                 Cancel
+              </button>
+              <button type="button" className="btn btn-primary" onClick={() => void saveDealbreakers()} disabled={updatingField}>
+                Save
               </button>
             </div>
           </div>
