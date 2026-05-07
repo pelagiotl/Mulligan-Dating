@@ -1,6 +1,45 @@
 /* global self, clients */
 // Mulligan Web Push — keep payload shape in sync with backend webPushDelivery JSON body.
 
+const FALLBACK_PATH = "/matches";
+const NAV_MSG = "MULLIGAN_NOTIFICATION_NAVIGATE";
+
+function parseClickUrlFromNotificationData(data) {
+  if (data == null) return FALLBACK_PATH;
+  if (typeof data === "string") {
+    try {
+      const parsed = JSON.parse(data);
+      if (parsed && typeof parsed === "object" && typeof parsed.url === "string" && parsed.url.trim()) {
+        return parsed.url.trim();
+      }
+    } catch (_) {
+      const t = data.trim();
+      if (t.startsWith("/") || t.startsWith("http")) return t;
+    }
+    return FALLBACK_PATH;
+  }
+  if (typeof data === "object" && typeof data.url === "string" && data.url.trim()) {
+    return data.url.trim();
+  }
+  return FALLBACK_PATH;
+}
+
+/** Resolve to an absolute same-origin URL safe for openWindow / navigate / location.assign */
+function normalizeOpenUrl(raw, origin) {
+  try {
+    const abs = raw.startsWith("http") ? new URL(raw) : new URL(raw, origin);
+    const root = new URL(origin);
+    if (abs.origin !== root.origin) {
+      return new URL(FALLBACK_PATH, origin).href;
+    }
+    let pathname = abs.pathname || "/";
+    if (!pathname.startsWith("/")) pathname = "/" + pathname;
+    return `${root.origin}${pathname}${abs.search}${abs.hash}`;
+  } catch (_) {
+    return new URL(FALLBACK_PATH, origin).href;
+  }
+}
+
 self.addEventListener("push", (event) => {
   let payload = {
     title: "Mulligan",
@@ -40,18 +79,43 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = (event.notification && event.notification.data && event.notification.data.url) || "/matches";
-  const path = url.startsWith("http") ? url : new URL(url, self.location.origin).href;
+  const rawUrl = parseClickUrlFromNotificationData(event.notification && event.notification.data);
+  const targetHref = normalizeOpenUrl(rawUrl, self.location.origin);
 
   event.waitUntil(
-    clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
-      for (let i = 0; i < clientList.length; i++) {
-        const c = clientList[i];
-        if (c.url.startsWith(self.location.origin) && "focus" in c) {
-          return c.focus();
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (clientList) => {
+      const origin = self.location.origin;
+      const sameOrigin = clientList.filter((c) => typeof c.url === "string" && c.url.startsWith(origin));
+
+      for (const client of sameOrigin) {
+        if ("navigate" in client && typeof client.navigate === "function") {
+          try {
+            const navigated = await client.navigate(targetHref);
+            if (navigated && "focus" in navigated) {
+              return navigated.focus();
+            }
+          } catch (_) {
+            /* fall through to postMessage + focus */
+          }
         }
       }
-      if (clients.openWindow) return clients.openWindow(path);
+
+      for (const client of sameOrigin) {
+        try {
+          client.postMessage({ type: NAV_MSG, url: targetHref });
+        } catch (_) {
+          /* ignore */
+        }
+      }
+
+      const focusTarget = sameOrigin.find((c) => "focus" in c);
+      if (focusTarget) {
+        return focusTarget.focus();
+      }
+
+      if (clients.openWindow) {
+        return clients.openWindow(targetHref);
+      }
     })
   );
 });

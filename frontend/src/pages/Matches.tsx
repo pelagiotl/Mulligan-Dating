@@ -188,6 +188,29 @@ interface Message {
   audioUrl?: string | null;
 }
 
+/** Alternating reply counts toward 3+3 media unlock (must match fetchMessages / server expectations). */
+function computeAlternatingMessageCounts(messages: Message[], currentUserId: string): { user: number; other: number } {
+  const sortedMessages = [...messages].sort(
+    (a, b) => new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime()
+  );
+  let userValidCount = 0;
+  let otherValidCount = 0;
+  for (let i = 0; i < sortedMessages.length; i++) {
+    const currentMessage = sortedMessages[i];
+    const isUser = currentMessage.senderId === currentUserId;
+    if (i === 0) {
+      if (isUser) userValidCount++;
+      else otherValidCount++;
+    } else {
+      const previousMessage = sortedMessages[i - 1];
+      const previousWasUser = previousMessage.senderId === currentUserId;
+      if (isUser && !previousWasUser) userValidCount++;
+      else if (!isUser && previousWasUser) otherValidCount++;
+    }
+  }
+  return { user: userValidCount, other: otherValidCount };
+}
+
 const CHAT_MEDIA_LOCKED_HINT =
   "Photos, video, and voice unlock after you and your match have each sent at least 3 messages in this chat.";
 
@@ -378,44 +401,12 @@ export default function Matches() {
           return prev;
         }
         const updated = [...prev, { ...message, isOwn: message.senderId === user.id }];
-        
-        // Update message counts (only count alternating messages)
-        if (selectedMatch && user) {
-          // Sort messages by sentAt to process in chronological order
-          const sortedMessages = [...updated].sort((a, b) => 
-            new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime()
-          );
-          
-          let userValidCount = 0;
-          let otherValidCount = 0;
-          
-          for (let i = 0; i < sortedMessages.length; i++) {
-            const currentMessage = sortedMessages[i];
-            const isUser = currentMessage.senderId === user.id;
-            
-            if (i === 0) {
-              // First message always counts (it starts the conversation)
-              if (isUser) userValidCount++;
-              else otherValidCount++;
-            } else {
-              // Subsequent messages only count if the previous message was from the other user
-              const previousMessage = sortedMessages[i - 1];
-              const previousWasUser = previousMessage.senderId === user.id;
-              
-              if (isUser && !previousWasUser) {
-                // User replied to other user
-                userValidCount++;
-              } else if (!isUser && previousWasUser) {
-                // Other user replied to user
-                otherValidCount++;
-              }
-              // If same user sent consecutive messages, don't count the second one
-            }
-          }
-          
-          setMessageCounts({ user: userValidCount, other: otherValidCount });
+
+        // Use ref, not selectedMatch: socket effect deps are [user] only — selectedMatch is stale here.
+        if (openId && user) {
+          setMessageCounts(computeAlternatingMessageCounts(updated, user.id));
         }
-        
+
         return updated;
       });
     });
@@ -452,13 +443,13 @@ export default function Matches() {
 
     // Handle typing indicators
     socket.on('user_typing', (data: { userId: string; matchId: string; displayName?: string }) => {
-      if (selectedMatch?.id === data.matchId && data.userId !== user.id) {
+      if (selectedMatchIdRef.current === data.matchId && data.userId !== user.id) {
         setTypingUsers((prev) => new Set(prev).add(data.userId));
       }
     });
 
     socket.on('typing_stopped', (data: { userId: string; matchId: string }) => {
-      if (selectedMatch?.id === data.matchId) {
+      if (selectedMatchIdRef.current === data.matchId) {
         setTypingUsers((prev) => {
           const newSet = new Set(prev);
           newSet.delete(data.userId);
@@ -469,7 +460,7 @@ export default function Matches() {
 
     // Handle read receipts
     socket.on('messages_read', (data: { matchId: string }) => {
-      if (selectedMatch?.id === data.matchId) {
+      if (selectedMatchIdRef.current === data.matchId) {
         // Update read status for messages sent by current user
         setMessages((prev) =>
           prev.map((msg) =>
@@ -712,43 +703,12 @@ export default function Matches() {
       const data = await api.get<{ messages: Message[] }>(
         `/matches/${matchId}/messages`
       );
+      if (selectedMatchIdRef.current !== matchId) return;
+
       setMessages(data.messages);
-      
-      // Calculate valid message counts (only count messages that follow a reply from the other user)
-      if (selectedMatch && user) {
-        // Sort messages by sentAt to process in chronological order
-        const sortedMessages = [...data.messages].sort((a, b) => 
-          new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime()
-        );
-        
-        let userValidCount = 0;
-        let otherValidCount = 0;
-        
-        for (let i = 0; i < sortedMessages.length; i++) {
-          const currentMessage = sortedMessages[i];
-          const isUser = currentMessage.senderId === user.id;
-          
-          if (i === 0) {
-            // First message always counts (it starts the conversation)
-            if (isUser) userValidCount++;
-            else otherValidCount++;
-          } else {
-            // Subsequent messages only count if the previous message was from the other user
-            const previousMessage = sortedMessages[i - 1];
-            const previousWasUser = previousMessage.senderId === user.id;
-            
-            if (isUser && !previousWasUser) {
-              // User replied to other user
-              userValidCount++;
-            } else if (!isUser && previousWasUser) {
-              // Other user replied to user
-              otherValidCount++;
-            }
-            // If same user sent consecutive messages, don't count the second one
-          }
-        }
-        
-        setMessageCounts({ user: userValidCount, other: otherValidCount });
+
+      if (user) {
+        setMessageCounts(computeAlternatingMessageCounts(data.messages, user.id));
       }
     } catch (err) {
       console.error("Failed to fetch messages:", err);
