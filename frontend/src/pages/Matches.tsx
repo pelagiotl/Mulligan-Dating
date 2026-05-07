@@ -293,10 +293,11 @@ export default function Matches() {
 
   const stepLightbox = useCallback((delta: number) => {
     setPhotoLightbox((prev) => {
-      if (!prev) return null;
-      const next = prev.index + delta;
-      if (next < 0 || next >= prev.urls.length) return prev;
-      return { ...prev, index: next };
+      if (!prev || prev.urls.length === 0) return null;
+      const n = prev.urls.length;
+      if (n === 1) return prev;
+      const idx = (prev.index + delta + n * 1000) % n;
+      return { ...prev, index: idx };
     });
   }, []);
 
@@ -1390,6 +1391,11 @@ export default function Matches() {
                 {photoLightbox.index + 1} / {photoLightbox.urls.length}
               </div>
             )}
+            {photoLightbox.urls.length > 1 ? (
+              <p className="match-photo-lightbox-browse-hint">
+                Swipe or tap ‹ › · cycles through every unlocked photo
+              </p>
+            ) : null}
           </div>
         </div>
       )}
@@ -1408,7 +1414,8 @@ export default function Matches() {
             aria-labelledby="chat-partner-drawer-title"
           >
             <div className="chat-partner-drawer-toolbar">
-              <div>
+              <div className="chat-partner-drawer-toolbar-text">
+                <p className="chat-partner-drawer-kicker">Their Mulligan profile</p>
                 <h2 id="chat-partner-drawer-title">{selectedMatch.otherUser.displayName}</h2>
                 <p className="chat-partner-drawer-sub">
                   {[selectedMatch.otherUser.age, selectedMatch.otherUser.gender].filter(Boolean).join(" · ")}
@@ -1457,7 +1464,9 @@ export default function Matches() {
                       </button>
                     ))}
                   </div>
-                  <p className="chat-partner-drawer-hint">Tap a photo for full screen</p>
+                  <p className="chat-partner-drawer-hint">
+                    Scroll the row, then tap — full screen uses ‹ › or swipe when there are multiple photos
+                  </p>
                 </div>
               ) : (
                 <p className="chat-partner-drawer-empty subtle">
@@ -1468,7 +1477,7 @@ export default function Matches() {
               )}
 
               <h3 className="chat-partner-drawer-section-label">Profile</h3>
-              <div className="chat-partner-drawer-profile">
+              <div className="chat-partner-drawer-profile chat-partner-drawer-profile--styled">
                 {matchHasProfileDetails(selectedMatch.otherUser) ? (
                   <MatchOtherProfileSections otherUser={selectedMatch.otherUser} variant="stage2" />
                 ) : (
