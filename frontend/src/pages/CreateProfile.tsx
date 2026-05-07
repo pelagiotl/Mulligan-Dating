@@ -197,6 +197,9 @@ export default function CreateProfile() {
 
   const photoCount = photoSlots.filter(Boolean).length;
 
+  const nameValid = displayName.trim().length >= 2;
+  const locationValid = hasCityAndState(location);
+
   const togglePreferredGender = (g: string) => {
     if (g === "Everyone") {
       setPreferredGenders(preferredGenders.includes("Everyone") ? [] : ["Everyone"]);
@@ -426,7 +429,7 @@ export default function CreateProfile() {
 
   const handleNext = () => {
     if (step === 1) {
-      if (!displayName?.trim() || displayName.trim().length < 2) {
+      if (!nameValid) {
         setError("Please enter at least 2 characters for your name");
         return;
       }
@@ -455,7 +458,7 @@ export default function CreateProfile() {
         setError("Please enter your location");
         return;
       }
-      if (!hasCityAndState(location)) {
+      if (!locationValid) {
         setError("Please enter both city and state (e.g. Medford, Oregon)");
         return;
       }
@@ -654,7 +657,7 @@ export default function CreateProfile() {
               autoComplete="given-name"
               maxLength={50}
             />,
-            displayName.trim().length >= 2 ? <span>✓ Great! Tap Continue</span> : null
+            nameValid ? <span>✓ Great! Tap Continue</span> : null
           )}
 
         {step === 2 &&
@@ -752,7 +755,7 @@ export default function CreateProfile() {
                 {detectingLocation ? "Detecting…" : "📍 Use My Location"}
               </button>
             </>,
-            hasCityAndState(location) ? <span>✓ Location set! Tap Continue</span> : null
+            locationValid ? <span>✓ Location set! Tap Continue</span> : null
           )}
 
         {step === 6 &&
@@ -960,11 +963,13 @@ export default function CreateProfile() {
           <button
             type="button"
             className="create-profile-btn create-profile-btn--next"
-            disabled={step === 5 && (!hasCityAndState(location) || detectingLocation)}
+            disabled={(step === 1 && !nameValid) || (step === 5 && (!locationValid || detectingLocation))}
             title={
-              step === 5 && !hasCityAndState(location)
-                ? "Enter city and state (e.g. Medford, Oregon) or use your location"
-                : undefined
+              step === 1 && !nameValid
+                ? "Enter at least 2 characters for your name"
+                : step === 5 && !locationValid
+                  ? "Enter city and state (e.g. Medford, Oregon) or use your location"
+                  : undefined
             }
             onClick={handleNext}
           >

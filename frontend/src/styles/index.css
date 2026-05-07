@@ -3069,6 +3069,13 @@ img {
   transform: translateY(-1px);
 }
 
+.create-profile-btn--next:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
 .create-profile-ready-splash {
   position: fixed;
   inset: 0;
