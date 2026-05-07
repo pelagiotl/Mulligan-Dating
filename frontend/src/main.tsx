@@ -8,8 +8,9 @@ import './styles/index.css'
 import './styles/mobile-native-shell.css'
 import './styles/native-ui-parity.css'
 
-// iOS Safari: notification clicks often focus an existing window without WindowClient.navigate().
-// Service worker posts here so we load the SPA route (e.g. /matches) instead of staying on a stale URL.
+// iOS Safari: notification clicks may focus a window without navigating, or deep links can 404 on cold start.
+// Service worker uses /?pwaOpen=... (see public/sw.js); App.tsx applies the route. Main thread also handles
+// postMessage for older SW versions.
 if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
   navigator.serviceWorker.addEventListener('message', (event: MessageEvent) => {
     const d = event.data as { type?: string; url?: string } | undefined

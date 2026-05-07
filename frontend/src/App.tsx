@@ -17,6 +17,28 @@ import Privacy from './pages/Privacy'
 import Layout from './components/Layout'
 import BrandMark from './components/BrandMark'
 
+const PWA_OPEN_PARAM = 'pwaOpen'
+
+/** Service worker opens /?pwaOpen=... on notification tap (reliable index.html on iOS cold start). */
+function PwaPushLaunchRedirect() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const raw = params.get(PWA_OPEN_PARAM)
+    if (!raw) return
+    let path: string
+    try {
+      path = decodeURIComponent(raw)
+    } catch {
+      return
+    }
+    if (!path.startsWith('/') || path.startsWith('//')) return
+    navigate(path, { replace: true })
+  }, [location.search, navigate])
+  return null
+}
+
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   // Always call hooks at the top level, before any conditional returns
   const { isAuthenticated, loading, user } = useAuth()
@@ -458,6 +480,7 @@ function NewMatchesNotification() {
 export default function App() {
   return (
     <>
+      <PwaPushLaunchRedirect />
       <NewMatchesNotification />
       <Routes>
         <Route path="/" element={<PublicRoute><Landing /></PublicRoute>} />

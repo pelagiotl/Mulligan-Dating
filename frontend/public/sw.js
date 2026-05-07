@@ -40,6 +40,28 @@ function normalizeOpenUrl(raw, origin) {
   }
 }
 
+/**
+ * Cold-open via root + query so index.html always loads (some iOS / CDN setups mishandle deep paths on cold start).
+ * App reads ?pwaOpen= and client-navigates (see App.tsx).
+ */
+function buildPwaLaunchPageUrl(origin, absoluteTargetHref) {
+  try {
+    let href = absoluteTargetHref;
+    const u = new URL(href);
+    if (u.origin !== new URL(origin).origin) {
+      href = new URL(FALLBACK_PATH, origin).href;
+    }
+    const t = new URL(href);
+    const pathQsHash = t.pathname + t.search + t.hash;
+    if (!pathQsHash.startsWith("/")) {
+      return `${origin}/?pwaOpen=${encodeURIComponent(FALLBACK_PATH)}`;
+    }
+    return `${origin}/?pwaOpen=${encodeURIComponent(pathQsHash)}`;
+  } catch (_) {
+    return `${origin}/?pwaOpen=${encodeURIComponent(FALLBACK_PATH)}`;
+  }
+}
+
 self.addEventListener("push", (event) => {
   let payload = {
     title: "Mulligan",
@@ -81,6 +103,7 @@ self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const rawUrl = parseClickUrlFromNotificationData(event.notification && event.notification.data);
   const targetHref = normalizeOpenUrl(rawUrl, self.location.origin);
+  const launchHref = buildPwaLaunchPageUrl(self.location.origin, targetHref);
 
   event.waitUntil(
     clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (clientList) => {
@@ -90,7 +113,7 @@ self.addEventListener("notificationclick", (event) => {
       for (const client of sameOrigin) {
         if ("navigate" in client && typeof client.navigate === "function") {
           try {
-            const navigated = await client.navigate(targetHref);
+            const navigated = await client.navigate(launchHref);
             if (navigated && "focus" in navigated) {
               return navigated.focus();
             }
@@ -102,7 +125,7 @@ self.addEventListener("notificationclick", (event) => {
 
       for (const client of sameOrigin) {
         try {
-          client.postMessage({ type: NAV_MSG, url: targetHref });
+          client.postMessage({ type: NAV_MSG, url: launchHref });
         } catch (_) {
           /* ignore */
         }
@@ -114,7 +137,7 @@ self.addEventListener("notificationclick", (event) => {
       }
 
       if (clients.openWindow) {
-        return clients.openWindow(targetHref);
+        return clients.openWindow(launchHref);
       }
     })
   );

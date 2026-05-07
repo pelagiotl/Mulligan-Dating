@@ -33,7 +33,7 @@ export async function registerWebPush(): Promise<boolean> {
   const vapid = getVapidPublicKey();
   if (!vapid || !browserSupportsWebPush()) return false;
 
-  const reg = await navigator.serviceWorker.register("/sw.js?v=notification-nav-2", { scope: "/" });
+  const reg = await navigator.serviceWorker.register("/sw.js?v=notification-nav-3", { scope: "/" });
   await reg.update();
 
   const sub = await reg.pushManager.subscribe({
