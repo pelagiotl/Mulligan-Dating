@@ -43,6 +43,7 @@ interface Match {
     partnerQualities: Array<{ quality: string; importance: number }>;
     lookingFor?: string | null;
     dealbreakers?: string[];
+    preferredGenders?: string[] | null;
   };
 }
 

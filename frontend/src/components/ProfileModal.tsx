@@ -137,16 +137,28 @@ export default function ProfileModal({ profile, onClose, onConnect }: ProfileMod
     }
   };
 
-  // Get primary photo for match celebration
-  const primaryPhoto = photos.find(p => p.isPrimary) || photos[0];
-  const photoUrl = primaryPhoto ? getPhotoUrl(primaryPhoto.url) : (profile.photoUrl ? getPhotoUrl(profile.photoUrl) : undefined);
 
   return (
     <>
       {showMatchCelebration && (
         <MatchCelebration
           profileName={profile.displayName}
-          photoUrl={photoUrl}
+          photoUrl={photos.find((p) => p.isPrimary)?.url ?? photos[0]?.url ?? profile.photoUrl}
+          photoGalleryUrls={
+            photos.length
+              ? [...photos].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0)).map((p) => p.url)
+              : profile.photoUrl
+                ? [profile.photoUrl]
+                : undefined
+          }
+          partnerProfileDetail={{
+            age: profile.age,
+            gender: profile.gender,
+            location: profile.location ?? null,
+            bio: profile.bio ?? null,
+            lookingFor: profile.lookingFor ?? null,
+            interests: profile.interests,
+          }}
           onClose={() => {
             setShowMatchCelebration(false);
             onConnect();

@@ -1,6 +1,7 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo, useCallback, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { getPhotoUrl } from "../utils/photoUrl";
+import { formatPreferredMatchesFromGenders } from "../utils/preferredMatchesLabel";
 
 const REVEAL_DELAY_MS = 7000;
 
@@ -8,9 +9,29 @@ interface MatchExplanation {
   reasons: string[];
 }
 
+/** Rich partner info shown below the headline (browse after match + profile modal celebration). */
+export interface CelebrationPartnerProfile {
+  age?: number;
+  gender?: string;
+  location?: string | null;
+  bio?: string | null;
+  lookingFor?: string | null;
+  interests?: string[];
+  values?: string[];
+  partnerQualities?: Array<{ quality: string; importance: number }>;
+  dealbreakers?: string[];
+  /** Raw preferred_genders preference (Man / Woman / Everyone). */
+  preferredGenders?: string[] | null;
+}
+
 interface MatchCelebrationProps {
   profileName: string;
+  /** Primary / first photo URL key or absolute URL — used if `photoGalleryUrls` omitted. */
   photoUrl?: string;
+  /** All photos for the lightbox carousel (recommended). Paths are normalized with getPhotoUrl. */
+  photoGalleryUrls?: string[];
+  /** Interests, dealbreakers, values, prefs, bio, etc. */
+  partnerProfileDetail?: CelebrationPartnerProfile | null;
   /** Legacy / ProfileModal: used when `onKeepBrowsing` / `onOpenChat` are not set. */
   onClose?: () => void;
   /** Browse: return user to Connect landing without advancing browse offset. */
@@ -25,6 +46,100 @@ interface MatchCelebrationProps {
    * Initiator (Connect tab): wait at least REVEAL_DELAY_MS from overlay open, then reveal once matchId is set (mirrors mobile).
    */
   revealWhenMatchIdReady?: boolean;
+}
+
+function hasPartnerProfilePanel(d: CelebrationPartnerProfile | null | undefined): boolean {
+  if (!d) return false;
+  const hasSubs = !!(
+    d.bio ||
+    d.lookingFor ||
+    (d.interests && d.interests.length) ||
+    (d.values && d.values.length) ||
+    (d.partnerQualities && d.partnerQualities.length) ||
+    (d.dealbreakers && d.dealbreakers.length)
+  );
+  const prefsKnown = d.preferredGenders !== undefined;
+  return hasSubs || prefsKnown;
+}
+
+function MatchCelebrationPartnerSections({
+  detail,
+}: {
+  detail: CelebrationPartnerProfile;
+}) {
+  const pronoun =
+    detail.gender === "Man" ? "him" : detail.gender === "Woman" ? "her" : "them";
+
+  return (
+    <div className="match-celebration-profile-panel">
+      <h4 style={{ marginBottom: "var(--space-3)", color: "rgba(255,255,255,0.92)" }}>About {pronoun}</h4>
+      {detail.lookingFor ? (
+        <div className="stage2-profile-block">
+          <h4>Looking for</h4>
+          <p className="stage2-profile-text">{detail.lookingFor}</p>
+        </div>
+      ) : null}
+      {detail.preferredGenders !== undefined ? (
+        <div className="stage2-profile-block">
+          <h4>Wants to connect with</h4>
+          <p className="stage2-profile-text">{formatPreferredMatchesFromGenders(detail.preferredGenders)}</p>
+        </div>
+      ) : null}
+      {detail.bio ? (
+        <div className="stage2-profile-block">
+          <h4>Bio</h4>
+          <p className="stage1-bio stage2-profile-text">{detail.bio}</p>
+        </div>
+      ) : null}
+      {(detail.partnerQualities?.length ?? 0) > 0 ? (
+        <div className="stage2-profile-block">
+          <h4>What they&apos;re looking for</h4>
+          <div className="qualities-list">
+            {detail.partnerQualities!.map((q, idx) => (
+              <div key={idx} className="quality-item">
+                <span className="quality-name">{q.quality}</span>
+                <span className="quality-importance">{"⭐".repeat(q.importance)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {(detail.interests?.length ?? 0) > 0 ? (
+        <div className="stage2-profile-block">
+          <h4>Interests</h4>
+          <div className="profile-card-interests">
+            {detail.interests!.map((interest) => (
+              <span key={interest} className="interest-tag">
+                {interest}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {(detail.values?.length ?? 0) > 0 ? (
+        <div className="stage2-profile-block">
+          <h4>Values</h4>
+          <div className="profile-card-interests">
+            {detail.values!.map((value) => (
+              <span key={value} className="value-tag">
+                {value}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {(detail.dealbreakers?.length ?? 0) > 0 ? (
+        <div className="stage2-profile-block">
+          <h4>Dealbreakers</h4>
+          <ul className="stage2-dealbreakers-list">
+            {detail.dealbreakers!.map((desc, i) => (
+              <li key={i}>{desc}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 /**
@@ -80,9 +195,13 @@ function playFireworkSound() {
   }
 }
 
+type PhotoLightboxState = { urls: string[]; index: number };
+
 export default function MatchCelebration({
   profileName,
   photoUrl,
+  photoGalleryUrls,
+  partnerProfileDetail = null,
   onClose,
   onKeepBrowsing,
   onOpenChat,
@@ -98,6 +217,35 @@ export default function MatchCelebration({
   const soundPlayedRef = useRef(false);
   const openedAtRef = useRef(Date.now());
   const navigate = useNavigate();
+  const [photoLightbox, setPhotoLightbox] = useState<PhotoLightboxState | null>(null);
+  const lightboxTouchX = useRef<number | null>(null);
+
+  const resolvedGalleryUrls = useMemo(() => {
+    const fromProp = photoGalleryUrls?.length
+      ? photoGalleryUrls.map((u) => getPhotoUrl(u))
+      : photoUrl
+        ? [getPhotoUrl(photoUrl)]
+        : [];
+    const seen = new Set<string>();
+    return fromProp.filter((u) => {
+      if (!u?.trim() || seen.has(u)) return false;
+      seen.add(u);
+      return true;
+    });
+  }, [photoGalleryUrls, photoUrl]);
+
+  const canOpenPhotoLightbox = resolvedGalleryUrls.length > 0;
+
+  const closeLightbox = useCallback(() => setPhotoLightbox(null), []);
+
+  const stepLightbox = useCallback((delta: number) => {
+    setPhotoLightbox((prev) => {
+      if (!prev || prev.urls.length < 2) return prev;
+      const n = prev.urls.length;
+      const idx = (prev.index + delta + n * 10) % n;
+      return { ...prev, index: idx };
+    });
+  }, []);
 
   useEffect(() => {
     openedAtRef.current = Date.now();
@@ -144,6 +292,17 @@ export default function MatchCelebration({
     return () => clearTimeout(t);
   }, [showContent]);
 
+  useEffect(() => {
+    if (!photoLightbox) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeLightbox();
+      if (e.key === "ArrowLeft") stepLightbox(-1);
+      if (e.key === "ArrowRight") stepLightbox(1);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [photoLightbox, closeLightbox, stepLightbox]);
+
   const handleSendMessage = () => {
     if (onOpenChat) {
       onOpenChat();
@@ -166,6 +325,11 @@ export default function MatchCelebration({
   };
 
   const confettiColors = ["#667eea", "#764ba2", "#a855f7", "#c026d3", "#ec4899", "#f472b6"];
+
+  const showPartnerMeta =
+    !!(partnerProfileDetail && (partnerProfileDetail.age ?? partnerProfileDetail.gender ?? partnerProfileDetail.location));
+
+  const showProfilePanel = hasPartnerProfilePanel(partnerProfileDetail);
 
   return (
     <div className="match-celebration-overlay match-celebration-overlay-native">
@@ -207,21 +371,46 @@ export default function MatchCelebration({
             <div className="match-celebration-photo-ring ring-1" />
             <div className="match-celebration-photo-ring ring-2" />
             <div className="match-celebration-photo-ring ring-3" />
-            <div className="match-celebration-photo">
-              {photoUrl ? (
-                <img
-                  src={getPhotoUrl(photoUrl)}
-                  alt={profileName}
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.style.display = "none";
-                  }}
-                />
-              ) : (
-                <div className="match-celebration-placeholder">{profileName.charAt(0).toUpperCase()}</div>
-              )}
-            </div>
+            <button
+              type="button"
+              className="match-celebration-photo-btn"
+              aria-label={canOpenPhotoLightbox ? "View larger photo" : undefined}
+              disabled={!canOpenPhotoLightbox}
+              onClick={() => {
+                if (!resolvedGalleryUrls.length) return;
+                setPhotoLightbox({ urls: resolvedGalleryUrls, index: 0 });
+              }}
+            >
+              <div className="match-celebration-photo">
+                {resolvedGalleryUrls.length > 0 ? (
+                  <img
+                    src={resolvedGalleryUrls[0]}
+                    alt=""
+                    draggable={false}
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = "none";
+                    }}
+                  />
+                ) : (
+                  <div className="match-celebration-placeholder">{profileName.charAt(0).toUpperCase()}</div>
+                )}
+              </div>
+            </button>
           </div>
+
+          {showPartnerMeta ? (
+            <p className="match-celebration-partner-meta">
+              {[partnerProfileDetail!.age != null ? `${partnerProfileDetail!.age}` : null, partnerProfileDetail!.gender].filter(Boolean).join(" · ")}
+              {partnerProfileDetail!.location ? (
+                <>
+                  <br />
+                  <span aria-hidden>📍 </span>
+                  <strong>{partnerProfileDetail!.location}</strong>
+                </>
+              ) : null}
+            </p>
+          ) : null}
 
           <div className="match-celebration-text">
             <h1 className="match-celebration-title">
@@ -229,12 +418,14 @@ export default function MatchCelebration({
               <span className="match-celebration-word word-2">a</span>
               <span className="match-celebration-word word-3">Match! 💖</span>
             </h1>
-            <p className="match-celebration-subtitle">
-              You&apos;re connected!
-            </p>
+            <p className="match-celebration-subtitle">You&apos;re connected!</p>
             <p className="match-celebration-message">
               Start messaging <strong>{profileName}</strong> 💬
             </p>
+
+            {showProfilePanel && partnerProfileDetail ? (
+              <MatchCelebrationPartnerSections detail={partnerProfileDetail} />
+            ) : null}
 
             {explanation && explanation.reasons.length > 0 && (
               <div className="match-celebration-explanation">
@@ -270,12 +461,82 @@ export default function MatchCelebration({
                   {
                     "--angle": `${(i * 360) / 12}deg`,
                     "--delay": `${i * 0.1}s`,
-                  } as React.CSSProperties
+                  } as CSSProperties
                 }
               >
                 ✨
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {photoLightbox && photoLightbox.urls.length > 0 && (
+        <div
+          className="match-photo-lightbox match-photo-lightbox--celebration"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Photo ${photoLightbox.index + 1} of ${photoLightbox.urls.length}`}
+          onClick={closeLightbox}
+        >
+          <button
+            type="button"
+            className="match-photo-lightbox-close"
+            aria-label="Close"
+            onClick={(e) => {
+              e.stopPropagation();
+              closeLightbox();
+            }}
+          >
+            ×
+          </button>
+          {photoLightbox.urls.length > 1 && (
+            <button
+              type="button"
+              className="match-photo-lightbox-nav match-photo-lightbox-nav--prev"
+              aria-label="Previous photo"
+              onClick={(e) => {
+                e.stopPropagation();
+                stepLightbox(-1);
+              }}
+            >
+              ‹
+            </button>
+          )}
+          {photoLightbox.urls.length > 1 && (
+            <button
+              type="button"
+              className="match-photo-lightbox-nav match-photo-lightbox-nav--next"
+              aria-label="Next photo"
+              onClick={(e) => {
+                e.stopPropagation();
+                stepLightbox(1);
+              }}
+            >
+              ›
+            </button>
+          )}
+          <div
+            className="match-photo-lightbox-center"
+            onClick={(e) => e.stopPropagation()}
+            onTouchStart={(e) => {
+              lightboxTouchX.current = e.changedTouches[0].clientX;
+            }}
+            onTouchEnd={(e) => {
+              const start = lightboxTouchX.current;
+              lightboxTouchX.current = null;
+              if (start == null) return;
+              const dx = e.changedTouches[0].clientX - start;
+              if (dx > 56) stepLightbox(-1);
+              else if (dx < -56) stepLightbox(1);
+            }}
+          >
+            <img src={photoLightbox.urls[photoLightbox.index]} alt={profileName} className="match-photo-lightbox-img" />
+            {photoLightbox.urls.length > 1 && (
+              <div className="match-photo-lightbox-counter">
+                {photoLightbox.index + 1} / {photoLightbox.urls.length}
+              </div>
+            )}
           </div>
         </div>
       )}

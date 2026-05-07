@@ -244,18 +244,19 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
       });
     }
 
-    // Batch fetch all preferences (values)
+    // Batch fetch all preferences — values + who they want to connect with (preferred_genders)
     const preferencesMap = new Map<string, string[]>(); // profileId -> values[]
+    const preferredGendersMap = new Map<string, string[] | null>(); // profileId -> raw preferred genders from JSON
     if (profileIdsArray.length > 0) {
       const placeholders = profileIdsArray.map(() => '?').join(',');
       const preferencesResult = db
-        .prepare(`SELECT profile_id, "values" FROM preferences WHERE profile_id IN (${placeholders})`)
+        .prepare(`SELECT profile_id, "values", preferred_genders FROM preferences WHERE profile_id IN (${placeholders})`)
         .all(profileIdsArray);
       const preferences = (preferencesResult instanceof Promise
         ? await preferencesResult
-        : preferencesResult) as { profile_id: string; values: string | null }[];
-      
-      preferences.forEach(pref => {
+        : preferencesResult) as { profile_id: string; values: string | null; preferred_genders: string | null }[];
+
+      preferences.forEach((pref) => {
         if (pref.values) {
           try {
             const values = JSON.parse(pref.values);
@@ -265,6 +266,16 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
           }
         } else {
           preferencesMap.set(pref.profile_id, []);
+        }
+        if (pref.preferred_genders) {
+          try {
+            const g = JSON.parse(pref.preferred_genders) as string[];
+            preferredGendersMap.set(pref.profile_id, Array.isArray(g) ? g : null);
+          } catch {
+            preferredGendersMap.set(pref.profile_id, null);
+          }
+        } else {
+          preferredGendersMap.set(pref.profile_id, null);
         }
       });
     }
@@ -424,6 +435,7 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
       const values = otherProfileId ? (preferencesMap.get(otherProfileId) || []) : [];
       const partnerQualities = otherProfileId ? (partnerQualitiesMap.get(otherProfileId) || []) : [];
       const dealbreakers = otherProfileId ? (dealbreakersMap.get(otherProfileId) || []) : [];
+      const preferredGenders = otherProfileId ? (preferredGendersMap.get(otherProfileId) ?? null) : null;
       const unreadMessageCount = unreadCountsMap.get(m.id) || 0;
       const gameUnlocks = gameUnlocksMap.get(m.id) || { truth_or_dare: false, never_have_i_ever: false };
       const compatibilityScore = compatibilityScoresMap.get(m.id) ?? null;
@@ -464,6 +476,7 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
           values,
           partnerQualities,
           dealbreakers,
+          preferredGenders,
           lastActiveAt: otherUser.show_active_status ? (otherUser.last_active_at || null) : null,
           ...(photos !== undefined && { photos }),
         },

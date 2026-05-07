@@ -8795,6 +8795,11 @@ button.my-profile-avatar:focus-visible {
   cursor: zoom-out;
 }
 
+/* Above match celebration overlay (10001); below global toasts e.g. new match (11050). */
+.match-photo-lightbox.match-photo-lightbox--celebration {
+  z-index: 10500;
+}
+
 .match-photo-lightbox-img {
   max-width: min(96vw, 1200px);
   max-height: 92vh;
@@ -9420,6 +9425,7 @@ button.my-profile-avatar:focus-visible {
   border-radius: 50%;
   border: 3px solid var(--color-rose-400);
   animation: matchCelebrationRing 2s ease-out infinite;
+  pointer-events: none;
 }
 
 .match-celebration-photo-ring.ring-1 {
@@ -9679,6 +9685,119 @@ button.my-profile-avatar:focus-visible {
 
 .match-celebration-overlay-native .match-celebration-content {
   z-index: 2;
+  max-width: min(100%, 26rem);
+  width: 100%;
+  max-height: min(88vh, 860px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: var(--space-4);
+  -webkit-overflow-scrolling: touch;
+}
+
+.match-celebration-partner-meta {
+  margin: 0 auto var(--space-3);
+  max-width: 20rem;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.92);
+  text-align: center;
+}
+
+.match-celebration-partner-meta strong {
+  color: #fff;
+  font-weight: 700;
+}
+
+.match-celebration-profile-panel {
+  margin: var(--space-4) auto 0;
+  padding: var(--space-4) var(--space-4);
+  max-width: 22rem;
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-xl);
+  backdrop-filter: blur(8px);
+  text-align: left;
+}
+
+.match-celebration-profile-panel h4 {
+  margin: 0 0 var(--space-2);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.match-celebration-profile-panel .stage2-profile-block {
+  margin-bottom: var(--space-4);
+}
+
+.match-celebration-profile-panel .stage2-profile-block:last-child {
+  margin-bottom: 0;
+}
+
+.match-celebration-profile-panel .stage2-profile-block h4 {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.match-celebration-profile-panel .stage2-profile-text {
+  color: rgba(255, 255, 255, 0.95);
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.match-celebration-profile-panel .profile-card-interests .interest-tag,
+.match-celebration-profile-panel .profile-card-interests .value-tag {
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: #fff;
+}
+
+.match-celebration-profile-panel .qualities-list .quality-item {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.match-celebration-profile-panel .qualities-list .quality-name {
+  color: #fff;
+}
+
+.match-celebration-profile-panel .stage2-dealbreakers-list {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.match-celebration-profile-panel .stage2-dealbreakers-list li::marker {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+button.match-celebration-photo-btn {
+  appearance: none;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+  cursor: zoom-in;
+  position: relative;
+  z-index: 3;
+  display: block;
+}
+
+button.match-celebration-photo-btn:focus-visible {
+  outline: 3px solid rgba(255, 255, 255, 0.85);
+  outline-offset: 5px;
+}
+
+button.match-celebration-photo-btn:disabled {
+  cursor: default;
+}
+
+button.match-celebration-photo-btn:disabled:focus-visible {
+  outline: none;
 }
 
 .match-celebration-actions {

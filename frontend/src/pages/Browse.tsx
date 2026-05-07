@@ -3,7 +3,7 @@ import { useNavigate, Navigate } from "react-router-dom";
 import { api } from "../utils/api";
 import { useAuth } from "../context/AuthContext";
 import { getPhotoUrl } from "../utils/photoUrl";
-import MatchCelebration from "../components/MatchCelebration";
+import MatchCelebration, { type CelebrationPartnerProfile } from "../components/MatchCelebration";
 import TokenDisplay from "../components/TokenDisplay";
 import ConnectLandingMark from "../components/ConnectLandingMark";
 import { io, Socket } from "socket.io-client";
@@ -29,6 +29,22 @@ interface Profile {
   interests: string[];
   lookingFor?: string;
   distance?: number | null;
+}
+
+/** Subset of GET /matches list `otherUser` used to hydrate the match celebration drawer. */
+interface MatchCelebrationHydration {
+  age: number;
+  gender: string;
+  bio: string | null;
+  location: string | null;
+  lookingFor?: string | null;
+  interests: string[];
+  values: string[];
+  partnerQualities: Array<{ quality: string; importance: number }>;
+  dealbreakers?: string[];
+  preferredGenders?: string[] | null;
+  photoUrl?: string | null;
+  photos?: Photo[];
 }
 
 type ConnectLandingMode = "loading" | "gate" | "auto-connecting";
@@ -179,6 +195,9 @@ export default function Browse() {
   const [showMatchCelebration, setShowMatchCelebration] = useState(false);
   const [matchedProfile, setMatchedProfile] = useState<Profile | null>(null);
   const [celebrationMatchId, setCelebrationMatchId] = useState<string | null>(null);
+  const [celebrationFetchedOther, setCelebrationFetchedOther] = useState<MatchCelebrationHydration | null>(
+    null
+  );
   const [hasFetched, setHasFetched] = useState(false); // Track if we've fetched at least once
   const [matchNotification, setMatchNotification] = useState<{ message: string; type: "success" | "info" | "warning" | "error" } | null>(null);
   const matchNotificationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -417,6 +436,66 @@ export default function Browse() {
       socketRef.current = null;
     };
   }, [userProfile]); // Reconnect if user changes
+
+  useEffect(() => {
+    if (!celebrationMatchId?.trim() || !showMatchCelebration) {
+      setCelebrationFetchedOther(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const data = await api.get<{
+          matches: Array<{ id: string; otherUser: MatchCelebrationHydration }>;
+        }>("/matches");
+        if (cancelled) return;
+        const hit = data.matches.find((m) => m.id === celebrationMatchId.trim());
+        setCelebrationFetchedOther(hit?.otherUser ?? null);
+      } catch {
+        if (!cancelled) setCelebrationFetchedOther(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [celebrationMatchId, showMatchCelebration]);
+
+  const celebrationPhotoGalleryUrls = useMemo(() => {
+    if (!matchedProfile) return [] as string[];
+    const fromBrowse = matchedProfile.photos?.length
+      ? [...matchedProfile.photos]
+          .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))
+          .map((p) => p.url)
+      : [];
+    const fromMatch =
+      celebrationFetchedOther?.photos?.length
+        ? [...celebrationFetchedOther.photos]
+            .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))
+            .map((p) => p.url)
+        : [];
+    if (fromBrowse.length) return fromBrowse;
+    if (fromMatch.length) return fromMatch;
+    if (matchedProfile.photoUrl?.trim()) return [matchedProfile.photoUrl];
+    if (celebrationFetchedOther?.photoUrl?.trim()) return [celebrationFetchedOther.photoUrl];
+    return [];
+  }, [matchedProfile, celebrationFetchedOther]);
+
+  const celebrationPartnerDetail = useMemo((): CelebrationPartnerProfile | null => {
+    if (!matchedProfile) return null;
+    const ou = celebrationFetchedOther;
+    return {
+      age: ou?.age ?? matchedProfile.age,
+      gender: ou?.gender ?? matchedProfile.gender,
+      location: (ou?.location ?? matchedProfile.location) ?? null,
+      bio: (ou?.bio ?? matchedProfile.bio) ?? null,
+      lookingFor: (ou?.lookingFor ?? matchedProfile.lookingFor) ?? null,
+      interests: ou?.interests?.length ? ou.interests : (matchedProfile.interests ?? []),
+      values: ou?.values ?? [],
+      partnerQualities: ou?.partnerQualities ?? [],
+      dealbreakers: ou?.dealbreakers ?? [],
+      preferredGenders: ou ? (ou.preferredGenders ?? null) : undefined,
+    };
+  }, [matchedProfile, celebrationFetchedOther]);
 
   const handleConnect = useCallback(
     async (profile: Profile, expandSlot?: boolean) => {
@@ -838,20 +917,24 @@ export default function Browse() {
         </>
       ) : null}
 
-      {showMatchCelebration && matchedProfile && (() => {
-        const primaryPhoto = matchedProfile.photos?.find(p => p.isPrimary) || matchedProfile.photos?.[0];
-        const photoUrl = primaryPhoto ? getPhotoUrl(primaryPhoto.url) : (matchedProfile.photoUrl ? getPhotoUrl(matchedProfile.photoUrl) : undefined);
-        return (
-          <MatchCelebration
-            profileName={matchedProfile.displayName}
-            photoUrl={photoUrl}
-            matchId={celebrationMatchId}
-            revealWhenMatchIdReady
-            onKeepBrowsing={handleCelebrationKeepBrowsing}
-            onOpenChat={handleCelebrationOpenChat}
-          />
-        );
-      })()}
+      {showMatchCelebration && matchedProfile ? (
+        <MatchCelebration
+          profileName={matchedProfile.displayName}
+          photoUrl={
+            (matchedProfile.photos?.find((p) => p.isPrimary) || matchedProfile.photos?.[0])?.url ??
+            matchedProfile.photoUrl ??
+            celebrationPhotoGalleryUrls[0]
+          }
+          photoGalleryUrls={
+            celebrationPhotoGalleryUrls.length > 0 ? celebrationPhotoGalleryUrls : undefined
+          }
+          partnerProfileDetail={celebrationPartnerDetail}
+          matchId={celebrationMatchId}
+          revealWhenMatchIdReady
+          onKeepBrowsing={handleCelebrationKeepBrowsing}
+          onOpenChat={handleCelebrationOpenChat}
+        />
+      ) : null}
     </div>
   );
 }

@@ -187,6 +187,9 @@ function RequireConnectSetup({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+/** Above MatchCelebration (10001) / browse toasts so the banner stays visible during celebrations; below navbar modals (12000). */
+const NEW_MATCHES_TOAST_Z = 11050;
+
 // Global notification component for new matches after login
 function NewMatchesNotification() {
   const [notification, setNotification] = useState<string | null>(null)
@@ -368,7 +371,7 @@ function NewMatchesNotification() {
         padding: '20px 32px',
         borderRadius: '16px',
         boxShadow: '0 8px 32px rgba(244, 63, 94, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1)',
-        zIndex: 1000,
+        zIndex: NEW_MATCHES_TOAST_Z,
         maxWidth: '90%',
         textAlign: 'center',
         cursor: 'pointer',
