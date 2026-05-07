@@ -10,6 +10,7 @@ import MaintenanceBanner from './MaintenanceBanner'
 import BrandMark from './BrandMark'
 import TokenDisplay from './TokenDisplay'
 import WebTokenPurchase from './WebTokenPurchase'
+import { TOKEN_MAX } from '../constants/tokens'
 
 export default function Layout() {
   // Always call hooks at the top level, before any conditional logic
@@ -255,7 +256,12 @@ export default function Layout() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="navbar-token-modal-head">
-              <h2 id="navbar-token-modal-title">Mulligan tokens</h2>
+              <div className="navbar-token-modal-heading">
+                <h2 id="navbar-token-modal-title">Your Mulligan tokens</h2>
+                <p className="navbar-token-modal-tagline">
+                  Spend on Connect · refill weekly · max {TOKEN_MAX}
+                </p>
+              </div>
               <button
                 type="button"
                 className="navbar-token-modal-close"
@@ -265,18 +271,14 @@ export default function Layout() {
                 ×
               </button>
             </div>
-            <p className="navbar-token-modal-lede">
-              You have <strong>{tokenCount}</strong> available. Use tokens to match with people — claim your weekly refill
-              or buy more when you&apos;re running low.
-            </p>
-            <TokenDisplay />
+            <TokenDisplay variant="modalCompact" />
             <div className="navbar-token-modal-purchase">
-              <p className="navbar-token-modal-purchase-label">Get more tokens</p>
+              <p className="navbar-token-modal-purchase-label">Need more?</p>
               <WebTokenPurchase variant="settings" customerEmail={user?.email} />
             </div>
             <div className="navbar-token-modal-footer">
               <Link to="/settings#tokens" className="btn btn-ghost btn-sm" onClick={closeTokenModal}>
-                Open full Settings
+                Full token settings
               </Link>
             </div>
           </div>

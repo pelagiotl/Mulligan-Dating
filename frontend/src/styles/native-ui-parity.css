@@ -76,7 +76,7 @@
 @media (max-width: 900px) {
   .connect-landing-page {
     flex-direction: column;
-    justify-content: center;
+    justify-content: flex-start;
     align-items: center;
     gap: clamp(14px, 4vw, 22px);
   }
@@ -479,9 +479,10 @@
   z-index: 1;
   min-height: min(100vh, 100dvh);
   display: flex;
-  align-items: center;
+  /* Top-align so the Connect CTA stays in view on login (centering pushed the tall card below the fold). */
+  align-items: flex-start;
   justify-content: center;
-  padding: 24px 16px calc(24px + env(safe-area-inset-bottom, 0px));
+  padding: 16px 16px calc(24px + env(safe-area-inset-bottom, 0px));
   box-sizing: border-box;
   background: transparent;
 }

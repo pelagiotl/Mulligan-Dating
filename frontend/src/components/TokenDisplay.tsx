@@ -23,7 +23,24 @@ function formatRefillDate(iso: string | null | undefined): string | null {
   }
 }
 
-export default function TokenDisplay() {
+function formatRefillShort(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  try {
+    return new Date(iso).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    });
+  } catch {
+    return null;
+  }
+}
+
+interface TokenDisplayProps {
+  /** Tighter copy and spacing when shown inside the navbar token dialog. */
+  variant?: "default" | "modalCompact";
+}
+
+export default function TokenDisplay({ variant = "default" }: TokenDisplayProps) {
   const [data, setData] = useState<TokenData | null>(null);
   const [claiming, setClaiming] = useState(false);
   const [error, setError] = useState("");
@@ -107,38 +124,59 @@ export default function TokenDisplay() {
     }
   };
 
+  const compact = variant === "modalCompact";
+
   if (!data) {
     return (
-      <div className="token-display token-display-card">
+      <div
+        className={`token-display token-display-card${compact ? " token-display--modal-compact" : ""}`}
+      >
         <div className="token-display-loading">Loading tokens...</div>
       </div>
     );
   }
 
   const refillFormatted = formatRefillDate(data.nextRefillDate);
+  const refillShort = formatRefillShort(data.nextRefillDate);
   const meterPct = Math.min(100, (data.availableTokens / TOKEN_MAX) * 100);
 
-  const cannotClaimMessage =
+  const cannotClaimFull =
     data.availableTokens >= TOKEN_MAX
       ? `You're at your maximum of ${TOKEN_MAX} tokens. Use them to match with people!`
       : refillFormatted
         ? `Next weekly refill: ${refillFormatted}. You'll get up to ${TOKEN_MAX} tokens.`
         : "Weekly tokens aren't ready to claim yet. Check back after your refill date.";
 
+  const cannotClaimCompact =
+    data.availableTokens >= TOKEN_MAX
+      ? `${TOKEN_MAX}/${TOKEN_MAX} — use Connect to spend`
+      : refillShort
+        ? `Next refill · ${refillShort}`
+        : "Not ready to claim yet";
+
+  const cannotClaimMessage = compact ? cannotClaimCompact : cannotClaimFull;
+
   return (
-    <div className="token-display token-display-card">
+    <div
+      className={`token-display token-display-card${compact ? " token-display--modal-compact" : ""}`}
+    >
       <div className="token-display-header-gradient">
         <div className="token-display-header-inner">
-          <span className="token-display-header-emoji" aria-hidden>
+          <span
+            className={`token-display-header-emoji${compact ? " token-display-header-emoji--compact" : ""}`}
+            aria-hidden
+          >
             🎟️
           </span>
           <div className="token-display-header-count-row">
             <span className="token-display-header-number">{data.availableTokens}</span>
             <span className="token-display-header-cap">/ {TOKEN_MAX}</span>
           </div>
-          <p className="token-display-header-label">
-            Mulligan Token{data.availableTokens !== 1 ? "s" : ""} available
-          </p>
+          {!compact ? (
+            <p className="token-display-header-label">
+              Mulligan Token{data.availableTokens !== 1 ? "s" : ""} available
+            </p>
+          ) : null}
           <div className="token-display-meter" aria-hidden>
             <div className="token-display-meter-fill" style={{ width: `${meterPct}%` }} />
           </div>
@@ -165,15 +203,19 @@ export default function TokenDisplay() {
             disabled={claiming}
             type="button"
           >
-            {claiming ? "Claiming..." : "✨ Claim Weekly Tokens"}
+            {claiming ? "Claiming…" : compact ? "Claim weekly refill" : "✨ Claim Weekly Tokens"}
           </button>
         ) : (
-          <div className="token-cannot-claim">{cannotClaimMessage}</div>
+          <div className={`token-cannot-claim${compact ? " token-cannot-claim--compact" : ""}`}>
+            {cannotClaimMessage}
+          </div>
         )}
 
-        <p className="token-info token-display-footer-hint">
-          Use tokens to match with people. Get {TOKEN_MAX} tokens weekly (up to {TOKEN_MAX} max).
-        </p>
+        {!compact ? (
+          <p className="token-info token-display-footer-hint">
+            Use tokens to match with people. Get {TOKEN_MAX} tokens weekly (up to {TOKEN_MAX} max).
+          </p>
+        ) : null}
       </div>
     </div>
   );
