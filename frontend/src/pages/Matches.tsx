@@ -4,6 +4,7 @@ import { io, Socket } from "socket.io-client";
 import { api, ApiError } from "../utils/api";
 import { useAuth } from "../context/AuthContext";
 import { getPhotoUrl } from "../utils/photoUrl";
+import { formatPreferredMatchesFromGenders } from "../utils/preferredMatchesLabel";
 import Notification from "../components/Notification";
 import ConfirmModal from "../components/ConfirmModal";
 import TruthOrDareWeb from "../components/TruthOrDareWeb";
@@ -49,6 +50,21 @@ interface Match {
 
 type PhotoLightboxState = { urls: string[]; index: number };
 
+/** Photos usable for thumbnails / lightbox (stage2 gallery or primary fallback). */
+function getOtherUserPhotosForLightbox(match: Match): Photo[] {
+  const ou = match.otherUser;
+  if (match.stage === "stage2" && ou.photos && ou.photos.length > 0) {
+    return [...ou.photos].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
+  }
+  if ((match.stage === "stage1" || match.stage === "stage2") && ou.photoUrl?.trim()) {
+    return [{ id: "__primary__", url: ou.photoUrl, displayOrder: 0, isPrimary: true }];
+  }
+  if (ou.photos && ou.photos.length > 0) {
+    return [...ou.photos].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
+  }
+  return [];
+}
+
 function matchHasProfileDetails(ou: Match["otherUser"]): boolean {
   return !!(
     ou.bio ||
@@ -56,7 +72,8 @@ function matchHasProfileDetails(ou: Match["otherUser"]): boolean {
     (ou.partnerQualities?.length ?? 0) > 0 ||
     (ou.interests?.length ?? 0) > 0 ||
     (ou.values?.length ?? 0) > 0 ||
-    (ou.dealbreakers?.length ?? 0) > 0
+    (ou.dealbreakers?.length ?? 0) > 0 ||
+    ou.preferredGenders !== undefined
   );
 }
 
@@ -74,7 +91,8 @@ function MatchOtherProfileSections({
     (otherUser.partnerQualities?.length ?? 0) > 0 ||
     (otherUser.interests?.length ?? 0) > 0 ||
     (otherUser.values?.length ?? 0) > 0 ||
-    (otherUser.dealbreakers?.length ?? 0) > 0;
+    (otherUser.dealbreakers?.length ?? 0) > 0 ||
+    otherUser.preferredGenders !== undefined;
   if (!hasAny) return null;
 
   const blocks = (
@@ -83,6 +101,12 @@ function MatchOtherProfileSections({
         <div className={variant === "stage1" ? "stage1-section" : "stage2-profile-block"}>
           <h4>Looking for</h4>
           <p className="stage2-profile-text">{otherUser.lookingFor}</p>
+        </div>
+      ) : null}
+      {otherUser.preferredGenders !== undefined ? (
+        <div className={variant === "stage1" ? "stage1-section" : "stage2-profile-block"}>
+          <h4>Wants to connect with</h4>
+          <p className="stage2-profile-text">{formatPreferredMatchesFromGenders(otherUser.preferredGenders)}</p>
         </div>
       ) : null}
       {otherUser.bio ? (
@@ -183,6 +207,8 @@ export default function Matches() {
   const [notification, setNotification] = useState<{ message: string; type: "success" | "info" | "warning" | "error" } | null>(null);
   const [showUnmatchConfirm, setShowUnmatchConfirm] = useState(false);
   const [photoLightbox, setPhotoLightbox] = useState<PhotoLightboxState | null>(null);
+  /** Full partner profile & photo gallery beside the messaging column */
+  const [partnerDrawerOpen, setPartnerDrawerOpen] = useState(false);
   const [mobileShowMatchList, setMobileShowMatchList] = useState(true);
   const [isNarrow, setIsNarrow] = useState(
     () => typeof window !== "undefined" && window.innerWidth <= 900
@@ -224,6 +250,24 @@ export default function Matches() {
     }
     return my >= 3 && other >= 3;
   }, [messages, selectedMatch?.id, selectedMatch?.otherUser?.userId, user?.id]);
+
+  const selectedMatchPhotos = useMemo((): Photo[] => {
+    if (!selectedMatch || selectedMatch.stage === "pending") return [];
+    return getOtherUserPhotosForLightbox(selectedMatch);
+  }, [selectedMatch]);
+
+  useEffect(() => {
+    setPartnerDrawerOpen(false);
+  }, [selectedMatch?.id]);
+
+  useEffect(() => {
+    if (!partnerDrawerOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [partnerDrawerOpen]);
 
   const voiceCanceledRef = useRef(false);
 
@@ -612,15 +656,20 @@ export default function Matches() {
   }, [messages]);
 
   useEffect(() => {
-    if (!photoLightbox) return;
+    if (!photoLightbox && !partnerDrawerOpen) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeLightbox();
+      if (e.key === "Escape") {
+        if (photoLightbox) closeLightbox();
+        else setPartnerDrawerOpen(false);
+        return;
+      }
+      if (!photoLightbox) return;
       if (e.key === "ArrowLeft") stepLightbox(-1);
       if (e.key === "ArrowRight") stepLightbox(1);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [photoLightbox, closeLightbox, stepLightbox]);
+  }, [photoLightbox, partnerDrawerOpen, closeLightbox, stepLightbox]);
 
   const fetchMatches = async (): Promise<Match[]> => {
     try {
@@ -1344,6 +1393,92 @@ export default function Matches() {
           </div>
         </div>
       )}
+      {partnerDrawerOpen && selectedMatch && selectedMatch.stage !== "pending" && (
+        <div className="chat-partner-drawer-root">
+          <button
+            type="button"
+            className="chat-partner-drawer-backdrop"
+            aria-label="Close profile panel"
+            onClick={() => setPartnerDrawerOpen(false)}
+          />
+          <aside
+            className="chat-partner-drawer-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="chat-partner-drawer-title"
+          >
+            <div className="chat-partner-drawer-toolbar">
+              <div>
+                <h2 id="chat-partner-drawer-title">{selectedMatch.otherUser.displayName}</h2>
+                <p className="chat-partner-drawer-sub">
+                  {[selectedMatch.otherUser.age, selectedMatch.otherUser.gender].filter(Boolean).join(" · ")}
+                  {selectedMatch.otherUser.location ? (
+                    <>
+                      {" · "}
+                      <span aria-hidden>
+                        📍{" "}
+                      </span>
+                      {selectedMatch.otherUser.location}
+                    </>
+                  ) : null}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="chat-partner-drawer-close"
+                onClick={() => setPartnerDrawerOpen(false)}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="chat-partner-drawer-inner">
+              {selectedMatchPhotos.length > 0 ? (
+                <div className="chat-partner-drawer-gallery-block">
+                  <h3 className="chat-partner-drawer-section-label">Photos</h3>
+                  <div className="chat-partner-drawer-photo-rail" role="list">
+                    {selectedMatchPhotos.map((ph, i) => (
+                      <button
+                        key={ph.id}
+                        type="button"
+                        className="chat-partner-drawer-photo-thumb"
+                        onClick={() => openPhotoLightbox(selectedMatchPhotos, ph)}
+                        role="listitem"
+                      >
+                        <img
+                          src={getPhotoUrl(ph.url)}
+                          alt={`${selectedMatch.otherUser.displayName} — photo ${i + 1}`}
+                          draggable={false}
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = "none";
+                          }}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                  <p className="chat-partner-drawer-hint">Tap a photo for full screen</p>
+                </div>
+              ) : (
+                <p className="chat-partner-drawer-empty subtle">
+                  {selectedMatch.stage === "stage2"
+                    ? "No gallery photos listed yet."
+                    : "Additional photos unlock as you chat (both send enough messages first)."}
+                </p>
+              )}
+
+              <h3 className="chat-partner-drawer-section-label">Profile</h3>
+              <div className="chat-partner-drawer-profile">
+                {matchHasProfileDetails(selectedMatch.otherUser) ? (
+                  <MatchOtherProfileSections otherUser={selectedMatch.otherUser} variant="stage2" />
+                ) : (
+                  <p className="chat-partner-drawer-empty">They haven&apos;t added written profile sections yet.</p>
+                )}
+              </div>
+            </div>
+          </aside>
+        </div>
+      )}
       <div className="matches-sidebar">
         <h2 className="matches-title">Your Matches</h2>
 
@@ -1463,46 +1598,87 @@ export default function Matches() {
               </button>
             )}
             <div className="chat-header">
-              <div className="chat-user-info">
-                <div className="chat-avatar">
-                  {(selectedMatch.stage === "stage1" || selectedMatch.stage === "stage2") &&
-                  selectedMatch.otherUser.photoUrl ? (
-                    <img
-                      src={getPhotoUrl(selectedMatch.otherUser.photoUrl)}
-                      alt={selectedMatch.otherUser.displayName}
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.style.display = 'none';
-                      }}
-                    />
-                  ) : (
-                    <span className="avatar-placeholder large">
-                      {selectedMatch.stage === "pending" ? "⏳" : "🔓"}
+              <div className="chat-header-primary">
+                <div className="chat-user-info">
+                  <button
+                    type="button"
+                    className={`chat-avatar-btn ${
+                      selectedMatchPhotos.length > 0 ? "chat-avatar-btn--zoom" : "chat-avatar-btn--profile-only"
+                    }`}
+                    aria-label={
+                      selectedMatchPhotos.length > 0
+                        ? `View photos — ${selectedMatch.otherUser.displayName}`
+                        : `Open profile — ${selectedMatch.otherUser.displayName}`
+                    }
+                    onClick={() => {
+                      if (!selectedMatch) return;
+                      if (selectedMatchPhotos.length > 0) {
+                        openPhotoLightbox(selectedMatchPhotos, selectedMatchPhotos[0]);
+                      } else {
+                        setPartnerDrawerOpen(true);
+                      }
+                    }}
+                  >
+                    <span className="chat-avatar">
+                      {(selectedMatch.stage === "stage1" || selectedMatch.stage === "stage2") &&
+                      selectedMatch.otherUser.photoUrl ? (
+                        <img
+                          src={getPhotoUrl(selectedMatch.otherUser.photoUrl)}
+                          alt=""
+                          draggable={false}
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = "none";
+                          }}
+                        />
+                      ) : (selectedMatch.stage === "stage1" || selectedMatch.stage === "stage2") &&
+                        selectedMatchPhotos.length > 0 ? (
+                        <img
+                          src={getPhotoUrl(selectedMatchPhotos[0].url)}
+                          alt=""
+                          draggable={false}
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = "none";
+                          }}
+                        />
+                      ) : (
+                        <span className="avatar-placeholder large">
+                          {selectedMatch.stage === "pending" ? "⏳" : "🔓"}
+                        </span>
+                      )}
                     </span>
-                  )}
-                </div>
-                <div>
-                  <h3>{selectedMatch.otherUser.displayName}</h3>
-                  <p>
-                    {selectedMatch.otherUser.age} ·{" "}
-                    {selectedMatch.otherUser.gender}
-                    {selectedMatch.otherUser.location &&
-                      ` · ${selectedMatch.otherUser.location}`}
-                  </p>
-                  {selectedMatch.stage !== "pending" && selectedMatch.expiresAt && (
-                    <div className="match-timer-header">
-                      <span className="timer-icon">⏳</span>
-                      <span className="timer-text">
-                        {(() => {
-                          const daysRemaining = getDaysRemaining(selectedMatch.expiresAt);
-                          if (daysRemaining === null) return "";
-                          if (daysRemaining === 0) return "Expires today";
-                          if (daysRemaining === 1) return "1 day left";
-                          return `${daysRemaining} days left`;
-                        })()}
-                      </span>
-                    </div>
-                  )}
+                  </button>
+                  <div className="chat-user-meta-block">
+                    <h3>{selectedMatch.otherUser.displayName}</h3>
+                    <p>
+                      {selectedMatch.otherUser.age} · {selectedMatch.otherUser.gender}
+                      {selectedMatch.otherUser.location && ` · ${selectedMatch.otherUser.location}`}
+                    </p>
+                    {selectedMatch.stage !== "pending" && selectedMatch.expiresAt ? (
+                      <div className="match-timer-header">
+                        <span className="timer-icon">⏳</span>
+                        <span className="timer-text">
+                          {(() => {
+                            const daysRemaining = getDaysRemaining(selectedMatch.expiresAt);
+                            if (daysRemaining === null) return "";
+                            if (daysRemaining === 0) return "Expires today";
+                            if (daysRemaining === 1) return "1 day left";
+                            return `${daysRemaining} days left`;
+                          })()}
+                        </span>
+                      </div>
+                    ) : null}
+                    {selectedMatch.stage !== "pending" ? (
+                      <button
+                        type="button"
+                        className="chat-partner-sheet-trigger btn btn-secondary btn-sm"
+                        onClick={() => setPartnerDrawerOpen(true)}
+                      >
+                        Profile · photos
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
               </div>
 
@@ -1654,56 +1830,6 @@ export default function Matches() {
               </div>
             ) : (
               <>
-                {selectedMatch.stage === "stage1" && (
-                  <MatchOtherProfileSections otherUser={selectedMatch.otherUser} variant="stage1" />
-                )}
-
-                {selectedMatch.stage === "stage2" && matchHasProfileDetails(selectedMatch.otherUser) && (
-                  <details className="stage2-profile-details" open>
-                    <summary className="stage2-profile-summary">
-                      About {selectedMatch.otherUser.displayName}
-                    </summary>
-                    <MatchOtherProfileSections otherUser={selectedMatch.otherUser} variant="stage2" />
-                  </details>
-                )}
-
-                {selectedMatch.stage === "stage2" && selectedMatch.otherUser.photos && selectedMatch.otherUser.photos.length > 0 && (
-                  <div className="stage2-photos-section">
-                    <h4>📸 {selectedMatch.otherUser.displayName}'s Photos</h4>
-                    <div className="match-photos-grid">
-                      {selectedMatch.otherUser.photos.map((photo) => {
-                        const src = getPhotoUrl(photo.url);
-                        return (
-                          <div key={photo.id} className="match-photo-item">
-                            <img
-                              src={src}
-                              alt={`${selectedMatch.otherUser.displayName} photo ${photo.displayOrder + 1}`}
-                              role="button"
-                              tabIndex={0}
-                              onClick={() =>
-                                openPhotoLightbox(selectedMatch.otherUser.photos!, photo)
-                              }
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" || e.key === " ") {
-                                  e.preventDefault();
-                                  openPhotoLightbox(selectedMatch.otherUser.photos!, photo);
-                                }
-                              }}
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.style.display = "none";
-                              }}
-                            />
-                            {photo.isPrimary && (
-                              <div className="photo-primary-badge-small">⭐</div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
                 <div className="messages-container">
                   {messages.length === 0 ? (
                     <div className="no-messages">
