@@ -65,11 +65,6 @@ function BrowseConnectLandingChrome({
 
   return (
     <div className="browse-page-native native-app-screen connect-landing-page">
-      {showTokenStrip && (
-        <div className="browse-native-token-fixed">
-          <TokenDisplay />
-        </div>
-      )}
       <div className="connect-landing">
         <div className="connect-landing__card">
           <div className="connect-landing__logo-row">
@@ -155,6 +150,12 @@ function BrowseConnectLandingChrome({
 
           <p className="connect-landing__hint">⛳ Use a Mulligan</p>
         </div>
+
+        {showTokenStrip ? (
+          <aside className="browse-connect-landing-token" aria-label="Mulligan tokens">
+            <TokenDisplay />
+          </aside>
+        ) : null}
       </div>
     </div>
   );

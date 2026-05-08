@@ -71,67 +71,69 @@
   display: none;
 }
 
-/* Connect landing on phone / PWA: token in-flow above the card (fixed + transform overlapped
-   the Discover People card and lost stacking vs .connect-landing-page > *). */
-@media (max-width: 900px) {
-  .connect-landing-page {
-    flex-direction: column;
-    justify-content: flex-start;
-    align-items: center;
-    gap: clamp(14px, 4vw, 22px);
-  }
-
-  .connect-landing-page .browse-native-token-fixed {
-    position: relative;
-    left: auto;
-    right: auto;
-    top: auto;
-    transform: none;
-    max-width: min(340px, calc(100vw - 32px));
-    width: 100%;
-    z-index: 2;
-    flex-shrink: 0;
-  }
+/* Connect tab landing only: tokens sit below Discover People card (same column width). */
+.browse-connect-landing-token {
+  width: 100%;
+  margin-top: clamp(14px, 4vw, 22px);
 }
 
-/* Narrow phones: slightly tighter token card on Connect landing. */
+.browse-connect-landing-token .token-display.token-display-card {
+  margin: 0;
+  max-width: none;
+  width: 100%;
+  border-radius: clamp(26px, 8vw, 34px);
+  border: 3px solid rgba(255, 255, 255, 0.9);
+  box-shadow:
+    0 14px 38px rgba(102, 126, 234, 0.24),
+    0 0 0 1px rgba(102, 126, 234, 0.06);
+}
+
+.browse-connect-landing-token .token-display-header-gradient {
+  border-radius: clamp(22px, 7vw, 28px) clamp(22px, 7vw, 28px) 0 0;
+}
+
+.browse-connect-landing-token .token-display-body {
+  border-radius: 0 0 clamp(22px, 7vw, 28px) clamp(22px, 7vw, 28px);
+}
+
 @media (max-width: 480px) {
-  .connect-landing-page .browse-native-token-fixed {
-    max-width: min(300px, calc(100vw - 28px));
+  .browse-connect-landing-token {
+    margin-top: 12px;
   }
 
-  .connect-landing-page .browse-native-token-fixed .token-display {
-    border-radius: 16px;
-    padding: 8px 12px;
+  .browse-connect-landing-token .token-display.token-display-card {
+    border-radius: 22px;
   }
 
-  .connect-landing-page .browse-native-token-fixed .token-display-header-gradient {
+  .browse-connect-landing-token .token-display-header-gradient {
     padding: 12px 14px;
+    border-radius: 18px 18px 0 0;
   }
 
-  .connect-landing-page .browse-native-token-fixed .token-display-header-emoji {
+  .browse-connect-landing-token .token-display-header-emoji {
     font-size: 1.45rem;
     margin-bottom: 0.25rem;
   }
 
-  .connect-landing-page .browse-native-token-fixed .token-display-header-number {
+  .browse-connect-landing-token .token-display-header-number {
     font-size: 2rem;
   }
 
-  .connect-landing-page .browse-native-token-fixed .token-display-header-cap {
+  .browse-connect-landing-token .token-display-header-cap {
     font-size: 1rem;
   }
 
-  .connect-landing-page .browse-native-token-fixed .token-display-header-label {
+  .browse-connect-landing-token .token-display-header-label {
     font-size: 0.8rem;
   }
 
-  .connect-landing-page .browse-native-token-fixed .token-display-body {
+  .browse-connect-landing-token .token-display-body {
     padding: 12px 14px;
     gap: 0.5rem;
+    border-radius: 0 0 18px 18px;
   }
 
-  .connect-landing-page .browse-native-token-fixed .token-display-footer-hint {
+  .browse-connect-landing-token .token-display-footer-hint {
     font-size: 0.78rem;
     line-height: 1.35;
   }
@@ -509,6 +511,9 @@
   width: 100%;
   max-width: 420px;
   margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
 }
 
 .connect-landing__card {
