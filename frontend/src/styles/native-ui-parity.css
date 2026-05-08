@@ -74,7 +74,7 @@
 /* Connect tab landing only: tokens sit below Discover People card (same column width). */
 .browse-connect-landing-token {
   width: 100%;
-  margin-top: clamp(14px, 4vw, 22px);
+  margin-bottom: clamp(14px, 4vw, 22px);
 }
 
 .browse-connect-landing-token .token-display.token-display-card {
@@ -98,7 +98,7 @@
 
 @media (max-width: 480px) {
   .browse-connect-landing-token {
-    margin-top: 12px;
+    margin-bottom: 12px;
   }
 
   .browse-connect-landing-token .token-display.token-display-card {
