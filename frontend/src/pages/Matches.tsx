@@ -215,6 +215,10 @@ function computeAlternatingMessageCounts(messages: Message[], currentUserId: str
 
 const CHAT_MEDIA_LOCKED_HINT =
   "Photos, video, and voice unlock after you and your match have each sent at least 3 messages in this chat.";
+/** Aligns with mobile photo-guidelines modal + explicit tone for locked media taps */
+const CHAT_MEDIA_MODERATION_WARNING =
+  "Inappropriate photos, video, or voice can get you permanently banned from Mulligan. F**k around and get banned.";
+const CHAT_MEDIA_LOCKED_ALERT = `${CHAT_MEDIA_LOCKED_HINT}\n\n${CHAT_MEDIA_MODERATION_WARNING}`;
 
 export default function Matches() {
   const { user } = useAuth();
@@ -229,7 +233,11 @@ export default function Matches() {
   const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
   const [isTyping, setIsTyping] = useState(false);
   const [messageCounts, setMessageCounts] = useState<{ user: number; other: number } | null>(null);
-  const [notification, setNotification] = useState<{ message: string; type: "success" | "info" | "warning" | "error" } | null>(null);
+  const [notification, setNotification] = useState<{
+    message: string;
+    type: "success" | "info" | "warning" | "error";
+    duration?: number;
+  } | null>(null);
   const [showUnmatchConfirm, setShowUnmatchConfirm] = useState(false);
   const [photoLightbox, setPhotoLightbox] = useState<PhotoLightboxState | null>(null);
   /** Full partner profile & photo gallery beside the messaging column */
@@ -816,7 +824,11 @@ export default function Matches() {
 
   const requireChatMediaUnlocked = () => {
     if (chatMediaUnlocked) return true;
-    setNotification({ message: CHAT_MEDIA_LOCKED_HINT, type: "info" });
+    setNotification({
+      message: CHAT_MEDIA_LOCKED_ALERT,
+      type: "warning",
+      duration: 10000,
+    });
     return false;
   };
 
@@ -1299,7 +1311,7 @@ export default function Matches() {
           message={notification.message}
           type={notification.type}
           onClose={() => setNotification(null)}
-          duration={6000}
+          duration={notification.duration ?? 6000}
         />
       )}
       {showUnmatchConfirm && selectedMatch && (
@@ -1971,7 +1983,10 @@ export default function Matches() {
                     aria-hidden
                   />
                   {!chatMediaUnlocked && (
-                    <p className="chat-media-lock-hint">{CHAT_MEDIA_LOCKED_HINT}</p>
+                    <div className="chat-media-lock-hint" role="note">
+                      <p className="chat-media-lock-hint-line">{CHAT_MEDIA_LOCKED_HINT}</p>
+                      <p className="chat-media-lock-hint-warning">{CHAT_MEDIA_MODERATION_WARNING}</p>
+                    </div>
                   )}
                   {pendingImagePreviewUrl ? (
                     <div className="chat-pending-media">

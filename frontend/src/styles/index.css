@@ -7344,6 +7344,16 @@ button.chat-avatar-btn .chat-avatar img {
   line-height: 1.35;
 }
 
+.chat-media-lock-hint-line {
+  margin: 0 0 var(--space-1);
+}
+
+.chat-media-lock-hint-warning {
+  margin: 0;
+  color: var(--color-wine-800);
+  font-weight: 600;
+}
+
 .chat-pending-media {
   display: flex;
   align-items: center;
@@ -9629,7 +9639,7 @@ button.chat-avatar-btn .chat-avatar img {
 
 .notification-content {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--space-3);
 }
 
@@ -9637,6 +9647,8 @@ button.chat-avatar-btn .chat-avatar img {
   font-size: 1.75rem;
   line-height: 1;
   animation: float 3s ease-in-out infinite;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
 }
 
 .notification-message {
@@ -9646,6 +9658,7 @@ button.chat-avatar-btn .chat-avatar img {
   font-weight: 500;
   color: var(--text-primary);
   line-height: 1.5;
+  white-space: pre-line;
 }
 
 .notification-close {

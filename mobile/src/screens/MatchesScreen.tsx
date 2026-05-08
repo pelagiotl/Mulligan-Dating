@@ -47,6 +47,11 @@ import MatchCelebration from '../components/MatchCelebration';
 /** Set to true to show the Never Have I Ever game card in match detail. */
 const SHOW_NEVER_HAVE_I_EVER = false;
 
+/** When media buttons are used before 3+3 message unlock (aligned with web). */
+const CHAT_MEDIA_LOCKED_ALERT =
+  "Photos, video, and voice unlock after you and your match have each sent at least 3 messages in this chat.\n\n" +
+  "Inappropriate photos, video, or voice can get you permanently banned from Mulligan. F**k around and get banned.";
+
 /** Remove legacy profile-compatibility bullets (interest-only card). */
 function filterInterestCompatReasons(reasons: string[]): string[] {
   return reasons.filter((line) => {
@@ -3056,10 +3061,7 @@ export default function MatchesScreen() {
   const handleSendPhoto = useCallback(async () => {
     if (!selectedMatch || sendingMessage || uploadingImage || uploadingVideo || uploadingAudio || !user) return;
     if (!chatMediaUnlocked) {
-      Alert.alert(
-        'Not yet',
-        'Photos, video, and voice unlock after you and your match have each sent at least 3 messages in this chat.'
-      );
+      Alert.alert('Not yet', CHAT_MEDIA_LOCKED_ALERT);
       return;
     }
     Alert.alert(
@@ -4008,7 +4010,7 @@ export default function MatchesScreen() {
               <Text style={styles.photoGuidelinesEmoji}>⚠️</Text>
               <Text style={styles.photoGuidelinesTitle}>Keep it appropriate</Text>
               <Text style={styles.photoGuidelinesBody}>
-                Inappropriate photos can get you permanently banned from Mulligan.
+                Inappropriate photos, video, or voice can get you permanently banned from Mulligan. F**k around and get banned.
               </Text>
               <Text style={styles.photoGuidelinesSubtext}>
                 Tap Got it to continue.
@@ -4327,10 +4329,7 @@ export default function MatchesScreen() {
               <TouchableOpacity
                 onPress={() => {
                   if (!chatMediaUnlocked) {
-                    Alert.alert(
-                      'Not yet',
-                      'Photos, video, and voice unlock after you and your match have each sent at least 3 messages in this chat.'
-                    );
+                    Alert.alert('Not yet', CHAT_MEDIA_LOCKED_ALERT);
                     return;
                   }
                   setShowPhotoGuidelinesModal(true);
