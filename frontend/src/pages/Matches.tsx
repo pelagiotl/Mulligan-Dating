@@ -259,6 +259,10 @@ export default function Matches() {
     gameType: "truth_or_dare" | "never_have_i_ever";
   } | null>(null);
   const [loveBusyMessageId, setLoveBusyMessageId] = useState<string | null>(null);
+  /** After chat media unlocks, user must acknowledge guidelines before photo/video/voice (same as mobile). */
+  const [chatMediaGuidelinesPending, setChatMediaGuidelinesPending] = useState<
+    "image" | "video" | "voice" | null
+  >(null);
 
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadingVideo, setUploadingVideo] = useState(false);
@@ -860,9 +864,9 @@ export default function Matches() {
     setIsRecordingVoice(false);
   }, []);
 
-  const startVoiceRecording = async () => {
+  /** Starts mic capture + upload (called after unlock + optional guidelines modal). */
+  const beginVoiceRecordingSession = async () => {
     if (!selectedMatch || !user) return;
-    if (!requireChatMediaUnlocked()) return;
     if (sendingMessage || uploadingImage || uploadingVideo || uploadingAudio || isRecordingVoice) return;
     if (pendingImageFile || pendingVideoFile) {
       setNotification({
@@ -941,6 +945,33 @@ export default function Matches() {
         type: "error",
       });
     }
+  };
+
+  /** Mic button: unlock check → guidelines modal when unlocked → recording after Got it. */
+  const startVoiceRecording = () => {
+    if (!selectedMatch || !user) return;
+    if (!requireChatMediaUnlocked()) return;
+    if (sendingMessage || uploadingImage || uploadingVideo || uploadingAudio || isRecordingVoice) return;
+    if (pendingImageFile || pendingVideoFile) {
+      setNotification({
+        message: "Send or clear your photo or video attachment first.",
+        type: "warning",
+      });
+      return;
+    }
+    setChatMediaGuidelinesPending("voice");
+  };
+
+  const onChatMediaGuidelinesConfirm = () => {
+    const kind = chatMediaGuidelinesPending;
+    setChatMediaGuidelinesPending(null);
+    if (kind === "image") imageFileInputRef.current?.click();
+    else if (kind === "video") videoFileInputRef.current?.click();
+    else if (kind === "voice") void beginVoiceRecordingSession();
+  };
+
+  const onChatMediaGuidelinesCancel = () => {
+    setChatMediaGuidelinesPending(null);
   };
 
   const finishVoiceRecording = () => {
@@ -1106,16 +1137,19 @@ export default function Matches() {
     clearPendingImage();
     clearPendingVideo();
     cancelVoiceRecording();
+    setChatMediaGuidelinesPending(null);
   }, [selectedMatch?.id, clearPendingImage, clearPendingVideo, cancelVoiceRecording]);
 
   const openImagePicker = () => {
+    if (sendingMessage || uploadingImage || uploadingVideo || uploadingAudio || isRecordingVoice) return;
     if (!requireChatMediaUnlocked()) return;
-    imageFileInputRef.current?.click();
+    setChatMediaGuidelinesPending("image");
   };
 
   const openVideoPicker = () => {
+    if (sendingMessage || uploadingImage || uploadingVideo || uploadingAudio || isRecordingVoice) return;
     if (!requireChatMediaUnlocked()) return;
-    videoFileInputRef.current?.click();
+    setChatMediaGuidelinesPending("video");
   };
 
   const onImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1324,6 +1358,18 @@ export default function Matches() {
           onConfirm={handleUnmatchConfirm}
           onCancel={() => setShowUnmatchConfirm(false)}
           type="danger"
+        />
+      )}
+      {chatMediaGuidelinesPending !== null && (
+        <ConfirmModal
+          isOpen
+          title="Keep it appropriate"
+          message={CHAT_MEDIA_MODERATION_WARNING}
+          confirmText="Got it"
+          cancelText="Not now"
+          onConfirm={onChatMediaGuidelinesConfirm}
+          onCancel={onChatMediaGuidelinesCancel}
+          type="warning"
         />
       )}
       <GameRequestModalWeb
