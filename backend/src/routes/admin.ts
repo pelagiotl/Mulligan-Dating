@@ -445,7 +445,7 @@ adminRouter.get('/matches', authenticateToken, requireAdmin, async (req: AuthReq
   }
 });
 
-// List users with pagination, search, and filter (restricted | active)
+// List users with pagination, search, and filter (restricted | active | with_profile)
 adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
@@ -509,6 +509,66 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
         created_at: u.created_at,
         last_active_at: u.last_active_at,
         tokenCount: tokenCounts[u.id] || 0
+      }));
+
+      return res.json({ users, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
+    }
+
+    // Users who have a profile row (aligns with Profiles count on /admin/stats)
+    if (filter === 'with_profile' || filter === 'profiles') {
+      const searchWhere = search
+        ? ` AND (u.email LIKE ? OR p.display_name LIKE ? OR u.phone_number LIKE ? OR u.id LIKE ?)`
+        : '';
+      const searchTerm = `%${search}%`;
+      const query = `
+        SELECT DISTINCT u.id, u.email, u.phone_number, u.is_admin, u.is_restricted,
+          u.created_at, u.last_active_at,
+          p.display_name, p.age, p.gender, p.location
+        FROM users u
+        INNER JOIN profiles p ON p.user_id = u.id
+        WHERE 1=1${searchWhere}
+        ORDER BY u.created_at DESC
+        LIMIT ? OFFSET ?
+      `;
+      const params = search ? [searchTerm, searchTerm, searchTerm, searchTerm, limit, offset] : [limit, offset];
+      const usersResult = await (db.prepare(query).all(params) as Promise<any[]>);
+
+      const countQuery = `
+        SELECT COUNT(DISTINCT u.id) as count FROM users u
+        INNER JOIN profiles p ON p.user_id = u.id
+        WHERE 1=1${searchWhere}
+      `;
+      const countParams = search ? [searchTerm, searchTerm, searchTerm, searchTerm] : [];
+      const totalResult = await (db.prepare(countQuery).get(countParams) as Promise<{ count: number }>);
+      const total = totalResult?.count || 0;
+
+      const userIds = usersResult.map((u: any) => u.id);
+      let tokenCounts: Record<string, number> = {};
+      if (userIds.length > 0) {
+        const placeholders = userIds.map(() => '?').join(',');
+        const tokensResult = await (db.prepare(`
+          SELECT user_id, COUNT(*) as count FROM mulligan_tokens
+          WHERE user_id IN (${placeholders}) AND used_at IS NULL AND returned_at IS NULL
+          GROUP BY user_id
+        `).all(userIds) as Promise<{ user_id: string; count: number }[]>);
+        tokensResult.forEach((row: any) => {
+          tokenCounts[row.user_id] = parseInt(row.count) || 0;
+        });
+      }
+
+      const users = usersResult.map((u: any) => ({
+        id: u.id,
+        email: u.email || u.phone_number || 'N/A',
+        phoneNumber: u.phone_number,
+        display_name: u.display_name,
+        age: u.age,
+        gender: u.gender,
+        location: u.location,
+        is_admin: u.is_admin === 1,
+        is_restricted: u.is_restricted === 1,
+        created_at: u.created_at,
+        last_active_at: u.last_active_at,
+        tokenCount: tokenCounts[u.id] || 0,
       }));
 
       return res.json({ users, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });

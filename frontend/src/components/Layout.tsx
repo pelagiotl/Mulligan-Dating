@@ -94,31 +94,15 @@ export default function Layout() {
             {isAuthenticated && tokenCount !== null && (
               <button
                 type="button"
-                className="navbar-token-badge"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.4rem',
-                  padding: '0.5rem 0.875rem',
-                  marginLeft: 'var(--space-6)',
-                  background: 'linear-gradient(135deg, rgba(244, 63, 94, 0.12) 0%, rgba(244, 63, 94, 0.08) 100%)',
-                  border: '1.5px solid rgba(244, 63, 94, 0.25)',
-                  borderRadius: 'var(--radius-xl)',
-                  color: 'var(--color-rose-600)',
-                  fontWeight: 700,
-                  fontSize: '0.875rem',
-                  letterSpacing: '0.01em',
-                  boxShadow: '0 2px 8px rgba(244, 63, 94, 0.15)',
-                  transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                }}
+                className="navbar-token-badge navbar-token-badge--pulse"
                 onClick={() => setShowTokenModal(true)}
                 aria-haspopup="dialog"
                 aria-expanded={showTokenModal}
                 aria-controls="navbar-token-dialog"
               >
-                <span style={{ fontSize: '1rem' }} aria-hidden>🎟️</span>
+                <span className="navbar-token-badge-emoji" aria-hidden>
+                  🎟️
+                </span>
                 <span>{tokenCount}</span>
                 <span className="sr-only">Open token details</span>
               </button>

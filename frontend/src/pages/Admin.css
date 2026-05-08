@@ -156,6 +156,285 @@
     0 0 0 1px rgba(244, 63, 94, 0.08);
 }
 
+.stat-card--interactive {
+  cursor: pointer;
+  width: 100%;
+  margin: 0;
+  box-sizing: border-box;
+  text-align: center;
+  font: inherit;
+  color: inherit;
+  appearance: none;
+  position: relative;
+  transition:
+    transform 0.22s ease,
+    box-shadow 0.22s ease,
+    border-color 0.22s ease;
+}
+
+.stat-card--interactive:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 3px rgba(244, 63, 94, 0.35),
+    0 12px 28px rgba(45, 17, 24, 0.1);
+}
+
+.stat-card--interactive.stat-card--active {
+  transform: translateY(-2px);
+  box-shadow:
+    0 0 0 2px rgba(244, 63, 94, 0.45),
+    0 14px 32px rgba(190, 24, 93, 0.12);
+  border-color: rgba(251, 113, 133, 0.55);
+}
+
+.stat-card-hint {
+  display: block;
+  margin-top: var(--space-3);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-rose-600);
+  opacity: 0.92;
+}
+
+/* Stat drill modal */
+.admin-stat-drill-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+}
+
+.admin-stat-drill-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(10px);
+}
+
+.admin-stat-drill-card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: min(960px, 100%);
+  max-height: min(90vh, 880px);
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.99) 0%,
+    rgba(255, 250, 251, 0.98) 50%,
+    rgba(254, 242, 242, 0.5) 100%
+  );
+  border-radius: var(--radius-2xl);
+  border: 1px solid rgba(251, 113, 133, 0.22);
+  box-shadow:
+    0 28px 64px rgba(45, 17, 24, 0.18),
+    0 1px 0 rgba(255, 255, 255, 0.95) inset;
+  overflow: hidden;
+}
+
+.admin-stat-drill-card::before {
+  content: '';
+  flex-shrink: 0;
+  height: 5px;
+  background: linear-gradient(90deg, #9f1239, #e11d48, #fb7185, #fcd34d);
+}
+
+.admin-stat-drill-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-4);
+  padding: var(--space-6);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid rgba(251, 113, 133, 0.12);
+}
+
+.admin-stat-drill-title {
+  margin: 0 0 var(--space-2);
+  font-size: clamp(1.35rem, 2.8vw, 1.65rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  font-family: var(--font-display, system-ui);
+  color: var(--color-wine-900);
+}
+
+.admin-stat-drill-sub {
+  margin: 0 0 var(--space-2);
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  max-width: 44rem;
+}
+
+.admin-stat-drill-count {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.admin-stat-drill-count strong {
+  color: var(--color-wine-900);
+  font-weight: 800;
+}
+
+.admin-stat-drill-close {
+  flex-shrink: 0;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: none;
+  border-radius: var(--radius-full);
+  background: rgba(244, 63, 94, 0.1);
+  color: var(--color-wine-900);
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.admin-stat-drill-close:hover {
+  background: rgba(244, 63, 94, 0.2);
+  transform: scale(1.06);
+}
+
+.admin-stat-drill-error {
+  margin: 0 var(--space-6) var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, #fef2f2, #fee2e2);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #991b1b;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.admin-stat-drill-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-12);
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.admin-stat-drill-table-wrap {
+  overflow: auto;
+  flex: 1;
+  padding: var(--space-4) var(--space-6) var(--space-2);
+  min-height: 0;
+}
+
+.admin-stat-drill-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.845rem;
+}
+
+.admin-stat-drill-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  background: linear-gradient(180deg, rgba(255, 241, 242, 0.98), rgba(255, 255, 255, 0.94));
+  color: var(--color-wine-900);
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border-bottom: 1px solid rgba(251, 113, 133, 0.2);
+  white-space: nowrap;
+}
+
+.admin-stat-drill-table tbody td {
+  padding: var(--space-3);
+  vertical-align: top;
+  border-bottom: 1px solid rgba(251, 113, 133, 0.08);
+}
+
+.admin-stat-drill-email {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-stat-drill-actions-col {
+  text-align: right;
+  white-space: nowrap;
+  width: 1%;
+}
+
+.admin-stat-drill-date {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-stat-drill-name {
+  display: block;
+  font-weight: 700;
+  color: var(--color-wine-900);
+}
+
+.admin-stat-drill-id {
+  display: block;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  font-family: ui-monospace, monospace;
+  margin-top: 2px;
+}
+
+.admin-stat-drill-pill {
+  display: inline-flex;
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-full);
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: rgba(251, 113, 133, 0.15);
+  color: var(--color-wine-900);
+  border: 1px solid rgba(251, 113, 133, 0.25);
+}
+
+.admin-stat-drill-open-btns {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
+.admin-stat-drill-row-click {
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.admin-stat-drill-row-click:hover {
+  background: rgba(254, 242, 242, 0.85);
+}
+
+.admin-stat-drill-empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: var(--space-8) var(--space-4) !important;
+  font-style: italic;
+}
+
+.admin-stat-drill-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-6) var(--space-6);
+  border-top: 1px solid rgba(251, 113, 133, 0.1);
+}
+
 .stat-icon {
   font-size: 1.5rem;
   margin-bottom: var(--space-2);

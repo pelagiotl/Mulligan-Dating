@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { api } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import './Admin.css';
@@ -73,6 +73,20 @@ interface Stats {
   activeUsers: number;
 }
 
+/** Drill-down from dashboard stat cards */
+type StatDrillKey = 'totalUsers' | 'profiles' | 'matches' | 'restricted' | 'active7d';
+
+interface AdminPairMatchRow {
+  id: string;
+  stage: string;
+  stage1At: string;
+  user1: { id: string; name: string; phone: string | null };
+  user2: { id: string; name: string; phone: string | null };
+}
+
+const ADMIN_STAT_DRILL_USER_PAGE = 50;
+const ADMIN_STAT_DRILL_MATCH_PAGE = 40;
+
 export default function Admin() {
   const { user } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
@@ -98,13 +112,126 @@ export default function Admin() {
   const [messagesHasMore, setMessagesHasMore] = useState(false);
   const messagesSectionRef = useRef<HTMLDivElement | null>(null);
 
+  const [statDrill, setStatDrill] = useState<StatDrillKey | null>(null);
+  const [statDrillPage, setStatDrillPage] = useState(1);
+  const [statDrillLoading, setStatDrillLoading] = useState(false);
+  const [statDrillError, setStatDrillError] = useState<string | null>(null);
+  const [statDrillUsers, setStatDrillUsers] = useState<User[]>([]);
+  const [statDrillMatches, setStatDrillMatches] = useState<AdminPairMatchRow[]>([]);
+  const [statDrillPagination, setStatDrillPagination] = useState({ total: 0, totalPages: 1 });
+
   // Check if current user is the super admin
   const isSuperAdmin = user?.email === 'pelagiotl@gmail.com';
+
+  const closeStatDrill = useCallback(() => {
+    setStatDrill(null);
+    setStatDrillPage(1);
+    setStatDrillError(null);
+    setStatDrillUsers([]);
+    setStatDrillMatches([]);
+  }, []);
 
   useEffect(() => {
     fetchStats();
     fetchUsers();
   }, [page, search]);
+
+  useEffect(() => {
+    if (!statDrill) return;
+    let cancelled = false;
+    (async () => {
+      setStatDrillLoading(true);
+      setStatDrillError(null);
+      try {
+        if (statDrill === 'matches') {
+          const offset = (statDrillPage - 1) * ADMIN_STAT_DRILL_MATCH_PAGE;
+          const data = await api.get<{ matches: AdminPairMatchRow[]; total: number }>(
+            `/admin/matches?limit=${ADMIN_STAT_DRILL_MATCH_PAGE}&offset=${offset}`
+          );
+          if (cancelled) return;
+          setStatDrillMatches(data.matches || []);
+          setStatDrillUsers([]);
+          const total = data.total ?? 0;
+          setStatDrillPagination({
+            total,
+            totalPages: Math.max(1, Math.ceil(total / ADMIN_STAT_DRILL_MATCH_PAGE)),
+          });
+        } else {
+          const params = new URLSearchParams({
+            page: String(statDrillPage),
+            limit: String(ADMIN_STAT_DRILL_USER_PAGE),
+          });
+          if (statDrill === 'profiles') params.set('filter', 'with_profile');
+          else if (statDrill === 'restricted') params.set('filter', 'restricted');
+          else if (statDrill === 'active7d') params.set('filter', 'active');
+          const data = await api.get<{ users: User[]; pagination: { total: number; totalPages: number } }>(
+            `/admin/users?${params}`
+          );
+          if (cancelled) return;
+          setStatDrillUsers(data.users || []);
+          setStatDrillMatches([]);
+          setStatDrillPagination(data.pagination);
+        }
+      } catch (e: unknown) {
+        if (!cancelled) {
+          setStatDrillError(e instanceof Error ? e.message : 'Failed to load');
+          setStatDrillUsers([]);
+          setStatDrillMatches([]);
+        }
+      } finally {
+        if (!cancelled) setStatDrillLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [statDrill, statDrillPage]);
+
+  const openStatDrill = (key: StatDrillKey) => {
+    setStatDrillPage(1);
+    setStatDrill(key);
+  };
+
+  const pickUserFromDrill = (userId: string) => {
+    void fetchUserDetails(userId);
+    closeStatDrill();
+  };
+
+  const statDrillMeta = (key: StatDrillKey | null) => {
+    if (!key) return { title: '', subtitle: '' };
+    const map: Record<StatDrillKey, { title: string; subtitle: string }> = {
+      totalUsers: {
+        title: 'All users',
+        subtitle: 'Every registered account (newest first). Click a row to open details in the side panel.',
+      },
+      profiles: {
+        title: 'Users with a profile',
+        subtitle: 'Accounts that have saved profile data — aligns with the Profiles stat count.',
+      },
+      matches: {
+        title: 'Active matches',
+        subtitle: 'Match pairs that are not expired. Open either participant from the row actions.',
+      },
+      restricted: {
+        title: 'Restricted users',
+        subtitle: 'Non-admin accounts marked restricted. Click a row to review in the side panel.',
+      },
+      active7d: {
+        title: 'Active (7 days)',
+        subtitle: 'Users who received a Mulligan token in the last 7 days — same definition as the dashboard stat.',
+      },
+    };
+    return map[key];
+  };
+
+  useEffect(() => {
+    if (!statDrill) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeStatDrill();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [statDrill, closeStatDrill]);
 
   const fetchStats = async () => {
     try {
@@ -359,31 +486,61 @@ export default function Admin() {
 
       {stats && (
         <div className="admin-stats">
-          <div className="stat-card">
+          <button
+            type="button"
+            className={`stat-card stat-card--interactive${statDrill === 'totalUsers' ? ' stat-card--active' : ''}`}
+            onClick={() => openStatDrill('totalUsers')}
+            aria-haspopup="dialog"
+          >
             <div className="stat-icon" aria-hidden>👥</div>
             <div className="stat-value">{stats.totalUsers}</div>
             <div className="stat-label">Total Users</div>
-          </div>
-          <div className="stat-card">
+            <span className="stat-card-hint">View list</span>
+          </button>
+          <button
+            type="button"
+            className={`stat-card stat-card--interactive${statDrill === 'profiles' ? ' stat-card--active' : ''}`}
+            onClick={() => openStatDrill('profiles')}
+            aria-haspopup="dialog"
+          >
             <div className="stat-icon" aria-hidden>📋</div>
             <div className="stat-value">{stats.totalProfiles}</div>
             <div className="stat-label">Profiles</div>
-          </div>
-          <div className="stat-card">
+            <span className="stat-card-hint">View list</span>
+          </button>
+          <button
+            type="button"
+            className={`stat-card stat-card--interactive${statDrill === 'matches' ? ' stat-card--active' : ''}`}
+            onClick={() => openStatDrill('matches')}
+            aria-haspopup="dialog"
+          >
             <div className="stat-icon" aria-hidden>💕</div>
             <div className="stat-value">{stats.totalMatches}</div>
             <div className="stat-label">Active Matches</div>
-          </div>
-          <div className="stat-card">
+            <span className="stat-card-hint">View list</span>
+          </button>
+          <button
+            type="button"
+            className={`stat-card stat-card--interactive${statDrill === 'restricted' ? ' stat-card--active' : ''}`}
+            onClick={() => openStatDrill('restricted')}
+            aria-haspopup="dialog"
+          >
             <div className="stat-icon" aria-hidden>🚫</div>
             <div className="stat-value">{stats.restrictedUsers}</div>
             <div className="stat-label">Restricted</div>
-          </div>
-          <div className="stat-card">
+            <span className="stat-card-hint">View list</span>
+          </button>
+          <button
+            type="button"
+            className={`stat-card stat-card--interactive${statDrill === 'active7d' ? ' stat-card--active' : ''}`}
+            onClick={() => openStatDrill('active7d')}
+            aria-haspopup="dialog"
+          >
             <div className="stat-icon" aria-hidden>✨</div>
             <div className="stat-value">{stats.activeUsers}</div>
             <div className="stat-label">Active (7d)</div>
-          </div>
+            <span className="stat-card-hint">View list</span>
+          </button>
         </div>
       )}
 
@@ -909,6 +1066,222 @@ export default function Admin() {
           </div>
         )}
       </div>
+
+      {statDrill ? (
+        <div className="admin-stat-drill-overlay" role="presentation">
+          <div
+            className="admin-stat-drill-backdrop"
+            aria-hidden="true"
+            onClick={() => closeStatDrill()}
+          />
+          <div
+            className="admin-stat-drill-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="admin-stat-drill-title"
+          >
+            <div className="admin-stat-drill-head">
+              <div>
+                <h2 id="admin-stat-drill-title" className="admin-stat-drill-title">
+                  {statDrillMeta(statDrill).title}
+                </h2>
+                <p className="admin-stat-drill-sub">{statDrillMeta(statDrill).subtitle}</p>
+                <p className="admin-stat-drill-count" aria-live="polite">
+                  <strong>{statDrillPagination.total}</strong>{' '}
+                  {statDrill === 'matches' ? 'match pairs' : 'users'}
+                  {statDrillPagination.totalPages > 1
+                    ? ` · page ${statDrillPage} of ${statDrillPagination.totalPages}`
+                    : ''}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="admin-stat-drill-close"
+                onClick={() => closeStatDrill()}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+
+            {statDrillError ? (
+              <p className="admin-stat-drill-error">{statDrillError}</p>
+            ) : null}
+
+            {statDrillLoading ? (
+              <div className="admin-stat-drill-loading" aria-busy="true">
+                <span className="admin-um-loading-dot" />
+                <span className="admin-um-loading-dot" />
+                <span className="admin-um-loading-dot" />
+                <span>Loading…</span>
+              </div>
+            ) : statDrill === 'matches' ? (
+              <>
+                <div className="admin-stat-drill-table-wrap">
+                  <table className="admin-stat-drill-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Stage</th>
+                        <th scope="col">User A</th>
+                        <th scope="col">User B</th>
+                        <th scope="col">Matched</th>
+                        <th scope="col" className="admin-stat-drill-actions-col">
+                          Open
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {statDrillMatches.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="admin-stat-drill-empty">
+                            No matches returned.
+                          </td>
+                        </tr>
+                      ) : (
+                        statDrillMatches.map((m) => (
+                          <tr key={m.id}>
+                            <td>
+                              <span className="admin-stat-drill-pill">{m.stage}</span>
+                            </td>
+                            <td>
+                              <span className="admin-stat-drill-name">{m.user1.name}</span>
+                              <span className="admin-stat-drill-id">{m.user1.id.length > 10 ? `${m.user1.id.slice(0, 10)}…` : m.user1.id}</span>
+                            </td>
+                            <td>
+                              <span className="admin-stat-drill-name">{m.user2.name}</span>
+                              <span className="admin-stat-drill-id">{m.user2.id.length > 10 ? `${m.user2.id.slice(0, 10)}…` : m.user2.id}</span>
+                            </td>
+                            <td className="admin-stat-drill-date">
+                              {m.stage1At ? new Date(m.stage1At).toLocaleDateString() : '—'}
+                            </td>
+                            <td className="admin-stat-drill-actions-col">
+                              <div className="admin-stat-drill-open-btns">
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-secondary"
+                                  onClick={() => pickUserFromDrill(m.user1.id)}
+                                >
+                                  A
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-secondary"
+                                  onClick={() => pickUserFromDrill(m.user2.id)}
+                                >
+                                  B
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                {statDrillPagination.totalPages > 1 ? (
+                  <nav className="admin-stat-drill-pagination" aria-label="Match list pages">
+                    <button
+                      type="button"
+                      className="pagination-btn"
+                      disabled={statDrillPage <= 1}
+                      onClick={() => setStatDrillPage((p) => Math.max(1, p - 1))}
+                    >
+                      Previous
+                    </button>
+                    <span className="pagination-status">
+                      Page <strong>{statDrillPage}</strong> of{' '}
+                      <strong>{statDrillPagination.totalPages}</strong>
+                    </span>
+                    <button
+                      type="button"
+                      className="pagination-btn"
+                      disabled={statDrillPage >= statDrillPagination.totalPages}
+                      onClick={() =>
+                        setStatDrillPage((p) => Math.min(statDrillPagination.totalPages, p + 1))
+                      }
+                    >
+                      Next
+                    </button>
+                  </nav>
+                ) : null}
+              </>
+            ) : (
+              <>
+                <div className="admin-stat-drill-table-wrap">
+                  <table className="admin-stat-drill-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Email</th>
+                        <th scope="col">Name</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Tokens</th>
+                        <th scope="col">Joined</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {statDrillUsers.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="admin-stat-drill-empty">
+                            No users on this page.
+                          </td>
+                        </tr>
+                      ) : (
+                        statDrillUsers.map((u) => (
+                          <tr key={u.id} className="admin-stat-drill-row-click" onClick={() => pickUserFromDrill(u.id)}>
+                            <td className="admin-stat-drill-email" title={u.email}>
+                              {u.email}
+                            </td>
+                            <td>{u.display_name || '—'}</td>
+                            <td>
+                              {u.is_admin ? (
+                                <span className="badge badge-admin">Admin</span>
+                              ) : u.is_restricted ? (
+                                <span className="badge badge-restricted">Restricted</span>
+                              ) : (
+                                <span className="badge badge-active">Active</span>
+                              )}
+                            </td>
+                            <td>{u.tokenCount}</td>
+                            <td className="admin-stat-drill-date">
+                              {new Date(u.created_at).toLocaleDateString()}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                {statDrillPagination.totalPages > 1 ? (
+                  <nav className="admin-stat-drill-pagination" aria-label="User list pages">
+                    <button
+                      type="button"
+                      className="pagination-btn"
+                      disabled={statDrillPage <= 1}
+                      onClick={() => setStatDrillPage((p) => Math.max(1, p - 1))}
+                    >
+                      Previous
+                    </button>
+                    <span className="pagination-status">
+                      Page <strong>{statDrillPage}</strong> of{' '}
+                      <strong>{statDrillPagination.totalPages}</strong>
+                    </span>
+                    <button
+                      type="button"
+                      className="pagination-btn"
+                      disabled={statDrillPage >= statDrillPagination.totalPages}
+                      onClick={() =>
+                        setStatDrillPage((p) => Math.min(statDrillPagination.totalPages, p + 1))
+                      }
+                    >
+                      Next
+                    </button>
+                  </nav>
+                ) : null}
+              </>
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
