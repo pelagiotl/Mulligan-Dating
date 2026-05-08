@@ -205,6 +205,59 @@ export default function Settings() {
         {error && <div className="auth-error">{error}</div>}
         {success && <div className="auth-success">{success}</div>}
 
+        {/* Browser push (web / PWA) — high on the page so users see it; permission must be requested from a tap (especially iOS). */}
+        <div className="settings-section">
+          <h2 className="settings-section-title">
+            <span>🔔</span> Browser notifications
+          </h2>
+          {!browserSupportsWebPush() ? (
+            <p className="settings-hint">
+              Your browser does not support Web Push. Use a recent version of Chrome, Safari (16.4+), Edge, or Firefox,
+              or add the app to your home screen on iPhone for PWA notifications.
+            </p>
+          ) : !user?.webPushConfigured ? (
+            <p className="settings-hint">
+              This server has not configured Web Push yet (VAPID keys). Native app notifications may still work.
+            </p>
+          ) : !getVapidPublicKey() ? (
+            <p className="settings-hint">
+              This site build is missing <code>VITE_VAPID_PUBLIC_KEY</code> (must match the server&apos;s public key).
+            </p>
+          ) : (
+            <>
+              <p className="settings-hint">
+                Get notified about new messages and matches when Mulligan is in the background. On iPhone, add Mulligan
+                to your Home Screen first, then enable notifications here.
+              </p>
+              {Notification.permission === "granted" &&
+              (user.webPushSubscriptionCount ?? 0) > 0 ? (
+                <p className="auth-success" style={{ marginTop: "var(--space-2)" }}>
+                  You&apos;re subscribed on this device.
+                </p>
+              ) : Notification.permission === "denied" ? (
+                <p className="settings-hint" style={{ marginTop: "var(--space-2)" }}>
+                  Notifications are blocked for this site. Open browser settings and allow notifications for this page,
+                  then try again.
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ marginTop: "var(--space-3)" }}
+                  onClick={() => void handleEnableBrowserPush()}
+                  disabled={webPushBusy}
+                >
+                  {webPushBusy
+                    ? "Working…"
+                    : Notification.permission === "granted"
+                      ? "Register this device"
+                      : "Turn on browser notifications"}
+                </button>
+              )}
+            </>
+          )}
+        </div>
+
         {/* Account — layout aligned with mobile Settings (stats + profile shortcuts) */}
         <div className="settings-section">
           <h2 className="settings-section-title">
@@ -330,59 +383,6 @@ export default function Settings() {
             <span>💳</span> Tokens
           </h2>
           <WebTokenPurchase variant="settings" customerEmail={settings?.email} />
-        </div>
-
-        {/* Browser push (web / PWA) — permission must be requested from a tap (especially iOS). */}
-        <div className="settings-section">
-          <h2 className="settings-section-title">
-            <span>🔔</span> Browser notifications
-          </h2>
-          {!browserSupportsWebPush() ? (
-            <p className="settings-hint">
-              Your browser does not support Web Push. Use a recent version of Chrome, Safari (16.4+), Edge, or Firefox,
-              or add the app to your home screen on iPhone for PWA notifications.
-            </p>
-          ) : !user?.webPushConfigured ? (
-            <p className="settings-hint">
-              This server has not configured Web Push yet (VAPID keys). Native app notifications may still work.
-            </p>
-          ) : !getVapidPublicKey() ? (
-            <p className="settings-hint">
-              This site build is missing <code>VITE_VAPID_PUBLIC_KEY</code> (must match the server&apos;s public key).
-            </p>
-          ) : (
-            <>
-              <p className="settings-hint">
-                Get notified about new messages and matches when Mulligan is in the background. On iPhone, add Mulligan
-                to your Home Screen first, then enable notifications here.
-              </p>
-              {Notification.permission === "granted" &&
-              (user.webPushSubscriptionCount ?? 0) > 0 ? (
-                <p className="auth-success" style={{ marginTop: "var(--space-2)" }}>
-                  You&apos;re subscribed on this device.
-                </p>
-              ) : Notification.permission === "denied" ? (
-                <p className="settings-hint" style={{ marginTop: "var(--space-2)" }}>
-                  Notifications are blocked for this site. Open browser settings and allow notifications for this page,
-                  then try again.
-                </p>
-              ) : (
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  style={{ marginTop: "var(--space-3)" }}
-                  onClick={() => void handleEnableBrowserPush()}
-                  disabled={webPushBusy}
-                >
-                  {webPushBusy
-                    ? "Working…"
-                    : Notification.permission === "granted"
-                      ? "Register this device"
-                      : "Turn on browser notifications"}
-                </button>
-              )}
-            </>
-          )}
         </div>
 
         {/* Delete Account */}

@@ -13,6 +13,21 @@ const PREFERRED_GENDER_LABELS: Record<string, string> = {
 };
 const MAX_DISTANCE_OPTIONS: (number | null)[] = [10, 25, 50, 100, 250, 500, null];
 
+/** Short labels under each mileage chip (max distance modal). */
+const MAX_DISTANCE_META: Record<string, { tag: string }> = {
+  "10": { tag: "Around town" },
+  "25": { tag: "City & nearby" },
+  "50": { tag: "Metro area" },
+  "100": { tag: "Regional" },
+  "250": { tag: "Wide net" },
+  "500": { tag: "Far & wide" },
+  any: { tag: "Everywhere" },
+};
+
+function distanceOptionKey(opt: number | null): string {
+  return opt === null ? "any" : String(opt);
+}
+
 /** Canonical values stored in `looking_for` (profile API). */
 const LOOKING_FOR_OPTIONS = [
   "Relationship",
@@ -1184,30 +1199,58 @@ export default function MyProfile() {
             >
               ×
             </button>
-            <div className="my-profile-modal-head">
-              <span className="my-profile-modal-icon" aria-hidden>
+            <div className="my-profile-distance-modal-hero">
+              <span className="my-profile-distance-modal-hero-icon" aria-hidden>
                 📏
               </span>
-              <div>
+              <div className="my-profile-distance-modal-hero-text">
                 <h3 id="dist-title">Max distance</h3>
-                <p className="my-profile-modal-sub">How far to search for potential matches</p>
+                <p className="my-profile-modal-sub my-profile-distance-modal-tagline">
+                  People outside this radius won&apos;t show when you browse — pick what feels right for you.
+                </p>
               </div>
             </div>
-            <div className="my-profile-modal-body">
-              <select
-                className="form-input form-select"
-                value={editMaxDistance === null ? "any" : String(editMaxDistance)}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setEditMaxDistance(v === "any" ? null : parseInt(v, 10));
-                }}
-              >
-                {MAX_DISTANCE_OPTIONS.map((opt) => (
-                  <option key={opt === null ? "any" : opt} value={opt === null ? "any" : String(opt)}>
-                    {opt === null ? "Any distance" : `${opt} mi`}
-                  </option>
-                ))}
-              </select>
+            <div className="my-profile-modal-body my-profile-modal-body--distance">
+              <div className="my-profile-distance-grid" role="radiogroup" aria-labelledby="dist-title">
+                {MAX_DISTANCE_OPTIONS.map((opt) => {
+                  const key = distanceOptionKey(opt);
+                  const meta = MAX_DISTANCE_META[key];
+                  const selected =
+                    opt === null ? editMaxDistance === null : editMaxDistance !== null && editMaxDistance === opt;
+                  const primary =
+                    opt === null ? (
+                      <>
+                        <span className="my-profile-distance-option-num">∞</span>
+                        <span className="my-profile-distance-option-mi">Any</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="my-profile-distance-option-num">{opt}</span>
+                        <span className="my-profile-distance-option-mi">mi</span>
+                      </>
+                    );
+                  const ariaLabel =
+                    opt === null
+                      ? "Any distance, no limit"
+                      : `${opt} miles, ${meta?.tag ?? "miles"}`;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      aria-label={ariaLabel}
+                      className={`my-profile-distance-option ${selected ? "is-selected" : ""}`}
+                      onClick={() => setEditMaxDistance(opt)}
+                    >
+                      <span className="my-profile-distance-option-ring" aria-hidden />
+                      <span className="my-profile-distance-option-primary">{primary}</span>
+                      <span className="my-profile-distance-option-tag">{meta?.tag ?? ""}</span>
+                      {selected ? <span className="my-profile-distance-option-check">✓</span> : null}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             <div className="my-profile-modal-actions">
               <button type="button" className="btn btn-ghost" onClick={() => setShowDistanceModal(false)}>

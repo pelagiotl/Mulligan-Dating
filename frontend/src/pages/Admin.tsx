@@ -7,6 +7,8 @@ const API_ORIGIN = String(
   (import.meta.env as any).VITE_API_URL || (import.meta.env as any).VITE_NGROK_URL || ''
 ).replace(/\/$/, '');
 
+const ADMIN_USER_PAGE_SIZE = 50;
+
 function resolveAdminMediaUrl(url: string | null | undefined): string | null {
   if (!url) return null;
   const u = url.trim();
@@ -118,7 +120,7 @@ export default function Admin() {
     try {
       const params = new URLSearchParams({
         page: page.toString(),
-        limit: '50',
+        limit: String(ADMIN_USER_PAGE_SIZE),
         ...(search && { search }),
       });
       const data = await api.get<{ users: User[]; pagination: any }>(`/admin/users?${params}`);
@@ -446,37 +448,88 @@ export default function Admin() {
       </div>
 
       <div className="admin-content">
-        <div className="admin-users-section">
-          <div className="admin-section-header">
-            <h2>User Management</h2>
-            <div className="admin-search">
-              <input
-                type="text"
-                placeholder="Search by email or name..."
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPage(1);
-                }}
-              />
+        <div className="admin-users-section admin-users-section--modern">
+          <header className="admin-um-header">
+            <div className="admin-um-header-main">
+              <span className="admin-um-kicker">Directory</span>
+              <h2 className="admin-um-title">User management</h2>
+              <p className="admin-um-lede">
+                Search and browse accounts. Select a row to review profile, moderation, and tokens in the panel.
+              </p>
             </div>
-          </div>
+            <div className="admin-um-search-wrap" role="search">
+              <label htmlFor="admin-user-search" className="sr-only">
+                Search users by email or display name
+              </label>
+              <div className="admin-search admin-search--prominent">
+                <input
+                  id="admin-user-search"
+                  type="search"
+                  autoComplete="off"
+                  placeholder="Search email or name…"
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setPage(1);
+                  }}
+                />
+              </div>
+            </div>
+          </header>
+
+          {!loading && (
+            <p className="admin-um-results-meta" aria-live="polite">
+              {users.length === 0 ? (
+                <>
+                  <strong>0</strong> users {search.trim() ? (
+                    <>matching &ldquo;{search.trim()}&rdquo;</>
+                  ) : (
+                    <>on this page</>
+                  )}
+                </>
+              ) : (
+                <>
+                  Showing{' '}
+                  <strong>{(page - 1) * ADMIN_USER_PAGE_SIZE + 1}</strong>
+                  –
+                  <strong>{(page - 1) * ADMIN_USER_PAGE_SIZE + users.length}</strong>
+                  {' '}of <strong>{pagination.total}</strong> users
+                  {search.trim() ? (
+                    <> · filtered by &ldquo;{search.trim()}&rdquo;</>
+                  ) : null}
+                </>
+              )}
+            </p>
+          )}
 
           {loading ? (
-            <div className="loading">Loading users...</div>
+            <div className="admin-um-loading" aria-busy="true">
+              <span className="admin-um-loading-dot" />
+              <span className="admin-um-loading-dot" />
+              <span className="admin-um-loading-dot" />
+              <span>Loading directory…</span>
+            </div>
           ) : (
             <>
-              <div className="users-table">
+              <div className="users-table users-table--modern">
                 <table>
                   <thead>
                     <tr>
-                      <th>Email</th>
-                      <th>Name</th>
-                      <th>Age</th>
-                      <th>Location</th>
-                      <th>Tokens</th>
-                      <th>Status</th>
-                      <th>Actions</th>
+                      <th scope="col">Email</th>
+                      <th scope="col">Name</th>
+                      <th scope="col" className="users-table-col-narrow">
+                        Age
+                      </th>
+                      <th scope="col">Location</th>
+                      <th scope="col" className="users-table-col-narrow">
+                        Tokens
+                      </th>
+                      <th scope="col" className="users-table-col-status">
+                        Status
+                      </th>
+                      <th scope="col" className="users-table-col-actions">
+                        Quick actions
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -486,16 +539,26 @@ export default function Admin() {
                         className={selectedUser?.id === user.id ? 'selected' : ''}
                         onClick={() => fetchUserDetails(user.id)}
                       >
-                        <td>{user.email}</td>
-                        <td>{user.display_name || '—'}</td>
-                        <td>{user.age || '—'}</td>
-                        <td>{user.location || '—'}</td>
-                        <td>{user.tokenCount}</td>
+                        <td className="users-table-cell-email">
+                          <span className="users-table-email" title={user.email}>
+                            {user.email}
+                          </span>
+                        </td>
+                        <td className="users-table-cell-name">{user.display_name || '—'}</td>
+                        <td>{user.age ?? '—'}</td>
+                        <td className="users-table-cell-location">
+                          <span className="users-table-location" title={user.location || undefined}>
+                            {user.location || '—'}
+                          </span>
+                        </td>
+                        <td>
+                          <span className="admin-token-pill">{user.tokenCount}</span>
+                        </td>
                         <td>
                           {(() => {
                             const isAdmin = Boolean(user.is_admin);
                             const isRestricted = Boolean(user.is_restricted);
-                            
+
                             if (isAdmin) {
                               return <span className="badge badge-admin">Admin</span>;
                             }
@@ -506,34 +569,40 @@ export default function Admin() {
                           })()}
                         </td>
                         <td onClick={(e) => e.stopPropagation()}>
-                          <div className="action-buttons">
+                          <div className="action-buttons action-buttons--compact">
                             <button
-                              className="btn btn-sm btn-primary"
+                              type="button"
+                              className="btn btn-sm btn-primary admin-action-tokens"
                               onClick={() => grantTokens(user.id, 1)}
                               disabled={actionLoading === user.id}
+                              title="Grant 1 Mulligan token"
                             >
-                              +1 Token
+                              +1
                             </button>
                             <button
-                              className={`btn btn-sm ${Boolean(user.is_restricted) ? 'btn-success' : 'btn-warning'}`}
+                              type="button"
+                              className={`btn btn-sm admin-action-restrict ${Boolean(user.is_restricted) ? 'btn-success' : 'btn-warning'}`}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 restrictUser(user.id, !Boolean(user.is_restricted));
                               }}
                               disabled={actionLoading === user.id}
+                              title={Boolean(user.is_restricted) ? 'Remove restriction' : 'Restrict account'}
                             >
                               {Boolean(user.is_restricted) ? 'Unrestrict' : 'Restrict'}
                             </button>
                             <button
-                              className="btn btn-sm btn-danger"
+                              type="button"
+                              className="btn btn-sm btn-danger admin-action-delete"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 deleteUser(user.id);
                               }}
                               disabled={actionLoading === user.id || Boolean(user.is_admin)}
                               title={Boolean(user.is_admin) ? 'Cannot delete admin users' : 'Delete user'}
+                              aria-label="Delete user"
                             >
-                              🗑️ Delete
+                              Delete
                             </button>
                           </div>
                         </td>
@@ -543,23 +612,27 @@ export default function Admin() {
                 </table>
               </div>
 
-              <div className="pagination">
+              <nav className="pagination pagination--modern" aria-label="User list pages">
                 <button
+                  type="button"
+                  className="pagination-btn"
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page === 1}
                 >
                   Previous
                 </button>
-                <span>
-                  Page {page} of {pagination.totalPages}
+                <span className="pagination-status">
+                  Page <strong>{page}</strong> of <strong>{pagination.totalPages}</strong>
                 </span>
                 <button
+                  type="button"
+                  className="pagination-btn"
                   onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
                   disabled={page === pagination.totalPages}
                 >
                   Next
                 </button>
-              </div>
+              </nav>
             </>
           )}
         </div>
