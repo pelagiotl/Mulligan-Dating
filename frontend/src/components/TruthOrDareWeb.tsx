@@ -49,6 +49,22 @@ function formatTimeRemaining(secs: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+const TRUTH_OR_DARE_MIN_EACH = 7;
+
+function truthOrDareMessageThresholdMet(
+  rows: Array<{ senderId: string }>,
+  currentUserId: string,
+  partnerUserId: string
+): boolean {
+  let my = 0;
+  let other = 0;
+  for (const m of rows) {
+    if (m.senderId === currentUserId) my++;
+    else if (m.senderId === partnerUserId) other++;
+  }
+  return my >= TRUTH_OR_DARE_MIN_EACH && other >= TRUTH_OR_DARE_MIN_EACH;
+}
+
 interface GameState {
   yourSpiceChoice: "pg13" | "ratedr" | "spicy" | null;
   theirSpiceChoice: "pg13" | "ratedr" | "spicy" | null;
@@ -70,6 +86,10 @@ type Props = {
   openForAccept?: boolean;
   onOpenedForAccept?: () => void;
   gameUnlockedByToken?: boolean;
+  /** Required for unlock eligibility (7 messages each); omit only in tests */
+  messages?: Array<{ senderId: string }>;
+  currentUserId?: string;
+  chatPartnerUserId?: string;
 };
 
 export default function TruthOrDareWeb({
@@ -81,6 +101,9 @@ export default function TruthOrDareWeb({
   openForAccept,
   onOpenedForAccept,
   gameUnlockedByToken = false,
+  messages = [],
+  currentUserId,
+  chatPartnerUserId,
 }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const [step, setStep] = useState<"choose" | "prompt">("choose");
@@ -99,6 +122,14 @@ export default function TruthOrDareWeb({
   const lastUnlockedUntilRef = useRef<string | null>(null);
 
   const isUnlocked = !!gameUnlockedByToken;
+
+  const truthOrDareEligible =
+    Boolean(currentUserId && chatPartnerUserId) &&
+    truthOrDareMessageThresholdMet(
+      messages,
+      currentUserId as string,
+      chatPartnerUserId as string
+    );
 
   const fetchState = useCallback(async () => {
     try {
@@ -260,6 +291,12 @@ export default function TruthOrDareWeb({
   };
 
   const handleLockedPress = async () => {
+    if (!truthOrDareEligible) {
+      window.alert(
+        `Truth or Dare unlocks after you and your match have each sent at least ${TRUTH_OR_DARE_MIN_EACH} messages in this chat.`
+      );
+      return;
+    }
     const already = await onBeforeUnlockPrompt();
     if (already) {
       openModal();

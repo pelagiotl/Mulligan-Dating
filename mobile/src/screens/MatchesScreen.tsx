@@ -38,7 +38,10 @@ import { navigationRef } from '../navigation/navigationRef';
 import LegalFooter from '../components/LegalFooter';
 import MulliganMoments from '../components/MulliganMoments';
 import DateBlueprint from '../components/DateBlueprint';
-import TruthOrDare from '../components/TruthOrDare';
+import TruthOrDare, {
+  truthOrDareMessageThresholdMet,
+  TRUTH_OR_DARE_LOCKED_HINT,
+} from '../components/TruthOrDare';
 import NeverHaveIEver from '../components/NeverHaveIEver';
 import OptimizedImage from '../components/OptimizedImage';
 import GameRequestModal from '../components/GameRequestModal';
@@ -3724,9 +3727,16 @@ export default function MatchesScreen() {
                     matchId={selectedMatch.id}
                     messages={messages}
                     currentUserId={user?.id || ''}
+                    chatPartnerUserId={selectedMatch.otherUser.userId}
                     socket={socketRef.current}
                     onSendToChat={(text) => { handleSendMessage(text); }}
                     onRequestGame={async () => {
+                      const uid = user?.id;
+                      const pid = selectedMatch.otherUser.userId;
+                      if (!uid || !pid || !truthOrDareMessageThresholdMet(messages, uid, pid)) {
+                        Alert.alert('Not yet', TRUTH_OR_DARE_LOCKED_HINT);
+                        return;
+                      }
                       try {
                         await api.post(`/matches/${selectedMatch.id}/game-request`, { gameType: 'truth_or_dare' });
                         Alert.alert('Request sent!', 'Waiting for them to accept. You\'ll be notified when they do.');

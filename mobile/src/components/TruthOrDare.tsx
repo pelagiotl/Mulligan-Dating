@@ -2,7 +2,7 @@
  * Truth or Dare - Unlocked with a Mulligan token
  */
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -62,6 +62,24 @@ function pickRandom<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+const TRUTH_OR_DARE_MIN_EACH = 7;
+
+export function truthOrDareMessageThresholdMet(
+  rows: Array<{ senderId: string }>,
+  currentUserId: string,
+  partnerUserId: string
+): boolean {
+  let my = 0;
+  let other = 0;
+  for (const m of rows) {
+    if (m.senderId === currentUserId) my++;
+    else if (m.senderId === partnerUserId) other++;
+  }
+  return my >= TRUTH_OR_DARE_MIN_EACH && other >= TRUTH_OR_DARE_MIN_EACH;
+}
+
+export const TRUTH_OR_DARE_LOCKED_HINT = `Truth or Dare unlocks after you and your match have each sent at least ${TRUTH_OR_DARE_MIN_EACH} messages in this chat.`;
+
 interface Message {
   id: string;
   senderId: string;
@@ -85,6 +103,8 @@ interface TruthOrDareProps {
   matchId: string;
   messages?: Message[];
   currentUserId: string;
+  /** Peer user id for message-count gate (7 each) */
+  chatPartnerUserId: string;
   socket: any;
   onSendToChat?: (text: string) => void;
   onRequestGame?: () => void;
@@ -102,7 +122,9 @@ interface TruthOrDareProps {
 
 export default function TruthOrDare({
   matchId,
+  messages = [],
   currentUserId,
+  chatPartnerUserId,
   socket,
   onSendToChat,
   onRequestGame,
@@ -131,6 +153,13 @@ export default function TruthOrDare({
   const intendedPromptTypeRef = useRef<'truth' | 'dare' | null>(null);
 
   const isUnlocked = gameUnlockedByToken;
+
+  const truthOrDareEligible = useMemo(
+    () =>
+      Boolean(currentUserId && chatPartnerUserId) &&
+      truthOrDareMessageThresholdMet(messages, currentUserId, chatPartnerUserId),
+    [messages, currentUserId, chatPartnerUserId]
+  );
 
   const formatTimeRemaining = (secs: number) => {
     const m = Math.floor(secs / 60);
@@ -386,6 +415,10 @@ export default function TruthOrDare({
   const handleLockedPress = async () => {
     if (Platform.OS === 'ios' || Platform.OS === 'android') {
       Vibration.vibrate(30);
+    }
+    if (!truthOrDareEligible) {
+      Alert.alert('Not yet', TRUTH_OR_DARE_LOCKED_HINT);
+      return;
     }
     if (onBeforeUnlockPrompt) {
       const alreadyUnlocked = await onBeforeUnlockPrompt();

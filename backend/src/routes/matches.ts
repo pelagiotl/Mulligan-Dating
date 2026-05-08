@@ -69,6 +69,14 @@ function bothUsersMetChatMediaThreshold(user1Count: number, user2Count: number):
   return user1Count >= CHAT_MEDIA_MIN_MESSAGES_EACH && user2Count >= CHAT_MEDIA_MIN_MESSAGES_EACH;
 }
 
+/** Truth or Dare unlock (manual unlock-game / game-request) requires more chat back-and-forth than photo/media unlock */
+const TRUTH_OR_DARE_MIN_MESSAGES_EACH = 7;
+const TRUTH_OR_DARE_LOCKED_MESSAGE = `Truth or Dare unlocks after you and your match have each sent at least ${TRUTH_OR_DARE_MIN_MESSAGES_EACH} messages in this chat.`;
+
+function bothUsersMetTruthOrDareThreshold(user1Count: number, user2Count: number): boolean {
+  return user1Count >= TRUTH_OR_DARE_MIN_MESSAGES_EACH && user2Count >= TRUTH_OR_DARE_MIN_MESSAGES_EACH;
+}
+
 // Get active match count and slot limit - MUST be before /:matchId routes so "count" isn't treated as matchId
 matchesRouter.get("/count", authenticateToken, async (req: AuthRequest, res) => {
   try {
@@ -1992,6 +2000,13 @@ matchesRouter.post("/:matchId/unlock-game", authenticateToken, rateLimitAPI, asy
       return res.status(404).json({ error: "Match not found" });
     }
 
+    if (gameType === "truth_or_dare") {
+      const counts = await getSenderMessageCounts(matchId, match.user1_id, match.user2_id);
+      if (!bothUsersMetTruthOrDareThreshold(counts.user1, counts.user2)) {
+        return res.status(403).json({ error: TRUTH_OR_DARE_LOCKED_MESSAGE });
+      }
+    }
+
     const SEVEN_MINUTES_MS = 7 * 60 * 1000;
     const unlockedUntil = new Date(Date.now() + SEVEN_MINUTES_MS);
 
@@ -2109,6 +2124,13 @@ matchesRouter.post("/:matchId/game-request", authenticateToken, rateLimitAPI, as
 
     if (!match) {
       return res.status(404).json({ error: "Match not found" });
+    }
+
+    if (gameType === "truth_or_dare") {
+      const counts = await getSenderMessageCounts(matchId, match.user1_id, match.user2_id);
+      if (!bothUsersMetTruthOrDareThreshold(counts.user1, counts.user2)) {
+        return res.status(403).json({ error: TRUTH_OR_DARE_LOCKED_MESSAGE });
+      }
     }
 
     const toUserId = match.user1_id === userId ? match.user2_id : match.user1_id;

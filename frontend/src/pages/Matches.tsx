@@ -1777,6 +1777,9 @@ export default function Matches() {
                   <TruthOrDareWeb
                     matchId={selectedMatch.id}
                     socket={socketRef.current}
+                    messages={messages}
+                    currentUserId={user.id}
+                    chatPartnerUserId={selectedMatch.otherUser.userId}
                     onSendToChat={sendChatText}
                     onBeforeUnlockPrompt={async () => {
                       const list = await fetchMatches();

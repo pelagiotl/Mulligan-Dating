@@ -630,11 +630,72 @@
   margin-bottom: 0.85rem;
   position: relative;
   overflow: hidden;
+  isolation: isolate;
+  transform-origin: center;
+  /* BrowseScreen Connect: pulse loop 1 → 1.05 → 1 (1.5s + 1.5s) */
+  animation: connectCtaPulse 3s ease-in-out infinite;
+}
+
+/* Same shimmer sweep as RN connectButtonShimmer (skewed bar, ~3s loop) */
+.connect-landing__cta::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 22%;
+  min-width: 3rem;
+  background: rgba(255, 255, 255, 0.4);
+  transform: skewX(-20deg) translateX(-220%);
+  animation: connectCtaShimmer 3s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.connect-landing__cta > * {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes connectCtaPulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+@keyframes connectCtaShimmer {
+  0% {
+    transform: skewX(-20deg) translateX(-220%);
+  }
+  100% {
+    transform: skewX(-20deg) translateX(520%);
+  }
 }
 
 .connect-landing__cta--loading {
   cursor: default;
   opacity: 0.95;
+  animation: none;
+}
+
+.connect-landing__cta--loading::before {
+  animation: none;
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .connect-landing__cta {
+    animation: none;
+  }
+
+  .connect-landing__cta::before {
+    animation: none;
+    opacity: 0;
+  }
 }
 
 .connect-landing__spinner {
@@ -677,6 +738,12 @@ button.connect-landing__cta {
 button.connect-landing__cta:disabled {
   opacity: 0.88;
   cursor: not-allowed;
+  animation: none;
+}
+
+button.connect-landing__cta:disabled::before {
+  animation: none;
+  opacity: 0;
 }
 
 /* Public marketing page (`/`) — full-bleed gradient like iOS Connect landing */
