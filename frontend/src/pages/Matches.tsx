@@ -183,6 +183,8 @@ interface Message {
   sentAt: string;
   readAt?: string | null;
   isOwn: boolean;
+  /** User id who heart-reacted (only the other participant can love a message). */
+  likedBy?: string | null;
   imageUrl?: string | null;
   videoUrl?: string | null;
   audioUrl?: string | null;
@@ -240,6 +242,7 @@ export default function Matches() {
   const socketRef = useRef<Socket | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const selectedMatchIdRef = useRef<string | null>(null);
+  const userIdRef = useRef<string | null>(null);
   const matchesRef = useRef<Match[]>([]);
   const lightboxTouchX = useRef<number | null>(null);
   const [gameRequestToShow, setGameRequestToShow] = useState<PendingGameRequestWeb | null>(null);
@@ -247,6 +250,7 @@ export default function Matches() {
     matchId: string;
     gameType: "truth_or_dare" | "never_have_i_ever";
   } | null>(null);
+  const [loveBusyMessageId, setLoveBusyMessageId] = useState<string | null>(null);
 
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadingVideo, setUploadingVideo] = useState(false);
@@ -334,6 +338,10 @@ export default function Matches() {
   useEffect(() => {
     selectedMatchIdRef.current = selectedMatch?.id ?? null;
   }, [selectedMatch?.id]);
+
+  useEffect(() => {
+    userIdRef.current = user?.id ?? null;
+  }, [user?.id]);
 
   useEffect(() => {
     matchesRef.current = matches;
@@ -468,6 +476,35 @@ export default function Matches() {
           )
         );
       }
+    });
+
+    socket.on(
+      "message_liked",
+      (data: {
+        matchId: string;
+        messageId: string;
+        likedBy: string;
+        likerName?: string;
+        senderId?: string;
+      }) => {
+        if (data.matchId !== selectedMatchIdRef.current) return;
+        setMessages((prev) =>
+          prev.map((m) => (m.id === data.messageId ? { ...m, likedBy: data.likedBy } : m))
+        );
+        if (data.senderId === userIdRef.current && data.likerName) {
+          setNotification({
+            message: `❤️ ${data.likerName} loved your message`,
+            type: "info",
+          });
+        }
+      }
+    );
+
+    socket.on("message_unliked", (data: { matchId: string; messageId: string }) => {
+      if (data.matchId !== selectedMatchIdRef.current) return;
+      setMessages((prev) =>
+        prev.map((m) => (m.id === data.messageId ? { ...m, likedBy: null } : m))
+      );
     });
 
     // Handle new match notification
@@ -712,6 +749,32 @@ export default function Matches() {
       }
     } catch (err) {
       console.error("Failed to fetch messages:", err);
+    }
+  };
+
+  const toggleMessageLove = async (messageId: string, currentlyLiked: boolean) => {
+    const matchId = selectedMatchIdRef.current;
+    const uid = userIdRef.current;
+    if (!matchId || !uid) return;
+    setLoveBusyMessageId(messageId);
+    try {
+      if (currentlyLiked) {
+        await api.delete(`/matches/${matchId}/messages/${messageId}/like`);
+        setMessages((prev) =>
+          prev.map((m) => (m.id === messageId ? { ...m, likedBy: null } : m))
+        );
+      } else {
+        await api.post(`/matches/${matchId}/messages/${messageId}/like`, {});
+        setMessages((prev) =>
+          prev.map((m) => (m.id === messageId ? { ...m, likedBy: uid } : m))
+        );
+      }
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : "Could not update heart reaction";
+      setNotification({ message: msg, type: "error" });
+      await fetchMessages(matchId);
+    } finally {
+      setLoveBusyMessageId(null);
     }
   };
 
@@ -1847,14 +1910,41 @@ export default function Matches() {
                               <div className="message-text">{msg.content}</div>
                             ) : null}
                           </div>
-                          <div className="message-time">
-                            {new Date(msg.sentAt).toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                            {msg.isOwn && msg.readAt && (
-                              <span className="read-receipt">✓ Read</span>
-                            )}
+                          <div
+                            className={`message-meta ${msg.isOwn ? "message-meta-own" : "message-meta-other"}`}
+                          >
+                            <div className="message-time">
+                              {new Date(msg.sentAt).toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                              {msg.isOwn && msg.readAt && (
+                                <span className="read-receipt">✓ Read</span>
+                              )}
+                            </div>
+                            {!msg.isOwn && user?.id ? (
+                              <button
+                                type="button"
+                                className={`message-love-btn${msg.likedBy === user.id ? " message-love-btn--active" : ""}`}
+                                disabled={loveBusyMessageId === msg.id}
+                                aria-label={
+                                  msg.likedBy === user.id ? "Remove heart" : "Love this message"
+                                }
+                                title={
+                                  msg.likedBy === user.id ? "Tap to remove heart" : "Love"
+                                }
+                                onClick={() =>
+                                  void toggleMessageLove(msg.id, msg.likedBy === user.id)
+                                }
+                              >
+                                {msg.likedBy === user.id ? "❤️" : "🤍"}
+                              </button>
+                            ) : null}
+                            {msg.isOwn && msg.likedBy ? (
+                              <span className="message-loved-by-them" title="They loved this">
+                                ❤️
+                              </span>
+                            ) : null}
                           </div>
                         </div>
                       ))}
