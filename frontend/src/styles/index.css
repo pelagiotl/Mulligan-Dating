@@ -5124,6 +5124,7 @@ button.my-profile-avatar:focus-visible {
   opacity: 0;
 }
 
+.my-profile-modal-card--preferred::before {
   background: linear-gradient(90deg, var(--color-wine-800), #a78bfa, var(--color-rose-500));
 }
 
