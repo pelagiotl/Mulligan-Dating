@@ -1535,18 +1535,24 @@ export default function Matches() {
                     </span>
                   </p>
                   <h2 id="chat-partner-drawer-title">{selectedMatch.otherUser.displayName}</h2>
-                  <p className="chat-partner-drawer-sub">
-                    {[selectedMatch.otherUser.age, selectedMatch.otherUser.gender].filter(Boolean).join(" · ")}
+                  <div className="chat-partner-drawer-meta" aria-label="Basics">
+                    {typeof selectedMatch.otherUser.age === "number" &&
+                    !Number.isNaN(selectedMatch.otherUser.age) ? (
+                      <span className="chat-partner-drawer-meta-chip">{selectedMatch.otherUser.age}</span>
+                    ) : null}
+                    {selectedMatch.otherUser.gender ? (
+                      <span className="chat-partner-drawer-meta-chip">{selectedMatch.otherUser.gender}</span>
+                    ) : null}
                     {selectedMatch.otherUser.location ? (
-                      <>
-                        {" · "}
-                        <span aria-hidden>
-                          📍{" "}
+                      <span className="chat-partner-drawer-meta-chip chat-partner-drawer-meta-chip--location">
+                        <span className="chat-partner-drawer-meta-chip-icon" aria-hidden>
+                          📍
                         </span>
                         {selectedMatch.otherUser.location}
-                      </>
+                      </span>
                     ) : null}
-                  </p>
+                  </div>
+                  <p className="chat-partner-drawer-tagline">Peek at photos and what they shared — all in one place.</p>
                 </div>
               </div>
               <button
@@ -1563,7 +1569,12 @@ export default function Matches() {
               {selectedMatchPhotos.length > 0 ? (
                 <div className="chat-partner-drawer-surface chat-partner-drawer-surface--photos">
                   <div className="chat-partner-drawer-gallery-block">
-                    <h3 className="chat-partner-drawer-section-label">Photos</h3>
+                    <h3 className="chat-partner-drawer-section-label chat-partner-drawer-section-label--rich">
+                      <span className="chat-partner-drawer-section-emoji" aria-hidden>
+                        🖼️
+                      </span>
+                      Photos
+                    </h3>
                     <div className="chat-partner-drawer-photo-rail" role="list">
                       {selectedMatchPhotos.map((ph, i) => (
                         <button
@@ -1600,7 +1611,12 @@ export default function Matches() {
               )}
 
               <div className="chat-partner-drawer-surface chat-partner-drawer-surface--profile">
-                <h3 className="chat-partner-drawer-section-label">Profile</h3>
+                <h3 className="chat-partner-drawer-section-label chat-partner-drawer-section-label--rich">
+                  <span className="chat-partner-drawer-section-emoji" aria-hidden>
+                    ✨
+                  </span>
+                  Profile
+                </h3>
                 <div className="chat-partner-drawer-profile chat-partner-drawer-profile--styled">
                   {matchHasProfileDetails(selectedMatch.otherUser) ? (
                     <MatchOtherProfileSections otherUser={selectedMatch.otherUser} variant="stage2" />
