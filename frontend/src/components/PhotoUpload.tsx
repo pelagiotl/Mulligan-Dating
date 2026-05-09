@@ -24,6 +24,7 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [reordering, setReordering] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -348,6 +349,46 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
     }
   };
 
+  const movePhotoInOrder = async (photoId: string, delta: number) => {
+    if (profileId || reordering || delta === 0) return;
+    const order = [...photos].sort((a, b) => a.displayOrder - b.displayOrder);
+    const idx = order.findIndex((p) => p.id === photoId);
+    if (idx < 0) return;
+    const newIdx = idx + delta;
+    if (newIdx < 0 || newIdx >= order.length) return;
+
+    const next = [...order];
+    const [removed] = next.splice(idx, 1);
+    next.splice(newIdx, 0, removed);
+    const photoIds = next.map((p) => p.id);
+    const optimistic = next.map((p, i) => ({
+      ...p,
+      displayOrder: i,
+      isPrimary: i === 0,
+    }));
+
+    setReordering(true);
+    setError("");
+    setPhotos(optimistic);
+    try {
+      await api.put("/photos/reorder", { photoIds });
+      if (profileId) {
+        await fetchPhotos();
+      } else {
+        await fetchMyPhotos();
+      }
+      onPhotosUpdated?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to reorder photos");
+      if (profileId) {
+        await fetchPhotos();
+      } else {
+        await fetchMyPhotos();
+      }
+    } finally {
+      setReordering(false);
+    }
+  };
 
   if (loading) {
     return <div className="photo-upload-loading">Loading photos...</div>;
@@ -393,6 +434,12 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
   return (
     <div className="photo-upload">
       {error && <div className="auth-error">{error}</div>}
+
+      {!profileId && sortedPhotos.length > 1 ? (
+        <p className="photo-upload-reorder-hint">
+          Tip: use <strong>Earlier</strong> / <strong>Later</strong> on each photo to change order. The first photo is your profile thumbnail.
+        </p>
+      ) : null}
 
       {uploading && (
         <div className="photo-upload-progress">
@@ -443,6 +490,36 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
                     />
                   </button>
                   {slot.photo.isPrimary && <div className="photo-primary-badge">⭐ Primary</div>}
+                  {!profileId && sortedPhotos.length > 1 ? (
+                    <div className="photo-reorder" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        className="photo-reorder-btn"
+                        disabled={reordering || slot.index === 0}
+                        title="Move earlier in gallery"
+                        aria-label={`Move photo ${slot.index + 1} earlier in gallery order`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void movePhotoInOrder(slot.photo!.id, -1);
+                        }}
+                      >
+                        ‹
+                      </button>
+                      <button
+                        type="button"
+                        className="photo-reorder-btn"
+                        disabled={reordering || slot.index === sortedPhotos.length - 1}
+                        title="Move later in gallery"
+                        aria-label={`Move photo ${slot.index + 1} later in gallery order`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void movePhotoInOrder(slot.photo!.id, 1);
+                        }}
+                      >
+                        ›
+                      </button>
+                    </div>
+                  ) : null}
                   {!profileId && (
                     <div className="photo-actions">
                       {!slot.photo.isPrimary && (
