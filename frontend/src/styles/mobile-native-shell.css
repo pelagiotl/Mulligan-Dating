@@ -75,6 +75,15 @@
 
   .app-layout--native-mobile-shell .main-content[data-native-shell-bg="browse"] {
     background: #f5f5f5;
+    /* Let Connect landing fill the slot below the navbar and scroll above the tab bar */
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .app-layout--native-mobile-shell .main-content[data-native-shell-bg="browse"] > .browse-page-native {
+    flex: 1 1 auto;
+    min-height: 0;
   }
 
   .app-layout--native-mobile-shell .main-content[data-native-shell-bg="gradient"] {
