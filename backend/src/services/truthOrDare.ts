@@ -66,6 +66,62 @@ function pickRandomExcluding(list: string[], excludePrompts: string[]): string {
 
 export type SpiceLevel = 'pg13' | 'ratedr' | 'spicy';
 
+/** Each user picks a max heat; prompts use the more conservative of the two. */
+export function moreConservativeSpice(a: SpiceLevel, b: SpiceLevel): SpiceLevel {
+  const order: Record<SpiceLevel, number> = { pg13: 1, ratedr: 2, spicy: 3 };
+  return order[a] <= order[b] ? a : b;
+}
+
+export function normalizeSpiceChoice(raw: unknown): SpiceLevel | null {
+  if (raw === 'pg13' || raw === 'ratedr' || raw === 'spicy') return raw;
+  return null;
+}
+
+const TRUTH_FALLBACKS_R: string[] = [
+  "What's the wildest thing you've done on a first date?",
+  "Have you ever hooked up with someone you barely knew?",
+  "What's a fantasy you've never told anyone out loud?",
+  "When did you last send a text you regretted the next morning?",
+  "What's your biggest turn-on that isn't physical?",
+  "Have you ever dated two people at once without them knowing?",
+  "What's the boldest move you've made to get someone's attention?",
+];
+
+const TRUTH_FALLBACKS_SPICY: string[] = [
+  "What's the fastest you've ever gone from match to hookup?",
+  "Describe your ideal 'no strings' night in one sentence.",
+  "What's something you'd try with the right person that you'd never post about?",
+  "Have you ever slept with someone on the first date?",
+  "What's the riskiest photo you've ever sent a crush?",
+];
+
+const DARE_FALLBACKS_R: string[] = [
+  "Send a voice note describing your type in a way you'd never put in your profile",
+  "Send a selfie that shows your 'after midnight' energy",
+  "Reply with the most flirtatious emoji combo you can without using words",
+  "Send a 5-sec video: one thing you'd do if we met tonight and the vibe was right",
+  "Voice note: one thing you find physically irresistible about them",
+];
+
+const DARE_FALLBACKS_SPICY: string[] = [
+  "Send a voice note with one line you'd use to get them alone after the date",
+  "Send a selfie from bed with a one-word caption (keep it PG enough for chat)",
+  "Reply with the boldest compliment you'd give if you weren't worried about sounding thirsty",
+  "Send a 5-sec video: your reaction if they leaned in for a kiss right now",
+];
+
+function truthFallbacksForLevel(level: SpiceLevel): string[] {
+  if (level === 'spicy') return [...TRUTH_FALLBACKS, ...TRUTH_FALLBACKS_R, ...TRUTH_FALLBACKS_SPICY];
+  if (level === 'ratedr') return [...TRUTH_FALLBACKS, ...TRUTH_FALLBACKS_R];
+  return TRUTH_FALLBACKS;
+}
+
+function dareFallbacksForLevel(level: SpiceLevel): string[] {
+  if (level === 'spicy') return [...DARE_FALLBACKS, ...DARE_FALLBACKS_R, ...DARE_FALLBACKS_SPICY];
+  if (level === 'ratedr') return [...DARE_FALLBACKS, ...DARE_FALLBACKS_R];
+  return DARE_FALLBACKS;
+}
+
 export async function generateTruthOrDarePrompt(
   type: 'truth' | 'dare',
   matchId: string,
@@ -75,13 +131,10 @@ export async function generateTruthOrDarePrompt(
 ): Promise<{ prompt: string; fromAI: boolean }> {
   const toExclude = (excludePrompts ?? []).filter((p) => p && p.trim().length > 0);
   const openaiApiKey = process.env.OPENAI_API_KEY;
-  void spiceLevel; // Kept for backward compatibility with older callers.
 
   // Prefer OpenAI every time when key is set (unbounded variety). Fallback only when key is missing or API fails.
   if (!openaiApiKey) {
-    const list = type === 'truth'
-      ? TRUTH_FALLBACKS
-      : DARE_FALLBACKS;
+    const list = type === 'truth' ? truthFallbacksForLevel(spiceLevel) : dareFallbacksForLevel(spiceLevel);
     return { prompt: pickRandomExcluding(list, toExclude), fromAI: false };
   }
 
@@ -105,9 +158,24 @@ export async function generateTruthOrDarePrompt(
 
     const typeLabel = type === 'truth' ? 'Truth' : 'Dare';
 
+    const spiceBlock =
+      spiceLevel === 'pg13'
+        ? `SPICE: PG-13 — flirty, confident, dating-app safe. No explicit sexual acts, no graphic body descriptions, no coercion. Adults only tone.`
+        : spiceLevel === 'ratedr'
+          ? `SPICE: Rated R — bolder sexual tension and past experiences allowed (hookups, attraction, innuendo). Still no graphic porn, no minors, no non-consent, no illegal content. Keep prompts doable in chat (text, voice, selfie, short video).`
+          : `SPICE: Spicy — maximum heat while staying app-store safe: suggestive, steamy, adult. No graphic explicit acts, no minors, no non-consent. Dares must stay doable in chat (voice, selfie, short clip, text).`;
+
     const typeInstruction = type === 'truth'
-      ? 'a wholesome-but-adult question about attraction, dating, or chemistry. Specific, confident, and real — not cheesy or childish.'
-      : 'a wholesome-but-adult challenge they can do in chat. BALANCE across voice note, selfie/photo, and short video. Do NOT use travel, vacation, or location.';
+      ? spiceLevel === 'pg13'
+        ? 'a wholesome-but-adult question about attraction, dating, or chemistry. Specific, confident, and real — not cheesy or childish.'
+        : spiceLevel === 'ratedr'
+          ? 'a truth that can touch on past hookups, tension, turn-ons, or bold dating stories — still respectful and consensual.'
+          : 'a provocative truth about desire, chemistry, or bold experiences — never graphic porn, always consensual-adult framing.'
+      : spiceLevel === 'pg13'
+        ? 'a wholesome-but-adult challenge they can do in chat. BALANCE across voice note, selfie/photo, and short video. Do NOT use travel, vacation, or location.'
+        : spiceLevel === 'ratedr'
+          ? 'a bolder dare (still in chat): flirty selfie, suggestive voice note, or teasing short video. No nudity requirements, no explicit sexual acts on camera.'
+          : 'a spicy dare they can complete in chat: voice, selfie, or short video — steamy and confident, not pornographic.';
 
     const noTravelNote = type === 'dare'
       ? '\n- Do NOT use travel, vacation, "where you are", scenic views, or location. Users are often at home. Keep dares doable from wherever they are.'
@@ -117,6 +185,7 @@ export async function generateTruthOrDarePrompt(
 
     const systemPrompt = `You generate ${type} prompts for a dating app's "Truth or Dare" game for adults.
 
+${spiceBlock}
 - Concise: one sentence, under 100 characters.
 - Specific to ${type}: ${typeInstruction}${noTravelNote}${toneNote}
 - Generate something FRESH and varied each time — we rely on you for unlimited variety, not a fixed list.
@@ -127,6 +196,8 @@ export async function generateTruthOrDarePrompt(
       : '';
 
     const userPrompt = `Generate one unique ${typeLabel} prompt for two people playing on a dating app.${interestsContext}
+
+Heat level for this round: ${spiceLevel.toUpperCase()}.
 
 VARIETY: Be creative and unexpected — we want a plethora of different prompts, not the same angles. Surprise them.
 
@@ -166,9 +237,7 @@ Return ONLY the prompt:`;
     throw new Error('Invalid AI response');
   } catch (error) {
     console.warn('Truth or Dare AI generation failed, using fallback:', error);
-    const list = type === 'truth'
-      ? TRUTH_FALLBACKS
-      : DARE_FALLBACKS;
+    const list = type === 'truth' ? truthFallbacksForLevel(spiceLevel) : dareFallbacksForLevel(spiceLevel);
     return { prompt: pickRandomExcluding(list, toExclude), fromAI: false };
   }
 }

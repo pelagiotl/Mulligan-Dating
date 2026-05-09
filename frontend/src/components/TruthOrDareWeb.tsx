@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Socket } from "socket.io-client";
-import { api } from "../utils/api";
+import { api, ApiError } from "../utils/api";
 
 const TRUTH_PROMPTS = [
   "What's the one thing that would make you actually stop scrolling?",
@@ -65,16 +65,42 @@ function truthOrDareMessageThresholdMet(
   return my >= TRUTH_OR_DARE_MIN_EACH && other >= TRUTH_OR_DARE_MIN_EACH;
 }
 
+type SpiceId = "pg13" | "ratedr" | "spicy";
+
 interface GameState {
-  yourSpiceChoice: "pg13" | "ratedr" | "spicy" | null;
-  theirSpiceChoice: "pg13" | "ratedr" | "spicy" | null;
+  yourSpiceChoice: SpiceId | null;
+  theirSpiceChoice: SpiceId | null;
   spiceReady: boolean;
-  spiceLevel: "pg13" | "ratedr" | "spicy" | null;
+  spiceLevel: SpiceId | null;
   tokenUnlocked?: boolean;
   needsSpiceChoiceFromUnlocker?: boolean;
   currentPrompt?: string | null;
   currentPromptType?: "truth" | "dare" | null;
   unlockedUntil?: string | null;
+}
+
+const SPICE_OPTIONS: { id: SpiceId; title: string; blurb: string }[] = [
+  {
+    id: "pg13",
+    title: "PG-13",
+    blurb: "Flirty, confident, dating-app safe — no explicit content.",
+  },
+  {
+    id: "ratedr",
+    title: "Rated R",
+    blurb: "Bolder tension and adult themes; still respectful and consensual.",
+  },
+  {
+    id: "spicy",
+    title: "Spicy",
+    blurb: "Maximum heat while staying in-bounds — steamy, not graphic.",
+  },
+];
+
+function spiceLabel(id: SpiceId | null | undefined): string {
+  if (id === "ratedr") return "Rated R";
+  if (id === "spicy") return "Spicy";
+  return "PG-13";
 }
 
 type Props = {
@@ -106,7 +132,7 @@ export default function TruthOrDareWeb({
   chatPartnerUserId,
 }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
-  const [step, setStep] = useState<"choose" | "prompt">("choose");
+  const [step, setStep] = useState<"spice" | "choose" | "prompt">("spice");
   const [prompt, setPrompt] = useState("");
   const [promptType, setPromptType] = useState<"truth" | "dare">("truth");
   const [loading, setLoading] = useState(false);
@@ -120,6 +146,8 @@ export default function TruthOrDareWeb({
   const stepRef = useRef(step);
   stepRef.current = step;
   const lastUnlockedUntilRef = useRef<string | null>(null);
+  const gameStateRef = useRef<GameState | null>(null);
+  gameStateRef.current = gameState;
 
   const isUnlocked = !!gameUnlockedByToken;
 
@@ -134,7 +162,8 @@ export default function TruthOrDareWeb({
   const fetchState = useCallback(async () => {
     try {
       const data = await api.get<GameState>(`/matches/${matchId}/truth-or-dare/state`);
-      setGameState((prev) => ({ ...prev, ...data, spiceLevel: "pg13", spiceReady: true }));
+      setGameState((prev) => ({ ...prev, ...data }));
+
       const recentlyRequestedAnother = Date.now() - lastAnotherOneAtRef.current < 5000;
       const recentlyChose = Date.now() - lastChooseAtRef.current < 8000;
       const alreadyShowingPrompt = stepRef.current === "prompt";
@@ -154,15 +183,25 @@ export default function TruthOrDareWeb({
         return;
       }
       if (alreadyShowingPrompt) return;
-      setStep("choose");
+
+      if (!data.spiceReady) {
+        setStep("spice");
+      } else {
+        setStep("choose");
+      }
     } catch (err) {
       console.warn("Truth or Dare fetch state error:", err);
     }
   }, [matchId]);
 
   useEffect(() => {
+    if (!modalOpen || !gameState?.spiceReady) return;
+    setStep((s) => (s === "spice" ? "choose" : s));
+  }, [modalOpen, gameState?.spiceReady]);
+
+  useEffect(() => {
     if (!openForAccept) return;
-    setStep("choose");
+    setStep("spice");
     setPrompt("");
     setModalOpen(true);
     setLoading(true);
@@ -219,7 +258,7 @@ export default function TruthOrDareWeb({
   }, [modalOpen, untilStr, isUnlocked, fetchState]);
 
   const openModal = () => {
-    setStep("choose");
+    setStep("spice");
     setPrompt("");
     setModalOpen(true);
     setLoading(true);
@@ -230,7 +269,7 @@ export default function TruthOrDareWeb({
 
   const closeModal = () => {
     setModalOpen(false);
-    setStep("choose");
+    setStep("spice");
     setPrompt("");
     setGameState(null);
     if (pollRef.current) {
@@ -239,7 +278,25 @@ export default function TruthOrDareWeb({
     }
   };
 
+  const submitSpiceChoice = async (choice: SpiceId) => {
+    setLoading(true);
+    try {
+      await api.post(`/matches/${matchId}/truth-or-dare/spice-choice`, { choice });
+      await fetchState();
+    } catch (e) {
+      console.warn("Truth or Dare spice choice failed:", e);
+      window.alert(e instanceof Error ? e.message : "Could not save your mode. Try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleChoose = async (type: "truth" | "dare", anotherOne = false) => {
+    if (!gameStateRef.current?.spiceReady) {
+      setStep("spice");
+      window.alert("Pick a heat level (PG-13, Rated R, or Spicy) first — both players must choose.");
+      return;
+    }
     lastChooseAtRef.current = Date.now();
     intendedPromptTypeRef.current = type;
     if (anotherOne) {
@@ -264,7 +321,16 @@ export default function TruthOrDareWeb({
       } else {
         throw new Error("No prompt returned");
       }
-    } catch {
+    } catch (e: unknown) {
+      if (e instanceof ApiError && (e as { code?: string }).code === "SPICE_REQUIRED") {
+        setStep("spice");
+        void fetchState();
+        setLoading(false);
+        setTimeout(() => {
+          intendedPromptTypeRef.current = null;
+        }, 8000);
+        return;
+      }
       const list = type === "truth" ? TRUTH_PROMPTS : DARE_PROMPTS;
       finalPrompt = pickRandom(list);
       setPrompt(finalPrompt);
@@ -303,7 +369,7 @@ export default function TruthOrDareWeb({
       return;
     }
     const play = window.confirm(
-      "Play Truth or Dare? Pick Truth or Dare, then you can send the prompt to chat. (Uses the same game session as the app.)"
+      "Play Truth or Dare? You’ll pick a heat level (PG-13, Rated R, or Spicy), then Truth or Dare — same session as the app."
     );
     if (!play) return;
     try {
@@ -362,7 +428,13 @@ export default function TruthOrDareWeb({
           >
             <div className="tod-web-modal-gradient">
               <h2 id="tod-modal-title" className="tod-web-modal-title">
-                {step === "choose" ? "Pick one" : promptType === "truth" ? "✨ Truth" : "🔥 Dare"}
+                {step === "spice"
+                  ? "Choose your heat"
+                  : step === "choose"
+                    ? "Pick one"
+                    : promptType === "truth"
+                      ? "✨ Truth"
+                      : "🔥 Dare"}
               </h2>
               {gameState?.unlockedUntil && secondsRemaining !== null && secondsRemaining > 0 && (
                 <div className="tod-web-session-timer">
@@ -374,10 +446,56 @@ export default function TruthOrDareWeb({
                 <p className="tod-web-expired">
                   Session ended. Unlock again from the dice button to play another round.
                 </p>
+              ) : loading && step === "spice" && !gameState ? (
+                <p className="tod-web-loading">Loading…</p>
+              ) : step === "spice" ? (
+                <div className="tod-web-spice">
+                  <p className="tod-web-spice-intro">
+                    Each of you picks a comfort level. Prompts use the <strong>more conservative</strong> of the two
+                    so nobody is pushed past their boundary.
+                  </p>
+                  <div className="tod-web-spice-grid">
+                    {SPICE_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        className={`tod-web-spice-card${gameState?.yourSpiceChoice === opt.id ? " tod-web-spice-card--active" : ""}`}
+                        onClick={() => void submitSpiceChoice(opt.id)}
+                        disabled={loading}
+                      >
+                        <span className="tod-web-spice-card-title">{opt.title}</span>
+                        <span className="tod-web-spice-card-blurb">{opt.blurb}</span>
+                      </button>
+                    ))}
+                  </div>
+                  {gameState?.yourSpiceChoice ? (
+                    <p className="tod-web-spice-status">
+                      You chose <strong>{spiceLabel(gameState.yourSpiceChoice)}</strong>
+                      {!gameState.spiceReady ? (
+                        <>
+                          {" "}
+                          — waiting for your match to pick…
+                        </>
+                      ) : (
+                        <>
+                          {" "}
+                          · Round heat: <strong>{spiceLabel(gameState.spiceLevel)}</strong>
+                        </>
+                      )}
+                    </p>
+                  ) : (
+                    <p className="tod-web-spice-hint subtle">Tap a card to lock in your choice.</p>
+                  )}
+                </div>
               ) : loading && step === "choose" ? (
                 <p className="tod-web-loading">Loading…</p>
               ) : step === "choose" ? (
                 <div className="tod-web-choose">
+                  {gameState?.spiceLevel ? (
+                    <p className="tod-web-round-heat">
+                      This round: <strong>{spiceLabel(gameState.spiceLevel)}</strong>
+                    </p>
+                  ) : null}
                   <p className="tod-web-choose-hint">Pick Truth or Dare</p>
                   <div className="tod-web-choose-row">
                     <button type="button" className="tod-web-choice tod-web-choice--truth" onClick={() => void handleChoose("truth")}>
@@ -389,11 +507,17 @@ export default function TruthOrDareWeb({
                       Dare
                     </button>
                   </div>
+                  <button type="button" className="tod-web-spice-change" onClick={() => setStep("spice")} disabled={loading}>
+                    Change my heat level
+                  </button>
                 </div>
               ) : loading ? (
                 <p className="tod-web-loading">Generating your prompt…</p>
               ) : (
                 <>
+                  {gameState?.spiceLevel ? (
+                    <p className="tod-web-prompt-heat subtle">Mode: {spiceLabel(gameState.spiceLevel)}</p>
+                  ) : null}
                   <div className="tod-web-prompt-card">
                     <p className="tod-web-prompt-text">{prompt}</p>
                   </div>

@@ -2031,11 +2031,22 @@ matchesRouter.post("/:matchId/unlock-game", authenticateToken, rateLimitAPI, asy
         .run([matchId, gameType, userId, unlockedUntil.toISOString()]);
     }
 
-    // Reset game state so both users see the lobby and must choose PG-13 / R / Spicy again after unlock
+    // Reset game state so both users pick PG-13 / Rated R / Spicy again after unlock
     if (gameType === 'truth_or_dare') {
-      db.prepare(
+      let exGame = db.prepare('SELECT match_id FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
+      if (exGame instanceof Promise) exGame = await exGame;
+      if (!exGame) {
+        try {
+          const ins = db.prepare('INSERT INTO truth_or_dare_games (match_id, used_prompts) VALUES (?, ?)').run([matchId, '[]']);
+          if (ins instanceof Promise) await ins;
+        } catch {
+          /* concurrent */
+        }
+      }
+      const runUp = db.prepare(
         'UPDATE truth_or_dare_games SET user1_spice_choice = NULL, user2_spice_choice = NULL, spice_level = NULL, current_prompt = NULL, current_prompt_type = NULL, used_prompts = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?'
       ).run(['[]', matchId]);
+      if (runUp instanceof Promise) await runUp;
     }
     if (gameType === 'never_have_i_ever') {
       db.prepare(
@@ -2146,7 +2157,18 @@ matchesRouter.post("/:matchId/game-request", authenticateToken, rateLimitAPI, as
         .run([matchId, gameType, userId, unlockedUntil.toISOString()]);
       if (runIns instanceof Promise) await runIns;
       if (gameType === 'truth_or_dare') {
-        db.prepare('UPDATE truth_or_dare_games SET user1_spice_choice = NULL, user2_spice_choice = NULL, spice_level = NULL, current_prompt = NULL, current_prompt_type = NULL, used_prompts = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run(['[]', matchId]);
+        let exG = db.prepare('SELECT match_id FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
+        if (exG instanceof Promise) exG = await exG;
+        if (!exG) {
+          try {
+            const ins = db.prepare('INSERT INTO truth_or_dare_games (match_id, used_prompts) VALUES (?, ?)').run([matchId, '[]']);
+            if (ins instanceof Promise) await ins;
+          } catch {
+            /* ignore */
+          }
+        }
+        const ru = db.prepare('UPDATE truth_or_dare_games SET user1_spice_choice = NULL, user2_spice_choice = NULL, spice_level = NULL, current_prompt = NULL, current_prompt_type = NULL, used_prompts = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run(['[]', matchId]);
+        if (ru instanceof Promise) await ru;
       }
       if (gameType === 'never_have_i_ever') {
         db.prepare('UPDATE never_have_i_ever_games SET user1_spice_choice = NULL, user2_spice_choice = NULL, spice_level = NULL, current_prompt = NULL, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([matchId]);
@@ -2166,7 +2188,18 @@ matchesRouter.post("/:matchId/game-request", authenticateToken, rateLimitAPI, as
           .run([unlockedUntil.toISOString(), matchId, gameType]);
         if (runExt instanceof Promise) await runExt;
         if (gameType === 'truth_or_dare') {
-          db.prepare('UPDATE truth_or_dare_games SET user1_spice_choice = NULL, user2_spice_choice = NULL, spice_level = NULL, current_prompt = NULL, current_prompt_type = NULL, used_prompts = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run(['[]', matchId]);
+          let exG2 = db.prepare('SELECT match_id FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
+          if (exG2 instanceof Promise) exG2 = await exG2;
+          if (!exG2) {
+            try {
+              const ins2 = db.prepare('INSERT INTO truth_or_dare_games (match_id, used_prompts) VALUES (?, ?)').run([matchId, '[]']);
+              if (ins2 instanceof Promise) await ins2;
+            } catch {
+              /* ignore */
+            }
+          }
+          const ru2 = db.prepare('UPDATE truth_or_dare_games SET user1_spice_choice = NULL, user2_spice_choice = NULL, spice_level = NULL, current_prompt = NULL, current_prompt_type = NULL, used_prompts = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run(['[]', matchId]);
+          if (ru2 instanceof Promise) await ru2;
         }
         if (gameType === 'never_have_i_ever') {
           db.prepare('UPDATE never_have_i_ever_games SET user1_spice_choice = NULL, user2_spice_choice = NULL, spice_level = NULL, current_prompt = NULL, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([matchId]);
@@ -2300,7 +2333,7 @@ matchesRouter.post("/:matchId/game-request/:requestId/respond", authenticateToke
   }
 });
 
-// Get Truth or Dare game state — single wholesome adult mode.
+// Get Truth or Dare game state — PG-13 / Rated R / Spicy (effective = more conservative of both picks).
 matchesRouter.get("/:matchId/truth-or-dare/state", authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
@@ -2330,27 +2363,33 @@ matchesRouter.get("/:matchId/truth-or-dare/state", authenticateToken, async (req
     let game = (gameResult instanceof Promise ? await gameResult : gameResult) as any;
 
     if (!game) {
-      db.prepare(`INSERT INTO truth_or_dare_games (match_id, user1_spice_choice, user2_spice_choice, spice_level) VALUES (?, 'pg13', 'pg13', 'pg13')`).run([matchId]);
-      game = { match_id: matchId, user1_spice_choice: 'pg13', user2_spice_choice: 'pg13', spice_level: 'pg13' };
-    } else if (!game.spice_level || !game.user1_spice_choice || !game.user2_spice_choice) {
-      db.prepare(
-        `UPDATE truth_or_dare_games
-         SET user1_spice_choice = COALESCE(user1_spice_choice, 'pg13'),
-             user2_spice_choice = COALESCE(user2_spice_choice, 'pg13'),
-             spice_level = 'pg13',
-             updated_at = CURRENT_TIMESTAMP
-         WHERE match_id = ?`
-      ).run([matchId]);
+      try {
+        const ins = db.prepare(`INSERT INTO truth_or_dare_games (match_id, used_prompts) VALUES (?, '[]')`).run([matchId]);
+        if (ins instanceof Promise) await ins;
+      } catch {
+        /* concurrent create — row may already exist */
+      }
+      gameResult = db.prepare('SELECT * FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
+      game = (gameResult instanceof Promise ? await gameResult : gameResult) as any;
     }
+
+    const { normalizeSpiceChoice, moreConservativeSpice } = await import('../services/truthOrDare.js');
+    const isUser1 = match.user1_id === userId;
+    const c1 = normalizeSpiceChoice(game?.user1_spice_choice);
+    const c2 = normalizeSpiceChoice(game?.user2_spice_choice);
+    const yourSpiceChoice = isUser1 ? c1 : c2;
+    const theirSpiceChoice = isUser1 ? c2 : c1;
+    const spiceReady = !!(c1 && c2);
+    const spiceLevel = spiceReady && c1 && c2 ? moreConservativeSpice(c1, c2) : null;
 
     const currentPrompt = game.current_prompt ?? null;
     const currentPromptType = (game.current_prompt_type === 'truth' || game.current_prompt_type === 'dare') ? game.current_prompt_type : null;
 
     res.json({
-      yourSpiceChoice: 'pg13',
-      theirSpiceChoice: 'pg13',
-      spiceReady: true,
-      spiceLevel: 'pg13',
+      yourSpiceChoice,
+      theirSpiceChoice,
+      spiceReady,
+      spiceLevel,
       tokenUnlocked: true,
       needsSpiceChoiceFromUnlocker: false,
       currentPrompt,
@@ -2364,11 +2403,18 @@ matchesRouter.get("/:matchId/truth-or-dare/state", authenticateToken, async (req
   }
 });
 
-// Deprecated compatibility endpoint: preserve old clients but force single mode.
+// Each user picks PG-13, Rated R, or Spicy; effective heat = more conservative of the two.
 matchesRouter.post("/:matchId/truth-or-dare/spice-choice", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
     const { matchId } = req.params;
+    const { choice } = req.body as { choice?: string };
+    const { normalizeSpiceChoice, moreConservativeSpice } = await import('../services/truthOrDare.js');
+    const choiceNorm = normalizeSpiceChoice(choice);
+    if (!choiceNorm) {
+      return res.status(400).json({ error: "Invalid choice. Use 'pg13', 'ratedr', or 'spicy'." });
+    }
+
     const matchResult = db
       .prepare('SELECT user1_id, user2_id FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?)')
       .get([matchId, userId, userId]);
@@ -2389,15 +2435,35 @@ matchesRouter.post("/:matchId/truth-or-dare/spice-choice", authenticateToken, ra
       return res.status(400).json({ error: "Your Truth or Dare session expired. Use another token to play for 7 more minutes." });
     }
 
-    db.prepare(
-      `INSERT INTO truth_or_dare_games (match_id, user1_spice_choice, user2_spice_choice, spice_level, updated_at)
-       VALUES (?, 'pg13', 'pg13', 'pg13', CURRENT_TIMESTAMP)
-       ON CONFLICT(match_id) DO UPDATE SET
-         user1_spice_choice = 'pg13',
-         user2_spice_choice = 'pg13',
-         spice_level = 'pg13',
-         updated_at = CURRENT_TIMESTAMP`
-    ).run([matchId]);
+    const isUser1 = match.user1_id === userId;
+    let exists = db.prepare('SELECT match_id FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
+    if (exists instanceof Promise) exists = await exists;
+    if (!exists) {
+      try {
+        const ins = db.prepare('INSERT INTO truth_or_dare_games (match_id, used_prompts) VALUES (?, ?)').run([matchId, '[]']);
+        if (ins instanceof Promise) await ins;
+      } catch {
+        /* row created concurrently */
+      }
+    }
+    if (isUser1) {
+      db.prepare('UPDATE truth_or_dare_games SET user1_spice_choice = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([choiceNorm, matchId]);
+    } else {
+      db.prepare('UPDATE truth_or_dare_games SET user2_spice_choice = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([choiceNorm, matchId]);
+    }
+
+    const gameResult = db.prepare('SELECT * FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
+    const game = (gameResult instanceof Promise ? await gameResult : gameResult) as any;
+    const c1 = normalizeSpiceChoice(game?.user1_spice_choice);
+    const c2 = normalizeSpiceChoice(game?.user2_spice_choice);
+    const spiceReady = !!(c1 && c2);
+    const spiceLevel = spiceReady && c1 && c2 ? moreConservativeSpice(c1, c2) : null;
+    if (spiceReady && spiceLevel) {
+      db.prepare('UPDATE truth_or_dare_games SET spice_level = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([spiceLevel, matchId]);
+    }
+
+    const yourSpiceChoice = isUser1 ? c1 : c2;
+    const theirSpiceChoice = isUser1 ? c2 : c1;
 
     try {
       const { getIO } = await import('../socket.js');
@@ -2408,10 +2474,10 @@ matchesRouter.post("/:matchId/truth-or-dare/spice-choice", authenticateToken, ra
     }
 
     res.json({
-      yourSpiceChoice: 'pg13',
-      theirSpiceChoice: 'pg13',
-      spiceReady: true,
-      spiceLevel: 'pg13',
+      yourSpiceChoice,
+      theirSpiceChoice,
+      spiceReady,
+      spiceLevel,
       tokenUnlocked: true,
       needsSpiceChoiceFromUnlocker: false,
     });
@@ -2444,8 +2510,8 @@ matchesRouter.post("/:matchId/truth-or-dare", authenticateToken, rateLimitAPI, a
       return res.status(404).json({ error: "Match not found" });
     }
 
-    const gameResult = db.prepare('SELECT * FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
-    const game = (gameResult instanceof Promise ? await gameResult : gameResult) as { current_prompt?: string | null; current_prompt_type?: string | null } | undefined;
+    let gameResult = db.prepare('SELECT * FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
+    let game = (gameResult instanceof Promise ? await gameResult : gameResult) as any;
 
     const unlockRowToD = db.prepare('SELECT unlocked_until FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'truth_or_dare']) as { unlocked_until: string | null } | undefined;
     if (!unlockRowToD) {
@@ -2455,9 +2521,30 @@ matchesRouter.post("/:matchId/truth-or-dare", authenticateToken, rateLimitAPI, a
     if (todUntil && todUntil <= new Date()) {
       return res.status(400).json({ error: "Your Truth or Dare session expired. Use another token to play for 7 more minutes." });
     }
-    const levelNorm = 'pg13' as const;
-    const currentPrompt = (game as any).current_prompt ?? null;
-    const currentPromptType = (game as any).current_prompt_type ?? null;
+
+    if (!game) {
+      try {
+        const ins = db.prepare('INSERT INTO truth_or_dare_games (match_id, used_prompts) VALUES (?, ?)').run([matchId, '[]']);
+        if (ins instanceof Promise) await ins;
+      } catch {
+        /* ignore */
+      }
+      gameResult = db.prepare('SELECT * FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
+      game = (gameResult instanceof Promise ? await gameResult : gameResult) as any;
+    }
+
+    const { normalizeSpiceChoice, moreConservativeSpice } = await import('../services/truthOrDare.js');
+    const c1 = normalizeSpiceChoice(game?.user1_spice_choice);
+    const c2 = normalizeSpiceChoice(game?.user2_spice_choice);
+    if (!c1 || !c2) {
+      return res.status(400).json({
+        error: "Both players must pick a heat level (PG-13, Rated R, or Spicy) before generating prompts.",
+        code: 'SPICE_REQUIRED',
+      });
+    }
+    const levelNorm = moreConservativeSpice(c1, c2);
+    const currentPrompt = game.current_prompt ?? null;
+    const currentPromptType = game.current_prompt_type ?? null;
 
     // If there's already a prompt of this type and user didn't click "Another one", return it (don't regenerate)
     if (!anotherOne && currentPrompt && currentPrompt.trim() && currentPromptType === type) {

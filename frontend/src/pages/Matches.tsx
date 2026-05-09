@@ -9,6 +9,9 @@ import Notification from "../components/Notification";
 import ConfirmModal from "../components/ConfirmModal";
 import TruthOrDareWeb from "../components/TruthOrDareWeb";
 import GameRequestModalWeb, { type PendingGameRequestWeb } from "../components/GameRequestModalWeb";
+import ChatMediaModerationModal, { type ChatMediaKind } from "../components/ChatMediaModerationModal";
+import ReportUserModal from "../components/ReportUserModal";
+import InterestCompatibilityModal from "../components/InterestCompatibilityModal";
 
 interface Photo {
   id: string;
@@ -29,6 +32,10 @@ interface Match {
   userWantsReveal?: boolean;
   otherWantsReveal?: boolean;
   gameUnlocks?: { truth_or_dare: boolean; never_have_i_ever: boolean };
+  /** Engagement-based pulse score (0–100), updates over chat */
+  compatibilityScore?: number | null;
+  /** Interest overlap 0–100 from profile data */
+  profileCompatibility?: number | null;
   otherUser: {
     userId: string;
     displayName: string;
@@ -63,6 +70,16 @@ function getOtherUserPhotosForLightbox(match: Match): Photo[] {
     return [...ou.photos].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
   }
   return [];
+}
+
+/** Aligns with mobile profile-compatibility card (filters legacy bullets). */
+function filterInterestCompatReasons(reasons: string[]): string[] {
+  return reasons.filter((line) => {
+    const low = line.toLowerCase();
+    if (low.includes("looking for the same thing")) return false;
+    if (low.includes("similar lifestyle preferences")) return false;
+    return true;
+  });
 }
 
 function matchHasProfileDetails(ou: Match["otherUser"]): boolean {
@@ -218,7 +235,13 @@ const CHAT_MEDIA_LOCKED_HINT =
 /** Aligns with mobile photo-guidelines modal + explicit tone for locked media taps */
 const CHAT_MEDIA_MODERATION_WARNING =
   "Inappropriate photos, video, or voice can get you permanently banned from Mulligan. F**k around and get banned.";
-const CHAT_MEDIA_LOCKED_ALERT = `${CHAT_MEDIA_LOCKED_HINT}\n\n${CHAT_MEDIA_MODERATION_WARNING}`;
+
+const PULSE_ENGAGEMENT_LABEL: Record<"cold" | "neutral" | "warming" | "hot", string> = {
+  cold: "Cool",
+  neutral: "Steady",
+  warming: "Warming up",
+  hot: "Hot streak",
+};
 
 export default function Matches() {
   const { user } = useAuth();
@@ -259,10 +282,26 @@ export default function Matches() {
     gameType: "truth_or_dare" | "never_have_i_ever";
   } | null>(null);
   const [loveBusyMessageId, setLoveBusyMessageId] = useState<string | null>(null);
-  /** After chat media unlocks, user must acknowledge guidelines before photo/video/voice (same as mobile). */
-  const [chatMediaGuidelinesPending, setChatMediaGuidelinesPending] = useState<
-    "image" | "video" | "voice" | null
+  /** Photo / video / voice: locked (not enough messages) or guidelines acknowledgement before capture */
+  const [chatMediaModal, setChatMediaModal] = useState<
+    { variant: "guidelines" | "locked"; kind: ChatMediaKind } | null
   >(null);
+
+  const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [reportTarget, setReportTarget] = useState<{
+    matchId: string;
+    reportedUserId: string;
+    displayName: string;
+  } | null>(null);
+
+  const [showInterestCompatModal, setShowInterestCompatModal] = useState(false);
+  const [liveProfileCompatibility, setLiveProfileCompatibility] = useState<number | null>(null);
+  const [compatibilityDetails, setCompatibilityDetails] = useState<{
+    reasons: string[];
+    sharedInterests: string[];
+  } | null>(null);
+  const [pulseScore, setPulseScore] = useState<number | null>(null);
+  const [pulseEngagement, setPulseEngagement] = useState<"cold" | "neutral" | "warming" | "hot" | null>(null);
 
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadingVideo, setUploadingVideo] = useState(false);
@@ -623,6 +662,31 @@ export default function Matches() {
       });
     });
 
+    socket.on(
+      "compatibility_score_updated",
+      (data: {
+        matchId: string;
+        score: number;
+        engagementLevel?: "cold" | "neutral" | "warming" | "hot";
+      }) => {
+        const mid = data.matchId;
+        const rounded = Math.round(Number(data.score));
+        if (Number.isNaN(rounded)) return;
+        setMatches((prev) =>
+          prev.map((m) => (m.id === mid ? { ...m, compatibilityScore: rounded } : m))
+        );
+        if (selectedMatchIdRef.current !== mid) return;
+        setSelectedMatch((prev) =>
+          prev && prev.id === mid ? { ...prev, compatibilityScore: rounded } : prev
+        );
+        setPulseScore(rounded);
+        const el = data.engagementLevel;
+        setPulseEngagement(
+          el === "cold" || el === "neutral" || el === "warming" || el === "hot" ? el : null
+        );
+      }
+    );
+
     return () => {
       socket.disconnect();
     };
@@ -764,6 +828,77 @@ export default function Matches() {
     }
   };
 
+  // Profile interest % + compatibility pulse (same APIs as mobile); sidebar uses GET /matches until this refreshes
+  useEffect(() => {
+    if (!selectedMatch || selectedMatch.stage === "pending") {
+      setLiveProfileCompatibility(null);
+      setCompatibilityDetails(null);
+      setPulseScore(null);
+      setPulseEngagement(null);
+      return;
+    }
+    const id = selectedMatch.id;
+    const seedProfile = selectedMatch.profileCompatibility;
+    if (typeof seedProfile === "number") {
+      setLiveProfileCompatibility(seedProfile);
+    } else {
+      setLiveProfileCompatibility(null);
+    }
+    const seedPulse = selectedMatch.compatibilityScore;
+    setPulseScore(typeof seedPulse === "number" ? Math.round(seedPulse) : null);
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [prof, pulseRes] = await Promise.all([
+          api.get<{
+            profileCompatibility?: number;
+            reasons?: string[];
+            sharedInterests?: string[];
+          }>(`/matches/${id}/profile-compatibility`),
+          api.get<{ score?: { score: number; engagementLevel?: string } }>(`/matches/${id}/compatibility`),
+        ]);
+        if (cancelled) return;
+
+        const val = prof.profileCompatibility;
+        if (typeof val === "number") {
+          setLiveProfileCompatibility(val);
+          setCompatibilityDetails({
+            reasons: filterInterestCompatReasons(Array.isArray(prof.reasons) ? prof.reasons : []),
+            sharedInterests: Array.isArray(prof.sharedInterests) ? prof.sharedInterests : [],
+          });
+          setMatches((prev) => prev.map((m) => (m.id === id ? { ...m, profileCompatibility: val } : m)));
+          setSelectedMatch((prev) => (prev && prev.id === id ? { ...prev, profileCompatibility: val } : prev));
+        } else {
+          setLiveProfileCompatibility(null);
+          setCompatibilityDetails(null);
+        }
+
+        const pulse = pulseRes.score;
+        if (pulse && typeof pulse.score === "number") {
+          const rounded = Math.round(pulse.score);
+          setPulseScore(rounded);
+          const el = pulse.engagementLevel;
+          setPulseEngagement(
+            el === "cold" || el === "neutral" || el === "warming" || el === "hot" ? el : null
+          );
+          setMatches((prev) => prev.map((m) => (m.id === id ? { ...m, compatibilityScore: rounded } : m)));
+          setSelectedMatch((prev) =>
+            prev && prev.id === id ? { ...prev, compatibilityScore: rounded } : prev
+          );
+        }
+      } catch {
+        if (!cancelled) {
+          setCompatibilityDetails(null);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedMatch?.id, selectedMatch?.stage]);
+
   const toggleMessageLove = async (messageId: string, currentlyLiked: boolean) => {
     const matchId = selectedMatchIdRef.current;
     const uid = userIdRef.current;
@@ -826,13 +961,9 @@ export default function Matches() {
     }
   };
 
-  const requireChatMediaUnlocked = () => {
+  const requireChatMediaUnlocked = (kind: ChatMediaKind): boolean => {
     if (chatMediaUnlocked) return true;
-    setNotification({
-      message: CHAT_MEDIA_LOCKED_ALERT,
-      type: "warning",
-      duration: 10000,
-    });
+    setChatMediaModal({ variant: "locked", kind });
     return false;
   };
 
@@ -950,7 +1081,7 @@ export default function Matches() {
   /** Mic button: unlock check → guidelines modal when unlocked → recording after Got it. */
   const startVoiceRecording = () => {
     if (!selectedMatch || !user) return;
-    if (!requireChatMediaUnlocked()) return;
+    if (!requireChatMediaUnlocked("voice")) return;
     if (sendingMessage || uploadingImage || uploadingVideo || uploadingAudio || isRecordingVoice) return;
     if (pendingImageFile || pendingVideoFile) {
       setNotification({
@@ -959,19 +1090,33 @@ export default function Matches() {
       });
       return;
     }
-    setChatMediaGuidelinesPending("voice");
+    setChatMediaModal({ variant: "guidelines", kind: "voice" });
   };
 
-  const onChatMediaGuidelinesConfirm = () => {
-    const kind = chatMediaGuidelinesPending;
-    setChatMediaGuidelinesPending(null);
-    if (kind === "image") imageFileInputRef.current?.click();
-    else if (kind === "video") videoFileInputRef.current?.click();
-    else if (kind === "voice") void beginVoiceRecordingSession();
+  const onChatMediaModalPrimary = () => {
+    const state = chatMediaModal;
+    setChatMediaModal(null);
+    if (!state) return;
+    if (state.variant === "locked") return;
+    if (state.kind === "image") imageFileInputRef.current?.click();
+    else if (state.kind === "video") videoFileInputRef.current?.click();
+    else if (state.kind === "voice") void beginVoiceRecordingSession();
   };
 
-  const onChatMediaGuidelinesCancel = () => {
-    setChatMediaGuidelinesPending(null);
+  const onChatMediaModalDismiss = () => {
+    setChatMediaModal(null);
+  };
+
+  const openReportForMatch = (match: Match, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (match.stage === "pending") return;
+    setPartnerDrawerOpen(false);
+    setReportTarget({
+      matchId: match.id,
+      reportedUserId: match.otherUser.userId,
+      displayName: match.otherUser.displayName,
+    });
+    setReportModalOpen(true);
   };
 
   const finishVoiceRecording = () => {
@@ -1067,12 +1212,12 @@ export default function Matches() {
     const snap = selectedMatch;
 
     if (pendingImageFile) {
-      if (!requireChatMediaUnlocked()) return;
+      if (!requireChatMediaUnlocked("image")) return;
       await uploadChatImageAndSend(pendingImageFile);
       return;
     }
     if (pendingVideoFile) {
-      if (!requireChatMediaUnlocked()) return;
+      if (!requireChatMediaUnlocked("video")) return;
       await uploadChatVideoAndSend(pendingVideoFile);
       return;
     }
@@ -1137,19 +1282,19 @@ export default function Matches() {
     clearPendingImage();
     clearPendingVideo();
     cancelVoiceRecording();
-    setChatMediaGuidelinesPending(null);
+    setChatMediaModal(null);
   }, [selectedMatch?.id, clearPendingImage, clearPendingVideo, cancelVoiceRecording]);
 
   const openImagePicker = () => {
     if (sendingMessage || uploadingImage || uploadingVideo || uploadingAudio || isRecordingVoice) return;
-    if (!requireChatMediaUnlocked()) return;
-    setChatMediaGuidelinesPending("image");
+    if (!requireChatMediaUnlocked("image")) return;
+    setChatMediaModal({ variant: "guidelines", kind: "image" });
   };
 
   const openVideoPicker = () => {
     if (sendingMessage || uploadingImage || uploadingVideo || uploadingAudio || isRecordingVoice) return;
-    if (!requireChatMediaUnlocked()) return;
-    setChatMediaGuidelinesPending("video");
+    if (!requireChatMediaUnlocked("video")) return;
+    setChatMediaModal({ variant: "guidelines", kind: "video" });
   };
 
   const onImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1360,18 +1505,41 @@ export default function Matches() {
           type="danger"
         />
       )}
-      {chatMediaGuidelinesPending !== null && (
-        <ConfirmModal
-          isOpen
-          title="Keep it appropriate"
-          message={CHAT_MEDIA_MODERATION_WARNING}
-          confirmText="Got it"
-          cancelText="Not now"
-          onConfirm={onChatMediaGuidelinesConfirm}
-          onCancel={onChatMediaGuidelinesCancel}
-          type="warning"
+      {chatMediaModal ? (
+        <ChatMediaModerationModal
+          open
+          variant={chatMediaModal.variant}
+          mediaKind={chatMediaModal.kind}
+          moderationWarning={CHAT_MEDIA_MODERATION_WARNING}
+          lockedHint={CHAT_MEDIA_LOCKED_HINT}
+          onConfirm={onChatMediaModalPrimary}
+          onCancel={onChatMediaModalDismiss}
         />
-      )}
+      ) : null}
+      {reportModalOpen && reportTarget ? (
+        <ReportUserModal
+          open
+          reportedUserId={reportTarget.reportedUserId}
+          matchId={reportTarget.matchId}
+          reportedDisplayName={reportTarget.displayName}
+          onClose={() => {
+            setReportModalOpen(false);
+            setReportTarget(null);
+          }}
+          onSubmitted={() => {
+            setNotification({ message: "Thanks — we'll look into it.", type: "success" });
+          }}
+        />
+      ) : null}
+      <InterestCompatibilityModal
+        open={showInterestCompatModal}
+        profileCompatibility={
+          liveProfileCompatibility ?? selectedMatch?.profileCompatibility ?? null
+        }
+        reasons={compatibilityDetails?.reasons ?? []}
+        sharedInterests={compatibilityDetails?.sharedInterests ?? []}
+        onClose={() => setShowInterestCompatModal(false)}
+      />
       <GameRequestModalWeb
         request={gameRequestToShow}
         onClose={() => setGameRequestToShow(null)}
@@ -1553,6 +1721,13 @@ export default function Matches() {
                     ) : null}
                   </div>
                   <p className="chat-partner-drawer-tagline">Peek at photos and what they shared — all in one place.</p>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm chat-partner-drawer-report"
+                    onClick={() => openReportForMatch(selectedMatch)}
+                  >
+                    Report user
+                  </button>
                 </div>
               </div>
               <button
@@ -1698,6 +1873,24 @@ export default function Matches() {
                   <p className="match-meta">
                     {match.otherUser.age} · {match.otherUser.gender}
                   </p>
+                  {match.stage !== "pending" &&
+                    (match.profileCompatibility != null || match.compatibilityScore != null) && (
+                      <div className="match-compat-badges" aria-label="Compatibility">
+                        {match.profileCompatibility != null ? (
+                          <span className="match-compat-badge match-compat-badge--interest" title="Interest match">
+                            🎯 {match.profileCompatibility}%
+                          </span>
+                        ) : null}
+                        {match.compatibilityScore != null ? (
+                          <span
+                            className="match-compat-badge match-compat-badge--pulse"
+                            title="Compatibility pulse — updates as you chat"
+                          >
+                            💫 {Math.round(match.compatibilityScore)}
+                          </span>
+                        ) : null}
+                      </div>
+                    )}
                   {match.stage !== "pending" && match.expiresAt && (
                     <div className="match-timer">
                       <span className="timer-icon">⏳</span>
@@ -1717,6 +1910,15 @@ export default function Matches() {
                   <span className={`stage-badge ${getStageColor(match.stage)}`}>
                     {getStageLabel(match.stage)}
                   </span>
+                  {match.stage !== "pending" && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm report-match-sidebar-btn"
+                      onClick={(e) => openReportForMatch(match, e)}
+                    >
+                      Report
+                    </button>
+                  )}
                   {selectedMatch?.id === match.id && (
                     <button
                       className="btn btn-secondary btn-sm unmatch-btn-sidebar"
@@ -1820,13 +2022,69 @@ export default function Matches() {
                       </div>
                     ) : null}
                     {selectedMatch.stage !== "pending" ? (
-                      <button
-                        type="button"
-                        className="chat-partner-sheet-trigger btn btn-secondary btn-sm"
-                        onClick={() => setPartnerDrawerOpen(true)}
-                      >
-                        Profile · photos
-                      </button>
+                      <>
+                        <div className="chat-header-actions-row">
+                          <button
+                            type="button"
+                            className="chat-partner-sheet-trigger btn btn-secondary btn-sm"
+                            onClick={() => setPartnerDrawerOpen(true)}
+                          >
+                            Profile · photos
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm chat-header-report-btn"
+                            onClick={() => openReportForMatch(selectedMatch)}
+                          >
+                            Report
+                          </button>
+                        </div>
+                        {(liveProfileCompatibility != null ||
+                          selectedMatch.profileCompatibility != null ||
+                          pulseScore != null ||
+                          selectedMatch.compatibilityScore != null) && (
+                          <div className="chat-header-compat-row">
+                            {(liveProfileCompatibility ?? selectedMatch.profileCompatibility) != null ? (
+                              <button
+                                type="button"
+                                className={`chat-header-interest-badge${
+                                  (liveProfileCompatibility ?? selectedMatch.profileCompatibility)! >= 80
+                                    ? " chat-header-interest-badge--high"
+                                    : ""
+                                }`}
+                                onClick={() => setShowInterestCompatModal(true)}
+                                title="Why you match"
+                              >
+                                <span aria-hidden>🎯</span>{" "}
+                                {liveProfileCompatibility ?? selectedMatch.profileCompatibility}%
+                              </button>
+                            ) : null}
+                            {(pulseScore != null ||
+                              (typeof selectedMatch.compatibilityScore === "number" &&
+                                !Number.isNaN(selectedMatch.compatibilityScore))) && (
+                              <span
+                                className={`compatibility-pulse-pill compatibility-pulse-pill--${
+                                  pulseEngagement ?? "neutral"
+                                }`}
+                                title="Compatibility pulse — updates as you chat"
+                              >
+                                <span className="compatibility-pulse-pill-dot" aria-hidden />
+                                <span className="compatibility-pulse-pill-label">Pulse</span>
+                                <span className="compatibility-pulse-pill-value">
+                                  {pulseScore ??
+                                    Math.round(selectedMatch.compatibilityScore as number)}
+                                </span>
+                                {pulseEngagement ? (
+                                  <span className="compatibility-pulse-pill-tier">
+                                    {" "}
+                                    · {PULSE_ENGAGEMENT_LABEL[pulseEngagement]}
+                                  </span>
+                                ) : null}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </>
                     ) : null}
                   </div>
                 </div>

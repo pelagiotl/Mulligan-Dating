@@ -138,7 +138,7 @@ export default function TruthOrDare({
   headerMode = false,
 }: TruthOrDareProps) {
   const [modalVisible, setModalVisible] = useState(false);
-  const [step, setStep] = useState<'choose' | 'prompt'>('choose');
+  const [step, setStep] = useState<'spice' | 'choose' | 'prompt'>('spice');
   const [prompt, setPrompt] = useState<string>('');
   const [promptType, setPromptType] = useState<'truth' | 'dare'>('truth');
   const [loading, setLoading] = useState(false);
@@ -151,6 +151,8 @@ export default function TruthOrDare({
   /** When we just chose Truth or Dare, avoid letting fetchState overwrite with stale server currentPromptType */
   const lastChooseAtRef = useRef<number>(0);
   const intendedPromptTypeRef = useRef<'truth' | 'dare' | null>(null);
+  const gameStateRef = useRef<GameState | null>(null);
+  gameStateRef.current = gameState;
 
   const isUnlocked = gameUnlockedByToken;
 
@@ -236,9 +238,7 @@ export default function TruthOrDare({
   const fetchState = useCallback(async () => {
     try {
       const data = await api.get<GameState>(`/matches/${matchId}/truth-or-dare/state`);
-      setGameState((prev) => {
-        return { ...prev, ...data, spiceLevel: 'pg13', spiceReady: true };
-      });
+      setGameState((prev) => ({ ...prev, ...data }));
       const recentlyRequestedAnother = Date.now() - lastAnotherOneAtRef.current < 5000;
       const recentlyChose = Date.now() - lastChooseAtRef.current < 8000;
       const alreadyShowingPrompt = stepRef.current === 'prompt';
@@ -259,15 +259,24 @@ export default function TruthOrDare({
         return;
       }
       if (alreadyShowingPrompt) return;
-      setStep('choose');
+      if (!data.spiceReady) {
+        setStep('spice');
+      } else {
+        setStep('choose');
+      }
     } catch (err) {
       console.warn('Truth or Dare fetch state error:', err);
     }
   }, [matchId]);
 
   useEffect(() => {
+    if (!modalVisible || !gameState?.spiceReady) return;
+    setStep((s) => (s === 'spice' ? 'choose' : s));
+  }, [modalVisible, gameState?.spiceReady]);
+
+  useEffect(() => {
     if (openForAccept) {
-      setStep('choose');
+      setStep('spice');
       setPrompt('');
       setModalVisible(true);
       setLoading(true);
@@ -331,7 +340,7 @@ export default function TruthOrDare({
     if (Platform.OS === 'ios' || Platform.OS === 'android') {
       Vibration.vibrate(50);
     }
-    setStep('choose');
+    setStep('spice');
     setPrompt('');
     setModalVisible(true);
     setLoading(true);
@@ -341,7 +350,7 @@ export default function TruthOrDare({
 
   const handleClose = () => {
     setModalVisible(false);
-    setStep('choose');
+    setStep('spice');
     setPrompt('');
     setGameState(null);
     if (pollRef.current) {
@@ -350,7 +359,24 @@ export default function TruthOrDare({
     }
   };
 
+  const submitSpiceChoice = async (choice: 'pg13' | 'ratedr' | 'spicy') => {
+    setLoading(true);
+    try {
+      await api.post(`/matches/${matchId}/truth-or-dare/spice-choice`, { choice });
+      await fetchState();
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Could not save your mode.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleChoose = async (type: 'truth' | 'dare', anotherOne = false) => {
+    if (!gameStateRef.current?.spiceReady) {
+      setStep('spice');
+      Alert.alert('Pick a heat level', 'Choose PG-13, Rated R, or Spicy first — both players must pick.');
+      return;
+    }
     lastChooseAtRef.current = Date.now();
     intendedPromptTypeRef.current = type;
     if (anotherOne) {
@@ -381,7 +407,16 @@ export default function TruthOrDare({
       } else {
         throw new Error('No prompt returned');
       }
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.code === 'SPICE_REQUIRED') {
+        setStep('spice');
+        await fetchState();
+        setLoading(false);
+        setTimeout(() => {
+          intendedPromptTypeRef.current = null;
+        }, 8000);
+        return;
+      }
       const list = type === 'truth' ? TRUTH_PROMPTS : DARE_PROMPTS;
       finalPrompt = pickRandom(list);
       setPrompt(finalPrompt);
@@ -508,7 +543,15 @@ export default function TruthOrDare({
             <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={styles.modalContent}>
               <LinearGradient colors={['#ff0080', '#ff3399', '#cc0066', '#ff66b2', '#ff0080']} locations={[0, 0.2, 0.5, 0.8, 1]} style={styles.modalGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
                 <View style={styles.modalHeaderBar} />
-                <Text style={styles.modalTitle}>{step === 'choose' ? 'Pick One' : promptType === 'truth' ? '✨ Truth' : '🔥 Dare'}</Text>
+                <Text style={styles.modalTitle}>
+                  {step === 'spice' || (gameState && !gameState.spiceReady)
+                    ? 'Choose your heat'
+                    : step === 'choose'
+                      ? 'Pick One'
+                      : promptType === 'truth'
+                        ? '✨ Truth'
+                        : '🔥 Dare'}
+                </Text>
                 {gameState?.unlockedUntil && secondsRemaining !== null && secondsRemaining > 0 && (
                   <View style={styles.timerBadge}><Text style={styles.timerLabel}>Session time left</Text><Text style={styles.timerText}>⏱ {formatTimeRemaining(secondsRemaining)}</Text></View>
                 )}
@@ -519,13 +562,47 @@ export default function TruthOrDare({
                   </View>
                 ) : loading ? (
                   <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#fff" /><Text style={styles.loadingText}>Loading...</Text></View>
+                ) : step === 'spice' || (gameState && !gameState.spiceReady) ? (
+                  <View style={styles.chooseContainer}>
+                    <Text style={styles.chooseSubtitle}>Each picks a max heat; prompts use the more conservative choice.</Text>
+                    <View style={styles.spicePills}>
+                      {(['pg13', 'ratedr', 'spicy'] as const).map((sid) => {
+                        const active = gameState?.yourSpiceChoice === sid;
+                        return (
+                          <TouchableOpacity
+                            key={sid}
+                            onPress={() => void submitSpiceChoice(sid)}
+                            style={[styles.spicePill, active && styles.spicePillActive]}
+                            activeOpacity={0.85}
+                          >
+                            <Text style={[styles.spicePillText, active && styles.spicePillTextActive]}>
+                              {sid === 'pg13' ? 'PG-13' : sid === 'ratedr' ? 'Rated R' : 'Spicy'}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                    <Text style={styles.changeSpiceHint}>
+                      {gameState?.yourSpiceChoice
+                        ? !gameState.spiceReady
+                          ? 'Waiting for your match to pick…'
+                          : `Ready — round heat: ${gameState.spiceLevel || ''}`
+                        : 'Tap to lock yours in.'}
+                    </Text>
+                  </View>
                 ) : step === 'choose' ? (
                   <View style={styles.chooseContainer}>
+                    {gameState?.spiceLevel ? (
+                      <Text style={styles.changeSpiceHint}>This round: {String(gameState.spiceLevel).toUpperCase()}</Text>
+                    ) : null}
                     <Text style={styles.chooseSubtitle}>Pick Truth or Dare</Text>
                     <View style={styles.chooseRow}>
                       <TouchableOpacity onPress={() => handleChoose('truth')} style={styles.choiceButton} activeOpacity={0.8}><LinearGradient colors={['#7c4dff', '#b388ff', '#651fff']} style={styles.choiceGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.choiceEmoji}>✨</Text><Text style={styles.choiceText}>Truth</Text></LinearGradient></TouchableOpacity>
                       <TouchableOpacity onPress={() => handleChoose('dare')} style={styles.choiceButton} activeOpacity={0.8}><LinearGradient colors={['#ff1744', '#ff4081', '#f50057']} style={styles.choiceGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.choiceEmoji}>🔥</Text><Text style={styles.choiceText}>Dare</Text></LinearGradient></TouchableOpacity>
                     </View>
+                    <TouchableOpacity onPress={() => setStep('spice')} activeOpacity={0.7}>
+                      <Text style={styles.changeSpiceHint}>Change my heat level</Text>
+                    </TouchableOpacity>
                   </View>
                 ) : (
                   <>
@@ -634,7 +711,13 @@ export default function TruthOrDare({
               />
               <View style={styles.modalHeaderBar} />
               <Text style={styles.modalTitle}>
-                {step === 'choose' ? 'Pick One' : promptType === 'truth' ? '✨ Truth' : '🔥 Dare'}
+                {step === 'spice' || (gameState && !gameState.spiceReady)
+                  ? 'Choose your heat'
+                  : step === 'choose'
+                    ? 'Pick One'
+                    : promptType === 'truth'
+                      ? '✨ Truth'
+                      : '🔥 Dare'}
               </Text>
               {gameState?.unlockedUntil && secondsRemaining !== null && secondsRemaining > 0 && (
                 <View style={styles.timerBadge}><Text style={styles.timerLabel}>Session time left</Text><Text style={styles.timerText}>⏱ {formatTimeRemaining(secondsRemaining)}</Text></View>
@@ -649,8 +732,39 @@ export default function TruthOrDare({
                   <ActivityIndicator size="large" color="#fff" />
                   <Text style={styles.loadingText}>Loading...</Text>
                 </View>
+              ) : step === 'spice' || (gameState && !gameState.spiceReady) ? (
+                <View style={styles.chooseContainer}>
+                  <Text style={styles.chooseSubtitle}>Each picks a max heat; prompts use the more conservative choice.</Text>
+                  <View style={styles.spicePills}>
+                    {(['pg13', 'ratedr', 'spicy'] as const).map((sid) => {
+                      const active = gameState?.yourSpiceChoice === sid;
+                      return (
+                        <TouchableOpacity
+                          key={sid}
+                          onPress={() => void submitSpiceChoice(sid)}
+                          style={[styles.spicePill, active && styles.spicePillActive]}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={[styles.spicePillText, active && styles.spicePillTextActive]}>
+                            {sid === 'pg13' ? 'PG-13' : sid === 'ratedr' ? 'Rated R' : 'Spicy'}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                  <Text style={styles.changeSpiceHint}>
+                    {gameState?.yourSpiceChoice
+                      ? !gameState.spiceReady
+                        ? 'Waiting for your match to pick…'
+                        : `Ready — round heat: ${gameState.spiceLevel || ''}`
+                      : 'Tap to lock yours in.'}
+                  </Text>
+                </View>
               ) : step === 'choose' ? (
                 <View style={styles.chooseContainer}>
+                  {gameState?.spiceLevel ? (
+                    <Text style={styles.changeSpiceHint}>This round: {String(gameState.spiceLevel).toUpperCase()}</Text>
+                  ) : null}
                   <Text style={styles.chooseSubtitle}>Pick Truth or Dare</Text>
                   <View style={styles.chooseRow}>
                     <TouchableOpacity onPress={() => handleChoose('truth')} style={styles.choiceButton} activeOpacity={0.8}>
@@ -666,6 +780,9 @@ export default function TruthOrDare({
                       </LinearGradient>
                     </TouchableOpacity>
                   </View>
+                  <TouchableOpacity onPress={() => setStep('spice')} activeOpacity={0.7}>
+                    <Text style={styles.changeSpiceHint}>Change my heat level</Text>
+                  </TouchableOpacity>
                 </View>
               ) : (
                 <>

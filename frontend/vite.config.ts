@@ -1,13 +1,31 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { copyFileSync, existsSync } from 'fs'
+import { resolve } from 'path'
 
 export default defineConfig({
-  plugins: [react({
-    // Completely disable type checking
-    typescript: {
-      ignoreBuildErrors: true
-    }
-  })],
+  plugins: [
+    react({
+      // Completely disable type checking
+      typescript: {
+        ignoreBuildErrors: true
+      }
+    }),
+    {
+      name: 'spa-404-fallback',
+      closeBundle() {
+        const indexHtml = resolve(__dirname, 'dist', 'index.html')
+        const dest404 = resolve(__dirname, 'dist', '404.html')
+        if (existsSync(indexHtml)) {
+          try {
+            copyFileSync(indexHtml, dest404)
+          } catch {
+            /* ignore */
+          }
+        }
+      },
+    },
+  ],
   esbuild: {
     // Disable type checking in esbuild
     logOverride: { 'this-is-undefined-in-esm': 'silent' }

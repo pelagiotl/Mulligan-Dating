@@ -1643,6 +1643,109 @@ button.connect-landing__cta:disabled::before {
   opacity: 0.95;
 }
 
+.tod-web-spice {
+  text-align: left;
+}
+
+.tod-web-spice-intro {
+  margin: 0 0 1rem;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  opacity: 0.95;
+}
+
+.tod-web-spice-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin-bottom: 0.85rem;
+}
+
+.tod-web-spice-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  border-radius: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  background: rgba(0, 0, 0, 0.12);
+  color: #fff;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.12s ease;
+}
+
+.tod-web-spice-card:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.65);
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateY(-1px);
+}
+
+.tod-web-spice-card:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.tod-web-spice-card--active {
+  border-color: #fff59d;
+  background: rgba(255, 245, 157, 0.18);
+  box-shadow: 0 0 0 1px rgba(255, 245, 157, 0.35);
+}
+
+.tod-web-spice-card-title {
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.tod-web-spice-card-blurb {
+  font-size: 0.78rem;
+  line-height: 1.35;
+  opacity: 0.9;
+  font-weight: 500;
+}
+
+.tod-web-spice-status,
+.tod-web-spice-hint {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  opacity: 0.92;
+}
+
+.tod-web-round-heat {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  text-align: center;
+  opacity: 0.95;
+}
+
+.tod-web-spice-change {
+  display: block;
+  width: 100%;
+  margin-top: 0.65rem;
+  padding: 0.45rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #fff;
+  background: transparent;
+  border: 1px dashed rgba(255, 255, 255, 0.45);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.tod-web-spice-change:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.tod-web-prompt-heat {
+  margin: 0 0 0.5rem;
+  font-size: 0.78rem;
+  text-align: center;
+}
+
 .tod-web-choose-row {
   display: flex;
   gap: 0.65rem;

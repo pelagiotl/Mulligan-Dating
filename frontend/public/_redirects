@@ -1,3 +1,4 @@
-# Netlify-style SPA fallback. Render Static Sites: add the same rule in the
-# Dashboard → Redirects / Rewrites (Source /*, Destination /index.html, Action Rewrite).
+# Netlify / some static hosts. Render Static Sites do NOT read this file — add a rewrite in the
+# Dashboard: Source /*, Destination /index.html, Action Rewrite (see Render CRA docs).
+# OR deploy this folder as a Web Service: build `npm run build`, start `npm start` (uses `serve -s`).
 /*    /index.html   200
