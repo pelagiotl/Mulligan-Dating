@@ -1157,29 +1157,43 @@ export default function MyProfile() {
             >
               ×
             </button>
-            <div className="my-profile-modal-head">
-              <span className="my-profile-modal-icon" aria-hidden>
+            <div className="my-profile-location-modal-hero">
+              <span className="my-profile-location-modal-hero-icon" aria-hidden>
                 📍
               </span>
-              <div>
+              <div className="my-profile-location-modal-hero-text">
                 <h3 id="loc-title">Update location</h3>
-                <p className="my-profile-modal-sub">City and state (e.g. Medford, Oregon)</p>
+                <p className="my-profile-modal-sub my-profile-location-modal-tagline">
+                  We use this for distance when you browse — city and state (e.g. Medford, Oregon).
+                </p>
               </div>
             </div>
-            <div className="my-profile-modal-body">
-              <input
-                className="form-input"
-                value={editLocation}
-                onChange={(e) => setEditLocation(e.target.value)}
-                placeholder="City, State"
-              />
+            <div className="my-profile-modal-body my-profile-modal-body--location">
+              <div className="my-profile-location-field">
+                <label className="my-profile-modal-field-label" htmlFor="my-profile-loc-input">
+                  Your area
+                </label>
+                <input
+                  id="my-profile-loc-input"
+                  className="form-input my-profile-location-input"
+                  value={editLocation}
+                  onChange={(e) => setEditLocation(e.target.value)}
+                  placeholder="City, State"
+                  autoComplete="address-level2"
+                />
+              </div>
               <button
                 type="button"
-                className="btn btn-secondary my-profile-modal-loc-detect"
+                className="my-profile-location-detect"
                 onClick={() => void detectLocation()}
                 disabled={detectingLocation}
               >
-                {detectingLocation ? "Detecting…" : "Use my location"}
+                <span className="my-profile-location-detect-emoji" aria-hidden>
+                  {detectingLocation ? "⏳" : "🛰️"}
+                </span>
+                <span className="my-profile-location-detect-label">
+                  {detectingLocation ? "Detecting your area…" : "Use my current location"}
+                </span>
               </button>
             </div>
             <div className="my-profile-modal-actions">
