@@ -1,1 +1,3 @@
+# Netlify-style SPA fallback. Render Static Sites: add the same rule in the
+# Dashboard → Redirects / Rewrites (Source /*, Destination /index.html, Action Rewrite).
 /*    /index.html   200

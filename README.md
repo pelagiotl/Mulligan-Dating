@@ -48,6 +48,18 @@ The backend API will be available at: [http://localhost:3001](http://localhost:3
 | **Web app** | [https://mulligan-frontend.onrender.com](https://mulligan-frontend.onrender.com) |
 | **Backend API** | [https://mulligan-backend.onrender.com](https://mulligan-backend.onrender.com) |
 
+**SPA routing on Render (fixes “Not found” / black page on `/browse`, `/matches`, refresh, etc.):** The React app uses client-side routes. The CDN must **rewrite** unknown paths to `index.html` so the app can load. In the [Render Dashboard](https://dashboard.render.com) → your **frontend static site** → **Redirects / Rewrites**, add a rule:
+
+| Field | Value |
+|--------|--------|
+| **Source** | `/*` |
+| **Destination** | `/index.html` |
+| **Action** | **Rewrite** (not Redirect) |
+
+See [Render: Static site redirects and rewrites](https://render.com/docs/redirects-rewrites). The file `frontend/public/_redirects` is for Netlify-style hosts; **Render reads rules from the dashboard**, not that file.
+
+If the frontend is a **Web Service** that runs `serve` (or similar), use SPA mode instead, e.g. `npx serve -s dist` so missing paths fall back to `index.html`.
+
 **Backend environment (Render):** set `ALLOWED_ORIGINS=https://mulligan-frontend.onrender.com` (comma-separated if you add more origins). Optionally set `FRONTEND_URL` to the same for referral / redirect docs.
 
 **Frontend build (Render or CI):** set `VITE_API_URL=https://mulligan-backend.onrender.com` so the web app calls the API.

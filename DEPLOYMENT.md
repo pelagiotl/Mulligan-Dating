@@ -12,6 +12,15 @@
 
 Backend must include `ALLOWED_ORIGINS=https://mulligan-frontend.onrender.com`. Frontend build must set `VITE_API_URL=https://mulligan-backend.onrender.com`.
 
+### Render frontend: avoid 404 on deep links / refresh
+
+If opening `https://mulligan-frontend.onrender.com/browse` (or any route other than `/`) shows a blank or “Not found” page, configure the static site to rewrite all paths to the SPA entry:
+
+1. [Render Dashboard](https://dashboard.render.com) → **Mulligan frontend** (static site) → **Redirects / Rewrites**
+2. Add: **Source** `/*` → **Destination** `/index.html` → **Action** **Rewrite**
+
+Details: [Render docs — redirects and rewrites](https://render.com/docs/redirects-rewrites).
+
 ## Quick Testing (Temporary Sharing)
 
 ### Using ngrok (Easiest for Beta Testing)
