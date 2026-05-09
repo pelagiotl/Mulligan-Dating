@@ -1495,21 +1495,59 @@ export default function Matches() {
             aria-labelledby="chat-partner-drawer-title"
           >
             <div className="chat-partner-drawer-toolbar">
-              <div className="chat-partner-drawer-toolbar-text">
-                <p className="chat-partner-drawer-kicker">Their Mulligan profile</p>
-                <h2 id="chat-partner-drawer-title">{selectedMatch.otherUser.displayName}</h2>
-                <p className="chat-partner-drawer-sub">
-                  {[selectedMatch.otherUser.age, selectedMatch.otherUser.gender].filter(Boolean).join(" · ")}
-                  {selectedMatch.otherUser.location ? (
-                    <>
-                      {" · "}
-                      <span aria-hidden>
-                        📍{" "}
+              <div className="chat-partner-drawer-toolbar-main">
+                {selectedMatchPhotos.length > 0 ? (
+                  <button
+                    type="button"
+                    className="chat-partner-drawer-avatar-btn"
+                    onClick={() => openPhotoLightbox(selectedMatchPhotos, selectedMatchPhotos[0])}
+                    aria-label={`View ${selectedMatch.otherUser.displayName}'s photos`}
+                  >
+                    <span className="chat-partner-drawer-avatar-ring">
+                      <img
+                        src={getPhotoUrl(selectedMatchPhotos[0].url)}
+                        alt=""
+                        className="chat-partner-drawer-avatar-img"
+                        draggable={false}
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = "none";
+                        }}
+                      />
+                    </span>
+                  </button>
+                ) : (
+                  <div
+                    className="chat-partner-drawer-avatar-ring chat-partner-drawer-avatar-ring--placeholder"
+                    aria-hidden
+                  >
+                    <span className="chat-partner-drawer-avatar-initial">
+                      {selectedMatch.otherUser.displayName.trim().charAt(0).toUpperCase() || "?"}
+                    </span>
+                  </div>
+                )}
+                <div className="chat-partner-drawer-toolbar-text">
+                  <p className="chat-partner-drawer-kicker">
+                    <span className="chat-partner-drawer-kicker-pill">
+                      <span className="chat-partner-drawer-kicker-emoji" aria-hidden>
+                        ✨
                       </span>
-                      {selectedMatch.otherUser.location}
-                    </>
-                  ) : null}
-                </p>
+                      Their Mulligan profile
+                    </span>
+                  </p>
+                  <h2 id="chat-partner-drawer-title">{selectedMatch.otherUser.displayName}</h2>
+                  <p className="chat-partner-drawer-sub">
+                    {[selectedMatch.otherUser.age, selectedMatch.otherUser.gender].filter(Boolean).join(" · ")}
+                    {selectedMatch.otherUser.location ? (
+                      <>
+                        {" · "}
+                        <span aria-hidden>
+                          📍{" "}
+                        </span>
+                        {selectedMatch.otherUser.location}
+                      </>
+                    ) : null}
+                  </p>
+                </div>
               </div>
               <button
                 type="button"
@@ -1523,47 +1561,53 @@ export default function Matches() {
 
             <div className="chat-partner-drawer-inner">
               {selectedMatchPhotos.length > 0 ? (
-                <div className="chat-partner-drawer-gallery-block">
-                  <h3 className="chat-partner-drawer-section-label">Photos</h3>
-                  <div className="chat-partner-drawer-photo-rail" role="list">
-                    {selectedMatchPhotos.map((ph, i) => (
-                      <button
-                        key={ph.id}
-                        type="button"
-                        className="chat-partner-drawer-photo-thumb"
-                        onClick={() => openPhotoLightbox(selectedMatchPhotos, ph)}
-                        role="listitem"
-                      >
-                        <img
-                          src={getPhotoUrl(ph.url)}
-                          alt={`${selectedMatch.otherUser.displayName} — photo ${i + 1}`}
-                          draggable={false}
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = "none";
-                          }}
-                        />
-                      </button>
-                    ))}
+                <div className="chat-partner-drawer-surface chat-partner-drawer-surface--photos">
+                  <div className="chat-partner-drawer-gallery-block">
+                    <h3 className="chat-partner-drawer-section-label">Photos</h3>
+                    <div className="chat-partner-drawer-photo-rail" role="list">
+                      {selectedMatchPhotos.map((ph, i) => (
+                        <button
+                          key={ph.id}
+                          type="button"
+                          className="chat-partner-drawer-photo-thumb"
+                          onClick={() => openPhotoLightbox(selectedMatchPhotos, ph)}
+                          role="listitem"
+                        >
+                          <img
+                            src={getPhotoUrl(ph.url)}
+                            alt={`${selectedMatch.otherUser.displayName} — photo ${i + 1}`}
+                            draggable={false}
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = "none";
+                            }}
+                          />
+                        </button>
+                      ))}
+                    </div>
+                    <p className="chat-partner-drawer-hint">
+                      Scroll the row, then tap — full screen uses ‹ › or swipe when there are multiple photos
+                    </p>
                   </div>
-                  <p className="chat-partner-drawer-hint">
-                    Scroll the row, then tap — full screen uses ‹ › or swipe when there are multiple photos
-                  </p>
                 </div>
               ) : (
-                <p className="chat-partner-drawer-empty subtle">
-                  {selectedMatch.stage === "stage2"
-                    ? "No gallery photos listed yet."
-                    : "Additional photos unlock as you chat (both send enough messages first)."}
-                </p>
+                <div className="chat-partner-drawer-surface chat-partner-drawer-surface--empty">
+                  <p className="chat-partner-drawer-empty subtle">
+                    {selectedMatch.stage === "stage2"
+                      ? "No gallery photos listed yet."
+                      : "Additional photos unlock as you chat (both send enough messages first)."}
+                  </p>
+                </div>
               )}
 
-              <h3 className="chat-partner-drawer-section-label">Profile</h3>
-              <div className="chat-partner-drawer-profile chat-partner-drawer-profile--styled">
-                {matchHasProfileDetails(selectedMatch.otherUser) ? (
-                  <MatchOtherProfileSections otherUser={selectedMatch.otherUser} variant="stage2" />
-                ) : (
-                  <p className="chat-partner-drawer-empty">They haven&apos;t added written profile sections yet.</p>
-                )}
+              <div className="chat-partner-drawer-surface chat-partner-drawer-surface--profile">
+                <h3 className="chat-partner-drawer-section-label">Profile</h3>
+                <div className="chat-partner-drawer-profile chat-partner-drawer-profile--styled">
+                  {matchHasProfileDetails(selectedMatch.otherUser) ? (
+                    <MatchOtherProfileSections otherUser={selectedMatch.otherUser} variant="stage2" />
+                  ) : (
+                    <p className="chat-partner-drawer-empty">They haven&apos;t added written profile sections yet.</p>
+                  )}
+                </div>
               </div>
             </div>
           </aside>

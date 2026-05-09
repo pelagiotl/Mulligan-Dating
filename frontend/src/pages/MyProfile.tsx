@@ -36,6 +36,13 @@ const LOOKING_FOR_OPTIONS = [
   "Not sure yet",
 ] as const;
 
+const LOOKING_FOR_META: Record<(typeof LOOKING_FOR_OPTIONS)[number], { emoji: string; sub: string }> = {
+  Relationship: { emoji: "💘", sub: "Long-term and meaningful" },
+  "Something casual": { emoji: "🥂", sub: "Low-pressure and fun" },
+  Friendship: { emoji: "🫶", sub: "New friends and connections" },
+  "Not sure yet": { emoji: "✨", sub: "Open to seeing where it goes" },
+};
+
 function isCanonicalLookingFor(v: string | null | undefined): v is (typeof LOOKING_FOR_OPTIONS)[number] {
   return !!v && (LOOKING_FOR_OPTIONS as readonly string[]).includes(v);
 }
@@ -296,7 +303,7 @@ const LIFESTYLE_OPTION_EMOJI: Record<LifestyleFieldKey, Record<string, string>> 
 function lifestyleSelectOptionLabel(field: LifestyleFieldKey, value: string): string {
   if (value === "") {
     const e = LIFESTYLE_OPTION_EMOJI[field][""] ?? "◻️";
-    return `${e} Not set — skip or keep private`;
+    return `${e} Not set — skip/keep private`;
   }
   const emoji = LIFESTYLE_OPTION_EMOJI[field][value] ?? "•";
   return `${emoji} ${value}`;
@@ -1291,22 +1298,34 @@ export default function MyProfile() {
               </p>
             ) : null}
             <div className="my-profile-modal-body">
-              <label className="my-profile-modal-field-label" htmlFor="looking-for-select">
+              <label className="my-profile-modal-field-label" id="looking-for-group-label">
                 Choose one
               </label>
-              <select
-                id="looking-for-select"
-                className="form-input form-select"
-                value={editLookingFor}
-                onChange={(e) => setEditLookingFor(e.target.value)}
+              <div
+                className="my-profile-looking-grid"
+                role="radiogroup"
+                aria-labelledby="looking-for-group-label"
               >
-                <option value="">Select an option…</option>
                 {LOOKING_FOR_OPTIONS.map((opt) => (
-                  <option key={opt} value={opt}>
-                    {opt}
-                  </option>
+                  <button
+                    key={opt}
+                    type="button"
+                    role="radio"
+                    aria-checked={editLookingFor === opt}
+                    className={`my-profile-looking-chip ${editLookingFor === opt ? "is-selected" : ""}`}
+                    onClick={() => setEditLookingFor(opt)}
+                  >
+                    <span className="my-profile-looking-chip-emoji" aria-hidden>
+                      {LOOKING_FOR_META[opt].emoji}
+                    </span>
+                    <span className="my-profile-looking-chip-copy">
+                      <span className="my-profile-looking-chip-title">{opt}</span>
+                      <span className="my-profile-looking-chip-sub">{LOOKING_FOR_META[opt].sub}</span>
+                    </span>
+                    {editLookingFor === opt ? <span className="my-profile-looking-chip-check">✓</span> : null}
+                  </button>
                 ))}
-              </select>
+              </div>
             </div>
             <div className="my-profile-modal-actions">
               <button type="button" className="btn btn-ghost" onClick={() => setShowLookingForModal(false)}>
