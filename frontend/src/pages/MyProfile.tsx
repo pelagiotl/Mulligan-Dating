@@ -882,9 +882,22 @@ export default function MyProfile() {
               setShowLocationModal(true);
             }}
           >
-            <span className="my-profile-full-card-emoji">📍</span>
-            <span className="my-profile-full-card-label">Location</span>
-            <span className="my-profile-full-card-value">{profile.location || "Tap to add"}</span>
+            <span className="my-profile-full-card-shine" aria-hidden />
+            <span className="my-profile-full-card-inner">
+              <span className="my-profile-full-card-icon-tile" aria-hidden>
+                📍
+              </span>
+              <span className="my-profile-full-card-main">
+                <span className="my-profile-full-card-label">Location</span>
+                <span className="my-profile-full-card-value">
+                  {profile.location || "Not set yet"}
+                </span>
+                <span className="my-profile-full-card-hint">Tap to update</span>
+              </span>
+              <span className="my-profile-full-card-chevron" aria-hidden>
+                ›
+              </span>
+            </span>
           </button>
 
           <button
@@ -945,13 +958,31 @@ export default function MyProfile() {
               setShowBioModal(true);
             }}
           >
-            <div className="my-profile-bio-block-header">
-              <span>💬</span>
-              <span>About Me</span>
-            </div>
-            <p className={profile.bio ? "my-profile-bio-text" : "my-profile-bio-text my-profile-bio-placeholder"}>
-              {profile.bio || "Tap to add"}
-            </p>
+            <span className="my-profile-bio-block-accent" aria-hidden />
+            <span className="my-profile-bio-block-inner">
+              <span className="my-profile-bio-block-icon-tile" aria-hidden>
+                💬
+              </span>
+              <span className="my-profile-bio-block-main">
+                <span className="my-profile-bio-block-kicker">About me</span>
+                <div className="my-profile-bio-body">
+                  <p
+                    className={
+                      profile.bio
+                        ? "my-profile-bio-text"
+                        : "my-profile-bio-text my-profile-bio-placeholder"
+                    }
+                  >
+                    {profile.bio ||
+                      "Share what makes you you — interests, humor, what you are looking for."}
+                  </p>
+                </div>
+                <span className="my-profile-bio-block-hint">Tap to edit</span>
+              </span>
+              <span className="my-profile-bio-block-chevron" aria-hidden>
+                ›
+              </span>
+            </span>
           </button>
 
         </div>
