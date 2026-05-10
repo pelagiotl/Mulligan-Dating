@@ -697,11 +697,26 @@
     0 16px 40px rgba(102, 126, 234, 0.22),
     0 0 0 1px rgba(255, 255, 255, 0.55) inset;
   animation: launchBubbleFloat 5.5s ease-in-out infinite;
-  pointer-events: none;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.launch-countdown-bubble--custom {
+  right: auto !important;
+  bottom: auto !important;
+  animation: none;
+}
+
+.launch-countdown-bubble--dragging {
+  cursor: grabbing;
+  animation: none;
 }
 
 @media (max-width: 900px) {
-  body:has(.app-layout--native-mobile-shell) .launch-countdown-bubble {
+  body:has(.app-layout--native-mobile-shell)
+    .launch-countdown-bubble:not(.launch-countdown-bubble--custom) {
     bottom: calc(var(--native-tab-height) + var(--native-tab-safe-bottom) + 12px);
   }
 }
