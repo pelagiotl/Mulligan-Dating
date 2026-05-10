@@ -8,6 +8,7 @@ import { formatPreferredMatchesFromGenders } from "../utils/preferredMatchesLabe
 import Notification from "../components/Notification";
 import ConfirmModal from "../components/ConfirmModal";
 import TruthOrDareWeb from "../components/TruthOrDareWeb";
+import DateBlueprintWeb from "../components/DateBlueprintWeb";
 import GameRequestModalWeb, { type PendingGameRequestWeb } from "../components/GameRequestModalWeb";
 import ChatMediaModerationModal, { type ChatMediaKind } from "../components/ChatMediaModerationModal";
 import ReportUserModal from "../components/ReportUserModal";
@@ -2141,6 +2142,13 @@ export default function Matches() {
 
               {selectedMatch.stage !== "pending" && user && (
                 <div className="chat-header-games">
+                  <DateBlueprintWeb
+                    matchId={selectedMatch.id}
+                    socket={socketRef.current}
+                    currentUserId={user.id}
+                    isCurrentUserMatchUser1={selectedMatch.isInitiator}
+                    onInviteToChat={sendChatText}
+                  />
                   <TruthOrDareWeb
                     matchId={selectedMatch.id}
                     socket={socketRef.current}

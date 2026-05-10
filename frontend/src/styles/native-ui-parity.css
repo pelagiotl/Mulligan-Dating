@@ -1916,6 +1916,246 @@ button.connect-landing__cta:disabled::before {
   white-space: nowrap;
 }
 
+/* Matches — Date plan generator (web, mirrors app DateBlueprint header) */
+.date-blueprint-web-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.date-blueprint-web-header-btn--live {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.date-blueprint-web-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 5600;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+}
+
+.date-blueprint-web-dialog {
+  position: relative;
+  width: min(440px, 100%);
+  max-height: min(85vh, 720px);
+  overflow: auto;
+  border-radius: 20px;
+  padding: 1.35rem 1.25rem 1.25rem;
+  background: linear-gradient(165deg, #f8fafc 0%, #eef2ff 100%);
+  box-shadow:
+    0 24px 48px rgba(0, 0, 0, 0.25),
+    0 0 0 1px rgba(255, 255, 255, 0.8) inset;
+}
+
+.date-blueprint-web-dialog--narrow {
+  width: min(360px, 100%);
+  max-height: none;
+}
+
+.date-blueprint-web-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.06);
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: #334155;
+}
+
+.date-blueprint-web-close:hover {
+  background: rgba(15, 23, 42, 0.1);
+}
+
+.date-blueprint-web-muted {
+  margin: 0.5rem 0 0;
+  color: #64748b;
+  text-align: center;
+}
+
+.date-blueprint-web-generate-wrap {
+  text-align: center;
+  padding: 0.5rem 0.25rem 0.25rem;
+}
+
+.date-blueprint-web-lead {
+  margin: 0 0 1rem;
+  font-size: 0.95rem;
+  color: #475569;
+  line-height: 1.45;
+}
+
+.date-blueprint-web-generate-btn {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+  padding: 1rem 1.25rem;
+  border: none;
+  border-radius: 16px;
+  cursor: pointer;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(135deg, #667eea, #764ba2, #f093fb, #f5576c);
+  background-size: 140% 140%;
+  box-shadow: 0 10px 28px rgba(102, 126, 234, 0.35);
+}
+
+.date-blueprint-web-generate-btn:disabled {
+  opacity: 0.75;
+  cursor: wait;
+}
+
+.date-blueprint-web-plan {
+  padding-right: 0.25rem;
+}
+
+.date-blueprint-web-plan-title {
+  margin: 0 2rem 0.5rem 0;
+  font-size: 1.35rem;
+  font-weight: 900;
+  line-height: 1.2;
+  background: linear-gradient(105deg, #4338ca, #7c3aed, #be185d);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@supports not (background-clip: text) {
+  .date-blueprint-web-plan-title {
+    color: #4338ca;
+    background: none;
+  }
+}
+
+.date-blueprint-web-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.date-blueprint-web-plan-desc {
+  margin: 0 0 1rem;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: #334155;
+}
+
+.date-blueprint-web-block {
+  margin-bottom: 1rem;
+}
+
+.date-blueprint-web-label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+  margin-bottom: 0.25rem;
+}
+
+.date-blueprint-web-strong {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.date-blueprint-web-sub {
+  font-size: 0.88rem;
+  color: #475569;
+  margin-top: 0.2rem;
+}
+
+.date-blueprint-web-date-btn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  margin-bottom: 1rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 14px;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  background: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+}
+
+.date-blueprint-web-date-btn:hover {
+  border-color: rgba(99, 102, 241, 0.45);
+}
+
+.date-blueprint-web-edit-hint {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+  color: #6366f1;
+  font-weight: 600;
+}
+
+.date-blueprint-web-topics {
+  margin: 0.25rem 0 0;
+  padding-left: 1.1rem;
+  color: #334155;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.date-blueprint-web-badge {
+  margin-top: 0.5rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 12px;
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
+  font-weight: 700;
+  text-align: center;
+}
+
+.date-blueprint-web-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.date-blueprint-web-picker-title {
+  margin: 0 0 1rem;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.date-blueprint-web-picker-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 1rem;
+}
+
+.date-blueprint-web-datetime {
+  padding: 0.5rem 0.65rem;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  font-size: 1rem;
+}
+
+.date-blueprint-web-picker-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
 /* Truth or Dare — unlock confirmation (replaces native confirm) */
 .tod-web-unlock-overlay {
   position: fixed;
