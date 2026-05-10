@@ -1,5 +1,6 @@
 import { useState, useEffect, FormEvent } from "react";
 import { useAuth } from "../context/AuthContext";
+import { useConnectShellTheme } from "../context/ConnectShellThemeContext";
 import { api } from "../utils/api";
 import { Link, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import WebTokenPurchase from "../components/WebTokenPurchase";
@@ -18,6 +19,7 @@ interface SettingsData {
 
 export default function Settings() {
   const { logout, profile, refreshProfile, user, refreshSession } = useAuth();
+  const { mode: connectShellMode, toggleMode: toggleConnectShellMode } = useConnectShellTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -256,6 +258,28 @@ export default function Settings() {
               )}
             </>
           )}
+        </div>
+
+        <div className="settings-section">
+          <h2 className="settings-section-title">
+            <span>🎨</span> Connect tab appearance
+          </h2>
+          <div className="settings-active-toggle-row">
+            <div>
+              <strong>Hero card &amp; chrome</strong>
+              <p className="settings-hint">
+                Toggle between the midnight graphite Connect card and the soft white pill look. The Mulligan tokens
+                strip, tab bar, and launch countdown bubble follow this choice. Saved on this device only.
+              </p>
+            </div>
+            <button
+              type="button"
+              className={`settings-toggle-btn settings-shell-toggle--${connectShellMode}`}
+              onClick={toggleConnectShellMode}
+            >
+              {connectShellMode === "midnight" ? "Midnight" : "Soft"}
+            </button>
+          </div>
         </div>
 
         {/* Account — layout aligned with mobile Settings (stats + profile shortcuts) */}

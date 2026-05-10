@@ -3,10 +3,17 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App.tsx'
 import { AuthProvider } from './context/AuthContext.tsx'
+import { ConnectShellThemeProvider } from './context/ConnectShellThemeContext.tsx'
 import ErrorBoundary from './ErrorBoundary.tsx'
 import './styles/index.css'
 import './styles/mobile-native-shell.css'
 import './styles/native-ui-parity.css'
+import './styles/connect-shell-theme.css'
+import { applyConnectShellMode, readConnectShellMode } from './lib/connectShellTheme'
+
+if (typeof document !== 'undefined') {
+  applyConnectShellMode(readConnectShellMode())
+}
 
 // iOS Safari: notification clicks may focus a window without navigating, or deep links can 404 on cold start.
 // Service worker uses /?pwaOpen=... (see public/sw.js); App.tsx applies the route. Main thread also handles
@@ -29,7 +36,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <ErrorBoundary>
       <BrowserRouter>
         <AuthProvider>
-          <App />
+          <ConnectShellThemeProvider>
+            <App />
+          </ConnectShellThemeProvider>
         </AuthProvider>
       </BrowserRouter>
     </ErrorBoundary>

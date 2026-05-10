@@ -10011,6 +10011,18 @@ button.chat-avatar-btn .chat-avatar img {
   color: var(--color-wine-900);
 }
 
+.settings-toggle-btn.settings-shell-toggle--midnight {
+  min-width: 5.75rem;
+  background: linear-gradient(135deg, #1e1b4b, #312e81);
+  color: #e2e8f0;
+}
+
+.settings-toggle-btn.settings-shell-toggle--soft {
+  min-width: 5.75rem;
+  background: linear-gradient(135deg, #fef9c3, #fce7f3);
+  color: #5b21b6;
+}
+
 .settings-subsection {
   margin-top: var(--space-5);
   padding-top: var(--space-4);

@@ -1,0 +1,326 @@
+/**
+ * Connect shell appearance: `data-connect-shell` on <html> — "midnight" (default) vs "soft".
+ * Synced from Settings + localStorage (see connectShellTheme.ts / ConnectShellThemeContext).
+ */
+
+/* ─── Shell tokens (navbar, tab bar, screen fill) ─── */
+html[data-connect-shell="midnight"] {
+  --native-tab-bar-bg: #12101c;
+  --native-screen-bg: #0c0a12;
+  --native-primary: #f472b6;
+  --native-tab-inactive: #8b93a8;
+  --native-gradient-screen: linear-gradient(
+    145deg,
+    #15102a 0%,
+    #221a32 35%,
+    #1a1528 70%,
+    #0f172a 100%
+  );
+}
+
+html[data-connect-shell="soft"] {
+  --native-tab-bar-bg: #fafafa;
+  --native-screen-bg: #f8f9ff;
+  --native-primary: #8b1538;
+  --native-tab-inactive: #94a3b8;
+  --native-gradient-screen: linear-gradient(
+    135deg,
+    #667eea 0%,
+    #764ba2 25%,
+    #f093fb 50%,
+    #f5576c 75%,
+    #4facfe 100%
+  );
+}
+
+@media (max-width: 900px) {
+  html[data-connect-shell="midnight"] body:has(.app-layout--native-mobile-shell .main-content[data-native-shell-bg="browse"]) {
+    background: #0e0c14;
+  }
+
+  html[data-connect-shell="midnight"] .app-layout--native-mobile-shell .main-content[data-native-shell-bg="browse"] {
+    background: #0e0c14;
+  }
+
+  html[data-connect-shell="soft"] body:has(.app-layout--native-mobile-shell .main-content[data-native-shell-bg="browse"]) {
+    background: #f5f5f5;
+  }
+
+  html[data-connect-shell="soft"] .app-layout--native-mobile-shell .main-content[data-native-shell-bg="browse"] {
+    background: #f5f5f5;
+  }
+}
+
+/* Midnight: token strip on Connect landing */
+html[data-connect-shell="midnight"] .browse-connect-landing-token .token-display.token-display-card {
+  border: 2px solid rgba(167, 139, 250, 0.35);
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(99, 102, 241, 0.15);
+}
+
+html[data-connect-shell="midnight"] .browse-connect-landing-token .token-display-header-gradient {
+  filter: saturate(1.05) brightness(0.92);
+}
+
+html[data-connect-shell="midnight"] .browse-connect-landing-token .token-display-body {
+  background: rgba(18, 16, 28, 0.92);
+  color: #e2e8f0;
+}
+
+html[data-connect-shell="midnight"] .browse-connect-landing-token .token-display-footer-hint {
+  color: #94a3b8;
+}
+
+/* Navbar token badge — subtle shift with shell */
+html[data-connect-shell="midnight"] .navbar-token-badge {
+  border-color: rgba(244, 114, 182, 0.35);
+  background: linear-gradient(135deg, rgba(244, 63, 94, 0.12) 0%, rgba(99, 102, 241, 0.1) 100%);
+  color: #fda4af;
+}
+
+/* ─── Soft: Connect hero card (light pill) ─── */
+html[data-connect-shell="soft"] .connect-landing__card {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 36px;
+  border: 3px solid rgba(255, 255, 255, 0.9);
+  box-shadow:
+    0 16px 40px rgba(102, 126, 234, 0.28),
+    0 0 0 1px rgba(102, 126, 234, 0.06);
+}
+
+html[data-connect-shell="soft"] .connect-landing__card::before {
+  background: radial-gradient(120% 80% at 50% -20%, rgba(102, 126, 234, 0.12), transparent 55%);
+}
+
+html[data-connect-shell="soft"] .connect-landing__card .browse-native-error {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #b91c1c;
+}
+
+html[data-connect-shell="soft"] .connect-landing__logo-icon {
+  color: #5b6bc6;
+  filter: drop-shadow(0 4px 14px rgba(102, 126, 234, 0.35));
+  animation: logoPulse 3s ease-in-out infinite;
+}
+
+html[data-connect-shell="soft"] .connect-landing__brand {
+  color: #0f0f0f;
+  text-transform: none;
+  letter-spacing: 0.03em;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+}
+
+html[data-connect-shell="soft"] .connect-landing__title {
+  color: #0f0f0f;
+  letter-spacing: 0.06em;
+  text-transform: none;
+  text-shadow: 0 2px 20px rgba(102, 126, 234, 0.35);
+}
+
+html[data-connect-shell="soft"] .connect-landing__subtitle {
+  color: #555;
+  font-weight: 500;
+}
+
+html[data-connect-shell="soft"] .connect-landing__feature {
+  background: rgba(248, 250, 252, 0.85);
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+html[data-connect-shell="soft"] .connect-landing__feature-emoji {
+  filter: none;
+}
+
+html[data-connect-shell="soft"] .connect-landing__feature-text {
+  color: #444;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+html[data-connect-shell="soft"] .connect-landing__hint {
+  color: #666;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-shadow: none;
+}
+
+html[data-connect-shell="soft"] .connect-landing__subcta {
+  color: #667eea;
+}
+
+html[data-connect-shell="soft"] .connect-landing__subcta:hover {
+  color: #4f46e5;
+}
+
+html[data-connect-shell="soft"] .connect-landing__legal {
+  color: #777;
+}
+
+html[data-connect-shell="soft"] .connect-landing__legal a {
+  color: #667eea;
+}
+
+html[data-connect-shell="soft"] .connect-landing__legal a:hover {
+  color: #4f46e5;
+}
+
+html[data-connect-shell="soft"] .landing-token-chill-guest {
+  color: #888;
+}
+
+html[data-connect-shell="soft"] .landing-token-chill-guest__link {
+  color: #667eea;
+}
+
+html[data-connect-shell="soft"] .landing-token-chill__toggle:hover {
+  background: rgba(102, 126, 234, 0.06);
+}
+
+html[data-connect-shell="soft"] .landing-token-chill__muted {
+  color: #888;
+}
+
+html[data-connect-shell="soft"] .landing-token-chill__accent {
+  color: #667eea;
+}
+
+html[data-connect-shell="soft"] .landing-token-chill__chevron {
+  color: #aaa;
+}
+
+html[data-connect-shell="soft"] .landing-token-chill__toggle-label {
+  color: #555;
+}
+
+html[data-connect-shell="soft"] .landing-token-chill__fallback {
+  color: #999;
+}
+
+html[data-connect-shell="soft"] .landing-token-chill__fallback a {
+  color: #667eea;
+}
+
+/* ─── Soft: launch countdown (pastel / airy) ─── */
+@keyframes launchBubbleHaloSoft {
+  0%,
+  100% {
+    box-shadow:
+      0 2px 8px rgba(15, 23, 42, 0.04),
+      0 14px 36px rgba(99, 102, 241, 0.1),
+      0 0 0 1px rgba(255, 255, 255, 0.45) inset,
+      0 0 40px rgba(167, 139, 250, 0.12);
+  }
+  50% {
+    box-shadow:
+      0 2px 10px rgba(15, 23, 42, 0.05),
+      0 18px 44px rgba(56, 189, 248, 0.12),
+      0 0 0 1px rgba(255, 255, 255, 0.55) inset,
+      0 0 52px rgba(244, 114, 182, 0.14);
+  }
+}
+
+html[data-connect-shell="soft"] .launch-countdown-bubble {
+  background: linear-gradient(
+    125deg,
+    rgba(199, 210, 254, 0.88) 0%,
+    rgba(252, 231, 243, 0.82) 28%,
+    rgba(186, 230, 253, 0.85) 55%,
+    rgba(233, 213, 255, 0.88) 78%,
+    rgba(254, 215, 170, 0.55) 100%
+  );
+  box-shadow:
+    0 2px 8px rgba(15, 23, 42, 0.04),
+    0 14px 36px rgba(99, 102, 241, 0.1),
+    0 0 0 1px rgba(255, 255, 255, 0.45) inset,
+    0 0 40px rgba(167, 139, 250, 0.12);
+  animation:
+    launchBubbleFloat 7.5s ease-in-out infinite,
+    launchBubbleAurora 16s ease-in-out infinite,
+    launchBubbleHaloSoft 6s ease-in-out infinite;
+}
+
+html[data-connect-shell="soft"] .launch-countdown-bubble__pin {
+  background: radial-gradient(circle at 32% 28%, #fef3c7 0%, #f9a8d4 38%, #c084fc 88%);
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.85),
+    0 0 12px rgba(244, 114, 182, 0.45),
+    0 0 20px rgba(167, 139, 250, 0.25);
+}
+
+html[data-connect-shell="soft"] .launch-countdown-bubble .launch-countdown {
+  background: linear-gradient(
+    168deg,
+    rgba(255, 255, 255, 0.94) 0%,
+    rgba(248, 250, 252, 0.92) 42%,
+    rgba(255, 251, 252, 0.93) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    inset 0 -1px 0 rgba(148, 163, 184, 0.06);
+}
+
+html[data-connect-shell="soft"] .launch-countdown-bubble .launch-countdown::after {
+  background: linear-gradient(
+    102deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.55) 45%,
+    rgba(255, 255, 255, 0.08) 52%,
+    transparent 58%
+  );
+}
+
+html[data-connect-shell="soft"] .launch-countdown__heading {
+  color: #6366f1;
+  background: linear-gradient(105deg, #6366f1 0%, #c026d3 48%, #0891b2 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+@supports not (background-clip: text) {
+  html[data-connect-shell="soft"] .launch-countdown__heading {
+    color: #5b4d8c;
+    background: none;
+    -webkit-text-fill-color: unset;
+  }
+}
+
+html[data-connect-shell="soft"] .launch-countdown__sub {
+  color: #64748b;
+}
+
+html[data-connect-shell="soft"] .launch-countdown__cell {
+  background: rgba(248, 250, 252, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow: 0 1px 2px rgba(99, 102, 241, 0.05);
+}
+
+html[data-connect-shell="soft"] .launch-countdown__value {
+  color: #1e293b;
+  text-shadow:
+    0 0 18px rgba(167, 139, 250, 0.2),
+    0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+html[data-connect-shell="soft"] .launch-countdown__unit {
+  color: #7c8aa6;
+}
+
+html[data-connect-shell="soft"] .launch-countdown__live-msg {
+  color: #334155;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-connect-shell="soft"] .launch-countdown-bubble {
+    animation: none;
+  }
+
+  html[data-connect-shell="soft"] .launch-countdown-bubble .launch-countdown::after {
+    animation: none;
+    opacity: 0;
+  }
+}
