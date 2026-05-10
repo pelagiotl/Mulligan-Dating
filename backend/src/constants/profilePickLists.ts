@@ -14,6 +14,7 @@ export const CANONICAL_INTEREST_OPTION_NAMES = [
   "Photography",
   "Dancing",
   "Gaming",
+  "Fortnite",
   "Hiking",
   "Yoga",
   "Writing",

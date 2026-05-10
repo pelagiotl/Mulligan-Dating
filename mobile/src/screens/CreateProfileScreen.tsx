@@ -51,7 +51,7 @@ function preferredGendersPayload(g: string[]): string[] | null {
 }
 const INTEREST_OPTIONS = [
   'Travel', 'Music', 'Sports', 'Cooking', 'Reading', 'Movies', 'Fitness', 'Art',
-  'Photography', 'Dancing', 'Gaming', 'Hiking', 'Yoga', 'Writing', 'Technology',
+  'Photography', 'Dancing', 'Gaming', 'Fortnite', 'Hiking', 'Yoga', 'Writing', 'Technology',
   'Fashion', 'Animals', 'Volunteering', 'Coffee', 'Nightlife', 'Comedy',
   'Beach', 'Camping', 'Board Games', 'Tattoos', 'Meditation', 'History', 'Science',
   'Business', 'Education'
@@ -70,6 +70,7 @@ const INTEREST_EMOJIS: { [key: string]: string } = {
   'Photography': '📸',
   'Dancing': '💃',
   'Gaming': '🎮',
+  'Fortnite': '⛏️',
   'Hiking': '🥾',
   'Yoga': '🧘',
   'Writing': '✍️',
