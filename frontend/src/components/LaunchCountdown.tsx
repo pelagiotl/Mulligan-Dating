@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 /** Local midnight at the start of launch day (June 6, 2026). */
 const LAUNCH_MS = new Date(2026, 5, 6, 0, 0, 0, 0).getTime();
@@ -30,21 +31,17 @@ export default function LaunchCountdown() {
     return () => clearInterval(id);
   }, []);
 
-  if (state.live) {
-    return (
-      <section className="launch-countdown launch-countdown--live" aria-labelledby="launch-countdown-heading">
-        <h2 id="launch-countdown-heading" className="launch-countdown__heading">
-          June 6 launch
-        </h2>
-        <p className="launch-countdown__live-msg">We're live — welcome to Mulligan.</p>
-      </section>
-    );
-  }
-
-  const { days, hours, minutes, seconds } = state;
-  const pad = (n: number) => String(n).padStart(2, "0");
-
-  return (
+  const inner = state.live ? (
+    <section
+      className="launch-countdown launch-countdown--live"
+      aria-labelledby="launch-countdown-heading"
+    >
+      <h2 id="launch-countdown-heading" className="launch-countdown__heading">
+        June 6 launch
+      </h2>
+      <p className="launch-countdown__live-msg">We&apos;re live — welcome to Mulligan.</p>
+    </section>
+  ) : (
     <section className="launch-countdown" aria-labelledby="launch-countdown-heading">
       <h2 id="launch-countdown-heading" className="launch-countdown__heading">
         June 6 launch
@@ -55,25 +52,35 @@ export default function LaunchCountdown() {
         role="timer"
         aria-live="polite"
         aria-atomic="true"
-        aria-label={`${days} days, ${hours} hours, ${minutes} minutes, ${seconds} seconds remaining`}
+        aria-label={`${state.days} days, ${state.hours} hours, ${state.minutes} minutes, ${state.seconds} seconds remaining`}
       >
         <div className="launch-countdown__cell">
-          <span className="launch-countdown__value">{days}</span>
+          <span className="launch-countdown__value">{state.days}</span>
           <span className="launch-countdown__unit">Days</span>
         </div>
         <div className="launch-countdown__cell">
-          <span className="launch-countdown__value">{pad(hours)}</span>
+          <span className="launch-countdown__value">{String(state.hours).padStart(2, "0")}</span>
           <span className="launch-countdown__unit">Hours</span>
         </div>
         <div className="launch-countdown__cell">
-          <span className="launch-countdown__value">{pad(minutes)}</span>
+          <span className="launch-countdown__value">{String(state.minutes).padStart(2, "0")}</span>
           <span className="launch-countdown__unit">Minutes</span>
         </div>
         <div className="launch-countdown__cell">
-          <span className="launch-countdown__value">{pad(seconds)}</span>
+          <span className="launch-countdown__value">{String(state.seconds).padStart(2, "0")}</span>
           <span className="launch-countdown__unit">Seconds</span>
         </div>
       </div>
     </section>
   );
+
+  const bubble = (
+    <div className="launch-countdown-bubble">
+      <span className="launch-countdown-bubble__pin" aria-hidden />
+      {inner}
+    </div>
+  );
+
+  if (typeof document === "undefined") return null;
+  return createPortal(bubble, document.body);
 }

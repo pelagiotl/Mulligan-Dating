@@ -67,6 +67,7 @@ function BrowseConnectLandingChrome({
 
   return (
     <div className="browse-page-native native-app-screen connect-landing-page">
+      <LaunchCountdown />
       <div className="connect-landing">
         {showTokenStrip ? (
           <aside className="browse-connect-landing-token" aria-label="Mulligan tokens">
@@ -84,8 +85,6 @@ function BrowseConnectLandingChrome({
           <p className="connect-landing__subtitle">
             Find someone who shares your interests and values
           </p>
-
-          <LaunchCountdown />
 
           <div className="connect-landing__features">
             <div className="connect-landing__feature">

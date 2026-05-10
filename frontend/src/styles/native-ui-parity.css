@@ -569,15 +569,6 @@
     line-height: 1.45;
   }
 
-  .app-layout--native-mobile-shell .launch-countdown {
-    margin: -0.35rem 0 1.05rem;
-    padding: 0.65rem 0.45rem 0.8rem;
-  }
-
-  .app-layout--native-mobile-shell .launch-countdown__value {
-    font-size: clamp(0.95rem, 5.2vw, 1.35rem);
-  }
-
   .app-layout--native-mobile-shell .connect-landing__features {
     margin-bottom: 1rem;
     gap: 0.45rem;
@@ -676,45 +667,106 @@
   letter-spacing: 0.02em;
 }
 
-/* June 6 launch countdown (Connect landing + public home) */
-.launch-countdown {
-  width: 100%;
-  margin: -0.75rem 0 1.5rem;
-  padding: 0.85rem 0.75rem 1rem;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.12);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+/* June 6 launch — floating bubble (portaled to body; Connect + public home) */
+@keyframes launchBubbleFloat {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+.launch-countdown-bubble {
+  position: fixed;
+  right: max(12px, env(safe-area-inset-right, 0px));
+  bottom: max(18px, env(safe-area-inset-bottom, 0px));
+  z-index: 5500;
+  max-width: min(300px, calc(100vw - 24px));
+  border-radius: 22px;
+  padding: 2px;
+  background: linear-gradient(
+    135deg,
+    rgba(244, 63, 94, 0.42) 0%,
+    rgba(102, 126, 234, 0.34) 52%,
+    rgba(79, 172, 254, 0.28) 100%
+  );
+  box-shadow:
+    0 2px 4px rgba(15, 23, 42, 0.05),
+    0 16px 40px rgba(102, 126, 234, 0.22),
+    0 0 0 1px rgba(255, 255, 255, 0.55) inset;
+  animation: launchBubbleFloat 5.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@media (max-width: 900px) {
+  body:has(.app-layout--native-mobile-shell) .launch-countdown-bubble {
+    bottom: calc(var(--native-tab-height) + var(--native-tab-safe-bottom) + 12px);
+  }
+}
+
+.launch-countdown-bubble:has(.launch-countdown--live) .launch-countdown-bubble__pin {
+  display: none;
+}
+
+.launch-countdown-bubble__pin {
+  position: absolute;
+  top: 10px;
+  right: 13px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 25%, #fecdd3, #be123c 72%);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+  pointer-events: none;
+}
+
+.launch-countdown-bubble .launch-countdown {
+  position: relative;
+  width: auto;
+  margin: 0;
+  padding: 0.62rem 0.72rem 0.72rem;
+  border-radius: 20px;
+  background: rgba(255, 253, 251, 0.96);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: none;
 }
 
 .launch-countdown--live {
   text-align: center;
+  padding-bottom: 0.82rem !important;
+}
+
+.launch-countdown--live .launch-countdown__heading {
+  text-align: center;
+  padding-right: 0;
 }
 
 .launch-countdown__heading {
-  margin: 0 0 0.35rem;
-  font-size: 0.72rem;
+  margin: 0 0 0.3rem;
+  padding-right: 16px;
+  font-size: 0.62rem;
   font-weight: 800;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: #8b1538;
-  text-align: center;
+  text-align: left;
 }
 
 .launch-countdown__sub {
-  margin: 0 0 0.65rem;
-  font-size: 0.78rem;
+  margin: 0 0 0.48rem;
+  font-size: 0.7rem;
   font-weight: 600;
-  color: #666;
-  text-align: center;
+  color: #64748b;
+  text-align: left;
 }
 
 .launch-countdown__grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 0.35rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.22rem;
   text-align: center;
 }
 
@@ -722,34 +774,34 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.2rem;
+  gap: 0.12rem;
   min-width: 0;
 }
 
 .launch-countdown__value {
   font-family: var(--font-display, ui-sans-serif, system-ui);
-  font-size: clamp(1.15rem, 4.2vw, 1.65rem);
+  font-size: clamp(0.95rem, 3.6vw, 1.28rem);
   font-weight: 900;
   font-variant-numeric: tabular-nums;
-  line-height: 1.1;
+  line-height: 1.08;
   color: #111;
   letter-spacing: -0.02em;
 }
 
 .launch-countdown__unit {
-  font-size: 0.58rem;
+  font-size: 0.52rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   color: #64748b;
 }
 
 .launch-countdown__live-msg {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: 0.84rem;
   font-weight: 600;
   color: #0f172a;
-  line-height: 1.45;
+  line-height: 1.42;
 }
 
 .connect-landing__features {

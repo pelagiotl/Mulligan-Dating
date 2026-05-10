@@ -13,6 +13,7 @@ export default function Landing() {
 
   return (
     <div className="landing-public-root native-app-screen">
+      <LaunchCountdown />
       <header className="landing-public-nav">
         <Link to="/" className="landing-public-nav__brand">
           Mulligan
@@ -39,8 +40,6 @@ export default function Landing() {
             <p className="connect-landing__subtitle">
               Find someone who shares your interests and values
             </p>
-
-            <LaunchCountdown />
 
             <div className="connect-landing__features">
               <div className="connect-landing__feature">
