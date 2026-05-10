@@ -1834,121 +1834,149 @@ export default function Matches() {
             </Link>
           </div>
         ) : (
-          <div className="matches-list">
+          <div className="matches-list" role="list">
             {matches.map((match) => (
               <div
                 key={match.id}
+                role="listitem"
+                tabIndex={0}
                 className={`match-item ${selectedMatch?.id === match.id ? "active" : ""}`}
+                aria-label={`${match.otherUser.displayName}, ${getStageLabel(match.stage)}. Open chat.`}
                 onClick={() => {
                   setSelectedMatch(match);
                   if (typeof window !== "undefined" && window.innerWidth <= 900) {
                     setMobileShowMatchList(false);
                   }
                 }}
-              >
-                <div className="match-avatar">
-                  {(() => {
-                    // Show photo if available (for stage1 and stage2)
-                    if (match.stage === "stage1" || match.stage === "stage2") {
-                      // First try photoUrl (primary photo from backend)
-                      if (match.otherUser.photoUrl) {
-                        return (
-                          <img
-                            src={getPhotoUrl(match.otherUser.photoUrl)}
-                            alt={match.otherUser.displayName}
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              target.style.display = 'none';
-                            }}
-                          />
-                        );
-                      }
-                      // Fallback to photos array if available
-                      if (match.otherUser.photos && match.otherUser.photos.length > 0) {
-                        const primaryPhoto = match.otherUser.photos.find(p => p.isPrimary);
-                        return (
-                          <img
-                            src={getPhotoUrl(primaryPhoto?.url || match.otherUser.photos[0].url)}
-                            alt={match.otherUser.displayName}
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              target.style.display = 'none';
-                            }}
-                          />
-                        );
-                      }
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setSelectedMatch(match);
+                    if (typeof window !== "undefined" && window.innerWidth <= 900) {
+                      setMobileShowMatchList(false);
                     }
-                    // Show placeholder for pending or if no photos available
-                    return (
-                      <span className="avatar-placeholder">
-                        {match.stage === "pending" ? "⏳" : "🔓"}
-                      </span>
-                    );
-                  })()}
-                </div>
-                <div className="match-info">
-                  <h4>{match.otherUser.displayName}</h4>
-                  <p className="match-meta">
-                    {match.otherUser.age} · {match.otherUser.gender}
-                  </p>
-                  {match.stage !== "pending" &&
-                    (match.profileCompatibility != null || match.compatibilityScore != null) && (
-                      <div className="match-compat-badges" aria-label="Compatibility">
-                        {match.profileCompatibility != null ? (
-                          <span className="match-compat-badge match-compat-badge--interest" title="Interest match">
-                            🎯 {match.profileCompatibility}%
-                          </span>
-                        ) : null}
-                        {match.compatibilityScore != null ? (
-                          <span
-                            className="match-compat-badge match-compat-badge--pulse"
-                            title="Compatibility pulse — updates as you chat"
-                          >
-                            💫 {Math.round(match.compatibilityScore)}
-                          </span>
-                        ) : null}
-                      </div>
-                    )}
-                  {match.stage !== "pending" && match.expiresAt && (
-                    <div className="match-timer">
-                      <span className="timer-icon">⏳</span>
-                      <span className="timer-text">
-                        {(() => {
-                          const daysRemaining = getDaysRemaining(match.expiresAt);
-                          if (daysRemaining === null) return "";
-                          if (daysRemaining === 0) return "Expires today";
-                          if (daysRemaining === 1) return "1 day left";
-                          return `${daysRemaining} days left`;
-                        })()}
+                  }
+                }}
+              >
+                <div className="match-item-inner">
+                  <div className="match-avatar">
+                    {(() => {
+                      if (match.stage === "stage1" || match.stage === "stage2") {
+                        if (match.otherUser.photoUrl) {
+                          return (
+                            <img
+                              src={getPhotoUrl(match.otherUser.photoUrl)}
+                              alt=""
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = "none";
+                              }}
+                            />
+                          );
+                        }
+                        if (match.otherUser.photos && match.otherUser.photos.length > 0) {
+                          const primaryPhoto = match.otherUser.photos.find((p) => p.isPrimary);
+                          return (
+                            <img
+                              src={getPhotoUrl(primaryPhoto?.url || match.otherUser.photos[0].url)}
+                              alt=""
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = "none";
+                              }}
+                            />
+                          );
+                        }
+                      }
+                      return (
+                        <span className="avatar-placeholder">
+                          {match.stage === "pending" ? "⏳" : "🔓"}
+                        </span>
+                      );
+                    })()}
+                  </div>
+                  <div className="match-item-primary">
+                    <div className="match-item-title-row">
+                      <h4 className="match-item-name">{match.otherUser.displayName}</h4>
+                      <span className={`stage-badge stage-badge--sidebar ${getStageColor(match.stage)}`}>
+                        {getStageLabel(match.stage)}
                       </span>
                     </div>
-                  )}
+                    <p className="match-meta">
+                      {match.otherUser.age} · {match.otherUser.gender}
+                    </p>
+                    {match.stage !== "pending" &&
+                      (match.profileCompatibility != null ||
+                        match.compatibilityScore != null ||
+                        match.expiresAt) && (
+                        <div className="match-item-signals" aria-label="Match signals">
+                          {(match.profileCompatibility != null || match.compatibilityScore != null) && (
+                            <div className="match-compat-badges">
+                              {match.profileCompatibility != null ? (
+                                <span className="match-compat-badge match-compat-badge--interest" title="Interest match">
+                                  🎯 {match.profileCompatibility}%
+                                </span>
+                              ) : null}
+                              {match.compatibilityScore != null ? (
+                                <span
+                                  className="match-compat-badge match-compat-badge--pulse"
+                                  title="Compatibility pulse — updates as you chat"
+                                >
+                                  💫 {Math.round(match.compatibilityScore)}
+                                </span>
+                              ) : null}
+                            </div>
+                          )}
+                          {match.expiresAt ? (
+                            <div className="match-timer match-timer--card">
+                              <span className="timer-icon" aria-hidden>
+                                ⏳
+                              </span>
+                              <span className="timer-text">
+                                {(() => {
+                                  const daysRemaining = getDaysRemaining(match.expiresAt);
+                                  if (daysRemaining === null) return "";
+                                  if (daysRemaining === 0) return "Expires today";
+                                  if (daysRemaining === 1) return "1 day left";
+                                  return `${daysRemaining} days left`;
+                                })()}
+                              </span>
+                            </div>
+                          ) : null}
+                        </div>
+                      )}
+                  </div>
                 </div>
-                <div className="match-badge-actions">
-                  <span className={`stage-badge ${getStageColor(match.stage)}`}>
-                    {getStageLabel(match.stage)}
-                  </span>
-                  {match.stage !== "pending" && (
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm report-match-sidebar-btn"
-                      onClick={(e) => openReportForMatch(match, e)}
-                    >
-                      Report
-                    </button>
-                  )}
-                  {selectedMatch?.id === match.id && (
-                    <button
-                      className="btn btn-secondary btn-sm unmatch-btn-sidebar"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleUnmatchClick();
-                      }}
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
+                {(match.stage !== "pending" || selectedMatch?.id === match.id) && (
+                  <div
+                    className="match-item-toolbar"
+                    role="toolbar"
+                    aria-label={`Actions for ${match.otherUser.displayName}`}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {match.stage !== "pending" && (
+                      <button
+                        type="button"
+                        className="match-card-action-btn match-card-action-btn--muted"
+                        onClick={(e) => openReportForMatch(match, e)}
+                      >
+                        Report
+                      </button>
+                    )}
+                    {selectedMatch?.id === match.id && (
+                      <button
+                        type="button"
+                        className="match-card-action-btn match-card-action-btn--danger"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleUnmatchClick();
+                        }}
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
