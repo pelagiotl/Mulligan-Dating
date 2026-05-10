@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { Socket } from "socket.io-client";
 import { api, ApiError } from "../utils/api";
 
@@ -139,6 +140,8 @@ export default function TruthOrDareWeb({
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
   const [headerTimerSecs, setHeaderTimerSecs] = useState<number | null>(null);
+  const [unlockConfirmOpen, setUnlockConfirmOpen] = useState(false);
+  const [unlockConfirmBusy, setUnlockConfirmBusy] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastAnotherOneAtRef = useRef(0);
   const lastChooseAtRef = useRef(0);
@@ -229,6 +232,15 @@ export default function TruthOrDareWeb({
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!unlockConfirmOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !unlockConfirmBusy) setUnlockConfirmOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [unlockConfirmOpen, unlockConfirmBusy]);
 
   const untilStr = gameState?.unlockedUntil ?? lastUnlockedUntilRef.current;
   if (gameState?.unlockedUntil) lastUnlockedUntilRef.current = gameState.unlockedUntil;
@@ -368,16 +380,24 @@ export default function TruthOrDareWeb({
       openModal();
       return;
     }
-    const play = window.confirm(
-      "Play Truth or Dare? You’ll pick a heat level (PG-13, Rated R, or Spicy), then Truth or Dare — same session as the app."
-    );
-    if (!play) return;
+    setUnlockConfirmOpen(true);
+  };
+
+  const closeUnlockConfirm = () => {
+    if (!unlockConfirmBusy) setUnlockConfirmOpen(false);
+  };
+
+  const confirmUnlockAndPlay = async () => {
+    setUnlockConfirmBusy(true);
     try {
       await onUnlockWithToken();
+      setUnlockConfirmOpen(false);
       openModal();
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Could not unlock the game.";
       window.alert(msg);
+    } finally {
+      setUnlockConfirmBusy(false);
     }
   };
 
@@ -395,149 +415,229 @@ export default function TruthOrDareWeb({
     }
   }, [isUnlocked, fetchState]);
 
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (!modalOpen && !unlockConfirmOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [modalOpen, unlockConfirmOpen]);
+
   const sessionExpired = gameState?.tokenUnlocked && secondsRemaining !== null && secondsRemaining <= 0;
 
-  return (
-    <div className="tod-web-wrap">
-      <button
-        type="button"
-        className={`tod-web-header-btn ${isUnlocked ? "tod-web-header-btn--live" : "tod-web-header-btn--locked"}`}
-        onClick={() => void handleHeaderClick()}
-        aria-label={isUnlocked ? "Open Truth or Dare" : "Unlock Truth or Dare"}
+  const unlockOverlay =
+    unlockConfirmOpen ? (
+      <div
+        className="tod-web-unlock-overlay"
+        role="presentation"
+        onClick={closeUnlockConfirm}
       >
-        <span className="tod-web-header-emoji" aria-hidden>
-          🎲
-        </span>
-      </button>
-      {isUnlocked && headerTimerSecs !== null && headerTimerSecs > 0 && (
-        <span className="tod-web-timer-badge">⏱ {formatTimeRemaining(headerTimerSecs)}</span>
-      )}
-
-      {modalOpen ? (
         <div
-          className="tod-web-modal-overlay"
-          role="presentation"
-          onClick={closeModal}
+          className="tod-web-unlock-card"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="tod-unlock-title"
+          onClick={(e) => e.stopPropagation()}
         >
-          <div
-            className="tod-web-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="tod-modal-title"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="tod-web-modal-gradient">
-              <h2 id="tod-modal-title" className="tod-web-modal-title">
-                {step === "spice"
-                  ? "Choose your heat"
-                  : step === "choose"
-                    ? "Pick one"
-                    : promptType === "truth"
-                      ? "✨ Truth"
-                      : "🔥 Dare"}
-              </h2>
-              {gameState?.unlockedUntil && secondsRemaining !== null && secondsRemaining > 0 && (
-                <div className="tod-web-session-timer">
-                  <span className="tod-web-session-label">Session time left</span>
-                  <span className="tod-web-session-value">⏱ {formatTimeRemaining(secondsRemaining)}</span>
-                </div>
-              )}
-              {sessionExpired ? (
-                <p className="tod-web-expired">
-                  Session ended. Unlock again from the dice button to play another round.
-                </p>
-              ) : loading && step === "spice" && !gameState ? (
-                <p className="tod-web-loading">Loading…</p>
-              ) : step === "spice" ? (
-                <div className="tod-web-spice">
-                  <p className="tod-web-spice-intro">
-                    Each of you picks a comfort level. Prompts use the <strong>more conservative</strong> of the two
-                    so nobody is pushed past their boundary.
-                  </p>
-                  <div className="tod-web-spice-grid">
-                    {SPICE_OPTIONS.map((opt) => (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        className={`tod-web-spice-card${gameState?.yourSpiceChoice === opt.id ? " tod-web-spice-card--active" : ""}`}
-                        onClick={() => void submitSpiceChoice(opt.id)}
-                        disabled={loading}
-                      >
-                        <span className="tod-web-spice-card-title">{opt.title}</span>
-                        <span className="tod-web-spice-card-blurb">{opt.blurb}</span>
-                      </button>
-                    ))}
-                  </div>
-                  {gameState?.yourSpiceChoice ? (
-                    <p className="tod-web-spice-status">
-                      You chose <strong>{spiceLabel(gameState.yourSpiceChoice)}</strong>
-                      {!gameState.spiceReady ? (
-                        <>
-                          {" "}
-                          — waiting for your match to pick…
-                        </>
-                      ) : (
-                        <>
-                          {" "}
-                          · Round heat: <strong>{spiceLabel(gameState.spiceLevel)}</strong>
-                        </>
-                      )}
-                    </p>
-                  ) : (
-                    <p className="tod-web-spice-hint subtle">Tap a card to lock in your choice.</p>
-                  )}
-                </div>
-              ) : loading && step === "choose" ? (
-                <p className="tod-web-loading">Loading…</p>
-              ) : step === "choose" ? (
-                <div className="tod-web-choose">
-                  {gameState?.spiceLevel ? (
-                    <p className="tod-web-round-heat">
-                      This round: <strong>{spiceLabel(gameState.spiceLevel)}</strong>
-                    </p>
-                  ) : null}
-                  <p className="tod-web-choose-hint">Pick Truth or Dare</p>
-                  <div className="tod-web-choose-row">
-                    <button type="button" className="tod-web-choice tod-web-choice--truth" onClick={() => void handleChoose("truth")}>
-                      <span className="tod-web-choice-emoji">✨</span>
-                      Truth
-                    </button>
-                    <button type="button" className="tod-web-choice tod-web-choice--dare" onClick={() => void handleChoose("dare")}>
-                      <span className="tod-web-choice-emoji">🔥</span>
-                      Dare
-                    </button>
-                  </div>
-                  <button type="button" className="tod-web-spice-change" onClick={() => setStep("spice")} disabled={loading}>
-                    Change my heat level
-                  </button>
-                </div>
-              ) : loading ? (
-                <p className="tod-web-loading">Generating your prompt…</p>
-              ) : (
-                <>
-                  {gameState?.spiceLevel ? (
-                    <p className="tod-web-prompt-heat subtle">Mode: {spiceLabel(gameState.spiceLevel)}</p>
-                  ) : null}
-                  <div className="tod-web-prompt-card">
-                    <p className="tod-web-prompt-text">{prompt}</p>
-                  </div>
-                  <div className="tod-web-prompt-actions">
-                    <button type="button" className="tod-web-send-chat" onClick={() => void handleSendToChat()}>
-                      Send to chat 💬
-                    </button>
-                    <button type="button" className="tod-web-another" onClick={() => void handleChoose(promptType, true)}>
-                      Another one ↻
-                    </button>
-                  </div>
-                </>
-              )}
-              <button type="button" className="tod-web-close" onClick={closeModal}>
-                Close
-              </button>
-            </div>
+          <div className="tod-web-unlock-shine" aria-hidden />
+          <div className="tod-web-unlock-hero">
+            <span className="tod-web-unlock-dice" aria-hidden>
+              🎲
+            </span>
+            <span className="tod-web-unlock-sparkles" aria-hidden>
+              ✨
+            </span>
+          </div>
+          <h2 id="tod-unlock-title" className="tod-web-unlock-title">
+            Play Truth or Dare?
+          </h2>
+          <p className="tod-web-unlock-lead">
+            You&apos;ll each pick a <strong>heat level</strong> (we use the more conservative of the two), then take
+            turns with <strong>Truth</strong> or <strong>Dare</strong> — same flow as in the app.
+          </p>
+          <div className="tod-web-unlock-flow" aria-hidden>
+            <span className="tod-web-unlock-flow-step">
+              <span className="tod-web-unlock-flow-num">1</span>
+              Heat
+            </span>
+            <span className="tod-web-unlock-flow-arrow">→</span>
+            <span className="tod-web-unlock-flow-step">
+              <span className="tod-web-unlock-flow-num">2</span>
+              Play
+            </span>
+          </div>
+          <div className="tod-web-unlock-chips" role="list">
+            {SPICE_OPTIONS.map((opt) => (
+              <span key={opt.id} className="tod-web-unlock-chip" role="listitem">
+                {opt.title}
+              </span>
+            ))}
+          </div>
+          <div className="tod-web-unlock-actions">
+            <button type="button" className="tod-web-unlock-btn tod-web-unlock-btn--ghost" onClick={closeUnlockConfirm} disabled={unlockConfirmBusy}>
+              Not now
+            </button>
+            <button
+              type="button"
+              className="tod-web-unlock-btn tod-web-unlock-btn--primary"
+              onClick={() => void confirmUnlockAndPlay()}
+              disabled={unlockConfirmBusy}
+            >
+              {unlockConfirmBusy ? "Unlocking…" : "Unlock & play"}
+            </button>
           </div>
         </div>
-      ) : null}
-    </div>
+      </div>
+    ) : null;
+
+  const gameModalOverlay =
+    modalOpen ? (
+      <div
+        className="tod-web-modal-overlay"
+        role="presentation"
+        onClick={closeModal}
+      >
+        <div
+          className="tod-web-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="tod-modal-title"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="tod-web-modal-gradient">
+            <h2 id="tod-modal-title" className="tod-web-modal-title">
+              {step === "spice"
+                ? "Choose your heat"
+                : step === "choose"
+                  ? "Pick one"
+                  : promptType === "truth"
+                    ? "✨ Truth"
+                    : "🔥 Dare"}
+            </h2>
+            {gameState?.unlockedUntil && secondsRemaining !== null && secondsRemaining > 0 && (
+              <div className="tod-web-session-timer">
+                <span className="tod-web-session-label">Session time left</span>
+                <span className="tod-web-session-value">⏱ {formatTimeRemaining(secondsRemaining)}</span>
+              </div>
+            )}
+            {sessionExpired ? (
+              <p className="tod-web-expired">
+                Session ended. Unlock again from the dice button to play another round.
+              </p>
+            ) : loading && step === "spice" && !gameState ? (
+              <p className="tod-web-loading">Loading…</p>
+            ) : step === "spice" ? (
+              <div className="tod-web-spice">
+                <p className="tod-web-spice-intro">
+                  Each of you picks a comfort level. Prompts use the <strong>more conservative</strong> of the two so
+                  nobody is pushed past their boundary.
+                </p>
+                <div className="tod-web-spice-grid">
+                  {SPICE_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      className={`tod-web-spice-card${gameState?.yourSpiceChoice === opt.id ? " tod-web-spice-card--active" : ""}`}
+                      onClick={() => void submitSpiceChoice(opt.id)}
+                      disabled={loading}
+                    >
+                      <span className="tod-web-spice-card-title">{opt.title}</span>
+                      <span className="tod-web-spice-card-blurb">{opt.blurb}</span>
+                    </button>
+                  ))}
+                </div>
+                {gameState?.yourSpiceChoice ? (
+                  <p className="tod-web-spice-status">
+                    You chose <strong>{spiceLabel(gameState.yourSpiceChoice)}</strong>
+                    {!gameState.spiceReady ? (
+                      <>
+                        {" "}
+                        — waiting for your match to pick…
+                      </>
+                    ) : (
+                      <>
+                        {" "}
+                        · Round heat: <strong>{spiceLabel(gameState.spiceLevel)}</strong>
+                      </>
+                    )}
+                  </p>
+                ) : (
+                  <p className="tod-web-spice-hint subtle">Tap a card to lock in your choice.</p>
+                )}
+              </div>
+            ) : loading && step === "choose" ? (
+              <p className="tod-web-loading">Loading…</p>
+            ) : step === "choose" ? (
+              <div className="tod-web-choose">
+                {gameState?.spiceLevel ? (
+                  <p className="tod-web-round-heat">
+                    This round: <strong>{spiceLabel(gameState.spiceLevel)}</strong>
+                  </p>
+                ) : null}
+                <p className="tod-web-choose-hint">Pick Truth or Dare</p>
+                <div className="tod-web-choose-row">
+                  <button type="button" className="tod-web-choice tod-web-choice--truth" onClick={() => void handleChoose("truth")}>
+                    <span className="tod-web-choice-emoji">✨</span>
+                    Truth
+                  </button>
+                  <button type="button" className="tod-web-choice tod-web-choice--dare" onClick={() => void handleChoose("dare")}>
+                    <span className="tod-web-choice-emoji">🔥</span>
+                    Dare
+                  </button>
+                </div>
+                <button type="button" className="tod-web-spice-change" onClick={() => setStep("spice")} disabled={loading}>
+                  Change my heat level
+                </button>
+              </div>
+            ) : loading ? (
+              <p className="tod-web-loading">Generating your prompt…</p>
+            ) : (
+              <>
+                {gameState?.spiceLevel ? (
+                  <p className="tod-web-prompt-heat subtle">Mode: {spiceLabel(gameState.spiceLevel)}</p>
+                ) : null}
+                <div className="tod-web-prompt-card">
+                  <p className="tod-web-prompt-text">{prompt}</p>
+                </div>
+                <div className="tod-web-prompt-actions">
+                  <button type="button" className="tod-web-send-chat" onClick={() => void handleSendToChat()}>
+                    Send to chat 💬
+                  </button>
+                  <button type="button" className="tod-web-another" onClick={() => void handleChoose(promptType, true)}>
+                    Another one ↻
+                  </button>
+                </div>
+              </>
+            )}
+            <button type="button" className="tod-web-close" onClick={closeModal}>
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : null;
+
+  return (
+    <>
+      <div className="tod-web-wrap">
+        <button
+          type="button"
+          className={`tod-web-header-btn ${isUnlocked ? "tod-web-header-btn--live" : "tod-web-header-btn--locked"}`}
+          onClick={() => void handleHeaderClick()}
+          aria-label={isUnlocked ? "Open Truth or Dare" : "Unlock Truth or Dare"}
+        >
+          <span className="tod-web-header-emoji" aria-hidden>
+            🎲
+          </span>
+        </button>
+        {isUnlocked && headerTimerSecs !== null && headerTimerSecs > 0 && (
+          <span className="tod-web-timer-badge">⏱ {formatTimeRemaining(headerTimerSecs)}</span>
+        )}
+      </div>
+      {typeof document !== "undefined" && unlockOverlay ? createPortal(unlockOverlay, document.body) : null}
+      {typeof document !== "undefined" && gameModalOverlay ? createPortal(gameModalOverlay, document.body) : null}
+    </>
   );
 }

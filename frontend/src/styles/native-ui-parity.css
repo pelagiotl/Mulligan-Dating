@@ -1573,23 +1573,341 @@ button.connect-landing__cta:disabled::before {
   white-space: nowrap;
 }
 
+/* Truth or Dare — unlock confirmation (replaces native confirm) */
+.tod-web-unlock-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10048;
+  background: rgba(18, 6, 24, 0.62);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: max(1rem, env(safe-area-inset-top)) max(1.25rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom))
+    max(1.25rem, env(safe-area-inset-left));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  min-height: 100%;
+  min-height: 100dvh;
+  box-sizing: border-box;
+  animation: tod-unlock-fade-in 0.22s ease-out;
+}
+
+.tod-web-unlock-overlay::before,
+.tod-web-unlock-overlay::after {
+  content: "";
+  flex: 1 1 0;
+  min-height: 0;
+  width: 100%;
+  pointer-events: none;
+}
+
+@keyframes tod-unlock-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.tod-web-unlock-card {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  flex-shrink: 0;
+  max-height: calc(100dvh - 2rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  border-radius: 26px;
+  padding: 1.65rem 1.45rem 1.35rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  color: #fff;
+  text-align: center;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.18),
+    0 24px 56px rgba(120, 0, 80, 0.45),
+    0 8px 24px rgba(0, 0, 0, 0.35);
+  background:
+    radial-gradient(120% 80% at 50% -20%, rgba(255, 255, 255, 0.35), transparent 55%),
+    linear-gradient(155deg, #ff0080 0%, #d4006e 28%, #9b1fb8 72%, #651fff 100%);
+  animation: tod-unlock-card-in 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes tod-unlock-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.tod-web-unlock-shine {
+  pointer-events: none;
+  position: absolute;
+  inset: -40%;
+  background: conic-gradient(from 200deg at 50% 50%, transparent 0deg, rgba(255, 255, 255, 0.08) 60deg, transparent 120deg);
+  animation: tod-unlock-shine-spin 10s linear infinite;
+}
+
+@keyframes tod-unlock-shine-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.tod-web-unlock-hero {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.15rem;
+  margin-bottom: 0.35rem;
+  min-height: 4.5rem;
+}
+
+.tod-web-unlock-dice {
+  font-size: 3.25rem;
+  line-height: 1;
+  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.25));
+  animation: tod-unlock-dice-float 2.4s ease-in-out infinite;
+}
+
+@keyframes tod-unlock-dice-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-4deg);
+  }
+  50% {
+    transform: translateY(-6px) rotate(4deg);
+  }
+}
+
+.tod-web-unlock-sparkles {
+  font-size: 1.35rem;
+  line-height: 1;
+  margin-top: 0.2rem;
+  opacity: 0.95;
+  animation: tod-unlock-sparkle 1.8s ease-in-out infinite;
+}
+
+@keyframes tod-unlock-sparkle {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(0.92) rotate(-8deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08) rotate(8deg);
+  }
+}
+
+.tod-web-unlock-title {
+  position: relative;
+  margin: 0 0 0.65rem;
+  font-size: 1.55rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.2);
+}
+
+.tod-web-unlock-lead {
+  position: relative;
+  margin: 0 auto 1rem;
+  max-width: 22rem;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  opacity: 0.96;
+  font-weight: 500;
+}
+
+.tod-web-unlock-lead strong {
+  font-weight: 800;
+}
+
+.tod-web-unlock-flow {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tod-web-unlock-flow-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.tod-web-unlock-flow-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.tod-web-unlock-flow-arrow {
+  opacity: 0.75;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.tod-web-unlock-chips {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.45rem;
+  margin-bottom: 1.25rem;
+}
+
+.tod-web-unlock-chip {
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(0, 0, 0, 0.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.tod-web-unlock-chip:nth-child(1) {
+  border-color: rgba(179, 229, 252, 0.65);
+  background: rgba(179, 229, 252, 0.12);
+}
+
+.tod-web-unlock-chip:nth-child(2) {
+  border-color: rgba(255, 213, 79, 0.75);
+  background: rgba(255, 213, 79, 0.14);
+}
+
+.tod-web-unlock-chip:nth-child(3) {
+  border-color: rgba(255, 138, 128, 0.75);
+  background: rgba(255, 138, 128, 0.14);
+}
+
+.tod-web-unlock-actions {
+  position: relative;
+  display: flex;
+  gap: 0.55rem;
+}
+
+.tod-web-unlock-btn {
+  flex: 1;
+  border-radius: 14px;
+  padding: 0.78rem 0.65rem;
+  font-size: 0.9rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  border: none;
+}
+
+.tod-web-unlock-btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+  transform: none;
+}
+
+.tod-web-unlock-btn--ghost {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.tod-web-unlock-btn--ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+.tod-web-unlock-btn--primary {
+  color: #2d0a24;
+  background: linear-gradient(180deg, #fff9fc 0%, #ffc2e0 100%);
+  box-shadow: 0 4px 0 rgba(130, 0, 70, 0.35), 0 8px 20px rgba(0, 0, 0, 0.2);
+}
+
+.tod-web-unlock-btn--primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 0 rgba(130, 0, 70, 0.35), 0 12px 28px rgba(0, 0, 0, 0.22);
+}
+
+.tod-web-unlock-btn--primary:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 2px 0 rgba(130, 0, 70, 0.35), 0 4px 12px rgba(0, 0, 0, 0.18);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tod-web-unlock-overlay,
+  .tod-web-unlock-card,
+  .tod-web-unlock-shine,
+  .tod-web-unlock-dice,
+  .tod-web-unlock-sparkles {
+    animation: none;
+  }
+
+  .tod-web-unlock-card {
+    transform: none;
+  }
+}
+
 .tod-web-modal-overlay {
   position: fixed;
   inset: 0;
   z-index: 10050;
   background: rgba(0, 0, 0, 0.55);
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 1rem;
+  padding: max(0.75rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(0.75rem, env(safe-area-inset-bottom))
+    max(1rem, env(safe-area-inset-left));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  min-height: 100%;
+  min-height: 100dvh;
+  box-sizing: border-box;
+}
+
+.tod-web-modal-overlay::before,
+.tod-web-modal-overlay::after {
+  content: "";
+  flex: 1 1 0;
+  min-height: 0;
+  width: 100%;
+  pointer-events: none;
 }
 
 .tod-web-modal {
   width: 100%;
   max-width: 380px;
+  max-height: calc(100dvh - 1.5rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
   border-radius: 22px;
   overflow: hidden;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
 }
 
 .tod-web-modal-gradient {
@@ -1597,6 +1915,11 @@ button.connect-landing__cta:disabled::before {
   padding: 1.35rem 1.25rem 1.1rem;
   color: #fff;
   text-align: center;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .tod-web-modal-title {
