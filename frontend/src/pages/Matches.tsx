@@ -12,6 +12,7 @@ import GameRequestModalWeb, { type PendingGameRequestWeb } from "../components/G
 import ChatMediaModerationModal, { type ChatMediaKind } from "../components/ChatMediaModerationModal";
 import ReportUserModal from "../components/ReportUserModal";
 import InterestCompatibilityModal from "../components/InterestCompatibilityModal";
+import CompatibilityPulseModal from "../components/CompatibilityPulseModal";
 
 interface Photo {
   id: string;
@@ -295,6 +296,7 @@ export default function Matches() {
   } | null>(null);
 
   const [showInterestCompatModal, setShowInterestCompatModal] = useState(false);
+  const [showPulseCompatModal, setShowPulseCompatModal] = useState(false);
   const [liveProfileCompatibility, setLiveProfileCompatibility] = useState<number | null>(null);
   const [compatibilityDetails, setCompatibilityDetails] = useState<{
     reasons: string[];
@@ -827,6 +829,10 @@ export default function Matches() {
       console.error("Failed to fetch messages:", err);
     }
   };
+
+  useEffect(() => {
+    setShowPulseCompatModal(false);
+  }, [selectedMatch?.id]);
 
   // Profile interest % + compatibility pulse (same APIs as mobile); sidebar uses GET /matches until this refreshes
   useEffect(() => {
@@ -1540,6 +1546,18 @@ export default function Matches() {
         sharedInterests={compatibilityDetails?.sharedInterests ?? []}
         onClose={() => setShowInterestCompatModal(false)}
       />
+      {showPulseCompatModal &&
+      selectedMatch &&
+      (pulseScore != null ||
+        (typeof selectedMatch.compatibilityScore === "number" &&
+          !Number.isNaN(selectedMatch.compatibilityScore))) ? (
+        <CompatibilityPulseModal
+          open
+          score={pulseScore ?? Math.round(selectedMatch.compatibilityScore as number)}
+          engagement={pulseEngagement}
+          onClose={() => setShowPulseCompatModal(false)}
+        />
+      ) : null}
       <GameRequestModalWeb
         request={gameRequestToShow}
         onClose={() => setGameRequestToShow(null)}
@@ -2062,11 +2080,14 @@ export default function Matches() {
                             {(pulseScore != null ||
                               (typeof selectedMatch.compatibilityScore === "number" &&
                                 !Number.isNaN(selectedMatch.compatibilityScore))) && (
-                              <span
+                              <button
+                                type="button"
                                 className={`compatibility-pulse-pill compatibility-pulse-pill--${
                                   pulseEngagement ?? "neutral"
                                 }`}
-                                title="Compatibility pulse — updates as you chat"
+                                title="Compatibility pulse — tap for details"
+                                aria-label="Compatibility pulse, open details"
+                                onClick={() => setShowPulseCompatModal(true)}
                               >
                                 <span className="compatibility-pulse-pill-dot" aria-hidden />
                                 <span className="compatibility-pulse-pill-label">Pulse</span>
@@ -2080,7 +2101,7 @@ export default function Matches() {
                                     · {PULSE_ENGAGEMENT_LABEL[pulseEngagement]}
                                   </span>
                                 ) : null}
-                              </span>
+                              </button>
                             )}
                           </div>
                         )}
