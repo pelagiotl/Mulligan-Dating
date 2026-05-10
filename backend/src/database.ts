@@ -374,6 +374,12 @@ export async function initDatabase() {
     // Column already exists, ignore
   }
 
+  try {
+    await execSQL(`ALTER TABLE lifestyle ADD COLUMN political ${usePostgres ? 'VARCHAR(255)' : 'TEXT'}`);
+  } catch (e) {
+    // Column already exists, ignore
+  }
+
   // Mulligan Tokens table - users get 7 tokens initially and 7 more per week (max 7 at a time)
   await execSQL(`
     CREATE TABLE IF NOT EXISTS mulligan_tokens (

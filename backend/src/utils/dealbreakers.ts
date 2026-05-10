@@ -80,6 +80,7 @@ export async function checkDealbreakers(userProfileId: string, candidateProfileI
       children: string | null;
       pets: string | null;
       religion: string | null;
+      political: string | null;
       work_life_balance: string | null;
       works_out: string | null;
     } | undefined;
@@ -211,6 +212,14 @@ export async function checkDealbreakers(userProfileId: string, candidateProfileI
       if (dealbreakerLower === "not religious" && candidateLifestyle.religion) {
         const r = norm(candidateLifestyle.religion);
         if (r === "not important") {
+          return false;
+        }
+      }
+
+      // Politics — same importance-style answers as web `political` lifestyle field
+      if (dealbreakerLower === "political" && candidateLifestyle.political) {
+        const p = norm(candidateLifestyle.political);
+        if (p === "very important" || p === "somewhat important") {
           return false;
         }
       }

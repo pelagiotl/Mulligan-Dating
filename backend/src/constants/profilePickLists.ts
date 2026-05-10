@@ -66,5 +66,6 @@ export const CANONICAL_DEALBREAKER_LOWERCASE = new Set([
   "allergic to pets",
   "religious",
   "not religious",
+  "political",
   "workaholic",
 ]);

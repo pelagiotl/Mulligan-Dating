@@ -74,6 +74,7 @@ interface ProfileData {
     children: string | null;
     pets: string | null;
     religion: string | null;
+    political: string | null;
     work_life_balance: string | null;
     works_out: string | null;
   } | null;
@@ -196,6 +197,8 @@ const DEALBREAKER_SUGGESTIONS = [
   "Wants children",
   "Doesn't workout",
   "Doesn't like pets",
+  "Religious",
+  "Political",
 ] as const;
 
 /** Only these preset dealbreakers are editable in the web profile UI. */
@@ -209,6 +212,8 @@ const DEALBREAKER_EMOJI: Record<(typeof DEALBREAKER_SUGGESTIONS)[number], string
   "Wants children": "👪",
   "Doesn't workout": "🛋️",
   "Doesn't like pets": "🐕❌",
+  Religious: "⛪",
+  Political: "🗳️",
 };
 
 function canonicalDealbreakerLabel(raw: string | null | undefined): (typeof DEALBREAKER_SUGGESTIONS)[number] | null {
@@ -224,6 +229,7 @@ const LIFESTYLE_FIELD_OPTIONS = {
   children: ["", "Want kids", "Don’t want kids", "Open to either", "Have kids", "Prefer not to say"],
   pets: ["", "Love pets", "Allergic", "No pets", "Open to pets", "Prefer not to say"],
   religion: ["", "Very important", "Somewhat important", "Spiritual not religious", "Not important", "Prefer not to say"],
+  political: ["", "Very important", "Somewhat important", "Prefer not political", "Not important", "Prefer not to say"],
   workLifeBalance: ["", "Career-focused", "Balanced", "Life-first", "Flexible", "Prefer not to say"],
   worksOut: ["", "Daily", "Often", "Sometimes", "Rarely", "Prefer not to say"],
 } as const;
@@ -236,6 +242,7 @@ const LIFESTYLE_SECTION_EMOJI: Record<LifestyleFieldKey, string> = {
   children: "👶",
   pets: "🐾",
   religion: "✨",
+  political: "🗳️",
   workLifeBalance: "⚖️",
   worksOut: "💪",
 };
@@ -282,6 +289,14 @@ const LIFESTYLE_OPTION_EMOJI: Record<LifestyleFieldKey, Record<string, string>> 
     "Not important": "➖",
     "Prefer not to say": "🤫",
   },
+  political: {
+    "": "◻️",
+    "Very important": "📣",
+    "Somewhat important": "📰",
+    "Prefer not political": "🤝",
+    "Not important": "➖",
+    "Prefer not to say": "🤫",
+  },
   workLifeBalance: {
     "": "◻️",
     "Career-focused": "💼",
@@ -315,6 +330,7 @@ type LifestyleForm = {
   children: string;
   pets: string;
   religion: string;
+  political: string;
   workLifeBalance: string;
   worksOut: string;
 };
@@ -327,6 +343,7 @@ function lifestyleFormFromApi(l: ProfileData["lifestyle"]): LifestyleForm {
       children: "",
       pets: "",
       religion: "",
+      political: "",
       workLifeBalance: "",
       worksOut: "",
     };
@@ -337,6 +354,7 @@ function lifestyleFormFromApi(l: ProfileData["lifestyle"]): LifestyleForm {
     children: l.children || "",
     pets: l.pets || "",
     religion: l.religion || "",
+    political: l.political || "",
     workLifeBalance: l.work_life_balance || "",
     worksOut: l.works_out || "",
   };
@@ -733,6 +751,7 @@ export default function MyProfile() {
         children: editLifestyle.children || null,
         pets: editLifestyle.pets || null,
         religion: editLifestyle.religion || null,
+        political: editLifestyle.political || null,
         workLifeBalance: editLifestyle.workLifeBalance || null,
         worksOut: editLifestyle.worksOut || null,
       });
@@ -1125,6 +1144,7 @@ export default function MyProfile() {
           lifestyle.children ||
           lifestyle.pets ||
           lifestyle.religion ||
+          lifestyle.political ||
           lifestyle.work_life_balance ||
           lifestyle.works_out) ? (
           <div className="profile-lifestyle">
@@ -1151,6 +1171,11 @@ export default function MyProfile() {
             {lifestyle.religion ? (
               <div className="lifestyle-item">
                 <strong>Religion:</strong> {lifestyle.religion}
+              </div>
+            ) : null}
+            {lifestyle.political ? (
+              <div className="lifestyle-item">
+                <strong>Politics:</strong> {lifestyle.political}
               </div>
             ) : null}
             {lifestyle.work_life_balance ? (
@@ -1670,6 +1695,7 @@ export default function MyProfile() {
                   ["children", "Children"] as const,
                   ["pets", "Pets"] as const,
                   ["religion", "Religion"] as const,
+                  ["political", "Politics"] as const,
                   ["workLifeBalance", "Work-life balance"] as const,
                   ["worksOut", "Works out"] as const,
                 ] as const

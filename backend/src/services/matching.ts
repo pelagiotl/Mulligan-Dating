@@ -207,6 +207,7 @@ async function calculateLifestyleMatch(
       children: string | null;
       pets: string | null;
       religion: string | null;
+      political: string | null;
       work_life_balance: string | null;
       works_out: string | null;
     } | undefined>);
@@ -219,6 +220,7 @@ async function calculateLifestyleMatch(
       children: string | null;
       pets: string | null;
       religion: string | null;
+      political: string | null;
       work_life_balance: string | null;
       works_out: string | null;
     } | undefined>);
@@ -325,31 +327,55 @@ async function calculateLifestyleMatch(
     }
   }
 
-  // Religion match - improved logic
+  // Religion — web profile uses importance-style answers (MyProfile LIFESTYLE_FIELD_OPTIONS)
   if (userLifestyle.religion && candidateLifestyle.religion) {
     total++;
-    const userReligion = userLifestyle.religion.toLowerCase();
-    const candidateReligion = candidateLifestyle.religion.toLowerCase();
-    if (userReligion === candidateReligion) {
-      matches += 1; // Exact match
+    const u = userLifestyle.religion.toLowerCase().replace(/\u2019/g, "'");
+    const v = candidateLifestyle.religion.toLowerCase().replace(/\u2019/g, "'");
+    const important = (s: string) => s === "very important" || s === "somewhat important";
+    const low = (s: string) => s === "not important" || s.includes("prefer not to say");
+    if (u === v) {
+      matches += 1;
+    } else if (important(u) && important(v)) {
+      matches += 0.88;
+    } else if (low(u) && low(v)) {
+      matches += 0.9;
+    } else if (u === "spiritual not religious" && v === "spiritual not religious") {
+      matches += 1;
     } else if (
-      (userReligion === 'spiritual' && candidateReligion === 'spiritual')
+      (u === "spiritual not religious" && (important(v) || low(v))) ||
+      (v === "spiritual not religious" && (important(u) || low(u)))
     ) {
-      matches += 1; // Spiritual matches spiritual
-    } else if (
-      (userReligion === 'agnostic' && candidateReligion === 'agnostic')
-    ) {
-      matches += 1; // Agnostic matches agnostic
-    } else if (
-      ((userReligion === 'spiritual' || userReligion === 'religious') && 
-       (candidateReligion === 'spiritual' || candidateReligion === 'religious'))
-    ) {
-      matches += 0.7; // Both are spiritual/religious
-    } else if (
-      ((userReligion === 'agnostic' || userReligion === 'atheist') && 
-       (candidateReligion === 'agnostic' || candidateReligion === 'atheist'))
-    ) {
-      matches += 0.7; // Both are non-religious
+      matches += 0.62;
+    } else if ((important(u) && low(v)) || (important(v) && low(u))) {
+      matches += 0.38;
+    } else {
+      matches += 0.55;
+    }
+  }
+
+  // Politics — same answer shape as religion (importance / comfort discussing)
+  if (userLifestyle.political && candidateLifestyle.political) {
+    total++;
+    const u = userLifestyle.political.toLowerCase().replace(/\u2019/g, "'");
+    const v = candidateLifestyle.political.toLowerCase().replace(/\u2019/g, "'");
+    const important = (s: string) => s === "very important" || s === "somewhat important";
+    const low = (s: string) => s === "not important" || s.includes("prefer not to say");
+    const middle = (s: string) => s === "prefer not political";
+    if (u === v) {
+      matches += 1;
+    } else if (important(u) && important(v)) {
+      matches += 0.88;
+    } else if (low(u) && low(v)) {
+      matches += 0.9;
+    } else if (middle(u) && middle(v)) {
+      matches += 1;
+    } else if ((middle(u) && (important(v) || low(v))) || (middle(v) && (important(u) || low(u)))) {
+      matches += 0.65;
+    } else if ((important(u) && low(v)) || (important(v) && low(u))) {
+      matches += 0.38;
+    } else {
+      matches += 0.55;
     }
   }
 

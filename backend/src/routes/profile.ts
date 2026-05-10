@@ -560,7 +560,7 @@ profileRouter.put('/lifestyle', authenticateToken, rateLimitAPI, async (req: Aut
   try {
     console.log('📝 PUT /api/profile/lifestyle - Request received');
     const userId = req.userId!;
-    const { smoking, drinking, children, pets, religion, workLifeBalance, worksOut } = req.body;
+    const { smoking, drinking, children, pets, religion, political, workLifeBalance, worksOut } = req.body;
     console.log('📝 Lifestyle update:', { userId });
 
     // Get user's profile
@@ -580,7 +580,7 @@ profileRouter.put('/lifestyle', authenticateToken, rateLimitAPI, async (req: Aut
       const updateStmt = db.prepare(`
         UPDATE lifestyle SET
           smoking = ?, drinking = ?, children = ?, pets = ?,
-          religion = ?, work_life_balance = ?, works_out = ?
+          religion = ?, political = ?, work_life_balance = ?, works_out = ?
         WHERE profile_id = ?
       `);
       await (updateStmt.run([
@@ -589,6 +589,7 @@ profileRouter.put('/lifestyle', authenticateToken, rateLimitAPI, async (req: Aut
         children ? sanitizeText(children, 50) : null,
         pets ? sanitizeText(pets, 50) : null,
         religion ? sanitizeText(religion, 50) : null,
+        political ? sanitizeText(political, 50) : null,
         workLifeBalance ? sanitizeText(workLifeBalance, 50) : null,
         worksOut ? sanitizeText(worksOut, 50) : null,
         profileResult.id
@@ -597,8 +598,8 @@ profileRouter.put('/lifestyle', authenticateToken, rateLimitAPI, async (req: Aut
       // Create new lifestyle
       const lifestyleId = uuidv4();
       const insertStmt = db.prepare(`
-        INSERT INTO lifestyle (id, profile_id, smoking, drinking, children, pets, religion, work_life_balance, works_out)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO lifestyle (id, profile_id, smoking, drinking, children, pets, religion, political, work_life_balance, works_out)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       await (insertStmt.run([
         lifestyleId,
@@ -608,6 +609,7 @@ profileRouter.put('/lifestyle', authenticateToken, rateLimitAPI, async (req: Aut
         children ? sanitizeText(children, 50) : null,
         pets ? sanitizeText(pets, 50) : null,
         religion ? sanitizeText(religion, 50) : null,
+        political ? sanitizeText(political, 50) : null,
         workLifeBalance ? sanitizeText(workLifeBalance, 50) : null,
         worksOut ? sanitizeText(worksOut, 50) : null
       ]) as Promise<any>);
