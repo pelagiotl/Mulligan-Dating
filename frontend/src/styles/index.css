@@ -10776,9 +10776,9 @@ button.chat-avatar-btn .chat-avatar img {
 
 .notification {
   position: fixed;
-  top: var(--space-6);
-  right: var(--space-6);
-  z-index: 10000;
+  top: max(var(--space-6), env(safe-area-inset-top, 0px));
+  right: max(var(--space-6), env(safe-area-inset-right, 0px));
+  z-index: 13000;
   min-width: 320px;
   max-width: 420px;
   background: linear-gradient(135deg, #ffffff 0%, var(--color-cream) 100%);
@@ -10867,9 +10867,9 @@ button.chat-avatar-btn .chat-avatar img {
 /* Responsive */
 @media (max-width: 768px) {
   .notification {
-    top: var(--space-4);
-    right: var(--space-4);
-    left: var(--space-4);
+    top: max(var(--space-4), env(safe-area-inset-top, 0px));
+    right: max(var(--space-4), env(safe-area-inset-right, 0px));
+    left: max(var(--space-4), env(safe-area-inset-left, 0px));
     min-width: auto;
     max-width: none;
   }

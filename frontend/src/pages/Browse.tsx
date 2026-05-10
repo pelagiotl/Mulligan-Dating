@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate, Navigate } from "react-router-dom";
 import { api } from "../utils/api";
 import { useAuth } from "../context/AuthContext";
@@ -752,32 +753,38 @@ export default function Browse() {
     <div className="browse-page-native native-app-screen">
       {isAutoMatching ? <BrowseConnectLandingChrome mode="auto-connecting" /> : null}
 
-      {matchNotification && !showMatchCelebration && (
-        <div
-          style={{
-            position: "fixed",
-            top: "20px",
-            left: "50%",
-            transform: "translateX(-50%)",
-            backgroundColor:
-              matchNotification.type === "success" ? "#10b981" : "#ef4444",
-            color: "white",
-            padding: "16px 24px",
-            borderRadius: "8px",
-            boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
-            zIndex: 10002,
-            maxWidth: "90%",
-            textAlign: "center",
-            cursor: "pointer",
-          }}
-          onClick={() => {
-            setMatchNotification(null);
-            navigate("/matches");
-          }}
-        >
-          {matchNotification.message}
-        </div>
-      )}
+      {matchNotification &&
+        !showMatchCelebration &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            role="status"
+            aria-live="polite"
+            style={{
+              position: "fixed",
+              top: "max(20px, env(safe-area-inset-top, 0px))",
+              left: "50%",
+              transform: "translateX(-50%)",
+              backgroundColor:
+                matchNotification.type === "success" ? "#10b981" : "#ef4444",
+              color: "white",
+              padding: "16px 24px",
+              borderRadius: "8px",
+              boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+              zIndex: 13000,
+              maxWidth: "90%",
+              textAlign: "center",
+              cursor: "pointer",
+            }}
+            onClick={() => {
+              setMatchNotification(null);
+              navigate("/matches");
+            }}
+          >
+            {matchNotification.message}
+          </div>,
+          document.body
+        )}
 
       {browseSessionActive &&
         hasFetched &&

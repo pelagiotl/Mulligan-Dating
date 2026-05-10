@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import { io, Socket } from 'socket.io-client'
@@ -209,8 +210,8 @@ function RequireConnectSetup({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-/** Above MatchCelebration (10001) / browse toasts so the banner stays visible during celebrations; below navbar modals (12000). */
-const NEW_MATCHES_TOAST_Z = 11050;
+/** Same layer as `.notification` (13000): above celebrations / browse UI, above navbar token modal (12000). */
+const GLOBAL_TOAST_Z = 13000;
 
 // Global notification component for new matches after login
 function NewMatchesNotification() {
@@ -381,11 +382,13 @@ function NewMatchesNotification() {
 
   if (!notification) return null
 
-  return (
+  const banner = (
     <div
+      role="status"
+      aria-live="polite"
       style={{
         position: 'fixed',
-        top: '20px',
+        top: 'max(20px, env(safe-area-inset-top, 0px))',
         left: '50%',
         transform: 'translateX(-50%)',
         background: 'linear-gradient(135deg, #f43f5e 0%, #e11d48 50%, #be123c 100%)',
@@ -393,7 +396,7 @@ function NewMatchesNotification() {
         padding: '20px 32px',
         borderRadius: '16px',
         boxShadow: '0 8px 32px rgba(244, 63, 94, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1)',
-        zIndex: NEW_MATCHES_TOAST_Z,
+        zIndex: GLOBAL_TOAST_Z,
         maxWidth: '90%',
         textAlign: 'center',
         cursor: 'pointer',
@@ -475,6 +478,9 @@ function NewMatchesNotification() {
       </div>
     </div>
   )
+
+  if (typeof document === 'undefined') return null
+  return createPortal(banner, document.body)
 }
 
 export default function App() {

@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 
 interface NotificationProps {
   message: string;
@@ -21,8 +22,12 @@ export default function Notification({
     return () => clearTimeout(timer);
   }, [duration, onClose]);
 
-  return (
-    <div className={`notification notification-${type}`}>
+  const el = (
+    <div
+      className={`notification notification-${type}`}
+      role="status"
+      aria-live="polite"
+    >
       <div className="notification-content">
         <span className="notification-icon">
           {type === "success" && "✨"}
@@ -32,10 +37,13 @@ export default function Notification({
         </span>
         <span className="notification-message">{message}</span>
       </div>
-      <button className="notification-close" onClick={onClose}>
+      <button type="button" className="notification-close" onClick={onClose} aria-label="Dismiss notification">
         ×
       </button>
     </div>
   );
+
+  if (typeof document === "undefined") return null;
+  return createPortal(el, document.body);
 }
 
