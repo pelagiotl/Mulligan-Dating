@@ -1,11 +1,26 @@
 /**
- * Truth or Dare - OpenAI generates a plethora of unique prompts (unbounded variety).
- * Static arrays below are FALLBACK ONLY when OPENAI_API_KEY is missing or the API fails.
- * With the key set, every prompt is AI-generated for maximum variety.
+ * Truth or Dare — how prompts are produced
+ *
+ * 1) Primary (when OPENAI_API_KEY is set): each prompt is generated fresh by the
+ *    model (high temperature). Variety is effectively unbounded — not random picks
+ *    from a finite DB. Per match, `used_prompts` excludes prior lines so repeats
+ *    are rare. Each request also gets a random "creative angle" nudge for diversity.
+ *
+ * 2) Fallback (no key or API error): random choice from merged static pools — core
+ *    arrays plus `truthOrDareExtraPools.ts` — still excluding `used_prompts`.
  */
 
 import { db } from '../database.js';
 import { getSharedInterests } from './mulliganMoments.js';
+import { randomCreativeAngle } from './truthOrDareAngles.js';
+import {
+  EXTRA_DARES_PG,
+  EXTRA_DARES_R,
+  EXTRA_DARES_SPICY,
+  EXTRA_TRUTHS_PG,
+  EXTRA_TRUTHS_R,
+  EXTRA_TRUTHS_SPICY,
+} from './truthOrDareExtraPools.js';
 
 // PG-13: grown-up dating energy — flirty, direct, never teen-party cute.
 const TRUTH_FALLBACKS = [
@@ -160,15 +175,21 @@ const DARE_FALLBACKS_SPICY: string[] = [
 ];
 
 function truthFallbacksForLevel(level: SpiceLevel): string[] {
-  if (level === 'spicy') return [...TRUTH_FALLBACKS, ...TRUTH_FALLBACKS_R, ...TRUTH_FALLBACKS_SPICY];
-  if (level === 'ratedr') return [...TRUTH_FALLBACKS, ...TRUTH_FALLBACKS_R];
-  return TRUTH_FALLBACKS;
+  const pg = [...TRUTH_FALLBACKS, ...EXTRA_TRUTHS_PG];
+  const r = [...TRUTH_FALLBACKS_R, ...EXTRA_TRUTHS_R];
+  const s = [...TRUTH_FALLBACKS_SPICY, ...EXTRA_TRUTHS_SPICY];
+  if (level === 'spicy') return [...pg, ...r, ...s];
+  if (level === 'ratedr') return [...pg, ...r];
+  return pg;
 }
 
 function dareFallbacksForLevel(level: SpiceLevel): string[] {
-  if (level === 'spicy') return [...DARE_FALLBACKS, ...DARE_FALLBACKS_R, ...DARE_FALLBACKS_SPICY];
-  if (level === 'ratedr') return [...DARE_FALLBACKS, ...DARE_FALLBACKS_R];
-  return DARE_FALLBACKS;
+  const pg = [...DARE_FALLBACKS, ...EXTRA_DARES_PG];
+  const r = [...DARE_FALLBACKS_R, ...EXTRA_DARES_R];
+  const s = [...DARE_FALLBACKS_SPICY, ...EXTRA_DARES_SPICY];
+  if (level === 'spicy') return [...pg, ...r, ...s];
+  if (level === 'ratedr') return [...pg, ...r];
+  return pg;
 }
 
 export async function generateTruthOrDarePrompt(
@@ -271,11 +292,15 @@ ${lengthNote}
           ? 'Prioritize adult dating tension, stories, and in-chat actions — not events, outings, or hobby tourism.'
           : 'Prioritize mature chemistry, standards, and emotional honesty — confident adults, not party games.';
 
+    const creativeAngle = randomCreativeAngle(type);
+
     const userPrompt = `Generate one unique ${typeLabel} prompt for two people playing on a dating app.${interestsContext}${interestsNote}
 
 Heat level for this round: ${spiceLevel.toUpperCase()}.
 
 VARIETY: Be creative and unexpected — we want a plethora of different prompts, not the same angles. Surprise them. ${varietyLine}
+
+Creative angle for this round (do not quote this phrase verbatim; let it steer topic and format): ${creativeAngle}
 
 Requirements: ${typeInstruction}${excludeHint}
 
