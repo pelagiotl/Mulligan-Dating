@@ -115,6 +115,22 @@ function getAdminUserIds(): string[] {
   return raw.split(',').map((id) => id.trim()).filter((id) => id.length > 0);
 }
 
+/** User IDs that count as the primary site owner (same privileges as owner phone). Comma-separated in env. */
+function getOwnerUserIds(): string[] {
+  const raw = process.env.OWNER_USER_IDS || '';
+  return raw.split(',').map((id) => id.trim()).filter((id) => id.length > 0);
+}
+
+/**
+ * Primary owner (stricter than general admin): owner phone or OWNER_USER_IDS.
+ * Used for sensitive per-user moderation (e.g. designated accounts only you review).
+ */
+export function isOwnerAdmin(userId: string, phone_number: string | null | undefined): boolean {
+  if (getOwnerUserIds().includes(userId)) return true;
+  const phoneDigits = (phone_number || '').replace(/\D/g, '');
+  return phoneDigits === OWNER_PHONE_DIGITS || phoneDigits === '1' + OWNER_PHONE_DIGITS;
+}
+
 /** Same rules as `requireAdmin` — use for `/auth/me` so web/mobile UI matches API without duplicating phone checks client-side. */
 export function userHasAdminAccess(
   userId: string,

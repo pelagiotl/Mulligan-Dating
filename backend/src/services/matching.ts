@@ -674,6 +674,13 @@ export async function generateWeeklyMatches(userId: string): Promise<{
     return { matchesCreated: 0, matches: [] };
   }
 
+  const selfRestricted = db
+    .prepare("SELECT is_restricted FROM users WHERE id = ?")
+    .get(userId) as { is_restricted: number | null } | undefined;
+  if (selfRestricted?.is_restricted === 1) {
+    return { matchesCreated: 0, matches: [] };
+  }
+
   const hiddenFromBrowseIds = await getHiddenFromBrowseUserIds();
   const hiddenSet = new Set(hiddenFromBrowseIds);
 
@@ -690,7 +697,9 @@ export async function generateWeeklyMatches(userId: string): Promise<{
       SELECT p.*, pref.*
       FROM profiles p
       JOIN preferences pref ON pref.profile_id = p.id
+      JOIN users u ON u.id = p.user_id
       WHERE p.user_id != ?
+        AND (u.is_restricted IS NULL OR u.is_restricted = 0)
     `)
     .all(userId) as (ProfileRow & PreferencesRow)[];
 
@@ -994,6 +1003,7 @@ export async function generateWeeklyMatchesForAll(): Promise<{
       FROM users u
       JOIN profiles p ON p.user_id = u.id
       JOIN preferences pref ON pref.profile_id = p.id
+      WHERE (u.is_restricted IS NULL OR u.is_restricted = 0)
     `)
     .all() as { id: string }[];
 

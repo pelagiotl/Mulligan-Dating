@@ -1,9 +1,49 @@
-import { Router } from 'express';
+import { Router, type Response } from 'express';
 import { db } from '../database.js';
-import { authenticateToken, requireAdmin, AuthRequest } from '../middleware/auth.js';
+import { authenticateToken, requireAdmin, AuthRequest, isOwnerAdmin } from '../middleware/auth.js';
 import { v4 as uuidv4 } from 'uuid';
 
 export const adminRouter = Router();
+
+/** Profile display name (normalized) that only the primary owner may review in admin. */
+const PROTECTED_REVIEW_DISPLAY = 'taya';
+
+function normalizeDisplayForPolicy(name: string | null | undefined): string {
+  return (name || '').trim().toLowerCase();
+}
+
+async function isProtectedReviewUser(targetUserId: string): Promise<boolean> {
+  const row = (await db
+    .prepare('SELECT display_name FROM profiles WHERE user_id = ?')
+    .get([targetUserId])) as { display_name: string | null } | undefined;
+  return normalizeDisplayForPolicy(row?.display_name ?? undefined) === PROTECTED_REVIEW_DISPLAY;
+}
+
+async function requesterPhone(userId: string): Promise<string | null> {
+  const row = (await db
+    .prepare('SELECT phone_number FROM users WHERE id = ?')
+    .get([userId])) as { phone_number: string | null } | undefined;
+  return row?.phone_number ?? null;
+}
+
+/** If target is policy-protected, only the primary owner may proceed. */
+async function assertCanModerateUser(req: AuthRequest, res: Response, targetUserId: string): Promise<boolean> {
+  if (!(await isProtectedReviewUser(targetUserId))) return true;
+  const phone = await requesterPhone(req.userId!);
+  if (!isOwnerAdmin(req.userId!, phone)) {
+    res.status(403).json({
+      error: 'Only the primary site owner can review or moderate this account.',
+    });
+    return false;
+  }
+  return true;
+}
+
+/** SQL fragment: hide protected user from admin directory unless requester is owner. */
+function sqlExcludeProtectedDisplay(ownerView: boolean): string {
+  if (ownerView) return '';
+  return ` AND (COALESCE(LOWER(TRIM(p.display_name)), '') != '${PROTECTED_REVIEW_DISPLAY}')`;
+}
 
 // Create test users endpoint (admin only, or no auth in development)
 adminRouter.post('/create-test-users', async (req: AuthRequest, res) => {
@@ -410,6 +450,12 @@ adminRouter.get('/export/report', authenticateToken, requireAdmin, async (req: A
 // List match pairs (for drill-down from Matches stat)
 adminRouter.get('/matches', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
   try {
+    const requesterPhoneVal = await requesterPhone(req.userId!);
+    const ownerView = isOwnerAdmin(req.userId!, requesterPhoneVal);
+    const tayaMatchHide = ownerView
+      ? ''
+      : ` AND (COALESCE(LOWER(TRIM(p1.display_name)), '') != '${PROTECTED_REVIEW_DISPLAY}' AND COALESCE(LOWER(TRIM(p2.display_name)), '') != '${PROTECTED_REVIEW_DISPLAY}')`;
+
     const limit = Math.min(parseInt(req.query.limit as string) || 100, 500);
     const offset = parseInt(req.query.offset as string) || 0;
 
@@ -422,12 +468,29 @@ adminRouter.get('/matches', authenticateToken, requireAdmin, async (req: AuthReq
       JOIN users u2 ON u2.id = m.user2_id
       LEFT JOIN profiles p1 ON p1.user_id = u1.id
       LEFT JOIN profiles p2 ON p2.user_id = u2.id
-      WHERE m.stage != 'expired'
+      WHERE m.stage != 'expired'${tayaMatchHide}
       ORDER BY m.stage1_at DESC
       LIMIT ? OFFSET ?
     `).all([limit, offset]) as Promise<any[]>);
 
-    const totalResult = await (db.prepare('SELECT COUNT(*) as count FROM matches WHERE stage != ?').get(['expired']) as Promise<{ count: number }>);
+    let totalResult: { count: number };
+    if (ownerView) {
+      totalResult = (await (db
+        .prepare('SELECT COUNT(*) as count FROM matches WHERE stage != ?')
+        .get(['expired']) as Promise<{ count: number }>)) as { count: number };
+    } else {
+      totalResult = (await (db
+        .prepare(`
+          SELECT COUNT(*) as count
+          FROM matches m
+          JOIN users u1 ON u1.id = m.user1_id
+          JOIN users u2 ON u2.id = m.user2_id
+          LEFT JOIN profiles p1 ON p1.user_id = u1.id
+          LEFT JOIN profiles p2 ON p2.user_id = u2.id
+          WHERE m.stage != 'expired'${tayaMatchHide}
+        `)
+        .get([]) as Promise<{ count: number }>)) as { count: number };
+    }
     const total = totalResult?.count || 0;
 
     const matches = matchesResult.map((m: any) => ({
@@ -448,6 +511,10 @@ adminRouter.get('/matches', authenticateToken, requireAdmin, async (req: AuthReq
 // List users with pagination, search, and filter (restricted | active | with_profile)
 adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
   try {
+    const requesterPhoneVal = await requesterPhone(req.userId!);
+    const ownerView = isOwnerAdmin(req.userId!, requesterPhoneVal);
+    const tayaHide = sqlExcludeProtectedDisplay(ownerView);
+
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 50;
     const offset = (page - 1) * limit;
@@ -468,7 +535,7 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
           p.display_name, p.age, p.gender, p.location
         FROM users u
         LEFT JOIN profiles p ON p.user_id = u.id
-        WHERE ${baseWhere}${searchWhere}
+        WHERE ${baseWhere}${tayaHide}${searchWhere}
         ORDER BY u.created_at DESC
         LIMIT ? OFFSET ?
       `;
@@ -478,7 +545,7 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
       const countQuery = `
         SELECT COUNT(DISTINCT u.id) as count FROM users u
         LEFT JOIN profiles p ON p.user_id = u.id
-        WHERE ${baseWhere}${searchWhere}
+        WHERE ${baseWhere}${tayaHide}${searchWhere}
       `;
       const countParams = search ? [searchTerm, searchTerm, searchTerm, searchTerm] : [];
       const totalResult = await (db.prepare(countQuery).get(countParams) as Promise<{ count: number }>);
@@ -526,7 +593,7 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
           p.display_name, p.age, p.gender, p.location
         FROM users u
         INNER JOIN profiles p ON p.user_id = u.id
-        WHERE 1=1${searchWhere}
+        WHERE 1=1${tayaHide}${searchWhere}
         ORDER BY u.created_at DESC
         LIMIT ? OFFSET ?
       `;
@@ -536,7 +603,7 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
       const countQuery = `
         SELECT COUNT(DISTINCT u.id) as count FROM users u
         INNER JOIN profiles p ON p.user_id = u.id
-        WHERE 1=1${searchWhere}
+        WHERE 1=1${tayaHide}${searchWhere}
       `;
       const countParams = search ? [searchTerm, searchTerm, searchTerm, searchTerm] : [];
       const totalResult = await (db.prepare(countQuery).get(countParams) as Promise<{ count: number }>);
@@ -608,6 +675,10 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
       params.push(searchTerm, searchTerm, searchTerm, searchTerm);
     }
 
+    if (!ownerView) {
+      conditions.push(`(COALESCE(LOWER(TRIM(p.display_name)), '') != '${PROTECTED_REVIEW_DISPLAY}')`);
+    }
+
     if (conditions.length > 0) {
       query += ` WHERE ${conditions.join(' AND ')}`;
     }
@@ -633,6 +704,10 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
       countQuery += '(u.email LIKE ? OR p.display_name LIKE ? OR u.phone_number LIKE ? OR u.id LIKE ?)';
       const st = `%${search}%`;
       countParams.push(st, st, st, st);
+    }
+    if (!ownerView) {
+      countQuery += countQuery.includes('WHERE') ? ' AND ' : ' WHERE ';
+      countQuery += `(COALESCE(LOWER(TRIM(p.display_name)), '') != '${PROTECTED_REVIEW_DISPLAY}')`;
     }
     const totalResult = await (db.prepare(countQuery).get(countParams) as Promise<{ count: number }>);
     const total = totalResult?.count || 0;
@@ -687,6 +762,7 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
 adminRouter.get('/users/:id', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const userId = req.params.id;
+    if (!(await assertCanModerateUser(req, res, userId))) return;
 
     // Get user
     const userResult = await (db.prepare('SELECT * FROM users WHERE id = ?').get([userId]) as Promise<any>);
@@ -741,6 +817,18 @@ adminRouter.post('/users/batch-unrestrict', authenticateToken, requireAdmin, asy
       return res.status(400).json({ error: 'displayNames must be a non-empty array' });
     }
 
+    const touchesProtected = displayNames.some(
+      (n) => normalizeDisplayForPolicy(n) === PROTECTED_REVIEW_DISPLAY
+    );
+    if (touchesProtected) {
+      const phone = await requesterPhone(req.userId!);
+      if (!isOwnerAdmin(req.userId!, phone)) {
+        return res.status(403).json({
+          error: 'Only the primary site owner can batch-change this account.',
+        });
+      }
+    }
+
     const placeholders = displayNames.map(() => '?').join(',');
     const profilesResult = await (db.prepare(`
       SELECT p.user_id FROM profiles p
@@ -771,6 +859,7 @@ adminRouter.post('/users/batch-unrestrict', authenticateToken, requireAdmin, asy
 adminRouter.post('/users/:id/restrict', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const userId = req.params.id;
+    if (!(await assertCanModerateUser(req, res, userId))) return;
     const { restricted } = req.body;
 
     if (typeof restricted !== 'boolean') {
@@ -794,6 +883,7 @@ adminRouter.post('/users/:id/restrict', authenticateToken, requireAdmin, async (
 adminRouter.post('/users/:id/grant-tokens', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const userId = req.params.id;
+    if (!(await assertCanModerateUser(req, res, userId))) return;
     const { count } = req.body;
 
     const requested = parseInt(count) || 1;
@@ -854,6 +944,8 @@ adminRouter.post('/grant-tokens-by-phone', authenticateToken, requireAdmin, asyn
       return res.status(404).json({ error: 'User not found with that phone number' });
     }
 
+    if (!(await assertCanModerateUser(req, res, user.id))) return;
+
     const tokensResult = await (db.prepare(`
       SELECT * FROM mulligan_tokens WHERE user_id = ? AND used_at IS NULL AND returned_at IS NULL
     `).all([user.id]) as Promise<any[]>);
@@ -893,6 +985,7 @@ adminRouter.post('/grant-tokens-by-phone', authenticateToken, requireAdmin, asyn
 adminRouter.post('/users/:id/set-admin', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const userId = req.params.id;
+    if (!(await assertCanModerateUser(req, res, userId))) return;
     const { isAdmin } = req.body;
 
     if (typeof isAdmin !== 'boolean') {
@@ -917,6 +1010,7 @@ adminRouter.post('/users/:id/set-admin', authenticateToken, requireAdmin, async 
 adminRouter.get('/users/:id/matches', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const userId = req.params.id;
+    if (!(await assertCanModerateUser(req, res, userId))) return;
     const includeExpired =
       req.query.includeExpired !== 'false' && req.query.includeExpired !== '0';
 
@@ -956,6 +1050,7 @@ adminRouter.get('/users/:id/matches', authenticateToken, requireAdmin, async (re
 adminRouter.get('/users/:id/messages', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const userId = req.params.id;
+    if (!(await assertCanModerateUser(req, res, userId))) return;
     const matchId = req.query.matchId as string | undefined;
     const rawLimit = parseInt(String(req.query.limit || ''), 10);
     const limit = Math.min(Math.max(Number.isFinite(rawLimit) ? rawLimit : 2000, 1), 5000);
@@ -1257,7 +1352,8 @@ async function deleteUserData(userId: string): Promise<void> {
 adminRouter.delete('/users/:userId', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const { userId } = req.params;
-    
+    if (!(await assertCanModerateUser(req, res, userId))) return;
+
     // Prevent deleting admin users
     const userStmt = db.prepare('SELECT id, email, phone_number, is_admin FROM users WHERE id = ?');
     const user = await (userStmt.get([userId]) as Promise<{

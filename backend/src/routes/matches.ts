@@ -529,6 +529,14 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
       return res.status(404).json({ error: 'Profile not available' });
     }
 
+    const targetRestrictedResult = db.prepare("SELECT is_restricted FROM users WHERE id = ?").get([targetUserId]);
+    const targetRestrictedRow = (targetRestrictedResult instanceof Promise
+      ? await targetRestrictedResult
+      : targetRestrictedResult) as { is_restricted: number | null } | undefined;
+    if (targetRestrictedRow?.is_restricted === 1) {
+      return res.status(404).json({ error: "Profile not available" });
+    }
+
     // Check if already matched (but allow re-matching if match is expired)
     const existingMatchResult = db
       .prepare(

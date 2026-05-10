@@ -19,7 +19,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { api } from '../utils/api';
 
-// PG-13 — cool, badass, flirty
+// PG-13 — grown-up flirting (matches server fallbacks)
 const TRUTH_PROMPTS = [
   "What's the one thing that would make you actually stop scrolling?",
   "What's your non-negotiable when you're really into someone?",
@@ -36,6 +36,11 @@ const TRUTH_PROMPTS = [
   "What would make you want a second date before the first one's even over?",
   "What's your love language when it comes to showing you're into someone?",
   "What's the line you'd use to ask someone out in person — no filter?",
+  "How do you tell the difference between chemistry and just liking the idea of someone?",
+  "When do you know you're catching feelings versus keeping it casual?",
+  "What's something people consistently misread about you from your profile or photos?",
+  "What's your tell that you're nervous on a date — even when you're playing it cool?",
+  "What would make you trust someone faster than you usually do?",
 ];
 
 const DARE_PROMPTS = [
@@ -45,18 +50,69 @@ const DARE_PROMPTS = [
   "Send a 5–10 sec video saying hi and one thing you're looking forward to",
   "Reply with the line you'd use to shoot your shot in person",
   "Send a pic of what you're doing rn with a one-line that says something real about you",
-  "Describe your ideal first date in 3 emojis",
   "Send a selfie — flirty or unapologetically you",
   "Reply with 3 words that describe your vibe when you're into someone",
   "Voice note: one thing you find attractive about them — be specific",
   "Send a selfie that shows your actual smile, not the camera smile",
-  "Send a quick video of your reaction to something that made you laugh today",
   "Reply with a question you've always wanted to ask a match but never have",
   "Send a selfie from an angle you like with a one-word caption",
   "Voice note: the boldest thing you'd say to break the tension on a date",
-  "Send a 5-second video saying one thing you'd want to do on a first date",
+  "Reply with one green flag you've already noticed about them",
+  "Voice note: one standard you hold people to on dates that isn't in your bio",
+  "Send a selfie that matches how you feel after a conversation that actually went somewhere",
+  "Reply with the honest reason you're still on the apps — one sentence",
+  "Send a 5-second video: nod once if you'd rather skip small talk and go straight to real talk",
 ];
 
+const TRUTH_PROMPTS_R = [
+  "What's the wildest thing you've done on a first date?",
+  "Have you ever hooked up with someone you barely knew?",
+  "What's a fantasy you've never told anyone out loud?",
+  "When did you last send a text you regretted the next morning?",
+  "What's your biggest turn-on that isn't physical?",
+  "Have you ever caught feelings during something you swore was casual?",
+  "What's your honest line between flirting and leading someone on?",
+];
+
+const TRUTH_PROMPTS_SPICY = [
+  "What kind of text from a match actually makes you weak?",
+  "What's a kink or dynamic you've only admitted after a few drinks?",
+  "What's the most shameless thing you've done to keep someone's attention?",
+  "Describe the last time chemistry hit you like a truck — no names, just the feeling.",
+  "What's a fantasy that's stayed in your head because you've never found the right person?",
+  "What would make you break your 'I don't do that on apps' rule?",
+];
+
+const DARE_PROMPTS_R = [
+  "Send a selfie that shows your 'after midnight' energy",
+  "Voice note: one thing you find physically irresistible about them",
+  "Text three words you'd whisper if you were sitting way too close right now",
+  "Voice note: one thing that would make you veto a second date — no names, just the standard",
+  "Voice note: admit whether you're a slow-burn or a fast-flame person — one sentence",
+];
+
+const DARE_PROMPTS_SPICY = [
+  "Voice note: describe what you'd do with your hands if they were here — one sentence, no graphic detail",
+  "Send a selfie in low light that feels like a 'you up?' text in photo form",
+  "Voice note: one boundary you'd bend if the chemistry was undeniable",
+  "Send a 5-sec video: slow blink + half-smile, like you're deciding whether to make a move",
+  "Type the first move you'd make if they were on your couch right now — PG-13 wording only",
+  "Send a 5-sec video: lip bite or lip press (subtle) then look at the camera like you're not sorry",
+];
+
+type SpiceId = "pg13" | "ratedr" | "spicy";
+
+function fallbackPromptList(type: "truth" | "dare", spiceLevel: SpiceId | null): string[] {
+  const level = spiceLevel ?? "pg13";
+  if (type === "truth") {
+    if (level === "spicy") return [...TRUTH_PROMPTS, ...TRUTH_PROMPTS_R, ...TRUTH_PROMPTS_SPICY];
+    if (level === "ratedr") return [...TRUTH_PROMPTS, ...TRUTH_PROMPTS_R];
+    return TRUTH_PROMPTS;
+  }
+  if (level === "spicy") return [...DARE_PROMPTS, ...DARE_PROMPTS_R, ...DARE_PROMPTS_SPICY];
+  if (level === "ratedr") return [...DARE_PROMPTS, ...DARE_PROMPTS_R];
+  return DARE_PROMPTS;
+}
 
 function pickRandom<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
@@ -88,10 +144,10 @@ interface Message {
 }
 
 interface GameState {
-  yourSpiceChoice: 'pg13' | 'ratedr' | 'spicy' | null;
-  theirSpiceChoice: 'pg13' | 'ratedr' | 'spicy' | null;
+  yourSpiceChoice: SpiceId | null;
+  theirSpiceChoice: SpiceId | null;
   spiceReady: boolean;
-  spiceLevel: 'pg13' | 'ratedr' | 'spicy' | null;
+  spiceLevel: SpiceId | null;
   tokenUnlocked?: boolean;
   needsSpiceChoiceFromUnlocker?: boolean;
   currentPrompt?: string | null;
@@ -359,7 +415,7 @@ export default function TruthOrDare({
     }
   };
 
-  const submitSpiceChoice = async (choice: 'pg13' | 'ratedr' | 'spicy') => {
+  const submitSpiceChoice = async (choice: SpiceId) => {
     setLoading(true);
     try {
       await api.post(`/matches/${matchId}/truth-or-dare/spice-choice`, { choice });
@@ -417,7 +473,7 @@ export default function TruthOrDare({
         }, 8000);
         return;
       }
-      const list = type === 'truth' ? TRUTH_PROMPTS : DARE_PROMPTS;
+      const list = fallbackPromptList(type, gameStateRef.current?.spiceLevel ?? null);
       finalPrompt = pickRandom(list);
       setPrompt(finalPrompt);
       lastAnotherOneAtRef.current = Date.now();

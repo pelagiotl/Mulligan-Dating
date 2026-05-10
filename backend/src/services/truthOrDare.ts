@@ -7,7 +7,7 @@
 import { db } from '../database.js';
 import { getSharedInterests } from './mulliganMoments.js';
 
-// Single mode: wholesome, adult, and app-store safe.
+// PG-13: grown-up dating energy — flirty, direct, never teen-party cute.
 const TRUTH_FALLBACKS = [
   "What's the one thing that would make you actually stop scrolling?",
   "What's your non-negotiable when you're really into someone?",
@@ -24,6 +24,11 @@ const TRUTH_FALLBACKS = [
   "What would make you want a second date before the first one's even over?",
   "What's your love language when it comes to showing you're into someone?",
   "What's the line you'd use to ask someone out in person — no filter?",
+  "How do you tell the difference between chemistry and just liking the idea of someone?",
+  "When do you know you're catching feelings versus keeping it casual?",
+  "What's something people consistently misread about you from your profile or photos?",
+  "What's your tell that you're nervous on a date — even when you're playing it cool?",
+  "What would make you trust someone faster than you usually do?",
 ];
 
 const DARE_FALLBACKS = [
@@ -33,17 +38,18 @@ const DARE_FALLBACKS = [
   "Send a 5–10 sec video saying hi and one thing you're looking forward to",
   "Reply with the line you'd use to shoot your shot in person",
   "Send a pic of what you're doing rn with a one-line that says something real about you",
-  "Describe your ideal first date in 3 emojis",
   "Send a selfie — flirty or unapologetically you",
   "Reply with 3 words that describe your vibe when you're into someone",
   "Voice note: one thing you find attractive about them — be specific",
   "Send a selfie that shows your actual smile, not the camera smile",
-  "Send a quick video of your reaction to something that made you laugh today",
   "Reply with a question you've always wanted to ask a match but never have",
   "Send a selfie from an angle you like with a one-word caption",
   "Voice note: the boldest thing you'd say to break the tension on a date",
   "Reply with one green flag you've already noticed about them",
-  "Send a 5-second video saying one thing you'd want to do on a first date",
+  "Voice note: one standard you hold people to on dates that isn't in your bio",
+  "Send a selfie that matches how you feel after a conversation that actually went somewhere",
+  "Reply with the honest reason you're still on the apps — one sentence",
+  "Send a 5-second video: nod once if you'd rather skip small talk and go straight to real talk",
 ];
 
 
@@ -85,6 +91,11 @@ const TRUTH_FALLBACKS_R: string[] = [
   "What's your biggest turn-on that isn't physical?",
   "Have you ever dated two people at once without them knowing?",
   "What's the boldest move you've made to get someone's attention?",
+  "Have you ever caught feelings during something you swore was casual?",
+  "What's the grown-up situation you stayed in too long because the chemistry was unfair?",
+  "What's something you'd only confess after you've already kissed them?",
+  "When did you last pretend you weren't as into someone as you were?",
+  "What's your honest line between flirting and leading someone on?",
 ];
 
 const TRUTH_FALLBACKS_SPICY: string[] = [
@@ -93,6 +104,21 @@ const TRUTH_FALLBACKS_SPICY: string[] = [
   "What's something you'd try with the right person that you'd never post about?",
   "Have you ever slept with someone on the first date?",
   "What's the riskiest photo you've ever sent a crush?",
+  "What kind of text from a match actually makes you weak?",
+  "What's a kink or dynamic you've only admitted after a few drinks?",
+  "Have you ever kept hooking up with someone you knew was bad for you — why?",
+  "What's your honest take: sexting before you meet — yes, no, or only if the vibe is insane?",
+  "What's the most shameless thing you've done to keep someone's attention?",
+  "When did you last lie about what you wanted — to seem cooler or less interested?",
+  "What's a boundary you say you have that you've broken for the right person?",
+  "Describe the last time chemistry hit you like a truck — no names, just the feeling.",
+  "What's something about your body or presence you wish more people noticed?",
+  "Have you ever wanted someone more because they were a little unavailable?",
+  "What's your move when you want to escalate from flirty chat to something real?",
+  "What's a fantasy that's stayed in your head because you've never found the right person?",
+  "What's the hottest non-physical thing someone can do in conversation?",
+  "Have you ever replayed a voice note or clip from a match more than you should admit?",
+  "What would make you break your 'I don't do that on apps' rule?",
 ];
 
 const DARE_FALLBACKS_R: string[] = [
@@ -101,6 +127,13 @@ const DARE_FALLBACKS_R: string[] = [
   "Reply with the most flirtatious emoji combo you can without using words",
   "Send a 5-sec video: one thing you'd do if we met tonight and the vibe was right",
   "Voice note: one thing you find physically irresistible about them",
+  "Text three words you'd whisper if you were sitting way too close right now",
+  "Send a selfie where your expression says 'I dare you' without saying it",
+  "Voice note: the last thing that actually turned you on from a message — keep it tasteful",
+  "Voice note: one thing that would make you veto a second date — no names, just the standard",
+  "Send a 6-sec video: hold eye contact with the camera like you're deciding whether to text first",
+  "Type the kind of message that would make you reply at 1 a.m. — still respectful",
+  "Voice note: admit whether you're a slow-burn or a fast-flame person — one sentence",
 ];
 
 const DARE_FALLBACKS_SPICY: string[] = [
@@ -108,6 +141,22 @@ const DARE_FALLBACKS_SPICY: string[] = [
   "Send a selfie from bed with a one-word caption (keep it PG enough for chat)",
   "Reply with the boldest compliment you'd give if you weren't worried about sounding thirsty",
   "Send a 5-sec video: your reaction if they leaned in for a kiss right now",
+  "Voice note: describe what you'd do with your hands if they were here — one sentence, no graphic detail",
+  "Send a selfie that shows collarbone or shoulder — confident, not explicit — with a flirty caption",
+  "Type a message you'd only send after 2 a.m. — still respectful, still adult",
+  "Send a 6-sec video: slow blink + half-smile, like you're deciding whether to make a move",
+  "Voice note: one thing you want to know about their mouth (tone only — keep it classy)",
+  "Reply with a dare back: one thing you want them to send you next round",
+  "Send a selfie in low light that feels like a 'you up?' text in photo form",
+  "Voice note: narrate what you're wearing in a way that sounds like a trailer, not a catalog",
+  "Text the kind of emoji sequence that would make them screenshot the chat",
+  "Send a 5-sec video: touch your jawline or neck once, like you're thinking about them",
+  "Voice note: admit one thing you'd let them get away with on a first hang",
+  "Reply with two truths and a lie about your attraction style — they'll guess which is the lie",
+  "Send a selfie where only your eyes are obvious — let the tension do the talking",
+  "Voice note: one boundary you'd bend if the chemistry was undeniable",
+  "Type the first move you'd make if they were on your couch right now — PG-13 wording only",
+  "Send a 5-sec video: lip bite or lip press (subtle) then look at the camera like you're not sorry",
 ];
 
 function truthFallbacksForLevel(level: SpiceLevel): string[] {
@@ -160,34 +209,45 @@ export async function generateTruthOrDarePrompt(
 
     const spiceBlock =
       spiceLevel === 'pg13'
-        ? `SPICE: PG-13 — flirty, confident, dating-app safe. No explicit sexual acts, no graphic body descriptions, no coercion. Adults only tone.`
+        ? `SPICE: PG-13 — for adults: confident, emotionally intelligent flirting. Dating-app safe: no explicit sexual acts, no graphic body descriptions, no coercion. Mature vocabulary; never sound like a schoolyard game or icebreaker workshop.`
         : spiceLevel === 'ratedr'
-          ? `SPICE: Rated R — bolder sexual tension and past experiences allowed (hookups, attraction, innuendo). Still no graphic porn, no minors, no non-consent, no illegal content. Keep prompts doable in chat (text, voice, selfie, short video).`
-          : `SPICE: Spicy — maximum heat while staying app-store safe: suggestive, steamy, adult. No graphic explicit acts, no minors, no non-consent. Dares must stay doable in chat (voice, selfie, short clip, text).`;
+          ? `SPICE: Rated R — for adults: sexual tension, past experiences, innuendo, and real attraction are fair game. Still no graphic porn, no minors, no non-consent, no illegal content. Prompts stay in chat (text, voice, selfie, short video). Sound like two grown people at a bar after midnight, not a dare channel for teens.`
+          : `SPICE: Spicy — maximum heat while staying app-store safe: suggestive, steamy, explicitly adult dating energy (tension, desire, power play in words). No graphic explicit sexual acts, no minors, no non-consent. Dares must stay doable in chat from home (voice, selfie, short clip, text) — never require nudity or pornographic acts on camera.`;
 
     const typeInstruction = type === 'truth'
       ? spiceLevel === 'pg13'
-        ? 'a wholesome-but-adult question about attraction, dating, or chemistry. Specific, confident, and real — not cheesy or childish.'
+        ? 'a mature question about attraction, standards, emotional honesty, dating patterns, or chemistry — specific and self-aware, never cutesy or juvenile.'
         : spiceLevel === 'ratedr'
-          ? 'a truth that can touch on past hookups, tension, turn-ons, or bold dating stories — still respectful and consensual.'
-          : 'a provocative truth about desire, chemistry, or bold experiences — never graphic porn, always consensual-adult framing.'
+          ? 'a truth about hookups, tension, turn-ons, jealousy, boundaries, or bold dating stories — consensual, respectful, adult; no graphic porn.'
+          : 'a provocative truth about desire, jealousy, tension, boundaries, late-night habits, or bold experiences — never graphic porn, always consensual-adult framing. Make it feel like a VIP lounge conversation, not a teen party game.'
       : spiceLevel === 'pg13'
-        ? 'a wholesome-but-adult challenge they can do in chat. BALANCE across voice note, selfie/photo, and short video. Do NOT use travel, vacation, or location.'
+        ? 'a confident dare they can do in chat from home. Mix voice, selfie, and short video. No travel, vacation, or location-based stunts.'
         : spiceLevel === 'ratedr'
-          ? 'a bolder dare (still in chat): flirty selfie, suggestive voice note, or teasing short video. No nudity requirements, no explicit sexual acts on camera.'
-          : 'a spicy dare they can complete in chat: voice, selfie, or short video — steamy and confident, not pornographic.';
+          ? 'a bolder in-chat dare: flirty selfie, suggestive voice note, or teasing short video. No nudity required, no explicit sexual acts on camera — adult tension, not shock value.'
+          : 'a spicy dare they can complete in chat from the couch: voice, selfie, or short video — confident, seductive, cinematic tension, not pornographic. Lean into chemistry and "what if we were alone" energy without naming public stunts or events.';
 
     const noTravelNote = type === 'dare'
       ? '\n- Do NOT use travel, vacation, "where you are", scenic views, or location. Users are often at home. Keep dares doable from wherever they are.'
       : '';
 
-    const toneNote = '\n- TONE: Cool, badass, and sexy — current, Gen Z/millennial-friendly. Write for adults. NO corny wordplay, NO puns, NO cringe or try-hard humor, NO generic dating clichés. Confident, specific, flirty with edge — never cheesy or childish.\n- WORD CHOICE: Use clear, everyday words. NEVER use vague or old-fashioned words like "sultry", "smoldering", "sultry selfie", "bedroom eyes". Prefer clear phrasing: "flirty selfie", "confident selfie", "selfie that shows you\'re into them", "look that says you\'re interested".';
+    const noBanalEventsNote =
+      spiceLevel === 'spicy' || spiceLevel === 'ratedr'
+        ? "\n- NEVER center prompts on: sports, games, teams, concerts, festivals, stadiums, hobbies as activities, or 'go do X in public'. Users find that boring and off-brand. Keep everything about the two people, chemistry, chat, voice, selfies, short clips, tension, desire — not events or outings."
+        : "\n- Avoid sports, concerts, festivals, and travel as the main hook; center the two people, chemistry, and chat — not outings or events.";
+
+    const toneNote =
+      '\n- TONE: Cool, badass, and sexy — current, Gen Z/millennial-friendly. Write for adults. NO corny wordplay, NO puns, NO cringe or try-hard humor, NO generic dating clichés. Confident, specific, flirty with edge — never cheesy or childish.\n- WORD CHOICE: Use clear, everyday words. NEVER use vague or old-fashioned words like "sultry", "smoldering", "sultry selfie", "bedroom eyes". Prefer clear phrasing: "flirty selfie", "confident selfie", "selfie that shows you\'re into them", "look that says you\'re interested".';
+
+    const lengthNote =
+      spiceLevel === 'spicy'
+        ? '\n- LENGTH: One sentence, punchy. Aim under 160 characters; hard max 190.'
+        : '\n- LENGTH: One sentence, aim under 130 characters; hard max 180.';
 
     const systemPrompt = `You generate ${type} prompts for a dating app's "Truth or Dare" game for adults.
 
 ${spiceBlock}
-- Concise: one sentence, under 100 characters.
-- Specific to ${type}: ${typeInstruction}${noTravelNote}${toneNote}
+${lengthNote}
+- Specific to ${type}: ${typeInstruction}${noTravelNote}${noBanalEventsNote}${toneNote}
 - Generate something FRESH and varied each time — we rely on you for unlimited variety, not a fixed list.
 - Output ONLY the prompt text, nothing else. No quotes, no numbering, no explanation.`;
 
@@ -195,11 +255,27 @@ ${spiceBlock}
       ? `\n\nIMPORTANT: Do NOT use any of these prompts (already shown this game): ${toExclude.map((p) => `"${p}"`).join(', ')}. Generate a different one.`
       : '';
 
-    const userPrompt = `Generate one unique ${typeLabel} prompt for two people playing on a dating app.${interestsContext}
+    const interestsNote =
+      sharedInterests.length > 0
+        ? spiceLevel === 'spicy'
+          ? ' Shared interests are context only — do NOT build the prompt around sports, music scenes, or concert-like activities even if listed.'
+          : spiceLevel === 'ratedr'
+            ? " Shared interests may add flavor — do NOT center the prompt on sports, concerts, festivals, or plans like meeting at a game or show."
+            : ' If you use shared interests, keep it subtle; do not center on sports, concerts, trips, or public events — stay about the connection.'
+        : '';
+
+    const varietyLine =
+      spiceLevel === 'spicy'
+        ? 'Prioritize tension, desire, boundaries, late-night honesty, and chat-native actions — not hobbies-as-activities.'
+        : spiceLevel === 'ratedr'
+          ? 'Prioritize adult dating tension, stories, and in-chat actions — not events, outings, or hobby tourism.'
+          : 'Prioritize mature chemistry, standards, and emotional honesty — confident adults, not party games.';
+
+    const userPrompt = `Generate one unique ${typeLabel} prompt for two people playing on a dating app.${interestsContext}${interestsNote}
 
 Heat level for this round: ${spiceLevel.toUpperCase()}.
 
-VARIETY: Be creative and unexpected — we want a plethora of different prompts, not the same angles. Surprise them.
+VARIETY: Be creative and unexpected — we want a plethora of different prompts, not the same angles. Surprise them. ${varietyLine}
 
 Requirements: ${typeInstruction}${excludeHint}
 
@@ -215,7 +291,7 @@ Return ONLY the prompt:`;
         { role: 'user', content: userPrompt },
       ],
       temperature: 1.0,
-      max_tokens: 100,
+      max_tokens: 120,
     });
 
     const content = completion.choices[0]?.message?.content?.trim();
