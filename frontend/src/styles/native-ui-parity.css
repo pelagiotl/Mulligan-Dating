@@ -569,6 +569,15 @@
     line-height: 1.45;
   }
 
+  .app-layout--native-mobile-shell .launch-countdown {
+    margin: -0.35rem 0 1.05rem;
+    padding: 0.65rem 0.45rem 0.8rem;
+  }
+
+  .app-layout--native-mobile-shell .launch-countdown__value {
+    font-size: clamp(0.95rem, 5.2vw, 1.35rem);
+  }
+
   .app-layout--native-mobile-shell .connect-landing__features {
     margin-bottom: 1rem;
     gap: 0.45rem;
@@ -665,6 +674,82 @@
   margin: 0 0 2rem;
   padding: 0 0.5rem;
   letter-spacing: 0.02em;
+}
+
+/* June 6 launch countdown (Connect landing + public home) */
+.launch-countdown {
+  width: 100%;
+  margin: -0.75rem 0 1.5rem;
+  padding: 0.85rem 0.75rem 1rem;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.12);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.launch-countdown--live {
+  text-align: center;
+}
+
+.launch-countdown__heading {
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #8b1538;
+  text-align: center;
+}
+
+.launch-countdown__sub {
+  margin: 0 0 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #666;
+  text-align: center;
+}
+
+.launch-countdown__grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.35rem;
+  text-align: center;
+}
+
+.launch-countdown__cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.launch-countdown__value {
+  font-family: var(--font-display, ui-sans-serif, system-ui);
+  font-size: clamp(1.15rem, 4.2vw, 1.65rem);
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  color: #111;
+  letter-spacing: -0.02em;
+}
+
+.launch-countdown__unit {
+  font-size: 0.58rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+}
+
+.launch-countdown__live-msg {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.45;
 }
 
 .connect-landing__features {

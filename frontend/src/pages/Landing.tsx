@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import ConnectLandingMark from "../components/ConnectLandingMark";
+import LaunchCountdown from "../components/LaunchCountdown";
 import WebTokenPurchase from "../components/WebTokenPurchase";
 
 /**
@@ -38,6 +39,8 @@ export default function Landing() {
             <p className="connect-landing__subtitle">
               Find someone who shares your interests and values
             </p>
+
+            <LaunchCountdown />
 
             <div className="connect-landing__features">
               <div className="connect-landing__feature">

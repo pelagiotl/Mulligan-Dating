@@ -7,6 +7,7 @@ import { getPhotoUrl } from "../utils/photoUrl";
 import MatchCelebration, { type CelebrationPartnerProfile } from "../components/MatchCelebration";
 import TokenDisplay from "../components/TokenDisplay";
 import ConnectLandingMark from "../components/ConnectLandingMark";
+import LaunchCountdown from "../components/LaunchCountdown";
 import { io, Socket } from "socket.io-client";
 import { emitTokenBalanceUpdated } from "../lib/tokenBalanceEvents";
 
@@ -83,6 +84,8 @@ function BrowseConnectLandingChrome({
           <p className="connect-landing__subtitle">
             Find someone who shares your interests and values
           </p>
+
+          <LaunchCountdown />
 
           <div className="connect-landing__features">
             <div className="connect-landing__feature">
