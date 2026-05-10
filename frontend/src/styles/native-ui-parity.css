@@ -587,7 +587,7 @@
     min-height: 3.9rem;
     font-size: 1.08rem;
     margin-bottom: 0.55rem;
-    border-radius: 24px;
+    border-radius: 18px;
   }
 
   .app-layout--native-mobile-shell .connect-landing__hint {
@@ -608,12 +608,42 @@
   position: relative;
   padding: clamp(2.1rem, 6.2vw, 3.35rem) clamp(1.3rem, 5.2vw, 2.08rem) 2.1rem;
   text-align: center;
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 36px;
-  border: 3px solid rgba(255, 255, 255, 0.9);
+  background: linear-gradient(
+    158deg,
+    rgba(26, 22, 38, 0.98) 0%,
+    rgba(15, 14, 26, 0.99) 45%,
+    rgba(22, 18, 34, 0.98) 100%
+  );
+  border-radius: 26px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow:
-    0 16px 40px rgba(102, 126, 234, 0.28),
-    0 0 0 1px rgba(102, 126, 234, 0.06);
+    0 0 0 1px rgba(0, 0, 0, 0.55),
+    0 2px 0 rgba(167, 139, 250, 0.22),
+    0 20px 48px rgba(0, 0, 0, 0.55),
+    0 0 80px rgba(99, 102, 241, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.connect-landing__card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(120% 80% at 50% -20%, rgba(167, 139, 250, 0.2), transparent 55%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.connect-landing__card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.connect-landing__card .browse-native-error {
+  background: rgba(248, 113, 113, 0.12);
+  border: 1px solid rgba(248, 113, 113, 0.38);
+  color: #fecaca;
 }
 
 .connect-landing__logo-row {
@@ -628,9 +658,9 @@
 .connect-landing__logo-icon {
   width: 72px;
   height: 72px;
-  color: #5b6bc6;
-  filter: drop-shadow(0 4px 14px rgba(102, 126, 234, 0.35));
-  animation: logoPulse 3s ease-in-out infinite;
+  color: #c4b5fd;
+  filter: drop-shadow(0 0 14px rgba(167, 139, 250, 0.55)) drop-shadow(0 4px 12px rgba(0, 0, 0, 0.5));
+  animation: connectLandingLogoVibe 4.5s ease-in-out infinite;
 }
 
 .connect-landing__logo-icon svg {
@@ -638,33 +668,50 @@
   height: 100%;
 }
 
+@keyframes connectLandingLogoVibe {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 12px rgba(167, 139, 250, 0.45)) drop-shadow(0 4px 12px rgba(0, 0, 0, 0.5));
+  }
+  50% {
+    filter: drop-shadow(0 0 22px rgba(244, 114, 182, 0.5)) drop-shadow(0 4px 14px rgba(0, 0, 0, 0.55));
+  }
+}
+
 .connect-landing__brand {
   font-size: clamp(1.75rem, 5vw, 2.25rem);
-  font-weight: 800;
-  color: #0f0f0f;
-  letter-spacing: 0.03em;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+  font-weight: 900;
+  color: #f8fafc;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-shadow:
+    0 2px 0 rgba(0, 0, 0, 0.45),
+    0 0 28px rgba(167, 139, 250, 0.35);
 }
 
 .connect-landing__title {
   font-family: var(--font-display, system-ui);
-  font-size: clamp(1.85rem, 6vw, 2.75rem);
+  font-size: clamp(1.45rem, 5.2vw, 2.35rem);
   font-weight: 900;
-  color: #0f0f0f;
-  letter-spacing: 0.06em;
+  color: #f1f5f9;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   margin: 0 0 0.75rem;
-  line-height: 1.15;
-  text-shadow: 0 2px 20px rgba(102, 126, 234, 0.35);
+  line-height: 1.12;
+  text-shadow:
+    0 2px 0 rgba(0, 0, 0, 0.5),
+    0 0 36px rgba(99, 102, 241, 0.35),
+    0 0 2px rgba(0, 0, 0, 0.8);
 }
 
 .connect-landing__subtitle {
   font-size: 1.05rem;
   line-height: 1.55;
-  color: #555;
-  font-weight: 500;
+  color: #a8a29e;
+  font-weight: 600;
   margin: 0 0 2rem;
   padding: 0 0.5rem;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.03em;
 }
 
 /* June 6 launch — floating bubble (portaled to body; Connect + public home) */
@@ -965,47 +1012,57 @@
   align-items: center;
   justify-content: flex-start;
   padding: 0.65rem 0.35rem;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .connect-landing__feature-emoji {
   font-size: 1.75rem;
   line-height: 1;
   margin-bottom: 0.45rem;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.4));
 }
 
 .connect-landing__feature-text {
-  font-size: 0.65rem;
-  font-weight: 700;
-  color: #444;
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: #cbd5e1;
   line-height: 1.35;
   text-align: center;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .connect-landing__cta {
   width: 100%;
-  border-radius: 28px;
+  border-radius: 18px;
   min-height: 4.25rem;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.65rem;
-  font-size: 1.05rem;
-  font-weight: 800;
+  font-size: 1.02rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: #fff;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  text-shadow:
+    0 2px 0 rgba(0, 0, 0, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.4);
   background: var(--native-gradient-connect);
-  border: 3px solid rgba(255, 255, 255, 0.45);
+  border: 2px solid rgba(255, 255, 255, 0.22);
   box-shadow:
-    0 10px 28px rgba(102, 126, 234, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    0 3px 0 rgba(15, 23, 42, 0.55),
+    0 14px 32px rgba(79, 70, 229, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
   margin-bottom: 0.85rem;
   position: relative;
   overflow: hidden;
   isolation: isolate;
   transform-origin: center;
-  /* BrowseScreen Connect: pulse loop 1 → 1.05 → 1 (1.5s + 1.5s) */
-  animation: connectCtaPulse 3s ease-in-out infinite;
+  animation: connectCtaPulse 3.2s ease-in-out infinite;
 }
 
 /* Same shimmer sweep as RN connectButtonShimmer (skewed bar, ~3s loop) */
@@ -1017,9 +1074,9 @@
   left: 0;
   width: 22%;
   min-width: 3rem;
-  background: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.35);
   transform: skewX(-20deg) translateX(-220%);
-  animation: connectCtaShimmer 3s linear infinite;
+  animation: connectCtaShimmer 2.6s linear infinite;
   pointer-events: none;
   z-index: 0;
 }
@@ -1032,10 +1089,10 @@
 @keyframes connectCtaPulse {
   0%,
   100% {
-    transform: scale(1);
+    transform: scale(1) translateY(0);
   }
   50% {
-    transform: scale(1.05);
+    transform: scale(1.025) translateY(-1px);
   }
 }
 
@@ -1060,6 +1117,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .connect-landing__logo-icon {
+    animation: none;
+    filter: drop-shadow(0 0 12px rgba(167, 139, 250, 0.4)) drop-shadow(0 4px 12px rgba(0, 0, 0, 0.5));
+  }
+
   .connect-landing__cta {
     animation: none;
   }
@@ -1087,8 +1149,10 @@
 
 .connect-landing__hint {
   font-size: 0.9rem;
-  font-weight: 600;
-  color: #666;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: rgba(251, 113, 133, 0.92);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
   margin: 0;
 }
 
@@ -1214,29 +1278,32 @@ button.connect-landing__cta:disabled::before {
   display: block;
   margin-top: 0.25rem;
   font-size: 0.95rem;
-  font-weight: 600;
-  color: #667eea;
+  font-weight: 700;
+  color: #93c5fd;
   text-decoration: none;
+  letter-spacing: 0.02em;
 }
 
 .connect-landing__subcta:hover {
+  color: #e0e7ff;
   text-decoration: underline;
 }
 
 .connect-landing__legal {
   margin-top: 1.25rem;
   font-size: 0.8rem;
-  color: #777;
+  color: #94a3b8;
   line-height: 1.45;
 }
 
 .connect-landing__legal a {
-  color: #667eea;
-  font-weight: 600;
+  color: #a5b4fc;
+  font-weight: 700;
   text-decoration: none;
 }
 
 .connect-landing__legal a:hover {
+  color: #e0e7ff;
   text-decoration: underline;
 }
 
@@ -1245,13 +1312,13 @@ button.connect-landing__cta:disabled::before {
   margin: 0.35rem 0 0;
   font-size: 0.82rem;
   font-weight: 500;
-  color: #888;
+  color: #94a3b8;
   line-height: 1.45;
   text-align: center;
 }
 
 .landing-token-chill-guest__link {
-  color: #667eea;
+  color: #a5b4fc;
   font-weight: 700;
   text-decoration: none;
 }
@@ -1280,26 +1347,27 @@ button.connect-landing__cta:disabled::before {
 }
 
 .landing-token-chill__toggle:hover {
-  background: rgba(102, 126, 234, 0.06);
+  background: rgba(167, 139, 250, 0.12);
 }
 
 .landing-token-chill__toggle-label {
   font-size: 0.82rem;
   line-height: 1.45;
+  color: #cbd5e1;
 }
 
 .landing-token-chill__muted {
-  color: #888;
+  color: #94a3b8;
   font-weight: 500;
 }
 
 .landing-token-chill__accent {
-  color: #667eea;
+  color: #a5b4fc;
   font-weight: 700;
 }
 
 .landing-token-chill__chevron {
-  color: #aaa;
+  color: #64748b;
   font-weight: 600;
   font-size: 0.75rem;
 }
@@ -1307,13 +1375,13 @@ button.connect-landing__cta:disabled::before {
 .landing-token-chill__fallback {
   margin: 0.35rem 0 0;
   font-size: 0.78rem;
-  color: #999;
+  color: #94a3b8;
   text-align: center;
   line-height: 1.4;
 }
 
 .landing-token-chill__fallback a {
-  color: #667eea;
+  color: #a5b4fc;
   font-weight: 600;
   text-decoration: none;
 }
