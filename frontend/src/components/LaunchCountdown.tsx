@@ -7,8 +7,8 @@ const LAUNCH_MS = new Date(2026, 5, 6, 0, 0, 0, 0).getTime();
 const BUBBLE_POS_KEY = "mulligan-launch-bubble-pos";
 
 type Remaining =
-  | { live: true; days: 0; hours: 0; minutes: 0; seconds: 0 }
-  | { live: false; days: number; hours: number; minutes: number; seconds: number };
+  | { live: true; days: 0 }
+  | { live: false; days: number };
 
 type BubblePlacement = { left: number; top: number };
 
@@ -49,15 +49,11 @@ function clampPlacement(left: number, top: number, width: number, height: number
 function computeRemaining(): Remaining {
   const diff = LAUNCH_MS - Date.now();
   if (diff <= 0) {
-    return { live: true, days: 0, hours: 0, minutes: 0, seconds: 0 };
+    return { live: true, days: 0 };
   }
-  const totalSeconds = Math.floor(diff / 1000);
   return {
     live: false,
-    days: Math.floor(totalSeconds / 86400),
-    hours: Math.floor((totalSeconds % 86400) / 3600),
-    minutes: Math.floor((totalSeconds % 3600) / 60),
-    seconds: totalSeconds % 60,
+    days: Math.floor(diff / 86400000),
   };
 }
 
@@ -200,27 +196,15 @@ export default function LaunchCountdown() {
       </h2>
       <p className="launch-countdown__sub">Time until launch</p>
       <div
-        className="launch-countdown__grid"
+        className="launch-countdown__grid launch-countdown__grid--days-only"
         role="timer"
         aria-live="polite"
         aria-atomic="true"
-        aria-label={`${state.days} days, ${state.hours} hours, ${state.minutes} minutes, ${state.seconds} seconds remaining`}
+        aria-label={`${state.days} days remaining`}
       >
         <div className="launch-countdown__cell">
           <span className="launch-countdown__value">{state.days}</span>
           <span className="launch-countdown__unit">Days</span>
-        </div>
-        <div className="launch-countdown__cell">
-          <span className="launch-countdown__value">{String(state.hours).padStart(2, "0")}</span>
-          <span className="launch-countdown__unit">Hours</span>
-        </div>
-        <div className="launch-countdown__cell">
-          <span className="launch-countdown__value">{String(state.minutes).padStart(2, "0")}</span>
-          <span className="launch-countdown__unit">Minutes</span>
-        </div>
-        <div className="launch-countdown__cell">
-          <span className="launch-countdown__value">{String(state.seconds).padStart(2, "0")}</span>
-          <span className="launch-countdown__unit">Seconds</span>
         </div>
       </div>
     </section>

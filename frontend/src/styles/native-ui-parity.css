@@ -945,6 +945,10 @@
   text-align: center;
 }
 
+.launch-countdown__grid--days-only {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .launch-countdown__cell {
   display: flex;
   flex-direction: column;
