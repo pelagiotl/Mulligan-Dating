@@ -8,8 +8,8 @@
   --native-screen-bg: #f8f9ff;
   --native-tab-bar-bg: #fafafa;
   --native-tab-inactive: #94a3b8;
-  --native-tab-height: 56px;
-  --native-tab-safe-bottom: max(env(safe-area-inset-bottom, 0px), 8px);
+  --native-tab-height: 62px;
+  --native-tab-safe-bottom: max(env(safe-area-inset-bottom, 0px), 12px);
   /* Mirrored in native-ui-parity.css — duplicated here so shell rules work regardless of import order */
   --native-gradient-screen: linear-gradient(
     135deg,
@@ -120,9 +120,11 @@
     right: 0;
     bottom: 0;
     z-index: 200;
+    box-sizing: border-box;
+    min-height: calc(var(--native-tab-height) + var(--native-tab-safe-bottom));
     height: calc(var(--native-tab-height) + var(--native-tab-safe-bottom));
     padding-bottom: var(--native-tab-safe-bottom);
-    padding-top: 8px;
+    padding-top: 7px;
     padding-left: max(4px, env(safe-area-inset-left, 0px));
     padding-right: max(4px, env(safe-area-inset-right, 0px));
     background: var(--native-tab-bar-bg);
@@ -138,13 +140,13 @@
   .app-bottom-tabs__item {
     flex: 1;
     min-width: 0;
-    min-height: 44px;
+    min-height: 42px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
-    gap: 4px;
-    padding: 6px 4px 4px;
+    gap: 3px;
+    padding: 5px 3px 4px;
     text-decoration: none;
     color: var(--native-tab-inactive);
     font-size: 10px;
@@ -175,7 +177,7 @@
   }
 
   .app-bottom-tabs__emoji {
-    font-size: 22px;
+    font-size: 21px;
     line-height: 1;
     position: relative;
     z-index: 1;
@@ -190,6 +192,43 @@
     white-space: nowrap;
     position: relative;
     z-index: 1;
+  }
+}
+
+@media (max-width: 430px) {
+  :root {
+    --native-tab-height: 58px;
+    --native-tab-safe-bottom: max(env(safe-area-inset-bottom, 0px), 14px);
+  }
+
+  .app-layout--native-mobile-shell .main-content {
+    padding-bottom: calc(var(--native-tab-height) + var(--native-tab-safe-bottom) + var(--space-5));
+  }
+
+  .app-bottom-tabs {
+    padding-top: 6px;
+    padding-left: max(2px, env(safe-area-inset-left, 0px));
+    padding-right: max(2px, env(safe-area-inset-right, 0px));
+    border-top-left-radius: 20px;
+    border-top-right-radius: 20px;
+  }
+
+  .app-bottom-tabs__item {
+    min-height: 40px;
+    gap: 2px;
+    padding: 4px 2px 3px;
+    font-size: 9px;
+    letter-spacing: 0;
+  }
+
+  .app-bottom-tabs__emoji {
+    font-size: 19px;
+  }
+
+  .app-bottom-tabs__glow {
+    width: 38px;
+    height: 38px;
+    margin-left: -19px;
   }
 }
 
