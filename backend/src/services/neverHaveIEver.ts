@@ -309,54 +309,17 @@ export async function getGameState(
   // Complete the round in this same read when GET asks for it: we already see both answers, so no second-read race
   if (options?.completeRoundIfBothAnswered && bothAnswered && !gameOver) {
     nhieLog('getGameState completing round (both answered)', { matchId, yourAnswer, theirAnswer, completeRoundIfBothAnswered: true });
-    let nextPrompt: string;
-    try {
-      nextPrompt = await generateNeverHaveIEverPrompt(matchId, level);
-      if (!nextPrompt?.trim()) nextPrompt = `Never have I ever ${pickRandom(FALLBACK_PROMPTS)}`;
-    } catch (e) {
-      console.warn('NHIE getGameState complete round: generate failed', e);
-      nextPrompt = `Never have I ever ${pickRandom(FALLBACK_PROMPTS)}`;
-    }
-    const ts = new Date().toISOString();
-    const updateSql = `UPDATE never_have_i_ever_games SET current_prompt = ?, user1_answer = NULL, user2_answer = NULL, updated_at = ? WHERE match_id = ? AND user1_answer IS NOT NULL AND user2_answer IS NOT NULL`;
-    const runResult = db.prepare(updateSql).run([nextPrompt, ts, matchId]);
-    const resolved = runResult instanceof Promise ? await runResult : runResult;
-    const changed = (resolved as { changes?: number }).changes !== undefined && (resolved as { changes: number }).changes > 0;
-    nhieLog('getGameState round-completion UPDATE result', { matchId, changed, newPromptPreview: nextPrompt.slice(0, 50) });
-    if (changed && process.env.NODE_ENV !== 'test') {
-      console.log(`🙊 NHIE getGameState: completed round match=${matchId} newPromptLen=${nextPrompt.length}`);
-    }
-    // Re-read so we return state with new prompt and cleared answers; emit so other client gets new prompt
-    const reread = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
-    const rowAfter = (reread instanceof Promise ? await reread : reread) as GameRow | undefined;
-    if (rowAfter && changed) {
-      const newPromptVal = rowAfter.current_prompt?.trim() || nextPrompt;
-      const user1Strikes = Math.max(0, Number(rowAfter.user1_strikes) || 0);
-      const user2Strikes = Math.max(0, Number(rowAfter.user2_strikes) || 0);
-      nhieLog('getGameState emitting never_have_i_ever_updated (round complete)', { matchId, newPromptPreview: newPromptVal.slice(0, 50), user1Strikes, user2Strikes });
-      try {
-        const { getIO } = await import('../socket.js');
-        const io = getIO();
-        if (io) {
-          io.to(`match:${matchId}`).emit('never_have_i_ever_updated', { matchId, newPrompt: newPromptVal, roundComplete: true, user1Strikes, user2Strikes });
-        }
-      } catch (_) {}
+    const completed = await completeRoundIfBothAnswered(matchId);
+    if (completed.completed && completed.newPrompt) {
+      const nextState = await getGameState(matchId, userId, match);
       return {
-        prompt: newPromptVal,
-        yourStrikes,
-        theirStrikes,
+        ...nextState,
+        prompt: completed.newPrompt,
         yourAnswer: null,
         theirAnswer: null,
         bothAnswered: false,
-        gameOver,
-        winner,
-        phase: 'playing',
-        yourSpiceChoice: yourSpiceChoice || null,
-        theirSpiceChoice: theirSpiceChoice || null,
-        spiceReady,
-        spiceLevel: level,
-        currentTurnUserId: rowAfter.current_turn_user_id ?? null,
-        isYourTurn: !!(rowAfter.current_turn_user_id && rowAfter.current_turn_user_id === userId),
+        currentTurnUserId: null,
+        isYourTurn: false,
       };
     }
   }
@@ -494,7 +457,7 @@ export async function completeRoundIfBothAnswered(matchId: string): Promise<{ co
   }
 
   const ts = new Date().toISOString();
-  const updateSql = `UPDATE never_have_i_ever_games SET current_prompt = ?, user1_answer = NULL, user2_answer = NULL, updated_at = ? WHERE match_id = ?`;
+  const updateSql = `UPDATE never_have_i_ever_games SET current_prompt = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, updated_at = ? WHERE match_id = ?`;
   const runResult = db.prepare(updateSql).run([nextPrompt, ts, matchId]);
   const resolved = runResult instanceof Promise ? await runResult : runResult;
   const changed = (resolved as { changes?: number }).changes !== undefined && (resolved as { changes: number }).changes > 0;
@@ -822,7 +785,7 @@ export async function submitAnswer(
         console.log(`🙊 NHIE submitAnswer: both answered, generated new prompt for match=${matchId} promptLen=${nextPrompt.length}`);
       }
       const runResult = db.prepare(
-        `UPDATE never_have_i_ever_games SET current_prompt = ?, user1_answer = NULL, user2_answer = NULL, updated_at = ? WHERE match_id = ?`
+        `UPDATE never_have_i_ever_games SET current_prompt = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, updated_at = ? WHERE match_id = ?`
       ).run([nextPrompt, new Date().toISOString(), matchId]);
       const runRes = runResult instanceof Promise ? await runResult : runResult;
       const updateChanged = (runRes as { changes?: number }).changes !== undefined && (runRes as { changes: number }).changes > 0;
@@ -955,7 +918,7 @@ export async function advanceToNextRound(
   const spiceLevel = (row.spice_level || 'pg13') as SpiceLevel;
   const prompt = await generateNeverHaveIEverPrompt(matchId, spiceLevel);
   const runResult = db.prepare(
-    `UPDATE never_have_i_ever_games SET current_prompt = ?, user1_answer = NULL, user2_answer = NULL, updated_at = ? WHERE match_id = ?`
+    `UPDATE never_have_i_ever_games SET current_prompt = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, updated_at = ? WHERE match_id = ?`
   ).run([prompt, new Date().toISOString(), matchId]);
   if (runResult instanceof Promise) await runResult;
 
