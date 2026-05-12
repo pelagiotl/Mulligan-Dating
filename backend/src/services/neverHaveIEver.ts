@@ -131,11 +131,25 @@ function pickRandom<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+function fallbackPromptsForLevel(spiceLevel: SpiceLevel): string[] {
+  if (spiceLevel === 'spicy') return FALLBACK_PROMPTS_SPICY;
+  if (spiceLevel === 'ratedr') return FALLBACK_PROMPTS_R;
+  return FALLBACK_PROMPTS;
+}
+
+function normalizePromptForCompare(prompt: string | null | undefined): string {
+  return String(prompt || '')
+    .toLowerCase()
+    .replace(/^never\s+have\s+i\s+ever\s+/i, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
 export async function generateNeverHaveIEverPrompt(matchId: string, spiceLevel: SpiceLevel = 'pg13'): Promise<string> {
   const openaiApiKey = process.env.OPENAI_API_KEY;
   const isR = spiceLevel === 'ratedr';
   const isSpicy = spiceLevel === 'spicy';
-  const fallbacks = isSpicy ? FALLBACK_PROMPTS_SPICY : isR ? FALLBACK_PROMPTS_R : FALLBACK_PROMPTS;
+  const fallbacks = fallbackPromptsForLevel(spiceLevel);
 
   if (!openaiApiKey) {
     return `Never have I ever ${pickRandom(fallbacks)}`;
@@ -197,6 +211,23 @@ export async function generateNeverHaveIEverPrompt(matchId: string, spiceLevel: 
   }
 
   return `Never have I ever ${pickRandom(fallbacks)}`;
+}
+
+async function generateDistinctNeverHaveIEverPrompt(
+  matchId: string,
+  spiceLevel: SpiceLevel = 'pg13',
+  previousPrompt?: string | null
+): Promise<string> {
+  const previous = normalizePromptForCompare(previousPrompt);
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const prompt = await generateNeverHaveIEverPrompt(matchId, spiceLevel);
+    if (normalizePromptForCompare(prompt) !== previous) return prompt;
+  }
+
+  const fallbackPool = fallbackPromptsForLevel(spiceLevel).filter(
+    (activity) => normalizePromptForCompare(`Never have I ever ${activity}`) !== previous
+  );
+  return `Never have I ever ${pickRandom(fallbackPool.length > 0 ? fallbackPool : FALLBACK_PROMPTS)}`;
 }
 
 interface GameRow {
@@ -332,7 +363,8 @@ export async function getGameState(
   if (!prompt || prompt === 'Never have I ever...') {
     try {
       prompt = await generateNeverHaveIEverPrompt(matchId, level);
-      db.prepare('UPDATE never_have_i_ever_games SET current_prompt = ?, updated_at = ? WHERE match_id = ?').run([prompt, new Date().toISOString(), matchId]);
+      const promptResult = db.prepare('UPDATE never_have_i_ever_games SET current_prompt = ?, updated_at = ? WHERE match_id = ?').run([prompt, new Date().toISOString(), matchId]);
+      if (promptResult instanceof Promise) await promptResult;
     } catch (e) {
       console.warn('Never Have I Ever lazy prompt generation failed:', e);
       prompt = prompt || 'Never have I ever...';
@@ -449,7 +481,7 @@ export async function completeRoundIfBothAnswered(matchId: string): Promise<{ co
   const effectiveLevel = (c1 && c2 ? moreConservative(c1, c2) : (rowSpice as SpiceLevel)) || 'pg13';
   let nextPrompt: string;
   try {
-    nextPrompt = await generateNeverHaveIEverPrompt(matchId, effectiveLevel);
+    nextPrompt = await generateDistinctNeverHaveIEverPrompt(matchId, effectiveLevel, String(r.current_prompt ?? ''));
     if (!nextPrompt || !nextPrompt.trim()) nextPrompt = `Never have I ever ${pickRandom(FALLBACK_PROMPTS)}`;
   } catch (e) {
     console.warn('NHIE completeRoundIfBothAnswered: generate failed', e);
@@ -550,7 +582,7 @@ export async function setMySpiceChoice(
   const c2 = row.user2_spice_choice as SpiceLevel | null;
   if (c1 && c2 && !row.current_prompt) {
     const effectiveLevel = moreConservative(c1, c2);
-    const prompt = await generateNeverHaveIEverPrompt(matchId, effectiveLevel);
+      const prompt = await generateDistinctNeverHaveIEverPrompt(matchId, effectiveLevel, row.current_prompt);
     // No current_turn_user_id: both users answer each prompt, then we generate the next (tally mode)
     const promptResult = db.prepare(
       `UPDATE never_have_i_ever_games SET spice_level = ?, current_prompt = ?, current_turn_user_id = NULL, updated_at = ? WHERE match_id = ?`
@@ -576,7 +608,7 @@ export async function startGame(
   }
 
   const spiceLevel = row.user1_spice_choice as SpiceLevel;
-  const prompt = await generateNeverHaveIEverPrompt(matchId, spiceLevel);
+  const prompt = await generateDistinctNeverHaveIEverPrompt(matchId, spiceLevel, row.current_prompt);
   // No current_turn_user_id: both users answer each prompt, then we generate the next (tally mode)
   const startResult = db.prepare(
     `UPDATE never_have_i_ever_games SET spice_level = ?, current_prompt = ?, current_turn_user_id = NULL, updated_at = ? WHERE match_id = ?`
@@ -773,7 +805,7 @@ export async function submitAnswer(
       const effectiveLevel = (c1 && c2 ? moreConservative(c1, c2) : (row.spice_level as SpiceLevel)) || 'pg13';
       let nextPrompt: string;
       try {
-        nextPrompt = await generateNeverHaveIEverPrompt(matchId, effectiveLevel);
+        nextPrompt = await generateDistinctNeverHaveIEverPrompt(matchId, effectiveLevel, row.current_prompt);
         if (!nextPrompt || !nextPrompt.trim()) nextPrompt = `Never have I ever ${pickRandom(FALLBACK_PROMPTS)}`;
       } catch (e) {
         console.warn('NHIE generate prompt failed, using fallback:', e);
@@ -887,7 +919,7 @@ export async function submitTurnAnswer(
     newPrompt = row.current_prompt!;
     nextTurnUserId = null;
   } else {
-    newPrompt = await generateNeverHaveIEverPrompt(matchId, spiceLevel);
+    newPrompt = await generateDistinctNeverHaveIEverPrompt(matchId, spiceLevel, row.current_prompt);
     nextTurnUserId = otherUserId;
   }
 
@@ -916,7 +948,7 @@ export async function advanceToNextRound(
   }
 
   const spiceLevel = (row.spice_level || 'pg13') as SpiceLevel;
-  const prompt = await generateNeverHaveIEverPrompt(matchId, spiceLevel);
+  const prompt = await generateDistinctNeverHaveIEverPrompt(matchId, spiceLevel, row.current_prompt);
   const runResult = db.prepare(
     `UPDATE never_have_i_ever_games SET current_prompt = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, updated_at = ? WHERE match_id = ?`
   ).run([prompt, new Date().toISOString(), matchId]);
@@ -935,7 +967,7 @@ export async function startNewGame(
     .get([matchId]);
   const row = (rowResult instanceof Promise ? await rowResult : rowResult) as GameRow | undefined;
   const spiceLevel = (row?.spice_level || 'pg13') as SpiceLevel;
-  const prompt = await generateNeverHaveIEverPrompt(matchId, spiceLevel);
+  const prompt = await generateDistinctNeverHaveIEverPrompt(matchId, spiceLevel, row?.current_prompt);
 
   const ts = new Date().toISOString();
   // Keep tally mode (current_turn_user_id = NULL): both users answer each prompt, then we tally and generate next.
