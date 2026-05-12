@@ -184,17 +184,33 @@ export default function LaunchCountdown() {
       className="launch-countdown launch-countdown--live"
       aria-labelledby="launch-countdown-heading"
     >
-      <h2 id="launch-countdown-heading" className="launch-countdown__heading">
-        June 6 launch
-      </h2>
+      <div className="launch-countdown__header-row">
+        <span className="launch-countdown__hourglass" aria-hidden>
+          <span className="launch-countdown__hourglass-glow" />
+          <span className="launch-countdown__hourglass-emoji">⏳</span>
+          <span className="launch-countdown__hourglass-sand" />
+        </span>
+        <h2 id="launch-countdown-heading" className="launch-countdown__heading">
+          June 6 launch
+        </h2>
+      </div>
       <p className="launch-countdown__live-msg">We&apos;re live — welcome to Mulligan.</p>
     </section>
   ) : (
     <section className="launch-countdown" aria-labelledby="launch-countdown-heading">
-      <h2 id="launch-countdown-heading" className="launch-countdown__heading">
-        June 6 launch
-      </h2>
-      <p className="launch-countdown__sub">Time until launch</p>
+      <div className="launch-countdown__header-row">
+        <span className="launch-countdown__hourglass" aria-hidden>
+          <span className="launch-countdown__hourglass-glow" />
+          <span className="launch-countdown__hourglass-emoji">⏳</span>
+          <span className="launch-countdown__hourglass-sand" />
+        </span>
+        <div className="launch-countdown__copy">
+          <h2 id="launch-countdown-heading" className="launch-countdown__heading">
+            June 6 launch
+          </h2>
+          <p className="launch-countdown__sub">Time until launch</p>
+        </div>
+      </div>
       <div
         className="launch-countdown__grid launch-countdown__grid--days-only"
         role="timer"

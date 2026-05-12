@@ -770,6 +770,52 @@
   }
 }
 
+@keyframes launchHourglassFlip {
+  0%,
+  28% {
+    transform: rotate(0deg) scale(1);
+  }
+  36%,
+  64% {
+    transform: rotate(180deg) scale(1.08);
+  }
+  72%,
+  100% {
+    transform: rotate(360deg) scale(1);
+  }
+}
+
+@keyframes launchHourglassGlow {
+  0%,
+  100% {
+    opacity: 0.52;
+    transform: scale(0.92);
+  }
+  36%,
+  72% {
+    opacity: 0.9;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes launchHourglassSand {
+  0%,
+  24% {
+    opacity: 0.8;
+    transform: translateY(-6px) scaleY(0.55);
+  }
+  42%,
+  62% {
+    opacity: 0.95;
+    transform: translateY(0) scaleY(1);
+  }
+  82%,
+  100% {
+    opacity: 0.7;
+    transform: translateY(6px) scaleY(0.55);
+  }
+}
+
 .launch-countdown-bubble {
   position: fixed;
   right: max(12px, env(safe-area-inset-right, 0px));
@@ -884,8 +930,14 @@
     animation: none;
   }
 
-  .launch-countdown-bubble .launch-countdown::after {
+  .launch-countdown-bubble .launch-countdown::after,
+  .launch-countdown__hourglass-glow,
+  .launch-countdown__hourglass-emoji,
+  .launch-countdown__hourglass-sand {
     animation: none;
+  }
+
+  .launch-countdown-bubble .launch-countdown::after {
     opacity: 0;
   }
 }
@@ -900,10 +952,80 @@
   padding-right: 0;
 }
 
+.launch-countdown--live .launch-countdown__header-row {
+  justify-content: center;
+}
+
+.launch-countdown__header-row {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.52rem;
+  margin-bottom: 0.55rem;
+}
+
+.launch-countdown__copy {
+  min-width: 0;
+}
+
+.launch-countdown__hourglass {
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  width: 2.15rem;
+  height: 2.15rem;
+  border-radius: 17px;
+  background:
+    radial-gradient(circle at 50% 18%, rgba(253, 230, 138, 0.36), transparent 42%),
+    linear-gradient(145deg, rgba(99, 102, 241, 0.26), rgba(244, 114, 182, 0.18));
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 0 16px rgba(244, 114, 182, 0.18),
+    0 0 28px rgba(56, 189, 248, 0.12);
+  isolation: isolate;
+}
+
+.launch-countdown__hourglass-glow {
+  position: absolute;
+  inset: -8px;
+  z-index: -1;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(251, 191, 36, 0.28), transparent 62%);
+  filter: blur(2px);
+  animation: launchHourglassGlow 5.4s ease-in-out infinite;
+}
+
+.launch-countdown__hourglass-emoji {
+  display: inline-block;
+  font-size: 1.28rem;
+  line-height: 1;
+  filter: drop-shadow(0 2px 8px rgba(251, 191, 36, 0.28));
+  transform-origin: 50% 50%;
+  animation: launchHourglassFlip 5.4s cubic-bezier(0.68, -0.2, 0.32, 1.2) infinite;
+}
+
+.launch-countdown__hourglass-sand {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 3px;
+  height: 16px;
+  margin-left: -1.5px;
+  margin-top: -8px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, transparent, rgba(253, 230, 138, 0.95), transparent);
+  filter: drop-shadow(0 0 5px rgba(253, 230, 138, 0.7));
+  pointer-events: none;
+  animation: launchHourglassSand 2.7s ease-in-out infinite;
+}
+
 .launch-countdown__heading {
   position: relative;
   z-index: 1;
-  margin: 0 0 0.35rem;
+  margin: 0 0 0.16rem;
   padding-right: 18px;
   font-size: 0.64rem;
   font-weight: 800;
@@ -928,7 +1050,7 @@
 .launch-countdown__sub {
   position: relative;
   z-index: 1;
-  margin: 0 0 0.55rem;
+  margin: 0;
   font-size: 0.72rem;
   font-weight: 600;
   color: #94a3b8;
