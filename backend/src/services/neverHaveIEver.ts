@@ -5,6 +5,7 @@
  * First to 10 strikes loses. "I have" = strike.
  */
 
+import { v4 as uuidv4 } from 'uuid';
 import { db } from '../database.js';
 
 /** Debug logging for NHIE round/prompt flow. Set DEBUG_NHIE=1 for extra verbose (e.g. raw answer values). */
@@ -238,9 +239,12 @@ interface GameRow {
   user2_spice_choice: string | null;
   spice_level: string | null;
   current_prompt: string | null;
+  current_round_id?: string | null;
   current_turn_user_id: string | null;
   user1_answer: string | null;
   user2_answer: string | null;
+  user1_answer_round_id?: string | null;
+  user2_answer_round_id?: string | null;
 }
 
 export interface GameState {
@@ -253,6 +257,7 @@ export interface GameState {
   gameOver: boolean;
   winner: 'you' | 'them' | null;
   roundResult?: { youStrike: boolean; themStrike: boolean };
+  roundId?: string | null;
   phase: 'lobby' | 'playing';
   yourSpiceChoice: 'pg13' | 'ratedr' | 'spicy' | null;
   theirSpiceChoice: 'pg13' | 'ratedr' | 'spicy' | null;
@@ -264,6 +269,22 @@ export interface GameState {
 }
 
 export type GetGameStateOptions = { completeRoundIfBothAnswered?: boolean };
+
+function rowRoundId(row: GameRow | Record<string, unknown> | undefined | null): string | null {
+  if (!row) return null;
+  const raw = (row as any).current_round_id ?? (row as any).currentRoundId ?? null;
+  return raw == null ? null : String(raw);
+}
+
+async function ensureCurrentRoundId(matchId: string, row: GameRow | undefined | null): Promise<string> {
+  const existing = rowRoundId(row);
+  if (existing) return existing;
+  const next = uuidv4();
+  const result = db.prepare('UPDATE never_have_i_ever_games SET current_round_id = ?, updated_at = ? WHERE match_id = ?').run([next, new Date().toISOString(), matchId]);
+  if (result instanceof Promise) await result;
+  if (row) row.current_round_id = next;
+  return next;
+}
 
 export async function getGameState(
   matchId: string,
@@ -288,6 +309,7 @@ export async function getGameState(
   if (!row) {
     return {
       prompt: '',
+      roundId: null,
       yourStrikes: 0,
       theirStrikes: 0,
       yourAnswer: null,
@@ -307,6 +329,7 @@ export async function getGameState(
   if (inLobby) {
     return {
       prompt: '',
+      roundId: rowRoundId(row),
       yourStrikes: 0,
       theirStrikes: 0,
       yourAnswer: null,
@@ -336,6 +359,7 @@ export async function getGameState(
   }
 
   const level = (spiceLevel || row.spice_level || 'pg13') as SpiceLevel;
+  const currentRoundId = await ensureCurrentRoundId(matchId, row);
 
   // Complete the round in this same read when GET asks for it: we already see both answers, so no second-read race
   if (options?.completeRoundIfBothAnswered && bothAnswered && !gameOver) {
@@ -356,7 +380,7 @@ export async function getGameState(
   }
 
   if (!row) {
-    return { prompt: '', yourStrikes: 0, theirStrikes: 0, yourAnswer: null, theirAnswer: null, bothAnswered: false, gameOver: false, winner: null, phase: 'playing', yourSpiceChoice: null, theirSpiceChoice: null, spiceReady, spiceLevel: level, currentTurnUserId: null, isYourTurn: false };
+    return { prompt: '', roundId: null, yourStrikes: 0, theirStrikes: 0, yourAnswer: null, theirAnswer: null, bothAnswered: false, gameOver: false, winner: null, phase: 'playing', yourSpiceChoice: null, theirSpiceChoice: null, spiceReady, spiceLevel: level, currentTurnUserId: null, isYourTurn: false };
   }
   let prompt = row.current_prompt?.trim() || '';
   // If we're in playing phase but prompt is missing/placeholder, generate one and persist (fixes UI showing only "Never have I ever...")
@@ -377,6 +401,7 @@ export async function getGameState(
 
   return {
     prompt,
+    roundId: currentRoundId,
     yourStrikes,
     theirStrikes,
     yourAnswer,
@@ -421,11 +446,16 @@ function getAnswerVal(row: Record<string, unknown>, key: 'user1_answer' | 'user2
 }
 
 export async function completeRoundIfBothAnswered(matchId: string): Promise<{ completed: boolean; newPrompt?: string }> {
-  function hasBoth(row: Record<string, unknown> | undefined): boolean {
+  function hasBoth(row: Record<string, unknown> | undefined, roundId?: string | null): boolean {
     if (!row) return false;
     const a1 = getAnswerVal(row, 'user1_answer');
     const a2 = getAnswerVal(row, 'user2_answer');
-    return a1 !== null && a2 !== null;
+    if (a1 === null || a2 === null) return false;
+    if (!roundId) return true;
+    const r1 = (row as any).user1_answer_round_id ?? null;
+    const r2 = (row as any).user2_answer_round_id ?? null;
+    // Legacy rows may not have answer round ids. Treat present answers as current so old rounds can finish.
+    return (r1 == null || String(r1) === roundId) && (r2 == null || String(r2) === roundId);
   }
 
   const readRow = async (): Promise<Record<string, unknown> | null> => {
@@ -438,10 +468,11 @@ export async function completeRoundIfBothAnswered(matchId: string): Promise<{ co
     nhieLog('completeRoundIfBothAnswered exit: no row', { matchId });
     return { completed: false };
   }
+  const currentRoundId = await ensureCurrentRoundId(matchId, row as unknown as GameRow);
   // Retry with backoff so we see commits after replica lag (Render/PostgreSQL read replica can be seconds behind)
   const retryDelays = [400, 800, 1500, 3000, 5000, 8000];
   for (let i = 0; i < retryDelays.length; i++) {
-    if (hasBoth(row)) break;
+    if (hasBoth(row, currentRoundId)) break;
     const u1 = getAnswerVal(row, 'user1_answer');
     const u2 = getAnswerVal(row, 'user2_answer');
     nhieLog('completeRoundIfBothAnswered: waiting then retry', { matchId, attempt: i + 1, delayMs: retryDelays[i], user1: u1, user2: u2 });
@@ -460,7 +491,7 @@ export async function completeRoundIfBothAnswered(matchId: string): Promise<{ co
       return { completed: false };
     }
   }
-  if (!hasBoth(row)) {
+  if (!hasBoth(row, currentRoundId)) {
     nhieLog('completeRoundIfBothAnswered exit: still missing both after all retries', { matchId, user1: getAnswerVal(row, 'user1_answer'), user2: getAnswerVal(row, 'user2_answer') });
     return { completed: false };
   }
@@ -489,8 +520,9 @@ export async function completeRoundIfBothAnswered(matchId: string): Promise<{ co
   }
 
   const ts = new Date().toISOString();
-  const updateSql = `UPDATE never_have_i_ever_games SET current_prompt = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, updated_at = ? WHERE match_id = ?`;
-  const runResult = db.prepare(updateSql).run([nextPrompt, ts, matchId]);
+  const nextRoundId = uuidv4();
+  const updateSql = `UPDATE never_have_i_ever_games SET current_prompt = ?, current_round_id = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, user1_answer_round_id = NULL, user2_answer_round_id = NULL, updated_at = ? WHERE match_id = ?`;
+  const runResult = db.prepare(updateSql).run([nextPrompt, nextRoundId, ts, matchId]);
   const resolved = runResult instanceof Promise ? await runResult : runResult;
   const changed = (resolved as { changes?: number }).changes !== undefined && (resolved as { changes: number }).changes > 0;
 
@@ -498,7 +530,7 @@ export async function completeRoundIfBothAnswered(matchId: string): Promise<{ co
   const rowAfter = await readRow();
   const completed =
     changed ||
-    !!(rowAfter && String(rowAfter.current_prompt ?? '').trim() === nextPrompt.trim() && !hasBoth(rowAfter));
+    !!(rowAfter && String(rowAfter.current_prompt ?? '').trim() === nextPrompt.trim() && rowRoundId(rowAfter) === nextRoundId && !hasBoth(rowAfter, nextRoundId));
 
   if (completed && process.env.NODE_ENV !== 'test') {
     console.log(`🙊 NHIE completeRoundIfBothAnswered: match=${matchId} completed round, newPromptLen=${nextPrompt.length}`);
@@ -511,7 +543,7 @@ export async function completeRoundIfBothAnswered(matchId: string): Promise<{ co
     try {
       const { getIO } = await import('../socket.js');
       const io = getIO();
-      if (io) io.to(`match:${matchId}`).emit('never_have_i_ever_updated', { matchId, newPrompt: nextPrompt, roundComplete: true, user1Strikes, user2Strikes });
+      if (io) io.to(`match:${matchId}`).emit('never_have_i_ever_updated', { matchId, newPrompt: nextPrompt, roundId: nextRoundId, roundComplete: true, user1Strikes, user2Strikes });
     } catch (_) {}
   }
   return completed ? { completed: true, newPrompt: nextPrompt } : { completed: false };
@@ -585,8 +617,8 @@ export async function setMySpiceChoice(
       const prompt = await generateDistinctNeverHaveIEverPrompt(matchId, effectiveLevel, row.current_prompt);
     // No current_turn_user_id: both users answer each prompt, then we generate the next (tally mode)
     const promptResult = db.prepare(
-      `UPDATE never_have_i_ever_games SET spice_level = ?, current_prompt = ?, current_turn_user_id = NULL, updated_at = ? WHERE match_id = ?`
-    ).run([effectiveLevel, prompt, now, matchId]);
+      `UPDATE never_have_i_ever_games SET spice_level = ?, current_prompt = ?, current_round_id = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, user1_answer_round_id = NULL, user2_answer_round_id = NULL, updated_at = ? WHERE match_id = ?`
+    ).run([effectiveLevel, prompt, uuidv4(), now, matchId]);
     if (promptResult instanceof Promise) await promptResult;
   }
 
@@ -611,8 +643,8 @@ export async function startGame(
   const prompt = await generateDistinctNeverHaveIEverPrompt(matchId, spiceLevel, row.current_prompt);
   // No current_turn_user_id: both users answer each prompt, then we generate the next (tally mode)
   const startResult = db.prepare(
-    `UPDATE never_have_i_ever_games SET spice_level = ?, current_prompt = ?, current_turn_user_id = NULL, updated_at = ? WHERE match_id = ?`
-  ).run([spiceLevel, prompt, new Date().toISOString(), matchId]);
+    `UPDATE never_have_i_ever_games SET spice_level = ?, current_prompt = ?, current_round_id = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, user1_answer_round_id = NULL, user2_answer_round_id = NULL, updated_at = ? WHERE match_id = ?`
+  ).run([spiceLevel, prompt, uuidv4(), new Date().toISOString(), matchId]);
   if (startResult instanceof Promise) await startResult;
 
   return getGameState(matchId, userId, match);
@@ -622,7 +654,8 @@ export async function submitAnswer(
   matchId: string,
   userId: string,
   match: { user1_id: string; user2_id: string },
-  answer: 'have' | 'havent'
+  answer: 'have' | 'havent',
+  submittedRoundId?: string | null
 ): Promise<{
   state: GameState;
   roundResult?: { youStrike: boolean; themStrike: boolean };
@@ -659,14 +692,25 @@ export async function submitAnswer(
     }
   }
   if (!row) return { state: await getGameState(matchId, userId, match) };
+  const currentRoundId = await ensureCurrentRoundId(matchId, row);
+  if (submittedRoundId && submittedRoundId !== currentRoundId) {
+    const state = await getGameState(matchId, userId, match);
+    return {
+      state,
+      pointsFromRound: {
+        newYourStrikes: state.yourStrikes,
+        newTheirStrikes: state.theirStrikes,
+      },
+    };
+  }
 
   const ts = new Date().toISOString();
   // Only set answer when currently null/empty (idempotent: double-tap or double request won't add points)
   nhieLog('submitAnswer: saving answer', { matchId, isUser1, answer });
   const setAnswerSql = isUser1
-    ? 'UPDATE never_have_i_ever_games SET user1_answer = ?, updated_at = ? WHERE match_id = ? AND (user1_answer IS NULL OR user1_answer = \'\')'
-    : 'UPDATE never_have_i_ever_games SET user2_answer = ?, updated_at = ? WHERE match_id = ? AND (user2_answer IS NULL OR user2_answer = \'\')';
-  let runResult = db.prepare(setAnswerSql).run([answer, ts, matchId]);
+    ? 'UPDATE never_have_i_ever_games SET user1_answer = ?, user1_answer_round_id = ?, updated_at = ? WHERE match_id = ? AND current_round_id = ? AND (user1_answer IS NULL OR user1_answer = \'\')'
+    : 'UPDATE never_have_i_ever_games SET user2_answer = ?, user2_answer_round_id = ?, updated_at = ? WHERE match_id = ? AND current_round_id = ? AND (user2_answer IS NULL OR user2_answer = \'\')';
+  let runResult = db.prepare(setAnswerSql).run([answer, currentRoundId, ts, matchId, currentRoundId]);
   if (runResult instanceof Promise) runResult = await runResult;
   const answerWasSet = (runResult as { changes?: number }).changes !== undefined && (runResult as { changes: number }).changes > 0;
   nhieLog('submitAnswer: answer UPDATE result', { matchId, isUser1, answerWasSet });
@@ -816,9 +860,10 @@ export async function submitAnswer(
       if (process.env.NODE_ENV !== 'test') {
         console.log(`🙊 NHIE submitAnswer: both answered, generated new prompt for match=${matchId} promptLen=${nextPrompt.length}`);
       }
+      const nextRoundId = uuidv4();
       const runResult = db.prepare(
-        `UPDATE never_have_i_ever_games SET current_prompt = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, updated_at = ? WHERE match_id = ?`
-      ).run([nextPrompt, new Date().toISOString(), matchId]);
+        `UPDATE never_have_i_ever_games SET current_prompt = ?, current_round_id = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, user1_answer_round_id = NULL, user2_answer_round_id = NULL, updated_at = ? WHERE match_id = ?`
+      ).run([nextPrompt, nextRoundId, new Date().toISOString(), matchId]);
       const runRes = runResult instanceof Promise ? await runResult : runResult;
       const updateChanged = (runRes as { changes?: number }).changes !== undefined && (runRes as { changes: number }).changes > 0;
       nhieLog('submitAnswer: round-completion UPDATE (submitAnswer path)', { matchId, updateChanged });
@@ -924,8 +969,8 @@ export async function submitTurnAnswer(
   }
 
   const runResult = db.prepare(
-    `UPDATE never_have_i_ever_games SET user1_strikes = ?, user2_strikes = ?, current_prompt = ?, current_turn_user_id = ?, user1_answer = NULL, user2_answer = NULL, updated_at = ? WHERE match_id = ?`
-  ).run([newUser1Strikes, newUser2Strikes, newPrompt, nextTurnUserId, new Date().toISOString(), matchId]);
+    `UPDATE never_have_i_ever_games SET user1_strikes = ?, user2_strikes = ?, current_prompt = ?, current_round_id = ?, current_turn_user_id = ?, user1_answer = NULL, user2_answer = NULL, user1_answer_round_id = NULL, user2_answer_round_id = NULL, updated_at = ? WHERE match_id = ?`
+  ).run([newUser1Strikes, newUser2Strikes, newPrompt, uuidv4(), nextTurnUserId, new Date().toISOString(), matchId]);
   if (runResult instanceof Promise) await runResult;
 
   const state = await getGameState(matchId, userId, match);
@@ -950,8 +995,8 @@ export async function advanceToNextRound(
   const spiceLevel = (row.spice_level || 'pg13') as SpiceLevel;
   const prompt = await generateDistinctNeverHaveIEverPrompt(matchId, spiceLevel, row.current_prompt);
   const runResult = db.prepare(
-    `UPDATE never_have_i_ever_games SET current_prompt = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, updated_at = ? WHERE match_id = ?`
-  ).run([prompt, new Date().toISOString(), matchId]);
+    `UPDATE never_have_i_ever_games SET current_prompt = ?, current_round_id = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, user1_answer_round_id = NULL, user2_answer_round_id = NULL, updated_at = ? WHERE match_id = ?`
+  ).run([prompt, uuidv4(), new Date().toISOString(), matchId]);
   if (runResult instanceof Promise) await runResult;
 
   return getGameState(matchId, userId, match);
@@ -973,13 +1018,13 @@ export async function startNewGame(
   // Keep tally mode (current_turn_user_id = NULL): both users answer each prompt, then we tally and generate next.
   if (row) {
     const updateResult = db.prepare(
-      `UPDATE never_have_i_ever_games SET user1_strikes = 0, user2_strikes = 0, current_prompt = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, updated_at = ? WHERE match_id = ?`
-    ).run([prompt, ts, matchId]);
+      `UPDATE never_have_i_ever_games SET user1_strikes = 0, user2_strikes = 0, current_prompt = ?, current_round_id = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, user1_answer_round_id = NULL, user2_answer_round_id = NULL, updated_at = ? WHERE match_id = ?`
+    ).run([prompt, uuidv4(), ts, matchId]);
     if (updateResult instanceof Promise) await updateResult;
   } else {
     const insertResult = db.prepare(
-      `INSERT INTO never_have_i_ever_games (match_id, user1_strikes, user2_strikes, spice_level, current_prompt, current_turn_user_id, user1_answer, user2_answer, updated_at) VALUES (?, 0, 0, ?, ?, NULL, NULL, NULL, ?)`
-    ).run([matchId, spiceLevel, prompt, ts]);
+      `INSERT INTO never_have_i_ever_games (match_id, user1_strikes, user2_strikes, spice_level, current_prompt, current_round_id, current_turn_user_id, user1_answer, user2_answer, user1_answer_round_id, user2_answer_round_id, updated_at) VALUES (?, 0, 0, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, ?)`
+    ).run([matchId, spiceLevel, prompt, uuidv4(), ts]);
     if (insertResult instanceof Promise) await insertResult;
   }
 

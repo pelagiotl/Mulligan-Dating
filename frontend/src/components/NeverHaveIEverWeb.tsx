@@ -26,6 +26,7 @@ type GameState = {
   gameOver: boolean;
   winner: "you" | "them" | null;
   isUser1?: boolean;
+  roundId?: string | null;
   roundJustCompleted?: boolean;
   newPrompt?: string;
   pointsFromRound?: { newYourStrikes?: number; newTheirStrikes?: number };
@@ -34,6 +35,7 @@ type GameState = {
 type SocketPayload = {
   matchId?: string;
   newPrompt?: string;
+  roundId?: string | null;
   roundComplete?: boolean;
   user1Strikes?: number;
   user2Strikes?: number;
@@ -117,6 +119,7 @@ function normalizeState(data: Partial<GameState>, prev?: GameState | null): Game
     gameOver: Boolean(data.gameOver),
     winner: data.winner ?? null,
     isUser1: data.isUser1 ?? prev?.isUser1,
+    roundId: data.roundId ?? prev?.roundId ?? null,
   };
 }
 
@@ -270,6 +273,7 @@ export default function NeverHaveIEverWeb({
             ? {
                 ...prev,
                 prompt: payload.newPrompt!,
+                roundId: payload.roundId ?? prev.roundId ?? null,
                 yourAnswer: null,
                 theirAnswer: null,
                 bothAnswered: false,
@@ -370,6 +374,7 @@ export default function NeverHaveIEverWeb({
     try {
       const data = await api.post<GameState>(`/matches/${matchId}/never-have-i-ever/answer`, {
         answer,
+        roundId: state?.roundId ?? null,
       });
       if (data.isUser1 !== undefined) isUser1Ref.current = Boolean(data.isUser1);
 
@@ -395,6 +400,7 @@ export default function NeverHaveIEverWeb({
         return {
           ...base,
           prompt: roundComplete ? nextPrompt : nextPrompt || prev?.prompt || base.prompt,
+          roundId: data.roundId ?? base.roundId ?? prev?.roundId ?? null,
           yourAnswer: roundComplete ? null : data.yourAnswer ?? answer,
           theirAnswer: roundComplete ? null : data.theirAnswer ?? prev?.theirAnswer ?? null,
           bothAnswered: roundComplete ? false : Boolean(data.bothAnswered),
