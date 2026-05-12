@@ -2649,7 +2649,8 @@ matchesRouter.post("/:matchId/never-have-i-ever/spice-choice", authenticateToken
     }
 
     // Never Have I Ever requires token unlock; either user can set or change the version
-    const unlockRow = db.prepare('SELECT unlocked_by_user_id FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'never_have_i_ever']) as { unlocked_by_user_id: string } | undefined;
+    const unlockRowResult = db.prepare('SELECT unlocked_by_user_id FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'never_have_i_ever']);
+    const unlockRow = (unlockRowResult instanceof Promise ? await unlockRowResult : unlockRowResult) as { unlocked_by_user_id: string } | undefined;
     if (!unlockRow) {
       return res.status(400).json({ error: "Never Have I Ever must be unlocked with a Mulligan token to play." });
     }
@@ -2696,7 +2697,8 @@ matchesRouter.post("/:matchId/never-have-i-ever/start", authenticateToken, rateL
       return res.status(404).json({ error: "Match not found" });
     }
 
-    const unlockRow = db.prepare('SELECT 1 FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'never_have_i_ever']) as { 1?: number } | undefined;
+    const unlockRowResult = db.prepare('SELECT 1 FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'never_have_i_ever']);
+    const unlockRow = (unlockRowResult instanceof Promise ? await unlockRowResult : unlockRowResult) as { 1?: number } | undefined;
     if (!unlockRow) {
       return res.status(400).json({ error: "Never Have I Ever must be unlocked with a Mulligan token to play." });
     }
@@ -2739,7 +2741,8 @@ matchesRouter.get("/:matchId/never-have-i-ever", authenticateToken, async (req: 
     }
 
     // Never Have I Ever requires token unlock
-    const unlockRow = db.prepare('SELECT unlocked_by_user_id FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'never_have_i_ever']) as { unlocked_by_user_id: string } | undefined;
+    const unlockRowResult = db.prepare('SELECT unlocked_by_user_id FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'never_have_i_ever']);
+    const unlockRow = (unlockRowResult instanceof Promise ? await unlockRowResult : unlockRowResult) as { unlocked_by_user_id: string } | undefined;
     if (!unlockRow) {
       return res.status(400).json({ error: "Never Have I Ever must be unlocked with a Mulligan token to play." });
     }
@@ -2808,7 +2811,8 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
       return res.status(404).json({ error: "Match not found" });
     }
 
-    const unlockRow = db.prepare('SELECT unlocked_by_user_id FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'never_have_i_ever']) as { unlocked_by_user_id?: string } | undefined;
+    const unlockRowResult = db.prepare('SELECT unlocked_by_user_id FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'never_have_i_ever']);
+    const unlockRow = (unlockRowResult instanceof Promise ? await unlockRowResult : unlockRowResult) as { unlocked_by_user_id?: string } | undefined;
     if (!unlockRow) {
       return res.status(400).json({ error: "Never Have I Ever must be unlocked with a Mulligan token to play." });
     }
@@ -2864,7 +2868,8 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
       if (io) {
         let user1Strikes: number | undefined;
         let user2Strikes: number | undefined;
-        const strikeRow = db.prepare('SELECT user1_strikes, user2_strikes FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]) as { user1_strikes?: number; user2_strikes?: number } | undefined;
+        const strikeRowResult = db.prepare('SELECT user1_strikes, user2_strikes FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
+        const strikeRow = (strikeRowResult instanceof Promise ? await strikeRowResult : strikeRowResult) as { user1_strikes?: number; user2_strikes?: number } | undefined;
         if (strikeRow) {
           user1Strikes = Math.max(0, Number(strikeRow.user1_strikes) || 0);
           user2Strikes = Math.max(0, Number(strikeRow.user2_strikes) || 0);
@@ -3007,7 +3012,8 @@ matchesRouter.post("/:matchId/never-have-i-ever/another", authenticateToken, rat
       return res.status(404).json({ error: "Match not found" });
     }
 
-    const unlockRow = db.prepare('SELECT 1 FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'never_have_i_ever']) as { 1?: number } | undefined;
+    const unlockRowResult = db.prepare('SELECT 1 FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'never_have_i_ever']);
+    const unlockRow = (unlockRowResult instanceof Promise ? await unlockRowResult : unlockRowResult) as { 1?: number } | undefined;
     if (!unlockRow) {
       return res.status(400).json({ error: "Never Have I Ever must be unlocked with a Mulligan token to play." });
     }
@@ -3049,7 +3055,8 @@ matchesRouter.post("/:matchId/never-have-i-ever/send-to-chat", authenticateToken
     const match = (matchResult instanceof Promise ? await matchResult : matchResult) as { user1_id: string; user2_id: string } | undefined;
     if (!match) return res.status(404).json({ error: "Match not found" });
 
-    const unlockRow = db.prepare('SELECT 1 FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'never_have_i_ever']) as { 1?: number } | undefined;
+    const unlockRowResult = db.prepare('SELECT 1 FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'never_have_i_ever']);
+    const unlockRow = (unlockRowResult instanceof Promise ? await unlockRowResult : unlockRowResult) as { 1?: number } | undefined;
     if (!unlockRow) return res.status(400).json({ error: "Never Have I Ever must be unlocked to play." });
 
     try {

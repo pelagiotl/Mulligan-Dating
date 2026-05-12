@@ -141,6 +141,7 @@ export default function NeverHaveIEverWeb({
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const waitingPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastRoundCompletedAtRef = useRef(0);
+  const lastAnsweredPromptRef = useRef("");
   const lastKnownPointsRef = useRef({ yourPoints: 0, theirPoints: 0 });
   const isUser1Ref = useRef<boolean | null>(null);
   const modalOpenRef = useRef(false);
@@ -153,8 +154,14 @@ export default function NeverHaveIEverWeb({
     if (next.isUser1 !== undefined) isUser1Ref.current = Boolean(next.isUser1);
     setState((prev) => {
       const recentRound = Date.now() - lastRoundCompletedAtRef.current < 6000;
+      const staleRoundPrompt =
+        recentRound &&
+        lastAnsweredPromptRef.current.trim() !== "" &&
+        next.prompt.trim() === lastAnsweredPromptRef.current.trim();
       const keptPrompt =
-        recentRound && (prev?.prompt?.trim() ?? "") !== "" && !next.prompt
+        staleRoundPrompt
+          ? prev?.prompt ?? ""
+          : recentRound && (prev?.prompt?.trim() ?? "") !== "" && !next.prompt
           ? prev?.prompt ?? next.prompt
           : next.prompt;
       const refYou = Math.max(lastKnownPointsRef.current.yourPoints, next.yourPoints);
@@ -170,8 +177,16 @@ export default function NeverHaveIEverWeb({
         isUser1: next.isUser1 ?? prev?.isUser1,
       };
     });
-    if (Date.now() - lastRoundCompletedAtRef.current >= 6000 || next.prompt) {
+    const recentRound = Date.now() - lastRoundCompletedAtRef.current < 6000;
+    const staleRoundPrompt =
+      recentRound &&
+      lastAnsweredPromptRef.current.trim() !== "" &&
+      next.prompt.trim() === lastAnsweredPromptRef.current.trim();
+    if (!staleRoundPrompt && (Date.now() - lastRoundCompletedAtRef.current >= 6000 || next.prompt)) {
       setPrompt(next.prompt || "");
+      if (recentRound && next.prompt.trim() && next.prompt.trim() !== lastAnsweredPromptRef.current.trim()) {
+        lastAnsweredPromptRef.current = "";
+      }
     }
   }, []);
 
@@ -251,6 +266,7 @@ export default function NeverHaveIEverWeb({
       }
 
       if (payload.roundComplete && payload.newPrompt?.trim()) {
+        lastAnsweredPromptRef.current = "";
         setPrompt(payload.newPrompt);
         setState((prev) =>
           prev
@@ -343,6 +359,7 @@ export default function NeverHaveIEverWeb({
   const submitAnswer = async (answer: AnswerId) => {
     if (submitting || state?.yourAnswer != null || state?.gameOver) return;
     setSubmitting(true);
+    lastAnsweredPromptRef.current = displayPrompt;
 
     if (state) {
       const optimisticYour = state.yourPoints + (answer === "have" ? 1 : 0);
@@ -402,6 +419,9 @@ export default function NeverHaveIEverWeb({
 
       if (roundComplete) {
         lastRoundCompletedAtRef.current = Date.now();
+        if (nextPrompt.trim()) {
+          lastAnsweredPromptRef.current = "";
+        }
         setPrompt(nextPrompt);
         scheduleRoundRefetches();
       } else if (nextPrompt) {
