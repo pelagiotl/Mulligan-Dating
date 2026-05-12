@@ -294,8 +294,25 @@ export default function NeverHaveIEverWeb({
 
   useEffect(() => {
     if (!modalOpen || state?.bothAnswered || state?.yourAnswer == null) return;
-    const id = setInterval(() => void fetchState(), 1500);
+    const tryAdvance = async () => {
+      try {
+        await api.post(`/matches/${matchId}/never-have-i-ever/next`, {});
+      } catch (err) {
+        console.warn("Never Have I Ever next-round fallback:", err);
+      } finally {
+        void fetchState();
+      }
+    };
+    const id = setInterval(() => {
+      void fetchState();
+      void tryAdvance();
+    }, 1500);
     waitingPollRef.current = id;
+    const nudges = [
+      window.setTimeout(() => void tryAdvance(), 2500),
+      window.setTimeout(() => void tryAdvance(), 5000),
+      window.setTimeout(() => void tryAdvance(), 9000),
+    ];
     const stop = window.setTimeout(() => {
       if (waitingPollRef.current === id) {
         clearInterval(waitingPollRef.current);
@@ -305,9 +322,10 @@ export default function NeverHaveIEverWeb({
     return () => {
       clearInterval(id);
       clearTimeout(stop);
+      nudges.forEach((t) => clearTimeout(t));
       if (waitingPollRef.current === id) waitingPollRef.current = null;
     };
-  }, [fetchState, modalOpen, state?.bothAnswered, state?.yourAnswer]);
+  }, [fetchState, matchId, modalOpen, state?.bothAnswered, state?.yourAnswer]);
 
   useEffect(() => {
     if (isUnlocked && !state) {
