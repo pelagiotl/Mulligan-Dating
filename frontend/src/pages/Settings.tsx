@@ -192,6 +192,11 @@ export default function Settings() {
     }
   };
 
+  const handleLogout = () => {
+    logout();
+    navigate("/login", { replace: true });
+  };
+
   if (loading) {
     return <div className="loading-screen">Loading settings...</div>;
   }
@@ -407,6 +412,22 @@ export default function Settings() {
             <span>💳</span> Tokens
           </h2>
           <WebTokenPurchase variant="settings" customerEmail={settings?.email} />
+        </div>
+
+        <div className="settings-section settings-session-section">
+          <h2 className="settings-section-title">
+            <span>🚪</span> Session
+          </h2>
+          <p className="settings-hint">
+            Log out of this browser and return to the phone number login screen.
+          </p>
+          <button
+            type="button"
+            className="btn btn-secondary settings-logout-btn"
+            onClick={handleLogout}
+          >
+            Log out
+          </button>
         </div>
 
         {/* Delete Account */}

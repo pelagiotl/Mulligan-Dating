@@ -10073,6 +10073,14 @@ button.chat-avatar-btn .chat-avatar img {
   border-color: rgba(102, 126, 234, 0.35);
 }
 
+.settings-session-section .settings-hint {
+  margin-bottom: var(--space-4);
+}
+
+.settings-logout-btn {
+  min-width: 8rem;
+}
+
 .settings-section {
   background: var(--bg-secondary);
   border-radius: var(--radius-2xl);
