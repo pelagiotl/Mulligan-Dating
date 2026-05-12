@@ -8,6 +8,7 @@ import { formatPreferredMatchesFromGenders } from "../utils/preferredMatchesLabe
 import Notification from "../components/Notification";
 import ConfirmModal from "../components/ConfirmModal";
 import TruthOrDareWeb from "../components/TruthOrDareWeb";
+import NeverHaveIEverWeb from "../components/NeverHaveIEverWeb";
 import DateBlueprintWeb from "../components/DateBlueprintWeb";
 import GameRequestModalWeb, { type PendingGameRequestWeb } from "../components/GameRequestModalWeb";
 import ChatMediaModerationModal, { type ChatMediaKind } from "../components/ChatMediaModerationModal";
@@ -2202,6 +2203,57 @@ export default function Matches() {
                     }
                     onOpenedForAccept={() => setOpenGameForAccept(null)}
                     gameUnlockedByToken={!!selectedMatch.gameUnlocks?.truth_or_dare}
+                  />
+                  <NeverHaveIEverWeb
+                    matchId={selectedMatch.id}
+                    socket={socketRef.current}
+                    onSendToChat={sendChatText}
+                    onBeforeUnlockPrompt={async () => {
+                      const list = await fetchMatches();
+                      const id = selectedMatchIdRef.current;
+                      const m = list.find((x) => x.id === id);
+                      if (m?.gameUnlocks?.never_have_i_ever) {
+                        setSelectedMatch(m);
+                        return true;
+                      }
+                      return false;
+                    }}
+                    onUnlockWithToken={async () => {
+                      await api.post(`/matches/${selectedMatch.id}/unlock-game`, {
+                        gameType: "never_have_i_ever",
+                      });
+                      const list = await fetchMatches();
+                      const id = selectedMatch.id;
+                      const m = list.find((x) => x.id === id);
+                      if (m) {
+                        setSelectedMatch({
+                          ...m,
+                          gameUnlocks: {
+                            ...(m.gameUnlocks || { truth_or_dare: false, never_have_i_ever: false }),
+                            never_have_i_ever: true,
+                          },
+                        });
+                        setMatches((prev) =>
+                          prev.map((x) =>
+                            x.id === id
+                              ? {
+                                  ...x,
+                                  gameUnlocks: {
+                                    ...(x.gameUnlocks || { truth_or_dare: false, never_have_i_ever: false }),
+                                    never_have_i_ever: true,
+                                  },
+                                }
+                              : x
+                          )
+                        );
+                      }
+                    }}
+                    openForAccept={
+                      openGameForAccept?.gameType === "never_have_i_ever" &&
+                      openGameForAccept?.matchId === selectedMatch.id
+                    }
+                    onOpenedForAccept={() => setOpenGameForAccept(null)}
+                    gameUnlockedByToken={!!selectedMatch.gameUnlocks?.never_have_i_ever}
                   />
                 </div>
               )}
