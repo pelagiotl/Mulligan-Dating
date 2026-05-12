@@ -268,7 +268,66 @@ function venueKeywordsForInterest(interest: string): string[] {
   return mapped[key] ?? [`${interest} class`, `${interest} event`, `${interest} cafe`];
 }
 
-function buildVenueSearchKeywords(sharedInterests: string[]): string[] {
+type DatePlanLane = {
+  id: 'coffee' | 'meal' | 'walk' | 'games' | 'culture' | 'market' | 'dessert';
+  label: string;
+  keywords: string[];
+  promptHint: string;
+};
+
+const DATE_PLAN_LANES: DatePlanLane[] = [
+  {
+    id: 'coffee',
+    label: 'coffee or tea',
+    keywords: ['craft coffee shop', 'coffee roaster', 'independent cafe', 'tea house', 'bookstore cafe'],
+    promptHint: 'Make this a coffee or tea meetup at a real local spot, with an optional short walk or browse nearby.',
+  },
+  {
+    id: 'meal',
+    label: 'meal',
+    keywords: ['brunch restaurant', 'breakfast restaurant', 'lunch restaurant', 'dinner restaurant', 'tapas restaurant', 'small plates restaurant', 'food hall'],
+    promptHint: 'Make this a meal plan: breakfast, brunch, lunch, dinner, small plates, or a food hall with enough atmosphere to talk.',
+  },
+  {
+    id: 'walk',
+    label: 'walk or park',
+    keywords: ['local park', 'walking trail', 'waterfront walk', 'botanical garden', 'scenic overlook', 'public garden'],
+    promptHint: 'Make this a local walk, park, garden, waterfront, or scenic stroll that feels public, easy, and intentional.',
+  },
+  {
+    id: 'games',
+    label: 'adult games or activity',
+    keywords: ['board game cafe', 'mini golf', 'bowling alley', 'arcade bar food', 'escape room', 'billiards hall', 'trivia night restaurant'],
+    promptHint: 'Make this a playful adult activity: board game cafe, mini golf, bowling, arcade, escape room, billiards, or trivia with food.',
+  },
+  {
+    id: 'culture',
+    label: 'culture',
+    keywords: ['art gallery', 'museum', 'indie cinema', 'performing arts theater', 'comedy club', 'live music venue', 'independent bookstore'],
+    promptHint: 'Make this a culture plan: gallery, museum, indie cinema, bookstore, comedy, or live performance with time to talk.',
+  },
+  {
+    id: 'market',
+    label: 'market or food hall',
+    keywords: ['farmers market', 'food hall', 'street market', 'public market', 'artisan market'],
+    promptHint: 'Make this a local market or food hall plan where they can pick a bite, wander, and compare favorites.',
+  },
+  {
+    id: 'dessert',
+    label: 'dessert',
+    keywords: ['dessert cafe', 'ice cream shop', 'bakery', 'gelato shop', 'chocolate shop'],
+    promptHint: 'Make this a dessert plan that feels grown-up and relaxed, with a short walk or cafe conversation after.',
+  },
+];
+
+function pickDatePlanLane(existingTitles: string[]): DatePlanLane {
+  const recentText = existingTitles.join(' | ').toLowerCase();
+  const available = DATE_PLAN_LANES.filter((lane) => !recentText.includes(lane.id) && !recentText.includes(lane.label));
+  const pool = available.length > 0 ? available : DATE_PLAN_LANES;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function buildVenueSearchKeywords(sharedInterests: string[], lane: DatePlanLane): string[] {
   const adultDefaultKeywords = [
     'craft coffee shop',
     'tea house',
@@ -295,18 +354,30 @@ function buildVenueSearchKeywords(sharedInterests: string[]): string[] {
   ];
 
   const interestKeywords = sharedInterests.flatMap(venueKeywordsForInterest);
-  return [...new Set([...interestKeywords, ...adultDefaultKeywords])];
+  // Core plan lane comes first so broad overlaps like Travel/Music do not dominate most generated plans.
+  return [...new Set([...lane.keywords, ...adultDefaultKeywords, ...interestKeywords.slice(0, 4)])];
 }
 
 function fallbackDatePlanCopy(
   sharedInterests: string[],
   meetingLocation: string,
-  venue?: VenueSearchResult | null
+  venue?: VenueSearchResult | null,
+  lane?: DatePlanLane
 ): { title: string; description: string; conversationTopics: string[]; budgetRange: 'low' | 'medium' | 'high' } {
   const primaryInterest = sharedInterests[0];
   if (venue) {
     return {
-      title: primaryInterest ? `${primaryInterest} & Easy Conversation` : 'Easy Conversation Spot',
+      title: lane?.id === 'meal'
+        ? 'Table for Two Conversations'
+        : lane?.id === 'walk'
+          ? 'Local Walk & Easy Conversation'
+          : lane?.id === 'games'
+            ? 'Playful Competition Night'
+            : lane?.id === 'culture'
+              ? 'Culture Stop & Conversation'
+              : lane?.id === 'dessert'
+                ? 'Dessert and a Stroll'
+                : 'Coffee and Easy Conversation',
       description: `Meet at ${venue.name} for a polished, low-pressure plan that leaves room to actually talk. Keep it simple: arrive, order or browse what the place is known for, and see if the conversation has momentum.`,
       conversationTopics: primaryInterest
         ? [`What first got you into ${primaryInterest}?`, `Your favorite ${primaryInterest} experience lately`, 'A place nearby you have been meaning to try']
@@ -330,6 +401,16 @@ function fallbackDatePlanCopy(
       title: 'Small Plates and a Scenic Stroll',
       description: `Meet early evening for small plates somewhere public and conversation-friendly, then take a short walk through a lively nearby area.`,
       budgetRange: 'medium' as const,
+    },
+    {
+      title: 'Games and Good Conversation',
+      description: 'Find a board game cafe, bowling alley, mini golf spot, or arcade with food so there is something playful to do between conversation.',
+      budgetRange: 'medium' as const,
+    },
+    {
+      title: 'Local Park Coffee Walk',
+      description: `Grab coffee near ${meetingLocation}, then take an easy walk through a local park or lively main street.`,
+      budgetRange: 'low' as const,
     },
   ];
   const idea = fallbackIdeas[Math.floor(Math.random() * fallbackIdeas.length)];
@@ -442,9 +523,10 @@ export async function generateDatePlan(
   );
   const existingTitles = existingPlans.filter(p => p.title).map(p => (p.title as string).trim()).slice(0, 8);
 
-  // Search with curated, adult-friendly terms. Raw broad interests like "Travel" can return bad
-  // venue matches (e.g. truck stops), so map interests to date-worthy venue categories first.
-  const searchKeywords = buildVenueSearchKeywords(sharedInterests);
+  // Pick a normal, date-worthy meetup lane first. Shared interests influence details/topics,
+  // but they should not make most plans about broad labels like Travel or Music.
+  const selectedPlanLane = pickDatePlanLane(existingTitles);
+  const searchKeywords = buildVenueSearchKeywords(sharedInterests, selectedPlanLane);
 
   const tryVenues = (candidates: VenueSearchResult[]) => {
     const ranked = rankDateVenues(candidates, existingVenueNames);
@@ -492,7 +574,7 @@ export async function generateDatePlan(
 
   // Generate hangout plan using AI
   const openaiApiKey = process.env.OPENAI_API_KEY;
-  const fallbackCopy = fallbackDatePlanCopy(sharedInterests, meetingLocation, selectedVenueForPlan);
+  const fallbackCopy = fallbackDatePlanCopy(sharedInterests, meetingLocation, selectedVenueForPlan, selectedPlanLane);
   let planTitle = fallbackCopy.title;
   let planDescription = fallbackCopy.description;
   let conversationTopics: string[] = fallbackCopy.conversationTopics;
@@ -529,9 +611,10 @@ CRITICAL: Your description MUST only describe activities that match the above. D
         sharedInterests.length > 0
           ? `
 CRITICAL — SHARED INTERESTS:
-- The plan must clearly reflect at least one of these shared interests by name in the title OR in the first sentence of the description (e.g. hiking, board games, live music — use their actual labels).
-- At least 2 of the conversationTopics must directly relate to these shared interests (not only generic icebreakers).
-- Pick a venue/activity vibe that plausibly fits those interests when possible.
+- Shared interests should inspire conversation topics, not dominate the whole plan.
+- Do NOT make most plans explicitly about Travel or Music just because those are shared interests.
+- At least 1 conversationTopic should relate to a shared interest when available.
+- The title and first sentence should focus on the selected meetup category below unless the venue naturally matches a shared interest.
 `
           : `
 No shared-interest overlap on file — suggest a welcoming, low-pressure public hangout anyone could enjoy.
@@ -544,19 +627,7 @@ No shared-interest overlap on file — suggest a welcoming, low-pressure public 
       // When we have real venue facts, don't suggest a random different activity type.
       const variationLine = venueFacts
         ? 'Keep the tone stylish, adult, and conversational; describe only what this venue actually offers.'
-        : (() => {
-            const variationHints = [
-              'Craft coffee or tea at an independent spot, then a short gallery/bookstore browse nearby.',
-              'Small plates at a conversation-friendly restaurant, then a scenic walk in a lively public area.',
-              'A museum, art gallery, or indie cinema plan with a cafe stop before or after.',
-              'A polished activity: mini golf, bowling, pottery studio, cooking demo, or board game cafe.',
-              'A farmers market or food hall with one shared “best bite” pick and a walk afterward.',
-              'An early-evening live music, comedy, or theater outing at a public venue with seating.',
-              'A botanical garden, waterfront, or scenic overlook paired with coffee or dessert.',
-              'A brunch or dessert cafe plan that feels intentional, not childish or random.',
-            ];
-            return variationHints[Math.floor(Math.random() * variationHints.length)];
-          })();
+        : selectedPlanLane.promptHint;
 
       const terminologyRules = `
 TERMINOLOGY (strict):
@@ -575,6 +646,7 @@ ${terminologyRules}
 ${interestsText}
 ${sharedInterestRules}
 Location: ${meetingLocation}
+SELECTED MEETUP CATEGORY: ${selectedPlanLane.label}
 ${venueInfo}
 ${avoidText}
 
@@ -585,6 +657,8 @@ QUALITY BAR:
 - Avoid low-quality venues or plans: truck stops, rest stops, gas stations, convenience stores, chain fast food, big-box retail, generic "grab snacks", playgrounds, or anything that feels like killing time.
 - Alcohol can be adjacent only when the venue is public and food/activity-forward (e.g. small plates, jazz lounge with seating), but do NOT make drinking the point.
 - Prefer places with atmosphere, conversation, and a clear reason to be there.
+- Prefer normal local meetup ideas unless a venue clearly warrants something else: coffee shop, local park/walk, breakfast/lunch/brunch/dinner, adult games/activities, gallery/museum/bookstore, market/food hall, or dessert cafe.
+- If the selected category is coffee, meal, walk/park, or adult games, do NOT pivot to Travel or Music themes.
 
 Generate a creative hangout plan that:
 - Feels polished, casual, and activity-led (not formal or intense)
@@ -610,7 +684,7 @@ Return ONLY a JSON object with this exact format:
         messages: [
           {
             role: 'system',
-            content: 'You create mature, stylish, activity-based in-person hangout ideas for adults who connected on a social app. Never use the words date, dating, romantic, or couple in your JSON output. Never suggest truck stops, travel centers, gas stations, convenience stores, fast food, big-box stores, playgrounds, or generic snack runs. Prefer craft coffee/tea, brunch, small plates, galleries, museums, indie cinema, bookstores, food halls, botanical gardens, scenic walks, pottery/cooking classes, comedy, live music with seating, mini golf, and bowling. When shared interests are listed, weave at least one into the title or first sentence and tie most topics to those interests. One or two sentences for description only.',
+            content: 'You create mature, stylish, activity-based in-person hangout ideas for adults who connected on a social app. Never use the words date, dating, romantic, or couple in your JSON output. Never suggest truck stops, travel centers, gas stations, convenience stores, fast food, big-box stores, playgrounds, or generic snack runs. Prefer normal local meetups: coffee shops, parks/walks, breakfast/lunch/brunch/dinner, adult games/activities, galleries, museums, bookstores, food halls, botanical gardens, dessert cafes, mini golf, and bowling. Shared interests can inspire conversation topics, but they should not dominate the plan or make most ideas about Travel or Music. One or two sentences for description only.',
           },
           {
             role: 'user',
@@ -666,7 +740,7 @@ Return ONLY a JSON object with this exact format:
 
   const generatedPlanText = [planTitle, planDescription, ...conversationTopics].join(' ');
   if (LOW_QUALITY_VENUE_NAME_RE.test(generatedPlanText)) {
-    const safeFallback = fallbackDatePlanCopy(sharedInterests, meetingLocation, selectedVenueForPlan);
+    const safeFallback = fallbackDatePlanCopy(sharedInterests, meetingLocation, selectedVenueForPlan, selectedPlanLane);
     planTitle = safeFallback.title;
     planDescription = safeFallback.description;
     conversationTopics = safeFallback.conversationTopics;
