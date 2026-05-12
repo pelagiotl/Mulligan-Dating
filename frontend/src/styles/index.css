@@ -6698,6 +6698,48 @@ button.my-profile-avatar:focus-visible {
   line-height: 1.25;
   letter-spacing: -0.02em;
   font-family: var(--font-display);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.match-item--unread {
+  border-color: rgba(244, 63, 94, 0.34);
+  box-shadow:
+    0 2px 8px rgba(244, 63, 94, 0.1),
+    0 12px 28px rgba(244, 63, 94, 0.1),
+    0 0 0 1px rgba(255, 255, 255, 0.7) inset;
+}
+
+.match-item--unread .match-item-name {
+  font-weight: 850;
+  color: #7f1d1d;
+}
+
+.match-unread-dot {
+  flex: 0 0 auto;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #fb7185, #e11d48);
+  box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.14), 0 0 12px rgba(225, 29, 72, 0.35);
+}
+
+.match-unread-badge {
+  flex: 0 0 auto;
+  min-width: 1.45rem;
+  height: 1.45rem;
+  padding: 0 0.42rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #fb7185, #e11d48);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow: 0 5px 14px rgba(225, 29, 72, 0.26);
 }
 
 .match-item-signals {

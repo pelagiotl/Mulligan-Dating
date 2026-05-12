@@ -34,6 +34,7 @@ interface Match {
   isInitiator: boolean;
   userWantsReveal?: boolean;
   otherWantsReveal?: boolean;
+  unreadCount?: number;
   gameUnlocks?: { truth_or_dare: boolean; never_have_i_ever: boolean };
   /** Engagement-based pulse score (0–100), updates over chat */
   compatibilityScore?: number | null;
@@ -338,6 +339,20 @@ export default function Matches() {
     return getOtherUserPhotosForLightbox(selectedMatch);
   }, [selectedMatch]);
 
+  const openMatchThread = useCallback((match: Match) => {
+    const clearedMatch = { ...match, unreadCount: 0 };
+    setSelectedMatch(clearedMatch);
+    setMatches((prev) =>
+      prev.map((m) => (m.id === match.id ? { ...m, unreadCount: 0 } : m))
+    );
+    if (socketRef.current && match.stage !== "pending") {
+      socketRef.current.emit("mark_read", { matchId: match.id });
+    }
+    if (typeof window !== "undefined" && window.innerWidth <= 900) {
+      setMobileShowMatchList(false);
+    }
+  }, []);
+
   useEffect(() => {
     setPartnerDrawerOpen(false);
   }, [selectedMatch?.id]);
@@ -455,6 +470,25 @@ export default function Matches() {
     // Handle new messages
     socket.on('new_message', (message: Message & { matchId?: string }) => {
       const openId = selectedMatchIdRef.current;
+      if (message.matchId && message.senderId !== user.id) {
+        if (message.matchId === openId) {
+          setMatches((prev) =>
+            prev.map((m) => (m.id === message.matchId ? { ...m, unreadCount: 0 } : m))
+          );
+          socket.emit("mark_read", { matchId: message.matchId });
+        } else {
+          setMatches((prev) => {
+            const updated = prev.map((m) =>
+              m.id === message.matchId
+                ? { ...m, unreadCount: (m.unreadCount || 0) + 1 }
+                : m
+            );
+            const target = updated.find((m) => m.id === message.matchId);
+            if (!target) return updated;
+            return [target, ...updated.filter((m) => m.id !== message.matchId)];
+          });
+        }
+      }
       if (message.matchId && openId && message.matchId !== openId) {
         return;
       }
@@ -709,9 +743,9 @@ export default function Matches() {
     if (!id) return;
     if (matches.length === 0) return;
     const m = matches.find((x) => x.id === id);
-    if (m) setSelectedMatch(m);
+    if (m) openMatchThread(m);
     navigate(location.pathname, { replace: true, state: {} });
-  }, [loading, matches, location.state, location.pathname, navigate]);
+  }, [loading, matches, location.state, location.pathname, navigate, openMatchThread]);
 
   // Join/leave match room when selected match changes
   useEffect(() => {
@@ -1842,21 +1876,19 @@ export default function Matches() {
                 key={match.id}
                 role="listitem"
                 tabIndex={0}
-                className={`match-item ${selectedMatch?.id === match.id ? "active" : ""}`}
-                aria-label={`${match.otherUser.displayName}, ${getStageLabel(match.stage)}. Open chat.`}
-                onClick={() => {
-                  setSelectedMatch(match);
-                  if (typeof window !== "undefined" && window.innerWidth <= 900) {
-                    setMobileShowMatchList(false);
-                  }
-                }}
+                className={`match-item ${selectedMatch?.id === match.id ? "active" : ""} ${
+                  (match.unreadCount || 0) > 0 ? "match-item--unread" : ""
+                }`}
+                aria-label={`${match.otherUser.displayName}, ${getStageLabel(match.stage)}${
+                  (match.unreadCount || 0) > 0
+                    ? `, ${match.unreadCount} unread ${match.unreadCount === 1 ? "message" : "messages"}`
+                    : ""
+                }. Open chat.`}
+                onClick={() => openMatchThread(match)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    setSelectedMatch(match);
-                    if (typeof window !== "undefined" && window.innerWidth <= 900) {
-                      setMobileShowMatchList(false);
-                    }
+                    openMatchThread(match);
                   }
                 }}
               >
@@ -1899,7 +1931,20 @@ export default function Matches() {
                   </div>
                   <div className="match-item-primary">
                     <div className="match-item-title-row">
-                      <h4 className="match-item-name">{match.otherUser.displayName}</h4>
+                      <h4 className="match-item-name">
+                        {match.otherUser.displayName}
+                        {(match.unreadCount || 0) > 0 ? (
+                          <span className="match-unread-dot" aria-hidden />
+                        ) : null}
+                      </h4>
+                      {(match.unreadCount || 0) > 0 ? (
+                        <span
+                          className="match-unread-badge"
+                          aria-label={`${match.unreadCount} unread ${match.unreadCount === 1 ? "message" : "messages"}`}
+                        >
+                          {match.unreadCount! > 99 ? "99+" : match.unreadCount}
+                        </span>
+                      ) : null}
                       <span className={`stage-badge stage-badge--sidebar ${getStageColor(match.stage)}`}>
                         {getStageLabel(match.stage)}
                       </span>

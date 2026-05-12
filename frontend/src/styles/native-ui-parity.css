@@ -1696,6 +1696,11 @@ button.connect-landing__cta:disabled::before {
   -webkit-backdrop-filter: none;
 }
 
+.matches-page.native-app-screen .match-item--unread {
+  border-color: rgba(244, 63, 94, 0.34);
+  box-shadow: 0 8px 24px rgba(244, 63, 94, 0.12);
+}
+
 .matches-page.native-app-screen .match-item::before {
   display: none;
 }
