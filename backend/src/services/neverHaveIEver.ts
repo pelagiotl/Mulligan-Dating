@@ -693,6 +693,13 @@ export async function submitAnswer(
   }
   if (!row) return { state: await getGameState(matchId, userId, match) };
   const currentRoundId = await ensureCurrentRoundId(matchId, row);
+  const otherAnswerBefore = (isUser1
+    ? getAnswerVal(row as unknown as Record<string, unknown>, 'user2_answer')
+    : getAnswerVal(row as unknown as Record<string, unknown>, 'user1_answer')) as 'have' | 'havent' | null;
+  const otherAnswerRoundBefore = isUser1 ? row.user2_answer_round_id : row.user1_answer_round_id;
+  const otherAlreadyAnsweredThisRound =
+    otherAnswerBefore !== null &&
+    (otherAnswerRoundBefore == null || String(otherAnswerRoundBefore) === currentRoundId);
   if (submittedRoundId && submittedRoundId !== currentRoundId) {
     const state = await getGameState(matchId, userId, match);
     return {
@@ -757,132 +764,163 @@ export async function submitAnswer(
   let roundResult: { youStrike: boolean; themStrike: boolean } | undefined;
   let generatedNextPrompt: string | undefined;
 
-  // Give the other user's connection time to commit so we see both answers (cross-connection / replica visibility).
-  // Use 1s so when both users submit at once, the first read is more likely to see the other's commit.
-  await new Promise((r) => setTimeout(r, 1000));
-
-  let rowAfter = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
-  row = (rowAfter instanceof Promise ? await rowAfter : rowAfter) as GameRow;
-  // Use key-agnostic read so we see both answers regardless of DB/driver key shape (e.g. PostgreSQL lowercase)
-  let user1Answer = (row ? getAnswerVal(row as unknown as Record<string, unknown>, 'user1_answer') : null) as 'have' | 'havent' | null;
-  let user2Answer = (row ? getAnswerVal(row as unknown as Record<string, unknown>, 'user2_answer') : null) as 'have' | 'havent' | null;
-
-  nhieLog('submitAnswer: after 1s read', { matchId, user1Answer, user2Answer, bothPresent: user1Answer != null && user2Answer != null });
-
-  // Early completion: if we don't see both yet, try completeRoundIfBothAnswered once (it does its own read).
-  // Helps when the other user's commit isn't visible to this connection yet (e.g. PostgreSQL / replica).
-  let roundCompletedByHelper = false;
-  if (user1Answer == null || user2Answer == null) {
-    nhieLog('submitAnswer: calling completeRoundIfBothAnswered (early) - only one answer visible', { matchId });
-    const earlyComplete = await completeRoundIfBothAnswered(matchId);
-    if (earlyComplete.completed && earlyComplete.newPrompt) {
-      roundCompletedByHelper = true;
-      generatedNextPrompt = earlyComplete.newPrompt;
-      nhieLog('submitAnswer: early completeRoundIfBothAnswered succeeded', { matchId, newPromptPreview: earlyComplete.newPrompt.slice(0, 50) });
-      roundResult = { youStrike: answer === 'have', themStrike: false };
-      const finalRead = db.prepare('SELECT user1_strikes, user2_strikes FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
-      const finalRow = (finalRead instanceof Promise ? await finalRead : finalRead) as { user1_strikes?: number; user2_strikes?: number } | undefined;
-      if (finalRow) {
-        pointsAfterRoundComplete = {
-          newYourStrikes: Number(isUser1 ? finalRow.user1_strikes : finalRow.user2_strikes) || 0,
-          newTheirStrikes: Number(isUser1 ? finalRow.user2_strikes : finalRow.user1_strikes) || 0,
-        };
-      }
-      if (process.env.NODE_ENV !== 'test') {
-        console.log(`🙊 NHIE submitAnswer: early completeRoundIfBothAnswered completed round match=${matchId}`);
-      }
-    }
-  }
-
-  // If we only see one answer (and helper didn't complete), retry with backoff for replica/commit visibility
-  const retryDelays = [150, 350, 600, 1000, 1500, 2500, 4000, 6000, 8000];
-  for (const delayMs of retryDelays) {
-    if (roundCompletedByHelper) break;
-    if (user1Answer != null && user2Answer != null) break;
-    await new Promise((r) => setTimeout(r, delayMs));
-    const rowRetryResult = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
-    const rowRetry = (rowRetryResult instanceof Promise ? await rowRetryResult : rowRetryResult) as GameRow | undefined;
-    if (!rowRetry) break;
-    user1Answer = getAnswerVal(rowRetry as unknown as Record<string, unknown>, 'user1_answer') as 'have' | 'havent' | null;
-    user2Answer = getAnswerVal(rowRetry as unknown as Record<string, unknown>, 'user2_answer') as 'have' | 'havent' | null;
-    if (user1Answer != null && user2Answer != null) {
-      row = rowRetry;
-      break;
-    }
-  }
-  // One final wait and read in case of replica lag (skip if we already completed via early helper)
-  if (!roundCompletedByHelper && (user1Answer == null || user2Answer == null)) {
-    await new Promise((r) => setTimeout(r, 2000));
-    const finalRead = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
-    const finalRow = (finalRead instanceof Promise ? await finalRead : finalRead) as GameRow | undefined;
-    if (finalRow) {
-      const f1 = getAnswerVal(finalRow as unknown as Record<string, unknown>, 'user1_answer') as 'have' | 'havent' | null;
-      const f2 = getAnswerVal(finalRow as unknown as Record<string, unknown>, 'user2_answer') as 'have' | 'havent' | null;
-      if (f1 != null && f2 != null) {
-        user1Answer = f1;
-        user2Answer = f2;
-        row = finalRow;
-      }
-    }
-  }
-  const raw1 = row ? getAnswerVal(row as unknown as Record<string, unknown>, 'user1_answer') : null;
-  const raw2 = row ? getAnswerVal(row as unknown as Record<string, unknown>, 'user2_answer') : null;
-  nhieLog('submitAnswer: state after retries', { matchId, isUser1, user1Answer, user2Answer, bothPresent: user1Answer != null && user2Answer != null, roundCompletedByHelper });
-  if (NHIE_DEBUG) {
-    console.log(`🙊 NHIE submitAnswer: match=${matchId} isUser1=${isUser1} answer=${answer} user1Answer=${user1Answer} user2Answer=${user2Answer} raw1=${JSON.stringify(raw1)} raw2=${JSON.stringify(raw2)}`);
-  }
-
-  if (!roundCompletedByHelper && user1Answer !== null && user2Answer !== null) {
-    // Points were already added when each user submitted "I have". Here we only clear answers and advance the prompt.
+  if (otherAlreadyAnsweredThisRound) {
     roundResult = {
-      youStrike: (isUser1 ? user1Answer : user2Answer) === 'have',
-      themStrike: (isUser1 ? user2Answer : user1Answer) === 'have',
+      youStrike: answer === 'have',
+      themStrike: otherAnswerBefore === 'have',
     };
-
-    const s1 = Number(row.user1_strikes) || 0;
-    const s2 = Number(row.user2_strikes) || 0;
-    const gameOver = s1 >= STRIKES_TO_LOSE || s2 >= STRIKES_TO_LOSE;
-
+    const user1After = Number(row.user1_strikes) + (isUser1 && answer === 'have' ? 1 : 0);
+    const user2After = Number(row.user2_strikes) + (!isUser1 && answer === 'have' ? 1 : 0);
+    const gameOver = user1After >= STRIKES_TO_LOSE || user2After >= STRIKES_TO_LOSE;
+    pointsAfterRoundComplete = {
+      newYourStrikes: isUser1 ? user1After : user2After,
+      newTheirStrikes: isUser1 ? user2After : user1After,
+    };
     if (!gameOver) {
       const c1 = row.user1_spice_choice as SpiceLevel | null;
       const c2 = row.user2_spice_choice as SpiceLevel | null;
       const effectiveLevel = (c1 && c2 ? moreConservative(c1, c2) : (row.spice_level as SpiceLevel)) || 'pg13';
-      let nextPrompt: string;
-      try {
-        nextPrompt = await generateDistinctNeverHaveIEverPrompt(matchId, effectiveLevel, row.current_prompt);
-        if (!nextPrompt || !nextPrompt.trim()) nextPrompt = `Never have I ever ${pickRandom(FALLBACK_PROMPTS)}`;
-      } catch (e) {
-        console.warn('NHIE generate prompt failed, using fallback:', e);
-        nextPrompt = `Never have I ever ${pickRandom(FALLBACK_PROMPTS)}`;
-      }
+      const nextPrompt = await generateDistinctNeverHaveIEverPrompt(matchId, effectiveLevel, row.current_prompt);
       generatedNextPrompt = nextPrompt;
-      nhieLog('submitAnswer: both answered, generated new prompt', { matchId, newPromptPreview: nextPrompt.slice(0, 50) });
-      if (process.env.NODE_ENV !== 'test') {
-        console.log(`🙊 NHIE submitAnswer: both answered, generated new prompt for match=${matchId} promptLen=${nextPrompt.length}`);
-      }
       const nextRoundId = uuidv4();
-      const runResult = db.prepare(
-        `UPDATE never_have_i_ever_games SET current_prompt = ?, current_round_id = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, user1_answer_round_id = NULL, user2_answer_round_id = NULL, updated_at = ? WHERE match_id = ?`
-      ).run([nextPrompt, nextRoundId, new Date().toISOString(), matchId]);
-      const runRes = runResult instanceof Promise ? await runResult : runResult;
-      const updateChanged = (runRes as { changes?: number }).changes !== undefined && (runRes as { changes: number }).changes > 0;
-      nhieLog('submitAnswer: round-completion UPDATE (submitAnswer path)', { matchId, updateChanged });
+      const completeResult = db.prepare(
+        `UPDATE never_have_i_ever_games SET current_prompt = ?, current_round_id = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, user1_answer_round_id = NULL, user2_answer_round_id = NULL, updated_at = ? WHERE match_id = ? AND current_round_id = ?`
+      ).run([nextPrompt, nextRoundId, new Date().toISOString(), matchId, currentRoundId]);
+      if (completeResult instanceof Promise) await completeResult;
+      nhieLog('submitAnswer: immediate second-answer round completion', { matchId, newPromptPreview: nextPrompt.slice(0, 50), nextRoundId });
+    }
+  }
 
-      // Re-read strikes after round completion so client always gets definitive counts (avoids any read timing)
-      const finalRead = db.prepare('SELECT user1_strikes, user2_strikes FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
-      const finalRow = (finalRead instanceof Promise ? await finalRead : finalRead) as { user1_strikes?: number; user2_strikes?: number } | undefined;
+  // Give the other user's connection time to commit so we see both answers (cross-connection / replica visibility).
+  // Use 1s so when both users submit at once, the first read is more likely to see the other's commit.
+  let user1Answer: 'have' | 'havent' | null = null;
+  let user2Answer: 'have' | 'havent' | null = null;
+  if (!roundResult) {
+    await new Promise((r) => setTimeout(r, 1000));
+
+    let rowAfter = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
+    row = (rowAfter instanceof Promise ? await rowAfter : rowAfter) as GameRow;
+    // Use key-agnostic read so we see both answers regardless of DB/driver key shape (e.g. PostgreSQL lowercase)
+    user1Answer = (row ? getAnswerVal(row as unknown as Record<string, unknown>, 'user1_answer') : null) as 'have' | 'havent' | null;
+    user2Answer = (row ? getAnswerVal(row as unknown as Record<string, unknown>, 'user2_answer') : null) as 'have' | 'havent' | null;
+
+    nhieLog('submitAnswer: after 1s read', { matchId, user1Answer, user2Answer, bothPresent: user1Answer != null && user2Answer != null });
+
+    // Early completion: if we don't see both yet, try completeRoundIfBothAnswered once (it does its own read).
+    // Helps when the other user's commit isn't visible to this connection yet (e.g. PostgreSQL / replica).
+    let roundCompletedByHelper = false;
+    if (user1Answer == null || user2Answer == null) {
+      nhieLog('submitAnswer: calling completeRoundIfBothAnswered (early) - only one answer visible', { matchId });
+      const earlyComplete = await completeRoundIfBothAnswered(matchId);
+      if (earlyComplete.completed && earlyComplete.newPrompt) {
+        roundCompletedByHelper = true;
+        generatedNextPrompt = earlyComplete.newPrompt;
+        nhieLog('submitAnswer: early completeRoundIfBothAnswered succeeded', { matchId, newPromptPreview: earlyComplete.newPrompt.slice(0, 50) });
+        roundResult = { youStrike: answer === 'have', themStrike: false };
+        const finalRead = db.prepare('SELECT user1_strikes, user2_strikes FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
+        const finalRow = (finalRead instanceof Promise ? await finalRead : finalRead) as { user1_strikes?: number; user2_strikes?: number } | undefined;
+        if (finalRow) {
+          pointsAfterRoundComplete = {
+            newYourStrikes: Number(isUser1 ? finalRow.user1_strikes : finalRow.user2_strikes) || 0,
+            newTheirStrikes: Number(isUser1 ? finalRow.user2_strikes : finalRow.user1_strikes) || 0,
+          };
+        }
+        if (process.env.NODE_ENV !== 'test') {
+          console.log(`🙊 NHIE submitAnswer: early completeRoundIfBothAnswered completed round match=${matchId}`);
+        }
+      }
+    }
+
+    // If we only see one answer (and helper didn't complete), retry with backoff for replica/commit visibility
+    const retryDelays = [150, 350, 600, 1000, 1500, 2500, 4000, 6000, 8000];
+    for (const delayMs of retryDelays) {
+      if (roundCompletedByHelper) break;
+      if (user1Answer != null && user2Answer != null) break;
+      await new Promise((r) => setTimeout(r, delayMs));
+      const rowRetryResult = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
+      const rowRetry = (rowRetryResult instanceof Promise ? await rowRetryResult : rowRetryResult) as GameRow | undefined;
+      if (!rowRetry) break;
+      user1Answer = getAnswerVal(rowRetry as unknown as Record<string, unknown>, 'user1_answer') as 'have' | 'havent' | null;
+      user2Answer = getAnswerVal(rowRetry as unknown as Record<string, unknown>, 'user2_answer') as 'have' | 'havent' | null;
+      if (user1Answer != null && user2Answer != null) {
+        row = rowRetry;
+        break;
+      }
+    }
+    // One final wait and read in case of replica lag (skip if we already completed via early helper)
+    if (!roundCompletedByHelper && (user1Answer == null || user2Answer == null)) {
+      await new Promise((r) => setTimeout(r, 2000));
+      const finalRead = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
+      const finalRow = (finalRead instanceof Promise ? await finalRead : finalRead) as GameRow | undefined;
       if (finalRow) {
+        const f1 = getAnswerVal(finalRow as unknown as Record<string, unknown>, 'user1_answer') as 'have' | 'havent' | null;
+        const f2 = getAnswerVal(finalRow as unknown as Record<string, unknown>, 'user2_answer') as 'have' | 'havent' | null;
+        if (f1 != null && f2 != null) {
+          user1Answer = f1;
+          user2Answer = f2;
+          row = finalRow;
+        }
+      }
+    }
+    const raw1 = row ? getAnswerVal(row as unknown as Record<string, unknown>, 'user1_answer') : null;
+    const raw2 = row ? getAnswerVal(row as unknown as Record<string, unknown>, 'user2_answer') : null;
+    nhieLog('submitAnswer: state after retries', { matchId, isUser1, user1Answer, user2Answer, bothPresent: user1Answer != null && user2Answer != null, roundCompletedByHelper });
+    if (NHIE_DEBUG) {
+      console.log(`🙊 NHIE submitAnswer: match=${matchId} isUser1=${isUser1} answer=${answer} user1Answer=${user1Answer} user2Answer=${user2Answer} raw1=${JSON.stringify(raw1)} raw2=${JSON.stringify(raw2)}`);
+    }
+
+    if (!roundCompletedByHelper && user1Answer !== null && user2Answer !== null) {
+      // Points were already added when each user submitted "I have". Here we only clear answers and advance the prompt.
+      roundResult = {
+        youStrike: (isUser1 ? user1Answer : user2Answer) === 'have',
+        themStrike: (isUser1 ? user2Answer : user1Answer) === 'have',
+      };
+
+      const s1 = Number(row.user1_strikes) || 0;
+      const s2 = Number(row.user2_strikes) || 0;
+      const gameOver = s1 >= STRIKES_TO_LOSE || s2 >= STRIKES_TO_LOSE;
+
+      if (!gameOver) {
+        const c1 = row.user1_spice_choice as SpiceLevel | null;
+        const c2 = row.user2_spice_choice as SpiceLevel | null;
+        const effectiveLevel = (c1 && c2 ? moreConservative(c1, c2) : (row.spice_level as SpiceLevel)) || 'pg13';
+        let nextPrompt: string;
+        try {
+          nextPrompt = await generateDistinctNeverHaveIEverPrompt(matchId, effectiveLevel, row.current_prompt);
+          if (!nextPrompt || !nextPrompt.trim()) nextPrompt = `Never have I ever ${pickRandom(FALLBACK_PROMPTS)}`;
+        } catch (e) {
+          console.warn('NHIE generate prompt failed, using fallback:', e);
+          nextPrompt = `Never have I ever ${pickRandom(FALLBACK_PROMPTS)}`;
+        }
+        generatedNextPrompt = nextPrompt;
+        nhieLog('submitAnswer: both answered, generated new prompt', { matchId, newPromptPreview: nextPrompt.slice(0, 50) });
+        if (process.env.NODE_ENV !== 'test') {
+          console.log(`🙊 NHIE submitAnswer: both answered, generated new prompt for match=${matchId} promptLen=${nextPrompt.length}`);
+        }
+        const nextRoundId = uuidv4();
+        const runResult = db.prepare(
+          `UPDATE never_have_i_ever_games SET current_prompt = ?, current_round_id = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, user1_answer_round_id = NULL, user2_answer_round_id = NULL, updated_at = ? WHERE match_id = ?`
+        ).run([nextPrompt, nextRoundId, new Date().toISOString(), matchId]);
+        const runRes = runResult instanceof Promise ? await runResult : runResult;
+        const updateChanged = (runRes as { changes?: number }).changes !== undefined && (runRes as { changes: number }).changes > 0;
+        nhieLog('submitAnswer: round-completion UPDATE (submitAnswer path)', { matchId, updateChanged });
+
+        // Re-read strikes after round completion so client always gets definitive counts (avoids any read timing)
+        const finalRead = db.prepare('SELECT user1_strikes, user2_strikes FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
+        const finalRow = (finalRead instanceof Promise ? await finalRead : finalRead) as { user1_strikes?: number; user2_strikes?: number } | undefined;
+        if (finalRow) {
+          pointsAfterRoundComplete = {
+            newYourStrikes: Number(isUser1 ? finalRow.user1_strikes : finalRow.user2_strikes) || 0,
+            newTheirStrikes: Number(isUser1 ? finalRow.user2_strikes : finalRow.user1_strikes) || 0,
+          };
+        }
+      } else {
+        // Game over: don't clear answers or generate next prompt; return current strikes so client shows final score
         pointsAfterRoundComplete = {
-          newYourStrikes: Number(isUser1 ? finalRow.user1_strikes : finalRow.user2_strikes) || 0,
-          newTheirStrikes: Number(isUser1 ? finalRow.user2_strikes : finalRow.user1_strikes) || 0,
+          newYourStrikes: isUser1 ? s1 : s2,
+          newTheirStrikes: isUser1 ? s2 : s1,
         };
       }
-    } else {
-      // Game over: don't clear answers or generate next prompt; return current strikes so client shows final score
-      pointsAfterRoundComplete = {
-        newYourStrikes: isUser1 ? s1 : s2,
-        newTheirStrikes: isUser1 ? s2 : s1,
-      };
     }
   }
 
