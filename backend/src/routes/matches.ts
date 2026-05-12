@@ -2796,17 +2796,14 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
       console.log(`[NHIE] POST answer: match=${matchId} userId=${userId} answer=${answer}`);
     }
 
-    const { submitAnswer, submitTurnAnswer } = await import('../services/neverHaveIEver.js');
+    const { submitAnswer } = await import('../services/neverHaveIEver.js');
     const rowResult = db.prepare('SELECT spice_level, current_prompt, current_turn_user_id FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
     const row = (rowResult instanceof Promise ? await rowResult : rowResult) as { spice_level: string | null; current_prompt: string | null; current_turn_user_id: string | null } | undefined;
-    const isTurnBased = !!row?.current_turn_user_id;
     if (process.env.NODE_ENV !== 'test') {
-      console.log(`🙊 NHIE answer route: match=${matchId} isTurnBased=${isTurnBased} current_turn_user_id=${row?.current_turn_user_id ?? 'null'}`);
+      console.log(`🙊 NHIE answer route: match=${matchId} tally mode current_turn_user_id=${row?.current_turn_user_id ?? 'null'}`);
     }
 
-    const result = isTurnBased
-      ? await submitTurnAnswer(matchId, userId, match, answer as 'have' | 'havent')
-      : await submitAnswer(matchId, userId, match, answer as 'have' | 'havent');
+    const result = await submitAnswer(matchId, userId, match, answer as 'have' | 'havent');
     const { state, roundResult, completedYourAnswer, completedTheirAnswer, pointsFromRound, newPrompt } = result as {
       state: { bothAnswered: boolean; yourStrikes: number; theirStrikes: number; prompt?: string; gameOver?: boolean; winner?: string | null };
       roundResult?: { youStrike: boolean; themStrike: boolean };
@@ -2866,7 +2863,7 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
 
     // When POST didn't complete the round (e.g. both users submitted at once and neither saw both answers),
     // run delayed completion at 1.2s and 2.5s so we advance the prompt and emit to both clients.
-    if (!isTurnBased && !roundResult) {
+    if (!roundResult) {
       const runDelayedCompletion = async (delayMs: number) => {
         await new Promise((r) => setTimeout(r, delayMs));
         try {
@@ -2996,7 +2993,8 @@ matchesRouter.post("/:matchId/never-have-i-ever/another", authenticateToken, rat
     const { generateNeverHaveIEverPrompt } = await import('../services/neverHaveIEver.js');
     const spiceLevel = (row.spice_level === 'ratedr' ? 'ratedr' : row.spice_level === 'spicy' ? 'spicy' : 'pg13') as 'pg13' | 'ratedr' | 'spicy';
     const prompt = await generateNeverHaveIEverPrompt(matchId, spiceLevel);
-    db.prepare('UPDATE never_have_i_ever_games SET current_prompt = ?, user1_answer = NULL, user2_answer = NULL, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([prompt, matchId]);
+    const updateResult = db.prepare('UPDATE never_have_i_ever_games SET current_prompt = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([prompt, matchId]);
+    if (updateResult instanceof Promise) await updateResult;
 
     try {
       const { getIO } = await import('../socket.js');
