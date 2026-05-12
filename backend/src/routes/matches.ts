@@ -2775,7 +2775,7 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
   try {
     const userId = req.userId!;
     const { matchId } = req.params;
-    const { answer } = req.body as { answer?: string };
+    const { answer, roundId } = req.body as { answer?: string; roundId?: string | null };
 
     if (!answer || (answer !== 'have' && answer !== 'havent')) {
       return res.status(400).json({ error: "Invalid answer. Must be 'have' or 'havent'." });
@@ -2803,9 +2803,9 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
       console.log(`🙊 NHIE answer route: match=${matchId} tally mode current_turn_user_id=${row?.current_turn_user_id ?? 'null'}`);
     }
 
-    const result = await submitAnswer(matchId, userId, match, answer as 'have' | 'havent');
+    const result = await submitAnswer(matchId, userId, match, answer as 'have' | 'havent', roundId ?? null);
     const { state, roundResult, completedYourAnswer, completedTheirAnswer, pointsFromRound, newPrompt } = result as {
-      state: { bothAnswered: boolean; yourStrikes: number; theirStrikes: number; prompt?: string; gameOver?: boolean; winner?: string | null };
+      state: { bothAnswered: boolean; yourStrikes: number; theirStrikes: number; prompt?: string; roundId?: string | null; gameOver?: boolean; winner?: string | null };
       roundResult?: { youStrike: boolean; themStrike: boolean };
       completedYourAnswer?: 'have' | 'havent';
       completedTheirAnswer?: 'have' | 'havent';
@@ -2849,6 +2849,7 @@ matchesRouter.post("/:matchId/never-have-i-ever/answer", authenticateToken, rate
         const payload = {
           matchId,
           newPrompt: nextPrompt && nextPrompt.trim() ? nextPrompt : undefined,
+          roundId: state.roundId ?? undefined,
           roundComplete: !!roundResult,
           ...(user1Strikes !== undefined && user2Strikes !== undefined && { user1Strikes, user2Strikes }),
         };

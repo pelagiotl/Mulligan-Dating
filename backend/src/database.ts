@@ -739,9 +739,12 @@ export async function initDatabase() {
       user2_spice_choice ${usePostgres ? 'VARCHAR(20)' : 'TEXT'},
       spice_level ${usePostgres ? 'VARCHAR(20)' : 'TEXT'},
       current_prompt ${usePostgres ? 'TEXT' : 'TEXT'},
+      current_round_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'},
       current_turn_user_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'},
       user1_answer ${usePostgres ? 'VARCHAR(20)' : 'TEXT'},
       user2_answer ${usePostgres ? 'VARCHAR(20)' : 'TEXT'},
+      user1_answer_round_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'},
+      user2_answer_round_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'},
       updated_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE
     )
@@ -757,6 +760,15 @@ export async function initDatabase() {
   } catch (e) { /* exists */ }
   try {
     await execSQL(`ALTER TABLE never_have_i_ever_games ADD COLUMN spice_level ${usePostgres ? 'VARCHAR(20)' : 'TEXT'}`);
+  } catch (e) { /* exists */ }
+  try {
+    await execSQL(`ALTER TABLE never_have_i_ever_games ADD COLUMN current_round_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'}`);
+  } catch (e) { /* exists */ }
+  try {
+    await execSQL(`ALTER TABLE never_have_i_ever_games ADD COLUMN user1_answer_round_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'}`);
+  } catch (e) { /* exists */ }
+  try {
+    await execSQL(`ALTER TABLE never_have_i_ever_games ADD COLUMN user2_answer_round_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'}`);
   } catch (e) { /* exists */ }
 
   // Truth or Dare: Game state per match (lobby for spice level agreement)
