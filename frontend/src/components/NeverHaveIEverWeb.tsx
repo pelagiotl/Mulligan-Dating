@@ -410,7 +410,7 @@ export default function NeverHaveIEverWeb({
         if (nextPrompt.trim()) {
           lastAnsweredPromptRef.current = "";
         }
-        setPrompt(nextPrompt);
+        setPrompt(nextPrompt.trim() ? nextPrompt : "");
         scheduleRoundRefetches();
       } else if (nextPrompt) {
         setPrompt(nextPrompt);
