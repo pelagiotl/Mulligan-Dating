@@ -161,6 +161,27 @@ export default function NeverHaveIEverWeb({
 
   const isUnlocked = true;
   const displayPrompt = prompt || state?.prompt || "";
+
+  useEffect(() => {
+    setModalOpen(false);
+    setLoading(false);
+    setSubmitting(false);
+    setState(null);
+    setPrompt("");
+    lastRoundCompletedAtRef.current = 0;
+    lastAnsweredPromptRef.current = "";
+    lastKnownPointsRef.current = { yourPoints: 0, theirPoints: 0 };
+    isUser1Ref.current = null;
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+    if (waitingPollRef.current) {
+      clearInterval(waitingPollRef.current);
+      waitingPollRef.current = null;
+    }
+  }, [matchId]);
+
   const gameOver = !!state && (state.gameOver || state.yourPoints >= 10 || state.theirPoints >= 10);
   const gameResultTitle = (() => {
     if (!state) return "";
