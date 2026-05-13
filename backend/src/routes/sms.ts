@@ -59,6 +59,60 @@ function testPhoneCode(): string {
   return process.env.TEST_PHONE_CODE || '123456';
 }
 
+function configuredAutoMatchPhonePairs(): Array<[string, string]> {
+  const raw = process.env.TEST_AUTO_MATCH_PHONE_PAIRS || '15550000001:5413163939';
+  return raw
+    .split(',')
+    .map((pair) => pair.split(':').map((p) => digitsOnly(p)) as [string, string])
+    .filter(([a, b]) => !!a && !!b);
+}
+
+function samePhoneDigits(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  return a === b || a.slice(-10) === b.slice(-10);
+}
+
+async function getUserIdByPhoneDigits(targetDigits: string): Promise<string | null> {
+  const rowsResult = db.prepare('SELECT id, phone_number FROM users WHERE phone_number IS NOT NULL').all();
+  const rows = (rowsResult instanceof Promise
+    ? await rowsResult
+    : rowsResult) as Array<{ id: string; phone_number: string | null }>;
+  const found = rows.find((row) => samePhoneDigits(digitsOnly(row.phone_number), targetDigits));
+  return found?.id ?? null;
+}
+
+async function ensureTestAutoMatchesForPhone(formattedPhone: string): Promise<void> {
+  const currentDigits = digitsOnly(formattedPhone);
+  for (const [phoneA, phoneB] of configuredAutoMatchPhonePairs()) {
+    if (!samePhoneDigits(currentDigits, phoneA) && !samePhoneDigits(currentDigits, phoneB)) continue;
+
+    const user1Id = await getUserIdByPhoneDigits(phoneA);
+    const user2Id = await getUserIdByPhoneDigits(phoneB);
+    if (!user1Id || !user2Id || user1Id === user2Id) continue;
+
+    const existingResult = db
+      .prepare(
+        `SELECT id FROM matches 
+         WHERE ((user1_id = ? AND user2_id = ?) OR (user1_id = ? AND user2_id = ?))
+         AND stage != 'expired'`
+      )
+      .get([user1Id, user2Id, user2Id, user1Id]);
+    const existing = (existingResult instanceof Promise ? await existingResult : existingResult) as { id: string } | undefined;
+    if (existing) continue;
+
+    const sevenDaysFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const matchId = uuidv4();
+    const insertResult = db
+      .prepare(
+        `INSERT INTO matches (id, user1_id, user2_id, status, stage, stage1_at, expires_at)
+         VALUES (?, ?, ?, 'mutual', 'stage1', CURRENT_TIMESTAMP, ?)`
+      )
+      .run([matchId, user1Id, user2Id, sevenDaysFromNow]);
+    if (insertResult instanceof Promise) await insertResult;
+    console.log('🧪 Auto-created test match for phone pair', { matchId, phoneA, phoneB });
+  }
+}
+
 async function completePhoneLogin(
   formattedPhone: string,
   acceptTerms?: boolean,
@@ -104,6 +158,8 @@ async function completePhoneLogin(
   const profileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
   const profileResult = profileStmt.get(userId);
   const profile = (profileResult instanceof Promise ? await profileResult : profileResult) as { id: string } | null;
+
+  await ensureTestAutoMatchesForPhone(formattedPhone);
 
   return {
     message: existingUser ? 'Login successful' : 'Account created successfully',
@@ -365,6 +421,7 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
       const profileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
       const profile = await (profileStmt.get(userId) as Promise<{ id: string } | null>);
       const hasProfile = !!profile;
+      await ensureTestAutoMatchesForPhone(formattedPhone);
       return res.json({
         message: existingUser ? 'Login successful' : 'Account created successfully',
         token,
@@ -444,6 +501,7 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
       const profileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
       const profile = await (profileStmt.get(userId) as Promise<{ id: string } | null>);
       const hasProfile = !!profile;
+      await ensureTestAutoMatchesForPhone(formattedPhone);
       
       res.json({
         message: isNewUser ? 'Account created successfully' : 'Login successful',
@@ -538,6 +596,7 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
     const profileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
     const profile = await (profileStmt.get(userId) as Promise<{ id: string } | null>);
     const hasProfile = !!profile;
+    await ensureTestAutoMatchesForPhone(formattedPhone);
     
     res.json({
       message: isNewUser ? 'Account created successfully' : 'Login successful',
