@@ -37,6 +37,7 @@ type SocketPayload = {
   newPrompt?: string;
   roundId?: string | null;
   roundComplete?: boolean;
+  roundReset?: boolean;
   user1Strikes?: number;
   user2Strikes?: number;
 };
@@ -155,6 +156,10 @@ export default function NeverHaveIEverWeb({
     if (next.isUser1 !== undefined) isUser1Ref.current = Boolean(next.isUser1);
     setState((prev) => {
       const recentRound = Date.now() - lastRoundCompletedAtRef.current < 6000;
+      const resetToZero =
+        next.yourPoints === 0 &&
+        next.theirPoints === 0 &&
+        ((prev?.gameOver ?? false) || (prev?.yourPoints ?? 0) >= 10 || (prev?.theirPoints ?? 0) >= 10);
       const staleRoundPrompt =
         recentRound &&
         lastAnsweredPromptRef.current.trim() !== "" &&
@@ -165,8 +170,8 @@ export default function NeverHaveIEverWeb({
           : recentRound && (prev?.prompt?.trim() ?? "") !== "" && !next.prompt
           ? prev?.prompt ?? next.prompt
           : next.prompt;
-      const refYou = Math.max(lastKnownPointsRef.current.yourPoints, next.yourPoints);
-      const refThem = Math.max(lastKnownPointsRef.current.theirPoints, next.theirPoints);
+      const refYou = resetToZero ? 0 : Math.max(lastKnownPointsRef.current.yourPoints, next.yourPoints);
+      const refThem = resetToZero ? 0 : Math.max(lastKnownPointsRef.current.theirPoints, next.theirPoints);
       lastKnownPointsRef.current = { yourPoints: refYou, theirPoints: refThem };
       return {
         ...next,
@@ -246,18 +251,22 @@ export default function NeverHaveIEverWeb({
         const isUser1 = isUser1Ref.current ?? state?.isUser1 ?? true;
         const yourPoints = isUser1 ? payload.user1Strikes : payload.user2Strikes;
         const theirPoints = isUser1 ? payload.user2Strikes : payload.user1Strikes;
-        lastKnownPointsRef.current = {
-          yourPoints: Math.max(lastKnownPointsRef.current.yourPoints, yourPoints),
-          theirPoints: Math.max(lastKnownPointsRef.current.theirPoints, theirPoints),
-        };
+        const nextPoints = payload.roundReset
+          ? { yourPoints, theirPoints }
+          : {
+              yourPoints: Math.max(lastKnownPointsRef.current.yourPoints, yourPoints),
+              theirPoints: Math.max(lastKnownPointsRef.current.theirPoints, theirPoints),
+            };
+        lastKnownPointsRef.current = nextPoints;
         setState((prev) =>
           prev
             ? {
                 ...prev,
-                yourPoints: lastKnownPointsRef.current.yourPoints,
-                theirPoints: lastKnownPointsRef.current.theirPoints,
-                yourStrikes: lastKnownPointsRef.current.yourPoints,
-                theirStrikes: lastKnownPointsRef.current.theirPoints,
+                yourPoints: nextPoints.yourPoints,
+                theirPoints: nextPoints.theirPoints,
+                yourStrikes: nextPoints.yourPoints,
+                theirStrikes: nextPoints.theirPoints,
+                gameOver: payload.roundReset ? false : prev.gameOver,
               }
             : prev
         );
@@ -274,6 +283,7 @@ export default function NeverHaveIEverWeb({
                 yourAnswer: null,
                 theirAnswer: null,
                 bothAnswered: false,
+                gameOver: payload.roundReset ? false : prev.gameOver,
               }
             : prev
         );

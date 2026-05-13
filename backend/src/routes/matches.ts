@@ -2960,6 +2960,23 @@ matchesRouter.post("/:matchId/never-have-i-ever/restart", authenticateToken, rat
 
     const { startNewGame } = await import('../services/neverHaveIEver.js');
     const state = await startNewGame(matchId, userId, match);
+    try {
+      const { getIO } = await import('../socket.js');
+      const io = getIO();
+      if (io) {
+        io.to(`match:${matchId}`).emit('never_have_i_ever_updated', {
+          matchId,
+          newPrompt: state.prompt,
+          roundId: state.roundId ?? null,
+          roundComplete: true,
+          roundReset: true,
+          user1Strikes: 0,
+          user2Strikes: 0,
+        });
+      }
+    } catch (socketError) {
+      console.warn('⚠️  Socket.io not available for Never Have I Ever restart notification');
+    }
     res.json(state);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
