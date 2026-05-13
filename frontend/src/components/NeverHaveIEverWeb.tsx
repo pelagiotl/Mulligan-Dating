@@ -185,9 +185,6 @@ export default function NeverHaveIEverWeb({
       next.prompt.trim() === lastAnsweredPromptRef.current.trim();
     if (!staleRoundPrompt && (Date.now() - lastRoundCompletedAtRef.current >= 6000 || next.prompt)) {
       setPrompt(next.prompt || "");
-      if (recentRound && next.prompt.trim() && next.prompt.trim() !== lastAnsweredPromptRef.current.trim()) {
-        lastAnsweredPromptRef.current = "";
-      }
     }
   }, []);
 
@@ -219,6 +216,7 @@ export default function NeverHaveIEverWeb({
   const closeModal = useCallback(() => {
     setModalOpen(false);
     setPrompt("");
+    lastAnsweredPromptRef.current = "";
     if (pollRef.current) {
       clearInterval(pollRef.current);
       pollRef.current = null;
@@ -266,7 +264,6 @@ export default function NeverHaveIEverWeb({
       }
 
       if (payload.roundComplete && payload.newPrompt?.trim()) {
-        lastAnsweredPromptRef.current = "";
         setPrompt(payload.newPrompt);
         setState((prev) =>
           prev
@@ -280,6 +277,7 @@ export default function NeverHaveIEverWeb({
               }
             : prev
         );
+        return;
       }
 
       void fetchState();
@@ -294,25 +292,8 @@ export default function NeverHaveIEverWeb({
 
   useEffect(() => {
     if (!modalOpen || state?.bothAnswered || state?.yourAnswer == null) return;
-    const tryAdvance = async () => {
-      try {
-        await api.post(`/matches/${matchId}/never-have-i-ever/next`, {});
-      } catch (err) {
-        console.warn("Never Have I Ever next-round fallback:", err);
-      } finally {
-        void fetchState();
-      }
-    };
-    const id = setInterval(() => {
-      void fetchState();
-      void tryAdvance();
-    }, 1500);
+    const id = setInterval(() => void fetchState(), 1500);
     waitingPollRef.current = id;
-    const nudges = [
-      window.setTimeout(() => void tryAdvance(), 2500),
-      window.setTimeout(() => void tryAdvance(), 5000),
-      window.setTimeout(() => void tryAdvance(), 9000),
-    ];
     const stop = window.setTimeout(() => {
       if (waitingPollRef.current === id) {
         clearInterval(waitingPollRef.current);
@@ -322,7 +303,6 @@ export default function NeverHaveIEverWeb({
     return () => {
       clearInterval(id);
       clearTimeout(stop);
-      nudges.forEach((t) => clearTimeout(t));
       if (waitingPollRef.current === id) waitingPollRef.current = null;
     };
   }, [fetchState, matchId, modalOpen, state?.bothAnswered, state?.yourAnswer]);
@@ -431,11 +411,8 @@ export default function NeverHaveIEverWeb({
 
       if (roundComplete) {
         lastRoundCompletedAtRef.current = Date.now();
-        if (nextPrompt.trim()) {
-          lastAnsweredPromptRef.current = "";
-        }
         setPrompt(nextPrompt.trim() ? nextPrompt : "");
-        scheduleRoundRefetches();
+        if (!nextPrompt.trim()) scheduleRoundRefetches();
       } else if (nextPrompt) {
         setPrompt(nextPrompt);
       }
