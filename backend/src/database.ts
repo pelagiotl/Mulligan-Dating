@@ -779,12 +779,16 @@ export async function initDatabase() {
       user2_spice_choice ${usePostgres ? 'VARCHAR(20)' : 'TEXT'},
       spice_level ${usePostgres ? 'VARCHAR(20)' : 'TEXT'},
       current_turn_user_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'},
+      round_count ${usePostgres ? 'INT' : 'INTEGER'} DEFAULT 1,
       updated_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE
     )
   `);
   try {
     await execSQL(`ALTER TABLE truth_or_dare_games ADD COLUMN current_turn_user_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'}`);
+  } catch (e) { /* exists */ }
+  try {
+    await execSQL(`ALTER TABLE truth_or_dare_games ADD COLUMN round_count ${usePostgres ? 'INT' : 'INTEGER'} DEFAULT 1`);
   } catch (e) { /* exists */ }
   try {
     await execSQL(`ALTER TABLE truth_or_dare_games ADD COLUMN current_prompt ${usePostgres ? 'TEXT' : 'TEXT'}`);
