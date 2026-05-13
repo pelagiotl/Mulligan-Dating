@@ -325,7 +325,10 @@ export async function getGameState(
     };
   }
 
-  const inLobby = !spiceReady;
+  const rowUser1Strikes = Number(row.user1_strikes) || 0;
+  const rowUser2Strikes = Number(row.user2_strikes) || 0;
+  const hasActivePrompt = !!(row.current_prompt && row.current_prompt.trim());
+  const inLobby = !spiceReady && !hasActivePrompt && rowUser1Strikes < STRIKES_TO_LOSE && rowUser2Strikes < STRIKES_TO_LOSE;
   if (inLobby) {
     return {
       prompt: '',
@@ -345,8 +348,8 @@ export async function getGameState(
     };
   }
 
-  const yourStrikes = Number(isUser1 ? row.user1_strikes : row.user2_strikes) || 0;
-  const theirStrikes = Number(isUser1 ? row.user2_strikes : row.user1_strikes) || 0;
+  const yourStrikes = isUser1 ? rowUser1Strikes : rowUser2Strikes;
+  const theirStrikes = isUser1 ? rowUser2Strikes : rowUser1Strikes;
   const rowAny = row as unknown as Record<string, unknown>;
   let yourAnswer = (isUser1 ? getAnswerVal(rowAny, 'user1_answer') : getAnswerVal(rowAny, 'user2_answer')) as 'have' | 'havent' | null;
   let theirAnswer = (isUser1 ? getAnswerVal(rowAny, 'user2_answer') : getAnswerVal(rowAny, 'user1_answer')) as 'have' | 'havent' | null;
@@ -412,7 +415,7 @@ export async function getGameState(
     phase: 'playing',
     yourSpiceChoice: yourSpiceChoice || null,
     theirSpiceChoice: theirSpiceChoice || null,
-    spiceReady,
+    spiceReady: spiceReady || hasActivePrompt,
     spiceLevel: level,
     currentTurnUserId,
     isYourTurn,
