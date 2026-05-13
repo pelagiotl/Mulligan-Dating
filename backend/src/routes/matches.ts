@@ -2390,6 +2390,16 @@ matchesRouter.get("/:matchId/truth-or-dare/state", authenticateToken, async (req
     const theirSpiceChoice = isUser1 ? c2 : c1;
     const spiceReady = !!(c1 && c2);
     const spiceLevel = spiceReady && c1 && c2 ? moreConservativeSpice(c1, c2) : null;
+    let currentTurnUserId = game.current_turn_user_id ?? null;
+    let roundCount = Math.max(1, Number(game.round_count) || 1);
+    if (spiceReady && !currentTurnUserId) {
+      currentTurnUserId = match.user1_id;
+      const turnResult = db
+        .prepare('UPDATE truth_or_dare_games SET current_turn_user_id = ?, round_count = COALESCE(round_count, 1), updated_at = CURRENT_TIMESTAMP WHERE match_id = ?')
+        .run([currentTurnUserId, matchId]);
+      if (turnResult instanceof Promise) await turnResult;
+      roundCount = 1;
+    }
 
     const currentPrompt = game.current_prompt ?? null;
     const currentPromptType = (game.current_prompt_type === 'truth' || game.current_prompt_type === 'dare') ? game.current_prompt_type : null;
@@ -2403,6 +2413,9 @@ matchesRouter.get("/:matchId/truth-or-dare/state", authenticateToken, async (req
       needsSpiceChoiceFromUnlocker: false,
       currentPrompt,
       currentPromptType,
+      currentTurnUserId,
+      isYourTurn: !!(currentTurnUserId && currentTurnUserId === userId),
+      roundCount,
       unlockedUntil: unlockRow.unlocked_until ?? null,
     });
   } catch (error) {
@@ -2468,7 +2481,8 @@ matchesRouter.post("/:matchId/truth-or-dare/spice-choice", authenticateToken, ra
     const spiceReady = !!(c1 && c2);
     const spiceLevel = spiceReady && c1 && c2 ? moreConservativeSpice(c1, c2) : null;
     if (spiceReady && spiceLevel) {
-      db.prepare('UPDATE truth_or_dare_games SET spice_level = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([spiceLevel, matchId]);
+      const turnUserId = game?.current_turn_user_id || match.user1_id;
+      db.prepare('UPDATE truth_or_dare_games SET spice_level = ?, current_turn_user_id = COALESCE(current_turn_user_id, ?), round_count = COALESCE(round_count, 1), updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([spiceLevel, turnUserId, matchId]);
     }
 
     const yourSpiceChoice = isUser1 ? c1 : c2;
@@ -2489,6 +2503,9 @@ matchesRouter.post("/:matchId/truth-or-dare/spice-choice", authenticateToken, ra
       spiceLevel,
       tokenUnlocked: true,
       needsSpiceChoiceFromUnlocker: false,
+      currentTurnUserId: spiceReady ? (game?.current_turn_user_id || match.user1_id) : null,
+      isYourTurn: spiceReady ? (game?.current_turn_user_id || match.user1_id) === userId : false,
+      roundCount: Math.max(1, Number(game?.round_count) || 1),
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -2552,6 +2569,13 @@ matchesRouter.post("/:matchId/truth-or-dare", authenticateToken, rateLimitAPI, a
       });
     }
     const levelNorm = moreConservativeSpice(c1, c2);
+    const currentTurnUserId = game.current_turn_user_id || match.user1_id;
+    if (currentTurnUserId !== userId) {
+      return res.status(403).json({
+        error: "It's your match's turn to pick Truth or Dare.",
+        code: 'NOT_YOUR_TURN',
+      });
+    }
     const currentPrompt = game.current_prompt ?? null;
     const currentPromptType = game.current_prompt_type ?? null;
 
@@ -2589,14 +2613,14 @@ matchesRouter.post("/:matchId/truth-or-dare", authenticateToken, rateLimitAPI, a
     }
 
     const newUsedPrompts = [...usedPrompts, prompt];
-    db.prepare('UPDATE truth_or_dare_games SET current_prompt = ?, current_prompt_type = ?, used_prompts = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([prompt, type, JSON.stringify(newUsedPrompts), matchId]);
+    db.prepare('UPDATE truth_or_dare_games SET current_prompt = ?, current_prompt_type = ?, current_turn_user_id = COALESCE(current_turn_user_id, ?), round_count = COALESCE(round_count, 1), used_prompts = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([prompt, type, currentTurnUserId, JSON.stringify(newUsedPrompts), matchId]);
     try {
       const { getIO } = await import('../socket.js');
       const io = getIO();
       if (io) io.to(`match:${matchId}`).emit('truth_or_dare_updated', { matchId });
     } catch (e) { /* ignore */ }
 
-    res.json({ prompt, fromAI, spiceLevel: levelNorm });
+    res.json({ prompt, fromAI, spiceLevel: levelNorm, currentTurnUserId, isYourTurn: true, roundCount: Math.max(1, Number(game.round_count) || 1) });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error("Truth or Dare error:", error);
@@ -2614,12 +2638,29 @@ matchesRouter.post("/:matchId/truth-or-dare/send-to-chat", authenticateToken, ra
     const match = (matchResult instanceof Promise ? await matchResult : matchResult) as { user1_id: string; user2_id: string } | undefined;
     if (!match) return res.status(404).json({ error: "Match not found" });
 
+    const gameResult = db.prepare('SELECT current_turn_user_id, round_count FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
+    const game = (gameResult instanceof Promise ? await gameResult : gameResult) as { current_turn_user_id?: string | null; round_count?: number | string | null } | undefined;
+    const currentTurnUserId = game?.current_turn_user_id || match.user1_id;
+    const nextTurnUserId = currentTurnUserId === match.user1_id ? match.user2_id : match.user1_id;
+    const nextRoundCount = Math.max(1, Number(game?.round_count) || 1) + 1;
+    const updateTurnResult = db
+      .prepare('UPDATE truth_or_dare_games SET current_turn_user_id = ?, round_count = ?, current_prompt = NULL, current_prompt_type = NULL, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?')
+      .run([nextTurnUserId, nextRoundCount, matchId]);
+    if (updateTurnResult instanceof Promise) await updateTurnResult;
+
     try {
       const { getIO } = await import('../socket.js');
       const io = getIO();
-      if (io) io.to(`match:${matchId}`).emit('truth_or_dare_updated', { matchId });
+      if (io) io.to(`match:${matchId}`).emit('truth_or_dare_updated', { matchId, currentTurnUserId: nextTurnUserId, roundCount: nextRoundCount });
     } catch (e) { /* ignore */ }
-    res.json({ success: true });
+    res.json({
+      success: true,
+      currentPrompt: null,
+      currentPromptType: null,
+      currentTurnUserId: nextTurnUserId,
+      isYourTurn: nextTurnUserId === userId,
+      roundCount: nextRoundCount,
+    });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error("Truth or Dare send-to-chat error:", error);

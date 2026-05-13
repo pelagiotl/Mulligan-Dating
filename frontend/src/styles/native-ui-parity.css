@@ -2832,6 +2832,12 @@ button.connect-landing__cta:disabled::before {
   gap: 0.25rem;
 }
 
+.tod-web-choice:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+  filter: grayscale(0.25);
+}
+
 .tod-web-choice--truth {
   background: linear-gradient(145deg, #7c4dff, #651fff);
 }

@@ -132,6 +132,9 @@ interface GameState {
   needsSpiceChoiceFromUnlocker?: boolean;
   currentPrompt?: string | null;
   currentPromptType?: "truth" | "dare" | null;
+  currentTurnUserId?: string | null;
+  isYourTurn?: boolean;
+  roundCount?: number;
   unlockedUntil?: string | null;
 }
 
@@ -208,6 +211,8 @@ export default function TruthOrDareWeb({
   gameStateRef.current = gameState;
 
   const isUnlocked = !!gameUnlockedByToken;
+  const isYourTurn = gameState?.isYourTurn !== false;
+  const roundCount = Math.max(1, Number(gameState?.roundCount ?? 1) || 1);
 
   const truthOrDareEligible =
     Boolean(currentUserId && chatPartnerUserId) &&
@@ -221,6 +226,10 @@ export default function TruthOrDareWeb({
     try {
       const data = await api.get<GameState>(`/matches/${matchId}/truth-or-dare/state`);
       setGameState((prev) => ({ ...prev, ...data }));
+      if (data.currentPrompt && data.currentPromptType) {
+        setPrompt(data.currentPrompt);
+        setPromptType(data.currentPromptType);
+      }
 
       const recentlyRequestedAnother = Date.now() - lastAnotherOneAtRef.current < 5000;
       const recentlyChose = Date.now() - lastChooseAtRef.current < 8000;
@@ -364,6 +373,10 @@ export default function TruthOrDareWeb({
       window.alert("Pick a heat level (PG-13, Rated R, or Spicy) first — both players must choose.");
       return;
     }
+    if (gameStateRef.current?.isYourTurn === false) {
+      window.alert("It's your match's turn to pick Truth or Dare.");
+      return;
+    }
     lastChooseAtRef.current = Date.now();
     intendedPromptTypeRef.current = type;
     if (anotherOne) {
@@ -384,6 +397,7 @@ export default function TruthOrDareWeb({
       if (data?.prompt) {
         finalPrompt = data.prompt;
         setPrompt(finalPrompt);
+        setGameState((prev) => (prev ? { ...prev, ...data } : (data as GameState)));
         lastAnotherOneAtRef.current = Date.now();
       } else {
         throw new Error("No prompt returned");
@@ -396,6 +410,12 @@ export default function TruthOrDareWeb({
         setTimeout(() => {
           intendedPromptTypeRef.current = null;
         }, 8000);
+        return;
+      }
+      if (e instanceof ApiError && (e as { code?: string }).code === "NOT_YOUR_TURN") {
+        setStep("choose");
+        void fetchState();
+        window.alert(e.message || "It's your match's turn.");
         return;
       }
       const list = fallbackPromptList(type, gameStateRef.current?.spiceLevel ?? null);
@@ -415,7 +435,8 @@ export default function TruthOrDareWeb({
       const prefix = promptType === "truth" ? "Truth: " : "Dare: ";
       await onSendToChat(`${prefix}${prompt}`);
       try {
-        await api.post(`/matches/${matchId}/truth-or-dare/send-to-chat`, {});
+        const data = await api.post<GameState>(`/matches/${matchId}/truth-or-dare/send-to-chat`, {});
+        setGameState((prev) => (prev ? { ...prev, ...data } : data));
       } catch (e) {
         console.warn("Truth or Dare send-to-chat:", e);
       }
@@ -628,16 +649,18 @@ export default function TruthOrDareWeb({
               <div className="tod-web-choose">
                 {gameState?.spiceLevel ? (
                   <p className="tod-web-round-heat">
-                    This round: <strong>{spiceLabel(gameState.spiceLevel)}</strong>
+                    Round {roundCount} · <strong>{spiceLabel(gameState.spiceLevel)}</strong>
                   </p>
                 ) : null}
-                <p className="tod-web-choose-hint">Pick Truth or Dare</p>
+                <p className="tod-web-choose-hint">
+                  {isYourTurn ? "Your turn — pick Truth or Dare" : "Waiting for your match to pick Truth or Dare"}
+                </p>
                 <div className="tod-web-choose-row">
-                  <button type="button" className="tod-web-choice tod-web-choice--truth" onClick={() => void handleChoose("truth")}>
+                  <button type="button" className="tod-web-choice tod-web-choice--truth" onClick={() => void handleChoose("truth")} disabled={!isYourTurn}>
                     <span className="tod-web-choice-emoji">✨</span>
                     Truth
                   </button>
-                  <button type="button" className="tod-web-choice tod-web-choice--dare" onClick={() => void handleChoose("dare")}>
+                  <button type="button" className="tod-web-choice tod-web-choice--dare" onClick={() => void handleChoose("dare")} disabled={!isYourTurn}>
                     <span className="tod-web-choice-emoji">🔥</span>
                     Dare
                   </button>
@@ -651,7 +674,9 @@ export default function TruthOrDareWeb({
             ) : (
               <>
                 {gameState?.spiceLevel ? (
-                  <p className="tod-web-prompt-heat subtle">Mode: {spiceLabel(gameState.spiceLevel)}</p>
+                  <p className="tod-web-prompt-heat subtle">
+                    Round {roundCount} · {isYourTurn ? "Your pick" : "Your match's pick"} · Mode: {spiceLabel(gameState.spiceLevel)}
+                  </p>
                 ) : null}
                 <div className="tod-web-prompt-card">
                   <p className="tod-web-prompt-text">{prompt}</p>
@@ -660,7 +685,7 @@ export default function TruthOrDareWeb({
                   <button type="button" className="tod-web-send-chat" onClick={() => void handleSendToChat()}>
                     Send to chat 💬
                   </button>
-                  <button type="button" className="tod-web-another" onClick={() => void handleChoose(promptType, true)}>
+                  <button type="button" className="tod-web-another" onClick={() => void handleChoose(promptType, true)} disabled={!isYourTurn}>
                     Another one ↻
                   </button>
                 </div>
