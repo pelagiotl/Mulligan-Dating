@@ -93,6 +93,16 @@ function coercePoints(data: Partial<GameState>, side: "your" | "their"): number 
 function normalizeState(data: Partial<GameState>, prev?: GameState | null): GameState {
   const yourPoints = coercePoints(data, "your");
   const theirPoints = coercePoints(data, "their");
+  const gameOver = Boolean(data.gameOver) || yourPoints >= 10 || theirPoints >= 10;
+  const winner =
+    data.winner ??
+    (gameOver
+      ? theirPoints >= 10 && yourPoints < 10
+        ? "you"
+        : yourPoints >= 10 && theirPoints < 10
+          ? "them"
+          : null
+      : null);
   const hasChosen = Boolean(data.yourSpiceChoice || data.theirSpiceChoice);
   const phase =
     data.phase ??
@@ -117,8 +127,8 @@ function normalizeState(data: Partial<GameState>, prev?: GameState | null): Game
     yourAnswer: data.yourAnswer ?? null,
     theirAnswer: data.theirAnswer ?? null,
     bothAnswered: Boolean(data.bothAnswered),
-    gameOver: Boolean(data.gameOver),
-    winner: data.winner ?? null,
+    gameOver,
+    winner,
     isUser1: data.isUser1 ?? prev?.isUser1,
     roundId: data.roundId ?? prev?.roundId ?? null,
   };
@@ -151,6 +161,22 @@ export default function NeverHaveIEverWeb({
 
   const isUnlocked = true;
   const displayPrompt = prompt || state?.prompt || "";
+  const gameOver = !!state && (state.gameOver || state.yourPoints >= 10 || state.theirPoints >= 10);
+  const gameResultTitle = (() => {
+    if (!state) return "";
+    if (state.winner === "you") return "You won";
+    if (state.winner === "them") return "You lost";
+    if (state.theirPoints >= 10 && state.yourPoints < 10) return "You won";
+    if (state.yourPoints >= 10 && state.theirPoints < 10) return "You lost";
+    if (state.yourPoints >= 10 && state.theirPoints >= 10) return "Game over";
+    return "Game over";
+  })();
+  const gameResultCopy = (() => {
+    if (!state) return "";
+    if (gameResultTitle === "You won") return `They hit 10 points first. You: ${state.yourPoints} · Them: ${state.theirPoints}`;
+    if (gameResultTitle === "You lost") return `You hit 10 points first. You: ${state.yourPoints} · Them: ${state.theirPoints}`;
+    return `First to 10 points loses. You: ${state.yourPoints} · Them: ${state.theirPoints}`;
+  })();
 
   const mergeState = useCallback((next: GameState) => {
     if (next.isUser1 !== undefined) isUser1Ref.current = Boolean(next.isUser1);
@@ -520,14 +546,10 @@ export default function NeverHaveIEverWeb({
                   )}
                 </p>
               </div>
-            ) : state.gameOver ? (
+            ) : gameOver ? (
               <div className="nhie-web-game-over">
-                <p className="nhie-web-result-title">
-                  {state.winner === "you" ? "You won" : "You're pretty freaky"}
-                </p>
-                <p className="nhie-web-result-copy">
-                  First to 10 points loses. You: {state.yourPoints} · Them: {state.theirPoints}
-                </p>
+                <p className="nhie-web-result-title">{gameResultTitle}</p>
+                <p className="nhie-web-result-copy">{gameResultCopy}</p>
                 <button type="button" className="nhie-web-primary-action" onClick={() => void restartGame()} disabled={submitting}>
                   {submitting ? "Starting…" : "Play again"}
                 </button>
