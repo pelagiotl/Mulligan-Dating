@@ -33,6 +33,87 @@ const verifyCodeSchema = z.object({
   acceptPrivacy: z.boolean().optional() // For signup flow
 });
 
+function digitsOnly(value: string | null | undefined): string {
+  return String(value || '').replace(/\D/g, '');
+}
+
+function splitConfiguredPhones(value: string | null | undefined): Set<string> {
+  return new Set(
+    String(value || '')
+      .split(',')
+      .map((p) => digitsOnly(p))
+      .filter(Boolean)
+  );
+}
+
+function isTestPhoneBypassEnabled(): boolean {
+  return ['1', 'true', 'yes', 'on'].includes(String(process.env.TEST_PHONE_LOGIN_ENABLED || '').toLowerCase());
+}
+
+function isTestPhoneNumber(formattedPhone: string): boolean {
+  if (!isTestPhoneBypassEnabled()) return false;
+  return splitConfiguredPhones(process.env.TEST_PHONE_NUMBERS).has(digitsOnly(formattedPhone));
+}
+
+function testPhoneCode(): string {
+  return process.env.TEST_PHONE_CODE || '123456';
+}
+
+async function completePhoneLogin(
+  formattedPhone: string,
+  acceptTerms?: boolean,
+  acceptPrivacy?: boolean
+): Promise<{
+  message: string;
+  token: string;
+  userId: string;
+  hasProfile: boolean;
+  isNewUser: boolean;
+}> {
+  const existingUserStmt = db.prepare('SELECT id, phone_verified FROM users WHERE phone_number = ?');
+  const existingUserResult = existingUserStmt.get(formattedPhone);
+  const existingUser = (existingUserResult instanceof Promise
+    ? await existingUserResult
+    : existingUserResult) as { id: string; phone_verified: number } | null;
+
+  let userId: string;
+  let isNewUser = false;
+  if (existingUser) {
+    userId = existingUser.id;
+    const updateStmt = db.prepare('UPDATE users SET phone_verified = 1 WHERE id = ?');
+    const updateResult = updateStmt.run([userId]);
+    if (updateResult instanceof Promise) await updateResult;
+  } else {
+    if (acceptTerms !== true || acceptPrivacy !== true) {
+      throw new Error('TERMS_REQUIRED');
+    }
+    userId = uuidv4();
+    isNewUser = true;
+    const now = new Date().toISOString();
+    const insertUserStmt = db.prepare(
+      'INSERT INTO users (id, email, phone_number, phone_verified, tos_accepted_at, privacy_accepted_at, password) VALUES (?, ?, ?, 1, ?, ?, ?)'
+    );
+    const insertResult = insertUserStmt.run([userId, null, formattedPhone, now, now, '']);
+    if (insertResult instanceof Promise) await insertResult;
+    const { grantInitialTokens } = await import('./tokens.js');
+    await grantInitialTokens(userId);
+  }
+
+  const { generateToken } = await import('../middleware/auth.js');
+  const token = generateToken(userId);
+  const profileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
+  const profileResult = profileStmt.get(userId);
+  const profile = (profileResult instanceof Promise ? await profileResult : profileResult) as { id: string } | null;
+
+  return {
+    message: existingUser ? 'Login successful' : 'Account created successfully',
+    token,
+    userId,
+    hasProfile: !!profile,
+    isNewUser,
+  };
+}
+
 /**
  * Send verification code to phone number
  * POST /api/sms/send-code
@@ -83,6 +164,26 @@ smsRouter.post('/send-code', rateLimitAuth, async (req, res) => {
       userId: existingUser?.id,
       isLogin: !!existingUser
     });
+
+    if (isTestPhoneNumber(formattedPhone)) {
+      verificationCodes.set(formattedPhone, {
+        code: testPhoneCode(),
+        expiresAt: Date.now() + 10 * 60 * 1000,
+        userId: existingUser?.id,
+      });
+      console.log('🧪 Test phone login bypass: skipping SMS send for whitelisted number');
+      return res.json({
+        message: 'Test verification code ready',
+        phoneNumber: formattedPhone,
+        smsSent: true,
+        testBypass: true,
+        code:
+          process.env.NODE_ENV !== 'production' ||
+          ['1', 'true', 'yes', 'on'].includes(String(process.env.TEST_PHONE_LOGIN_SHOW_CODE || '').toLowerCase())
+            ? testPhoneCode()
+            : undefined,
+      });
+    }
 
     // Reviewer/QA bypass: don't send real SMS to the designated test number (e.g. 555); verify-code will accept fixed code
     const reviewerPhone = process.env.REVIEWER_PHONE?.replace(/\D/g, '') || '';
@@ -214,6 +315,22 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
     
     if (!formattedPhone || !isValid) {
       return res.status(400).json({ error: 'Invalid phone number format' });
+    }
+
+    if (isTestPhoneNumber(formattedPhone)) {
+      if (code !== testPhoneCode()) {
+        return res.status(400).json({ error: 'Invalid verification code' });
+      }
+      try {
+        const result = await completePhoneLogin(formattedPhone, acceptTerms, acceptPrivacy);
+        verificationCodes.delete(formattedPhone);
+        return res.json({ ...result, testBypass: true });
+      } catch (err) {
+        if (err instanceof Error && err.message === 'TERMS_REQUIRED') {
+          return res.status(400).json({ error: 'You must accept the Terms of Service and Privacy Policy' });
+        }
+        throw err;
+      }
     }
 
     // Reviewer / QA bypass: allow a fixed code for a designated phone (for Google Play / App Store reviewers)
