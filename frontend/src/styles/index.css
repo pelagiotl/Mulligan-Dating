@@ -4355,10 +4355,10 @@ button.my-profile-avatar:focus-visible {
 }
 
 .my-profile-photo-lightbox-close {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  z-index: 2;
+  position: fixed;
+  top: max(14px, env(safe-area-inset-top, 0px));
+  right: max(14px, env(safe-area-inset-right, 0px));
+  z-index: 15002;
   width: 2.5rem;
   height: 2.5rem;
   display: flex;
