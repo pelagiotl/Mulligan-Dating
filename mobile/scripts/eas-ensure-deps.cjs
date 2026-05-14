@@ -14,5 +14,22 @@ if (fs.existsSync(marker)) {
   process.exit(0);
 }
 
-console.log("eas-ensure-deps: node_modules missing or incomplete — running npm ci …");
+const nodeModules = path.join(mobileDir, "node_modules");
+if (fs.existsSync(nodeModules)) {
+  console.log(
+    "eas-ensure-deps: node_modules incomplete — removing it so npm ci can run cleanly …"
+  );
+  try {
+    fs.rmSync(nodeModules, { recursive: true, force: true });
+  } catch (e) {
+    console.error("eas-ensure-deps: failed to remove node_modules:", e && e.message);
+    console.error(
+      "Close Xcode, simulators, and Finder windows under node_modules, then run:\n" +
+        "  rm -rf node_modules && npm ci"
+    );
+    process.exit(1);
+  }
+}
+
+console.log("eas-ensure-deps: running npm ci …");
 execSync("npm ci", { stdio: "inherit", cwd: mobileDir, env: process.env });
