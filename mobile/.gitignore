@@ -1,3 +1,6 @@
+# Project-local npm cache (see .npmrc); avoids ~/.npm permission errors
+.npm-cache/
+
 node_modules/
 .expo/
 .expo-shared/

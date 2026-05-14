@@ -19,45 +19,6 @@ react {
     cliFile = new File(["node", "--print", "require.resolve('@expo/cli', { paths: [require.resolve('expo/package.json')] })"].execute(null, rootDir).text.trim())
     bundleCommand = "export:embed"
 
-    /* Folders */
-     //   The root of your project, i.e. where "package.json" lives. Default is '../..'
-    // root = file("../../")
-    //   The folder where the react-native NPM package is. Default is ../../node_modules/react-native
-    // reactNativeDir = file("../../node_modules/react-native")
-    //   The folder where the react-native Codegen package is. Default is ../../node_modules/@react-native/codegen
-    // codegenDir = file("../../node_modules/@react-native/codegen")
-
-    /* Variants */
-    //   The list of variants to that are debuggable. For those we're going to
-    //   skip the bundling of the JS bundle and the assets. By default is just 'debug'.
-    //   If you add flavors like lite, prod, etc. you'll have to list your debuggableVariants.
-    // debuggableVariants = ["liteDebug", "prodDebug"]
-
-    /* Bundling */
-    //   A list containing the node command and its flags. Default is just 'node'.
-    // nodeExecutableAndArgs = ["node"]
-
-    //
-    //   The path to the CLI configuration file. Default is empty.
-    // bundleConfig = file(../rn-cli.config.js)
-    //
-    //   The name of the generated asset file containing your JS bundle
-    // bundleAssetName = "MyApplication.android.bundle"
-    //
-    //   The entry file for bundle generation. Default is 'index.android.js' or 'index.js'
-    // entryFile = file("../js/MyApplication.android.js")
-    //
-    //   A list of extra flags to pass to the 'bundle' commands.
-    //   See https://github.com/react-native-community/cli/blob/main/docs/commands.md#bundle
-    // extraPackagerArgs = []
-
-    /* Hermes Commands */
-    //   The hermes compiler command to run. By default it is 'hermesc'
-    // hermesCommand = "$rootDir/my-custom-hermesc/bin/hermesc"
-    //
-    //   The list of flags to pass to the Hermes compiler. By default is "-O", "-output-source-map"
-    // hermesFlags = ["-O", "-output-source-map"]
-
     /* Autolinking */
     autolinkLibrariesWithApp()
 }
@@ -69,14 +30,6 @@ def enableProguardInReleaseBuilds = (findProperty('android.enableProguardInRelea
 
 /**
  * The preferred build flavor of JavaScriptCore (JSC)
- *
- * For example, to use the international variant, you can use:
- * `def jscFlavor = 'org.webkit:android-jsc-intl:+'`
- *
- * The international variant includes ICU i18n library and necessary data
- * allowing to use e.g. `Date.toLocaleString` and `String.localeCompare` that
- * give correct results when using with locales other than en-US. Note that
- * this variant is about 6MiB larger per architecture than default.
  */
 def jscFlavor = 'org.webkit:android-jsc:+'
 
@@ -88,17 +41,13 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'app.mulligandating'
+    namespace "app.mulligandating"
     defaultConfig {
-        applicationId 'app.mulligandating'
+        applicationId "app.mulligandating"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 43
+        versionCode 45
         versionName "1.0.0"
-        // 16 KB page-size checks target 64-bit .so; 32-bit ABIs often ship older/misaligned prebuilts.
-        ndk {
-            abiFilters "arm64-v8a", "x86_64"
-        }
     }
     signingConfigs {
         debug {
@@ -118,7 +67,10 @@ android {
             signingConfig signingConfigs.debug
             shrinkResources (findProperty('android.enableShrinkResourcesInReleaseBuilds')?.toBoolean() ?: false)
             minifyEnabled enableProguardInReleaseBuilds
-            proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+            proguardFiles getDefaultProguardFile("proguard-android.txt"),
+                file("${rootProject.projectDir}/../node_modules/react-native/ReactAndroid/proguard-rules.pro"),
+                file("${rootProject.projectDir}/../node_modules/expo-modules-core/android/proguard-rules.pro"),
+                "proguard-rules.pro"
             crunchPngs (findProperty('android.enablePngCrunchInReleaseBuilds')?.toBoolean() ?: true)
         }
     }
@@ -133,19 +85,13 @@ android {
 }
 
 // Apply static values from `gradle.properties` to the `android.packagingOptions`
-// Accepts values in comma delimited lists, example:
-// android.packagingOptions.pickFirsts=/LICENSE,**/picasa.ini
 ["pickFirsts", "excludes", "merges", "doNotStrip"].each { prop ->
-    // Split option: 'foo,bar' -> ['foo', 'bar']
     def options = (findProperty("android.packagingOptions.$prop") ?: "").split(",");
-    // Trim all elements in place.
     for (i in 0..<options.size()) options[i] = options[i].trim();
-    // `[] - ""` is essentially `[""].filter(Boolean)` removing all empty strings.
     options -= ""
 
     if (options.length > 0) {
         println "android.packagingOptions.$prop += $options ($options.length)"
-        // Ex: android.packagingOptions.pickFirsts += '**/SCCS/**'
         options.each {
             android.packagingOptions[prop] += it
         }
@@ -153,7 +99,6 @@ android {
 }
 
 dependencies {
-    // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
 
     def isGifEnabled = (findProperty('expo.gif.enabled') ?: "") == "true";
@@ -161,15 +106,12 @@ dependencies {
     def isWebpAnimatedEnabled = (findProperty('expo.webp.animated') ?: "") == "true";
 
     if (isGifEnabled) {
-        // For animated gif support
         implementation("com.facebook.fresco:animated-gif:${reactAndroidLibs.versions.fresco.get()}")
     }
 
     if (isWebpEnabled) {
-        // For webp support
         implementation("com.facebook.fresco:webpsupport:${reactAndroidLibs.versions.fresco.get()}")
         if (isWebpAnimatedEnabled) {
-            // Animated webp support
             implementation("com.facebook.fresco:animated-webp:${reactAndroidLibs.versions.fresco.get()}")
         }
     }
@@ -181,4 +123,4 @@ dependencies {
     }
 }
 
-apply plugin: 'com.google.gms.google-services'
+apply plugin: "com.google.gms.google-services"

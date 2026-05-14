@@ -1,4 +1,7 @@
 node_modules
+.npm-cache
+_trash_node_modules_old
+node_modules_bad_*
 .expo
 android/.gradle
 android/build

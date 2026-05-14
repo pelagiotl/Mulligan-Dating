@@ -3,6 +3,10 @@
 !mobile/**
 
 mobile/node_modules
+mobile/.npm-cache
+# Local backup trees — huge; iCloud + copyfile → ETIMEDOUT during EAS archive
+mobile/_trash_node_modules_old
+mobile/node_modules_bad_*
 mobile/.expo
 mobile/android/.gradle
 mobile/android/build

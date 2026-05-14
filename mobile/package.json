@@ -13,7 +13,9 @@
     "generate:adaptive-icon": "node scripts/generate-adaptive-icon-from-icon.js",
     "sync:native-assets": "bash scripts/sync-native-from-assets.sh",
     "ensure:assets": "node scripts/ensure-expo-asset-pngs.js",
-    "postinstall": "patch-package && node scripts/ensure-expo-asset-pngs.js"
+    "postinstall": "patch-package && node scripts/ensure-expo-asset-pngs.js",
+    "eas:preflight": "node scripts/eas-preflight.cjs",
+    "eas:build-android": "node scripts/eas-preflight.cjs && rm -rf .npm-cache _trash_node_modules_old ios/Pods android/.gradle android/build android/.cxx android/app/build android/app/.cxx && eas build --platform android --profile production"
   },
   "dependencies": {
     "@google/react-native-make-payment": "^0.2.2",
