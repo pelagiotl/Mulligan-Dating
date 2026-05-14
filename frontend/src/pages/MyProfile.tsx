@@ -1423,15 +1423,15 @@ export default function MyProfile() {
             aria-label="Close enlarged photo"
             onClick={() => setShowAvatarLightbox(false)}
           />
+          <button
+            type="button"
+            className="my-profile-photo-lightbox-close"
+            aria-label="Close enlarged photo"
+            onClick={() => setShowAvatarLightbox(false)}
+          >
+            ×
+          </button>
           <div className="my-profile-photo-lightbox-content">
-            <button
-              type="button"
-              className="my-profile-photo-lightbox-close"
-              aria-label="Close"
-              onClick={() => setShowAvatarLightbox(false)}
-            >
-              ×
-            </button>
             <img src={profilePhotoUrl} alt={profile.display_name} className="my-profile-photo-lightbox-img" />
           </div>
         </div>
