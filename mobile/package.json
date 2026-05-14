@@ -15,7 +15,8 @@
     "ensure:assets": "node scripts/ensure-expo-asset-pngs.js",
     "postinstall": "patch-package && node scripts/ensure-expo-asset-pngs.js",
     "eas:preflight": "node scripts/eas-preflight.cjs",
-    "eas:build-android": "node scripts/eas-preflight.cjs && rm -rf .npm-cache _trash_node_modules_old ios/Pods android/.gradle android/build android/.cxx android/app/build android/app/.cxx && eas build --platform android --profile production"
+    "eas:build-android": "EAS_SKIP_AUTO_FINGERPRINT=1 EAS_NO_VCS=1 GIT_CLONE_PROTECTION_ACTIVE=false node scripts/eas-preflight.cjs && rm -rf .npm-cache _trash_node_modules_old ios/Pods android/.gradle android/build android/.cxx android/app/build android/app/.cxx && eas build --platform android --profile production",
+    "eas:build-android:git-archive": "EAS_SKIP_AUTO_FINGERPRINT=1 GIT_CLONE_PROTECTION_ACTIVE=false node scripts/eas-preflight.cjs && rm -rf .npm-cache _trash_node_modules_old ios/Pods android/.gradle android/build android/.cxx android/app/build android/app/.cxx && eas build --platform android --profile production"
   },
   "dependencies": {
     "@google/react-native-make-payment": "^0.2.2",

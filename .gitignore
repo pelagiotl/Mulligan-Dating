@@ -71,6 +71,9 @@ keys/
 **/firebase-adminsdk-*.json
 mobile/mulligan-ba16c-firebase-adminsdk-*.json
 
+# Accidental nested clone of this repo inside itself (confuses tooling; huge disk use)
+Mulligan-Dating/
+
 # Mobile local trash / duplicate Finder copies (see mobile/.gitignore)
 mobile/_trash_node_modules_old/
 mobile/node_modules_bad_*/

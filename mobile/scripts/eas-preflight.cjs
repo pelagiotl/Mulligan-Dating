@@ -37,3 +37,12 @@ try {
 }
 
 console.log("eas-preflight: package.json OK (%s bytes)", Buffer.byteLength(raw, "utf8"));
+
+const repoRoot = path.join(__dirname, "..", "..");
+const nestedCopy = path.join(repoRoot, "Mulligan-Dating");
+if (fs.existsSync(nestedCopy)) {
+  console.warn(
+    "eas-preflight: found %s — remove this nested copy (duplicate repo). It bloats disk and can break EAS when using git archive.",
+    nestedCopy
+  );
+}
