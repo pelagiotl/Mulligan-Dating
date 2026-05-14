@@ -86,6 +86,21 @@ function filterInterestCompatReasons(reasons: string[]): string[] {
   });
 }
 
+/** Normalize GET /profile `interests` (strings or { name }) for overlap with match. */
+function interestsFromProfilePayload(data: unknown): string[] {
+  if (!data || typeof data !== "object") return [];
+  const d = data as Record<string, unknown>;
+  const raw = d.interests;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item) => {
+      if (typeof item === "string") return item;
+      if (item && typeof item === "object" && "name" in item) return String((item as { name: string }).name);
+      return "";
+    })
+    .filter(Boolean);
+}
+
 function matchHasProfileDetails(ou: Match["otherUser"]): boolean {
   return !!(
     ou.bio ||
@@ -338,6 +353,38 @@ export default function Matches() {
     if (!selectedMatch || selectedMatch.stage === "pending") return [];
     return getOtherUserPhotosForLightbox(selectedMatch);
   }, [selectedMatch]);
+
+  /** Current user interests while partner profile drawer is open (same idea as mobile MatchProfileModal). */
+  const [drawerProfileInterests, setDrawerProfileInterests] = useState<string[]>([]);
+
+  const partnerDrawerCommonInterests = useMemo(() => {
+    if (!selectedMatch || drawerProfileInterests.length === 0) return [];
+    const theirs = selectedMatch.otherUser.interests || [];
+    if (theirs.length === 0) return [];
+    return drawerProfileInterests.filter((mine) =>
+      theirs.some((t) => t.toLowerCase() === mine.toLowerCase())
+    );
+  }, [selectedMatch, drawerProfileInterests]);
+
+  useEffect(() => {
+    if (!partnerDrawerOpen || !user) {
+      setDrawerProfileInterests([]);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const data = await api.get<unknown>("/profile");
+        if (cancelled) return;
+        setDrawerProfileInterests(interestsFromProfilePayload(data));
+      } catch {
+        if (!cancelled) setDrawerProfileInterests([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [partnerDrawerOpen, user]);
 
   const openMatchThread = useCallback((match: Match) => {
     const clearedMatch = { ...match, unreadCount: 0 };
@@ -1718,52 +1765,59 @@ export default function Matches() {
           >
             <div className="chat-partner-drawer-toolbar">
               <div className="chat-partner-drawer-toolbar-main">
-                {selectedMatchPhotos.length > 0 ? (
-                  <button
-                    type="button"
-                    className="chat-partner-drawer-avatar-btn"
-                    onClick={() => openPhotoLightbox(selectedMatchPhotos, selectedMatchPhotos[0])}
-                    aria-label={`View ${selectedMatch.otherUser.displayName}'s photos`}
-                  >
-                    <span className="chat-partner-drawer-avatar-ring">
-                      <img
-                        src={getPhotoUrl(selectedMatchPhotos[0].url)}
-                        alt=""
-                        className="chat-partner-drawer-avatar-img"
-                        draggable={false}
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = "none";
-                        }}
-                      />
-                    </span>
-                  </button>
-                ) : (
-                  <div
-                    className="chat-partner-drawer-avatar-ring chat-partner-drawer-avatar-ring--placeholder"
-                    aria-hidden
-                  >
-                    <span className="chat-partner-drawer-avatar-initial">
-                      {selectedMatch.otherUser.displayName.trim().charAt(0).toUpperCase() || "?"}
-                    </span>
-                  </div>
-                )}
+                <div className="chat-partner-drawer-avatar-col">
+                  {selectedMatchPhotos.length > 0 ? (
+                    <button
+                      type="button"
+                      className="chat-partner-drawer-avatar-btn"
+                      onClick={() => openPhotoLightbox(selectedMatchPhotos, selectedMatchPhotos[0])}
+                      aria-label={`View ${selectedMatch.otherUser.displayName}'s photos`}
+                    >
+                      <span className="chat-partner-drawer-avatar-ring">
+                        <img
+                          src={getPhotoUrl(selectedMatchPhotos[0].url)}
+                          alt=""
+                          className="chat-partner-drawer-avatar-img"
+                          draggable={false}
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = "none";
+                          }}
+                        />
+                      </span>
+                    </button>
+                  ) : (
+                    <div
+                      className="chat-partner-drawer-avatar-ring chat-partner-drawer-avatar-ring--placeholder"
+                      aria-hidden
+                    >
+                      <span className="chat-partner-drawer-avatar-initial">
+                        {selectedMatch.otherUser.displayName.trim().charAt(0).toUpperCase() || "?"}
+                      </span>
+                    </div>
+                  )}
+                  {selectedMatchPhotos.length > 0 ? (
+                    <p className="chat-partner-drawer-avatar-hint">Tap to expand</p>
+                  ) : null}
+                </div>
                 <div className="chat-partner-drawer-toolbar-text">
                   <p className="chat-partner-drawer-kicker">
-                    <span className="chat-partner-drawer-kicker-pill">
-                      <span className="chat-partner-drawer-kicker-emoji" aria-hidden>
-                        ✨
-                      </span>
-                      Their Mulligan profile
-                    </span>
+                    <span className="chat-partner-drawer-kicker-pill">Quick view</span>
                   </p>
                   <h2 id="chat-partner-drawer-title">{selectedMatch.otherUser.displayName}</h2>
+                  <p className="chat-partner-drawer-subtitle">Profile</p>
                   <div className="chat-partner-drawer-meta" aria-label="Basics">
                     {typeof selectedMatch.otherUser.age === "number" &&
                     !Number.isNaN(selectedMatch.otherUser.age) ? (
-                      <span className="chat-partner-drawer-meta-chip">{selectedMatch.otherUser.age}</span>
+                      <span className="chat-partner-drawer-meta-chip">
+                        <span className="chat-partner-drawer-meta-chip-label">Age</span>
+                        {selectedMatch.otherUser.age}
+                      </span>
                     ) : null}
                     {selectedMatch.otherUser.gender ? (
-                      <span className="chat-partner-drawer-meta-chip">{selectedMatch.otherUser.gender}</span>
+                      <span className="chat-partner-drawer-meta-chip">
+                        <span className="chat-partner-drawer-meta-chip-label">Gender</span>
+                        {selectedMatch.otherUser.gender}
+                      </span>
                     ) : null}
                     {selectedMatch.otherUser.location ? (
                       <span className="chat-partner-drawer-meta-chip chat-partner-drawer-meta-chip--location">
@@ -1774,7 +1828,9 @@ export default function Matches() {
                       </span>
                     ) : null}
                   </div>
-                  <p className="chat-partner-drawer-tagline">Peek at photos and what they shared — all in one place.</p>
+                  <p className="chat-partner-drawer-tagline">
+                    Tap their photo for full size. Scroll for gallery and what they wrote on their profile.
+                  </p>
                   <button
                     type="button"
                     className="btn btn-secondary btn-sm chat-partner-drawer-report"
@@ -1795,14 +1851,37 @@ export default function Matches() {
             </div>
 
             <div className="chat-partner-drawer-inner">
+              {partnerDrawerCommonInterests.length > 0 ? (
+                <div className="chat-partner-drawer-common" role="region" aria-label="Shared interests">
+                  <div className="chat-partner-drawer-common-accent" aria-hidden />
+                  <div className="chat-partner-drawer-common-body">
+                    <span className="chat-partner-drawer-common-mark" aria-hidden>
+                      ✦
+                    </span>
+                    <div className="chat-partner-drawer-common-copy">
+                      <p className="chat-partner-drawer-section-eyebrow">In common</p>
+                      <p className="chat-partner-drawer-common-title">You both like</p>
+                      <p className="chat-partner-drawer-common-sub">
+                        {partnerDrawerCommonInterests.length}{" "}
+                        {partnerDrawerCommonInterests.length === 1 ? "interest" : "interests"} overlap
+                      </p>
+                    </div>
+                    <div className="chat-partner-drawer-common-tags">
+                      {partnerDrawerCommonInterests.slice(0, 8).map((interest) => (
+                        <span key={interest} className="chat-partner-drawer-common-chip">
+                          {interest}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
               {selectedMatchPhotos.length > 0 ? (
                 <div className="chat-partner-drawer-surface chat-partner-drawer-surface--photos">
                   <div className="chat-partner-drawer-gallery-block">
-                    <h3 className="chat-partner-drawer-section-label chat-partner-drawer-section-label--rich">
-                      <span className="chat-partner-drawer-section-emoji" aria-hidden>
-                        🖼️
-                      </span>
-                      Photos
+                    <h3 className="chat-partner-drawer-section-heading">
+                      <span className="chat-partner-drawer-section-eyebrow">Gallery</span>
+                      <span className="chat-partner-drawer-section-title">Photos</span>
                     </h3>
                     <div className="chat-partner-drawer-photo-rail" role="list">
                       {selectedMatchPhotos.map((ph, i) => (
@@ -1840,11 +1919,9 @@ export default function Matches() {
               )}
 
               <div className="chat-partner-drawer-surface chat-partner-drawer-surface--profile">
-                <h3 className="chat-partner-drawer-section-label chat-partner-drawer-section-label--rich">
-                  <span className="chat-partner-drawer-section-emoji" aria-hidden>
-                    ✨
-                  </span>
-                  Profile
+                <h3 className="chat-partner-drawer-section-heading">
+                  <span className="chat-partner-drawer-section-eyebrow">Their world</span>
+                  <span className="chat-partner-drawer-section-title">Details</span>
                 </h3>
                 <div className="chat-partner-drawer-profile chat-partner-drawer-profile--styled">
                   {matchHasProfileDetails(selectedMatch.otherUser) ? (

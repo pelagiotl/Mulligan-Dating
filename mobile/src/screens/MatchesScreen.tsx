@@ -1046,318 +1046,55 @@ function MatchProfileModal({
     }
   }, [visible, currentUserInterests, matchInterests, commonInterests]);
   
-  // Animations
+  // Animations — entrance only (calmer than looping rings/sparkles)
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(Dimensions.get('window').height)).current;
-  const photoScale = useRef(new Animated.Value(0.8)).current;
+  const photoScale = useRef(new Animated.Value(0.92)).current;
   const photoOpacity = useRef(new Animated.Value(0)).current;
   const contentFade = useRef(new Animated.Value(0)).current;
-  
-  // Continuous ring animations
-  const ring1Scale = useRef(new Animated.Value(1)).current;
-  const ring1Opacity = useRef(new Animated.Value(0.6)).current;
-  const ring2Scale = useRef(new Animated.Value(1)).current;
-  const ring2Opacity = useRef(new Animated.Value(0.4)).current;
-  const ring3Scale = useRef(new Animated.Value(1)).current;
-  const ring3Opacity = useRef(new Animated.Value(0.3)).current;
-  const ringRotation = useRef(new Animated.Value(0)).current;
-  const glowPulse = useRef(new Animated.Value(1)).current;
-  const sparkle1Y = useRef(new Animated.Value(0)).current;
-  const sparkle1X = useRef(new Animated.Value(0)).current;
-  const sparkle2Y = useRef(new Animated.Value(0)).current;
-  const sparkle2X = useRef(new Animated.Value(0)).current;
-  const sparkle3Y = useRef(new Animated.Value(0)).current;
-  const sparkle3X = useRef(new Animated.Value(0)).current;
-  const avatarBreath = useRef(new Animated.Value(1)).current;
-  
+
   useEffect(() => {
     if (visible) {
-      // Animate modal entrance
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 1,
-          duration: 300,
+          duration: 280,
           useNativeDriver: true,
         }),
         Animated.spring(slideAnim, {
           toValue: 0,
-          tension: 65,
-          friction: 11,
+          tension: 68,
+          friction: 12,
           useNativeDriver: true,
         }),
         Animated.spring(photoScale, {
           toValue: 1,
-          tension: 50,
-          friction: 7,
-          delay: 200,
+          tension: 120,
+          friction: 14,
+          delay: 80,
           useNativeDriver: true,
         }),
         Animated.timing(photoOpacity, {
           toValue: 1,
-          duration: 400,
-          delay: 200,
+          duration: 320,
+          delay: 80,
           useNativeDriver: true,
         }),
         Animated.timing(contentFade, {
           toValue: 1,
-          duration: 500,
-          delay: 300,
+          duration: 420,
+          delay: 140,
           useNativeDriver: true,
         }),
       ]).start();
-      
-      // Start continuous ring animations after entrance
-      setTimeout(() => {
-        // Ring 1 pulsing
-        Animated.loop(
-          Animated.sequence([
-            Animated.parallel([
-              Animated.timing(ring1Scale, {
-                toValue: 1.15,
-                duration: 2000,
-                useNativeDriver: true,
-              }),
-              Animated.timing(ring1Opacity, {
-                toValue: 0.8,
-                duration: 2000,
-                useNativeDriver: true,
-              }),
-            ]),
-            Animated.parallel([
-              Animated.timing(ring1Scale, {
-                toValue: 1,
-                duration: 2000,
-                useNativeDriver: true,
-              }),
-              Animated.timing(ring1Opacity, {
-                toValue: 0.6,
-                duration: 2000,
-                useNativeDriver: true,
-              }),
-            ]),
-          ])
-        ).start();
-        
-        // Ring 2 pulsing (staggered)
-        Animated.loop(
-          Animated.sequence([
-            Animated.parallel([
-              Animated.timing(ring2Scale, {
-                toValue: 1.2,
-                duration: 2500,
-                useNativeDriver: true,
-              }),
-              Animated.timing(ring2Opacity, {
-                toValue: 0.6,
-                duration: 2500,
-                useNativeDriver: true,
-              }),
-            ]),
-            Animated.parallel([
-              Animated.timing(ring2Scale, {
-                toValue: 1,
-                duration: 2500,
-                useNativeDriver: true,
-              }),
-              Animated.timing(ring2Opacity, {
-                toValue: 0.4,
-                duration: 2500,
-                useNativeDriver: true,
-              }),
-            ]),
-          ])
-        ).start();
-        
-        // Ring 3 pulsing (staggered)
-        Animated.loop(
-          Animated.sequence([
-            Animated.parallel([
-              Animated.timing(ring3Scale, {
-                toValue: 1.25,
-                duration: 3000,
-                useNativeDriver: true,
-              }),
-              Animated.timing(ring3Opacity, {
-                toValue: 0.5,
-                duration: 3000,
-                useNativeDriver: true,
-              }),
-            ]),
-            Animated.parallel([
-              Animated.timing(ring3Scale, {
-                toValue: 1,
-                duration: 3000,
-                useNativeDriver: true,
-              }),
-              Animated.timing(ring3Opacity, {
-                toValue: 0.3,
-                duration: 3000,
-                useNativeDriver: true,
-              }),
-            ]),
-          ])
-        ).start();
-        
-        // Continuous rotation
-        Animated.loop(
-          Animated.timing(ringRotation, {
-            toValue: 1,
-            duration: 20000,
-            useNativeDriver: true,
-          })
-        ).start();
-        
-        // Glow pulsing
-        Animated.loop(
-          Animated.sequence([
-            Animated.timing(glowPulse, {
-              toValue: 1.3,
-              duration: 2000,
-              useNativeDriver: true,
-            }),
-            Animated.timing(glowPulse, {
-              toValue: 1,
-              duration: 2000,
-              useNativeDriver: true,
-            }),
-          ])
-        ).start();
-        
-        // Sparkle 1 floating
-        Animated.loop(
-          Animated.sequence([
-            Animated.parallel([
-              Animated.timing(sparkle1Y, {
-                toValue: -15,
-                duration: 2000,
-                useNativeDriver: true,
-              }),
-              Animated.timing(sparkle1X, {
-                toValue: 10,
-                duration: 2000,
-                useNativeDriver: true,
-              }),
-            ]),
-            Animated.parallel([
-              Animated.timing(sparkle1Y, {
-                toValue: 0,
-                duration: 2000,
-                useNativeDriver: true,
-              }),
-              Animated.timing(sparkle1X, {
-                toValue: 0,
-                duration: 2000,
-                useNativeDriver: true,
-              }),
-            ]),
-          ])
-        ).start();
-        
-        // Sparkle 2 floating
-        Animated.loop(
-          Animated.sequence([
-            Animated.parallel([
-              Animated.timing(sparkle2Y, {
-                toValue: 10,
-                duration: 1800,
-                useNativeDriver: true,
-              }),
-              Animated.timing(sparkle2X, {
-                toValue: -12,
-                duration: 1800,
-                useNativeDriver: true,
-              }),
-            ]),
-            Animated.parallel([
-              Animated.timing(sparkle2Y, {
-                toValue: 0,
-                duration: 1800,
-                useNativeDriver: true,
-              }),
-              Animated.timing(sparkle2X, {
-                toValue: 0,
-                duration: 1800,
-                useNativeDriver: true,
-              }),
-            ]),
-          ])
-        ).start();
-        
-        // Sparkle 3 floating
-        Animated.loop(
-          Animated.sequence([
-            Animated.parallel([
-              Animated.timing(sparkle3Y, {
-                toValue: -8,
-                duration: 2200,
-                useNativeDriver: true,
-              }),
-              Animated.timing(sparkle3X, {
-                toValue: 8,
-                duration: 2200,
-                useNativeDriver: true,
-              }),
-            ]),
-            Animated.parallel([
-              Animated.timing(sparkle3Y, {
-                toValue: 0,
-                duration: 2200,
-                useNativeDriver: true,
-              }),
-              Animated.timing(sparkle3X, {
-                toValue: 0,
-                duration: 2200,
-                useNativeDriver: true,
-              }),
-            ]),
-          ])
-        ).start();
-        
-        // Avatar breathing effect
-        Animated.loop(
-          Animated.sequence([
-            Animated.timing(avatarBreath, {
-              toValue: 1.02,
-              duration: 3000,
-              useNativeDriver: true,
-            }),
-            Animated.timing(avatarBreath, {
-              toValue: 1,
-              duration: 3000,
-              useNativeDriver: true,
-            }),
-          ])
-        ).start();
-      }, 500);
     } else {
-      // Reset animations when closing
       fadeAnim.setValue(0);
       slideAnim.setValue(Dimensions.get('window').height);
-      photoScale.setValue(0.8);
+      photoScale.setValue(0.92);
       photoOpacity.setValue(0);
       contentFade.setValue(0);
-      ring1Scale.setValue(1);
-      ring1Opacity.setValue(0.6);
-      ring2Scale.setValue(1);
-      ring2Opacity.setValue(0.4);
-      ring3Scale.setValue(1);
-      ring3Opacity.setValue(0.3);
-      ringRotation.setValue(0);
-      glowPulse.setValue(1);
-      sparkle1Y.setValue(0);
-      sparkle1X.setValue(0);
-      sparkle2Y.setValue(0);
-      sparkle2X.setValue(0);
-      sparkle3Y.setValue(0);
-      sparkle3X.setValue(0);
-      avatarBreath.setValue(1);
     }
   }, [visible]);
-  
-  const rotation = ringRotation.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '360deg'],
-  });
   
   const overlayContent = (
       <Animated.View 
@@ -1367,9 +1104,9 @@ function MatchProfileModal({
         ]}
       >
         <LinearGradient
-          colors={['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
+          colors={['rgba(15, 23, 42, 0.92)', 'rgba(30, 27, 75, 0.9)', 'rgba(67, 56, 202, 0.85)']}
+          start={{ x: 0.1, y: 0 }}
+          end={{ x: 0.9, y: 1 }}
           style={StyleSheet.absoluteFill}
         />
         <Animated.View 
@@ -1387,22 +1124,23 @@ function MatchProfileModal({
           >
             {/* Header with close button */}
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>✨ Profile</Text>
+              <View style={styles.modalHeaderTitles}>
+                <Text style={styles.modalTitleEyebrow}>Quick view</Text>
+                <Text style={styles.modalTitle}>Profile</Text>
+              </View>
               <TouchableOpacity
                 onPress={onClose}
                 style={styles.modalCloseButton}
                 activeOpacity={0.7}
+                accessibilityLabel="Close profile"
               >
-                <LinearGradient
-                  colors={['rgba(255, 255, 255, 0.9)', 'rgba(255, 255, 255, 0.7)']}
-                  style={styles.modalCloseButtonGradient}
-                >
+                <View style={styles.modalCloseButtonInner}>
                   <Text style={styles.modalCloseText}>✕</Text>
-                </LinearGradient>
+                </View>
               </TouchableOpacity>
             </View>
             
-            {/* Profile Photo with animated rings */}
+            {/* Profile photo — framed hero, tap for full screen */}
             <View style={styles.modalPhotoContainer} pointerEvents="box-none">
               <Animated.View
                 pointerEvents="box-none"
@@ -1414,180 +1152,25 @@ function MatchProfileModal({
                   },
                 ]}
               >
-                {/* Animated pulsing orb behind rings - pointerEvents none so photo tap works */}
-                <Animated.View
+                <LinearGradient
+                  colors={['#c7d2fe', '#a5b4fc', '#818cf8']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.modalPhotoFrameRing}
                   pointerEvents="none"
-                  style={[
-                    styles.modalPhotoOrb,
-                    {
-                      transform: [{ scale: glowPulse }],
-                      opacity: glowPulse.interpolate({
-                        inputRange: [1, 1.3],
-                        outputRange: [0.2, 0.4],
-                      }),
-                    },
-                  ]}
                 />
-                
-                {/* Animated rings around photo - pointerEvents none so photo tap works */}
-                <Animated.View
-                  pointerEvents="none"
-                  style={[
-                    styles.modalPhotoRing3,
-                    {
-                      transform: [
-                        { scale: ring3Scale },
-                        { rotate: rotation },
-                      ],
-                      opacity: ring3Opacity,
-                    },
-                  ]}
-                />
-                <Animated.View
-                  pointerEvents="none"
-                  style={[
-                    styles.modalPhotoRing2,
-                    {
-                      transform: [
-                        { scale: ring2Scale },
-                        { rotate: rotation },
-                      ],
-                      opacity: ring2Opacity,
-                    },
-                  ]}
-                />
-                <Animated.View
-                  pointerEvents="none"
-                  style={[
-                    styles.modalPhotoRing1,
-                    {
-                      transform: [
-                        { scale: ring1Scale },
-                        { rotate: rotation },
-                      ],
-                      opacity: ring1Opacity,
-                    },
-                  ]}
-                />
-                
-                {/* Glow effect with pulse - pointerEvents none so photo tap works */}
-                <Animated.View
-                  pointerEvents="none"
-                  style={[
-                    styles.modalPhotoGlow,
-                    {
-                      transform: [{ scale: glowPulse }],
-                      opacity: glowPulse.interpolate({
-                        inputRange: [1, 1.3],
-                        outputRange: [0.3, 0.5],
-                      }),
-                    },
-                  ]}
-                />
-                
-                {/* Avatar with breathing effect - tappable full-screen; when all photos unlocked, tap sides to cycle */}
                 {onPhotoPress && !canSwipePhotos && mainPhotoUrl ? (
                   <TouchableOpacity
                     onPress={() => onPhotoPress(mainPhotoUrl, canSwipePhotos ? allPhotos.map(p => getPhotoUrl(p.url)) : undefined, canSwipePhotos ? mainPhotoIndex : undefined)}
-                    activeOpacity={0.9}
+                    activeOpacity={0.92}
                     style={styles.modalPhotoTouchable}
                     accessibilityLabel="View full size photo"
                   >
-                    <Animated.View
-                      style={{
-                        transform: [{ scale: avatarBreath }],
-                      }}
-                      pointerEvents="none"
-                    >
-                      {mainPhotoUrl ? (
-                        <OptimizedImage source={mainPhotoUrl} style={styles.modalPhoto} resizeMode="cover" showLoadingIndicator={false} />
-                      ) : (
-                        <LinearGradient
-                          colors={['#667eea', '#764ba2', '#f093fb']}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 1 }}
-                          style={styles.modalPhotoPlaceholder}
-                        >
-                          <Text style={styles.modalPhotoPlaceholderText}>
-                            {otherUser.displayName.charAt(0).toUpperCase()}
-                          </Text>
-                        </LinearGradient>
-                      )}
-                    </Animated.View>
-                    <Animated.Text
-                      pointerEvents="none"
-                      style={[
-                        styles.modalPhotoSparkle1,
-                        {
-                          transform: [
-                            { translateX: sparkle1X },
-                            { translateY: sparkle1Y },
-                          ],
-                        },
-                      ]}
-                    >
-                      ✨
-                    </Animated.Text>
-                    <Animated.Text
-                      pointerEvents="none"
-                      style={[
-                        styles.modalPhotoSparkle2,
-                        {
-                          transform: [
-                            { translateX: sparkle2X },
-                            { translateY: sparkle2Y },
-                          ],
-                        },
-                      ]}
-                    >
-                      ✨
-                    </Animated.Text>
-                    <Animated.Text
-                      pointerEvents="none"
-                      style={[
-                        styles.modalPhotoSparkle3,
-                        {
-                          transform: [
-                            { translateX: sparkle3X },
-                            { translateY: sparkle3Y },
-                          ],
-                        },
-                      ]}
-                    >
-                      ✨
-                    </Animated.Text>
-                  </TouchableOpacity>
-                ) : (
-                  <>
-                  <Animated.View
-                    style={{
-                      transform: [{ scale: avatarBreath }],
-                    }}
-                  >
                     {mainPhotoUrl ? (
-                      canSwipePhotos ? (
-                        <View style={styles.modalPhotoSwipeContainer}>
-                          <TouchableOpacity style={styles.modalPhotoSwipeSide} onPress={goPrevPhoto} activeOpacity={1} accessibilityLabel="Previous photo" />
-                          <TouchableOpacity
-                            style={[styles.modalPhotoSwipeCenter, { zIndex: 10, elevation: 10 }]}
-                            onPress={() => onPhotoPress?.(mainPhotoUrl, allPhotos.map(p => getPhotoUrl(p.url)), mainPhotoIndex)}
-                            activeOpacity={0.9}
-                            accessibilityLabel="View full size photo"
-                          >
-                            <OptimizedImage source={mainPhotoUrl} style={styles.modalPhoto} resizeMode="cover" showLoadingIndicator={false} />
-                          </TouchableOpacity>
-                          <TouchableOpacity style={styles.modalPhotoSwipeSide} onPress={goNextPhoto} activeOpacity={1} accessibilityLabel="Next photo" />
-                        </View>
-                      ) : onPhotoPress ? (
-                        <TouchableOpacity style={[styles.modalPhotoTouchable, { zIndex: 10, elevation: 10 }]} onPress={() => onPhotoPress(mainPhotoUrl, undefined, undefined)} activeOpacity={0.9} accessibilityLabel="View full size photo">
-                          <OptimizedImage source={mainPhotoUrl} style={styles.modalPhoto} resizeMode="cover" showLoadingIndicator={false} />
-                        </TouchableOpacity>
-                      ) : (
-                        <OptimizedImage source={mainPhotoUrl} style={styles.modalPhoto} resizeMode="cover" showLoadingIndicator={false} />
-                      )
+                      <OptimizedImage source={mainPhotoUrl} style={styles.modalPhoto} resizeMode="cover" showLoadingIndicator={false} />
                     ) : (
                       <LinearGradient
-                        colors={['#667eea', '#764ba2', '#f093fb']}
+                        colors={['#6366f1', '#4f46e5', '#4338ca']}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
                         style={styles.modalPhotoPlaceholder}
@@ -1597,55 +1180,48 @@ function MatchProfileModal({
                         </Text>
                       </LinearGradient>
                     )}
-                  </Animated.View>
-                  {/* Floating sparkles - only when not using wrapper touchable */}
-                  {(!onPhotoPress || canSwipePhotos) && (
-                    <>
-                      <Animated.Text
-                        pointerEvents="none"
-                        style={[
-                          styles.modalPhotoSparkle1,
-                          {
-                            transform: [
-                              { translateX: sparkle1X },
-                              { translateY: sparkle1Y },
-                            ],
-                          },
-                        ]}
+                    <Text style={styles.modalPhotoTapHint}>Tap to expand</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={styles.modalPhotoInnerClip}>
+                    {mainPhotoUrl ? (
+                      canSwipePhotos ? (
+                        <View style={styles.modalPhotoSwipeContainer}>
+                          <TouchableOpacity style={styles.modalPhotoSwipeSide} onPress={goPrevPhoto} activeOpacity={1} accessibilityLabel="Previous photo" />
+                          <TouchableOpacity
+                            style={[styles.modalPhotoSwipeCenter, { zIndex: 10, elevation: 10 }]}
+                            onPress={() => onPhotoPress?.(mainPhotoUrl, allPhotos.map(p => getPhotoUrl(p.url)), mainPhotoIndex)}
+                            activeOpacity={0.92}
+                            accessibilityLabel="View full size photo"
+                          >
+                            <OptimizedImage source={mainPhotoUrl} style={styles.modalPhoto} resizeMode="cover" showLoadingIndicator={false} />
+                          </TouchableOpacity>
+                          <TouchableOpacity style={styles.modalPhotoSwipeSide} onPress={goNextPhoto} activeOpacity={1} accessibilityLabel="Next photo" />
+                        </View>
+                      ) : onPhotoPress ? (
+                        <TouchableOpacity style={[styles.modalPhotoTouchable, { zIndex: 10, elevation: 10 }]} onPress={() => onPhotoPress(mainPhotoUrl, undefined, undefined)} activeOpacity={0.92} accessibilityLabel="View full size photo">
+                          <OptimizedImage source={mainPhotoUrl} style={styles.modalPhoto} resizeMode="cover" showLoadingIndicator={false} />
+                          <Text style={styles.modalPhotoTapHint}>Tap to expand</Text>
+                        </TouchableOpacity>
+                      ) : (
+                        <OptimizedImage source={mainPhotoUrl} style={styles.modalPhoto} resizeMode="cover" showLoadingIndicator={false} />
+                      )
+                    ) : (
+                      <LinearGradient
+                        colors={['#6366f1', '#4f46e5', '#4338ca']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.modalPhotoPlaceholder}
                       >
-                        ✨
-                      </Animated.Text>
-                      <Animated.Text
-                        pointerEvents="none"
-                        style={[
-                          styles.modalPhotoSparkle2,
-                          {
-                            transform: [
-                              { translateX: sparkle2X },
-                              { translateY: sparkle2Y },
-                            ],
-                          },
-                        ]}
-                      >
-                        ✨
-                      </Animated.Text>
-                      <Animated.Text
-                        pointerEvents="none"
-                        style={[
-                          styles.modalPhotoSparkle3,
-                          {
-                            transform: [
-                              { translateX: sparkle3X },
-                              { translateY: sparkle3Y },
-                            ],
-                          },
-                        ]}
-                      >
-                        ✨
-                      </Animated.Text>
-                    </>
-                  )}
-                  </>
+                        <Text style={styles.modalPhotoPlaceholderText}>
+                          {otherUser.displayName.charAt(0).toUpperCase()}
+                        </Text>
+                      </LinearGradient>
+                    )}
+                    {canSwipePhotos && allPhotos.length > 1 ? (
+                      <Text style={styles.modalPhotoSwipeHint}>Tap edges to browse photos</Text>
+                    ) : null}
+                  </View>
                 )}
               </Animated.View>
             </View>
@@ -1658,32 +1234,23 @@ function MatchProfileModal({
                   { opacity: contentFade }
                 ]}
               >
-                <LinearGradient
-                  colors={['rgba(102, 126, 234, 0.15)', 'rgba(118, 75, 162, 0.15)', 'rgba(240, 147, 251, 0.15)']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.modalCompatibilityCard}
-                >
+                <View style={styles.modalCompatibilityCard}>
+                  <View style={styles.modalCompatibilityAccent} />
                   <View style={styles.modalCompatibilityHeader}>
-                    <Text style={styles.modalCompatibilityEmoji}>💫</Text>
+                    <Text style={styles.modalCompatibilityEmoji}>✦</Text>
                     <View style={styles.modalCompatibilityTitleContainer}>
-                      <Text style={styles.modalCompatibilityTitle}>You Both Love</Text>
+                      <Text style={styles.modalCompatibilityEyebrow}>In common</Text>
+                      <Text style={styles.modalCompatibilityTitle}>You both like</Text>
                       <Text style={styles.modalCompatibilitySubtitle}>
-                        {commonInterests.length} {commonInterests.length === 1 ? 'interest' : 'interests'} in common
+                        {commonInterests.length} {commonInterests.length === 1 ? 'interest' : 'interests'} overlap
                       </Text>
                     </View>
                   </View>
                   <View style={styles.modalCompatibilityTags}>
                     {commonInterests.slice(0, 6).map((interest, idx) => (
-                      <LinearGradient
-                        key={idx}
-                        colors={['#667eea', '#764ba2']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.modalCompatibilityTag}
-                      >
+                      <View key={idx} style={styles.modalCompatibilityTag}>
                         <Text style={styles.modalCompatibilityTagText}>{interest}</Text>
-                      </LinearGradient>
+                      </View>
                     ))}
                     {commonInterests.length > 6 && (
                       <View style={styles.modalCompatibilityMore}>
@@ -1693,7 +1260,7 @@ function MatchProfileModal({
                       </View>
                     )}
                   </View>
-                </LinearGradient>
+                </View>
               </Animated.View>
             ) : currentUserInterests.length > 0 && matchInterests.length > 0 ? (
               // Show a subtle message if interests exist but none are common
@@ -1711,7 +1278,7 @@ function MatchProfileModal({
               </Animated.View>
             ) : null}
             
-            {/* Basic Info with gradient cards */}
+            {/* Basic info — calm stat chips */}
             <Animated.View 
               style={[
                 styles.modalInfoSection,
@@ -1720,55 +1287,32 @@ function MatchProfileModal({
             >
               <Text style={styles.modalName}>{otherUser.displayName}</Text>
               <View style={styles.modalBasicInfo}>
-                <LinearGradient
-                  colors={['#667eea', '#764ba2']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.modalInfoCardGradient}
-                >
-                  <Text style={styles.modalInfoCardEmoji}>🎂</Text>
-                  <Text style={styles.modalInfoLabel}>Age</Text>
-                  <Text style={styles.modalInfoValue}>{otherUser.age}</Text>
-                </LinearGradient>
-                <LinearGradient
-                  colors={['#f093fb', '#f5576c']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.modalInfoCardGradient}
-                >
-                  <Text style={styles.modalInfoCardEmoji}>⚧️</Text>
-                  <Text style={styles.modalInfoLabel}>Gender</Text>
-                  <Text style={styles.modalInfoValue}>{otherUser.gender}</Text>
-                </LinearGradient>
+                <View style={styles.modalInfoStatCard}>
+                  <Text style={styles.modalInfoStatEmoji}>🎂</Text>
+                  <Text style={styles.modalInfoStatLabel}>Age</Text>
+                  <Text style={styles.modalInfoStatValue}>{otherUser.age}</Text>
+                </View>
+                <View style={styles.modalInfoStatCard}>
+                  <Text style={styles.modalInfoStatEmoji}>⚧️</Text>
+                  <Text style={styles.modalInfoStatLabel}>Gender</Text>
+                  <Text style={styles.modalInfoStatValue} numberOfLines={2}>{otherUser.gender}</Text>
+                </View>
               </View>
               
               {otherUser.location && (
-                <LinearGradient
-                  colors={['#4facfe', '#00f2fe']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={[styles.modalInfoCardFullGradient, { marginTop: 10, marginBottom: 0 }]}
-                >
-                  <Text style={styles.modalInfoCardEmoji}>📍</Text>
-                  <Text style={styles.modalInfoLabel}>Location</Text>
-                  <Text style={styles.modalInfoValueFull}>{otherUser.location}</Text>
-                </LinearGradient>
+                <View style={[styles.modalInfoLocationCard, { marginTop: 10, marginBottom: 0 }]}>
+                  <Text style={styles.modalInfoStatEmoji}>📍</Text>
+                  <Text style={styles.modalInfoStatLabel}>Location</Text>
+                  <Text style={styles.modalInfoLocationValue}>{otherUser.location}</Text>
+                </View>
               )}
 
               {otherUser.bio && (
-                <View style={[styles.modalBioCard, { marginTop: 10 }]}>
-                  <LinearGradient
-                    colors={['rgba(102, 126, 234, 0.1)', 'rgba(118, 75, 162, 0.1)']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.modalBioGradient}
-                  >
-                    <View style={styles.modalBioHeader}>
-                      <Text style={styles.modalBioIcon}>💬</Text>
-                      <Text style={styles.modalBioLabel}>About</Text>
-                    </View>
+                <View style={[styles.modalBioCard, { marginTop: 14 }]}>
+                  <View style={styles.modalBioInner}>
+                    <Text style={styles.modalBioEyebrow}>About</Text>
                     <Text style={styles.modalBio}>{otherUser.bio}</Text>
-                  </LinearGradient>
+                  </View>
                 </View>
               )}
 
@@ -1783,7 +1327,7 @@ function MatchProfileModal({
                 ]}
               >
                 <View style={styles.modalSectionHeader}>
-                  <Text style={styles.modalSectionEmoji}>📸</Text>
+                  <Text style={styles.modalSectionEyebrow}>Gallery</Text>
                   <Text style={styles.modalSectionTitle}>Photos</Text>
                 </View>
                 <ScrollView 
@@ -1841,18 +1385,14 @@ function MatchProfileModal({
                 ]}
               >
                 <View style={styles.modalSectionHeader}>
-                  <Text style={styles.modalSectionEmoji}>🎯</Text>
+                  <Text style={styles.modalSectionEyebrow}>Their world</Text>
                   <Text style={styles.modalSectionTitle}>Interests</Text>
                 </View>
                 <View style={styles.modalTagsContainer}>
                   {otherUser.interests.map((interest, idx) => (
-                    <LinearGradient
-                      key={idx}
-                      colors={['#fff', '#f8f9ff']}
-                      style={styles.modalTagGradient}
-                    >
-                      <Text style={styles.modalTagText}>{interest}</Text>
-                    </LinearGradient>
+                    <View key={idx} style={styles.modalTagPill}>
+                      <Text style={styles.modalTagPillText}>{interest}</Text>
+                    </View>
                   ))}
                 </View>
               </Animated.View>
@@ -1867,18 +1407,14 @@ function MatchProfileModal({
                 ]}
               >
                 <View style={styles.modalSectionHeader}>
-                  <Text style={styles.modalSectionEmoji}>💎</Text>
+                  <Text style={styles.modalSectionEyebrow}>What they care about</Text>
                   <Text style={styles.modalSectionTitle}>Values</Text>
                 </View>
                 <View style={styles.modalTagsContainer}>
                   {otherUser.values.map((value, idx) => (
-                    <LinearGradient
-                      key={idx}
-                      colors={['#fff', '#f8f9ff']}
-                      style={styles.modalTagGradient}
-                    >
-                      <Text style={styles.modalTagText}>{value}</Text>
-                    </LinearGradient>
+                    <View key={idx} style={styles.modalTagPillMuted}>
+                      <Text style={styles.modalTagPillMutedText}>{value}</Text>
+                    </View>
                   ))}
                 </View>
               </Animated.View>
@@ -5676,133 +5212,168 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
   },
   modalContainer: {
     flex: 1,
-    marginTop: Platform.OS === 'ios' ? 50 : 20,
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
+    marginTop: Platform.OS === 'ios' ? 48 : 28,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     overflow: 'hidden',
-    backgroundColor: '#fff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 20,
+    backgroundColor: '#f8fafc',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    elevation: 24,
   },
   modalScrollView: {
     flex: 1,
   },
   modalContent: {
-    paddingBottom: 40,
+    paddingBottom: 44,
   },
   modalBlockButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    backgroundColor: 'rgba(80, 80, 80, 0.2)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(80, 80, 80, 0.5)',
+    paddingVertical: 14,
+    paddingHorizontal: 22,
+    borderRadius: 14,
+    backgroundColor: '#f1f5f9',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
   modalBlockButtonText: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#444',
+    color: '#334155',
   },
   modalReportButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    backgroundColor: 'rgba(220, 53, 69, 0.12)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(220, 53, 69, 0.4)',
+    paddingVertical: 14,
+    paddingHorizontal: 22,
+    borderRadius: 14,
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#fecaca',
   },
   modalReportButtonText: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#c82333',
+    color: '#b91c1c',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 24,
-    paddingTop: 20,
-    borderBottomWidth: 2,
-    borderBottomColor: '#f0f0f0',
+    alignItems: 'flex-start',
+    paddingHorizontal: 22,
+    paddingTop: 18,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(148, 163, 184, 0.25)',
     backgroundColor: '#fff',
   },
+  modalHeaderTitles: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  modalTitleEyebrow: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748b',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
   modalTitle: {
-    fontSize: 32,
-    fontWeight: '900',
-    color: '#1a1a1a',
-    letterSpacing: -0.5,
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#0f172a',
+    letterSpacing: -0.6,
   },
   modalCloseButton: {
     borderRadius: 22,
     overflow: 'hidden',
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
   },
-  modalCloseButtonGradient: {
+  modalCloseButtonInner: {
     width: 44,
     height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#f1f5f9',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
   modalCloseText: {
-    fontSize: 20,
-    color: '#667eea',
-    fontWeight: '900',
+    fontSize: 18,
+    color: '#475569',
+    fontWeight: '600',
   },
   modalPhotoContainer: {
     alignItems: 'center',
-    marginTop: 32,
-    marginBottom: 24,
+    marginTop: 28,
+    marginBottom: 8,
   },
   modalCompatibilitySection: {
-    paddingHorizontal: 24,
-    marginBottom: 24,
+    paddingHorizontal: 22,
+    marginBottom: 20,
   },
   modalCompatibilityCard: {
-    borderRadius: 24,
-    padding: 20,
-    borderWidth: 2.5,
-    borderColor: 'rgba(102, 126, 234, 0.3)',
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 8,
+    borderRadius: 20,
+    padding: 18,
+    paddingLeft: 20,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: 'rgba(226, 232, 240, 0.9)',
+    shadowColor: '#6366f1',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    elevation: 4,
+    overflow: 'hidden',
+  },
+  modalCompatibilityAccent: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 4,
+    backgroundColor: '#6366f1',
+    borderTopLeftRadius: 20,
+    borderBottomLeftRadius: 20,
   },
   modalCompatibilityHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
+    alignItems: 'flex-start',
+    marginBottom: 14,
   },
   modalCompatibilityEmoji: {
-    fontSize: 32,
+    fontSize: 20,
     marginRight: 12,
+    marginTop: 2,
+    color: '#6366f1',
   },
   modalCompatibilityTitleContainer: {
     flex: 1,
   },
+  modalCompatibilityEyebrow: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#94a3b8',
+    letterSpacing: 1.8,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
   modalCompatibilityTitle: {
     fontSize: 20,
-    fontWeight: '900',
-    color: '#1a1a1a',
-    letterSpacing: -0.3,
+    fontWeight: '800',
+    color: '#0f172a',
+    letterSpacing: -0.4,
     marginBottom: 4,
   },
   modalCompatibilitySubtitle: {
     fontSize: 14,
-    color: '#667eea',
-    fontWeight: '700',
-    letterSpacing: 0.3,
+    color: '#64748b',
+    fontWeight: '600',
+    letterSpacing: 0.1,
   },
   modalCompatibilityTags: {
     flexDirection: 'row',
@@ -5810,55 +5381,42 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   modalCompatibilityTag: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    marginRight: 8,
-    marginBottom: 8,
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 6,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: '#eef2ff',
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.2)',
   },
   modalCompatibilityTagText: {
     fontSize: 14,
-    color: '#fff',
-    fontWeight: '700',
-    letterSpacing: 0.2,
-    textShadowColor: 'rgba(0, 0, 0, 0.2)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    color: '#3730a3',
+    fontWeight: '600',
   },
   modalCompatibilityMore: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    backgroundColor: 'rgba(102, 126, 234, 0.1)',
-    borderWidth: 2,
-    borderColor: 'rgba(102, 126, 234, 0.3)',
-    marginRight: 8,
-    marginBottom: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: '#f1f5f9',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
   modalCompatibilityMoreText: {
-    fontSize: 14,
-    color: '#667eea',
-    fontWeight: '700',
-    letterSpacing: 0.2,
+    fontSize: 13,
+    color: '#64748b',
+    fontWeight: '600',
   },
   modalCompatibilityEmptyCard: {
-    borderRadius: 24,
-    padding: 20,
-    backgroundColor: 'rgba(102, 126, 234, 0.08)',
-    borderWidth: 2,
-    borderColor: 'rgba(102, 126, 234, 0.2)',
+    borderRadius: 20,
+    padding: 18,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
     alignItems: 'center',
   },
   modalCompatibilityEmptyText: {
     fontSize: 15,
-    color: '#667eea',
+    color: '#475569',
     fontWeight: '600',
     textAlign: 'center',
     lineHeight: 22,
@@ -5867,350 +5425,278 @@ const styles = StyleSheet.create({
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
-    width: 200,
-    height: 200,
+    width: 244,
+    height: 244,
   },
-  modalPhotoOrb: {
+  modalPhotoFrameRing: {
     position: 'absolute',
-    width: 280,
-    height: 280,
-    borderRadius: 140,
-    backgroundColor: '#667eea',
-    top: -40,
-    left: -40,
-    zIndex: 0,
+    width: 244,
+    height: 244,
+    borderRadius: 122,
+    top: 0,
+    left: 0,
   },
-  modalPhotoRing1: {
-    position: 'absolute',
+  modalPhotoInnerClip: {
+    width: 220,
+    minHeight: 220,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+  modalPhoto: {
     width: 220,
     height: 220,
     borderRadius: 110,
     borderWidth: 4,
-    borderColor: '#667eea',
-    top: -10,
-    left: -10,
-    zIndex: 1,
-  },
-  modalPhotoRing2: {
-    position: 'absolute',
-    width: 240,
-    height: 240,
-    borderRadius: 120,
-    borderWidth: 3,
-    borderColor: '#764ba2',
-    borderStyle: 'dashed',
-    top: -15,
-    left: -15,
-    zIndex: 1,
-  },
-  modalPhotoRing3: {
-    position: 'absolute',
-    width: 260,
-    height: 260,
-    borderRadius: 130,
-    borderWidth: 2.5,
-    borderColor: '#f093fb',
-    borderStyle: 'dotted',
-    top: -20,
-    left: -20,
-    zIndex: 1,
-  },
-  modalPhoto: {
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    borderWidth: 8,
     borderColor: '#fff',
-    shadowColor: '#667eea',
+    backgroundColor: '#e2e8f0',
+    shadowColor: '#0f172a',
     shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.5,
+    shadowOpacity: 0.15,
     shadowRadius: 24,
-    elevation: 16,
+    elevation: 12,
     zIndex: 3,
   },
   modalPhotoSwipeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    height: 200,
+    height: 220,
   },
   modalPhotoSwipeSide: {
-    width: 56,
-    height: 200,
+    width: 52,
+    height: 220,
   },
   modalPhotoSwipeCenter: {
-    width: 200,
-    height: 200,
+    width: 220,
+    height: 220,
   },
   modalPhotoTouchable: {
-    width: 200,
-    height: 200,
+    width: 220,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     zIndex: 10,
     elevation: 10,
   },
+  modalPhotoTapHint: {
+    marginTop: 12,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748b',
+    letterSpacing: 0.4,
+  },
+  modalPhotoSwipeHint: {
+    marginTop: 10,
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748b',
+    textAlign: 'center',
+  },
   modalPhotoPlaceholder: {
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 8,
-    borderColor: '#fff',
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.5,
-    shadowRadius: 24,
-    elevation: 16,
-    zIndex: 3,
-  },
-  modalPhotoPlaceholderText: {
-    fontSize: 60,
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  modalPhotoGlow: {
-    position: 'absolute',
     width: 220,
     height: 220,
     borderRadius: 110,
-    backgroundColor: '#667eea',
-    top: -10,
-    left: -10,
-    zIndex: 1,
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 40,
-    elevation: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 4,
+    borderColor: '#fff',
+    shadowColor: '#312e81',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 10,
+    zIndex: 3,
   },
-  modalPhotoSparkle1: {
-    position: 'absolute',
-    top: -5,
-    right: 20,
-    zIndex: 10,
-    fontSize: 28,
-    textShadowColor: '#667eea',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 15,
-    fontWeight: 'bold',
-  },
-  modalPhotoSparkle2: {
-    position: 'absolute',
-    bottom: 10,
-    left: -5,
-    zIndex: 10,
-    fontSize: 26,
-    textShadowColor: '#f093fb',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 15,
-    fontWeight: 'bold',
-  },
-  modalPhotoSparkle3: {
-    position: 'absolute',
-    top: 30,
-    left: -10,
-    zIndex: 10,
-    fontSize: 24,
-    textShadowColor: '#4facfe',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 15,
-    fontWeight: 'bold',
+  modalPhotoPlaceholderText: {
+    fontSize: 56,
+    color: '#fff',
+    fontWeight: '700',
   },
   modalInfoSection: {
-    paddingHorizontal: 24,
-    marginBottom: 24,
+    paddingHorizontal: 22,
+    marginBottom: 20,
   },
   modalName: {
-    fontSize: 40,
-    fontWeight: '900',
-    color: '#1a1a1a',
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#0f172a',
     textAlign: 'center',
-    marginBottom: 32,
-    letterSpacing: -0.8,
-    textShadowColor: 'rgba(102, 126, 234, 0.2)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 8,
+    marginBottom: 18,
+    letterSpacing: -0.6,
   },
   modalBasicInfo: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 12,
     gap: 12,
   },
-  modalInfoCardGradient: {
+  modalInfoStatCard: {
     flex: 1,
-    paddingVertical: 22,
-    paddingHorizontal: 16,
-    borderRadius: 24,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 120,
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 20,
-    elevation: 12,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    minHeight: 108,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 2,
   },
-  modalInfoCardEmoji: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-  modalInfoCardFullGradient: {
-    width: '100%',
-    paddingVertical: 24,
-    paddingHorizontal: 20,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-    minHeight: 100,
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 20,
-    elevation: 12,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  modalInfoLabel: {
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.9)',
+  modalInfoStatEmoji: {
+    fontSize: 22,
     marginBottom: 6,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-    letterSpacing: 1.5,
   },
-  modalInfoValue: {
-    fontSize: 28,
-    color: '#fff',
-    fontWeight: '900',
-    letterSpacing: -0.5,
-    textShadowColor: 'rgba(0, 0, 0, 0.2)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-  },
-  modalInfoValueFull: {
-    fontSize: 20,
-    color: '#fff',
-    fontWeight: '800',
-    textAlign: 'center',
-    marginTop: 4,
-    textShadowColor: 'rgba(0, 0, 0, 0.2)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-    paddingHorizontal: 8,
-  },
-  modalBioCard: {
-    marginTop: 24,
-    width: '100%',
-  },
-  modalBioGradient: {
-    paddingHorizontal: 24,
-    paddingVertical: 24,
-    borderRadius: 24,
-    borderWidth: 2.5,
-    borderColor: 'rgba(102, 126, 234, 0.3)',
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  modalBioHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  modalBioIcon: {
-    fontSize: 24,
-    marginRight: 8,
-  },
-  modalBioLabel: {
-    fontSize: 16,
-    color: '#667eea',
+  modalInfoStatLabel: {
+    fontSize: 10,
+    color: '#64748b',
+    marginBottom: 4,
     fontWeight: '800',
     textTransform: 'uppercase',
     letterSpacing: 1.2,
   },
-  modalBio: {
-    fontSize: 18,
-    color: '#1a1a1a',
-    lineHeight: 28,
+  modalInfoStatValue: {
+    fontSize: 22,
+    color: '#0f172a',
+    fontWeight: '800',
+    letterSpacing: -0.3,
     textAlign: 'center',
-    fontWeight: '600',
-    letterSpacing: 0.2,
+  },
+  modalInfoLocationCard: {
+    width: '100%',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  modalInfoLocationValue: {
+    fontSize: 16,
+    color: '#0f172a',
+    fontWeight: '700',
+    textAlign: 'center',
+    marginTop: 4,
+    lineHeight: 22,
+    paddingHorizontal: 4,
+  },
+  modalBioCard: {
+    marginTop: 8,
+    width: '100%',
+  },
+  modalBioInner: {
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    borderRadius: 18,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 14,
+    elevation: 2,
+  },
+  modalBioEyebrow: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#6366f1',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    marginBottom: 10,
+  },
+  modalBio: {
+    fontSize: 16,
+    color: '#334155',
+    lineHeight: 24,
+    textAlign: 'left',
+    fontWeight: '500',
+    letterSpacing: 0.1,
   },
   modalSection: {
-    paddingHorizontal: 24,
-    marginBottom: 28,
+    paddingHorizontal: 22,
+    marginBottom: 24,
   },
   modalSectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 18,
+    marginBottom: 12,
   },
-  modalSectionEmoji: {
-    fontSize: 24,
-    marginRight: 10,
+  modalSectionEyebrow: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#94a3b8',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    marginBottom: 4,
   },
   modalSectionTitle: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: '#1a1a1a',
-    letterSpacing: -0.5,
-    textShadowColor: 'rgba(102, 126, 234, 0.2)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 8,
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#0f172a',
+    letterSpacing: -0.4,
   },
   modalPhotosScroll: {
-    marginHorizontal: -24,
+    marginHorizontal: -22,
   },
   modalPhotosContainer: {
-    paddingHorizontal: 24,
+    paddingHorizontal: 22,
     gap: 12,
   },
   modalPhotoThumbnail: {
-    width: 140,
-    height: 140,
-    borderRadius: 24,
-    borderWidth: 4,
+    width: 132,
+    height: 132,
+    borderRadius: 18,
+    borderWidth: 2,
     borderColor: '#fff',
-    shadowColor: '#667eea',
+    backgroundColor: '#e2e8f0',
+    shadowColor: '#0f172a',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 10,
+    shadowOpacity: 0.1,
+    shadowRadius: 14,
+    elevation: 6,
     marginRight: 12,
   },
   modalTagsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: 8,
   },
-  modalTagGradient: {
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    borderRadius: 24,
-    borderWidth: 2.5,
-    borderColor: '#667eea',
-    marginRight: 8,
-    marginBottom: 8,
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 6,
+  modalTagPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 999,
+    backgroundColor: '#eef2ff',
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.22)',
   },
-  modalTagText: {
-    fontSize: 15,
-    color: '#667eea',
-    fontWeight: '700',
-    letterSpacing: 0.2,
+  modalTagPillText: {
+    fontSize: 14,
+    color: '#4338ca',
+    fontWeight: '600',
+  },
+  modalTagPillMuted: {
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 999,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  modalTagPillMutedText: {
+    fontSize: 14,
+    color: '#475569',
+    fontWeight: '600',
   },
   reportOverlay: {
     flex: 1,
