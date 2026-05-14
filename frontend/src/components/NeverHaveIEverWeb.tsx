@@ -186,16 +186,16 @@ export default function NeverHaveIEverWeb({
   const gameResultTitle = (() => {
     if (!state) return "";
     if (state.winner === "you") return "You won";
-    if (state.winner === "them") return "You lost";
+    if (state.winner === "them") return "You're pretty freaky";
     if (state.theirPoints >= 10 && state.yourPoints < 10) return "You won";
-    if (state.yourPoints >= 10 && state.theirPoints < 10) return "You lost";
+    if (state.yourPoints >= 10 && state.theirPoints < 10) return "You're pretty freaky";
     if (state.yourPoints >= 10 && state.theirPoints >= 10) return "Game over";
     return "Game over";
   })();
   const gameResultCopy = (() => {
     if (!state) return "";
     if (gameResultTitle === "You won") return `They hit 10 points first. You: ${state.yourPoints} · Them: ${state.theirPoints}`;
-    if (gameResultTitle === "You lost") return `You hit 10 points first. You: ${state.yourPoints} · Them: ${state.theirPoints}`;
+    if (gameResultTitle === "You're pretty freaky") return `You hit 10 points first. You: ${state.yourPoints} · Them: ${state.theirPoints}`;
     return `First to 10 points loses. You: ${state.yourPoints} · Them: ${state.theirPoints}`;
   })();
 
