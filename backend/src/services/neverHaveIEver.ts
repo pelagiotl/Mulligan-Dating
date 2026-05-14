@@ -30,7 +30,6 @@ function moreConservative(a: SpiceLevel, b: SpiceLevel): SpiceLevel {
 const FALLBACK_PROMPTS = [
   'kissed on a first date',
   'gone on a blind date',
-  'had a summer fling',
   'stayed friends with an ex',
   'fallen for someone\'s smile before their personality',
   'sent a risky text and regretted it',
@@ -52,12 +51,24 @@ const FALLBACK_PROMPTS = [
   'been caught checking someone out',
   'had a secret admirer',
   'sent a voice note to a match before meeting',
-  'slept in past noon on a weekend',
-  'eaten pizza for breakfast',
-  'cried at a rom-com',
-  'danced alone in my room',
-  'sung karaoke',
-  'binge-watched a show in one day',
+  'overthought a simple text for way too long',
+  'kept a screenshot of a message that made me smile',
+  'muted someone instead of ending things directly',
+  'changed my mind about someone after one good conversation',
+  'ignored a red flag because the chemistry was too good',
+  'had a crush on someone I barely knew',
+  'waited to reply so I seemed less interested',
+  'sent a message and immediately wanted to unsend it',
+  'felt nervous before meeting someone I actually liked',
+  'been surprised by who I ended up attracted to',
+  'pretended to be cooler than I felt',
+  'kept talking to someone because the banter was too good',
+  'wanted a second chance with someone I fumbled',
+  'had my standards change after one bad connection',
+  'realized I liked someone during a normal conversation',
+  'had a first impression be completely wrong',
+  'noticed someone because of their confidence',
+  'wanted someone to text first but refused to say it',
 ];
 
 const FALLBACK_PROMPTS_R = [
@@ -78,7 +89,6 @@ const FALLBACK_PROMPTS_R = [
   'dated someone much older or younger',
   'been caught in a lie by a partner',
   'broken up with someone over text',
-  'had a fling while on vacation',
   'slept with an ex',
   'dated someone my friends hated',
   'had a secret relationship',
@@ -91,6 +101,22 @@ const FALLBACK_PROMPTS_R = [
   'been ghosted after sleeping together',
   'ghosted someone after sleeping together',
   'had a romantic moment with a stranger',
+  'sent a message I knew was too bold',
+  'liked someone more because they were hard to read',
+  'kept a casual thing going longer than I should have',
+  'used jealousy to figure out how I really felt',
+  'said I was fine when I absolutely was not',
+  'wanted someone unavailable',
+  'kept someone around because the attention felt good',
+  'flirted with someone I knew was trouble',
+  'changed my outfit just to get a reaction',
+  'said less than I felt to keep the upper hand',
+  'checked someone\'s social media before replying',
+  'ended something because the chemistry was stronger than the compatibility',
+  'wanted to be chosen but acted unbothered',
+  'sent a voice note because texting felt too flat',
+  'stayed in a situationship because it was exciting',
+  'confused attention for actual interest',
 ];
 
 // Spicy — boldest level, most provocative (app-store safe)
@@ -103,7 +129,6 @@ const FALLBACK_PROMPTS_SPICY = [
   'made out with a stranger',
   'reconnected with an ex for one night',
   'been the other person',
-  'had a fling while on vacation',
   'slept over at a crush\'s place the first time we hung out',
   'had a workplace romance',
   'kissed someone to make someone else jealous',
@@ -126,16 +151,58 @@ const FALLBACK_PROMPTS_SPICY = [
   'had a one-sided crush for years',
   'been caught in a lie by a partner',
   'broken up with someone over text',
+  'sent a text I would not want my friends to read',
+  'wanted someone more after they pulled away',
+  'used a harmless excuse to keep a conversation going',
+  'had chemistry with someone who was clearly wrong for me',
+  'kept a secret crush longer than I should have',
+  'said something bold just to see what would happen',
+  'wanted to kiss someone before I fully trusted them',
+  'had a situationship I should have ended sooner',
+  'missed someone I knew was bad for me',
+  'made the first move and pretended it was casual',
+  'liked being chased more than I expected',
+  'sent a late-night message I meant more than I admitted',
+  'wanted someone to be jealous',
+  'had a crush that was mostly tension',
+  'let chemistry override common sense',
+  'wanted to know if someone thought about me later',
 ];
 
 function pickRandom<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+const BANNED_THEME_RE =
+  /\b(concert|concerts|festival|festivals|gig|gigs|band|bands|playlist|playlists|karaoke|song|songs|music scene|live music|travel|travels|traveled|travelling|traveling|trip|trips|vacation|vacations|airport|airports|flight|flights|road trip|roadtrip|hotel|resort|sports game|game day|stadium)\b/i;
+
+const NHIE_PROMPT_ANGLES = [
+  'texting habits and overthinking',
+  'emotional availability and mixed signals',
+  'confidence, ego, and attraction',
+  'red flags people ignored because of chemistry',
+  'situationships and unclear boundaries',
+  'first impressions and surprising attraction',
+  'jealousy, attention, and wanting to be chosen',
+  'late-night honesty and risky messages',
+  'standards, dealbreakers, and self-respect',
+  'exes, closure, and unfinished business',
+  'physical chemistry without graphic detail',
+  'vulnerability people try to hide',
+  'being pursued versus doing the pursuing',
+  'dating-app behavior and profile assumptions',
+  'small moments that created tension',
+  'adult flirting that stayed just barely subtle',
+];
+
 function fallbackPromptsForLevel(spiceLevel: SpiceLevel): string[] {
-  if (spiceLevel === 'spicy') return FALLBACK_PROMPTS_SPICY;
-  if (spiceLevel === 'ratedr') return FALLBACK_PROMPTS_R;
-  return FALLBACK_PROMPTS;
+  const prompts =
+    spiceLevel === 'spicy'
+      ? FALLBACK_PROMPTS_SPICY
+      : spiceLevel === 'ratedr'
+      ? FALLBACK_PROMPTS_R
+      : FALLBACK_PROMPTS;
+  return prompts.filter((prompt) => !hasBannedTheme(prompt));
 }
 
 function normalizePromptForCompare(prompt: string | null | undefined): string {
@@ -144,6 +211,10 @@ function normalizePromptForCompare(prompt: string | null | undefined): string {
     .replace(/^never\s+have\s+i\s+ever\s+/i, '')
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
+}
+
+function hasBannedTheme(prompt: string | null | undefined): boolean {
+  return BANNED_THEME_RE.test(String(prompt || ''));
 }
 
 export async function generateNeverHaveIEverPrompt(matchId: string, spiceLevel: SpiceLevel = 'pg13'): Promise<string> {
@@ -170,11 +241,11 @@ export async function generateNeverHaveIEverPrompt(matchId: string, spiceLevel: 
     }
 
     const interestsContext = sharedInterests.length > 0
-      ? ` They have shared interests: ${sharedInterests.slice(0, 5).join(', ')}.`
+      ? ` Shared interests are background only: ${sharedInterests.slice(0, 5).join(', ')}. Do not build the prompt around hobbies, concerts, music events, sports, travel, or vacations even if those interests are listed.`
       : '';
 
     const spiceInstruction = isSpicy
-      ? 'SPICY: The BOLDEST level. Hookups, one-night stands, risky texts, sleeping with someone on first date, friends-with-benefits, secret relationships, exes, vacation flings. Provocative but tasteful. No explicit sexual content. App-store safe.'
+      ? 'SPICY: The BOLDEST level. Hookups, one-night stands, risky texts, sleeping with someone on first date, friends-with-benefits, secret relationships, exes, jealousy, situationships, and desire. Provocative but tasteful. No explicit sexual content. App-store safe.'
       : isR
       ? 'RATED R: Bolder, more suggestive. Can touch on hookups, one-night stands, exes, risqué situations, physical attraction, secrets. Still tasteful and app-store safe — no explicit sexual content.'
       : 'PG-13: Fun, relatable, dating/romance/life themed. Light and playful. Dating-appropriate.';
@@ -182,16 +253,39 @@ export async function generateNeverHaveIEverPrompt(matchId: string, spiceLevel: 
     const { default: OpenAI } = await import('openai');
     const openai = new OpenAI({ apiKey: openaiApiKey });
 
+    const creativeAngle = pickRandom(NHIE_PROMPT_ANGLES);
+
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         {
           role: 'system',
-          content: `You generate "Never have I ever" prompts for a dating app game. Output ONLY the activity part (the thing after "Never have I ever"), NOT the full phrase. 3-8 words. ${spiceInstruction} Be creative and varied — we want a plethora of different prompts, not a fixed list. Examples for PG-13: "kissed on a first date", "had a crush on a friend". Examples for R: "had a one-night stand", "slept with an ex". Examples for SPICY: "hooked up with someone I just met", "sent a risky text or pic", "slept with someone on the first date", "had a friends-with-benefits situation". Output ONLY the activity, nothing else.`,
+          content: `You generate "Never have I ever" prompts for a dating app game for adults. Output ONLY the activity part (the thing after "Never have I ever"), NOT the full phrase. 4-10 words. ${spiceInstruction}
+
+Be mature, cool, varied, and psychologically interesting. Center adult dating behavior, attraction, texting, vulnerability, boundaries, mixed signals, chemistry, jealousy, ego, confidence, exes, situationships, risk, and self-awareness.
+
+Hard bans: no concerts, festivals, bands, songs, playlists, karaoke, music scenes, travel, trips, vacations, airports, hotels, road trips, sports games, stadiums, or public-event prompts.
+
+Do not make prompts about hobbies or outings. Make them about choices, feelings, tension, habits, boundaries, and dating behavior.
+
+Examples of the tone:
+- "overthought a simple text"
+- "ignored a red flag for chemistry"
+- "wanted someone unavailable"
+- "sent a message that felt too honest"
+- "kept a situationship going too long"
+
+Output ONLY the activity, nothing else.`,
         },
         {
           role: 'user',
-          content: `Generate one unique "Never have I ever" activity for two people playing on a dating app. Spice: ${spiceLevel.toUpperCase()}. Be fresh and unexpected.${interestsContext} Return ONLY the activity (3-8 words):`,
+          content: `Generate one unique "Never have I ever" activity for two adults playing on a dating app.
+
+Spice: ${spiceLevel.toUpperCase()}.
+Creative angle: ${creativeAngle}.
+${interestsContext}
+
+Avoid any concert/music/travel/vacation/sports/public-event theme. Return ONLY the activity (4-10 words):`,
         },
       ],
       temperature: 1.0,
@@ -202,7 +296,7 @@ export async function generateNeverHaveIEverPrompt(matchId: string, spiceLevel: 
     if (content && content.length > 2 && content.length < 80) {
       const badStarts = ['I ', 'Sorry', 'Never have I ever', 'Never have I'];
       const isBad = badStarts.some((s) => content.toLowerCase().startsWith(s.toLowerCase()));
-      if (!isBad) {
+      if (!isBad && !hasBannedTheme(content)) {
         const activity = content.replace(/^["']|["']$/g, '').trim();
         return `Never have I ever ${activity}`;
       }
