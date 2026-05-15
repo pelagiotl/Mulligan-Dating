@@ -1338,10 +1338,10 @@ export default function Matches() {
     }
   };
 
-  /** Send a fixed string (e.g. Truth or Dare prompt) without using the message input field. */
-  const sendChatText = async (messageContent: string) => {
+  /** Send a fixed string (e.g. Truth or Dare prompt) without using the message input field. Returns whether send succeeded. */
+  const sendChatText = async (messageContent: string): Promise<boolean> => {
     const trimmed = messageContent.trim();
-    if (!trimmed || !selectedMatch || sendingMessage) return;
+    if (!trimmed || !selectedMatch || sendingMessage) return false;
     const matchId = selectedMatch.id;
     const snap = selectedMatch;
     stopTypingForSend(matchId);
@@ -1353,6 +1353,7 @@ export default function Matches() {
         stage?: string;
       }>(`/matches/${matchId}/messages`, { content: trimmed });
       onMessageSentSuccess(data, matchId, snap);
+      return true;
     } catch (error) {
       console.error("Failed to send message:", error);
       const msg =
@@ -1362,6 +1363,7 @@ export default function Matches() {
             ? error.message
             : "Failed to send message. Please try again.";
       setNotification({ message: msg, type: "error" });
+      return false;
     } finally {
       setSendingMessage(false);
     }
@@ -2330,6 +2332,11 @@ export default function Matches() {
                     matchId={selectedMatch.id}
                     socket={socketRef.current}
                     onSendToChat={sendChatText}
+                    gameChatMessages={messages}
+                    currentUserId={user.id}
+                    sendingMessage={sendingMessage}
+                    partnerDisplayName={selectedMatch.otherUser.displayName}
+                    partnerIsTyping={typingUsers.has(selectedMatch.otherUser.userId)}
                     onBeforeUnlockPrompt={async () => {
                       const list = await fetchMatches();
                       const id = selectedMatchIdRef.current;

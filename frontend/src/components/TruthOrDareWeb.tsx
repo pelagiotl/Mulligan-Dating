@@ -165,7 +165,7 @@ function spiceLabel(id: SpiceId | null | undefined): string {
 type Props = {
   matchId: string;
   socket: Socket | null;
-  onSendToChat: (text: string) => Promise<void>;
+  onSendToChat: (text: string) => Promise<boolean | void>;
   onUnlockWithToken: () => Promise<void>;
   onBeforeUnlockPrompt: () => Promise<boolean>;
   openForAccept?: boolean;

@@ -33,7 +33,7 @@ type Props = {
   currentUserId: string;
   /** From match list `isInitiator`: current user is `matches.user1_id`. */
   isCurrentUserMatchUser1: boolean;
-  onInviteToChat: (text: string) => Promise<void>;
+  onInviteToChat: (text: string) => Promise<boolean | void>;
 };
 
 function planFromResponse(data: unknown): DatePlan | null {
