@@ -1679,6 +1679,16 @@ button.connect-landing__cta:disabled::before {
       radial-gradient(circle at 50% 50%, rgba(79, 172, 254, 0.08) 0%, transparent 55%);
     opacity: 0.85;
   }
+
+  /*
+   * Authenticated MainTabs shell: `main` paints `--native-gradient-screen` at all breakpoints.
+   * Disable Matches-only scrims (native-ui-parity + index.css particles) so midnight vs soft toggles show.
+   */
+  .app-layout--native-mobile-shell .matches-page.native-app-screen::before,
+  .app-layout--native-mobile-shell .matches-page.native-app-screen::after {
+    display: none !important;
+    animation: none !important;
+  }
 }
 
 .matches-page.native-app-screen .matches-sidebar {

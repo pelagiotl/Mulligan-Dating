@@ -21,6 +21,34 @@
   );
 }
 
+/**
+ * Matches / Profile / Settings / Admin (gradient slot): paint the full viewport from
+ * `--native-gradient-screen` at every breakpoint. Previously this lived only inside the
+ * max-width:900px block, so wider windows never picked up midnight vs soft shell tokens.
+ */
+.app-layout--native-mobile-shell .main-content[data-native-shell-bg="gradient"] {
+  background: transparent;
+  position: relative;
+}
+
+.app-layout--native-mobile-shell .main-content[data-native-shell-bg="gradient"]::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: var(--native-gradient-screen);
+  pointer-events: none;
+}
+
+.app-layout--native-mobile-shell .main-content[data-native-shell-bg="gradient"] > * {
+  position: relative;
+  z-index: 1;
+}
+
+body:has(.app-layout--native-mobile-shell):not(:has(.main-content[data-native-shell-bg="browse"])) {
+  background: var(--native-screen-bg);
+}
+
 @media (max-width: 900px) {
   .app-layout--native-mobile-shell .navbar-nav,
   .app-layout--native-mobile-shell .navbar-link.logout {
@@ -86,31 +114,8 @@
     min-height: 0;
   }
 
-  .app-layout--native-mobile-shell .main-content[data-native-shell-bg="gradient"] {
-    background: transparent;
-    position: relative;
-  }
-
-  .app-layout--native-mobile-shell .main-content[data-native-shell-bg="gradient"]::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    z-index: 0;
-    background: var(--native-gradient-screen);
-    pointer-events: none;
-  }
-
-  .app-layout--native-mobile-shell .main-content[data-native-shell-bg="gradient"] > * {
-    position: relative;
-    z-index: 1;
-  }
-
   .app-layout--native-mobile-shell .app-footer-global {
     display: none;
-  }
-
-  body:has(.app-layout--native-mobile-shell):not(:has(.main-content[data-native-shell-bg="browse"])) {
-    background: var(--native-screen-bg);
   }
 
   .app-bottom-tabs {
