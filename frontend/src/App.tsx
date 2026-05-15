@@ -210,6 +210,70 @@ function RequireConnectSetup({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+/** URL for `frontend/public/match-sound.wav` (same asset as mobile). */
+function matchSoundPublicUrl(): string {
+  const base = import.meta.env.BASE_URL.endsWith("/")
+    ? import.meta.env.BASE_URL
+    : `${import.meta.env.BASE_URL}/`;
+  return `${base}match-sound.wav`;
+}
+
+/** Web Audio fallback when WAV load/play fails (autoplay, etc.). */
+function playSyntheticMatchNotificationSound(audioContextRef: React.MutableRefObject<AudioContext | null>): void {
+  try {
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+    const audioContext = audioContextRef.current;
+    const duration = 0.6;
+    const sampleRate = audioContext.sampleRate;
+    const frameCount = sampleRate * duration;
+    const buffer = audioContext.createBuffer(1, frameCount, sampleRate);
+    const data = buffer.getChannelData(0);
+    const frequencies = [523.25, 659.25, 783.99];
+    for (let freq = 0; freq < frequencies.length; freq++) {
+      const frequency = frequencies[freq];
+      for (let i = 0; i < frameCount; i++) {
+        const t = i / sampleRate;
+        const delay = freq * 0.1;
+        const envelope = Math.exp(-t * 2) * (1 - Math.min(t / 0.3, 1));
+        const phase = 2 * Math.PI * frequency * Math.max(0, t - delay);
+        const wave =
+          Math.sin(phase) * 0.5 + Math.sin(phase * 2) * 0.3 + Math.sin(phase * 3) * 0.2;
+        if (t >= delay) {
+          data[i] += wave * envelope * 0.15;
+        }
+      }
+    }
+    const source = audioContext.createBufferSource();
+    const gainNode = audioContext.createGain();
+    source.buffer = buffer;
+    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
+    source.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    source.start();
+    source.stop(audioContext.currentTime + duration);
+  } catch (error) {
+    console.debug("Match notification sound not available");
+  }
+}
+
+function playNewMatchNotificationSound(audioContextRef: React.MutableRefObject<AudioContext | null>): void {
+  const audio = new Audio(matchSoundPublicUrl());
+  audio.volume = 0.45;
+  let fellBack = false;
+  const fallback = () => {
+    if (fellBack) return;
+    fellBack = true;
+    playSyntheticMatchNotificationSound(audioContextRef);
+  };
+  audio.addEventListener("error", fallback, { once: true });
+  void audio.play().catch(() => {
+    fallback();
+  });
+}
+
 /** Same layer as `.notification` (13000): above celebrations / browse UI, above navbar token modal (12000). */
 const GLOBAL_TOAST_Z = 13000;
 
@@ -222,59 +286,9 @@ function NewMatchesNotification() {
   const socketRef = useRef<Socket | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
 
-  // Play a subtle, pleasant match notification sound
   const playMatchSound = useCallback(() => {
-    try {
-      if (!audioContextRef.current) {
-        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-      }
-      const audioContext = audioContextRef.current;
-      const duration = 0.6; // Slightly longer for a more pleasant chime
-      const sampleRate = audioContext.sampleRate;
-      const frameCount = sampleRate * duration;
-      const buffer = audioContext.createBuffer(1, frameCount, sampleRate);
-      const data = buffer.getChannelData(0);
-
-      // Create a pleasant ascending chime (like a bell or crystal)
-      // Multiple frequencies to create a rich, harmonic sound
-      const frequencies = [523.25, 659.25, 783.99]; // C5, E5, G5 - a pleasant major chord
-      
-      for (let freq = 0; freq < frequencies.length; freq++) {
-        const frequency = frequencies[freq];
-        for (let i = 0; i < frameCount; i++) {
-          const t = i / sampleRate;
-          const delay = freq * 0.1; // Stagger the notes slightly
-          const envelope = Math.exp(-t * 2) * (1 - Math.min(t / 0.3, 1)); // Soft attack and decay
-          const phase = 2 * Math.PI * frequency * Math.max(0, t - delay);
-          
-          // Add harmonics for a richer sound
-          const wave = Math.sin(phase) * 0.5 + 
-                      Math.sin(phase * 2) * 0.3 + 
-                      Math.sin(phase * 3) * 0.2;
-          
-          if (t >= delay) {
-            data[i] += wave * envelope * 0.15; // Keep it subtle (0.15 volume)
-          }
-        }
-      }
-
-      const source = audioContext.createBufferSource();
-      const gainNode = audioContext.createGain();
-      
-      source.buffer = buffer;
-      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime); // Subtle volume
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
-      
-      source.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      
-      source.start();
-      source.stop(audioContext.currentTime + duration);
-    } catch (error) {
-      // Silently fail if audio context is not available
-      console.debug('Match notification sound not available');
-    }
-  }, [])
+    playNewMatchNotificationSound(audioContextRef);
+  }, []);
 
   useEffect(() => {
     if (!isAuthenticated || !user) return
