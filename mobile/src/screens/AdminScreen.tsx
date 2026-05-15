@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -19,7 +19,9 @@ import { Video, ResizeMode } from 'expo-av';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { api, API_URL } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
+import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
 import { AdminModerationAudio } from '../components/AdminModerationAudio';
+import { androidShellBackdropColors } from '../utils/androidConnectShellChrome';
 
 interface Stats {
   totalUsers: number;
@@ -90,6 +92,11 @@ export default function AdminScreen() {
   const navigation = useNavigation();
   const isFocused = useIsFocused();
   const { user } = useAuth();
+  const { mode: connectShellMode } = useConnectShellTheme();
+  const shellBackdropColors = useMemo(
+    () => androidShellBackdropColors(connectShellMode),
+    [connectShellMode]
+  );
   const [loading, setLoading] = useState(false);
   const [creatingUsers, setCreatingUsers] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -497,7 +504,7 @@ export default function AdminScreen() {
     return (
       <View style={styles.wrapper}>
         <LinearGradient
-          colors={['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe']}
+          colors={[...shellBackdropColors]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={StyleSheet.absoluteFill}
@@ -513,7 +520,7 @@ export default function AdminScreen() {
   return (
     <View style={styles.wrapper}>
       <LinearGradient
-        colors={['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe']}
+        colors={[...shellBackdropColors]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFill}

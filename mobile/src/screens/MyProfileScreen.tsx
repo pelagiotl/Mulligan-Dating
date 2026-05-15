@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -31,8 +31,10 @@ import { handleLocationChange, hasCityAndState } from '../utils/locationUtils';
 import { getPhotoUrl } from '../utils/photoUrl';
 import OptimizedImage from '../components/OptimizedImage';
 import { useAuth } from '../context/AuthContext';
+import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
 import LegalFooter from '../components/LegalFooter';
 import ConnectionQualityScore from '../components/ConnectionQualityScore';
+import { androidShellBackdropColors } from '../utils/androidConnectShellChrome';
 
 // Animated Emoji Component for section icons
 function AnimatedEmoji({ emoji, delay = 0 }: { emoji: string; delay?: number }) {
@@ -150,6 +152,11 @@ export default function MyProfileScreen() {
   const route = useRoute();
   const isFocused = useIsFocused();
   const { refreshProfile, user, loading: authLoading } = useAuth();
+  const { mode: connectShellMode } = useConnectShellTheme();
+  const shellBackdropColors = useMemo(
+    () => androidShellBackdropColors(connectShellMode),
+    [connectShellMode]
+  );
   const [data, setData] = useState<ProfileData | null>(null);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [settings, setSettings] = useState<SettingsData | null>(null);
@@ -1149,7 +1156,7 @@ export default function MyProfileScreen() {
     return (
       <View style={styles.loadingContainer}>
         <LinearGradient
-          colors={['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe']}
+          colors={[...shellBackdropColors]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={StyleSheet.absoluteFill}
@@ -1166,7 +1173,7 @@ export default function MyProfileScreen() {
     return (
       <GestureHandlerRootView style={styles.wrapper}>
         <LinearGradient
-          colors={['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe']}
+          colors={[...shellBackdropColors]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={StyleSheet.absoluteFill}
@@ -1253,7 +1260,7 @@ export default function MyProfileScreen() {
     <GestureHandlerRootView style={styles.wrapper}>
       {/* Beautiful gradient background */}
       <LinearGradient
-        colors={['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe']}
+        colors={[...shellBackdropColors]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFill}

@@ -12,6 +12,7 @@ import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { AuthProvider } from './src/context/AuthContext';
+import { ConnectShellThemeProvider } from './src/context/ConnectShellThemeContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import { initSentry, captureException, captureMessage } from './src/utils/sentry';
 import { safeClearTimeout } from './src/utils/safeTimers';
@@ -218,11 +219,13 @@ export default function App() {
   return (
     <View style={{ flex: 1, backgroundColor: '#f8f9ff' }}>
       <SafeAreaProvider>
-        <ErrorBoundary>
-          <AuthProvider>
-            <AppNavigator />
-          </AuthProvider>
-        </ErrorBoundary>
+        <ConnectShellThemeProvider>
+          <ErrorBoundary>
+            <AuthProvider>
+              <AppNavigator />
+            </AuthProvider>
+          </ErrorBoundary>
+        </ConnectShellThemeProvider>
       </SafeAreaProvider>
     </View>
   );

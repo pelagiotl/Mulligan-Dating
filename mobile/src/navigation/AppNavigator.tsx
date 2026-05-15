@@ -26,6 +26,7 @@ import PrivacyScreen from '../screens/PrivacyScreen';
 import PushNotificationSettingsScreen from '../screens/PushNotificationSettingsScreen';
 import BlockedUsersScreen from '../screens/BlockedUsersScreen';
 import { useAuth } from '../context/AuthContext';
+import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
 // Import navigation ref from separate file to avoid circular dependencies
 import { navigationRef, RootStackParamList } from './navigationRef';
 
@@ -55,9 +56,11 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 const TabIcon = React.memo(function TabIcon({
   children,
   focused,
+  shellMidnight,
 }: {
   children: React.ReactNode;
   focused: boolean;
+  shellMidnight?: boolean;
 }) {
   return (
     <View style={{ justifyContent: 'center', alignItems: 'center' }}>
@@ -66,13 +69,13 @@ const TabIcon = React.memo(function TabIcon({
         <View
           style={{
             position: 'absolute',
-            width: 44,
-            height: 44,
-            borderRadius: 22,
-            backgroundColor: 'rgba(139, 21, 56, 0.08)',
-            shadowColor: '#8B1538',
+            width: Platform.OS === 'android' ? 34 : 44,
+            height: Platform.OS === 'android' ? 34 : 44,
+            borderRadius: Platform.OS === 'android' ? 17 : 22,
+            backgroundColor: shellMidnight ? 'rgba(244, 114, 182, 0.14)' : 'rgba(139, 21, 56, 0.08)',
+            shadowColor: shellMidnight ? '#f472b6' : '#8B1538',
             shadowOffset: { width: 0, height: 1 },
-            shadowOpacity: 0.12,
+            shadowOpacity: shellMidnight ? 0.18 : 0.12,
             shadowRadius: 4,
             elevation: 2,
           }}
@@ -170,6 +173,8 @@ function MainTabs() {
   loadingRef.current = loading;
   const refs = React.useMemo<ProfileLoadingRefs>(() => ({ profileRef, loadingRef }), []);
   const insets = useSafeAreaInsets();
+  const { mode: connectShellMode } = useConnectShellTheme();
+  const androidShellMidnight = Platform.OS === 'android' && connectShellMode === 'midnight';
 
   // Stable tab bar button factory — same reference always so options are stable
   const createTabBarButton = React.useCallback((requiresProfile: boolean) => (buttonProps: any) => (
@@ -180,7 +185,7 @@ function MainTabs() {
   const browseTabOptions = React.useMemo(
     () => ({
       tabBarIcon: ({ focused }: { focused: boolean }) => (
-        <TabIcon focused={focused}>
+        <TabIcon focused={focused} shellMidnight={androidShellMidnight}>
           <View style={[styles.iconContainer, focused && styles.iconContainerActive]}>
             <Text style={styles.emojiIcon}>😍</Text>
           </View>
@@ -189,13 +194,13 @@ function MainTabs() {
       tabBarLabel: 'Connect',
       tabBarButton: createTabBarButton(true),
     }),
-    [createTabBarButton]
+    [createTabBarButton, androidShellMidnight]
   );
 
   const matchesTabOptions = React.useMemo(
     () => ({
       tabBarIcon: ({ focused }: { focused: boolean }) => (
-        <TabIcon focused={focused}>
+        <TabIcon focused={focused} shellMidnight={androidShellMidnight}>
           <View style={[styles.iconContainer, focused && styles.iconContainerActive]}>
             <Text style={styles.emojiIcon}>❤️</Text>
           </View>
@@ -204,13 +209,13 @@ function MainTabs() {
       tabBarLabel: 'Matches',
       tabBarButton: createTabBarButton(true),
     }),
-    [createTabBarButton]
+    [createTabBarButton, androidShellMidnight]
   );
 
   const profileTabOptions = React.useMemo(
     () => ({
       tabBarIcon: ({ focused }: { focused: boolean }) => (
-        <TabIcon focused={focused}>
+        <TabIcon focused={focused} shellMidnight={androidShellMidnight}>
           <View style={[styles.iconContainer, focused && styles.iconContainerActive]}>
             <Text style={styles.emojiIcon}>👤</Text>
           </View>
@@ -219,13 +224,13 @@ function MainTabs() {
       tabBarLabel: 'Profile',
       tabBarButton: createTabBarButton(false),
     }),
-    [createTabBarButton]
+    [createTabBarButton, androidShellMidnight]
   );
 
   const settingsTabOptions = React.useMemo(
     () => ({
       tabBarIcon: ({ focused }: { focused: boolean }) => (
-        <TabIcon focused={focused}>
+        <TabIcon focused={focused} shellMidnight={androidShellMidnight}>
           <View style={[styles.iconContainer, focused && styles.iconContainerActive]}>
             <Text style={styles.emojiIcon}>⚙️</Text>
           </View>
@@ -234,13 +239,13 @@ function MainTabs() {
       tabBarLabel: 'Settings',
       tabBarButton: createTabBarButton(false),
     }),
-    [createTabBarButton]
+    [createTabBarButton, androidShellMidnight]
   );
 
   const adminTabOptions = React.useMemo(
     () => ({
       tabBarIcon: ({ focused }: { focused: boolean }) => (
-        <TabIcon focused={focused}>
+        <TabIcon focused={focused} shellMidnight={androidShellMidnight}>
           <View style={[styles.iconContainer, focused && styles.iconContainerActive]}>
             <Text style={styles.emojiIcon}>👑</Text>
           </View>
@@ -249,7 +254,7 @@ function MainTabs() {
       tabBarLabel: 'Admin',
       tabBarButton: createTabBarButton(false),
     }),
-    [createTabBarButton]
+    [createTabBarButton, androidShellMidnight]
   );
 
   // Memoize screen options — all screens stay mounted, freeze inactive to avoid 5 re-renders on switch
@@ -258,28 +263,28 @@ function MainTabs() {
     lazy: false,
     detachInactiveScreens: false,
     freezeOnBlur: false, // was true: froze screen when keyboard opened (tab blur), blocking typing in bio and chat
-    sceneContainerStyle: { flex: 1, backgroundColor: '#f8f9ff' },
-    tabBarActiveTintColor: '#8B1538',
-    tabBarInactiveTintColor: '#94A3B8',
+    sceneContainerStyle: { flex: 1, backgroundColor: androidShellMidnight ? '#12101c' : '#f8f9ff' },
+    tabBarActiveTintColor: androidShellMidnight ? '#f472b6' : '#8B1538',
+    tabBarInactiveTintColor: androidShellMidnight ? '#8b93a8' : '#94A3B8',
     tabBarStyle: {
-      backgroundColor: '#FAFAFA',
+      backgroundColor: androidShellMidnight ? '#12101c' : '#FAFAFA',
       borderTopWidth: 0,
       // Include bottom safe inset so labels/icons sit above gesture / 3-button nav,
       // but do not add extra fixed bottom gap on Android (looks "floating").
       height:
         Platform.OS === 'ios'
           ? 56 + Math.round(insets.bottom * 0.5)
-          : 56 + insets.bottom,
+          : 48 + insets.bottom,
       paddingBottom:
         Platform.OS === 'ios'
           ? 8 + Math.round(insets.bottom * 0.5)
           : Math.max(insets.bottom, 0),
-      paddingTop: 8,
-      paddingHorizontal: 4,
+      paddingTop: Platform.OS === 'ios' ? 8 : 4,
+      paddingHorizontal: Platform.OS === 'android' ? 2 : 4,
       shadowColor: '#000',
-      shadowOffset: { width: 0, height: -3 },
-      shadowOpacity: 0.08,
-      shadowRadius: 12,
+      shadowOffset: { width: 0, height: -2 },
+      shadowOpacity: androidShellMidnight ? 0.35 : 0.06,
+      shadowRadius: Platform.OS === 'android' ? 10 : 12,
       // Keep iOS rounded aesthetic; Android should look docked to the bottom edge.
       borderTopLeftRadius: Platform.OS === 'ios' ? 24 : 0,
       borderTopRightRadius: Platform.OS === 'ios' ? 24 : 0,
@@ -291,7 +296,7 @@ function MainTabs() {
       bottom: Platform.OS === 'ios' ? 0 : undefined,
       marginBottom: 0,
       zIndex: 1000,
-      elevation: 24,
+      elevation: androidShellMidnight ? 14 : 16,
     },
     tabBarItemStyle: {
       paddingHorizontal: 0,
@@ -299,9 +304,9 @@ function MainTabs() {
       flex: 1,
     },
     tabBarLabelStyle: {
-      fontSize: 10,
+      fontSize: Platform.OS === 'android' ? 9 : 10,
       fontWeight: '600' as const,
-      marginTop: 4,
+      marginTop: Platform.OS === 'android' ? 2 : 4,
       letterSpacing: 0,
       marginBottom: 0,
       paddingHorizontal: 0,
@@ -309,14 +314,14 @@ function MainTabs() {
     },
     tabBarIconStyle: {
       marginTop: 0,
-      width: 24,
-      height: 24,
+      width: Platform.OS === 'android' ? 22 : 24,
+      height: Platform.OS === 'android' ? 22 : 24,
       justifyContent: 'center' as const,
       alignItems: 'center' as const,
     },
     tabBarShowLabel: true,
     tabBarHideOnKeyboard: true,
-  }), [insets.bottom]);
+  }), [insets.bottom, androidShellMidnight]);
 
   return (
     <Tab.Navigator screenOptions={screenOptions}>
@@ -560,11 +565,11 @@ const styles = StyleSheet.create({
     fontWeight: '300',
   },
   iconContainer: {
-    width: 44,
-    height: 44,
+    width: Platform.OS === 'android' ? 36 : 44,
+    height: Platform.OS === 'android' ? 36 : 44,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 22,
+    borderRadius: Platform.OS === 'android' ? 18 : 22,
     position: 'relative',
     marginBottom: 0,
     zIndex: 1,
@@ -584,8 +589,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emojiIcon: {
-    fontSize: 24,
-    lineHeight: 28,
+    fontSize: Platform.OS === 'android' ? 20 : 24,
+    lineHeight: Platform.OS === 'android' ? 24 : 28,
     textAlign: 'center',
     includeFontPadding: false,
   },

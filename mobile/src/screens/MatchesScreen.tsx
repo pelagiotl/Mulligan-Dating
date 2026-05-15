@@ -29,6 +29,8 @@ import { io, Socket } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api, getToken } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
+import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
+import { androidShellBackdropColors, androidShellTabBodyBg } from '../utils/androidConnectShellChrome';
 import { getPhotoUrl } from '../utils/photoUrl';
 import { getPendingOpenMatchId, clearPendingOpenMatchId } from '../utils/pendingMatchOpen';
 import { getPendingGameRequest, clearPendingGameRequest, type PendingGameRequest } from '../utils/pendingGameRequest';
@@ -392,7 +394,7 @@ function TypingIndicator() {
   );
 }
 
-// Animated fire icon next to “Your Connections” (header)
+// Animated heart icon next to “Your Matches” (header)
 function AnimatedLinkHeaderIcon() {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
@@ -404,7 +406,7 @@ function AnimatedLinkHeaderIcon() {
     Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
-          toValue: 1.25,
+          toValue: 1.14,
           duration: 1200,
           useNativeDriver: true,
         }),
@@ -497,7 +499,7 @@ function AnimatedLinkHeaderIcon() {
         pointerEvents="none"
       />
       
-      {/* Badge gradient — aligned with Connections header purples */}
+      {/* Badge gradient — aligned with Matches header purples */}
       <LinearGradient
         colors={['#7c8ff0', '#667eea', '#764ba2']}
         start={{ x: 0, y: 0 }}
@@ -525,26 +527,28 @@ function AnimatedLinkHeaderIcon() {
           ]}
           pointerEvents="none"
         />
-        <Text style={styles.animatedHeartEmoji}>🔥</Text>
+        <Text style={styles.animatedHeartEmoji}>❤️</Text>
       </LinearGradient>
     </Animated.View>
   );
 }
 
 // Animated Header Gradient Component
-function AnimatedHeaderGradient({ 
-  children, 
+function AnimatedHeaderGradient({
+  children,
   matchesCount,
-  gradientPos 
-}: { 
-  children: React.ReactNode; 
+  gradientPos,
+  shellBackdropColors,
+}: {
+  children: React.ReactNode;
   matchesCount: number;
   gradientPos?: Animated.Value;
+  shellBackdropColors: readonly [string, string, ...string[]];
 }) {
   return (
     <Animated.View style={styles.headerGradient}>
       <LinearGradient
-        colors={['#667eea', '#764ba2', '#f093fb', '#f5576c']}
+        colors={[...shellBackdropColors]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFill}
@@ -802,7 +806,15 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
 });
 
 // Empty State Component with Animation
-function EmptyStateAnimated({ navigation }: { navigation: any }) {
+function EmptyStateAnimated({
+  navigation,
+  shellBackdropColors,
+  shellIsMidnightAndroid,
+}: {
+  navigation: any;
+  shellBackdropColors: readonly [string, string, ...string[]];
+  shellIsMidnightAndroid?: boolean;
+}) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
@@ -888,7 +900,7 @@ function EmptyStateAnimated({ navigation }: { navigation: any }) {
   return (
     <View style={styles.emptyContainer}>
       <LinearGradient
-        colors={['#667eea', '#764ba2', '#f093fb', '#f5576c']}
+        colors={[...shellBackdropColors]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.emptyBackgroundGradient}
@@ -904,8 +916,8 @@ function EmptyStateAnimated({ navigation }: { navigation: any }) {
       >
         <Text style={styles.emptyEmoji}>💔</Text>
       </Animated.View>
-      <Animated.Text style={[styles.emptyTitle, { opacity: fadeAnim }]}>
-        No connections yet
+      <Animated.Text style={[styles.emptyTitle, { opacity: fadeAnim }, shellIsMidnightAndroid && { color: '#f1f5f9' }]}>
+        No matches yet
       </Animated.Text>
       <TouchableOpacity
         style={styles.browseButton}
@@ -1496,6 +1508,12 @@ export default function MatchesScreen() {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   // Compact chat header on small screens (e.g. iPhone SE 667pt) so more messages are visible
   const isSmallScreen = windowHeight < 680;
+  const { mode: connectShellMode } = useConnectShellTheme();
+  const shellBackdropColors = useMemo(
+    () => androidShellBackdropColors(connectShellMode),
+    [connectShellMode]
+  );
+  const tabBodyBg = useMemo(() => androidShellTabBodyBg(connectShellMode), [connectShellMode]);
   const [matches, setMatches] = useState<Match[]>([]);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -3040,9 +3058,9 @@ export default function MatchesScreen() {
   const openingForCelebration = !!(routeParamsForCelebration?.showMatchCelebration && routeParamsForCelebration?.matchId);
   if (authLoading || (loading && !selectedMatch && !openingForCelebration)) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#667eea" />
-        <Text style={styles.loadingText}>
+      <View style={[styles.loadingContainer, tabBodyBg != null && { backgroundColor: tabBodyBg }]}>
+        <ActivityIndicator size="large" color={tabBodyBg != null ? '#f472b6' : '#667eea'} />
+        <Text style={[styles.loadingText, tabBodyBg != null && { color: '#e2e8f0' }]}>
           {authLoading ? 'Checking authentication...' : 'Loading matches...'}
         </Text>
       </View>
@@ -3052,9 +3070,9 @@ export default function MatchesScreen() {
   // If not authenticated, show message
   if (!isAuthenticated || !user) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, tabBodyBg != null && { backgroundColor: tabBodyBg }]}>
         <LinearGradient
-          colors={['#667eea', '#764ba2', '#f093fb', '#f5576c']}
+          colors={[...shellBackdropColors]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.headerGradient}
@@ -3062,14 +3080,14 @@ export default function MatchesScreen() {
           <View style={styles.header}>
             <View style={styles.headerTitleContainer}>
               <AnimatedLinkHeaderIcon />
-              <Text style={styles.headerTitle}>Your Connections</Text>
+              <Text style={styles.headerTitle}>Your Matches</Text>
             </View>
           </View>
         </LinearGradient>
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyTitle}>Please log in</Text>
-          <Text style={styles.emptyText}>
-            You need to be logged in to view your connections.
+          <Text style={[styles.emptyTitle, tabBodyBg != null && { color: '#f1f5f9' }]}>Please log in</Text>
+          <Text style={[styles.emptyText, tabBodyBg != null && { color: '#94a3b8' }]}>
+            You need to be logged in to view your matches.
           </Text>
         </View>
     </View>
@@ -3078,17 +3096,25 @@ export default function MatchesScreen() {
 
   if (!selectedMatch) {
     return (
-      <View style={styles.container}>
-        <AnimatedHeaderGradient matchesCount={visibleMatches.length} gradientPos={headerGradientPos}>
+      <View style={[styles.container, tabBodyBg != null && { backgroundColor: tabBodyBg }]}>
+        <AnimatedHeaderGradient
+          matchesCount={visibleMatches.length}
+          gradientPos={headerGradientPos}
+          shellBackdropColors={shellBackdropColors}
+        >
           <View style={styles.header}>
             <View style={styles.headerTitleContainer}>
               <AnimatedLinkHeaderIcon />
-              <Text style={styles.headerTitle}>Your Connections</Text>
+              <Text style={styles.headerTitle}>Your Matches</Text>
             </View>
           </View>
         </AnimatedHeaderGradient>
         {visibleMatches.length === 0 ? (
-          <EmptyStateAnimated navigation={navigation} />
+          <EmptyStateAnimated
+            navigation={navigation}
+            shellBackdropColors={shellBackdropColors}
+            shellIsMidnightAndroid={Platform.OS === 'android' && connectShellMode === 'midnight'}
+          />
         ) : (
           <FlatList
             data={visibleMatches}
@@ -3138,9 +3164,15 @@ export default function MatchesScreen() {
   }
 
   return (
-    <View style={[styles.container, { width: windowWidth, maxWidth: windowWidth, overflow: 'hidden', alignSelf: 'center' }]}>
+    <View
+      style={[
+        styles.container,
+        { width: windowWidth, maxWidth: windowWidth, overflow: 'hidden', alignSelf: 'center' },
+        tabBodyBg != null && { backgroundColor: tabBodyBg },
+      ]}
+    >
       <LinearGradient
-        colors={['#667eea', '#764ba2', '#f093fb', '#f5576c']}
+        colors={[...shellBackdropColors]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={[
@@ -3771,7 +3803,7 @@ export default function MatchesScreen() {
             opacity: chatFadeAnim,
             paddingBottom: effectiveKeyboardHeight > 0
               ? effectiveKeyboardHeight + 72
-              : (Platform.OS === 'ios' ? 56 + Math.round(insets.bottom * 0.5) : 56 + 56) + 72,
+              : (Platform.OS === 'ios' ? 56 + Math.round(insets.bottom * 0.5) : 0) + 72,
           },
         ]}
       >
@@ -3814,7 +3846,7 @@ export default function MatchesScreen() {
                 ? effectiveKeyboardHeight
                 : Platform.OS === 'ios'
                   ? 56 + Math.round(insets.bottom * 0.5)
-                  : 56 + 56, // Android: extra offset so input sits above tab bar (tab bar has marginBottom + height)
+                  : 0,
               left: 0,
               right: 0,
               width: windowWidth,
@@ -3997,10 +4029,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 16,
     elevation: 10,
-    overflow: 'hidden',
+    overflow: 'visible',
   },
   header: {
     padding: 24,
+    paddingTop: 28,
     paddingBottom: 24,
   },
   headerTitleContainer: {
@@ -4010,18 +4043,23 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     flexWrap: 'wrap',
     gap: 8,
+    paddingVertical: 10,
+    overflow: 'visible',
   },
   animatedHeartContainer: {
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: -22,
+    marginLeft: -8,
+    overflow: 'visible',
+    paddingVertical: 6,
+    paddingHorizontal: 4,
   },
   animatedHeartGlow: {
     position: 'absolute',
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 66,
+    height: 66,
+    borderRadius: 33,
     backgroundColor: '#667eea',
     shadowColor: '#5b4bce',
     shadowOffset: { width: 0, height: 0 },
@@ -4031,9 +4069,9 @@ const styles = StyleSheet.create({
     zIndex: 0,
   },
   animatedHeartGradient: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 3,
@@ -4044,7 +4082,7 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 12,
     zIndex: 1,
-    overflow: 'hidden',
+    overflow: 'visible',
   },
   animatedHeartShimmer: {
     position: 'absolute',

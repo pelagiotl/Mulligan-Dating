@@ -15,8 +15,55 @@ const cardShadow =
       }
     : { elevation: 3 };
 
+type ConnectLandingValuePropsVariant = 'full' | 'featuresOnly' | 'midnightFeatures';
+
+interface ConnectLandingValuePropsProps {
+  /** When hero title/subtitle are rendered above (Browse landing), show only the three feature tiles. */
+  variant?: ConnectLandingValuePropsVariant;
+}
+
+/** Dark feature row — matches web `.connect-landing__features` on midnight shell. */
+function MidnightFeaturesRow() {
+  return (
+    <View style={midnightStyles.featuresRow} accessibilityRole="summary">
+      <View style={midnightStyles.feature}>
+        <Text style={midnightStyles.featureEmoji} allowFontScaling={false}>
+          ✨
+        </Text>
+        <Text style={midnightStyles.featureText}>
+          Quality{'\n'}Matches
+        </Text>
+      </View>
+      <View style={midnightStyles.feature}>
+        <Text style={midnightStyles.featureEmoji} allowFontScaling={false}>
+          🎯
+        </Text>
+        <Text style={midnightStyles.featureText}>
+          Shared{'\n'}Interests
+        </Text>
+      </View>
+      <View style={midnightStyles.feature}>
+        <Text style={midnightStyles.featureEmoji} allowFontScaling={false}>
+          💝
+        </Text>
+        <Text style={midnightStyles.featureText}>
+          Meaningful{'\n'}Connections
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 /** Connect tab landing: same value prop as web Browse (no “limited supply”). */
-const ConnectLandingValueProps = memo(function ConnectLandingValueProps() {
+const ConnectLandingValueProps = memo(function ConnectLandingValueProps({
+  variant = 'full',
+}: ConnectLandingValuePropsProps) {
+  if (variant === 'midnightFeatures') {
+    return <MidnightFeaturesRow />;
+  }
+
+  const featuresOnly = variant === 'featuresOnly';
+
   return (
     <View style={[styles.outer, cardShadow]} accessibilityRole="summary">
       <LinearGradient
@@ -24,7 +71,7 @@ const ConnectLandingValueProps = memo(function ConnectLandingValueProps() {
         locations={[0, 0.5, 1]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={styles.shell}
+        style={[styles.shell, featuresOnly && styles.shellFeaturesOnly]}
       >
         <LinearGradient
           colors={['#d9467a', BURGUNDY, '#6b0d2e']}
@@ -32,11 +79,15 @@ const ConnectLandingValueProps = memo(function ConnectLandingValueProps() {
           end={{ x: 1, y: 0.5 }}
           style={styles.accentBar}
         />
-        <Text style={styles.title}>Discover People</Text>
-        <Text style={styles.subtitle}>
-          Find someone who shares your interests and values
-        </Text>
-        <View style={styles.row}>
+        {!featuresOnly ? (
+          <>
+            <Text style={styles.title}>Discover People</Text>
+            <Text style={styles.subtitle}>
+              Find someone who shares your interests and values
+            </Text>
+          </>
+        ) : null}
+        <View style={[styles.row, featuresOnly && styles.rowFeaturesOnly]}>
           <View style={styles.feature}>
             <Text style={styles.emoji} accessibilityLabel="Sparkle">
               ✨
@@ -83,6 +134,10 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(139, 21, 56, 0.1)',
   },
+  shellFeaturesOnly: {
+    paddingTop: 14,
+    paddingBottom: 16,
+  },
   accentBar: {
     position: 'absolute',
     left: 0,
@@ -113,6 +168,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 8,
   },
+  rowFeaturesOnly: {
+    marginTop: 2,
+  },
   feature: {
     flex: 1,
     alignItems: 'center',
@@ -137,3 +195,44 @@ const styles = StyleSheet.create({
 });
 
 export default ConnectLandingValueProps;
+
+const midnightStyles = StyleSheet.create({
+  featuresRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'stretch',
+    gap: 10,
+    marginBottom: 28,
+    width: '100%',
+    paddingHorizontal: 4,
+  },
+  feature: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingVertical: 12,
+    paddingHorizontal: 6,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  featureEmoji: {
+    fontSize: 28,
+    lineHeight: 32,
+    marginBottom: 8,
+    textShadowColor: 'rgba(0, 0, 0, 0.45)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
+  },
+  featureText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#cbd5e1',
+    textAlign: 'center',
+    lineHeight: 15,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+});

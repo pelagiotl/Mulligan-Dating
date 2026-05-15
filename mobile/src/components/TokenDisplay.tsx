@@ -19,6 +19,8 @@ import {
   pickCurrentOfferingPackages,
 } from '../utils/purchasesReady';
 import { purchaseTokensWithGooglePay } from '../utils/googlePay';
+import BrowseConnectLandingTokenStrip from './BrowseConnectLandingTokenStrip';
+import type { ConnectShellMode } from '../lib/connectShellTheme';
 
 interface TokenData {
   availableTokens: number;
@@ -397,6 +399,9 @@ function PremiumTokenDisplay({
 interface TokenDisplayProps {
   compact?: boolean; // If true, only show token count (for header use)
   premium?: boolean; // If true, show premium styled version with animations
+  /** Full-width Connect landing token card (web `.browse-connect-landing-token`); ignores compact/premium chrome. */
+  browseLandingStrip?: boolean;
+  connectShell?: ConnectShellMode;
   openModalRef?: React.MutableRefObject<(() => void) | null>;
   /** When set, parent can trigger claim directly (e.g. from "Claim your 7 tokens!" banner) and show custom success message */
   performClaimRef?: React.MutableRefObject<((opts?: { onSuccess?: () => void; successMessage?: string }) => Promise<void>) | null>;
@@ -404,7 +409,14 @@ interface TokenDisplayProps {
 
 const IAP_COMING_SOON_MSG = "In-app purchases are coming soon. We're switching to a new provider—stay tuned!";
 
-export default function TokenDisplay({ compact = false, premium = false, openModalRef, performClaimRef }: TokenDisplayProps) {
+export default function TokenDisplay({
+  compact = false,
+  premium = false,
+  browseLandingStrip = false,
+  connectShell = 'midnight',
+  openModalRef,
+  performClaimRef,
+}: TokenDisplayProps) {
   const { user, registerTokensBalanceRefresh } = useAuth();
   const isAdmin = user?.isAdmin || false;
   const [data, setData] = useState<TokenData | null>(null);
@@ -681,6 +693,14 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
   };
 
   if (!data) {
+    if (browseLandingStrip) {
+      return (
+        <View style={styles.browseLandingLoadingOuter}>
+          <ActivityIndicator size="small" color="#a78bfa" />
+          <Text style={styles.browseLandingLoadingText}>Loading tokens...</Text>
+        </View>
+      );
+    }
     return (
       <View style={styles.container}>
         <Text style={styles.loadingText}>Loading tokens...</Text>
@@ -688,20 +708,8 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
     );
   }
 
-  // Compact mode: only show token count (for header)
-  if (compact) {
-    // Premium mode: slick, animated token display
-    if (premium) {
-      return (
-        <>
-          <PremiumTokenDisplay 
-            count={data.availableTokens} 
-            onPress={() => {
-              setShowInfoModal(true);
-              fetchPackages();
-            }}
-          />
-          {/* Token Info Modal */}
+  const tokenManagementModals = (
+    <>
           <Modal
             visible={showInfoModal}
             animationType="slide"
@@ -997,6 +1005,45 @@ export default function TokenDisplay({ compact = false, premium = false, openMod
               </View>
             </View>
           </Modal>
+    </>
+  );
+
+  if (browseLandingStrip) {
+    return (
+      <>
+        <BrowseConnectLandingTokenStrip
+          availableTokens={data.availableTokens}
+          canClaimWeeklyToken={data.canClaimWeeklyToken}
+          nextRefillDate={data.nextRefillDate}
+          connectShell={connectShell}
+          claiming={claiming}
+          error={error}
+          success={success}
+          onClaim={handleClaim}
+          onBuyPress={() => {
+            setShowPurchaseModal(true);
+            fetchPackages();
+          }}
+        />
+        {tokenManagementModals}
+      </>
+    );
+  }
+
+  // Compact mode: only show token count (for header)
+  if (compact) {
+    // Premium mode: slick, animated token display
+    if (premium) {
+      return (
+        <>
+          <PremiumTokenDisplay 
+            count={data.availableTokens} 
+            onPress={() => {
+              setShowInfoModal(true);
+              fetchPackages();
+            }}
+          />
+          {tokenManagementModals}
         </>
       );
     }
@@ -1296,6 +1343,22 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 14,
     color: '#666',
+  },
+  browseLandingLoadingOuter: {
+    width: '100%',
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+  },
+  browseLandingLoadingText: {
+    fontSize: 13,
+    color: '#e2e8f0',
+    fontWeight: '600',
+    marginTop: 10,
   },
   tokenCount: {
     flexDirection: 'row',

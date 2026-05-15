@@ -20,6 +20,7 @@ import Purchases from 'react-native-purchases';
 import type { PurchasesPackage } from 'react-native-purchases';
 import { api } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
+import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
 import {
   ensurePurchasesConfigured,
   findRevenueCatPackage,
@@ -30,6 +31,7 @@ import {
 import { purchaseTokensWithGooglePay } from '../utils/googlePay';
 import { navigationRef } from '../navigation/navigationRef';
 import LegalFooter from '../components/LegalFooter';
+import { androidShellBackdropColors } from '../utils/androidConnectShellChrome';
 
 interface SettingsData {
   email: string | null;
@@ -45,6 +47,11 @@ const IAP_COMING_SOON_MSG = "In-app purchases are coming soon. We're switching t
 
 export default function SettingsScreen() {
   const { user, profile, logout, refreshProfile, refreshTokensBalance } = useAuth();
+  const { mode: connectShellMode, toggleMode: toggleConnectShellMode } = useConnectShellTheme();
+  const shellBackdropColors = useMemo(
+    () => androidShellBackdropColors(connectShellMode),
+    [connectShellMode]
+  );
   const navigation = useNavigation();
   const [settings, setSettings] = useState<SettingsData | null>(null);
   const [displayNameDraft, setDisplayNameDraft] = useState('');
@@ -416,7 +423,7 @@ export default function SettingsScreen() {
     return (
       <View style={styles.loadingContainer}>
         <LinearGradient
-          colors={['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe']}
+          colors={[...shellBackdropColors]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={StyleSheet.absoluteFill}
@@ -430,7 +437,7 @@ export default function SettingsScreen() {
   return (
     <View style={styles.wrapper}>
       <LinearGradient
-        colors={['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe']}
+        colors={[...shellBackdropColors]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFill}
@@ -711,6 +718,46 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
       </Animated.View>
+
+      {Platform.OS === 'android' ? (
+        <View style={styles.section}>
+          <View style={styles.sectionTitleContainer}>
+            <Text style={styles.sectionEmoji}>🎨</Text>
+            <Text style={styles.sectionTitle}>Connect tab appearance</Text>
+          </View>
+          <LinearGradient
+            colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.05)']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.tokensCard}
+          >
+            <Text style={styles.tokensCardTitle}>Hero card & chrome</Text>
+            <Text style={[styles.tokensCardDescription, { marginBottom: 14 }]}>
+              Toggle between the midnight graphite Connect card and the soft white pill look. Tokens on Connect landing,
+              tab bar, and backdrop follow this choice. Saved on this device only.
+            </Text>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={toggleConnectShellMode}
+              style={[
+                styles.settingsShellToggleBase,
+                connectShellMode === 'midnight'
+                  ? styles.settingsShellToggleMidnight
+                  : styles.settingsShellToggleSoft,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.settingsShellToggleLabel,
+                  connectShellMode === 'midnight' && styles.settingsShellToggleLabelMidnight,
+                ]}
+              >
+                {connectShellMode === 'midnight' ? 'Midnight' : 'Soft'}
+              </Text>
+            </TouchableOpacity>
+          </LinearGradient>
+        </View>
+      ) : null}
 
       {/* Buy Tokens */}
       <Animated.View
@@ -1277,6 +1324,32 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     lineHeight: 22,
     fontWeight: '500',
+  },
+  settingsShellToggleBase: {
+    alignSelf: 'flex-start',
+    paddingVertical: 12,
+    paddingHorizontal: 22,
+    borderRadius: 999,
+    borderWidth: 2,
+    minWidth: 132,
+    alignItems: 'center',
+  },
+  settingsShellToggleMidnight: {
+    borderColor: 'rgba(244, 114, 182, 0.55)',
+    backgroundColor: 'rgba(18, 16, 28, 0.85)',
+  },
+  settingsShellToggleSoft: {
+    borderColor: 'rgba(255, 255, 255, 0.85)',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+  },
+  settingsShellToggleLabel: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#1a1a2e',
+    letterSpacing: 0.4,
+  },
+  settingsShellToggleLabelMidnight: {
+    color: '#fda4af',
   },
   editButton: {
     paddingHorizontal: 18,
