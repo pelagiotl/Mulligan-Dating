@@ -143,6 +143,28 @@ function MatchCelebrationPartnerSections({
 }
 
 /**
+ * Match celebration: play bundled `match-sound.wav` (same asset as mobile, copied to `frontend/public`).
+ * Falls back to synthesized fireworks if the file fails to load or autoplay is blocked.
+ */
+function playMatchCelebrationSound(): void {
+  const base = import.meta.env.BASE_URL.endsWith("/")
+    ? import.meta.env.BASE_URL
+    : `${import.meta.env.BASE_URL}/`;
+  const audio = new Audio(`${base}match-sound.wav`);
+  audio.volume = 0.55;
+  let fellBack = false;
+  const fallback = () => {
+    if (fellBack) return;
+    fellBack = true;
+    playFireworkSound();
+  };
+  audio.addEventListener("error", fallback, { once: true });
+  void audio.play().catch(() => {
+    fallback();
+  });
+}
+
+/**
  * Generate a firework sound effect using Web Audio API
  */
 function playFireworkSound() {
@@ -287,7 +309,7 @@ export default function MatchCelebration({
     if (soundPlayedRef.current) return;
     soundPlayedRef.current = true;
     const t = window.setTimeout(() => {
-      playFireworkSound();
+      playMatchCelebrationSound();
     }, 180);
     return () => clearTimeout(t);
   }, [showContent]);

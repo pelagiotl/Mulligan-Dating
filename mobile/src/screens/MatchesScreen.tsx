@@ -48,7 +48,7 @@ import GameRequestModal from '../components/GameRequestModal';
 import MatchCelebration from '../components/MatchCelebration';
 
 /** Set to true to show the Never Have I Ever game card in match detail. */
-const SHOW_NEVER_HAVE_I_EVER = false;
+const SHOW_NEVER_HAVE_I_EVER = true;
 
 /** When media buttons are used before 3+3 message unlock (aligned with web). */
 const CHAT_MEDIA_LOCKED_ALERT =
@@ -3307,6 +3307,12 @@ export default function MatchesScreen() {
                       messages={messages}
                       currentUserId={user?.id || ''}
                       socket={socketRef.current}
+                      onSendToChat={(text) => {
+                        void handleSendMessage(text);
+                      }}
+                      sendingMessage={sendingMessage}
+                      partnerDisplayName={selectedMatch.otherUser.displayName}
+                      partnerIsTyping={typingUsers.has(selectedMatch.otherUser.userId)}
                       onBeforeUnlockPrompt={async () => {
                         const matches = await fetchMatches();
                         const m = matches.find(mm => mm.id === selectedMatch.id);

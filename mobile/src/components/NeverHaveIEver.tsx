@@ -1,9 +1,9 @@
 /**
- * Never Have I Ever - Tally mode: no chat. Both answer each prompt; points = "I have" count.
- * Prompt only changes after BOTH users have selected "I have" or "I haven't"; then points are added (only for "I have") and a new prompt is auto-generated. No "Another one" button.
+ * Never Have I Ever — tally mode. In-game chat uses the same match message thread as the main chat
+ * (parity with web NeverHaveIEverWeb).
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -16,14 +16,35 @@ import {
   Animated,
   Easing,
   Alert,
+  ScrollView,
+  TextInput,
+  KeyboardAvoidingView,
+  useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { api } from '../utils/api';
 
-interface Message {
+/** Subset of match messages for in-game bubbles (same thread as main chat). */
+export type NhieGameChatMessage = {
   id: string;
   senderId: string;
   content: string;
+  senderName: string;
+  sentAt: string;
+  imageUrl?: string | null;
+  videoUrl?: string | null;
+  audioUrl?: string | null;
+};
+
+const GAME_CHAT_MAX = 80;
+
+function bubbleBody(m: NhieGameChatMessage): string {
+  const t = (m.content ?? '').trim();
+  if (t) return t;
+  if (m.imageUrl) return '📷 Photo';
+  if (m.videoUrl) return '🎥 Video';
+  if (m.audioUrl) return '🎤 Voice';
+  return '';
 }
 
 interface GameState {
@@ -49,9 +70,14 @@ interface GameState {
 
 interface NeverHaveIEverProps {
   matchId: string;
-  messages?: Message[];
+  messages?: NhieGameChatMessage[];
   currentUserId: string;
   socket: any;
+  /** Send a text message on the match thread (same as main chat). */
+  onSendToChat?: (text: string) => void | Promise<void>;
+  sendingMessage?: boolean;
+  partnerDisplayName?: string;
+  partnerIsTyping?: boolean;
   onRequestGame?: () => void;
   onUnlockWithToken?: () => Promise<void>;
   /** If provided, called when user taps locked game. Return true if game is already unlocked (other user unlocked); then we open without prompting for token. */
@@ -67,8 +93,13 @@ interface NeverHaveIEverProps {
 
 export default function NeverHaveIEver({
   matchId,
+  messages = [],
   currentUserId,
   socket,
+  onSendToChat,
+  sendingMessage = false,
+  partnerDisplayName = 'Them',
+  partnerIsTyping = false,
   onRequestGame,
   onUnlockWithToken,
   onBeforeUnlockPrompt,
@@ -84,6 +115,11 @@ export default function NeverHaveIEver({
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [prompt, setPrompt] = useState('');
+  const [gameChatDraft, setGameChatDraft] = useState('');
+  const [gameChatSending, setGameChatSending] = useState(false);
+  const { width: windowWidth } = useWindowDimensions();
+  const compactGameChat = windowWidth < 430;
+  const [gameChatPanelOpen, setGameChatPanelOpen] = useState(true);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const waitingForOtherPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastRoundCompletedAtRef = useRef<number>(0);
@@ -95,6 +131,77 @@ export default function NeverHaveIEver({
 
   const isUnlocked = gameUnlockedByToken;
   const displayPrompt = prompt || state?.prompt || '';
+
+  const gameChatTypingActiveRef = useRef(false);
+  const gameChatTypingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const stopGameChatTyping = useCallback(() => {
+    if (gameChatTypingTimeoutRef.current) {
+      clearTimeout(gameChatTypingTimeoutRef.current);
+      gameChatTypingTimeoutRef.current = null;
+    }
+    if (gameChatTypingActiveRef.current) {
+      socket?.emit?.('stop_typing', { matchId });
+      gameChatTypingActiveRef.current = false;
+    }
+  }, [socket, matchId]);
+
+  const pulseGameChatTypingFromValue = useCallback(
+    (value: string) => {
+      if (!socket || !modalVisibleRef.current) return;
+      const trimmed = value.trim();
+      if (!trimmed) {
+        stopGameChatTyping();
+        return;
+      }
+      if (!gameChatTypingActiveRef.current) {
+        socket.emit('typing', { matchId });
+        gameChatTypingActiveRef.current = true;
+      }
+      if (gameChatTypingTimeoutRef.current) clearTimeout(gameChatTypingTimeoutRef.current);
+      gameChatTypingTimeoutRef.current = setTimeout(() => {
+        socket.emit('stop_typing', { matchId });
+        gameChatTypingActiveRef.current = false;
+        gameChatTypingTimeoutRef.current = null;
+      }, 3000);
+    },
+    [socket, matchId, stopGameChatTyping]
+  );
+
+  const sortedGameChat = useMemo(() => {
+    const rows = messages
+      .filter((m) => Boolean(bubbleBody(m)))
+      .sort((a, b) => new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime());
+    return rows.length > GAME_CHAT_MAX ? rows.slice(-GAME_CHAT_MAX) : rows;
+  }, [messages]);
+
+  const sendGameChatMessage = async () => {
+    const text = gameChatDraft.trim();
+    if (!text || !currentUserId || gameChatSending || sendingMessage || !onSendToChat) return;
+    setGameChatSending(true);
+    setGameChatDraft('');
+    try {
+      await Promise.resolve(onSendToChat(text));
+    } finally {
+      setGameChatSending(false);
+      stopGameChatTyping();
+    }
+  };
+
+  const sendPromptToChat = async () => {
+    const text = displayPrompt.trim();
+    if (!text || !onSendToChat) return;
+    onSendToChat(`Never Have I Ever: ${text}`);
+    try {
+      await api.post(`/matches/${matchId}/never-have-i-ever/send-to-chat`, {});
+    } catch (err) {
+      console.warn('Never Have I Ever send-to-chat:', err);
+    }
+  };
+
+  const showGameChat = Boolean(state && currentUserId && onSendToChat);
+  const showEmbeddedGameChat = showGameChat && (!compactGameChat || gameChatPanelOpen);
+  const showGameChatFab = showGameChat && compactGameChat && !gameChatPanelOpen;
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const emojiScale = useRef(new Animated.Value(1)).current;
@@ -279,6 +386,8 @@ export default function NeverHaveIEver({
   };
 
   const handleClose = () => {
+    stopGameChatTyping();
+    setGameChatDraft('');
     setModalVisible(false);
     setState(null);
     setPrompt('');
@@ -287,6 +396,28 @@ export default function NeverHaveIEver({
       pollRef.current = null;
     }
   };
+
+  useEffect(() => {
+    return () => {
+      if (gameChatTypingTimeoutRef.current) {
+        clearTimeout(gameChatTypingTimeoutRef.current);
+        gameChatTypingTimeoutRef.current = null;
+      }
+      if (gameChatTypingActiveRef.current) {
+        socket?.emit?.('stop_typing', { matchId });
+        gameChatTypingActiveRef.current = false;
+      }
+    };
+  }, [matchId, socket]);
+
+  useEffect(() => {
+    setGameChatDraft('');
+  }, [matchId]);
+
+  useEffect(() => {
+    if (!modalVisible) return;
+    setGameChatPanelOpen(!compactGameChat);
+  }, [modalVisible, compactGameChat]);
 
   useEffect(() => {
     if (!modalVisible) return;
@@ -423,7 +554,7 @@ export default function NeverHaveIEver({
   const handleRestart = async () => {
     setSubmitting(true);
     try {
-      const data = await api.post<any>(`/matches/${matchId}/never-have-i-ever/restart`);
+      const data = await api.post<any>(`/matches/${matchId}/never-have-i-ever/restart`, {});
       setState(prev => prev ? {
         ...prev,
         yourPoints: 0,
@@ -593,7 +724,11 @@ export default function NeverHaveIEver({
   const gameModal = (
     <Modal visible={modalVisible} transparent animationType="slide" onRequestClose={handleClose}>
       <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={handleClose}>
-        <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={styles.modalContent}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalKb}
+        >
+          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={styles.modalContent}>
           <LinearGradient colors={['#00b894', '#00cec9', '#00a896', '#55efc4', '#00cec9']} locations={[0, 0.2, 0.5, 0.8, 1]} style={styles.modalGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
             <LinearGradient colors={['rgba(255,255,255,0.25)', 'transparent', 'transparent']} locations={[0, 0.35, 1]} style={styles.modalGloss} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} />
             <View style={styles.modalHeaderBar} />
@@ -604,7 +739,7 @@ export default function NeverHaveIEver({
               <View style={styles.lobbyContainer}>
                 <Text style={styles.lobbyTitle}>Pick your version (no waiting—they pick theirs too)</Text>
                 <Text style={styles.versionLabel}>Your choice</Text>
-                <View style={styles.spicePills}>
+                <View style={styles.spiceRow}>
                   <TouchableOpacity onPress={() => handleSetSpiceChoice('pg13')} style={[styles.spicePill, state.yourSpiceChoice === 'pg13' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, state.yourSpiceChoice === 'pg13' && styles.spicePillTextActive]}>PG-13</Text></TouchableOpacity>
                   <TouchableOpacity onPress={() => handleSetSpiceChoice('ratedr')} style={[styles.spicePill, state.yourSpiceChoice === 'ratedr' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, state.yourSpiceChoice === 'ratedr' && styles.spicePillTextActive]}>Rated R</Text></TouchableOpacity>
                   <TouchableOpacity onPress={() => handleSetSpiceChoice('spicy')} style={[styles.spicePill, state.yourSpiceChoice === 'spicy' && styles.spicePillActive]} disabled={submitting} activeOpacity={0.8}><Text style={[styles.spicePillText, state.yourSpiceChoice === 'spicy' && styles.spicePillTextActive]}>Spicy</Text></TouchableOpacity>
@@ -668,15 +803,133 @@ export default function NeverHaveIEver({
                             <LinearGradient colors={['#27ae60', '#2ecc71']} style={styles.answerGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.answerButtonText}>I haven't</Text></LinearGradient>
                           </TouchableOpacity>
                         </View>
+                        <TouchableOpacity
+                          onPress={() => void sendPromptToChat()}
+                          disabled={!displayPrompt}
+                          style={[styles.nhieSendPromptBtn, !displayPrompt && styles.nhieSendPromptBtnDisabled]}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={styles.nhieSendPromptBtnText}>Send prompt to chat 💬</Text>
+                        </TouchableOpacity>
                       </>
                     )}
                   </>
                 )}
               </>
             ) : null}
+            {showEmbeddedGameChat ? (
+              <View
+                style={[
+                  styles.gameChat,
+                  compactGameChat && gameChatPanelOpen ? styles.gameChatSheet : null,
+                ]}
+              >
+                {compactGameChat && gameChatPanelOpen ? (
+                  <View style={styles.gameChatToolbar}>
+                    <Text style={styles.gameChatToolbarTitle}>In-game chat</Text>
+                    <TouchableOpacity
+                      onPress={() => setGameChatPanelOpen(false)}
+                      style={styles.gameChatToolbarHide}
+                      activeOpacity={0.85}
+                      accessibilityRole="button"
+                      accessibilityLabel="Hide in-game chat and keep playing"
+                    >
+                      <Text style={styles.gameChatToolbarHideText}>Hide</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
+                {!(compactGameChat && gameChatPanelOpen) ? (
+                  <Text style={styles.gameChatLabel}>In-game chat</Text>
+                ) : null}
+                {!(compactGameChat && gameChatPanelOpen) ? (
+                  <Text style={styles.gameChatHint}>
+                    Message while you play — same thread as your match chat. Each bubble shows who sent it.
+                  </Text>
+                ) : null}
+                {partnerIsTyping ? (
+                  <Text style={styles.gameChatTyping}>{partnerDisplayName} is typing…</Text>
+                ) : null}
+                <ScrollView
+                  style={styles.gameChatScroll}
+                  nestedScrollEnabled
+                  keyboardShouldPersistTaps="handled"
+                  showsVerticalScrollIndicator={false}
+                >
+                  {sortedGameChat.length === 0 ? (
+                    <Text style={styles.gameChatEmpty}>No messages yet — say something without leaving the game.</Text>
+                  ) : (
+                    sortedGameChat.map((m, idx) => {
+                      const mine = m.senderId === currentUserId;
+                      const body = bubbleBody(m);
+                      const prev = idx > 0 ? sortedGameChat[idx - 1] : null;
+                      const senderFlip = prev != null && prev.senderId !== m.senderId;
+                      const senderLabel = mine ? 'You' : m.senderName || partnerDisplayName || 'Match';
+                      return (
+                        <View
+                          key={m.id}
+                          style={[
+                            styles.gameChatRow,
+                            mine ? styles.gameChatRowMine : styles.gameChatRowTheirs,
+                            senderFlip ? styles.gameChatRowSenderGap : null,
+                          ]}
+                        >
+                          <View style={[styles.gameChatBubble, mine ? styles.gameChatBubbleMine : styles.gameChatBubbleTheirs]}>
+                            <Text style={[styles.gameChatWho, mine ? styles.gameChatWhoMine : styles.gameChatWhoTheirs]}>
+                              {senderLabel}
+                            </Text>
+                            <Text style={[styles.gameChatBody, mine ? styles.gameChatBodyMine : styles.gameChatBodyTheirs]}>{body}</Text>
+                          </View>
+                        </View>
+                      );
+                    })
+                  )}
+                </ScrollView>
+                <View style={styles.gameChatComposer}>
+                  <TextInput
+                    style={styles.gameChatInput}
+                    placeholder="Type a message…"
+                    placeholderTextColor="rgba(15,23,42,0.45)"
+                    value={gameChatDraft}
+                    onChangeText={(v) => {
+                      setGameChatDraft(v);
+                      pulseGameChatTypingFromValue(v);
+                    }}
+                    multiline
+                    maxLength={1000}
+                    editable={!gameChatSending && !sendingMessage}
+                  />
+                  <TouchableOpacity
+                    style={[
+                      styles.gameChatSend,
+                      (!gameChatDraft.trim() || gameChatSending || sendingMessage) && styles.gameChatSendDisabled,
+                    ]}
+                    disabled={gameChatSending || sendingMessage || !gameChatDraft.trim()}
+                    onPress={() => void sendGameChatMessage()}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.gameChatSendText}>Send</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : null}
             <TouchableOpacity onPress={handleClose} style={styles.closeButton} activeOpacity={0.8}><View style={styles.closeButtonInner}><Text style={styles.closeButtonText}>Close</Text></View></TouchableOpacity>
           </LinearGradient>
         </TouchableOpacity>
+        </KeyboardAvoidingView>
+        {showGameChatFab ? (
+          <TouchableOpacity
+            style={styles.nhieGameChatFab}
+            activeOpacity={0.88}
+            onPress={() => {
+              setGameChatPanelOpen(true);
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Open in-game chat to message your match while playing Never Have I Ever"
+          >
+            <Text style={styles.nhieGameChatFabEmoji}>💬</Text>
+            <Text style={styles.nhieGameChatFabCaption}>GAME CHAT</Text>
+          </TouchableOpacity>
+        ) : null}
       </TouchableOpacity>
     </Modal>
   );
@@ -1091,15 +1344,13 @@ const styles = StyleSheet.create({
   },
   startButton: {
     marginTop: 12,
-    borderRadius: 16,
+    borderRadius: 12,
     overflow: 'hidden',
     shadowColor: '#00c853',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
     shadowRadius: 8,
     elevation: 6,
-    borderRadius: 12,
-    overflow: 'hidden',
   },
   startGradient: {
     paddingVertical: 14,
@@ -1131,6 +1382,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
+    position: 'relative',
+  },
+  modalKb: {
+    width: '100%',
+    maxWidth: 340,
+    alignItems: 'stretch',
   },
   modalContent: {
     width: '100%',
@@ -1389,5 +1646,219 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: 'rgba(255,255,255,0.95)',
     fontWeight: '700',
+  },
+  nhieSendPromptBtn: {
+    alignSelf: 'stretch',
+    marginTop: 10,
+    marginBottom: 4,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
+    alignItems: 'center',
+  },
+  nhieSendPromptBtnDisabled: {
+    opacity: 0.45,
+  },
+  nhieSendPromptBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#fff',
+  },
+  gameChat: {
+    alignSelf: 'stretch',
+    marginTop: 10,
+    marginBottom: 4,
+    padding: 10,
+    borderRadius: 14,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+  },
+  gameChatLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: 'rgba(255,255,255,0.95)',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  gameChatHint: {
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.82)',
+    textAlign: 'center',
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  gameChatTyping: {
+    fontSize: 12,
+    fontStyle: 'italic',
+    color: 'rgba(255,255,255,0.92)',
+    marginBottom: 6,
+  },
+  gameChatScroll: {
+    maxHeight: 140,
+    marginBottom: 8,
+  },
+  gameChatEmpty: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.85)',
+    textAlign: 'center',
+    paddingVertical: 10,
+    lineHeight: 18,
+  },
+  gameChatRow: {
+    flexDirection: 'row',
+    width: '100%',
+    marginBottom: 3,
+  },
+  gameChatRowSenderGap: {
+    marginTop: 8,
+  },
+  gameChatRowMine: {
+    justifyContent: 'flex-end',
+  },
+  gameChatRowTheirs: {
+    justifyContent: 'flex-start',
+  },
+  gameChatBubble: {
+    maxWidth: '88%',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 14,
+  },
+  gameChatBubbleMine: {
+    backgroundColor: 'rgba(224,255,248,0.98)',
+    borderBottomRightRadius: 4,
+  },
+  gameChatBubbleTheirs: {
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
+    borderBottomLeftRadius: 4,
+  },
+  gameChatWho: {
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  gameChatWhoMine: {
+    textAlign: 'right',
+    color: 'rgba(6,59,54,0.72)',
+  },
+  gameChatWhoTheirs: {
+    textAlign: 'left',
+    color: 'rgba(255,255,255,0.88)',
+  },
+  gameChatBody: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  gameChatBodyMine: {
+    color: '#063b36',
+  },
+  gameChatBodyTheirs: {
+    color: 'rgba(255,255,255,0.98)',
+  },
+  gameChatComposer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 8,
+  },
+  gameChatInput: {
+    flex: 1,
+    minHeight: 40,
+    maxHeight: 88,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 14,
+    color: '#0f172a',
+    backgroundColor: 'rgba(255,255,255,0.95)',
+  },
+  gameChatSend: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+  },
+  gameChatSendDisabled: {
+    opacity: 0.5,
+  },
+  gameChatSendText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#063b36',
+  },
+  gameChatSheet: {
+    marginTop: 6,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.2)',
+  },
+  gameChatToolbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    gap: 8,
+  },
+  gameChatToolbarTitle: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: 'rgba(255,255,255,0.98)',
+    letterSpacing: 0.3,
+  },
+  gameChatToolbarHide: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: 'rgba(0,0,0,0.22)',
+  },
+  gameChatToolbarHideText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: 'rgba(255,255,255,0.95)',
+  },
+  nhieGameChatFab: {
+    position: 'absolute',
+    right: 20,
+    bottom: 28,
+    zIndex: 40,
+    minWidth: 88,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.96)',
+    borderWidth: 1,
+    borderColor: 'rgba(0,206,201,0.45)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 14,
+  },
+  nhieGameChatFabEmoji: {
+    fontSize: 20,
+    lineHeight: 22,
+  },
+  nhieGameChatFabCaption: {
+    marginTop: 2,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.6,
+    color: '#063b36',
   },
 });

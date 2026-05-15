@@ -3098,7 +3098,7 @@ button.connect-landing__cta:disabled::before {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 0.18rem;
   padding-right: 0.2rem;
   margin-bottom: 0.55rem;
 }
@@ -3106,6 +3106,14 @@ button.connect-landing__cta:disabled::before {
 .nhie-web-game-chat-row {
   display: flex;
   width: 100%;
+}
+
+.nhie-web-game-chat-row--sender-gap {
+  margin-top: 0.55rem;
+}
+
+.nhie-web-game-chat-row:first-child {
+  margin-top: 0;
 }
 
 .nhie-web-game-chat-row--mine {
@@ -3118,7 +3126,7 @@ button.connect-landing__cta:disabled::before {
 
 .nhie-web-game-chat-bubble {
   max-width: 88%;
-  padding: 0.45rem 0.65rem;
+  padding: 0.45rem 0.65rem 0.5rem;
   border-radius: 14px;
   font-size: 0.88rem;
   line-height: 1.35;
@@ -3141,10 +3149,27 @@ button.connect-landing__cta:disabled::before {
 
 .nhie-web-game-chat-who {
   display: block;
-  font-size: 0.68rem;
-  font-weight: 800;
-  opacity: 0.88;
-  margin-bottom: 0.2rem;
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 0.28rem;
+}
+
+.nhie-web-game-chat-who--mine {
+  text-align: right;
+  color: rgba(6, 59, 54, 0.72);
+}
+
+.nhie-web-game-chat-who--theirs {
+  text-align: left;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.nhie-web-game-chat-text {
+  display: block;
+  font-size: 0.88rem;
+  line-height: 1.4;
 }
 
 .nhie-web-game-chat-composer {
@@ -3216,6 +3241,15 @@ button.connect-landing__cta:disabled::before {
   letter-spacing: 0.02em;
 }
 
+.nhie-web-game-chat-toolbar-hint {
+  margin: 0 0 0.5rem;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.88);
+  opacity: 0.95;
+}
+
 .nhie-web-game-chat-minimize {
   border: none;
   border-radius: 10px;
@@ -3242,21 +3276,45 @@ button.connect-landing__cta:disabled::before {
   z-index: 10056;
   bottom: max(1rem, calc(0.5rem + env(safe-area-inset-bottom, 0px)));
   right: max(1rem, calc(0.5rem + env(safe-area-inset-right, 0px)));
-  width: 3.35rem;
-  height: 3.35rem;
+  min-width: 5.25rem;
+  max-width: min(42vw, 7.5rem);
+  min-height: 3.15rem;
+  padding: 0.4rem 0.65rem 0.45rem;
   border: none;
-  border-radius: 50%;
+  border-radius: 999px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  font-size: 1.45rem;
-  line-height: 1;
   cursor: pointer;
   color: #063b36;
   background: linear-gradient(180deg, #ffffff 0%, #7ee8d3 100%);
   box-shadow:
     0 4px 14px rgba(0, 0, 0, 0.28),
     0 0 0 2px rgba(255, 255, 255, 0.35);
+}
+
+.nhie-web-game-chat-fab-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.06rem;
+  pointer-events: none;
+}
+
+.nhie-web-game-chat-fab-emoji {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.nhie-web-game-chat-fab-caption {
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  line-height: 1.1;
+  text-align: center;
+  color: #063b36;
 }
 
 .nhie-web-game-chat-fab:hover {

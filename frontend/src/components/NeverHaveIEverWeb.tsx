@@ -791,7 +791,7 @@ export default function NeverHaveIEverWeb({
               >
                 {compactGameLayout && gameChatPanelOpen ? (
                   <div className="nhie-web-game-chat-toolbar">
-                    <span className="nhie-web-game-chat-toolbar-title">Chat</span>
+                    <span className="nhie-web-game-chat-toolbar-title">In-game chat</span>
                     <button
                       type="button"
                       className="nhie-web-game-chat-minimize"
@@ -802,8 +802,11 @@ export default function NeverHaveIEverWeb({
                     </button>
                   </div>
                 ) : null}
+                {compactGameLayout && gameChatPanelOpen ? (
+                  <p className="nhie-web-game-chat-toolbar-hint">Message each other here while you play — same thread as your match chat.</p>
+                ) : null}
                 {!(compactGameLayout && gameChatPanelOpen) ? (
-                  <p className="nhie-web-game-chat-label">Chat with your match</p>
+                  <p className="nhie-web-game-chat-label">Message your match while you play</p>
                 ) : null}
                 {partnerIsTyping ? (
                   <p className="nhie-web-game-chat-typing" aria-live="polite">
@@ -814,21 +817,26 @@ export default function NeverHaveIEverWeb({
                   {sortedGameChat.length === 0 ? (
                     <p className="nhie-web-game-chat-empty">No messages here yet — say something without leaving the game.</p>
                   ) : (
-                    sortedGameChat.map((m) => {
+                    sortedGameChat.map((m, idx) => {
                       const mine = m.senderId === currentUserId;
                       const body = bubbleBody(m);
+                      const prev = idx > 0 ? sortedGameChat[idx - 1] : null;
+                      const senderFlip = prev != null && prev.senderId !== m.senderId;
+                      const senderLabel = mine ? "You" : m.senderName || partnerDisplayName || "Match";
                       return (
                         <div
                           key={m.id}
-                          className={`nhie-web-game-chat-row${mine ? " nhie-web-game-chat-row--mine" : " nhie-web-game-chat-row--theirs"}`}
+                          className={`nhie-web-game-chat-row${mine ? " nhie-web-game-chat-row--mine" : " nhie-web-game-chat-row--theirs"}${senderFlip ? " nhie-web-game-chat-row--sender-gap" : ""}`}
                         >
                           <div
                             className={`nhie-web-game-chat-bubble${mine ? " nhie-web-game-chat-bubble--mine" : " nhie-web-game-chat-bubble--theirs"}`}
                           >
-                            {!mine ? (
-                              <span className="nhie-web-game-chat-who">{m.senderName || partnerDisplayName}</span>
-                            ) : null}
-                            {body}
+                            <span
+                              className={`nhie-web-game-chat-who${mine ? " nhie-web-game-chat-who--mine" : " nhie-web-game-chat-who--theirs"}`}
+                            >
+                              {senderLabel}
+                            </span>
+                            <span className="nhie-web-game-chat-text">{body}</span>
                           </div>
                         </div>
                       );
@@ -879,13 +887,19 @@ export default function NeverHaveIEverWeb({
           <button
             type="button"
             className="nhie-web-game-chat-fab"
-            aria-label="Open chat with your match"
+            title="Open in-game chat — message your match without leaving Never Have I Ever"
+            aria-label="Open in-game chat to message your match while playing Never Have I Ever"
             onClick={(e) => {
               e.stopPropagation();
               setGameChatPanelOpen(true);
             }}
           >
-            <span aria-hidden>💬</span>
+            <span className="nhie-web-game-chat-fab-inner">
+              <span className="nhie-web-game-chat-fab-emoji" aria-hidden>
+                💬
+              </span>
+              <span className="nhie-web-game-chat-fab-caption">Game chat</span>
+            </span>
           </button>
         ) : null}
       </div>
