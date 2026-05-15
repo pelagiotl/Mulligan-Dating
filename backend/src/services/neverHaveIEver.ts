@@ -618,8 +618,8 @@ export async function completeRoundIfBothAnswered(matchId: string): Promise<{ co
 
   const ts = new Date().toISOString();
   const nextRoundId = uuidv4();
-  const updateSql = `UPDATE never_have_i_ever_games SET current_prompt = ?, current_round_id = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, user1_answer_round_id = NULL, user2_answer_round_id = NULL, updated_at = ? WHERE match_id = ?`;
-  const runResult = db.prepare(updateSql).run([nextPrompt, nextRoundId, ts, matchId]);
+  const updateSql = `UPDATE never_have_i_ever_games SET current_prompt = ?, current_round_id = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, user1_answer_round_id = NULL, user2_answer_round_id = NULL, updated_at = ? WHERE match_id = ? AND current_round_id = ?`;
+  const runResult = db.prepare(updateSql).run([nextPrompt, nextRoundId, ts, matchId, currentRoundId]);
   const resolved = runResult instanceof Promise ? await runResult : runResult;
   const changed = (resolved as { changes?: number }).changes !== undefined && (resolved as { changes: number }).changes > 0;
 
@@ -888,7 +888,15 @@ export async function submitAnswer(
         `UPDATE never_have_i_ever_games SET current_prompt = ?, current_round_id = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, user1_answer_round_id = NULL, user2_answer_round_id = NULL, updated_at = ? WHERE match_id = ? AND current_round_id = ?`
       ).run([nextPrompt, nextRoundId, new Date().toISOString(), matchId, currentRoundId]);
       if (completeResult instanceof Promise) await completeResult;
-      nhieLog('submitAnswer: immediate second-answer round completion', { matchId, newPromptPreview: nextPrompt.slice(0, 50), nextRoundId });
+      const completionApplied = (completeResult as { changes?: number }).changes !== undefined && (completeResult as { changes: number }).changes > 0;
+      if (!completionApplied) {
+        const currentRowResult = db.prepare('SELECT current_prompt FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
+        const currentRow = currentRowResult instanceof Promise ? await currentRowResult : currentRowResult;
+        if (currentRow && (currentRow as any).current_prompt) {
+          generatedNextPrompt = (currentRow as any).current_prompt;
+        }
+      }
+      nhieLog('submitAnswer: immediate second-answer round completion', { matchId, applied: completionApplied, newPromptPreview: (generatedNextPrompt ?? nextPrompt).slice(0, 50), nextRoundId });
     }
   }
 

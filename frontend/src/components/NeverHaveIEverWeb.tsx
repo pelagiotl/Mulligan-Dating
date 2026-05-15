@@ -158,6 +158,7 @@ export default function NeverHaveIEverWeb({
   const isUser1Ref = useRef<boolean | null>(null);
   const modalOpenRef = useRef(false);
   modalOpenRef.current = modalOpen;
+  const promptLockedUntilRef = useRef(0);
 
   const isUnlocked = true;
   const displayPrompt = prompt || state?.prompt || "";
@@ -172,6 +173,7 @@ export default function NeverHaveIEverWeb({
     lastAnsweredPromptRef.current = "";
     lastKnownPointsRef.current = { yourPoints: 0, theirPoints: 0 };
     isUser1Ref.current = null;
+    promptLockedUntilRef.current = 0;
     if (pollRef.current) {
       clearInterval(pollRef.current);
       pollRef.current = null;
@@ -203,6 +205,7 @@ export default function NeverHaveIEverWeb({
     if (next.isUser1 !== undefined) isUser1Ref.current = Boolean(next.isUser1);
     setState((prev) => {
       const recentRound = Date.now() - lastRoundCompletedAtRef.current < 6000;
+      const promptLocked = Date.now() < promptLockedUntilRef.current;
       const resetToZero =
         next.yourPoints === 0 &&
         next.theirPoints === 0 &&
@@ -212,11 +215,13 @@ export default function NeverHaveIEverWeb({
         lastAnsweredPromptRef.current.trim() !== "" &&
         next.prompt.trim() === lastAnsweredPromptRef.current.trim();
       const keptPrompt =
-        staleRoundPrompt
-          ? prev?.prompt ?? ""
-          : recentRound && (prev?.prompt?.trim() ?? "") !== "" && !next.prompt
-          ? prev?.prompt ?? next.prompt
-          : next.prompt;
+        promptLocked && prev?.prompt
+          ? prev.prompt
+          : staleRoundPrompt
+            ? prev?.prompt ?? ""
+            : recentRound && (prev?.prompt?.trim() ?? "") !== "" && !next.prompt
+            ? prev?.prompt ?? next.prompt
+            : next.prompt;
       const refYou = resetToZero ? 0 : Math.max(lastKnownPointsRef.current.yourPoints, next.yourPoints);
       const refThem = resetToZero ? 0 : Math.max(lastKnownPointsRef.current.theirPoints, next.theirPoints);
       lastKnownPointsRef.current = { yourPoints: refYou, theirPoints: refThem };
@@ -231,11 +236,12 @@ export default function NeverHaveIEverWeb({
       };
     });
     const recentRound = Date.now() - lastRoundCompletedAtRef.current < 6000;
+    const promptLocked = Date.now() < promptLockedUntilRef.current;
     const staleRoundPrompt =
       recentRound &&
       lastAnsweredPromptRef.current.trim() !== "" &&
       next.prompt.trim() === lastAnsweredPromptRef.current.trim();
-    if (!staleRoundPrompt && (Date.now() - lastRoundCompletedAtRef.current >= 6000 || next.prompt)) {
+    if (!promptLocked && !staleRoundPrompt && (Date.now() - lastRoundCompletedAtRef.current >= 6000 || next.prompt)) {
       setPrompt(next.prompt || "");
     }
   }, []);
@@ -321,6 +327,7 @@ export default function NeverHaveIEverWeb({
 
       if (payload.roundComplete && payload.newPrompt?.trim()) {
         setPrompt(payload.newPrompt);
+        promptLockedUntilRef.current = Date.now() + 5000;
         setState((prev) =>
           prev
             ? {
@@ -469,7 +476,11 @@ export default function NeverHaveIEverWeb({
       if (roundComplete) {
         lastRoundCompletedAtRef.current = Date.now();
         setPrompt(nextPrompt.trim() ? nextPrompt : "");
-        if (!nextPrompt.trim()) scheduleRoundRefetches();
+        if (nextPrompt.trim()) {
+          promptLockedUntilRef.current = Date.now() + 5000;
+        } else {
+          scheduleRoundRefetches();
+        }
       } else if (nextPrompt) {
         setPrompt(nextPrompt);
       }
