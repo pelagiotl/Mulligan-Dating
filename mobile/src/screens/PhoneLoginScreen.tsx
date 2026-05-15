@@ -783,7 +783,6 @@ export default function PhoneLoginScreen() {
           <View style={styles.header}>
             <AnimatedLogo />
             <Text style={styles.title}>Welcome to Mulligan</Text>
-            <Text style={styles.tagline}>Meet cool people. Actually hangout.</Text>
             <Text style={styles.subtitle}>Enter your phone number to get started</Text>
           </View>
 
@@ -938,18 +937,6 @@ const styles = StyleSheet.create({
     textShadowRadius: 10,
     letterSpacing: -0.5,
     flexWrap: 'nowrap',
-  },
-  tagline: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.95)',
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 12,
-    paddingHorizontal: 28,
-    textShadowColor: 'rgba(0, 0, 0, 0.15)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 6,
   },
   subtitle: {
     fontSize: 16,

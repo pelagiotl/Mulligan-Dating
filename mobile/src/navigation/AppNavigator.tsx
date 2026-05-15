@@ -182,7 +182,7 @@ function MainTabs() {
       tabBarIcon: ({ focused }: { focused: boolean }) => (
         <TabIcon focused={focused}>
           <View style={[styles.iconContainer, focused && styles.iconContainerActive]}>
-            <Text style={styles.emojiIcon}>👀</Text>
+            <Text style={styles.emojiIcon}>😍</Text>
           </View>
         </TabIcon>
       ),
@@ -197,7 +197,7 @@ function MainTabs() {
       tabBarIcon: ({ focused }: { focused: boolean }) => (
         <TabIcon focused={focused}>
           <View style={[styles.iconContainer, focused && styles.iconContainerActive]}>
-            <Text style={styles.emojiIcon}>🔥</Text>
+            <Text style={styles.emojiIcon}>❤️</Text>
           </View>
         </TabIcon>
       ),
