@@ -4,11 +4,11 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 import {
-  applyConnectShellMode,
   persistConnectShellMode,
   readConnectShellMode,
   type ConnectShellMode,
@@ -24,22 +24,21 @@ const ConnectShellThemeContext = createContext<ConnectShellThemeContextValue | n
 
 export function ConnectShellThemeProvider({ children }: { children: ReactNode }) {
   const [mode, setModeState] = useState<ConnectShellMode>(() => readConnectShellMode());
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
 
+  /** Keeps <html data-connect-shell> + localStorage in sync without side effects inside state updaters (Strict Mode safe). */
   useEffect(() => {
-    applyConnectShellMode(mode);
+    persistConnectShellMode(mode);
   }, [mode]);
 
   const setMode = useCallback((m: ConnectShellMode) => {
     setModeState(m);
-    persistConnectShellMode(m);
   }, []);
 
   const toggleMode = useCallback(() => {
-    setModeState((prev) => {
-      const next: ConnectShellMode = prev === "midnight" ? "soft" : "midnight";
-      persistConnectShellMode(next);
-      return next;
-    });
+    const next: ConnectShellMode = modeRef.current === "midnight" ? "soft" : "midnight";
+    setModeState(next);
   }, []);
 
   const value = useMemo(

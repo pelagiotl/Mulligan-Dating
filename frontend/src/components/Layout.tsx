@@ -11,11 +11,13 @@ import BrandMark from './BrandMark'
 import TokenDisplay from './TokenDisplay'
 import WebTokenPurchase from './WebTokenPurchase'
 import { TOKEN_MAX } from '../constants/tokens'
+import { useConnectShellTheme } from '../context/ConnectShellThemeContext'
 
 export default function Layout() {
   // Always call hooks at the top level, before any conditional logic
   // This ensures hooks are called in the same order on every render
   const { logout, isAdmin, isAuthenticated, connectSetupComplete, loading: authLoading, user } = useAuth()
+  const { mode: connectShellMode } = useConnectShellTheme()
   const location = useLocation()
   const navigate = useNavigate()
   const [tokenCount, setTokenCount] = useState<number | null>(null)
@@ -77,7 +79,7 @@ export default function Layout() {
 
   return (
     <div
-      className={`app-layout${nativeMobileShell ? ' app-layout--native-mobile-shell' : ''}`}
+      className={`app-layout connect-shell--${connectShellMode}${nativeMobileShell ? ' app-layout--native-mobile-shell' : ''}`}
     >
       <MaintenanceBanner />
       {!isCreateProfileWizard ? (
