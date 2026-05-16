@@ -77,13 +77,6 @@ export default function BrowseConnectLandingTokenStrip({
       ? (['#ea580c', '#fb923c', '#fbbf24'] as const)
       : (['#667eea', '#764ba2', '#f093fb'] as const);
 
-  const footerHintExtra =
-    shell === 'midnight'
-      ? styles.footerHintMidnight
-      : shell === 'sunny'
-        ? styles.footerHintSunny
-        : styles.footerHintSoft;
-
   return (
     <View
       style={[styles.cardOuter, cardOuterStyle]}
@@ -155,10 +148,6 @@ export default function BrowseConnectLandingTokenStrip({
             </LinearGradient>
           </TouchableOpacity>
         ) : null}
-
-        <Text style={[styles.footerHint, footerHintExtra]}>
-          Use tokens to match with people. Get {TOKEN_MAX} tokens weekly (up to {TOKEN_MAX} max).
-        </Text>
       </View>
     </View>
   );
@@ -315,21 +304,5 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '800',
     fontSize: 14,
-  },
-  footerHint: {
-    fontSize: 12,
-    lineHeight: 17,
-    color: '#64748b',
-    textAlign: 'center',
-    marginTop: 2,
-  },
-  footerHintMidnight: {
-    color: '#94a3b8',
-  },
-  footerHintSunny: {
-    color: '#57534e',
-  },
-  footerHintSoft: {
-    color: '#475569',
   },
 });

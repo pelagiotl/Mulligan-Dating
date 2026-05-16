@@ -210,12 +210,6 @@ export default function TokenDisplay({ variant = "default" }: TokenDisplayProps)
             {cannotClaimMessage}
           </div>
         )}
-
-        {!compact ? (
-          <p className="token-info token-display-footer-hint">
-            Use tokens to match with people. Get {TOKEN_MAX} tokens weekly (up to {TOKEN_MAX} max).
-          </p>
-        ) : null}
       </div>
     </div>
   );
