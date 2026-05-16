@@ -7203,6 +7203,7 @@ button.my-profile-avatar:focus-visible {
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   position: relative;
+  flex-shrink: 0;
 }
 
 .chat-header::after {
@@ -8093,6 +8094,33 @@ button.chat-avatar-btn .chat-avatar img {
   max-height: min(40vh, 320px);
 }
 
+/* Stage1 profile + photo-unlock live in the scrollable message column */
+.chat-messages-scroll-top {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.messages-container .stage1-profile-info {
+  max-height: none;
+  margin-bottom: 0;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.messages-container .reveal-unlock-card {
+  margin-bottom: 0;
+}
+
+.messages-container .stage1-sections-grid {
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+}
+
 .stage1-sections-grid {
   display: flex;
   flex-direction: row;
@@ -8221,12 +8249,15 @@ button.chat-avatar-btn .chat-avatar img {
 
 .messages-container {
   flex: 1 1 0;
+  min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: var(--space-6);
-  min-height: min(52vh, 520px);
   max-height: none;
   display: flex;
   flex-direction: column;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   background: linear-gradient(180deg, 
     rgba(255, 255, 255, 0.5) 0%,
     rgba(251, 113, 133, 0.02) 100%);

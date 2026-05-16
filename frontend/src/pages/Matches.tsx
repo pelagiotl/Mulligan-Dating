@@ -213,6 +213,70 @@ function MatchOtherProfileSections({
   return <div className="stage2-profile-sections-inner">{blocks}</div>;
 }
 
+
+function Stage1PhotoUnlockCard({
+  messageCounts,
+  onOpenExplainer,
+}: {
+  messageCounts: { user: number; other: number } | null;
+  onOpenExplainer: () => void;
+}) {
+  return (
+    <div className="reveal-unlock-card">
+      <div className="reveal-unlock-header">
+        <span className="reveal-unlock-icon">🔓</span>
+        <h4 className="reveal-unlock-title">Unlock Additional Photos</h4>
+      </div>
+      <p className="reveal-unlock-description">
+        Keep the conversation going! When you&apos;ve each sent 3 messages, all photos unlock automatically.
+      </p>
+      <div className="reveal-unlock-details-row">
+        <button type="button" className="reveal-unlock-details-btn" onClick={onOpenExplainer}>
+          How it works
+        </button>
+      </div>
+      {messageCounts ? (
+        <div className="reveal-progress-container">
+          <div className="reveal-progress-bar-wrapper">
+            <div className="reveal-progress-item">
+              <div className="reveal-progress-label">
+                <span className="reveal-progress-icon">💬</span>
+                <span>Your messages</span>
+              </div>
+              <div className="reveal-progress-bar">
+                <div
+                  className={`reveal-progress-fill ${messageCounts.user >= 3 ? "complete" : ""}`}
+                  style={{ width: `${Math.min((messageCounts.user / 3) * 100, 100)}%` }}
+                />
+                <span className="reveal-progress-text">{messageCounts.user}/3</span>
+              </div>
+            </div>
+            <div className="reveal-progress-item">
+              <div className="reveal-progress-label">
+                <span className="reveal-progress-icon">💬</span>
+                <span>Their messages</span>
+              </div>
+              <div className="reveal-progress-bar">
+                <div
+                  className={`reveal-progress-fill ${messageCounts.other >= 3 ? "complete" : ""}`}
+                  style={{ width: `${Math.min((messageCounts.other / 3) * 100, 100)}%` }}
+                />
+                <span className="reveal-progress-text">{messageCounts.other}/3</span>
+              </div>
+            </div>
+          </div>
+          {messageCounts.user >= 3 && messageCounts.other >= 3 ? (
+            <div className="reveal-progress-complete">
+              <span className="reveal-complete-icon">✨</span>
+              <span>Almost there! Keep chatting to unlock photos...</span>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 interface Message {
   id: string;
   content: string;
@@ -2479,64 +2543,6 @@ export default function Matches() {
                     Remove match
                   </button>
                 )}
-                {selectedMatch.stage === "stage1" && (
-                  <div className="reveal-unlock-card">
-                    <div className="reveal-unlock-header">
-                      <span className="reveal-unlock-icon">🔓</span>
-                      <h4 className="reveal-unlock-title">Unlock Additional Photos</h4>
-                    </div>
-                    <p className="reveal-unlock-description">
-                      Keep the conversation going! When you&apos;ve each sent 3 messages, all photos unlock automatically.
-                    </p>
-                    <div className="reveal-unlock-details-row">
-                      <button
-                        type="button"
-                        className="reveal-unlock-details-btn"
-                        onClick={() => setPhotoUnlockExplainerOpen(true)}
-                      >
-                        How it works
-                      </button>
-                    </div>
-                    {messageCounts && (
-                      <div className="reveal-progress-container">
-                        <div className="reveal-progress-bar-wrapper">
-                          <div className="reveal-progress-item">
-                            <div className="reveal-progress-label">
-                              <span className="reveal-progress-icon">💬</span>
-                              <span>Your messages</span>
-                            </div>
-                            <div className="reveal-progress-bar">
-                              <div 
-                                className={`reveal-progress-fill ${messageCounts.user >= 3 ? 'complete' : ''}`}
-                                style={{ width: `${Math.min((messageCounts.user / 3) * 100, 100)}%` }}
-                              />
-                              <span className="reveal-progress-text">{messageCounts.user}/3</span>
-                            </div>
-                          </div>
-                          <div className="reveal-progress-item">
-                            <div className="reveal-progress-label">
-                              <span className="reveal-progress-icon">💬</span>
-                              <span>Their messages</span>
-                            </div>
-                            <div className="reveal-progress-bar">
-                              <div 
-                                className={`reveal-progress-fill ${messageCounts.other >= 3 ? 'complete' : ''}`}
-                                style={{ width: `${Math.min((messageCounts.other / 3) * 100, 100)}%` }}
-                              />
-                              <span className="reveal-progress-text">{messageCounts.other}/3</span>
-                            </div>
-                          </div>
-                        </div>
-                        {messageCounts.user >= 3 && messageCounts.other >= 3 && (
-                          <div className="reveal-progress-complete">
-                            <span className="reveal-complete-icon">✨</span>
-                            <span>Almost there! Keep chatting to unlock photos...</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
             </div>
 
@@ -2571,6 +2577,24 @@ export default function Matches() {
             ) : (
               <>
                 <div className="messages-container">
+                  {selectedMatch.stage === "stage1" ? (
+                    <div className="chat-messages-scroll-top">
+                      {selectedMatch.stage === "stage1" &&
+                      matchHasProfileDetails(selectedMatch.otherUser) ? (
+                        <MatchOtherProfileSections
+                          otherUser={selectedMatch.otherUser}
+                          variant="stage1"
+                        />
+                      ) : null}
+                      {selectedMatch.stage === "stage1" ? (
+                        <Stage1PhotoUnlockCard
+                          messageCounts={messageCounts}
+                          onOpenExplainer={() => setPhotoUnlockExplainerOpen(true)}
+                        />
+                      ) : null}
+                    </div>
+                  ) : null}
+
                   {messages.length === 0 ? (
                     <div className="no-messages">
                       <p>No messages yet. Say hi! 👋</p>
