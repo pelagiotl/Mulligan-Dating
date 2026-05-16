@@ -230,22 +230,22 @@ export async function generateTruthOrDarePrompt(
 
     const spiceBlock =
       spiceLevel === 'pg13'
-        ? `SPICE: PG-13 — for adults: confident, emotionally intelligent flirting. Dating-app safe: no explicit sexual acts, no graphic body descriptions, no coercion. Mature vocabulary; never sound like a schoolyard game or icebreaker workshop.`
+        ? `SPICE: PG-13 — for adults: confident, emotionally intelligent flirting. Dating-app safe: no explicit sexual acts, no graphic body descriptions, no coercion. Mature, cool vocabulary; never sound like a schoolyard game or icebreaker workshop.`
         : spiceLevel === 'ratedr'
-          ? `SPICE: Rated R — for adults: sexual tension, past experiences, innuendo, and real attraction are fair game. Still no graphic porn, no minors, no non-consent, no illegal content. Prompts stay in chat (text, voice, selfie, short video). Sound like two grown people at a bar after midnight, not a dare channel for teens.`
-          : `SPICE: Spicy — maximum heat while staying app-store safe: suggestive, steamy, explicitly adult dating energy (tension, desire, power play in words). No graphic explicit sexual acts, no minors, no non-consent. Dares must stay doable in chat from home (voice, selfie, short clip, text) — never require nudity or pornographic acts on camera.`;
+          ? `SPICE: Rated R — mature audience: sexual tension, past hookups, innuendo, jealousy, and real attraction are fair game. Confident and suggestive — like two adults at a bar after midnight. Still no graphic porn, no minors, no non-consent. Chat-only actions (text, voice, selfie, short video).`
+          : `SPICE: Spicy — maximum heat, almost edgy, for consenting adults. Steamy, provocative, seductive dating energy: desire, power play, late-night honesty, tension you could cut. Push boundaries in words while staying app-store safe — no graphic porn, no minors, no non-consent. Dares stay doable in chat from home (voice, selfie, short clip, text); never require nudity or explicit acts on camera.`;
 
     const typeInstruction = type === 'truth'
       ? spiceLevel === 'pg13'
         ? 'a mature question about attraction, standards, emotional honesty, dating patterns, or chemistry — specific and self-aware, never cutesy or juvenile.'
         : spiceLevel === 'ratedr'
           ? 'a truth about hookups, tension, turn-ons, jealousy, boundaries, or bold dating stories — consensual, respectful, adult; no graphic porn.'
-          : 'a provocative truth about desire, jealousy, tension, boundaries, late-night habits, or bold experiences — never graphic porn, always consensual-adult framing. Make it feel like a VIP lounge conversation, not a teen party game.'
+          : 'a provocative truth about desire, jealousy, tension, boundaries, late-night habits, or bold experiences — never graphic porn, always consensual-adult framing. Make it feel like a VIP lounge conversation: sharp, seductive, almost edgy — not a teen party game.'
       : spiceLevel === 'pg13'
         ? 'a confident dare they can do in chat from home. Mix voice, selfie, and short video. No travel, vacation, or location-based stunts.'
         : spiceLevel === 'ratedr'
           ? 'a bolder in-chat dare: flirty selfie, suggestive voice note, or teasing short video. No nudity required, no explicit sexual acts on camera — adult tension, not shock value.'
-          : 'a spicy dare they can complete in chat from the couch: voice, selfie, or short video — confident, seductive, cinematic tension, not pornographic. Lean into chemistry and "what if we were alone" energy without naming public stunts or events.';
+          : 'a spicy dare they can complete in chat from the couch: voice, selfie, or short video — confident, seductive, cinematic tension, almost edgy but not pornographic. Lean into "what if we were alone right now" energy — bold, adult, unforgettable — without public stunts or events.';
 
     const noTravelNote = type === 'dare'
       ? '\n- Do NOT use travel, vacation, "where you are", scenic views, or location. Users are often at home. Keep dares doable from wherever they are.'

@@ -50,6 +50,8 @@ export const EXTRA_TRUTHS_R: string[] = [
 ];
 
 export const EXTRA_TRUTHS_SPICY: string[] = [
+  "What's the most shameless thing you've done to keep someone's attention?",
+  "What would you admit only after the third drink — or the third date?",
   "What's something you'd let slide if the chemistry was unfairly good?",
   "Describe the kind of message that would make you change your evening plans.",
   "What's a risk you'd take in person that you'd never admit in your profile?",
@@ -104,6 +106,8 @@ export const EXTRA_DARES_R: string[] = [
 ];
 
 export const EXTRA_DARES_SPICY: string[] = [
+  "Voice note: the boldest thing you'd whisper if the room were empty — still respectful",
+  "Text a line that would get you blocked on a lesser app but is perfect here",
   "Voice note: one thing you'd want permission before you'd say out loud",
   "Send a selfie: shadow on jaw or cheekbone — moody, not explicit",
   "Text what you'd type if you were one drink braver — still respectful",

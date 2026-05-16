@@ -776,6 +776,12 @@ export async function initDatabase() {
   try {
     await execSQL(`ALTER TABLE never_have_i_ever_games ADD COLUMN user2_answer_round_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'}`);
   } catch (e) { /* exists */ }
+  try {
+    await execSQL(`ALTER TABLE never_have_i_ever_games ADD COLUMN user1_last_active_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'}`);
+  } catch (e) { /* exists */ }
+  try {
+    await execSQL(`ALTER TABLE never_have_i_ever_games ADD COLUMN user2_last_active_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'}`);
+  } catch (e) { /* exists */ }
 
   // Truth or Dare: Game state per match (lobby for spice level agreement)
   await execSQL(`

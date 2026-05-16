@@ -32,6 +32,7 @@ type GameState = {
   roundJustCompleted?: boolean;
   newPrompt?: string;
   pointsFromRound?: { newYourStrikes?: number; newTheirStrikes?: number };
+  inactiveReset?: boolean;
 };
 
 type SocketPayload = {
@@ -40,6 +41,7 @@ type SocketPayload = {
   roundId?: string | null;
   roundComplete?: boolean;
   roundReset?: boolean;
+  inactiveReset?: boolean;
   user1Strikes?: number;
   user2Strikes?: number;
 };
@@ -91,17 +93,17 @@ const SPICE_OPTIONS: { id: SpiceId; title: string; blurb: string }[] = [
   {
     id: "pg13",
     title: "PG-13",
-    blurb: "Playful dating prompts that keep it light but still revealing.",
+    blurb: "Grown-up confessions — witty, sharp, and emotionally real.",
   },
   {
     id: "ratedr",
     title: "Rated R",
-    blurb: "Bolder stories and chemistry, tasteful and still in-bounds.",
+    blurb: "Mature audience: suggestive stories, tension, and real chemistry.",
   },
   {
     id: "spicy",
     title: "Spicy",
-    blurb: "The most provocative version, app-safe and consent-forward.",
+    blurb: "Maximum heat — bold, seductive, almost edgy (still app-safe).",
   },
 ];
 
@@ -165,6 +167,7 @@ function normalizeState(data: Partial<GameState>, prev?: GameState | null): Game
     winner,
     isUser1: data.isUser1 ?? prev?.isUser1,
     roundId: data.roundId ?? prev?.roundId ?? null,
+    inactiveReset: Boolean(data.inactiveReset),
   };
 }
 
@@ -193,6 +196,7 @@ export default function NeverHaveIEverWeb({
   const [prompt, setPrompt] = useState("");
   const [gameChatDraft, setGameChatDraft] = useState("");
   const [gameChatSending, setGameChatSending] = useState(false);
+  const [inactiveNotice, setInactiveNotice] = useState<string | null>(null);
   const [compactGameLayout, setCompactGameLayout] = useState(false);
   const [gameChatPanelOpen, setGameChatPanelOpen] = useState(true);
 
@@ -330,13 +334,18 @@ export default function NeverHaveIEverWeb({
 
   const mergeState = useCallback((next: GameState) => {
     if (next.isUser1 !== undefined) isUser1Ref.current = Boolean(next.isUser1);
+    if (next.inactiveReset) {
+      lastKnownPointsRef.current = { yourPoints: 0, theirPoints: 0 };
+      setInactiveNotice("Game restarted — someone was away for a while.");
+    }
     setState((prev) => {
       const recentRound = Date.now() - lastRoundCompletedAtRef.current < 6000;
       const promptLocked = Date.now() < promptLockedUntilRef.current;
       const resetToZero =
-        next.yourPoints === 0 &&
-        next.theirPoints === 0 &&
-        ((prev?.gameOver ?? false) || (prev?.yourPoints ?? 0) >= 10 || (prev?.theirPoints ?? 0) >= 10);
+        next.inactiveReset ||
+        (next.yourPoints === 0 &&
+          next.theirPoints === 0 &&
+          ((prev?.gameOver ?? false) || (prev?.yourPoints ?? 0) >= 10 || (prev?.theirPoints ?? 0) >= 10));
       const staleRoundPrompt =
         recentRound &&
         lastAnsweredPromptRef.current.trim() !== "" &&
@@ -415,8 +424,15 @@ export default function NeverHaveIEverWeb({
   }, [stopGameChatTyping]);
 
   useEffect(() => {
+    if (!inactiveNotice) return;
+    const t = window.setTimeout(() => setInactiveNotice(null), 8000);
+    return () => clearTimeout(t);
+  }, [inactiveNotice]);
+
+  useEffect(() => {
     if (!modalOpen) {
       stopGameChatTyping();
+      setInactiveNotice(null);
       return;
     }
     const mq = window.matchMedia("(max-width: 720px)");
@@ -451,6 +467,11 @@ export default function NeverHaveIEverWeb({
     const onUpdate = (payload: SocketPayload = {}) => {
       if (payload.matchId && payload.matchId !== matchId) return;
 
+      if (payload.inactiveReset) {
+        setInactiveNotice("Game restarted — someone was away for a while.");
+        lastKnownPointsRef.current = { yourPoints: 0, theirPoints: 0 };
+      }
+
       if (payload.roundComplete) {
         lastRoundCompletedAtRef.current = Date.now();
       }
@@ -459,7 +480,7 @@ export default function NeverHaveIEverWeb({
         const isUser1 = isUser1Ref.current ?? state?.isUser1 ?? true;
         const yourPoints = isUser1 ? payload.user1Strikes : payload.user2Strikes;
         const theirPoints = isUser1 ? payload.user2Strikes : payload.user1Strikes;
-        const nextPoints = payload.roundReset
+        const nextPoints = payload.roundReset || payload.inactiveReset
           ? { yourPoints, theirPoints }
           : {
               yourPoints: Math.max(lastKnownPointsRef.current.yourPoints, yourPoints),
@@ -728,6 +749,12 @@ export default function NeverHaveIEverWeb({
             <h2 id="nhie-modal-title" className="tod-web-modal-title">
               🙊 Never Have I Ever
             </h2>
+
+            {inactiveNotice ? (
+              <p className="nhie-web-inactive-notice" role="status">
+                {inactiveNotice}
+              </p>
+            ) : null}
 
             {loading && !state ? (
               <p className="tod-web-loading">Loading…</p>

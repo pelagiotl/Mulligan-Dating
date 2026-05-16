@@ -19,6 +19,9 @@ import { getSharedInterests } from './mulliganMoments.js';
 
 const STRIKES_TO_LOSE = 10;
 
+/** If either player has not touched NHIE in this long, the session restarts (web + mobile poll GET). */
+export const NHIE_INACTIVITY_RESET_MS = 5 * 60 * 1000;
+
 export type SpiceLevel = 'pg13' | 'ratedr' | 'spicy';
 
 /** Use the more conservative of the two choices for prompt generation (no one is pushed past their comfort level). */
@@ -177,22 +180,23 @@ const BANNED_THEME_RE =
   /\b(concert|concerts|festival|festivals|gig|gigs|band|bands|playlist|playlists|karaoke|song|songs|music scene|live music|travel|travels|traveled|travelling|traveling|trip|trips|vacation|vacations|airport|airports|flight|flights|road trip|roadtrip|hotel|resort|sports game|game day|stadium)\b/i;
 
 const NHIE_PROMPT_ANGLES = [
-  'texting habits and overthinking',
+  'texting habits and overthinking at 1 a.m.',
   'emotional availability and mixed signals',
-  'confidence, ego, and attraction',
-  'red flags people ignored because of chemistry',
-  'situationships and unclear boundaries',
-  'first impressions and surprising attraction',
-  'jealousy, attention, and wanting to be chosen',
-  'late-night honesty and risky messages',
+  'confidence, ego, and wanting to be chosen',
+  'red flags ignored because the chemistry was unfair',
+  'situationships and blurry boundaries',
+  'jealousy, attention, and power dynamics',
+  'late-night honesty and messages you almost unsent',
   'standards, dealbreakers, and self-respect',
-  'exes, closure, and unfinished business',
-  'physical chemistry without graphic detail',
-  'vulnerability people try to hide',
+  'exes, closure, and unfinished tension',
+  'desire and tension without graphic detail',
+  'vulnerability people hide behind cool',
   'being pursued versus doing the pursuing',
-  'dating-app behavior and profile assumptions',
-  'small moments that created tension',
-  'adult flirting that stayed just barely subtle',
+  'dating-app behavior and profile performance',
+  'the moment someone became irresistible',
+  'adult flirting that crossed a line — barely',
+  'rules you broke for the right person',
+  'chemistry that made you ignore your own standards',
 ];
 
 function fallbackPromptsForLevel(spiceLevel: SpiceLevel): string[] {
@@ -245,10 +249,10 @@ export async function generateNeverHaveIEverPrompt(matchId: string, spiceLevel: 
       : '';
 
     const spiceInstruction = isSpicy
-      ? 'SPICY: The BOLDEST level. Hookups, one-night stands, risky texts, sleeping with someone on first date, friends-with-benefits, secret relationships, exes, jealousy, situationships, and desire. Provocative but tasteful. No explicit sexual content. App-store safe.'
+      ? 'SPICY: Maximum heat for consenting adults — almost edgy. Center on hookups, first-date tension, risky late-night texts, FWB, secret crushes, jealousy, power plays, situationships, and desire people hide. Sound like a VIP lounge after midnight: bold, seductive, self-aware. No pornographic anatomy or illegal content. App-store safe but push the line.'
       : isR
-      ? 'RATED R: Bolder, more suggestive. Can touch on hookups, one-night stands, exes, risqué situations, physical attraction, secrets. Still tasteful and app-store safe — no explicit sexual content.'
-      : 'PG-13: Fun, relatable, dating/romance/life themed. Light and playful. Dating-appropriate.';
+      ? 'RATED R: Mature audience — suggestive, sexually charged stories and habits without graphic porn. Hookups, exes, risqué DMs, attraction, boundaries bent, and real adult dating messiness. Confident bar-stool honesty, not teen party games.'
+      : 'PG-13: Grown-up dating energy — witty, emotionally intelligent, flirty. Real chemistry and choices, never childish icebreakers.';
 
     const { default: OpenAI } = await import('openai');
     const openai = new OpenAI({ apiKey: openaiApiKey });
@@ -262,7 +266,7 @@ export async function generateNeverHaveIEverPrompt(matchId: string, spiceLevel: 
           role: 'system',
           content: `You generate "Never have I ever" prompts for a dating app game for adults. Output ONLY the activity part (the thing after "Never have I ever"), NOT the full phrase. 4-10 words. ${spiceInstruction}
 
-Be mature, cool, varied, and psychologically interesting. Center adult dating behavior, attraction, texting, vulnerability, boundaries, mixed signals, chemistry, jealousy, ego, confidence, exes, situationships, risk, and self-awareness.
+Be mature, cool, varied, and psychologically sharp. Write for adults who date — attraction, texting, vulnerability, boundaries, mixed signals, chemistry, jealousy, ego, confidence, exes, situationships, risk, and self-awareness. Never sound like a schoolyard party game.
 
 Hard bans: no concerts, festivals, bands, songs, playlists, karaoke, music scenes, travel, trips, vacations, airports, hotels, road trips, sports games, stadiums, or public-event prompts.
 
@@ -339,6 +343,106 @@ interface GameRow {
   user2_answer: string | null;
   user1_answer_round_id?: string | null;
   user2_answer_round_id?: string | null;
+  user1_last_active_at?: string | null;
+  user2_last_active_at?: string | null;
+}
+
+function parseActivityTs(raw: string | null | undefined): number | null {
+  if (raw == null || !String(raw).trim()) return null;
+  const t = new Date(raw).getTime();
+  return Number.isFinite(t) ? t : null;
+}
+
+function isPlayerInactive(lastActiveAt: string | null | undefined): boolean {
+  const t = parseActivityTs(lastActiveAt);
+  if (t === null) return false;
+  return Date.now() - t > NHIE_INACTIVITY_RESET_MS;
+}
+
+function nhieSessionEngaged(row: GameRow): boolean {
+  const s1 = Number(row.user1_strikes) || 0;
+  const s2 = Number(row.user2_strikes) || 0;
+  return !!(
+    row.user1_spice_choice ||
+    row.user2_spice_choice ||
+    row.current_prompt?.trim() ||
+    s1 > 0 ||
+    s2 > 0
+  );
+}
+
+async function touchNeverHaveIEverActivity(matchId: string, userId: string, match: { user1_id: string; user2_id: string }): Promise<void> {
+  const isUser1 = userId === match.user1_id;
+  const col = isUser1 ? 'user1_last_active_at' : 'user2_last_active_at';
+  const now = new Date().toISOString();
+  const result = db.prepare(`UPDATE never_have_i_ever_games SET ${col} = ?, updated_at = ? WHERE match_id = ?`).run([now, now, matchId]);
+  if (result instanceof Promise) await result;
+}
+
+async function setBothNeverHaveIEverActivity(matchId: string): Promise<void> {
+  const now = new Date().toISOString();
+  const result = db
+    .prepare(
+      `UPDATE never_have_i_ever_games SET user1_last_active_at = ?, user2_last_active_at = ?, updated_at = ? WHERE match_id = ?`
+    )
+    .run([now, now, now, matchId]);
+  if (result instanceof Promise) await result;
+}
+
+/** Restart NHIE when either player has been idle 5+ minutes. Returns true if a reset ran. */
+export async function applyNeverHaveIEverInactivityReset(
+  matchId: string,
+  match: { user1_id: string; user2_id: string }
+): Promise<boolean> {
+  const rowResult = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
+  const row = (rowResult instanceof Promise ? await rowResult : rowResult) as GameRow | undefined;
+  if (!row || !nhieSessionEngaged(row)) return false;
+
+  const u1Idle = isPlayerInactive(row.user1_last_active_at);
+  const u2Idle = isPlayerInactive(row.user2_last_active_at);
+  if (!u1Idle && !u2Idle) return false;
+
+  nhieLog('inactivity reset', { matchId, u1Idle, u2Idle, u1Last: row.user1_last_active_at, u2Last: row.user2_last_active_at });
+
+  const c1 = row.user1_spice_choice as SpiceLevel | null;
+  const c2 = row.user2_spice_choice as SpiceLevel | null;
+  const now = new Date().toISOString();
+
+  if (c1 && c2) {
+    const level = moreConservative(c1, c2);
+    const prompt = await generateDistinctNeverHaveIEverPrompt(matchId, level, null);
+    const updateResult = db
+      .prepare(
+        `UPDATE never_have_i_ever_games SET user1_strikes = 0, user2_strikes = 0, spice_level = ?, current_prompt = ?, current_round_id = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, user1_answer_round_id = NULL, user2_answer_round_id = NULL, user1_last_active_at = ?, user2_last_active_at = ?, updated_at = ? WHERE match_id = ?`
+      )
+      .run([level, prompt, uuidv4(), now, now, now, matchId]);
+    if (updateResult instanceof Promise) await updateResult;
+  } else {
+    const updateResult = db
+      .prepare(
+        `UPDATE never_have_i_ever_games SET user1_strikes = 0, user2_strikes = 0, user1_spice_choice = NULL, user2_spice_choice = NULL, spice_level = NULL, current_prompt = NULL, current_round_id = NULL, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, user1_answer_round_id = NULL, user2_answer_round_id = NULL, user1_last_active_at = ?, user2_last_active_at = ?, updated_at = ? WHERE match_id = ?`
+      )
+      .run([now, now, now, matchId]);
+    if (updateResult instanceof Promise) await updateResult;
+  }
+
+  try {
+    const { getIO } = await import('../socket.js');
+    const io = getIO();
+    if (io) {
+      io.to(`match:${matchId}`).emit('never_have_i_ever_updated', {
+        matchId,
+        roundReset: true,
+        inactiveReset: true,
+        user1Strikes: 0,
+        user2Strikes: 0,
+      });
+    }
+  } catch (_) {
+    /* non-fatal */
+  }
+
+  return true;
 }
 
 export interface GameState {
@@ -360,6 +464,8 @@ export interface GameState {
   tokenUnlocked?: boolean;
   currentTurnUserId?: string | null;
   isYourTurn?: boolean;
+  /** True when the server restarted the game after 5+ min idle on either side. */
+  inactiveReset?: boolean;
 }
 
 export type GetGameStateOptions = { completeRoundIfBothAnswered?: boolean };
@@ -388,10 +494,18 @@ export async function getGameState(
 ): Promise<GameState> {
   const isUser1 = userId === match.user1_id;
 
+  const inactiveReset = await applyNeverHaveIEverInactivityReset(matchId, match);
+
   const rowResult = db
     .prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?')
     .get([matchId]);
   let row = (rowResult instanceof Promise ? await rowResult : rowResult) as GameRow | undefined;
+
+  if (row) {
+    await touchNeverHaveIEverActivity(matchId, userId, match);
+    const rowRefresh = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
+    row = (rowRefresh instanceof Promise ? await rowRefresh : rowRefresh) as GameRow | undefined;
+  }
 
   const yourSpiceChoice = (isUser1 ? row?.user1_spice_choice : row?.user2_spice_choice) as 'pg13' | 'ratedr' | 'spicy' | null;
   const theirSpiceChoice = (isUser1 ? row?.user2_spice_choice : row?.user1_spice_choice) as 'pg13' | 'ratedr' | 'spicy' | null;
@@ -416,6 +530,7 @@ export async function getGameState(
       theirSpiceChoice: null,
       spiceReady: false,
       spiceLevel: null,
+      inactiveReset: inactiveReset || undefined,
     };
   }
 
@@ -439,6 +554,7 @@ export async function getGameState(
       theirSpiceChoice: theirSpiceChoice || null,
       spiceReady,
       spiceLevel,
+      inactiveReset: inactiveReset || undefined,
     };
   }
 
@@ -472,12 +588,13 @@ export async function getGameState(
         bothAnswered: false,
         currentTurnUserId: null,
         isYourTurn: false,
+        inactiveReset: inactiveReset || undefined,
       };
     }
   }
 
   if (!row) {
-    return { prompt: '', roundId: null, yourStrikes: 0, theirStrikes: 0, yourAnswer: null, theirAnswer: null, bothAnswered: false, gameOver: false, winner: null, phase: 'playing', yourSpiceChoice: null, theirSpiceChoice: null, spiceReady, spiceLevel: level, currentTurnUserId: null, isYourTurn: false };
+    return { prompt: '', roundId: null, yourStrikes: 0, theirStrikes: 0, yourAnswer: null, theirAnswer: null, bothAnswered: false, gameOver: false, winner: null, phase: 'playing', yourSpiceChoice: null, theirSpiceChoice: null, spiceReady, spiceLevel: level, currentTurnUserId: null, isYourTurn: false, inactiveReset: inactiveReset || undefined };
   }
   let prompt = row.current_prompt?.trim() || '';
   // If we're in playing phase but prompt is missing/placeholder, generate one and persist (fixes UI showing only "Never have I ever...")
@@ -513,6 +630,7 @@ export async function getGameState(
     spiceLevel: level,
     currentTurnUserId,
     isYourTurn,
+    inactiveReset: inactiveReset || undefined,
   };
 }
 
@@ -717,8 +835,10 @@ export async function setMySpiceChoice(
       `UPDATE never_have_i_ever_games SET spice_level = ?, current_prompt = ?, current_round_id = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, user1_answer_round_id = NULL, user2_answer_round_id = NULL, updated_at = ? WHERE match_id = ?`
     ).run([effectiveLevel, prompt, uuidv4(), now, matchId]);
     if (promptResult instanceof Promise) await promptResult;
+    await setBothNeverHaveIEverActivity(matchId);
   }
 
+  await touchNeverHaveIEverActivity(matchId, userId, match);
   return getGameState(matchId, userId, match);
 }
 
@@ -743,6 +863,7 @@ export async function startGame(
     `UPDATE never_have_i_ever_games SET spice_level = ?, current_prompt = ?, current_round_id = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, user1_answer_round_id = NULL, user2_answer_round_id = NULL, updated_at = ? WHERE match_id = ?`
   ).run([spiceLevel, prompt, uuidv4(), new Date().toISOString(), matchId]);
   if (startResult instanceof Promise) await startResult;
+  await setBothNeverHaveIEverActivity(matchId);
 
   return getGameState(matchId, userId, match);
 }
@@ -762,6 +883,8 @@ export async function submitAnswer(
   newPrompt?: string;
 }> {
   const isUser1 = userId === match.user1_id;
+
+  await applyNeverHaveIEverInactivityReset(matchId, match);
 
   const rowResult = db
     .prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?')
@@ -818,6 +941,7 @@ export async function submitAnswer(
   if (runResult instanceof Promise) runResult = await runResult;
   const answerWasSet = (runResult as { changes?: number }).changes !== undefined && (runResult as { changes: number }).changes > 0;
   nhieLog('submitAnswer: answer UPDATE result', { matchId, isUser1, answerWasSet });
+  await touchNeverHaveIEverActivity(matchId, userId, match);
 
   if (!answerWasSet) {
     if (process.env.NODE_ENV !== 'test') {
@@ -1021,5 +1145,6 @@ export async function startNewGame(
     if (insertResult instanceof Promise) await insertResult;
   }
 
+  await setBothNeverHaveIEverActivity(matchId);
   return getGameState(matchId, userId, match);
 }

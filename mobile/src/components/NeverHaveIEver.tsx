@@ -375,6 +375,10 @@ export default function NeverHaveIEver({
       // Once both have chosen spice, stay in playing (never show lobby again); show "Getting prompt..." if prompt is briefly empty
       const hasChosen = !!(data.yourSpiceChoice || data.theirSpiceChoice);
       if (data.isUser1 !== undefined) isUser1Ref.current = !!data.isUser1;
+      if (data.inactiveReset) {
+        lastKnownPointsRef.current = { yourPoints: 0, theirPoints: 0 };
+        Alert.alert('Never Have I Ever', 'Game restarted — someone was away for a while.');
+      }
       const simple: GameState = {
         prompt: data.prompt || '',
         phase: data.spiceReady && (data.prompt || data.spiceLevel || hasChosen) ? 'playing' : 'lobby',
@@ -497,6 +501,8 @@ export default function NeverHaveIEver({
       matchId?: string;
       newPrompt?: string;
       roundComplete?: boolean;
+      roundReset?: boolean;
+      inactiveReset?: boolean;
       user1Strikes?: number;
       user2Strikes?: number;
     } = {}) => {
@@ -522,6 +528,9 @@ export default function NeverHaveIEver({
       // Apply authoritative strike counts from server so "them" updates without refetch timing
       const u1 = payload.user1Strikes ?? null;
       const u2 = payload.user2Strikes ?? null;
+      if (payload.inactiveReset || payload.roundReset) {
+        lastKnownPointsRef.current = { yourPoints: 0, theirPoints: 0 };
+      }
       if (u1 != null && u2 != null) {
         setState(prev => {
           if (!prev) return null;
@@ -529,10 +538,13 @@ export default function NeverHaveIEver({
           const isUser1 = isUser1Ref.current ?? prev.isUser1 ?? true;
           const yourPts = isUser1 ? u1 : u2;
           const theirPts = isUser1 ? u2 : u1;
-          lastKnownPointsRef.current = {
-            yourPoints: Math.max(lastKnownPointsRef.current.yourPoints, yourPts),
-            theirPoints: Math.max(lastKnownPointsRef.current.theirPoints, theirPts),
-          };
+          const forceZero = payload.inactiveReset || payload.roundReset;
+          lastKnownPointsRef.current = forceZero
+            ? { yourPoints: yourPts, theirPoints: theirPts }
+            : {
+                yourPoints: Math.max(lastKnownPointsRef.current.yourPoints, yourPts),
+                theirPoints: Math.max(lastKnownPointsRef.current.theirPoints, theirPts),
+              };
           return {
             ...prev,
             yourPoints: lastKnownPointsRef.current.yourPoints,
