@@ -228,7 +228,8 @@ export default function LaunchCountdownBubble({
             accessibilityHint="Opens countdown. Long-press to reset to the top."
           >
             <LinearGradient
-              colors={['#fdf2f8', '#ede9fe', '#fce7f3']}
+              colors={['#fdf4ff', '#ede9fe', '#fce7f3', '#fff7ed']}
+              locations={[0, 0.35, 0.65, 1]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={[
@@ -248,57 +249,86 @@ export default function LaunchCountdownBubble({
             </LinearGradient>
           </Pressable>
         ) : (
-          <LinearGradient
-            colors={['#ffffff', '#fff7fb', '#faf5ff']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={[styles.expandedCard, isVerticalDock && styles.expandedCardVertical]}
-          >
-            <View style={styles.dragHintRow}>
-              <View style={styles.dragGrip} />
-              <Text style={styles.dragHint}>Drag to an edge</Text>
-            </View>
-
-            {remaining.live ? (
-              <>
-                <View style={styles.headerRow}>
-                  <Text style={styles.hourglass} allowFontScaling={false}>
-                    ⏳
-                  </Text>
-                  <Text style={styles.heading}>June 6 launch</Text>
-                </View>
-                <Text style={styles.liveMsg}>{"We're live — welcome to Mulligan."}</Text>
-              </>
-            ) : (
-              <>
-                <View style={styles.headerRow}>
-                  <Text style={styles.hourglass} allowFontScaling={false}>
-                    ⏳
-                  </Text>
-                  <View style={styles.headerCopy}>
-                    <Text style={styles.heading}>June 6 launch</Text>
-                    <Text style={styles.sub}>Time until launch</Text>
-                  </View>
-                </View>
-                <View style={styles.grid} accessibilityLabel={`${remaining.days} days until launch`}>
-                  <View style={styles.cell}>
-                    <Text style={styles.value}>{remaining.days}</Text>
-                    <Text style={styles.unit}>Days</Text>
-                  </View>
-                </View>
-              </>
-            )}
-
-            <Pressable
-              style={styles.collapseBtn}
-              onPress={() => setCollapsed(true)}
-              hitSlop={10}
-              accessibilityRole="button"
-              accessibilityLabel="Collapse launch countdown"
+          <View style={styles.expandedOuter}>
+            <LinearGradient
+              colors={['#ffffff', '#faf5ff', '#fdf2f8', '#f5f3ff']}
+              locations={[0, 0.3, 0.62, 1]}
+              start={{ x: 0.08, y: 0 }}
+              end={{ x: 0.95, y: 1 }}
+              style={[styles.expandedCard, isVerticalDock && styles.expandedCardVertical]}
             >
-              <Text style={styles.collapseBtnText}>Minimize</Text>
-            </Pressable>
-          </LinearGradient>
+              <LinearGradient
+                colors={['rgba(192, 38, 211, 0.22)', 'rgba(244, 114, 182, 0.12)', 'transparent']}
+                locations={[0, 0.45, 1]}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+                style={styles.expandedSheen}
+                pointerEvents="none"
+              />
+              <LinearGradient
+                colors={['rgba(217, 70, 239, 0.9)', 'rgba(244, 114, 182, 0.85)', 'rgba(99, 102, 241, 0.75)']}
+                start={{ x: 0, y: 0.5 }}
+                end={{ x: 1, y: 0.5 }}
+                style={styles.expandedAccentBar}
+                pointerEvents="none"
+              />
+
+              <View style={styles.dragHintRow}>
+                <View style={styles.dragGrip} />
+                <Text style={styles.dragHint}>Drag to an edge to dock</Text>
+              </View>
+
+              {remaining.live ? (
+                <>
+                  <View style={styles.headerRow}>
+                    <View style={styles.hourglassBadge}>
+                      <Text style={styles.hourglass} allowFontScaling={false}>
+                        ⏳
+                      </Text>
+                    </View>
+                    <Text style={styles.heading}>June 6 launch</Text>
+                  </View>
+                  <Text style={styles.liveMsg}>{"We're live — welcome to Mulligan."}</Text>
+                </>
+              ) : (
+                <>
+                  <View style={styles.headerRow}>
+                    <View style={styles.hourglassBadge}>
+                      <Text style={styles.hourglass} allowFontScaling={false}>
+                        ⏳
+                      </Text>
+                    </View>
+                    <View style={styles.headerCopy}>
+                      <Text style={styles.heading}>June 6 launch</Text>
+                      <Text style={styles.sub}>Time until launch</Text>
+                    </View>
+                  </View>
+                  <View style={styles.grid} accessibilityLabel={`${remaining.days} days until launch`}>
+                    <LinearGradient
+                      colors={['rgba(255, 255, 255, 0.98)', 'rgba(250, 245, 255, 0.99)', 'rgba(254, 242, 242, 0.95)']}
+                      locations={[0, 0.5, 1]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.cellGradient}
+                    >
+                      <Text style={styles.value}>{remaining.days}</Text>
+                      <Text style={styles.unit}>Days</Text>
+                    </LinearGradient>
+                  </View>
+                </>
+              )}
+
+              <Pressable
+                style={styles.collapseBtn}
+                onPress={() => setCollapsed(true)}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel="Collapse launch countdown"
+              >
+                <Text style={styles.collapseBtnText}>Minimize</Text>
+              </Pressable>
+            </LinearGradient>
+          </View>
         )}
       </View>
     </View>
@@ -325,9 +355,9 @@ const styles = StyleSheet.create({
     }),
   },
   collapsedGradient: {
-    borderRadius: 16,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: 'rgba(225, 29, 72, 0.15)',
+    borderColor: 'rgba(167, 139, 250, 0.35)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -351,24 +381,47 @@ const styles = StyleSheet.create({
   collapsedLabel: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#881337',
+    color: '#86198f',
   },
   collapsedChevron: {
     fontSize: 11,
     color: '#94a3b8',
     marginLeft: 4,
   },
-  expandedCard: {
-    borderRadius: 22,
-    paddingTop: 10,
-    paddingBottom: 12,
-    paddingHorizontal: 16,
+  expandedOuter: {
+    borderRadius: 24,
+    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.25)',
-    minWidth: 260,
+    borderColor: 'rgba(167, 139, 250, 0.28)',
+  },
+  expandedCard: {
+    borderRadius: 24,
+    paddingTop: 16,
+    paddingBottom: 14,
+    paddingHorizontal: 18,
+    minWidth: 268,
+    overflow: 'hidden',
   },
   expandedCardVertical: {
-    minWidth: 200,
+    minWidth: 208,
+  },
+  expandedSheen: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 96,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+  },
+  expandedAccentBar: {
+    position: 'absolute',
+    top: 10,
+    left: 28,
+    right: 28,
+    height: 3,
+    borderRadius: 2,
+    opacity: 0.92,
   },
   dragHintRow: {
     flexDirection: 'row',
@@ -378,77 +431,98 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   dragGrip: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: 'rgba(148, 163, 184, 0.45)',
+    width: 42,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: 'rgba(148, 163, 184, 0.5)',
   },
   dragHint: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#94a3b8',
-    letterSpacing: 0.3,
+    color: '#7c8796',
+    letterSpacing: 0.35,
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginBottom: 10,
+    gap: 12,
+    marginBottom: 12,
   },
   headerCopy: {
     flex: 1,
   },
+  hourglassBadge: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    borderWidth: 1,
+    borderColor: 'rgba(226, 232, 240, 0.95)',
+  },
   hourglass: {
-    fontSize: 26,
+    fontSize: 24,
   },
   heading: {
-    fontSize: 18,
+    fontSize: 19,
     fontWeight: '800',
-    color: '#5c1423',
-    letterSpacing: -0.2,
+    color: '#701a75',
+    letterSpacing: -0.35,
   },
   sub: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 10,
+    fontWeight: '700',
     color: '#64748b',
-    marginTop: 2,
+    marginTop: 4,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
   },
   grid: {
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
   },
-  cell: {
+  cellGradient: {
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 22,
-    borderRadius: 14,
-    backgroundColor: 'rgba(248, 250, 252, 0.95)',
-    borderWidth: 1,
-    borderColor: 'rgba(226, 232, 240, 0.9)',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 36,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: 'rgba(236, 72, 153, 0.28)',
+    minWidth: 132,
   },
   value: {
-    fontSize: 32,
+    fontSize: 42,
     fontWeight: '900',
-    color: '#0f172a',
+    color: '#312e81',
+    letterSpacing: -1,
   },
   unit: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 10,
+    fontWeight: '800',
     color: '#64748b',
-    marginTop: 2,
+    marginTop: 4,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
   },
   liveMsg: {
     fontSize: 14,
-    lineHeight: 20,
+    lineHeight: 21,
     color: '#475569',
     fontWeight: '600',
     textAlign: 'center',
+    paddingHorizontal: 4,
   },
   collapseBtn: {
     alignSelf: 'center',
-    marginTop: 4,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+    marginTop: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 18,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 255, 255, 0.72)',
+    borderWidth: 1,
+    borderColor: 'rgba(219, 39, 119, 0.28)',
   },
   collapseBtnText: {
     fontSize: 12,

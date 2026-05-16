@@ -62,6 +62,7 @@ function BrowseConnectLandingChrome({
   unlocking?: boolean;
   gateError?: string;
 }) {
+  const navigate = useNavigate();
   const isGate = mode === "gate";
   const showTokenStrip = isGate || mode === "auto-connecting";
 
@@ -74,6 +75,16 @@ function BrowseConnectLandingChrome({
             <TokenDisplay />
           </aside>
         ) : null}
+
+        <button
+          type="button"
+          className="connect-landing__shell-hint"
+          onClick={() => navigate("/settings")}
+          aria-label="Open Settings to change Connect tab colors and layout"
+        >
+          <span aria-hidden>🎨</span>
+          <span>Colors in Settings</span>
+        </button>
 
         <div className="connect-landing__card">
           <div className="connect-landing__logo-row">

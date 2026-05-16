@@ -499,6 +499,67 @@ export default function SettingsScreen() {
         </View>
       ) : null}
 
+      {Platform.OS === 'android' ? (
+        <Animated.View
+          style={[
+            styles.section,
+            {
+              opacity: sectionAnimations[1],
+              transform: [
+                {
+                  translateY: sectionAnimations[1].interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [30, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <View style={styles.sectionTitleContainer}>
+            <Text style={styles.sectionEmoji}>🎨</Text>
+            <Text style={styles.sectionTitle}>Connect tab appearance</Text>
+          </View>
+          <LinearGradient
+            colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.05)']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.tokensCard}
+          >
+            <Text style={styles.tokensCardTitle}>Hero card & chrome</Text>
+            <Text style={[styles.tokensCardDescription, { marginBottom: 14 }]}>
+              Cycle through Midnight, Sunny, and Soft Connect chrome. Tokens on Connect landing, tab bar, and backdrop follow
+              this choice. Saved on this device only.
+            </Text>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={toggleConnectShellMode}
+              style={[
+                styles.settingsShellToggleBase,
+                connectShellMode === 'midnight'
+                  ? styles.settingsShellToggleMidnight
+                  : connectShellMode === 'sunny'
+                    ? styles.settingsShellToggleSunny
+                    : styles.settingsShellToggleSoft,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.settingsShellToggleLabel,
+                  connectShellMode === 'midnight'
+                    ? styles.settingsShellToggleLabelMidnight
+                    : connectShellMode === 'sunny'
+                      ? styles.settingsShellToggleLabelSunny
+                      : styles.settingsShellToggleLabelSoft,
+                ]}
+              >
+                {connectShellDisplayLabel(connectShellMode)}
+              </Text>
+            </TouchableOpacity>
+          </LinearGradient>
+        </Animated.View>
+      ) : null}
+
       {/* Account Info */}
       <Animated.View
         style={[
@@ -720,52 +781,6 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
       </Animated.View>
-
-      {Platform.OS === 'android' ? (
-        <View style={styles.section}>
-          <View style={styles.sectionTitleContainer}>
-            <Text style={styles.sectionEmoji}>🎨</Text>
-            <Text style={styles.sectionTitle}>Connect tab appearance</Text>
-          </View>
-          <LinearGradient
-            colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.05)']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.tokensCard}
-          >
-            <Text style={styles.tokensCardTitle}>Hero card & chrome</Text>
-            <Text style={[styles.tokensCardDescription, { marginBottom: 14 }]}>
-              Cycle through Midnight, Sunny, and Soft Connect chrome. Tokens on Connect landing, tab bar, and backdrop follow
-              this choice. Saved on this device only.
-            </Text>
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={toggleConnectShellMode}
-              style={[
-                styles.settingsShellToggleBase,
-                connectShellMode === 'midnight'
-                  ? styles.settingsShellToggleMidnight
-                  : connectShellMode === 'sunny'
-                    ? styles.settingsShellToggleSunny
-                    : styles.settingsShellToggleSoft,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.settingsShellToggleLabel,
-                  connectShellMode === 'midnight'
-                    ? styles.settingsShellToggleLabelMidnight
-                    : connectShellMode === 'sunny'
-                      ? styles.settingsShellToggleLabelSunny
-                      : styles.settingsShellToggleLabelSoft,
-                ]}
-              >
-                {connectShellDisplayLabel(connectShellMode)}
-              </Text>
-            </TouchableOpacity>
-          </LinearGradient>
-        </View>
-      ) : null}
 
       {/* Buy Tokens */}
       <Animated.View

@@ -1519,6 +1519,37 @@ export default function BrowseScreen() {
                 />
               </View>
 
+              {Platform.OS === 'android' && (
+                <View style={styles.connectShellHintWrap} pointerEvents="box-none">
+                  <TouchableOpacity
+                    activeOpacity={0.88}
+                    onPress={() => (navigation as any).navigate('Settings')}
+                    style={[
+                      styles.connectShellHintPill,
+                      connectShellMode === 'midnight' && styles.connectShellHintPillMidnight,
+                      connectShellMode === 'sunny' && styles.connectShellHintPillSunny,
+                      connectShellMode === 'soft' && styles.connectShellHintPillSoft,
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Open Settings to change Connect colors and layout"
+                  >
+                    <Text style={styles.connectShellHintEmoji} allowFontScaling={false}>
+                      🎨
+                    </Text>
+                    <Text
+                      style={[
+                        styles.connectShellHintLabel,
+                        connectShellMode === 'midnight' && styles.connectShellHintLabelMidnight,
+                        connectShellMode !== 'midnight' && styles.connectShellHintLabelLightShell,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      Colors · Settings
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
               {connectShellMode === 'midnight' ? (
             <LinearGradient
               colors={['#211d33', '#121018', '#181427']}
@@ -2842,6 +2873,76 @@ const styles = StyleSheet.create({
     width: '100%',
     marginBottom: 14,
     alignSelf: 'stretch',
+  },
+  connectShellHintWrap: {
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 10,
+    zIndex: 2,
+  },
+  connectShellHintPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 7,
+    paddingHorizontal: 13,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    maxWidth: '92%',
+  },
+  connectShellHintPillMidnight: {
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    ...Platform.select({
+      android: { elevation: 3 },
+      ios: {
+        shadowColor: '#0f172a',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 6,
+      },
+    }),
+  },
+  connectShellHintPillSunny: {
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
+    borderColor: 'rgba(251, 191, 36, 0.45)',
+    ...Platform.select({
+      android: { elevation: 2 },
+      ios: {
+        shadowColor: '#ea580c',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.12,
+        shadowRadius: 4,
+      },
+    }),
+  },
+  connectShellHintPillSoft: {
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderColor: 'rgba(148, 163, 184, 0.4)',
+    ...Platform.select({
+      android: { elevation: 2 },
+      ios: {
+        shadowColor: '#64748b',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+    }),
+  },
+  connectShellHintEmoji: {
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  connectShellHintLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  connectShellHintLabelMidnight: {
+    color: '#e2e8f0',
+  },
+  connectShellHintLabelLightShell: {
+    color: '#334155',
   },
   // landingGradient removed - now using animated LinearGradient component
   landingTokenInCard: {
