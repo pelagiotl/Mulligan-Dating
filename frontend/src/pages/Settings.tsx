@@ -8,8 +8,12 @@ import WebTokenPurchase from "../components/WebTokenPurchase";
 import MatchCelebration, {
   type CelebrationPartnerProfile,
 } from "../components/MatchCelebration";
-
-const isDev = import.meta.env.DEV;
+import {
+  browserSupportsWebPush,
+  getVapidPublicKey,
+  registerWebPush,
+} from "../lib/webPush";
+import { isMatchCelebrationPreviewEnabled } from "../utils/devTools";
 
 const MATCH_CELEBRATION_DEMO_PHOTO =
   "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=600&q=80";
@@ -26,11 +30,6 @@ const MATCH_CELEBRATION_DEMO_PARTNER: CelebrationPartnerProfile = {
   dealbreakers: ["Dishonesty"],
   preferredGenders: ["Man"],
 };
-import {
-  browserSupportsWebPush,
-  getVapidPublicKey,
-  registerWebPush,
-} from "../lib/webPush";
 
 interface SettingsData {
   email: string;
@@ -437,7 +436,7 @@ export default function Settings() {
           <WebTokenPurchase variant="settings" customerEmail={settings?.email} />
         </div>
 
-        {isDev ? (
+        {isMatchCelebrationPreviewEnabled() ? (
           <div className="settings-section settings-dev-section">
             <h2 className="settings-section-title">
               <span>🛠️</span> Developer
@@ -532,7 +531,7 @@ export default function Settings() {
         </div>
       </div>
 
-      {isDev && showCelebrationPreview ? (
+      {isMatchCelebrationPreviewEnabled() && showCelebrationPreview ? (
         <MatchCelebration
           profileName="Alex"
           photoUrl={MATCH_CELEBRATION_DEMO_PHOTO}
