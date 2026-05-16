@@ -419,8 +419,64 @@ function WebNavbarTokenBadge({
   const gradientColors = midnight
     ? (['rgba(244, 63, 94, 0.12)', 'rgba(99, 102, 241, 0.1)'] as const)
     : (['rgba(244, 63, 94, 0.14)', 'rgba(244, 63, 94, 0.07)'] as const);
+  /** Android: soft LinearGradient often renders a brighter band through the pill (reads as grey/white behind the count). */
+  const androidNavbarFill = midnight ? 'rgba(232, 96, 122, 0.22)' : 'rgba(244, 63, 94, 0.13)';
   const borderColor = midnight ? 'rgba(244, 114, 182, 0.35)' : 'rgba(244, 63, 94, 0.28)';
   const textColor = midnight ? '#fda4af' : '#e11d48';
+
+  const badgeInnerStyle = {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor,
+    minWidth: loading ? 56 : undefined,
+    overflow: 'hidden' as const,
+  };
+
+  const badgeInner = (
+    <>
+      {/* Android: skip white shimmer — it composites as a grey patch over the count. iOS keeps web-parity gleam. */}
+      {!reduceMotion && !loading && Platform.OS !== 'android' && (
+        <Animated.View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            bottom: 0,
+            width: 30,
+            backgroundColor: 'rgba(255, 255, 255, 0.42)',
+            transform: [{ skewX: '-20deg' }, { translateX: shimmerTranslateX }],
+          }}
+        />
+      )}
+      <View style={{ flexDirection: 'row', alignItems: 'center', zIndex: 1 }}>
+        {loading ? (
+          <ActivityIndicator size="small" color={textColor} />
+        ) : (
+          <>
+            <Text style={{ fontSize: 16, lineHeight: 18 }}>🎟️</Text>
+            <Text
+              style={{
+                fontSize: 14,
+                fontWeight: '700',
+                color: textColor,
+                letterSpacing: 0.15,
+                marginLeft: 6,
+                ...(Platform.OS === 'android' ? { backgroundColor: 'transparent' as const } : {}),
+              }}
+            >
+              {count}
+            </Text>
+          </>
+        )}
+      </View>
+    </>
+  );
 
   return (
     <TouchableOpacity
@@ -442,59 +498,18 @@ function WebNavbarTokenBadge({
           transform: [{ translateY: pressed ? -2 : 0 }],
         }}
       >
-        <LinearGradient
-          colors={[...gradientColors]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'center',
-            paddingVertical: 8,
-            paddingHorizontal: 14,
-            borderRadius: 14,
-            borderWidth: 1.5,
-            borderColor,
-            minWidth: loading ? 56 : undefined,
-            overflow: 'hidden',
-          }}
-        >
-          {/* Android: skip white shimmer — it composites as a grey patch over the count. iOS keeps web-parity gleam. */}
-          {!reduceMotion && !loading && Platform.OS !== 'android' && (
-            <Animated.View
-              pointerEvents="none"
-              style={{
-                position: 'absolute',
-                left: 0,
-                top: 0,
-                bottom: 0,
-                width: 30,
-                backgroundColor: 'rgba(255, 255, 255, 0.42)',
-                transform: [{ skewX: '-20deg' }, { translateX: shimmerTranslateX }],
-              }}
-            />
-          )}
-          <View style={{ flexDirection: 'row', alignItems: 'center', zIndex: 1 }}>
-            {loading ? (
-              <ActivityIndicator size="small" color={textColor} />
-            ) : (
-              <>
-                <Text style={{ fontSize: 16, lineHeight: 18 }}>🎟️</Text>
-                <Text
-                  style={{
-                    fontSize: 14,
-                    fontWeight: '700',
-                    color: textColor,
-                    letterSpacing: 0.15,
-                    marginLeft: 6,
-                  }}
-                >
-                  {count}
-                </Text>
-              </>
-            )}
-          </View>
-        </LinearGradient>
+        {Platform.OS === 'android' ? (
+          <View style={[badgeInnerStyle, { backgroundColor: androidNavbarFill }]}>{badgeInner}</View>
+        ) : (
+          <LinearGradient
+            colors={[...gradientColors]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={badgeInnerStyle}
+          >
+            {badgeInner}
+          </LinearGradient>
+        )}
       </Animated.View>
     </TouchableOpacity>
   );
@@ -565,14 +580,20 @@ function PremiumTokenDisplay({
           },
         ]}
       >
-        <LinearGradient
-          colors={['#667eea', '#764ba2', '#f093fb']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.premiumGradient}
-        >
-          {/* Shimmer (iOS): on Android the bright strip reads as a grey/white blob behind the count */}
-          {Platform.OS !== 'android' ? (
+        {Platform.OS === 'android' ? (
+          <View style={[styles.premiumGradient, { backgroundColor: '#7367dc' }]}>
+            <View style={styles.premiumContent}>
+              <Text style={styles.premiumIcon}>🎟️</Text>
+              <Text style={[styles.premiumCount, { backgroundColor: 'transparent' }]}>{count}</Text>
+            </View>
+          </View>
+        ) : (
+          <LinearGradient
+            colors={['#667eea', '#764ba2', '#f093fb']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.premiumGradient}
+          >
             <Animated.View
               style={[
                 styles.shimmerOverlay,
@@ -581,13 +602,12 @@ function PremiumTokenDisplay({
                 },
               ]}
             />
-          ) : null}
-          
-          <View style={styles.premiumContent}>
-            <Text style={styles.premiumIcon}>🎟️</Text>
-            <Text style={styles.premiumCount}>{count}</Text>
-          </View>
-        </LinearGradient>
+            <View style={styles.premiumContent}>
+              <Text style={styles.premiumIcon}>🎟️</Text>
+              <Text style={styles.premiumCount}>{count}</Text>
+            </View>
+          </LinearGradient>
+        )}
       </Animated.View>
     </TouchableOpacity>
   );
