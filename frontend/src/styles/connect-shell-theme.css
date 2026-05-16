@@ -750,12 +750,14 @@ html[data-connect-shell="midnight"] .launch-countdown-bubble.launch-countdown-bu
   padding: 0;
 }
 
+/* Midnight — docked chip + expanded shell (hero card graphite / violet chrome) */
 html[data-connect-shell="midnight"] .launch-countdown-bubble.launch-countdown-bubble--collapsed {
   background: linear-gradient(
     135deg,
-    rgba(55, 42, 92, 0.96) 0%,
-    rgba(28, 24, 44, 0.98) 55%,
-    rgba(36, 28, 52, 0.97) 100%
+    #2d2648 0%,
+    #1a1528 40%,
+    #211d33 70%,
+    #121018 100%
   );
   border: 1px solid rgba(167, 139, 250, 0.38);
   box-shadow:
@@ -769,6 +771,166 @@ html[data-connect-shell="midnight"] .launch-countdown-bubble-collapsed-label {
 
 html[data-connect-shell="midnight"] .launch-countdown-bubble-collapsed-cue {
   color: #94a3b8;
+}
+
+html[data-connect-shell="midnight"] .launch-countdown-bubble-expanded-card {
+  border-color: rgba(167, 139, 250, 0.32);
+  background: linear-gradient(
+    165deg,
+    #211d33 0%,
+    #181427 35%,
+    #1a1528 70%,
+    #121018 100%
+  );
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+}
+
+html[data-connect-shell="midnight"] .launch-countdown-bubble-expanded-card .launch-countdown {
+  background: linear-gradient(
+    168deg,
+    rgba(26, 22, 38, 0.98) 0%,
+    rgba(15, 14, 26, 0.99) 45%,
+    rgba(22, 18, 34, 0.98) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.35);
+}
+
+html[data-connect-shell="midnight"] .launch-countdown-bubble__drag-label {
+  color: #94a3b8;
+}
+
+html[data-connect-shell="midnight"] .launch-countdown-bubble__drag-grip {
+  background: rgba(148, 163, 184, 0.45);
+}
+
+html[data-connect-shell="midnight"] .launch-countdown-bubble__minimize {
+  background: rgba(30, 27, 46, 0.85);
+  border-color: rgba(167, 139, 250, 0.4);
+  color: #e9d5ff;
+}
+
+html[data-connect-shell="midnight"] .launch-countdown-bubble__minimize:hover {
+  background: rgba(45, 38, 72, 0.92);
+}
+
+/* Sunny — warm cream / amber (hero sunny card) */
+html[data-connect-shell="sunny"] .launch-countdown-bubble.launch-countdown-bubble--collapsed {
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 35%, #fde68a 65%, #fff7ed 100%);
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  box-shadow:
+    0 8px 24px rgba(234, 88, 12, 0.15),
+    0 0 0 1px rgba(255, 255, 255, 0.5) inset;
+}
+
+html[data-connect-shell="sunny"] .launch-countdown-bubble-collapsed-label {
+  color: #9a3412;
+}
+
+html[data-connect-shell="sunny"] .launch-countdown-bubble-collapsed-cue {
+  color: #a8a29e;
+}
+
+html[data-connect-shell="sunny"] .launch-countdown-bubble-expanded-card {
+  border-color: rgba(251, 191, 36, 0.4);
+  background: linear-gradient(
+    165deg,
+    #ffffff 0%,
+    #fffbeb 30%,
+    #fef3c7 62%,
+    #fff7fb 100%
+  );
+  box-shadow: 0 12px 32px rgba(234, 88, 12, 0.12);
+}
+
+html[data-connect-shell="sunny"] .launch-countdown-bubble-expanded-card .launch-countdown {
+  background: linear-gradient(
+    168deg,
+    rgba(255, 255, 255, 0.96) 0%,
+    rgba(255, 251, 235, 0.94) 42%,
+    rgba(254, 243, 199, 0.92) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    inset 0 -1px 0 rgba(251, 191, 36, 0.08);
+}
+
+html[data-connect-shell="sunny"] .launch-countdown-bubble__drag-label {
+  color: #a8a29e;
+}
+
+html[data-connect-shell="sunny"] .launch-countdown-bubble__drag-grip {
+  background: rgba(180, 83, 9, 0.35);
+}
+
+html[data-connect-shell="sunny"] .launch-countdown-bubble__minimize {
+  background: rgba(255, 255, 255, 0.88);
+  border-color: rgba(234, 88, 12, 0.35);
+  color: #c2410c;
+}
+
+html[data-connect-shell="sunny"] .launch-countdown-bubble__minimize:hover {
+  background: rgba(255, 255, 255, 0.98);
+}
+
+/* Soft — white / lavender (hero soft card + purple chrome) */
+html[data-connect-shell="soft"] .launch-countdown-bubble.launch-countdown-bubble--collapsed {
+  background: linear-gradient(135deg, #ffffff 0%, #f5f3ff 35%, #ede9fe 65%, #faf5ff 100%);
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  box-shadow:
+    0 8px 28px rgba(102, 126, 234, 0.14),
+    0 0 0 1px rgba(255, 255, 255, 0.65) inset;
+}
+
+html[data-connect-shell="soft"] .launch-countdown-bubble-collapsed-label {
+  color: #4c1d95;
+}
+
+html[data-connect-shell="soft"] .launch-countdown-bubble-collapsed-cue {
+  color: #94a3b8;
+}
+
+html[data-connect-shell="soft"] .launch-countdown-bubble-expanded-card {
+  border-color: rgba(255, 255, 255, 0.9);
+  background: linear-gradient(
+    165deg,
+    #ffffff 0%,
+    #faf5ff 30%,
+    #f5f3ff 62%,
+    #fdf2f8 100%
+  );
+  box-shadow: 0 12px 36px rgba(102, 126, 234, 0.14);
+}
+
+html[data-connect-shell="soft"] .launch-countdown-bubble-expanded-card .launch-countdown {
+  background: linear-gradient(
+    168deg,
+    rgba(255, 255, 255, 0.98) 0%,
+    rgba(248, 250, 252, 0.96) 42%,
+    rgba(243, 244, 255, 0.95) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.94),
+    inset 0 -1px 0 rgba(129, 140, 248, 0.08);
+}
+
+html[data-connect-shell="soft"] .launch-countdown-bubble__drag-label {
+  color: #94a3b8;
+}
+
+html[data-connect-shell="soft"] .launch-countdown-bubble__drag-grip {
+  background: rgba(148, 163, 184, 0.45);
+}
+
+html[data-connect-shell="soft"] .launch-countdown-bubble__minimize {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(102, 126, 234, 0.3);
+  color: #5b21b6;
+}
+
+html[data-connect-shell="soft"] .launch-countdown-bubble__minimize:hover {
+  background: rgba(255, 255, 255, 0.96);
 }
 
 @media (prefers-reduced-motion: reduce) {

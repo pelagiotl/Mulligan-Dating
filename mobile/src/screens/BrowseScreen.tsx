@@ -2516,6 +2516,7 @@ export default function BrowseScreen() {
           topInset={insets.top}
           leftInset={insets.left}
           rightInset={insets.right}
+          connectShell={connectShellMode}
         />
       )}
 
