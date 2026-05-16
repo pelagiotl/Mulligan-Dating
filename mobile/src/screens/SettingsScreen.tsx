@@ -28,6 +28,7 @@ import {
   getRevenueCatPackageForProductId,
   pickCurrentOfferingPackages,
 } from '../utils/purchasesReady';
+import { formatPackagePerTokenLine, normalizePackageFormattedPrice } from '../utils/formatPackagePrice';
 import { purchaseTokensWithGooglePay } from '../utils/googlePay';
 import { navigationRef } from '../navigation/navigationRef';
 import LegalFooter from '../components/LegalFooter';
@@ -1064,10 +1065,8 @@ export default function SettingsScreen() {
                           <Text style={styles.limitExceededBadge}>Limit Exceeded</Text>
                         )}
                       </View>
-                      <Text style={styles.packagePrice}>{pkg.priceFormatted || '—'}</Text>
-                      <Text style={styles.packagePricePerToken}>
-                        {pkg.pricePerToken ? `$${pkg.pricePerToken} per token` : 'Price in app'}
-                      </Text>
+                      <Text style={styles.packagePrice}>{normalizePackageFormattedPrice(pkg.priceFormatted || '—')}</Text>
+                      <Text style={styles.packagePricePerToken}>{formatPackagePerTokenLine(pkg.pricePerToken)}</Text>
                       {pkg.wouldExceedLimit && (
                         <Text style={styles.limitExceededText}>
                           You can only purchase up to {pkg.maxTokensCanBuy} more token{(pkg.maxTokensCanBuy || 0) > 1 ? 's' : ''}

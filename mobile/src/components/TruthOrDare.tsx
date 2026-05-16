@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { api } from '../utils/api';
+import TruthOrDareMessageGateModal from './TruthOrDareMessageGateModal';
 
 // PG-13 — grown-up flirting (matches server fallbacks)
 const TRUTH_PROMPTS = [
@@ -118,20 +119,29 @@ function pickRandom<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-const TRUTH_OR_DARE_MIN_EACH = 7;
+export const TRUTH_OR_DARE_MIN_EACH = 7;
+
+export function truthOrDareMessageCounts(
+  rows: Array<{ senderId: string }>,
+  currentUserId: string,
+  partnerUserId: string
+): { my: number; their: number } {
+  let my = 0;
+  let their = 0;
+  for (const m of rows) {
+    if (m.senderId === currentUserId) my++;
+    else if (m.senderId === partnerUserId) their++;
+  }
+  return { my, their };
+}
 
 export function truthOrDareMessageThresholdMet(
   rows: Array<{ senderId: string }>,
   currentUserId: string,
   partnerUserId: string
 ): boolean {
-  let my = 0;
-  let other = 0;
-  for (const m of rows) {
-    if (m.senderId === currentUserId) my++;
-    else if (m.senderId === partnerUserId) other++;
-  }
-  return my >= TRUTH_OR_DARE_MIN_EACH && other >= TRUTH_OR_DARE_MIN_EACH;
+  const { my, their } = truthOrDareMessageCounts(rows, currentUserId, partnerUserId);
+  return my >= TRUTH_OR_DARE_MIN_EACH && their >= TRUTH_OR_DARE_MIN_EACH;
 }
 
 export const TRUTH_OR_DARE_LOCKED_HINT = `Truth or Dare unlocks after you and your match have each sent at least ${TRUTH_OR_DARE_MIN_EACH} messages in this chat.`;
@@ -201,6 +211,7 @@ export default function TruthOrDare({
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
   const [headerTimerSecs, setHeaderTimerSecs] = useState<number | null>(null);
+  const [messageGateModalVisible, setMessageGateModalVisible] = useState(false);
   const lastUnlockedUntilRef = useRef<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastAnotherOneAtRef = useRef<number>(0);
@@ -217,6 +228,21 @@ export default function TruthOrDare({
       Boolean(currentUserId && chatPartnerUserId) &&
       truthOrDareMessageThresholdMet(messages, currentUserId, chatPartnerUserId),
     [messages, currentUserId, chatPartnerUserId]
+  );
+
+  const messageGateCounts = useMemo(
+    () => truthOrDareMessageCounts(messages, currentUserId, chatPartnerUserId),
+    [messages, currentUserId, chatPartnerUserId]
+  );
+
+  const messageGateModal = (
+    <TruthOrDareMessageGateModal
+      visible={messageGateModalVisible}
+      onClose={() => setMessageGateModalVisible(false)}
+      myCount={messageGateCounts.my}
+      theirCount={messageGateCounts.their}
+      threshold={TRUTH_OR_DARE_MIN_EACH}
+    />
   );
 
   const formatTimeRemaining = (secs: number) => {
@@ -508,7 +534,7 @@ export default function TruthOrDare({
       Vibration.vibrate(30);
     }
     if (!truthOrDareEligible) {
-      Alert.alert('Not yet', TRUTH_OR_DARE_LOCKED_HINT);
+      setMessageGateModalVisible(true);
       return;
     }
     if (onBeforeUnlockPrompt) {
@@ -678,27 +704,56 @@ export default function TruthOrDare({
             </TouchableOpacity>
           </TouchableOpacity>
         </Modal>
+        {messageGateModal}
       </>
     );
   }
 
   if (!isUnlocked) {
     return (
+      <>
       <View style={[styles.container, compact && styles.containerCompact, square && styles.containerSquare]}>
         <TouchableOpacity 
           onPress={handleLockedPress} 
-          activeOpacity={0.7}
-          style={[styles.lockedCard, square && styles.lockedCardSquare]}
+          activeOpacity={0.85}
+          style={[styles.lockedCardOuter, square && styles.lockedCardSquare]}
         >
-          <View style={styles.lockedEmojiWrap}>
-            <Animated.Text style={[styles.lockedEmoji, { transform: [{ scale: emojiScale }, { rotate: diceRotateInterp }] }]}>🎲</Animated.Text>
-          </View>
-          <View style={styles.lockedTextWrap}>
-            <Text style={styles.lockedText}>Truth or Dare</Text>
-            <Text style={styles.lockedSubtext}>Tap to see how to unlock</Text>
-          </View>
+          <LinearGradient
+            colors={['#2a1338', '#3d1852', '#5c1f5c', '#4a1452']}
+            locations={[0, 0.35, 0.75, 1]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[styles.lockedCardGradient, square && styles.lockedCardGradientSquare]}
+          >
+            <LinearGradient
+              colors={['rgba(255,0,128,0.45)', 'transparent', 'rgba(124,77,255,0.25)']}
+              locations={[0, 0.55, 1]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.lockedCardSheen}
+            />
+            <View style={styles.lockedEmojiWrap}>
+              <LinearGradient
+                colors={['#ff66b2', '#ff0080', '#9c27b0']}
+                style={styles.lockedEmojiRing}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <View style={styles.lockedEmojiInner}>
+                  <Animated.Text style={[styles.lockedEmoji, { transform: [{ scale: emojiScale }, { rotate: diceRotateInterp }] }]}>🎲</Animated.Text>
+                </View>
+              </LinearGradient>
+            </View>
+            <View style={styles.lockedTextWrap}>
+              <Text style={styles.lockedKicker}>LOCKED</Text>
+              <Text style={styles.lockedText}>Truth or Dare</Text>
+              <Text style={styles.lockedSubtext}>Tap for unlock progress</Text>
+            </View>
+          </LinearGradient>
         </TouchableOpacity>
       </View>
+      {messageGateModal}
+    </>
     );
   }
 
@@ -893,6 +948,7 @@ export default function TruthOrDare({
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+      {messageGateModal}
     </>
   );
 }
@@ -924,57 +980,88 @@ const styles = StyleSheet.create({
     marginVertical: 0,
     paddingHorizontal: 0,
   },
-  lockedCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 0, 128, 0.15)',
-    borderRadius: 16,
-    paddingVertical: 14,
-    paddingHorizontal: 18,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 0, 128, 0.45)',
+  lockedCardOuter: {
+    borderRadius: 18,
+    overflow: 'hidden',
     minWidth: 140,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
     shadowColor: '#ff0080',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.38,
+    shadowRadius: 16,
+    elevation: 10,
   },
   lockedCardSquare: {
+    flex: 1,
+    alignSelf: 'stretch',
+    minWidth: 0,
+  },
+  lockedCardGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    position: 'relative',
+  },
+  lockedCardGradientSquare: {
     flex: 1,
     justifyContent: 'center',
     minWidth: 0,
   },
+  lockedCardSheen: {
+    ...StyleSheet.absoluteFillObject,
+  },
   lockedEmojiWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 0, 128, 0.25)',
-    alignItems: 'center',
+    marginRight: 14,
+    zIndex: 1,
+  },
+  lockedEmojiRing: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    padding: 2,
     justifyContent: 'center',
-    marginRight: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 0, 128, 0.4)',
+    alignItems: 'center',
+  },
+  lockedEmojiInner: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: 'rgba(12, 6, 18, 0.92)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   lockedEmoji: {
-    fontSize: 20,
+    fontSize: 22,
   },
   lockedTextWrap: {
     flex: 1,
     minWidth: 0,
+    zIndex: 1,
+  },
+  lockedKicker: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.8,
+    color: 'rgba(255, 182, 220, 0.95)',
+    marginBottom: 4,
   },
   lockedText: {
-    fontSize: 15,
-    color: '#2d2d2d',
-    fontWeight: '700',
-    letterSpacing: 0.5,
+    fontSize: 16,
+    color: '#ffffff',
+    fontWeight: '800',
+    letterSpacing: 0.3,
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   lockedSubtext: {
-    fontSize: 11,
-    color: 'rgba(0,0,0,0.55)',
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.72)',
     fontWeight: '600',
-    marginTop: 3,
-    letterSpacing: 0.3,
+    marginTop: 4,
+    letterSpacing: 0.2,
   },
   buttonWrapper: {
     position: 'relative',
@@ -1265,13 +1352,15 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   loadingContainer: {
-    paddingVertical: 32,
+    paddingVertical: 24,
     alignItems: 'center',
+    marginBottom: 20,
   },
   loadingText: {
     fontSize: 14,
     color: 'rgba(255,255,255,0.9)',
     marginTop: 12,
+    fontWeight: '500',
   },
   lobbyContainer: {
     paddingVertical: 12,
@@ -1366,17 +1455,6 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.9)',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-  },
-  loadingContainer: {
-    paddingVertical: 24,
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  loadingText: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.9)',
-    marginTop: 12,
-    fontWeight: '500',
   },
   promptCard: {
     backgroundColor: 'rgba(255,255,255,0.15)',

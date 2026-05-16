@@ -1,5 +1,19 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Modal, ScrollView, Animated, Easing, Dimensions, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+  Alert,
+  Modal,
+  ScrollView,
+  Animated,
+  Easing,
+  Dimensions,
+  Platform,
+  AccessibilityInfo,
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Constants from 'expo-constants';
 import Purchases from 'react-native-purchases';
@@ -19,6 +33,7 @@ import {
   pickCurrentOfferingPackages,
 } from '../utils/purchasesReady';
 import { purchaseTokensWithGooglePay } from '../utils/googlePay';
+import { formatPackagePerTokenLine, normalizePackageFormattedPrice } from '../utils/formatPackagePrice';
 import BrowseConnectLandingTokenStrip from './BrowseConnectLandingTokenStrip';
 import type { ConnectShellMode } from '../lib/connectShellTheme';
 
@@ -306,6 +321,180 @@ function PurchaseSuccessModal({
   );
 }
 
+/** Mirrors web `.navbar-token-badge` / `.navbar-token-badge--pulse` (index.css + connect-shell-theme). */
+function WebNavbarTokenBadge({
+  count,
+  loading,
+  midnight,
+  onPress,
+}: {
+  count: number;
+  loading?: boolean;
+  midnight: boolean;
+  onPress: () => void;
+}) {
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const [pressed, setPressed] = useState(false);
+  const pulse = useRef(new Animated.Value(0)).current;
+  const shimmer = useRef(new Animated.Value(0)).current;
+  const pulseLoopRef = useRef<Animated.CompositeAnimation | null>(null);
+  const shimmerLoopRef = useRef<Animated.CompositeAnimation | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    AccessibilityInfo.isReduceMotionEnabled().then((v) => {
+      if (!cancelled) setReduceMotion(!!v);
+    });
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', (v) => setReduceMotion(!!v));
+    return () => {
+      cancelled = true;
+      sub.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    pulseLoopRef.current?.stop();
+    shimmerLoopRef.current?.stop();
+    if (reduceMotion || loading) {
+      pulse.setValue(0);
+      shimmer.setValue(0);
+      return;
+    }
+    pulseLoopRef.current = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 1500,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: false,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0,
+          duration: 1500,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: false,
+        }),
+      ])
+    );
+    pulseLoopRef.current.start();
+
+    shimmerLoopRef.current = Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmer, {
+          toValue: 1,
+          duration: 3000,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        }),
+        Animated.timing(shimmer, {
+          toValue: 0,
+          duration: 0,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    shimmerLoopRef.current.start();
+
+    return () => {
+      pulseLoopRef.current?.stop();
+      shimmerLoopRef.current?.stop();
+    };
+  }, [reduceMotion, loading, pulse, shimmer]);
+
+  const shadowOpacity = reduceMotion || loading
+    ? 0.2
+    : pulse.interpolate({ inputRange: [0, 1], outputRange: [0.16, 0.28] });
+  const shadowRadius = reduceMotion || loading
+    ? 12
+    : pulse.interpolate({ inputRange: [0, 1], outputRange: [10, 20] });
+  const shimmerTranslateX = shimmer.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-72, 168],
+  });
+
+  const gradientColors = midnight
+    ? (['rgba(244, 63, 94, 0.12)', 'rgba(99, 102, 241, 0.1)'] as const)
+    : (['rgba(244, 63, 94, 0.14)', 'rgba(244, 63, 94, 0.07)'] as const);
+  const borderColor = midnight ? 'rgba(244, 114, 182, 0.35)' : 'rgba(244, 63, 94, 0.28)';
+  const textColor = midnight ? '#fda4af' : '#e11d48';
+
+  return (
+    <TouchableOpacity
+      activeOpacity={1}
+      onPress={onPress}
+      onPressIn={() => setPressed(true)}
+      onPressOut={() => setPressed(false)}
+      accessibilityRole="button"
+      accessibilityLabel="Mulligan tokens, open details"
+    >
+      <Animated.View
+        style={{
+          borderRadius: 14,
+          shadowColor: '#f43f5e',
+          shadowOffset: { width: 0, height: pressed ? 4 : 2 },
+          shadowOpacity,
+          shadowRadius,
+          elevation: pressed ? 8 : 5,
+          transform: [{ translateY: pressed ? -2 : 0 }],
+        }}
+      >
+        <LinearGradient
+          colors={[...gradientColors]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            paddingVertical: 8,
+            paddingHorizontal: 14,
+            borderRadius: 14,
+            borderWidth: 1.5,
+            borderColor,
+            minWidth: loading ? 56 : undefined,
+            overflow: 'hidden',
+          }}
+        >
+          {!reduceMotion && !loading && (
+            <Animated.View
+              pointerEvents="none"
+              style={{
+                position: 'absolute',
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: 30,
+                backgroundColor: 'rgba(255, 255, 255, 0.42)',
+                transform: [{ skewX: '-20deg' }, { translateX: shimmerTranslateX }],
+              }}
+            />
+          )}
+          <View style={{ flexDirection: 'row', alignItems: 'center', zIndex: 1 }}>
+            {loading ? (
+              <ActivityIndicator size="small" color={textColor} />
+            ) : (
+              <>
+                <Text style={{ fontSize: 16, lineHeight: 18 }}>🎟️</Text>
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontWeight: '700',
+                    color: textColor,
+                    letterSpacing: 0.15,
+                    marginLeft: 6,
+                  }}
+                >
+                  {count}
+                </Text>
+              </>
+            )}
+          </View>
+        </LinearGradient>
+      </Animated.View>
+    </TouchableOpacity>
+  );
+}
+
 // Premium Token Display Component with animations
 function PremiumTokenDisplay({ 
   count, 
@@ -405,6 +594,8 @@ interface TokenDisplayProps {
   openModalRef?: React.MutableRefObject<(() => void) | null>;
   /** When set, parent can trigger claim directly (e.g. from "Claim your 7 tokens!" banner) and show custom success message */
   performClaimRef?: React.MutableRefObject<((opts?: { onSuccess?: () => void; successMessage?: string }) => Promise<void>) | null>;
+  /** With `compact` (non-premium): mirror web `.navbar-token-badge` — gradient, shadow pulse, skew shimmer (respects reduce motion). */
+  compactNavbarChrome?: boolean;
 }
 
 const IAP_COMING_SOON_MSG = "In-app purchases are coming soon. We're switching to a new provider—stay tuned!";
@@ -416,6 +607,7 @@ export default function TokenDisplay({
   connectShell = 'midnight',
   openModalRef,
   performClaimRef,
+  compactNavbarChrome = false,
 }: TokenDisplayProps) {
   const { user, registerTokensBalanceRefresh } = useAuth();
   const isAdmin = user?.isAdmin || false;
@@ -696,6 +888,15 @@ export default function TokenDisplay({
     if (browseLandingStrip) {
       return (
         <View style={styles.browseLandingLoadingOuter}>
+          {Platform.OS === 'android' && (
+            <View style={styles.browseLandingNavbarBadgeAnchor} pointerEvents="box-none">
+              <WebNavbarTokenBadge
+                loading
+                midnight={connectShell === 'midnight'}
+                onPress={() => void fetchTokens()}
+              />
+            </View>
+          )}
           <ActivityIndicator size="small" color="#a78bfa" />
           <Text style={styles.browseLandingLoadingText}>Loading tokens...</Text>
         </View>
@@ -703,6 +904,11 @@ export default function TokenDisplay({
     }
     if (compact) {
       const midnight = connectShell === 'midnight';
+      if (compactNavbarChrome) {
+        return (
+          <WebNavbarTokenBadge loading midnight={midnight} onPress={() => void fetchTokens()} />
+        );
+      }
       return (
         <View
           style={[
@@ -994,9 +1200,11 @@ export default function TokenDisplay({
                                 <Text style={styles.limitExceededBadge}>Limit</Text>
                               )}
                             </View>
-                            <Text style={[styles.packagePrice, isBestValue && styles.packagePriceBestValue]}>{pkg.priceFormatted || '—'}</Text>
+                            <Text style={[styles.packagePrice, isBestValue && styles.packagePriceBestValue]}>
+                              {normalizePackageFormattedPrice(pkg.priceFormatted || '—')}
+                            </Text>
                             <Text style={[styles.packagePricePerToken, isBestValue && styles.packagePricePerTokenBestValue]}>
-                              {pkg.pricePerToken ? `$${pkg.pricePerToken} per token` : 'Price in app'}
+                              {formatPackagePerTokenLine(pkg.pricePerToken)}
                             </Text>
                             {pkg.wouldExceedLimit && (
                               <Text style={styles.limitExceededText}>
@@ -1023,22 +1231,37 @@ export default function TokenDisplay({
   );
 
   if (browseLandingStrip) {
+    const midnight = connectShell === 'midnight';
     return (
       <>
-        <BrowseConnectLandingTokenStrip
-          availableTokens={data.availableTokens}
-          canClaimWeeklyToken={data.canClaimWeeklyToken}
-          nextRefillDate={data.nextRefillDate}
-          connectShell={connectShell}
-          claiming={claiming}
-          error={error}
-          success={success}
-          onClaim={handleClaim}
-          onBuyPress={() => {
-            setShowPurchaseModal(true);
-            fetchPackages();
-          }}
-        />
+        <View style={styles.browseLandingTokenWrap}>
+          {Platform.OS === 'android' && (
+            <View style={styles.browseLandingNavbarBadgeAnchor} pointerEvents="box-none">
+              <WebNavbarTokenBadge
+                count={data.availableTokens}
+                midnight={midnight}
+                onPress={() => {
+                  setShowInfoModal(true);
+                  fetchPackages();
+                }}
+              />
+            </View>
+          )}
+          <BrowseConnectLandingTokenStrip
+            availableTokens={data.availableTokens}
+            canClaimWeeklyToken={data.canClaimWeeklyToken}
+            nextRefillDate={data.nextRefillDate}
+            connectShell={connectShell}
+            claiming={claiming}
+            error={error}
+            success={success}
+            onClaim={handleClaim}
+            onBuyPress={() => {
+              setShowPurchaseModal(true);
+              fetchPackages();
+            }}
+          />
+        </View>
         {tokenManagementModals}
       </>
     );
@@ -1064,6 +1287,21 @@ export default function TokenDisplay({
     
     // Standard compact mode (navbar / global tab badge — tap opens same token modals as web)
     const compactMidnight = connectShell === 'midnight';
+    if (compactNavbarChrome) {
+      return (
+        <>
+          <WebNavbarTokenBadge
+            count={data.availableTokens}
+            midnight={compactMidnight}
+            onPress={() => {
+              setShowInfoModal(true);
+              fetchPackages();
+            }}
+          />
+          {tokenManagementModals}
+        </>
+      );
+    }
     return (
       <>
         <TouchableOpacity
@@ -1249,9 +1487,11 @@ export default function TokenDisplay({
                             <Text style={styles.limitExceededBadge}>Limit</Text>
                           )}
                         </View>
-                        <Text style={[styles.packagePrice, isBestValue && styles.packagePriceBestValue]}>{pkg.priceFormatted || '—'}</Text>
+                        <Text style={[styles.packagePrice, isBestValue && styles.packagePriceBestValue]}>
+                          {normalizePackageFormattedPrice(pkg.priceFormatted || '—')}
+                        </Text>
                         <Text style={[styles.packagePricePerToken, isBestValue && styles.packagePricePerTokenBestValue]}>
-                          {pkg.pricePerToken ? `$${pkg.pricePerToken} per token` : 'Price in app'}
+                          {formatPackagePerTokenLine(pkg.pricePerToken)}
                         </Text>
                         {pkg.wouldExceedLimit && (
                           <Text style={styles.limitExceededText}>
@@ -1380,6 +1620,7 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   browseLandingLoadingOuter: {
+    position: 'relative',
     width: '100%',
     paddingVertical: 20,
     paddingHorizontal: 16,
@@ -1388,6 +1629,19 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
+  },
+  /** Android Connect landing: top-right pill (web navbar parity); parent must be `position: 'relative'`. */
+  browseLandingNavbarBadgeAnchor: {
+    position: 'absolute',
+    top: 0,
+    right: 12,
+    zIndex: 8,
+    elevation: 10,
+  },
+  browseLandingTokenWrap: {
+    position: 'relative',
+    alignSelf: 'stretch',
+    width: '100%',
   },
   browseLandingLoadingText: {
     fontSize: 13,

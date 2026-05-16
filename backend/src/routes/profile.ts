@@ -6,6 +6,7 @@ import { db } from '../database.js';
 import { authenticateToken, AuthRequest } from '../middleware/auth.js';
 import { sanitizeText } from '../middleware/security.js';
 import { rateLimitAPI } from '../middleware/security.js';
+import { notifyPartnersProfileChanged } from '../services/partnerProfileBroadcast.js';
 
 export const profileRouter = Router();
 
@@ -101,6 +102,7 @@ profileRouter.post('/', authenticateToken, rateLimitAPI, async (req: AuthRequest
         userId
       ]) as Promise<any>);
       
+      notifyPartnersProfileChanged(userId);
       res.json({ message: 'Profile updated', profileId: existingProfile.id });
     } else {
       // Create new profile
@@ -128,6 +130,7 @@ profileRouter.post('/', authenticateToken, rateLimitAPI, async (req: AuthRequest
       `);
       await (prefStmt.run([prefId, profileId]) as Promise<any>);
       
+      notifyPartnersProfileChanged(userId);
       res.status(201).json({ message: 'Profile created', profileId });
     }
   } catch (error) {
@@ -196,6 +199,7 @@ profileRouter.put('/basics', authenticateToken, rateLimitAPI, async (req: AuthRe
 
     const sql = `UPDATE profiles SET ${updates.join(', ')} WHERE user_id = ?`;
     await (db.prepare(sql).run(values) as Promise<unknown>);
+    notifyPartnersProfileChanged(userId);
     res.json({ message: 'Profile updated' });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -360,6 +364,7 @@ profileRouter.put('/interests', authenticateToken, rateLimitAPI, async (req: Aut
       }
     }
 
+    notifyPartnersProfileChanged(userId);
     res.json({ message: 'Interests updated', count: interests.length });
   } catch (error) {
     console.error('Update interests error:', error);
@@ -401,6 +406,7 @@ profileRouter.put('/dealbreakers', authenticateToken, rateLimitAPI, async (req: 
       }
     }
 
+    notifyPartnersProfileChanged(userId);
     res.json({ message: 'Dealbreakers updated', count: dealbreakers.length });
   } catch (error) {
     console.error('Update dealbreakers error:', error);
@@ -450,6 +456,7 @@ profileRouter.put('/partner-qualities', authenticateToken, rateLimitAPI, async (
       }
     }
 
+    notifyPartnersProfileChanged(userId);
     res.json({ message: 'Partner qualities updated', count: qualities.length });
   } catch (error) {
     console.error('Update partner qualities error:', error);
@@ -545,6 +552,7 @@ profileRouter.put('/preferences', authenticateToken, rateLimitAPI, async (req: A
       await (db.prepare('UPDATE users SET show_active_status = ? WHERE id = ?').run([showValue, userId]) as Promise<any>);
     }
 
+    notifyPartnersProfileChanged(userId);
     res.json({ message: 'Preferences updated' });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -615,6 +623,7 @@ profileRouter.put('/lifestyle', authenticateToken, rateLimitAPI, async (req: Aut
       ]) as Promise<any>);
     }
 
+    notifyPartnersProfileChanged(userId);
     res.json({ message: 'Lifestyle updated' });
   } catch (error) {
     console.error('Update lifestyle error:', error);

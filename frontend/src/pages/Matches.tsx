@@ -349,6 +349,19 @@ export default function Matches() {
     return my >= 3 && other >= 3;
   }, [messages, selectedMatch?.id, selectedMatch?.otherUser?.userId, user?.id]);
 
+  const chatMediaMessageCounts = useMemo(() => {
+    if (!selectedMatch || !user?.id) return { my: 0, their: 0 };
+    const myId = user.id;
+    const otherId = selectedMatch.otherUser.userId;
+    let my = 0;
+    let their = 0;
+    for (const m of messages) {
+      if (m.senderId === myId) my++;
+      else if (m.senderId === otherId) their++;
+    }
+    return { my, their };
+  }, [messages, selectedMatch?.id, selectedMatch?.otherUser?.userId, user?.id]);
+
   const selectedMatchPhotos = useMemo((): Photo[] => {
     if (!selectedMatch || selectedMatch.stage === "pending") return [];
     return getOtherUserPhotosForLightbox(selectedMatch);
@@ -657,6 +670,13 @@ export default function Matches() {
       fetchMatches();
     });
 
+    socket.on(
+      "partner_profile_updated",
+      (_data: { matchId: string; updatedUserId: string }) => {
+        void fetchMatches();
+      }
+    );
+
     // Handle reveal request from other user
     socket.on('reveal_requested', (data: { matchId: string; fromUserId: string; fromUserName: string }) => {
       setMatches((prev) =>
@@ -895,6 +915,13 @@ export default function Matches() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!selectedMatch?.id || matches.length === 0) return;
+    const updated = matches.find((m) => m.id === selectedMatch.id);
+    if (!updated) return;
+    setSelectedMatch(updated);
+  }, [matches, selectedMatch?.id]);
 
   const fetchMessages = async (matchId: string) => {
     try {
@@ -1603,6 +1630,11 @@ export default function Matches() {
           mediaKind={chatMediaModal.kind}
           moderationWarning={CHAT_MEDIA_MODERATION_WARNING}
           lockedHint={CHAT_MEDIA_LOCKED_HINT}
+          lockedProgress={
+            chatMediaModal.variant === "locked"
+              ? { ...chatMediaMessageCounts, threshold: 3 }
+              : undefined
+          }
           onConfirm={onChatMediaModalPrimary}
           onCancel={onChatMediaModalDismiss}
         />

@@ -36,6 +36,19 @@ import ProfileCompleteCelebration from '../components/ProfileCompleteCelebration
 import { useAuth } from '../context/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import OptimizedImage from '../components/OptimizedImage';
+import {
+  DEALBREAKER_SUGGESTIONS,
+  DEALBREAKER_EMOJI,
+  DEALBREAKER_CANONICAL_SET,
+  canonicalDealbreakerLabel,
+  PARTNER_QUALITY_OPTIONS,
+  PARTNER_QUALITY_EMOJI,
+  LIFESTYLE_FIELD_OPTIONS,
+  LIFESTYLE_FIELD_LABEL,
+  lifestyleFormFromApi,
+  lifestylePickerItemLabel,
+  type LifestyleForm,
+} from '../constants/profileMySections';
 
 const GENDER_OPTIONS = ['Man', 'Woman', 'Other'];
 // API values: Man, Woman. "Everyone" = match all. Display labels: Men, Women, Everyone.
@@ -92,7 +105,7 @@ const INTEREST_EMOJIS: { [key: string]: string } = {
   'Education': '🎓',
 };
 
-const TOTAL_STEPS = 11; // 1-3 basics; 4 preferred connections; 5-6 location+bio; 7 interests; 8-10 age/distance; 11 photos
+const TOTAL_STEPS = 14; // 1-6 basics; 7 interests; 8 dealbreakers; 9 partner qualities; 10 lifestyle; 11-13 age/distance; 14 photos
 const MIN_PHOTOS_REQUIRED = 3;
 
 export default function CreateProfileScreen() {
@@ -182,6 +195,9 @@ export default function CreateProfileScreen() {
   const [detectingLocation, setDetectingLocation] = useState(false);
 
   const [interests, setInterests] = useState<string[]>([]);
+  const [dealbreakers, setDealbreakers] = useState<string[]>([]);
+  const [partnerQualities, setPartnerQualities] = useState<string[]>([]);
+  const [lifestyleForm, setLifestyleForm] = useState<LifestyleForm>(() => lifestyleFormFromApi(null));
 
   // Match preferences (age range, genders, distance)
   const [minAge, setMinAge] = useState(18);
@@ -312,18 +328,18 @@ export default function CreateProfileScreen() {
     ]).start();
   };
 
-  // Discover preferences (steps 8–10): min age, max age, max distance
+  // Discover preferences (steps 11–13): min age, max age, max distance
   useEffect(() => {
-    if (step === 8) {
+    if (step === 11) {
       animateField(minAgeScale, minAgeOpacity, minAgeGlow);
     }
   }, [step]);
 
   useEffect(() => {
-    if (step === 9) animateField(maxAgeScale, maxAgeOpacity, maxAgeGlow);
+    if (step === 12) animateField(maxAgeScale, maxAgeOpacity, maxAgeGlow);
   }, [step]);
   useEffect(() => {
-    if (step === 10) {
+    if (step === 13) {
       animateField(maxDistanceScale, maxDistanceOpacity, maxDistanceGlow);
     }
   }, [step]);
@@ -342,6 +358,20 @@ export default function CreateProfileScreen() {
         if (data.interests?.length) {
           setInterests(data.interests.map((i: any) => i.name));
         }
+        if (data.dealbreakers?.length) {
+          const fromApi = (data.dealbreakers as { description?: string }[])
+            .map((d) => canonicalDealbreakerLabel(d.description ?? ''))
+            .filter((x): x is NonNullable<typeof x> => x != null && DEALBREAKER_CANONICAL_SET.has(x));
+          setDealbreakers(Array.from(new Set(fromApi)));
+        } else {
+          setDealbreakers([]);
+        }
+        if (data.partnerQualities?.length) {
+          setPartnerQualities((data.partnerQualities as { quality: string }[]).map((q) => q.quality));
+        } else {
+          setPartnerQualities([]);
+        }
+        setLifestyleForm(lifestyleFormFromApi(data.lifestyle ?? null));
         if (data.preferences) {
           setMinAge(data.preferences.min_age ?? 18);
           setMaxAge((data.preferences as any).max_age ?? 100);
@@ -366,7 +396,7 @@ export default function CreateProfileScreen() {
           }
         }
         const targetStep = stepToJumpTo ?? initialStep;
-        if (targetStep != null && targetStep >= 1 && targetStep <= 11) {
+        if (targetStep != null && targetStep >= 1 && targetStep <= TOTAL_STEPS) {
           setStep(targetStep);
         }
       }
@@ -391,7 +421,7 @@ export default function CreateProfileScreen() {
   
   useEffect(() => {
     const saveProfileAndLoadPhotos = async () => {
-      if (step === 11 && !profileSavedRef.current) {
+      if (step === 14 && !profileSavedRef.current) {
         // Mark as saving to prevent duplicate calls
         profileSavedRef.current = true;
         
@@ -453,6 +483,40 @@ export default function CreateProfileScreen() {
             } catch (err: any) {
               console.error('⚠️ Failed to save interests:', err?.message || err);
               // Continue - non-critical
+            }
+
+            try {
+              await api.put('/profile/dealbreakers', {
+                dealbreakers: dealbreakers.filter((d) => DEALBREAKER_CANONICAL_SET.has(d)),
+              });
+              console.log('✅ Dealbreakers saved');
+            } catch (err: any) {
+              console.error('⚠️ Failed to save dealbreakers:', err?.message || err);
+            }
+
+            try {
+              await api.put('/profile/partner-qualities', {
+                qualities: partnerQualities.map((quality) => ({ quality, importance: 5 })),
+              });
+              console.log('✅ Partner qualities saved');
+            } catch (err: any) {
+              console.error('⚠️ Failed to save partner qualities:', err?.message || err);
+            }
+
+            try {
+              await api.put('/profile/lifestyle', {
+                smoking: lifestyleForm.smoking || null,
+                drinking: lifestyleForm.drinking || null,
+                children: lifestyleForm.children || null,
+                pets: lifestyleForm.pets || null,
+                religion: lifestyleForm.religion || null,
+                political: lifestyleForm.political || null,
+                workLifeBalance: lifestyleForm.workLifeBalance || null,
+                worksOut: lifestyleForm.worksOut || null,
+              });
+              console.log('✅ Lifestyle saved');
+            } catch (err: any) {
+              console.error('⚠️ Failed to save lifestyle:', err?.message || err);
             }
 
             try {
@@ -781,19 +845,19 @@ export default function CreateProfileScreen() {
         return;
       }
     }
-    if (step === 8) {
+    if (step === 11) {
       if (minAge === null || minAge < 18) {
         setError('Minimum age must be 18 or older');
         return;
       }
     }
-    if (step === 9) {
+    if (step === 12) {
       if (maxAge === null || maxAge < (minAge ?? 18)) {
         setError('Maximum age must be at least ' + (minAge ?? 18));
         return;
       }
     }
-    if (step === 10) {
+    if (step === 13) {
       if (maxDistance === null || maxDistance < 1) {
         setError('Please enter a maximum distance (at least 1 mile)');
         return;
@@ -1143,6 +1207,23 @@ export default function CreateProfileScreen() {
         });
       }
 
+      await api.put('/profile/dealbreakers', {
+        dealbreakers: dealbreakers.filter((d) => DEALBREAKER_CANONICAL_SET.has(d)),
+      });
+      await api.put('/profile/partner-qualities', {
+        qualities: partnerQualities.map((quality) => ({ quality, importance: 5 })),
+      });
+      await api.put('/profile/lifestyle', {
+        smoking: lifestyleForm.smoking || null,
+        drinking: lifestyleForm.drinking || null,
+        children: lifestyleForm.children || null,
+        pets: lifestyleForm.pets || null,
+        religion: lifestyleForm.religion || null,
+        political: lifestyleForm.political || null,
+        workLifeBalance: lifestyleForm.workLifeBalance || null,
+        worksOut: lifestyleForm.worksOut || null,
+      });
+
       // Save preferences
       await api.put('/profile/preferences', {
         minAge,
@@ -1182,6 +1263,22 @@ export default function CreateProfileScreen() {
           interests: interests.map((name: string) => ({ name }))
         });
       }
+      await api.put('/profile/dealbreakers', {
+        dealbreakers: dealbreakers.filter((d) => DEALBREAKER_CANONICAL_SET.has(d)),
+      });
+      await api.put('/profile/partner-qualities', {
+        qualities: partnerQualities.map((quality) => ({ quality, importance: 5 })),
+      });
+      await api.put('/profile/lifestyle', {
+        smoking: lifestyleForm.smoking || null,
+        drinking: lifestyleForm.drinking || null,
+        children: lifestyleForm.children || null,
+        pets: lifestyleForm.pets || null,
+        religion: lifestyleForm.religion || null,
+        political: lifestyleForm.political || null,
+        workLifeBalance: lifestyleForm.workLifeBalance || null,
+        worksOut: lifestyleForm.worksOut || null,
+      });
       await api.put('/profile/preferences', {
         minAge,
         maxAge: maxAge >= minAge && maxAge <= 120 ? maxAge : null,
@@ -1198,6 +1295,9 @@ export default function CreateProfileScreen() {
   }, [
     displayName, age, gender, location, bio,
     interests,
+    dealbreakers,
+    partnerQualities,
+    lifestyleForm,
     minAge, maxAge, preferredGenders, maxDistance,
     refreshProfile
   ]);
@@ -1208,6 +1308,18 @@ export default function CreateProfileScreen() {
     } else {
       setInterests([...interests, interest]);
     }
+  };
+
+  const toggleDealbreaker = (label: string) => {
+    if (!DEALBREAKER_CANONICAL_SET.has(label)) return;
+    setDealbreakers((prev) =>
+      prev.includes(label) ? prev.filter((x) => x !== label) : [...prev, label]
+    );
+  };
+
+  const togglePartnerQuality = (q: string) => {
+    if (!(PARTNER_QUALITY_OPTIONS as readonly string[]).includes(q)) return;
+    setPartnerQualities((prev) => (prev.includes(q) ? prev.filter((x) => x !== q) : [...prev, q]));
   };
 
   const togglePreferredGender = (gender: string) => {
@@ -1437,7 +1549,207 @@ export default function CreateProfileScreen() {
     </View>
   );
 
-  // Steps 8-10: One card per page (min age, max age, max distance)
+  const renderStepDealbreakers = () => (
+    <View style={styles.stepContainer}>
+      <LinearGradient
+        colors={['#667eea', '#764ba2', '#f093fb']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.modernHeaderMinimal}
+      >
+        <Text style={styles.modernHeaderEmojiMinimal}>🚫</Text>
+        <Text style={styles.modernHeaderTitleMinimal}>Dealbreakers</Text>
+        <Text style={styles.modernHeaderSubtitleMinimal}>Hard passes — optional; tap any that apply</Text>
+        <View style={styles.selectionCounterMinimal}>
+          <Text style={styles.selectionCounterTextMinimal}>{dealbreakers.length} selected</Text>
+        </View>
+      </LinearGradient>
+      <ScrollView
+        style={styles.stepContent}
+        contentContainerStyle={styles.modernScrollContentCondensed}
+        showsVerticalScrollIndicator
+        scrollIndicatorInsets={{ right: 1 }}
+      >
+        <View style={styles.modernCheckboxGridCondensed}>
+          {DEALBREAKER_SUGGESTIONS.map((label) => {
+            const isSelected = dealbreakers.includes(label);
+            const emoji = DEALBREAKER_EMOJI[label] ?? '🚫';
+            return (
+              <TouchableOpacity
+                key={label}
+                style={styles.modernInterestCardCondensed}
+                onPress={() => toggleDealbreaker(label)}
+                activeOpacity={0.8}
+              >
+                {isSelected ? (
+                  <LinearGradient
+                    colors={['#667eea', '#764ba2', '#f093fb']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={[styles.modernInterestCardGradientCondensed, styles.profileExtraCardTall]}
+                  >
+                    <Text style={styles.modernInterestEmojiCondensed}>{emoji}</Text>
+                    <Text style={styles.modernInterestTextSelectedCondensed} numberOfLines={3}>
+                      {label}
+                    </Text>
+                    <View style={styles.modernCheckmarkContainerCondensed}>
+                      <Text style={styles.modernCheckmarkCondensed}>✓</Text>
+                    </View>
+                  </LinearGradient>
+                ) : (
+                  <View style={[styles.modernInterestCardUnselectedCondensed, styles.profileExtraCardTall]}>
+                    <Text style={styles.modernInterestEmojiUnselectedCondensed}>{emoji}</Text>
+                    <Text style={styles.modernInterestTextCondensedSmall} numberOfLines={3}>
+                      {label}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </ScrollView>
+      <LinearGradient
+        colors={['transparent', 'rgba(248, 249, 250, 0.8)', '#f8f9fa']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={styles.bottomFade}
+        pointerEvents="none"
+      />
+    </View>
+  );
+
+  const renderStepPartnerQualities = () => (
+    <View style={styles.stepContainer}>
+      <LinearGradient
+        colors={['#667eea', '#764ba2', '#f093fb']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.modernHeaderMinimal}
+      >
+        <Text style={styles.modernHeaderEmojiMinimal}>💕</Text>
+        <Text style={styles.modernHeaderTitleMinimal}>What you’re looking for</Text>
+        <Text style={styles.modernHeaderSubtitleMinimal}>Same list as your interests — qualities that matter in a match</Text>
+        <View style={styles.selectionCounterMinimal}>
+          <Text style={styles.selectionCounterTextMinimal}>{partnerQualities.length} selected</Text>
+        </View>
+      </LinearGradient>
+      <ScrollView
+        style={styles.stepContent}
+        contentContainerStyle={styles.modernScrollContentCondensed}
+        showsVerticalScrollIndicator
+        scrollIndicatorInsets={{ right: 1 }}
+      >
+        <View style={styles.modernCheckboxGridCondensed}>
+          {PARTNER_QUALITY_OPTIONS.map((q) => {
+            const isSelected = partnerQualities.includes(q);
+            const emoji = PARTNER_QUALITY_EMOJI[q] || '✨';
+            return (
+              <TouchableOpacity
+                key={q}
+                style={styles.modernInterestCardCondensed}
+                onPress={() => togglePartnerQuality(q)}
+                activeOpacity={0.8}
+              >
+                {isSelected ? (
+                  <LinearGradient
+                    colors={['#667eea', '#764ba2', '#f093fb']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.modernInterestCardGradientCondensed}
+                  >
+                    <Text style={styles.modernInterestEmojiCondensed}>{emoji}</Text>
+                    <Text style={styles.modernInterestTextSelectedCondensed} numberOfLines={2}>
+                      {q}
+                    </Text>
+                    {partnerQualities.includes(q) && (
+                      <View style={styles.modernCheckmarkContainerCondensed}>
+                        <Text style={styles.modernCheckmarkCondensed}>✓</Text>
+                      </View>
+                    )}
+                  </LinearGradient>
+                ) : (
+                  <View style={styles.modernInterestCardUnselectedCondensed}>
+                    <Text style={styles.modernInterestEmojiUnselectedCondensed}>{emoji}</Text>
+                    <Text style={styles.modernInterestTextCondensed} numberOfLines={2}>
+                      {q}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+        <View style={styles.scrollHintCondensed}>
+          <Text style={styles.scrollHintTextCondensed}>
+            👆 Scroll to see all {PARTNER_QUALITY_OPTIONS.length} options
+          </Text>
+        </View>
+      </ScrollView>
+      <LinearGradient
+        colors={['transparent', 'rgba(248, 249, 250, 0.8)', '#f8f9fa']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={styles.bottomFade}
+        pointerEvents="none"
+      />
+    </View>
+  );
+
+  const renderStepLifestyle = () => (
+    <View style={styles.stepContainer}>
+      <LinearGradient
+        colors={['#34d399', '#10b981', '#059669']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.modernHeaderMinimal}
+      >
+        <Text style={styles.modernHeaderEmojiMinimal}>🌱</Text>
+        <Text style={styles.modernHeaderTitleMinimal}>Lifestyle</Text>
+        <Text style={styles.modernHeaderSubtitleMinimal}>Optional — use Skip for now anytime</Text>
+      </LinearGradient>
+      <ScrollView
+        style={styles.stepContent}
+        contentContainerStyle={styles.lifestyleStepScroll}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator
+      >
+        <View style={styles.lifestyleStepInner}>
+          {(Object.keys(LIFESTYLE_FIELD_OPTIONS) as (keyof typeof LIFESTYLE_FIELD_OPTIONS)[]).map((key) => {
+            const opts = LIFESTYLE_FIELD_OPTIONS[key];
+            const val = lifestyleForm[key];
+            return (
+              <View key={key} style={styles.lifestyleStepRow}>
+                <Text style={styles.lifestyleStepFieldTitle}>{LIFESTYLE_FIELD_LABEL[key]}</Text>
+                <View style={styles.lifestyleStepPickerShell}>
+                  <Picker
+                    selectedValue={val}
+                    onValueChange={(v) =>
+                      setLifestyleForm((prev) => ({ ...prev, [key]: typeof v === 'string' ? v : String(v) }))
+                    }
+                    style={styles.lifestyleStepPicker}
+                    itemStyle={Platform.OS === 'ios' ? styles.lifestyleStepPickerItemIos : undefined}
+                    dropdownIconColor="#334155"
+                    mode={Platform.OS === 'android' ? 'dropdown' : 'dialog'}
+                  >
+                    {opts.map((o) => (
+                      <Picker.Item
+                        key={String(o || '__empty')}
+                        label={lifestylePickerItemLabel(key, o)}
+                        value={o}
+                      />
+                    ))}
+                  </Picker>
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      </ScrollView>
+    </View>
+  );
+
+  // Steps 11–13: One card per page (min age, max age, max distance)
   const renderStep10MinAge = () => basicInfoStepWrapper(
     <View style={[styles.focusedFieldSection, { minHeight: rs.sectionMinHeight, paddingHorizontal: rs.sectionPaddingH, paddingVertical: rs.sectionPaddingV }]}>
       <Animated.View style={[{ transform: [{ scale: minAgeScale }], opacity: minAgeOpacity }]}>
@@ -1719,10 +2031,13 @@ export default function CreateProfileScreen() {
       {step === 5 && renderStep4Location()}
       {step === 6 && renderStep6Bio()}
       {step === 7 && renderStep2()}
-      {step === 8 && renderStep10MinAge()}
-      {step === 9 && renderStep11MaxAge()}
-      {step === 10 && renderStep13MaxDistance()}
-      {step === 11 && renderStep7()}
+      {step === 8 && renderStepDealbreakers()}
+      {step === 9 && renderStepPartnerQualities()}
+      {step === 10 && renderStepLifestyle()}
+      {step === 11 && renderStep10MinAge()}
+      {step === 12 && renderStep11MaxAge()}
+      {step === 13 && renderStep13MaxDistance()}
+      {step === 14 && renderStep7()}
 
       <View style={styles.actions}>
           {step > 1 ? (
@@ -2807,6 +3122,52 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
     textAlign: 'center',
     lineHeight: 16,
+  },
+  modernInterestTextCondensedSmall: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#2d3748',
+    letterSpacing: 0.2,
+    textAlign: 'center',
+    lineHeight: 14,
+  },
+  profileExtraCardTall: {
+    minHeight: 88,
+    justifyContent: 'center',
+  },
+  lifestyleStepScroll: {
+    paddingBottom: 48,
+  },
+  lifestyleStepInner: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 28,
+    backgroundColor: '#f8fafc',
+  },
+  lifestyleStepRow: {
+    marginBottom: 14,
+  },
+  lifestyleStepFieldTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0f172a',
+    marginBottom: 6,
+  },
+  lifestyleStepPickerShell: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    backgroundColor: '#fff',
+  },
+  lifestyleStepPicker: {
+    width: '100%',
+    color: '#1e293b',
+    backgroundColor: '#fff',
+  },
+  lifestyleStepPickerItemIos: {
+    color: '#1e293b',
+    fontSize: 17,
   },
   modernInterestTextSelectedCondensed: {
     fontSize: 12,

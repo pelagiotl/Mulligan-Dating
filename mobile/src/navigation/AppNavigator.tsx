@@ -392,12 +392,12 @@ function MainTabs() {
             style={{
               position: 'absolute',
               top: Math.max(insets.top, 8) + 4,
-              right: 16,
+              right: 28,
               zIndex: 120,
               elevation: 14,
             }}
           >
-            <TokenDisplay compact connectShell={connectShellMode} />
+            <TokenDisplay compact connectShell={connectShellMode} compactNavbarChrome />
           </View>
         </View>
       ) : null}

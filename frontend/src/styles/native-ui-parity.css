@@ -2614,13 +2614,239 @@ button.connect-landing__cta:disabled::before {
   .tod-web-unlock-card,
   .tod-web-unlock-shine,
   .tod-web-unlock-dice,
-  .tod-web-unlock-sparkles {
+  .tod-web-unlock-sparkles,
+  .tod-web-msg-gate-overlay,
+  .tod-web-msg-gate-card {
     animation: none;
   }
 
-  .tod-web-unlock-card {
+  .tod-web-unlock-card,
+  .tod-web-msg-gate-card {
     transform: none;
   }
+}
+
+/* Truth or Dare — chat depth gate before token unlock (parity with mobile) */
+.tod-web-msg-gate-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10049;
+  background: rgba(8, 4, 18, 0.72);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: max(1rem, env(safe-area-inset-top)) max(1.25rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom))
+    max(1.25rem, env(safe-area-inset-left));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  box-sizing: border-box;
+  animation: tod-unlock-fade-in 0.22s ease-out;
+}
+
+.tod-web-msg-gate-card {
+  position: relative;
+  width: 100%;
+  max-width: 380px;
+  border-radius: 26px;
+  padding: 1.35rem 1.35rem 1.25rem;
+  color: #fff;
+  text-align: center;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.14),
+    0 24px 56px rgba(90, 20, 90, 0.55),
+    0 8px 24px rgba(0, 0, 0, 0.4);
+  background:
+    radial-gradient(120% 90% at 50% -30%, rgba(255, 0, 128, 0.28), transparent 55%),
+    linear-gradient(155deg, #1a0b22 0%, #2d1240 42%, #4a1452 78%, #351048 100%);
+  overflow-x: hidden;
+}
+
+.tod-web-msg-gate-shine {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    125deg,
+    rgba(255, 0, 128, 0.22) 0%,
+    transparent 42%,
+    rgba(124, 77, 255, 0.18) 100%
+  );
+  opacity: 0.95;
+}
+
+.tod-web-msg-gate-handle {
+  position: relative;
+  width: 2.6rem;
+  height: 4px;
+  margin: 0 auto 1rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.38);
+}
+
+.tod-web-msg-gate-emoji-ring {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 4.5rem;
+  height: 4.5rem;
+  margin: 0 auto 0.85rem;
+  border-radius: 50%;
+  padding: 3px;
+  background: linear-gradient(135deg, #ff66b2, #ff0080, #b388ff, #7c4dff);
+  box-shadow: 0 8px 28px rgba(255, 0, 128, 0.35);
+}
+
+.tod-web-msg-gate-emoji {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: #1a0b22;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.tod-web-msg-gate-kicker {
+  position: relative;
+  margin: 0 0 0.45rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  color: rgba(255, 182, 220, 0.96);
+  text-transform: uppercase;
+}
+
+.tod-web-msg-gate-title {
+  position: relative;
+  margin: 0 0 0.55rem;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+.tod-web-msg-gate-lead {
+  position: relative;
+  margin: 0 0 1.15rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.tod-web-msg-gate-progress {
+  position: relative;
+  text-align: left;
+  margin-bottom: 1rem;
+}
+
+.tod-web-msg-gate-row {
+  margin-bottom: 0.85rem;
+}
+
+.tod-web-msg-gate-row:last-child {
+  margin-bottom: 0;
+}
+
+.tod-web-msg-gate-row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.35rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.tod-web-msg-gate-count {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.tod-web-msg-gate-count--done {
+  color: #6ee7b7;
+}
+
+.tod-web-msg-gate-track {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.tod-web-msg-gate-fill {
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #ff66b2, #ff0080, #e91e8c);
+  transition: width 0.25s ease;
+}
+
+.tod-web-msg-gate-fill--done {
+  background: linear-gradient(90deg, #34d399, #10b981, #059669);
+}
+
+.tod-web-msg-gate-hint {
+  position: relative;
+  display: flex;
+  gap: 0.65rem;
+  align-items: flex-start;
+  text-align: left;
+  padding: 0.75rem 0.85rem;
+  margin-bottom: 1.1rem;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.tod-web-msg-gate-hint span:first-child {
+  font-size: 1.1rem;
+  line-height: 1.2;
+  flex-shrink: 0;
+}
+
+.tod-web-msg-gate-hint p {
+  margin: 0;
+}
+
+.tod-web-msg-gate-btn {
+  position: relative;
+  width: 100%;
+  border: none;
+  border-radius: 16px;
+  padding: 0.88rem 1rem;
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  color: #fff;
+  background: linear-gradient(135deg, #ff0080, #ff4da6, #c026d3);
+  box-shadow: 0 4px 18px rgba(255, 0, 128, 0.42);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  transition: transform 0.12s ease, box-shadow 0.15s ease;
+}
+
+.tod-web-msg-gate-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 26px rgba(255, 0, 128, 0.48);
+}
+
+.tod-web-msg-gate-btn:active {
+  transform: translateY(0);
 }
 
 .tod-web-modal-overlay {

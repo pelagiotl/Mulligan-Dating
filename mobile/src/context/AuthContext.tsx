@@ -183,6 +183,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         onNewMatchRef.current?.();
       });
 
+      socket.on('partner_profile_updated', () => {
+        api.clearCache('/matches');
+        onNewMatchRef.current?.();
+      });
+
       socket.on('new_message', (data: { matchId?: string; senderId: string; senderName?: string; content?: string; id?: string }) => {
         try {
           if (data.senderId === user?.id) return;
@@ -235,6 +240,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       if (messageNotificationSocketRef.current) {
         messageNotificationSocketRef.current.off('new_match');
+        messageNotificationSocketRef.current.off('partner_profile_updated');
         messageNotificationSocketRef.current.off('new_message');
         messageNotificationSocketRef.current.off('message_liked');
         messageNotificationSocketRef.current.disconnect();

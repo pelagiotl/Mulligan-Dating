@@ -30,6 +30,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api, getToken } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
+import type { ConnectShellMode } from '../lib/connectShellTheme';
 import { androidShellBackdropColors, androidShellTabBodyBg } from '../utils/androidConnectShellChrome';
 import { getPhotoUrl } from '../utils/photoUrl';
 import { getPendingOpenMatchId, clearPendingOpenMatchId } from '../utils/pendingMatchOpen';
@@ -42,8 +43,11 @@ import MulliganMoments from '../components/MulliganMoments';
 import DateBlueprint from '../components/DateBlueprint';
 import TruthOrDare, {
   truthOrDareMessageThresholdMet,
-  TRUTH_OR_DARE_LOCKED_HINT,
+  truthOrDareMessageCounts,
+  TRUTH_OR_DARE_MIN_EACH,
 } from '../components/TruthOrDare';
+import TruthOrDareMessageGateModal from '../components/TruthOrDareMessageGateModal';
+import ChatMediaLockedGateModal from '../components/ChatMediaLockedGateModal';
 import NeverHaveIEver from '../components/NeverHaveIEver';
 import OptimizedImage from '../components/OptimizedImage';
 import GameRequestModal from '../components/GameRequestModal';
@@ -53,9 +57,11 @@ import MatchCelebration from '../components/MatchCelebration';
 const SHOW_NEVER_HAVE_I_EVER = true;
 
 /** When media buttons are used before 3+3 message unlock (aligned with web). */
-const CHAT_MEDIA_LOCKED_ALERT =
-  "Photos, video, and voice unlock after you and your match have each sent at least 3 messages in this chat.\n\n" +
-  "Inappropriate photos, video, or voice can get you permanently banned from Mulligan. F**k around and get banned.";
+const CHAT_MEDIA_MIN_EACH = 3;
+const CHAT_MEDIA_LOCKED_SUBTITLE =
+  'Photos, video, and voice unlock after you and your match have each sent at least 3 messages in this chat.';
+const CHAT_MEDIA_LOCKED_MODERATION =
+  'Inappropriate photos, video, or voice can get you permanently banned from Mulligan. F**k around and get banned.';
 
 /** Remove legacy profile-compatibility bullets (interest-only card). */
 function filterInterestCompatReasons(reasons: string[]): string[] {
@@ -394,19 +400,21 @@ function TypingIndicator() {
   );
 }
 
-// Animated heart icon next to “Your Matches” (header)
-function AnimatedLinkHeaderIcon() {
+// Animated heart icon next to “Your Matches” (header) — Mulligan rose/maroon (soft) or pink/magenta (midnight), not cold blues
+function AnimatedLinkHeaderIcon({ connectShell }: { connectShell: ConnectShellMode }) {
+  const midnight = connectShell === 'midnight';
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
   const glowAnim = useRef(new Animated.Value(0.5)).current;
   const shimmerAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Continuous pulse animation
+    // Continuous pulse animation (tighter on Android to avoid parent clipping)
+    const pulseMax = Platform.OS === 'android' ? 1.08 : 1.14;
     Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
-          toValue: 1.14,
+          toValue: pulseMax,
           duration: 1200,
           useNativeDriver: true,
         }),
@@ -486,11 +494,14 @@ function AnimatedLinkHeaderIcon() {
           ],
         },
       ]}
+      collapsable={false}
     >
       {/* Glow behind icon */}
       <Animated.View
         style={[
           styles.animatedHeartGlow,
+          midnight ? styles.animatedHeartGlowMidnight : styles.animatedHeartGlowSoft,
+          Platform.OS === 'android' && { elevation: 0 },
           {
             opacity: glowOpacity,
             transform: [{ scale: glowScale }],
@@ -498,39 +509,66 @@ function AnimatedLinkHeaderIcon() {
         ]}
         pointerEvents="none"
       />
-      
-      {/* Badge gradient — aligned with Matches header purples */}
-      <LinearGradient
-        colors={['#7c8ff0', '#667eea', '#764ba2']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.animatedHeartGradient}
-      >
-        {/* Shimmer overlay */}
-        <Animated.View
+
+      {/*
+        Android: keep emoji OUTSIDE LinearGradient. expo-linear-gradient + borderRadius + elevation
+        often clips children; sibling Text avoids the top of the heart being cut off.
+      */}
+      <View style={styles.animatedHeartBadgeWrap} collapsable={false}>
+        <LinearGradient
+          colors={
+            midnight
+              ? (['#fbcfe8', '#f472b6', '#c026d3'] as const)
+              : (['#fecdd3', '#fb7185', '#be185d'] as const)
+          }
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
           style={[
-            styles.animatedHeartShimmer,
-            {
-              opacity: shimmerAnim.interpolate({
-                inputRange: [0, 0.5, 1],
-                outputRange: [0, 0.3, 0],
-              }),
-              transform: [
-                {
-                  translateX: shimmerAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [-50, 50],
-                  }),
-                },
-              ],
-            },
+            StyleSheet.absoluteFillObject,
+            styles.animatedHeartGradientDisc,
+            midnight ? styles.animatedHeartGradientMidnight : styles.animatedHeartGradientSoft,
+            Platform.OS === 'android' && styles.animatedHeartGradientAndroidNoElevation,
           ]}
-          pointerEvents="none"
-        />
-        <Text style={styles.animatedHeartEmoji}>❤️</Text>
-      </LinearGradient>
+        >
+          <Animated.View
+            style={[
+              styles.animatedHeartShimmer,
+              {
+                opacity: shimmerAnim.interpolate({
+                  inputRange: [0, 0.5, 1],
+                  outputRange: [0, 0.3, 0],
+                }),
+                transform: [
+                  {
+                    translateX: shimmerAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [-50, 50],
+                    }),
+                  },
+                ],
+              },
+            ]}
+            pointerEvents="none"
+          />
+        </LinearGradient>
+        <Text
+          style={[
+            styles.animatedHeartEmoji,
+            Platform.OS === 'android' && styles.animatedHeartEmojiAndroid,
+          ]}
+        >
+          ❤️
+        </Text>
+      </View>
     </Animated.View>
   );
+}
+
+/** Safe area + room so the header heart / glow are not clipped (especially Android status bar + scale animation). */
+function matchesHeaderPaddingTop(topInset: number): number {
+  const minInset = Platform.OS === 'android' ? 10 : 12;
+  const extra = Platform.OS === 'android' ? 14 : 10;
+  return Math.max(topInset, minInset) + extra;
 }
 
 // Animated Header Gradient Component
@@ -545,8 +583,11 @@ function AnimatedHeaderGradient({
   gradientPos?: Animated.Value;
   shellBackdropColors: readonly [string, string, ...string[]];
 }) {
+  const insets = useSafeAreaInsets();
   return (
-    <Animated.View style={styles.headerGradient}>
+    <Animated.View
+      style={[styles.headerGradient, { paddingTop: matchesHeaderPaddingTop(insets.top), overflow: 'visible' }]}
+    >
       <LinearGradient
         colors={[...shellBackdropColors]}
         start={{ x: 0, y: 0 }}
@@ -955,6 +996,94 @@ function EmptyStateAnimated({
   );
 }
 
+/** Quick view profile sheet — Mulligan rose/maroon (soft) vs midnight pink/graphite; aligns with Connect shell. */
+type QuickViewPalette = {
+  overlayGradient: readonly [string, string, string];
+  sheetBg: string;
+  headerBg: string;
+  headerBorder: string;
+  primaryText: string;
+  secondaryText: string;
+  mutedText: string;
+  cardBg: string;
+  cardBorder: string;
+  accent: string;
+  accentMuted: string;
+  tagBg: string;
+  tagBorder: string;
+  tagText: string;
+  tagMutedBg: string;
+  tagMutedBorder: string;
+  tagMutedText: string;
+  ringGradient: readonly [string, string, string];
+  placeholderGradient: readonly [string, string, string];
+  closeBg: string;
+  closeBorder: string;
+  closeText: string;
+  photoBorder: string;
+  thumbBorder: string;
+  compatShadow: string;
+};
+
+function quickViewPalette(midnight: boolean): QuickViewPalette {
+  if (midnight) {
+    return {
+      overlayGradient: ['rgba(8, 6, 16, 0.94)', 'rgba(22, 16, 34, 0.92)', 'rgba(72, 28, 58, 0.88)'],
+      sheetBg: '#14101c',
+      headerBg: 'rgba(22, 18, 32, 0.98)',
+      headerBorder: 'rgba(244, 114, 182, 0.20)',
+      primaryText: '#f8fafc',
+      secondaryText: '#cbd5e1',
+      mutedText: '#94a3b8',
+      cardBg: '#1c1726',
+      cardBorder: 'rgba(244, 114, 182, 0.18)',
+      accent: '#f472b6',
+      accentMuted: 'rgba(244, 114, 182, 0.55)',
+      tagBg: 'rgba(244, 63, 94, 0.16)',
+      tagBorder: 'rgba(244, 114, 182, 0.32)',
+      tagText: '#fecdd3',
+      tagMutedBg: 'rgba(30, 27, 41, 0.9)',
+      tagMutedBorder: 'rgba(148, 163, 184, 0.22)',
+      tagMutedText: '#cbd5e1',
+      ringGradient: ['#fbcfe8', '#f472b6', '#c026d3'],
+      placeholderGradient: ['#9d174d', '#86198f', '#6b21a8'],
+      closeBg: 'rgba(255, 255, 255, 0.08)',
+      closeBorder: 'rgba(244, 114, 182, 0.28)',
+      closeText: '#e2e8f0',
+      photoBorder: 'rgba(255, 255, 255, 0.22)',
+      thumbBorder: 'rgba(244, 114, 182, 0.35)',
+      compatShadow: '#f472b6',
+    };
+  }
+  return {
+    overlayGradient: ['rgba(76, 29, 46, 0.91)', 'rgba(76, 29, 120, 0.82)', 'rgba(236, 72, 153, 0.42)'],
+    sheetBg: '#fffafb',
+    headerBg: 'rgba(255, 253, 253, 0.96)',
+    headerBorder: 'rgba(225, 29, 72, 0.14)',
+    primaryText: '#1a1523',
+    secondaryText: '#334155',
+    mutedText: '#64748b',
+    cardBg: '#ffffff',
+    cardBorder: 'rgba(225, 29, 72, 0.11)',
+    accent: '#be185d',
+    accentMuted: 'rgba(190, 24, 93, 0.65)',
+    tagBg: 'rgba(254, 205, 211, 0.42)',
+    tagBorder: 'rgba(190, 24, 93, 0.22)',
+    tagText: '#881337',
+    tagMutedBg: 'rgba(248, 250, 252, 0.95)',
+    tagMutedBorder: 'rgba(148, 163, 184, 0.35)',
+    tagMutedText: '#475569',
+    ringGradient: ['#fecdd3', '#fb7185', '#be185d'],
+    placeholderGradient: ['#db2777', '#be185d', '#881337'],
+    closeBg: 'rgba(255, 255, 255, 0.92)',
+    closeBorder: 'rgba(225, 29, 72, 0.16)',
+    closeText: '#57534e',
+    photoBorder: '#ffffff',
+    thumbBorder: 'rgba(255, 255, 255, 0.95)',
+    compatShadow: '#be185d',
+  };
+}
+
 // Match Profile Modal Component with Enhanced Animations
 // When noModal is true, renders only the inner content (used inside a parent Modal to avoid double-modal flash)
 function MatchProfileModal({ 
@@ -976,6 +1105,11 @@ function MatchProfileModal({
 }) {
   const { otherUser } = match;
   const { user } = useAuth();
+  const { mode: connectShellMode } = useConnectShellTheme();
+  const insets = useSafeAreaInsets();
+  const palette = useMemo(() => quickViewPalette(connectShellMode === 'midnight'), [connectShellMode]);
+  const quickViewSheetTop =
+    Platform.OS === 'android' ? Math.max(insets.top, 8) + 8 : Math.max(insets.top, 14) + 28;
   const [currentUserInterests, setCurrentUserInterests] = useState<string[]>([]);
   // Stage1: primary profile picture only; Stage2: all photos
   const primaryPhoto = match.stage === 'stage1'
@@ -1116,7 +1250,7 @@ function MatchProfileModal({
         ]}
       >
         <LinearGradient
-          colors={['rgba(15, 23, 42, 0.92)', 'rgba(30, 27, 75, 0.9)', 'rgba(67, 56, 202, 0.85)']}
+          colors={[...palette.overlayGradient]}
           start={{ x: 0.1, y: 0 }}
           end={{ x: 0.9, y: 1 }}
           style={StyleSheet.absoluteFill}
@@ -1126,19 +1260,25 @@ function MatchProfileModal({
             styles.modalContainer,
             {
               transform: [{ translateY: slideAnim }],
-            }
+              marginTop: quickViewSheetTop,
+              backgroundColor: palette.sheetBg,
+              borderTopLeftRadius: Platform.OS === 'android' ? 32 : 28,
+              borderTopRightRadius: Platform.OS === 'android' ? 32 : 28,
+              borderTopWidth: StyleSheet.hairlineWidth,
+              borderColor: palette.cardBorder,
+            },
           ]}
         >
           <ScrollView 
-            style={styles.modalScrollView}
+            style={[styles.modalScrollView, { backgroundColor: palette.sheetBg }]}
             contentContainerStyle={styles.modalContent}
             showsVerticalScrollIndicator={false}
           >
             {/* Header with close button */}
-            <View style={styles.modalHeader}>
+            <View style={[styles.modalHeader, { backgroundColor: palette.headerBg, borderBottomColor: palette.headerBorder }]}>
               <View style={styles.modalHeaderTitles}>
-                <Text style={styles.modalTitleEyebrow}>Quick view</Text>
-                <Text style={styles.modalTitle}>Profile</Text>
+                <Text style={[styles.modalTitleEyebrow, { color: palette.mutedText }]}>Quick view</Text>
+                <Text style={[styles.modalTitle, { color: palette.primaryText }]}>Profile</Text>
               </View>
               <TouchableOpacity
                 onPress={onClose}
@@ -1146,8 +1286,8 @@ function MatchProfileModal({
                 activeOpacity={0.7}
                 accessibilityLabel="Close profile"
               >
-                <View style={styles.modalCloseButtonInner}>
-                  <Text style={styles.modalCloseText}>✕</Text>
+                <View style={[styles.modalCloseButtonInner, { backgroundColor: palette.closeBg, borderColor: palette.closeBorder }]}>
+                  <Text style={[styles.modalCloseText, { color: palette.closeText }]}>✕</Text>
                 </View>
               </TouchableOpacity>
             </View>
@@ -1165,7 +1305,7 @@ function MatchProfileModal({
                 ]}
               >
                 <LinearGradient
-                  colors={['#c7d2fe', '#a5b4fc', '#818cf8']}
+                  colors={[...palette.ringGradient]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={styles.modalPhotoFrameRing}
@@ -1179,20 +1319,20 @@ function MatchProfileModal({
                     accessibilityLabel="View full size photo"
                   >
                     {mainPhotoUrl ? (
-                      <OptimizedImage source={mainPhotoUrl} style={styles.modalPhoto} resizeMode="cover" showLoadingIndicator={false} />
+                      <OptimizedImage source={mainPhotoUrl} style={[styles.modalPhoto, { borderColor: palette.photoBorder }]} resizeMode="cover" showLoadingIndicator={false} />
                     ) : (
                       <LinearGradient
-                        colors={['#6366f1', '#4f46e5', '#4338ca']}
+                        colors={[...palette.placeholderGradient]}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
-                        style={styles.modalPhotoPlaceholder}
+                        style={[styles.modalPhotoPlaceholder, { borderColor: palette.photoBorder }]}
                       >
                         <Text style={styles.modalPhotoPlaceholderText}>
                           {otherUser.displayName.charAt(0).toUpperCase()}
                         </Text>
                       </LinearGradient>
                     )}
-                    <Text style={styles.modalPhotoTapHint}>Tap to expand</Text>
+                    <Text style={[styles.modalPhotoTapHint, { color: palette.mutedText }]}>Tap to expand</Text>
                   </TouchableOpacity>
                 ) : (
                   <View style={styles.modalPhotoInnerClip}>
@@ -1206,24 +1346,24 @@ function MatchProfileModal({
                             activeOpacity={0.92}
                             accessibilityLabel="View full size photo"
                           >
-                            <OptimizedImage source={mainPhotoUrl} style={styles.modalPhoto} resizeMode="cover" showLoadingIndicator={false} />
+                            <OptimizedImage source={mainPhotoUrl} style={[styles.modalPhoto, { borderColor: palette.photoBorder }]} resizeMode="cover" showLoadingIndicator={false} />
                           </TouchableOpacity>
                           <TouchableOpacity style={styles.modalPhotoSwipeSide} onPress={goNextPhoto} activeOpacity={1} accessibilityLabel="Next photo" />
                         </View>
                       ) : onPhotoPress ? (
                         <TouchableOpacity style={[styles.modalPhotoTouchable, { zIndex: 10, elevation: 10 }]} onPress={() => onPhotoPress(mainPhotoUrl, undefined, undefined)} activeOpacity={0.92} accessibilityLabel="View full size photo">
-                          <OptimizedImage source={mainPhotoUrl} style={styles.modalPhoto} resizeMode="cover" showLoadingIndicator={false} />
-                          <Text style={styles.modalPhotoTapHint}>Tap to expand</Text>
+                          <OptimizedImage source={mainPhotoUrl} style={[styles.modalPhoto, { borderColor: palette.photoBorder }]} resizeMode="cover" showLoadingIndicator={false} />
+                          <Text style={[styles.modalPhotoTapHint, { color: palette.mutedText }]}>Tap to expand</Text>
                         </TouchableOpacity>
                       ) : (
-                        <OptimizedImage source={mainPhotoUrl} style={styles.modalPhoto} resizeMode="cover" showLoadingIndicator={false} />
+                        <OptimizedImage source={mainPhotoUrl} style={[styles.modalPhoto, { borderColor: palette.photoBorder }]} resizeMode="cover" showLoadingIndicator={false} />
                       )
                     ) : (
                       <LinearGradient
-                        colors={['#6366f1', '#4f46e5', '#4338ca']}
+                        colors={[...palette.placeholderGradient]}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
-                        style={styles.modalPhotoPlaceholder}
+                        style={[styles.modalPhotoPlaceholder, { borderColor: palette.photoBorder }]}
                       >
                         <Text style={styles.modalPhotoPlaceholderText}>
                           {otherUser.displayName.charAt(0).toUpperCase()}
@@ -1231,7 +1371,7 @@ function MatchProfileModal({
                       </LinearGradient>
                     )}
                     {canSwipePhotos && allPhotos.length > 1 ? (
-                      <Text style={styles.modalPhotoSwipeHint}>Tap edges to browse photos</Text>
+                      <Text style={[styles.modalPhotoSwipeHint, { color: palette.mutedText }]}>Tap edges to browse photos</Text>
                     ) : null}
                   </View>
                 )}
@@ -1246,27 +1386,53 @@ function MatchProfileModal({
                   { opacity: contentFade }
                 ]}
               >
-                <View style={styles.modalCompatibilityCard}>
-                  <View style={styles.modalCompatibilityAccent} />
+                <View
+                  style={[
+                    styles.modalCompatibilityCard,
+                    {
+                      backgroundColor: palette.cardBg,
+                      borderColor: palette.cardBorder,
+                      shadowColor: palette.compatShadow,
+                    },
+                  ]}
+                >
+                  <View style={[styles.modalCompatibilityAccent, { backgroundColor: palette.accent }]} />
                   <View style={styles.modalCompatibilityHeader}>
-                    <Text style={styles.modalCompatibilityEmoji}>✦</Text>
+                    <Text style={[styles.modalCompatibilityEmoji, { color: palette.accent }]}>✦</Text>
                     <View style={styles.modalCompatibilityTitleContainer}>
-                      <Text style={styles.modalCompatibilityEyebrow}>In common</Text>
-                      <Text style={styles.modalCompatibilityTitle}>You both like</Text>
-                      <Text style={styles.modalCompatibilitySubtitle}>
+                      <Text style={[styles.modalCompatibilityEyebrow, { color: palette.mutedText }]}>In common</Text>
+                      <Text style={[styles.modalCompatibilityTitle, { color: palette.primaryText }]}>You both like</Text>
+                      <Text style={[styles.modalCompatibilitySubtitle, { color: palette.secondaryText }]}>
                         {commonInterests.length} {commonInterests.length === 1 ? 'interest' : 'interests'} overlap
                       </Text>
                     </View>
                   </View>
                   <View style={styles.modalCompatibilityTags}>
                     {commonInterests.slice(0, 6).map((interest, idx) => (
-                      <View key={idx} style={styles.modalCompatibilityTag}>
-                        <Text style={styles.modalCompatibilityTagText}>{interest}</Text>
+                      <View
+                        key={idx}
+                        style={[
+                          styles.modalCompatibilityTag,
+                          {
+                            backgroundColor: palette.tagBg,
+                            borderColor: palette.tagBorder,
+                          },
+                        ]}
+                      >
+                        <Text style={[styles.modalCompatibilityTagText, { color: palette.tagText }]}>{interest}</Text>
                       </View>
                     ))}
                     {commonInterests.length > 6 && (
-                      <View style={styles.modalCompatibilityMore}>
-                        <Text style={styles.modalCompatibilityMoreText}>
+                      <View
+                        style={[
+                          styles.modalCompatibilityMore,
+                          {
+                            backgroundColor: palette.tagMutedBg,
+                            borderColor: palette.tagMutedBorder,
+                          },
+                        ]}
+                      >
+                        <Text style={[styles.modalCompatibilityMoreText, { color: palette.tagMutedText }]}>
                           +{commonInterests.length - 6} more
                         </Text>
                       </View>
@@ -1282,8 +1448,13 @@ function MatchProfileModal({
                   { opacity: contentFade }
                 ]}
               >
-                <View style={styles.modalCompatibilityEmptyCard}>
-                  <Text style={styles.modalCompatibilityEmptyText}>
+                <View
+                  style={[
+                    styles.modalCompatibilityEmptyCard,
+                    { backgroundColor: palette.cardBg, borderColor: palette.cardBorder },
+                  ]}
+                >
+                  <Text style={[styles.modalCompatibilityEmptyText, { color: palette.secondaryText }]}>
                     💫 No shared interests yet, but you both have unique interests to explore!
                   </Text>
                 </View>
@@ -1297,33 +1468,53 @@ function MatchProfileModal({
                 { opacity: contentFade }
               ]}
             >
-              <Text style={styles.modalName}>{otherUser.displayName}</Text>
+              <Text style={[styles.modalName, { color: palette.primaryText }]}>{otherUser.displayName}</Text>
               <View style={styles.modalBasicInfo}>
-                <View style={styles.modalInfoStatCard}>
+                <View
+                  style={[
+                    styles.modalInfoStatCard,
+                    { backgroundColor: palette.cardBg, borderColor: palette.cardBorder },
+                  ]}
+                >
                   <Text style={styles.modalInfoStatEmoji}>🎂</Text>
-                  <Text style={styles.modalInfoStatLabel}>Age</Text>
-                  <Text style={styles.modalInfoStatValue}>{otherUser.age}</Text>
+                  <Text style={[styles.modalInfoStatLabel, { color: palette.mutedText }]}>Age</Text>
+                  <Text style={[styles.modalInfoStatValue, { color: palette.primaryText }]}>{otherUser.age}</Text>
                 </View>
-                <View style={styles.modalInfoStatCard}>
+                <View
+                  style={[
+                    styles.modalInfoStatCard,
+                    { backgroundColor: palette.cardBg, borderColor: palette.cardBorder },
+                  ]}
+                >
                   <Text style={styles.modalInfoStatEmoji}>⚧️</Text>
-                  <Text style={styles.modalInfoStatLabel}>Gender</Text>
-                  <Text style={styles.modalInfoStatValue} numberOfLines={2}>{otherUser.gender}</Text>
+                  <Text style={[styles.modalInfoStatLabel, { color: palette.mutedText }]}>Gender</Text>
+                  <Text style={[styles.modalInfoStatValue, { color: palette.primaryText }]} numberOfLines={2}>{otherUser.gender}</Text>
                 </View>
               </View>
               
               {otherUser.location && (
-                <View style={[styles.modalInfoLocationCard, { marginTop: 10, marginBottom: 0 }]}>
+                <View
+                  style={[
+                    styles.modalInfoLocationCard,
+                    { marginTop: 10, marginBottom: 0, backgroundColor: palette.cardBg, borderColor: palette.cardBorder },
+                  ]}
+                >
                   <Text style={styles.modalInfoStatEmoji}>📍</Text>
-                  <Text style={styles.modalInfoStatLabel}>Location</Text>
-                  <Text style={styles.modalInfoLocationValue}>{otherUser.location}</Text>
+                  <Text style={[styles.modalInfoStatLabel, { color: palette.mutedText }]}>Location</Text>
+                  <Text style={[styles.modalInfoLocationValue, { color: palette.primaryText }]}>{otherUser.location}</Text>
                 </View>
               )}
 
               {otherUser.bio && (
                 <View style={[styles.modalBioCard, { marginTop: 14 }]}>
-                  <View style={styles.modalBioInner}>
-                    <Text style={styles.modalBioEyebrow}>About</Text>
-                    <Text style={styles.modalBio}>{otherUser.bio}</Text>
+                  <View
+                    style={[
+                      styles.modalBioInner,
+                      { backgroundColor: palette.cardBg, borderColor: palette.cardBorder },
+                    ]}
+                  >
+                    <Text style={[styles.modalBioEyebrow, { color: palette.accent }]}>About</Text>
+                    <Text style={[styles.modalBio, { color: palette.secondaryText }]}>{otherUser.bio}</Text>
                   </View>
                 </View>
               )}
@@ -1339,8 +1530,8 @@ function MatchProfileModal({
                 ]}
               >
                 <View style={styles.modalSectionHeader}>
-                  <Text style={styles.modalSectionEyebrow}>Gallery</Text>
-                  <Text style={styles.modalSectionTitle}>Photos</Text>
+                  <Text style={[styles.modalSectionEyebrow, { color: palette.mutedText }]}>Gallery</Text>
+                  <Text style={[styles.modalSectionTitle, { color: palette.primaryText }]}>Photos</Text>
                 </View>
                 <ScrollView 
                   horizontal 
@@ -1353,7 +1544,7 @@ function MatchProfileModal({
                     const thumb = (
                       <OptimizedImage
                         source={photo.url}
-                        style={styles.modalPhotoThumbnail}
+                        style={[styles.modalPhotoThumbnail, { borderColor: palette.thumbBorder }]}
                         resizeMode="cover"
                         showLoadingIndicator={false}
                       />
@@ -1397,13 +1588,22 @@ function MatchProfileModal({
                 ]}
               >
                 <View style={styles.modalSectionHeader}>
-                  <Text style={styles.modalSectionEyebrow}>Their world</Text>
-                  <Text style={styles.modalSectionTitle}>Interests</Text>
+                  <Text style={[styles.modalSectionEyebrow, { color: palette.mutedText }]}>Their world</Text>
+                  <Text style={[styles.modalSectionTitle, { color: palette.primaryText }]}>Interests</Text>
                 </View>
                 <View style={styles.modalTagsContainer}>
                   {otherUser.interests.map((interest, idx) => (
-                    <View key={idx} style={styles.modalTagPill}>
-                      <Text style={styles.modalTagPillText}>{interest}</Text>
+                    <View
+                      key={idx}
+                      style={[
+                        styles.modalTagPill,
+                        {
+                          backgroundColor: palette.tagBg,
+                          borderColor: palette.tagBorder,
+                        },
+                      ]}
+                    >
+                      <Text style={[styles.modalTagPillText, { color: palette.tagText }]}>{interest}</Text>
                     </View>
                   ))}
                 </View>
@@ -1419,13 +1619,22 @@ function MatchProfileModal({
                 ]}
               >
                 <View style={styles.modalSectionHeader}>
-                  <Text style={styles.modalSectionEyebrow}>What they care about</Text>
-                  <Text style={styles.modalSectionTitle}>Values</Text>
+                  <Text style={[styles.modalSectionEyebrow, { color: palette.mutedText }]}>What they care about</Text>
+                  <Text style={[styles.modalSectionTitle, { color: palette.primaryText }]}>Values</Text>
                 </View>
                 <View style={styles.modalTagsContainer}>
                   {otherUser.values.map((value, idx) => (
-                    <View key={idx} style={styles.modalTagPillMuted}>
-                      <Text style={styles.modalTagPillMutedText}>{value}</Text>
+                    <View
+                      key={idx}
+                      style={[
+                        styles.modalTagPillMuted,
+                        {
+                          backgroundColor: palette.tagMutedBg,
+                          borderColor: palette.tagMutedBorder,
+                        },
+                      ]}
+                    >
+                      <Text style={[styles.modalTagPillMutedText, { color: palette.tagMutedText }]}>{value}</Text>
                     </View>
                   ))}
                 </View>
@@ -1438,19 +1647,31 @@ function MatchProfileModal({
                 {onBlock && (
                   <TouchableOpacity
                     onPress={onBlock}
-                    style={styles.modalBlockButton}
+                    style={[
+                      styles.modalBlockButton,
+                      {
+                        backgroundColor: palette.tagMutedBg,
+                        borderColor: palette.tagMutedBorder,
+                      },
+                    ]}
                     activeOpacity={0.8}
                   >
-                    <Text style={styles.modalBlockButtonText}>🚫 Block</Text>
+                    <Text style={[styles.modalBlockButtonText, { color: palette.secondaryText }]}>🚫 Block</Text>
                   </TouchableOpacity>
                 )}
                 {onReport && (
                   <TouchableOpacity
                     onPress={onReport}
-                    style={styles.modalReportButton}
+                    style={[
+                      styles.modalReportButton,
+                      {
+                        backgroundColor: connectShellMode === 'midnight' ? 'rgba(254, 202, 202, 0.12)' : '#fef2f2',
+                        borderColor: connectShellMode === 'midnight' ? 'rgba(248, 113, 113, 0.35)' : '#fecaca',
+                      },
+                    ]}
                     activeOpacity={0.8}
                   >
-                    <Text style={styles.modalReportButtonText}>🚩 Report</Text>
+                    <Text style={[styles.modalReportButtonText, { color: connectShellMode === 'midnight' ? '#fecaca' : '#b91c1c' }]}>🚩 Report</Text>
                   </TouchableOpacity>
                 )}
               </Animated.View>
@@ -1560,6 +1781,8 @@ export default function MatchesScreen() {
   const [showAgeCardModal, setShowAgeCardModal] = useState(false);
   const [showCompatibilityCardModal, setShowCompatibilityCardModal] = useState(false);
   const [messageLikedToast, setMessageLikedToast] = useState<{ likerName: string } | null>(null);
+  const [truthOrDareGateModalVisible, setTruthOrDareGateModalVisible] = useState(false);
+  const [chatMediaGateModalVisible, setChatMediaGateModalVisible] = useState(false);
   
   useEffect(() => {
     if (!messageLikedToast) return;
@@ -1588,7 +1811,25 @@ export default function MatchesScreen() {
       if (m.senderId === myId) my++;
       else if (m.senderId === otherId) other++;
     }
-    return my >= 3 && other >= 3;
+    return my >= CHAT_MEDIA_MIN_EACH && other >= CHAT_MEDIA_MIN_EACH;
+  }, [messages, selectedMatch?.id, selectedMatch?.otherUser?.userId, user?.id]);
+
+  const chatMediaMessageCounts = useMemo(() => {
+    if (!selectedMatch || !user?.id) return { my: 0, their: 0 };
+    const myId = user.id;
+    const otherId = selectedMatch.otherUser.userId;
+    let my = 0;
+    let their = 0;
+    for (const m of messages) {
+      if (m.senderId === myId) my++;
+      else if (m.senderId === otherId) their++;
+    }
+    return { my, their };
+  }, [messages, selectedMatch?.id, selectedMatch?.otherUser?.userId, user?.id]);
+
+  const truthOrDareGateCounts = useMemo(() => {
+    if (!user?.id || !selectedMatch?.otherUser?.userId) return { my: 0, their: 0 };
+    return truthOrDareMessageCounts(messages, user.id, selectedMatch.otherUser.userId);
   }, [messages, selectedMatch?.id, selectedMatch?.otherUser?.userId, user?.id]);
 
   matchesRef.current = matches;
@@ -1775,9 +2016,13 @@ export default function MatchesScreen() {
   ).current;
 
   const handleTextChange = useCallback((text: string) => {
-    // If we're in the process of sending, don't update (prevents newline from being added)
+    // During send, ignore non-empty native TextInput churn (Android multiline can echo old text after clear)
+    if (sendingMessage && text !== '') {
+      return;
+    }
+    setNewMessage(text);
+
     if (!sendingMessage) {
-      setNewMessage(text);
       
       // Emit typing indicator (debounced to reduce socket events)
       if (text.trim().length > 0 && selectedMatch?.id && selectedMatch.stage !== 'pending') {
@@ -2394,8 +2639,7 @@ export default function MatchesScreen() {
     }
   }, [route.params?.showMatchCelebration, route.params?.matchId, fetchMatches]);
 
-  // Auto-select match when matches load and we have pending or route param (e.g. celebration "Send message")
-  // When matches refresh (e.g. after fetchMatches), re-set selectedMatch from fresh list so gameUnlocks is up to date
+  // When matches refresh, keep selectedMatch aligned with the row from GET /matches (partner profile edits, photos, etc.).
   useEffect(() => {
     const pendingId = getPendingOpenMatchId();
     const routeParams = route.params as { matchId?: string } | undefined;
@@ -2407,13 +2651,12 @@ export default function MatchesScreen() {
         if (pendingId) clearPendingOpenMatchId();
       }
     } else if (selectedMatch?.id && matches.length > 0) {
-      // Keep selectedMatch in sync with fresh matches (e.g. gameUnlocks after the other user unlocked)
       const updated = matches.find(m => m.id === selectedMatch.id);
-      if (updated && (updated.gameUnlocks?.truth_or_dare !== selectedMatch.gameUnlocks?.truth_or_dare || updated.gameUnlocks?.never_have_i_ever !== selectedMatch.gameUnlocks?.never_have_i_ever)) {
+      if (updated) {
         setSelectedMatch(updated);
       }
     }
-  }, [matches, route.params, loading, selectedMatch?.id, selectedMatch?.gameUnlocks?.truth_or_dare, selectedMatch?.gameUnlocks?.never_have_i_ever]);
+  }, [matches, route.params, loading, selectedMatch?.id]);
 
   const fetchMessages = useCallback(async (matchId: string, retryCount = 0) => {
     const maxRetries = 3;
@@ -2495,6 +2738,7 @@ export default function MatchesScreen() {
     // Ref guard: prevent concurrent sends (state update is async so rapid taps can both pass sendingMessage check)
     if (sendInFlightRef.current) return;
     sendInFlightRef.current = true;
+    setSendingMessage(true);
 
     // Stop typing indicator
     if (isTyping && selectedMatch.id) {
@@ -2507,10 +2751,12 @@ export default function MatchesScreen() {
     }
 
     setNewMessage('');
+    if (Platform.OS === 'android') {
+      queueMicrotask(() => textInputRef.current?.clear?.());
+    }
     Keyboard.dismiss();
     setTimeout(() => setKeyboardHeight(0), 100);
     
-    setSendingMessage(true);
     if (sendSafetyTimeoutRef.current) clearTimeout(sendSafetyTimeoutRef.current);
     sendSafetyTimeoutRef.current = setTimeout(() => {
       sendSafetyTimeoutRef.current = null;
@@ -2603,6 +2849,7 @@ export default function MatchesScreen() {
     } catch (error: any) {
       // Remove temp message on error
       setMessages((prev) => prev.filter((m) => m.id !== tempMessage.id));
+      setNewMessage(messageContent);
       const msg = error?.message || 'Failed to send message';
       Alert.alert('Error', msg.includes('timeout') ? 'Network request timed out. Please check your connection and try again.' : msg);
     } finally {
@@ -2618,7 +2865,7 @@ export default function MatchesScreen() {
   const handleSendPhoto = useCallback(async () => {
     if (!selectedMatch || sendingMessage || uploadingImage || uploadingVideo || uploadingAudio || !user) return;
     if (!chatMediaUnlocked) {
-      Alert.alert('Not yet', CHAT_MEDIA_LOCKED_ALERT);
+      setChatMediaGateModalVisible(true);
       return;
     }
     Alert.alert(
@@ -3075,11 +3322,11 @@ export default function MatchesScreen() {
           colors={[...shellBackdropColors]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={styles.headerGradient}
+          style={[styles.headerGradient, { paddingTop: matchesHeaderPaddingTop(insets.top) }]}
         >
           <View style={styles.header}>
             <View style={styles.headerTitleContainer}>
-              <AnimatedLinkHeaderIcon />
+              <AnimatedLinkHeaderIcon connectShell={connectShellMode} />
               <Text style={styles.headerTitle}>Your Matches</Text>
             </View>
           </View>
@@ -3104,7 +3351,7 @@ export default function MatchesScreen() {
         >
           <View style={styles.header}>
             <View style={styles.headerTitleContainer}>
-              <AnimatedLinkHeaderIcon />
+              <AnimatedLinkHeaderIcon connectShell={connectShellMode} />
               <Text style={styles.headerTitle}>Your Matches</Text>
             </View>
           </View>
@@ -3302,7 +3549,7 @@ export default function MatchesScreen() {
                       const uid = user?.id;
                       const pid = selectedMatch.otherUser.userId;
                       if (!uid || !pid || !truthOrDareMessageThresholdMet(messages, uid, pid)) {
-                        Alert.alert('Not yet', TRUTH_OR_DARE_LOCKED_HINT);
+                        setTruthOrDareGateModalVisible(true);
                         return;
                       }
                       try {
@@ -3379,7 +3626,25 @@ export default function MatchesScreen() {
           </View>
         </View>
       </LinearGradient>
-      
+
+      <TruthOrDareMessageGateModal
+        visible={truthOrDareGateModalVisible}
+        onClose={() => setTruthOrDareGateModalVisible(false)}
+        myCount={truthOrDareGateCounts.my}
+        theirCount={truthOrDareGateCounts.their}
+        threshold={TRUTH_OR_DARE_MIN_EACH}
+      />
+
+      <ChatMediaLockedGateModal
+        visible={chatMediaGateModalVisible}
+        onClose={() => setChatMediaGateModalVisible(false)}
+        myCount={chatMediaMessageCounts.my}
+        theirCount={chatMediaMessageCounts.their}
+        threshold={CHAT_MEDIA_MIN_EACH}
+        subtitle={CHAT_MEDIA_LOCKED_SUBTITLE}
+        moderationWarning={CHAT_MEDIA_LOCKED_MODERATION}
+      />
+
       {/* Age card popup - fun message when tapping the age pill */}
       <Modal
         visible={showAgeCardModal}
@@ -3913,7 +4178,7 @@ export default function MatchesScreen() {
               <TouchableOpacity
                 onPress={() => {
                   if (!chatMediaUnlocked) {
-                    Alert.alert('Not yet', CHAT_MEDIA_LOCKED_ALERT);
+                    setChatMediaGateModalVisible(true);
                     return;
                   }
                   setShowPhotoGuidelinesModal(true);
@@ -3999,6 +4264,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f7fa',
+    ...Platform.select({
+      android: { overflow: 'visible' as const },
+      default: {},
+    }),
   },
   chatHeaderGradient: {
     paddingTop: Platform.OS === 'ios' ? 50 : 20,
@@ -4022,7 +4291,7 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   headerGradient: {
-    paddingTop: Platform.OS === 'ios' ? 50 : 20,
+    paddingTop: 0,
     borderBottomWidth: 0,
     shadowColor: '#667eea',
     shadowOffset: { width: 0, height: 6 },
@@ -4035,6 +4304,7 @@ const styles = StyleSheet.create({
     padding: 24,
     paddingTop: 28,
     paddingBottom: 24,
+    overflow: 'visible',
   },
   headerTitleContainer: {
     flexDirection: 'row',
@@ -4043,7 +4313,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     flexWrap: 'wrap',
     gap: 8,
-    paddingVertical: 10,
+    paddingVertical: Platform.OS === 'android' ? 12 : 10,
     overflow: 'visible',
   },
   animatedHeartContainer: {
@@ -4052,37 +4322,63 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginLeft: -8,
     overflow: 'visible',
-    paddingVertical: 6,
-    paddingHorizontal: 4,
+    paddingTop: Platform.OS === 'android' ? 16 : 6,
+    paddingBottom: Platform.OS === 'android' ? 12 : 6,
+    paddingHorizontal: Platform.OS === 'android' ? 8 : 6,
   },
   animatedHeartGlow: {
     position: 'absolute',
+    top: -7,
+    left: -7,
     width: 66,
     height: 66,
     borderRadius: 33,
-    backgroundColor: '#667eea',
-    shadowColor: '#5b4bce',
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 20,
+    shadowOpacity: 0.75,
+    shadowRadius: 18,
     elevation: 10,
     zIndex: 0,
   },
-  animatedHeartGradient: {
+  animatedHeartGlowSoft: {
+    backgroundColor: 'rgba(136, 19, 55, 0.28)',
+    shadowColor: '#881337',
+  },
+  animatedHeartGlowMidnight: {
+    backgroundColor: 'rgba(244, 114, 182, 0.36)',
+    shadowColor: '#ec4899',
+  },
+  animatedHeartBadgeWrap: {
     width: 52,
     height: 52,
-    borderRadius: 26,
-    alignItems: 'center',
+    position: 'relative',
     justifyContent: 'center',
-    borderWidth: 3,
-    borderColor: '#fff',
-    shadowColor: '#4c51bf',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.6,
-    shadowRadius: 12,
-    elevation: 12,
-    zIndex: 1,
+    alignItems: 'center',
     overflow: 'visible',
+  },
+  /** Fills badge wrap; shimmer stays inside so rounded corners stay clean. */
+  animatedHeartGradientDisc: {
+    borderRadius: 26,
+    overflow: 'hidden',
+    borderWidth: 3,
+  },
+  animatedHeartGradientAndroidNoElevation: {
+    elevation: 0,
+  },
+  animatedHeartGradientSoft: {
+    borderColor: 'rgba(255, 255, 255, 0.95)',
+    shadowColor: '#881337',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.42,
+    shadowRadius: 10,
+    elevation: 12,
+  },
+  animatedHeartGradientMidnight: {
+    borderColor: 'rgba(255, 255, 255, 0.26)',
+    shadowColor: '#db2777',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.48,
+    shadowRadius: 14,
+    elevation: 14,
   },
   animatedHeartShimmer: {
     position: 'absolute',
@@ -4093,11 +4389,17 @@ const styles = StyleSheet.create({
   },
   animatedHeartEmoji: {
     fontSize: 28,
-    lineHeight: 28,
+    lineHeight: 32,
+    textAlign: 'center' as const,
     textShadowColor: 'rgba(0, 0, 0, 0.3)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
     zIndex: 2,
+  },
+  animatedHeartEmojiAndroid: {
+    includeFontPadding: false,
+    lineHeight: 34,
+    marginTop: 1,
   },
   headerTitle: {
     fontSize: 26,
@@ -5260,7 +5562,7 @@ const styles = StyleSheet.create({
   },
   modalContainer: {
     flex: 1,
-    marginTop: Platform.OS === 'ios' ? 48 : 28,
+    marginTop: 0,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     overflow: 'hidden',

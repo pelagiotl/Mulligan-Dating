@@ -9,6 +9,8 @@ interface ChatMediaModerationModalProps {
   mediaKind: ChatMediaKind;
   moderationWarning: string;
   lockedHint: string;
+  /** When set (locked variant), show progress toward threshold — parity with mobile gate modal */
+  lockedProgress?: { my: number; their: number; threshold: number };
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -28,6 +30,7 @@ export default function ChatMediaModerationModal({
   mediaKind,
   moderationWarning,
   lockedHint,
+  lockedProgress,
   onConfirm,
   onCancel,
 }: ChatMediaModerationModalProps) {
@@ -44,11 +47,15 @@ export default function ChatMediaModerationModal({
 
   const meta = KIND_META[mediaKind];
   const isLocked = variant === "locked";
+  const richLocked = isLocked && !!lockedProgress;
+  const th = lockedProgress?.threshold ?? 3;
+  const myPct = lockedProgress ? Math.min(100, (lockedProgress.my / th) * 100) : 0;
+  const theirPct = lockedProgress ? Math.min(100, (lockedProgress.their / th) * 100) : 0;
 
   return (
     <div className="chat-media-modal-overlay" role="presentation" onClick={onCancel}>
       <div
-        className={`chat-media-modal chat-media-modal--${meta.accent}`}
+        className={`chat-media-modal chat-media-modal--${meta.accent}${richLocked ? " chat-media-modal--locked-jewel" : ""}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="chat-media-modal-title"
@@ -62,14 +69,68 @@ export default function ChatMediaModerationModal({
           <div className="chat-media-modal-header-text">
             <p className="chat-media-modal-kicker">{meta.label}</p>
             <h2 id="chat-media-modal-title" className="chat-media-modal-title">
-              {isLocked ? "Almost there" : "Keep it appropriate"}
+              {isLocked ? "Almost unlocked" : "Keep it appropriate"}
             </h2>
           </div>
         </header>
 
         <div className="chat-media-modal-body">
           {isLocked ? (
-            <p className="chat-media-modal-lead">{lockedHint}</p>
+            <>
+              <p className="chat-media-modal-lead">{lockedHint}</p>
+              {lockedProgress ? (
+                <div className="chat-media-modal-progress">
+                  <div className="chat-media-modal-progress-row">
+                    <div className="chat-media-modal-progress-head">
+                      <span>You</span>
+                      <span
+                        className={
+                          lockedProgress.my >= th
+                            ? "chat-media-modal-progress-count chat-media-modal-progress-count--done"
+                            : "chat-media-modal-progress-count"
+                        }
+                      >
+                        {Math.min(lockedProgress.my, th)}/{th}
+                      </span>
+                    </div>
+                    <div className="chat-media-modal-progress-track">
+                      <div
+                        className={
+                          lockedProgress.my >= th
+                            ? "chat-media-modal-progress-fill chat-media-modal-progress-fill--done"
+                            : "chat-media-modal-progress-fill"
+                        }
+                        style={{ width: `${myPct}%` }}
+                      />
+                    </div>
+                  </div>
+                  <div className="chat-media-modal-progress-row">
+                    <div className="chat-media-modal-progress-head">
+                      <span>Your match</span>
+                      <span
+                        className={
+                          lockedProgress.their >= th
+                            ? "chat-media-modal-progress-count chat-media-modal-progress-count--done"
+                            : "chat-media-modal-progress-count"
+                        }
+                      >
+                        {Math.min(lockedProgress.their, th)}/{th}
+                      </span>
+                    </div>
+                    <div className="chat-media-modal-progress-track">
+                      <div
+                        className={
+                          lockedProgress.their >= th
+                            ? "chat-media-modal-progress-fill chat-media-modal-progress-fill--done"
+                            : "chat-media-modal-progress-fill"
+                        }
+                        style={{ width: `${theirPct}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </>
           ) : (
             <p className="chat-media-modal-lead">
               You&apos;re about to send {mediaKind === "image" ? "a photo" : mediaKind === "video" ? "a video" : "a voice message"}.

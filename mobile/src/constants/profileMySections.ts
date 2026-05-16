@@ -146,13 +146,77 @@ export type LifestyleFieldKey = keyof typeof LIFESTYLE_FIELD_OPTIONS;
 export const LIFESTYLE_FIELD_LABEL: Record<LifestyleFieldKey, string> = {
   smoking: 'Smoking',
   drinking: 'Drinking',
-  children: 'Children',
+  children: 'Kids & family',
   pets: 'Pets',
-  religion: 'Religion',
+  religion: 'Faith & spirituality',
   political: 'Politics',
-  workLifeBalance: 'Work-life balance',
-  worksOut: 'Works out',
+  workLifeBalance: 'Work & life balance',
+  worksOut: 'Fitness & movement',
 };
+
+/** Picker row labels only — API values stay the strings from `LIFESTYLE_FIELD_OPTIONS`. */
+export function lifestylePickerItemLabel(field: LifestyleFieldKey, value: string): string {
+  if (!value) return 'Skip for now';
+  const byField: Record<LifestyleFieldKey, Record<string, string>> = {
+    smoking: {
+      'Non-smoker': 'Non-smoker',
+      'Social smoker': 'Sometimes / socially',
+      Smoker: 'Regular smoker',
+      'Trying to quit': 'Trying to quit',
+      'Prefer not to say': 'Prefer not to say',
+    },
+    drinking: {
+      'Non-drinker': 'Rarely or never',
+      Socially: 'Socially / on occasion',
+      Regularly: 'Fairly often',
+      'Sober-curious': 'Sober-curious',
+      'Prefer not to say': 'Prefer not to say',
+    },
+    children: {
+      'Want kids': 'Want kids someday',
+      'Don’t want kids': 'Don’t want kids',
+      'Open to either': 'Open to either',
+      'Have kids': 'Already have kids',
+      'Prefer not to say': 'Prefer not to say',
+    },
+    pets: {
+      'Love pets': 'Love animals',
+      Allergic: 'Pet allergies',
+      'No pets': 'Prefer a pet-free home',
+      'Open to pets': 'Open to pets',
+      'Prefer not to say': 'Prefer not to say',
+    },
+    religion: {
+      'Very important': 'Very important to me',
+      'Somewhat important': 'Somewhat important',
+      'Spiritual not religious': 'Spiritual, not religious',
+      'Not important': 'Not a focus',
+      'Prefer not to say': 'Prefer not to say',
+    },
+    political: {
+      'Very important': 'Very important to me',
+      'Somewhat important': 'Somewhat important',
+      'Prefer not political': 'Prefer to keep politics private',
+      'Not important': 'Not a focus',
+      'Prefer not to say': 'Prefer not to say',
+    },
+    workLifeBalance: {
+      'Career-focused': 'Career-forward right now',
+      Balanced: 'Pretty balanced',
+      'Life-first': 'Life-first / flexibility matters',
+      Flexible: 'It varies',
+      'Prefer not to say': 'Prefer not to say',
+    },
+    worksOut: {
+      Daily: 'Most days',
+      Often: 'Several times a week',
+      Sometimes: 'Sometimes',
+      Rarely: 'Rarely',
+      'Prefer not to say': 'Prefer not to say',
+    },
+  };
+  return byField[field]?.[value] ?? value;
+}
 
 export type LifestyleForm = {
   smoking: string;

@@ -109,18 +109,27 @@ function formatTimeRemaining(secs: number): string {
 
 const TRUTH_OR_DARE_MIN_EACH = 7;
 
+function truthOrDareMessageCounts(
+  rows: Array<{ senderId: string }>,
+  currentUserId: string,
+  partnerUserId: string
+): { my: number; their: number } {
+  let my = 0;
+  let their = 0;
+  for (const m of rows) {
+    if (m.senderId === currentUserId) my++;
+    else if (m.senderId === partnerUserId) their++;
+  }
+  return { my, their };
+}
+
 function truthOrDareMessageThresholdMet(
   rows: Array<{ senderId: string }>,
   currentUserId: string,
   partnerUserId: string
 ): boolean {
-  let my = 0;
-  let other = 0;
-  for (const m of rows) {
-    if (m.senderId === currentUserId) my++;
-    else if (m.senderId === partnerUserId) other++;
-  }
-  return my >= TRUTH_OR_DARE_MIN_EACH && other >= TRUTH_OR_DARE_MIN_EACH;
+  const { my, their } = truthOrDareMessageCounts(rows, currentUserId, partnerUserId);
+  return my >= TRUTH_OR_DARE_MIN_EACH && their >= TRUTH_OR_DARE_MIN_EACH;
 }
 
 interface GameState {
@@ -200,6 +209,7 @@ export default function TruthOrDareWeb({
   const [headerTimerSecs, setHeaderTimerSecs] = useState<number | null>(null);
   const [unlockConfirmOpen, setUnlockConfirmOpen] = useState(false);
   const [unlockConfirmBusy, setUnlockConfirmBusy] = useState(false);
+  const [messageGateOpen, setMessageGateOpen] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastAnotherOneAtRef = useRef(0);
   const lastChooseAtRef = useRef(0);
@@ -221,6 +231,11 @@ export default function TruthOrDareWeb({
       currentUserId as string,
       chatPartnerUserId as string
     );
+
+  const messageGateCounts =
+    currentUserId && chatPartnerUserId
+      ? truthOrDareMessageCounts(messages, currentUserId, chatPartnerUserId)
+      : { my: 0, their: 0 };
 
   const fetchState = useCallback(async () => {
     try {
@@ -446,9 +461,7 @@ export default function TruthOrDareWeb({
 
   const handleLockedPress = async () => {
     if (!truthOrDareEligible) {
-      window.alert(
-        `Truth or Dare unlocks after you and your match have each sent at least ${TRUTH_OR_DARE_MIN_EACH} messages in this chat.`
-      );
+      setMessageGateOpen(true);
       return;
     }
     const already = await onBeforeUnlockPrompt();
@@ -493,15 +506,104 @@ export default function TruthOrDareWeb({
 
   useEffect(() => {
     if (typeof document === "undefined") return;
-    if (!modalOpen && !unlockConfirmOpen) return;
+    if (!modalOpen && !unlockConfirmOpen && !messageGateOpen) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = prev;
     };
-  }, [modalOpen, unlockConfirmOpen]);
+  }, [modalOpen, unlockConfirmOpen, messageGateOpen]);
 
   const sessionExpired = gameState?.tokenUnlocked && secondsRemaining !== null && secondsRemaining <= 0;
+
+  const closeMessageGate = () => setMessageGateOpen(false);
+  const myGatePct = Math.min(100, (messageGateCounts.my / TRUTH_OR_DARE_MIN_EACH) * 100);
+  const theirGatePct = Math.min(100, (messageGateCounts.their / TRUTH_OR_DARE_MIN_EACH) * 100);
+
+  const messageGateOverlay =
+    messageGateOpen ? (
+      <div className="tod-web-msg-gate-overlay" role="presentation" onClick={closeMessageGate}>
+        <div
+          className="tod-web-msg-gate-card"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="tod-msg-gate-title"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="tod-web-msg-gate-shine" aria-hidden />
+          <div className="tod-web-msg-gate-handle" aria-hidden />
+          <div className="tod-web-msg-gate-emoji-ring" aria-hidden>
+            <span className="tod-web-msg-gate-emoji">🎲</span>
+          </div>
+          <p className="tod-web-msg-gate-kicker">TRUTH OR DARE</p>
+          <h2 id="tod-msg-gate-title" className="tod-web-msg-gate-title">
+            Warm up the chat first
+          </h2>
+          <p className="tod-web-msg-gate-lead">
+            Send at least {TRUTH_OR_DARE_MIN_EACH} messages each — then Truth or Dare unlocks for this match.
+          </p>
+          <div className="tod-web-msg-gate-progress">
+            <div className="tod-web-msg-gate-row">
+              <div className="tod-web-msg-gate-row-head">
+                <span>You</span>
+                <span
+                  className={
+                    messageGateCounts.my >= TRUTH_OR_DARE_MIN_EACH
+                      ? "tod-web-msg-gate-count tod-web-msg-gate-count--done"
+                      : "tod-web-msg-gate-count"
+                  }
+                >
+                  {Math.min(messageGateCounts.my, TRUTH_OR_DARE_MIN_EACH)}/{TRUTH_OR_DARE_MIN_EACH}
+                </span>
+              </div>
+              <div className="tod-web-msg-gate-track">
+                <div
+                  className={
+                    messageGateCounts.my >= TRUTH_OR_DARE_MIN_EACH
+                      ? "tod-web-msg-gate-fill tod-web-msg-gate-fill--done"
+                      : "tod-web-msg-gate-fill"
+                  }
+                  style={{ width: `${myGatePct}%` }}
+                />
+              </div>
+            </div>
+            <div className="tod-web-msg-gate-row">
+              <div className="tod-web-msg-gate-row-head">
+                <span>Your match</span>
+                <span
+                  className={
+                    messageGateCounts.their >= TRUTH_OR_DARE_MIN_EACH
+                      ? "tod-web-msg-gate-count tod-web-msg-gate-count--done"
+                      : "tod-web-msg-gate-count"
+                  }
+                >
+                  {Math.min(messageGateCounts.their, TRUTH_OR_DARE_MIN_EACH)}/{TRUTH_OR_DARE_MIN_EACH}
+                </span>
+              </div>
+              <div className="tod-web-msg-gate-track">
+                <div
+                  className={
+                    messageGateCounts.their >= TRUTH_OR_DARE_MIN_EACH
+                      ? "tod-web-msg-gate-fill tod-web-msg-gate-fill--done"
+                      : "tod-web-msg-gate-fill"
+                  }
+                  style={{ width: `${theirGatePct}%` }}
+                />
+              </div>
+            </div>
+          </div>
+          <div className="tod-web-msg-gate-hint">
+            <span aria-hidden>💬</span>
+            <p>
+              Real back-and-forth keeps prompts fun — we&apos;ll nudge you until you&apos;ve both chimed in enough.
+            </p>
+          </div>
+          <button type="button" className="tod-web-msg-gate-btn" onClick={closeMessageGate}>
+            Got it
+          </button>
+        </div>
+      </div>
+    ) : null;
 
   const unlockOverlay =
     unlockConfirmOpen ? (
@@ -716,6 +818,7 @@ export default function TruthOrDareWeb({
           <span className="tod-web-timer-badge">⏱ {formatTimeRemaining(headerTimerSecs)}</span>
         )}
       </div>
+      {typeof document !== "undefined" && messageGateOverlay ? createPortal(messageGateOverlay, document.body) : null}
       {typeof document !== "undefined" && unlockOverlay ? createPortal(unlockOverlay, document.body) : null}
       {typeof document !== "undefined" && gameModalOverlay ? createPortal(gameModalOverlay, document.body) : null}
     </>

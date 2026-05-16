@@ -5,6 +5,7 @@ import { authenticateToken, AuthRequest } from "../middleware/auth.js";
 import { uploadMultiple, uploadSingle } from "../middleware/upload.js";
 import { uploadToCloudinary, deleteFromCloudinary, isCloudinaryConfigured } from "../services/cloudinary.js";
 import { compressImageForCloudinary } from "../services/imageCompression.js";
+import { notifyPartnersProfileChanged } from "../services/partnerProfileBroadcast.js";
 import fs from "fs";
 import path from "path";
 
@@ -487,6 +488,7 @@ photosRouter.post("/", authenticateToken, (req: AuthRequest, res, next) => {
       console.log('✅ Profile photo_url updated to primary photo:', primaryPhotoUrl);
     }
 
+    notifyPartnersProfileChanged(userId);
     res.json({
       message: `Successfully uploaded ${files.length} photo(s)`,
       photos: uploadedPhotos,
@@ -619,6 +621,7 @@ photosRouter.put("/:photoId/primary", authenticateToken, async (req: AuthRequest
     await (db.prepare("UPDATE profiles SET photo_url = ? WHERE id = ?").run([photo.url, profile.id]) as Promise<any>);
 
     console.log('✅ Primary photo updated and profile photo_url synced:', photo.url);
+    notifyPartnersProfileChanged(userId);
     res.json({ message: "Primary photo updated" });
   } catch (error) {
     console.error("Set primary photo error:", error);
@@ -678,6 +681,7 @@ photosRouter.delete("/:photoId", authenticateToken, async (req: AuthRequest, res
       }
     }
 
+    notifyPartnersProfileChanged(userId);
     res.json({ message: "Photo deleted successfully" });
   } catch (error) {
     console.error("Delete photo error:", error);
@@ -719,6 +723,7 @@ photosRouter.put("/reorder", authenticateToken, async (req: AuthRequest, res) =>
       }
     }
 
+    notifyPartnersProfileChanged(userId);
     res.json({ message: "Photos reordered successfully" });
   } catch (error) {
     console.error("Reorder photos error:", error);

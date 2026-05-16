@@ -12,7 +12,8 @@
     "dev:backend": "npm run dev --workspace=backend",
     "dev:frontend": "npm run dev --workspace=frontend",
     "build": "npm run build --workspaces",
-    "start": "npm run start --workspace=backend"
+    "start": "npm run start --workspace=backend",
+    "create-match-by-phone": "npm run create-match-by-phone --workspace=backend --"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
