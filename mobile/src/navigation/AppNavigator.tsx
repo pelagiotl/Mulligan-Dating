@@ -69,9 +69,9 @@ const TabIcon = React.memo(function TabIcon({
         <View
           style={{
             position: 'absolute',
-            width: Platform.OS === 'android' ? 34 : 44,
-            height: Platform.OS === 'android' ? 34 : 44,
-            borderRadius: Platform.OS === 'android' ? 17 : 22,
+            width: Platform.OS === 'android' ? 30 : 44,
+            height: Platform.OS === 'android' ? 30 : 44,
+            borderRadius: Platform.OS === 'android' ? 15 : 22,
             backgroundColor: shellMidnight ? 'rgba(244, 114, 182, 0.14)' : 'rgba(139, 21, 56, 0.08)',
             shadowColor: shellMidnight ? '#f472b6' : '#8B1538',
             shadowOffset: { width: 0, height: 1 },
@@ -271,15 +271,16 @@ function MainTabs() {
       borderTopWidth: 0,
       // Include bottom safe inset so labels/icons sit above gesture / 3-button nav,
       // but do not add extra fixed bottom gap on Android (looks "floating").
+      // Android: shorter bar + relative layout keeps tabs docked flush on Pixel / Galaxy.
       height:
         Platform.OS === 'ios'
           ? 56 + Math.round(insets.bottom * 0.5)
-          : 48 + insets.bottom,
+          : 42 + insets.bottom,
       paddingBottom:
         Platform.OS === 'ios'
           ? 8 + Math.round(insets.bottom * 0.5)
           : Math.max(insets.bottom, 0),
-      paddingTop: Platform.OS === 'ios' ? 8 : 4,
+      paddingTop: Platform.OS === 'ios' ? 8 : 3,
       paddingHorizontal: Platform.OS === 'android' ? 2 : 4,
       shadowColor: '#000',
       shadowOffset: { width: 0, height: -2 },
@@ -304,9 +305,9 @@ function MainTabs() {
       flex: 1,
     },
     tabBarLabelStyle: {
-      fontSize: Platform.OS === 'android' ? 9 : 10,
+      fontSize: Platform.OS === 'android' ? 8.5 : 10,
       fontWeight: '600' as const,
-      marginTop: Platform.OS === 'android' ? 2 : 4,
+      marginTop: Platform.OS === 'android' ? 1 : 4,
       letterSpacing: 0,
       marginBottom: 0,
       paddingHorizontal: 0,
@@ -314,8 +315,8 @@ function MainTabs() {
     },
     tabBarIconStyle: {
       marginTop: 0,
-      width: Platform.OS === 'android' ? 22 : 24,
-      height: Platform.OS === 'android' ? 22 : 24,
+      width: Platform.OS === 'android' ? 20 : 24,
+      height: Platform.OS === 'android' ? 20 : 24,
       justifyContent: 'center' as const,
       alignItems: 'center' as const,
     },
@@ -565,11 +566,11 @@ const styles = StyleSheet.create({
     fontWeight: '300',
   },
   iconContainer: {
-    width: Platform.OS === 'android' ? 36 : 44,
-    height: Platform.OS === 'android' ? 36 : 44,
+    width: Platform.OS === 'android' ? 32 : 44,
+    height: Platform.OS === 'android' ? 32 : 44,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: Platform.OS === 'android' ? 18 : 22,
+    borderRadius: Platform.OS === 'android' ? 16 : 22,
     position: 'relative',
     marginBottom: 0,
     zIndex: 1,
@@ -589,8 +590,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emojiIcon: {
-    fontSize: Platform.OS === 'android' ? 20 : 24,
-    lineHeight: Platform.OS === 'android' ? 24 : 28,
+    fontSize: Platform.OS === 'android' ? 18 : 24,
+    lineHeight: Platform.OS === 'android' ? 22 : 28,
     textAlign: 'center',
     includeFontPadding: false,
   },

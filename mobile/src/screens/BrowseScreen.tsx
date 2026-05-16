@@ -98,11 +98,12 @@ interface Profile {
  */
 function landingTabBarClearancePx(insetBottom: number): number {
   const iosBar = 56;
-  const androidBar = 48;
+  /** Keep in sync with `AppNavigator` Android `tabBarStyle.height` base (42 + insetBottom). */
+  const androidBar = 42;
   const tabBarHeight =
     Platform.OS === 'ios'
       ? iosBar + insetBottom
-      : androidBar + Math.max(insetBottom, 8);
+      : androidBar + insetBottom;
   // Extra space so white card + shadow clear the floating tab bar when scrolled to end
   return tabBarHeight + 80;
 }

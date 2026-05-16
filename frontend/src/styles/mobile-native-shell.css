@@ -8,8 +8,8 @@
   --native-screen-bg: #f8f9ff;
   --native-tab-bar-bg: #fafafa;
   --native-tab-inactive: #94a3b8;
-  --native-tab-height: 62px;
-  --native-tab-safe-bottom: max(env(safe-area-inset-bottom, 0px), 12px);
+  --native-tab-height: 52px;
+  --native-tab-safe-bottom: max(env(safe-area-inset-bottom, 0px), 10px);
   /* Mirrored in native-ui-parity.css — duplicated here so shell rules work regardless of import order */
   --native-gradient-screen: linear-gradient(
     135deg,
@@ -129,12 +129,12 @@ body:has(.app-layout--native-mobile-shell):not(:has(.main-content[data-native-sh
     min-height: calc(var(--native-tab-height) + var(--native-tab-safe-bottom));
     height: calc(var(--native-tab-height) + var(--native-tab-safe-bottom));
     padding-bottom: var(--native-tab-safe-bottom);
-    padding-top: 7px;
+    padding-top: 4px;
     padding-left: max(4px, env(safe-area-inset-left, 0px));
     padding-right: max(4px, env(safe-area-inset-right, 0px));
     background: var(--native-tab-bar-bg);
-    border-top-left-radius: 24px;
-    border-top-right-radius: 24px;
+    border-top-left-radius: 20px;
+    border-top-right-radius: 20px;
     box-shadow: 0 -3px 12px rgba(0, 0, 0, 0.08);
     align-items: flex-start;
     justify-content: space-around;
@@ -145,16 +145,16 @@ body:has(.app-layout--native-mobile-shell):not(:has(.main-content[data-native-sh
   .app-bottom-tabs__item {
     flex: 1;
     min-width: 0;
-    min-height: 42px;
+    min-height: 38px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
-    gap: 3px;
-    padding: 5px 3px 4px;
+    gap: 2px;
+    padding: 3px 2px 2px;
     text-decoration: none;
     color: var(--native-tab-inactive);
-    font-size: 10px;
+    font-size: 9.5px;
     font-weight: 600;
     letter-spacing: 0.02em;
     font-family: var(--font-body);
@@ -171,10 +171,10 @@ body:has(.app-layout--native-mobile-shell):not(:has(.main-content[data-native-sh
     position: absolute;
     top: 0;
     left: 50%;
-    width: 44px;
-    height: 44px;
-    margin-left: -22px;
-    border-radius: 22px;
+    width: 38px;
+    height: 38px;
+    margin-left: -19px;
+    border-radius: 19px;
     background: var(--native-primary);
     opacity: 0.14;
     pointer-events: none;
@@ -182,7 +182,7 @@ body:has(.app-layout--native-mobile-shell):not(:has(.main-content[data-native-sh
   }
 
   .app-bottom-tabs__emoji {
-    font-size: 21px;
+    font-size: 18px;
     line-height: 1;
     position: relative;
     z-index: 1;
@@ -202,8 +202,8 @@ body:has(.app-layout--native-mobile-shell):not(:has(.main-content[data-native-sh
 
 @media (max-width: 430px) {
   :root {
-    --native-tab-height: 58px;
-    --native-tab-safe-bottom: max(env(safe-area-inset-bottom, 0px), 14px);
+    --native-tab-height: 48px;
+    --native-tab-safe-bottom: max(env(safe-area-inset-bottom, 0px), 12px);
   }
 
   .app-layout--native-mobile-shell .main-content {
@@ -211,29 +211,30 @@ body:has(.app-layout--native-mobile-shell):not(:has(.main-content[data-native-sh
   }
 
   .app-bottom-tabs {
-    padding-top: 6px;
+    padding-top: 3px;
     padding-left: max(2px, env(safe-area-inset-left, 0px));
     padding-right: max(2px, env(safe-area-inset-right, 0px));
-    border-top-left-radius: 20px;
-    border-top-right-radius: 20px;
+    border-top-left-radius: 18px;
+    border-top-right-radius: 18px;
   }
 
   .app-bottom-tabs__item {
-    min-height: 40px;
-    gap: 2px;
-    padding: 4px 2px 3px;
+    min-height: 36px;
+    gap: 1px;
+    padding: 2px 2px 1px;
     font-size: 9px;
     letter-spacing: 0;
   }
 
   .app-bottom-tabs__emoji {
-    font-size: 19px;
+    font-size: 17px;
   }
 
   .app-bottom-tabs__glow {
-    width: 38px;
-    height: 38px;
-    margin-left: -19px;
+    width: 34px;
+    height: 34px;
+    margin-left: -17px;
+    border-radius: 17px;
   }
 }
 
