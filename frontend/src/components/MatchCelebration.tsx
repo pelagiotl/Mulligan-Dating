@@ -450,12 +450,9 @@ export default function MatchCelebration({
             <h1 className="match-celebration-title">
               <span className="match-celebration-word word-1">It&apos;s</span>
               <span className="match-celebration-word word-2">a</span>
-              <span className="match-celebration-word word-3">Match! 💖</span>
+              <span className="match-celebration-word word-3">Match! 😉</span>
             </h1>
-            <p className="match-celebration-subtitle">You&apos;re connected!</p>
-            <p className="match-celebration-message">
-              Start messaging <strong>{profileName}</strong> 💬
-            </p>
+            <p className="match-celebration-subtitle">You matched — time to say hi 💕</p>
 
             {explanation && explanation.reasons.length > 0 && (
               <div className="match-celebration-explanation">
@@ -483,7 +480,7 @@ export default function MatchCelebration({
           </div>
 
           <div className="match-celebration-sparkles">
-            {Array.from({ length: 12 }).map((_, i) => (
+            {(['✨', '💝', '🎯', '💕', '💖', '😍', '💌', '😉', '✨', '💝', '🎯', '💕'] as const).map((emoji, i) => (
               <div
                 key={i}
                 className="sparkle"
@@ -494,7 +491,7 @@ export default function MatchCelebration({
                   } as CSSProperties
                 }
               >
-                ✨
+                {emoji}
               </div>
             ))}
           </div>

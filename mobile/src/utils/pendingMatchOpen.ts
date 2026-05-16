@@ -15,3 +15,8 @@ export function getPendingOpenMatchId(): string | null {
 export function clearPendingOpenMatchId(): void {
   pendingOpenMatchId = null;
 }
+
+/** Dev celebration preview uses a fake id — never navigate or fetch for it. */
+export function isDemoCelebrationMatchId(matchId: string | null | undefined): boolean {
+  return typeof matchId === 'string' && matchId.startsWith('dev-');
+}

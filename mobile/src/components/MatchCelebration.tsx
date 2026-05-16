@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,19 +12,18 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, CommonActions } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
-import { setPendingOpenMatchId } from '../utils/pendingMatchOpen';
+import { setPendingOpenMatchId, isDemoCelebrationMatchId } from '../utils/pendingMatchOpen';
 import { navigationRef } from '../navigation/navigationRef';
 import OptimizedImage from './OptimizedImage';
 import { getPhotoUrl } from '../utils/photoUrl';
 import { playMatchSound } from '../utils/sounds';
+import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
+import { matchCelebrationTheme, type MatchCelebrationTheme } from '../lib/matchCelebrationTheme';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-/** Floating background particles — fire matches Vibes / Connect branding. */
-const FLOATING_CELEBRATION_EMOJIS = ['🔥'] as const;
-
-/** NBSP keeps "connected!" on one line (avoids orphan "!" on narrow widths, e.g. iPhone SE). */
-const TITLE_CONNECTED_TAIL = 'connected\u00a0!\u00a0🔥';
+/** NBSP keeps "Match!" on one line (avoids orphan "!" on narrow widths, e.g. iPhone SE). */
+const TITLE_MATCH_TAIL = 'Match!\u00a0😉';
 
 interface MatchExplanation {
   reasons: string[];
@@ -101,7 +100,7 @@ function ConfettiParticleComponent({ particle }: { particle: ConfettiParticle })
 }
 
 // Loading state before celebration reveal (Connect flow)
-function FindingMatchLoading() {
+function FindingMatchLoading({ theme }: { theme: MatchCelebrationTheme }) {
   const dot1 = useRef(new Animated.Value(0)).current;
   const dot2 = useRef(new Animated.Value(0)).current;
   const dot3 = useRef(new Animated.Value(0)).current;
@@ -152,18 +151,29 @@ function FindingMatchLoading() {
   const translateY3 = dot3.interpolate({ inputRange: [0, 1], outputRange: [0, -12] });
 
   return (
-    <View style={styles.loadingCard}>
+    <LinearGradient
+      colors={theme.loadingCardGradient}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={[styles.loadingCard, { borderColor: theme.loadingBorder }]}
+    >
       <Animated.View style={[styles.loadingHeartWrap, { transform: [{ scale: pulse }] }]}>
-        <Text style={styles.loadingHeart}>👋</Text>
+        <Text style={styles.loadingHeart}>💕</Text>
       </Animated.View>
-      <Text style={styles.loadingTitle}>Finishing your Connect…</Text>
+      <Text style={[styles.loadingTitle, { color: theme.loadingTitle }]}>Finding your curated match</Text>
       <View style={styles.loadingDotsRow}>
-        <Animated.View style={[styles.loadingDot, { transform: [{ translateY: translateY1 }] }]} />
-        <Animated.View style={[styles.loadingDot, { transform: [{ translateY: translateY2 }] }]} />
-        <Animated.View style={[styles.loadingDot, { transform: [{ translateY: translateY3 }] }]} />
+        <Animated.View
+          style={[styles.loadingDot, { backgroundColor: theme.loadingDot, transform: [{ translateY: translateY1 }] }]}
+        />
+        <Animated.View
+          style={[styles.loadingDot, { backgroundColor: theme.loadingDot, transform: [{ translateY: translateY2 }] }]}
+        />
+        <Animated.View
+          style={[styles.loadingDot, { backgroundColor: theme.loadingDot, transform: [{ translateY: translateY3 }] }]}
+        />
       </View>
-      <Text style={styles.loadingSubtext}>Good things take a moment...</Text>
-    </View>
+      <Text style={[styles.loadingSubtext, { color: theme.loadingSub }]}>Good things take a moment...</Text>
+    </LinearGradient>
   );
 }
 
@@ -180,6 +190,8 @@ export default function MatchCelebration({
 }: MatchCelebrationProps) {
   const { width: windowWidth } = useWindowDimensions();
   const navigation = useNavigation();
+  const { mode: connectShellMode } = useConnectShellTheme();
+  const theme = useMemo(() => matchCelebrationTheme(connectShellMode), [connectShellMode]);
   // Init from prop so User B (skipLoadingReveal=true) shows celebration immediately; User A (false) always sees loading first
   const [revealed, setRevealed] = useState(() => skipLoadingReveal);
   const [showContent, setShowContent] = useState(false);
@@ -188,15 +200,15 @@ export default function MatchCelebration({
   const [modalVisible, setModalVisible] = useState(true);
   /** When true, overlay uses pointerEvents="none" so touches pass through during Back to Connect transition (avoids freeze) */
   const [isClosingToBrowse, setIsClosingToBrowse] = useState(false);
-  const [confettiParticles] = useState<ConfettiParticle[]>(() => {
-    const colors = ['#667eea', '#764ba2', '#a855f7', '#c026d3', '#ec4899', '#f472b6'];
+  const confettiParticles = useMemo<ConfettiParticle[]>(() => {
+    const colors = [...theme.confettiColors];
     return Array.from({ length: 80 }, (_, i) => ({
       id: i,
       left: Math.random() * 100,
       delay: Math.random() * 0.8,
       color: colors[Math.floor(Math.random() * colors.length)],
     }));
-  });
+  }, [theme]);
 
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const slideUpAnim = useRef(new Animated.Value(SCREEN_HEIGHT * 0.25)).current;
@@ -370,29 +382,24 @@ export default function MatchCelebration({
     const idToOpen = matchId ?? null;
     try {
       onClose();
-      if (idToOpen) {
+      if (idToOpen && !isDemoCelebrationMatchId(idToOpen)) {
         setPendingOpenMatchId(idToOpen);
         if (navigationRef.current?.isReady()) {
           navigationRef.current.dispatch(
             CommonActions.navigate({
               name: 'MainTabs',
-              params: {
-                screen: 'Matches',
-                params: { matchId: idToOpen, showMatchCelebration: false },
-              },
+              params: { screen: 'Matches', params: {} },
             })
-          );
-        } else {
-          navigation.navigate('Matches' as never, { matchId: idToOpen, showMatchCelebration: false } as never);
-        }
-      } else {
-        if (navigationRef.current?.isReady()) {
-          navigationRef.current.dispatch(
-            CommonActions.navigate({ name: 'MainTabs', params: { screen: 'Matches', params: { showMatchCelebration: false } } })
           );
         } else {
           navigation.navigate('Matches' as never);
         }
+      } else if (navigationRef.current?.isReady()) {
+        navigationRef.current.dispatch(
+          CommonActions.navigate({ name: 'MainTabs', params: { screen: 'Matches', params: {} } })
+        );
+      } else {
+        navigation.navigate('Matches' as never);
       }
     } catch (error) {
       console.error('❌ Error in handleContinue:', error);
@@ -482,19 +489,17 @@ export default function MatchCelebration({
       onRequestClose={onClose}
     >
       <View style={styles.overlay} pointerEvents={isClosingToBrowse ? 'none' : 'auto'}>
-        {/* Gradient: app purple → violet → magenta (focused palette) */}
         <LinearGradient
-          colors={['#667eea', '#764ba2', '#c026d3']}
-          locations={[0, 0.5, 1]}
+          colors={theme.backdrop}
+          locations={theme.backdropLocations}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={StyleSheet.absoluteFill}
         />
-        
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.scrim }]} />
+
         {/* Loading state before reveal */}
-        {!revealed && (
-          <FindingMatchLoading />
-        )}
+        {!revealed && <FindingMatchLoading theme={theme} />}
 
         {/* Confetti particles */}
         {revealed && showConfetti && (
@@ -511,45 +516,44 @@ export default function MatchCelebration({
           style={[
             styles.container,
             {
-              transform: [
-                { translateY: slideUpAnim },
-                { scale: scaleAnim },
-              ],
+              transform: [{ translateY: slideUpAnim }, { scale: scaleAnim }],
               opacity: opacityAnim,
+              shadowColor: theme.cardShadow,
               shadowOpacity: 0.45,
               shadowRadius: 28,
+              borderColor: theme.cardBorder,
             },
           ]}
         >
+          <LinearGradient
+            colors={theme.cardGradient}
+            locations={theme.cardGradientLocations}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.cardGradient}
+          >
           {/* Photo with animated rings */}
           <View style={styles.photoContainer}>
             <Animated.View
               style={[
                 styles.photoRing,
                 styles.ring1,
-                {
-                  transform: [{ scale: ring1Scale }],
-                  opacity: ring1Opacity,
-                },
+                { borderColor: theme.photoRing, transform: [{ scale: ring1Scale }], opacity: ring1Opacity },
               ]}
             />
             <Animated.View
               style={[
                 styles.photoRing,
                 styles.ring2,
-                {
-                  transform: [{ scale: ring2Scale }],
-                  opacity: ring2Opacity,
-                },
+                { borderColor: theme.photoRing, transform: [{ scale: ring2Scale }], opacity: ring2Opacity },
               ]}
             />
             <Animated.View
               style={[
                 styles.photoWrapper,
                 {
-                  transform: [
-                    { scale: Animated.multiply(photoScaleAnim, photoPulseAnim) },
-                  ],
+                  borderColor: theme.photoBorder,
+                  transform: [{ scale: Animated.multiply(photoScaleAnim, photoPulseAnim) }],
                 },
               ]}
             >
@@ -561,11 +565,11 @@ export default function MatchCelebration({
                   showLoadingIndicator={false}
                 />
               ) : (
-                <View style={styles.photoPlaceholder}>
+                <LinearGradient colors={theme.placeholderGradient} style={styles.photoPlaceholder}>
                   <Text style={styles.photoPlaceholderText}>
                     {profileName.charAt(0).toUpperCase()}
                   </Text>
-                </View>
+                </LinearGradient>
               )}
             </Animated.View>
           </View>
@@ -582,25 +586,19 @@ export default function MatchCelebration({
                 style={[
                   styles.titleWord,
                   windowWidth <= 375 && styles.titleWordCompact,
-                  {
-                    transform: [{ translateY: word1TranslateY }],
-                    opacity: word1Opacity,
-                  },
+                  { color: theme.title, transform: [{ translateY: word1TranslateY }], opacity: word1Opacity },
                 ]}
               >
-                You're
+                It's
               </Animated.Text>
               <Animated.Text
                 style={[
                   styles.titleWord,
                   windowWidth <= 375 && styles.titleWordCompact,
-                  {
-                    transform: [{ translateY: word2TranslateY }],
-                    opacity: word2Opacity,
-                  },
+                  { color: theme.title, transform: [{ translateY: word2TranslateY }], opacity: word2Opacity },
                 ]}
               >
-                {' '}
+                {' '}a{' '}
               </Animated.Text>
               <Animated.View
                 style={{
@@ -614,30 +612,38 @@ export default function MatchCelebration({
                     styles.titleWordMatch,
                     windowWidth <= 375 && styles.titleWordMatchCompact,
                     {
+                      color: theme.titleAccent,
                       transform: [{ translateY: word3TranslateY }],
                       opacity: word3Opacity,
                     },
                   ]}
                 >
-                  {TITLE_CONNECTED_TAIL}
+                  {TITLE_MATCH_TAIL}
                 </Animated.Text>
               </Animated.View>
             </View>
 
             <View style={styles.subtitleContainer}>
-              <Text style={styles.subtitle}>
-                Start vibing with <Text style={styles.bold}>{profileName}</Text>
+              <Text style={[styles.subtitle, { color: theme.subtitle }]}>
+                You matched — time to say hi 💕
               </Text>
             </View>
-            
+
             {/* Match Explanation */}
             {explanation && explanation.reasons.length > 0 && (
-              <View style={styles.explanationContainer}>
-                <Text style={styles.explanationTitle}>What you have in common:</Text>
+              <View
+                style={[
+                  styles.explanationContainer,
+                  { backgroundColor: theme.explanationBg, borderColor: theme.explanationBorder },
+                ]}
+              >
+                <Text style={[styles.explanationTitle, { color: theme.explanationTitle }]}>
+                  What you have in common:
+                </Text>
                 {explanation.reasons.map((reason, index) => (
                   <View key={index} style={styles.reasonItem}>
-                    <Text style={styles.reasonBullet}>{'\u2022'}</Text>
-                    <Text style={styles.reasonText}>{reason}</Text>
+                    <Text style={[styles.reasonBullet, { color: theme.explanationBullet }]}>{'\u2022'}</Text>
+                    <Text style={[styles.reasonText, { color: theme.explanationText }]}>{reason}</Text>
                   </View>
                 ))}
               </View>
@@ -655,20 +661,19 @@ export default function MatchCelebration({
                   }}
                 >
                   <TouchableOpacity
-                    style={styles.button}
+                    style={[styles.button, { shadowColor: theme.cardShadow }]}
                     onPress={handleContinue}
                     activeOpacity={0.8}
                   >
                     <LinearGradient
-                      colors={['#c026d3', '#d946ef', '#ec4899']}
-                      locations={[0, 0.4, 1]}
+                      colors={theme.primaryCta}
+                      locations={[0, 0.45, 1]}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                       style={styles.buttonGradient}
                     >
                       <View style={styles.buttonContent}>
-                        <Text style={styles.buttonText}>Send a Message</Text>
-                        <Text style={styles.buttonEmoji}> 💬</Text>
+                        <Text style={styles.buttonText}>Send a Message 💌</Text>
                       </View>
                     </LinearGradient>
                   </TouchableOpacity>
@@ -676,18 +681,26 @@ export default function MatchCelebration({
                 
                 {/* Back to Connect — Browse tab landing */}
                 <TouchableOpacity
-                  style={styles.secondaryButton}
+                  style={[
+                    styles.secondaryButton,
+                    {
+                      backgroundColor: theme.secondaryBg,
+                      borderColor: theme.secondaryBorder,
+                    },
+                  ]}
                   onPress={handleKeepBrowsing}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.secondaryButtonText}>Back to Connect</Text>
+                  <Text style={[styles.secondaryButtonText, { color: theme.secondaryText }]}>
+                    Back to Connect 😍
+                  </Text>
                 </TouchableOpacity>
               </Animated.View>
             )}
           </View>
 
-          {/* Floating fire (Vibes tab vibe) */}
-          <FloatingHeartsComponent />
+          <FloatingHeartsComponent emojis={theme.floatingEmojis} />
+          </LinearGradient>
         </Animated.View>
         )}
       </View>
@@ -696,7 +709,7 @@ export default function MatchCelebration({
 }
 
 // Individual floating emoji with its own looping animation
-function FloatingHeart({ index }: { index: number }) {
+function FloatingHeart({ index, emojis }: { index: number; emojis: readonly string[] }) {
   const startX = useRef(Math.random() * SCREEN_WIDTH).current;
   const startY = SCREEN_HEIGHT + 20;
   const endY = -50;
@@ -787,7 +800,7 @@ function FloatingHeart({ index }: { index: number }) {
     outputRange: ['0deg', '360deg'],
   });
 
-  const emoji = FLOATING_CELEBRATION_EMOJIS[index % FLOATING_CELEBRATION_EMOJIS.length];
+  const emoji = emojis[index % emojis.length];
 
   return (
     <Animated.View
@@ -811,12 +824,11 @@ function FloatingHeart({ index }: { index: number }) {
   );
 }
 
-// Floating particles (cycles FLOATING_CELEBRATION_EMOJIS)
-function FloatingHeartsComponent() {
+function FloatingHeartsComponent({ emojis }: { emojis: readonly string[] }) {
   return (
     <View style={styles.floatingHeartsContainer} pointerEvents="none">
       {Array.from({ length: 10 }).map((_, i) => (
-        <FloatingHeart key={i} index={i} />
+        <FloatingHeart key={i} index={i} emojis={emojis} />
       ))}
     </View>
   );
@@ -825,22 +837,18 @@ function FloatingHeartsComponent() {
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)', // Slightly more transparent to show gradient
     justifyContent: 'center',
     alignItems: 'center',
   },
   loadingCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderRadius: 28,
     paddingVertical: 44,
     paddingHorizontal: 36,
     alignItems: 'center',
     maxWidth: '88%',
     borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.9)',
-    shadowColor: '#667eea',
     shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.35,
     shadowRadius: 24,
     elevation: 16,
   },
@@ -853,9 +861,9 @@ const styles = StyleSheet.create({
   loadingTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#2d3748',
     textAlign: 'center',
     marginBottom: 20,
+    letterSpacing: 0.2,
   },
   loadingDotsRow: {
     flexDirection: 'row',
@@ -868,11 +876,9 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#c026d3',
   },
   loadingSubtext: {
     fontSize: 15,
-    color: '#718096',
     fontStyle: 'italic',
   },
   confettiContainer: {
@@ -896,18 +902,17 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   container: {
-    backgroundColor: '#fff',
     borderRadius: 36,
-    padding: 40,
-    alignItems: 'center',
     maxWidth: '90%',
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.92)',
-    shadowColor: '#764ba2',
+    overflow: 'hidden',
     shadowOffset: { width: 0, height: 18 },
-    shadowOpacity: 0.4,
-    shadowRadius: 28,
     elevation: 24,
+  },
+  cardGradient: {
+    padding: 40,
+    alignItems: 'center',
+    borderRadius: 34,
   },
   photoContainer: {
     position: 'relative',
@@ -919,10 +924,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     borderRadius: 100,
     borderWidth: 3,
-    borderColor: 'rgba(196, 38, 211, 0.5)',
-    shadowColor: 'rgba(196, 38, 211, 0.35)',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.35,
     shadowRadius: 10,
     elevation: 8,
   },
@@ -942,9 +945,7 @@ const styles = StyleSheet.create({
     borderRadius: 65,
     overflow: 'hidden',
     borderWidth: 5,
-    borderColor: '#fff',
     zIndex: 10,
-    shadowColor: '#764ba2',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.35,
     shadowRadius: 18,
@@ -957,7 +958,6 @@ const styles = StyleSheet.create({
   photoPlaceholder: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#c026d3',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -980,8 +980,7 @@ const styles = StyleSheet.create({
   titleWord: {
     fontSize: 40,
     fontWeight: '800',
-    color: '#333',
-    textShadowColor: 'rgba(0, 0, 0, 0.1)',
+    textShadowColor: 'rgba(0, 0, 0, 0.12)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
   },
@@ -989,9 +988,7 @@ const styles = StyleSheet.create({
     fontSize: 34,
   },
   titleWordMatch: {
-    color: '#c026d3',
     fontSize: 48,
-    textShadowColor: 'rgba(196, 38, 211, 0.4)',
     textShadowOffset: { width: 0, height: 4 },
     textShadowRadius: 10,
     textAlign: 'center',
@@ -1005,30 +1002,25 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 20,
-    color: '#555',
     textAlign: 'center',
     fontWeight: '600',
     letterSpacing: 0.3,
   },
   bold: {
     fontWeight: '800',
-    color: '#c026d3',
     fontSize: 22,
   },
   explanationContainer: {
-    backgroundColor: 'rgba(196, 38, 211, 0.06)',
     borderRadius: 16,
     padding: 18,
     marginVertical: 16,
     marginHorizontal: 8,
     borderWidth: 1,
-    borderColor: 'rgba(196, 38, 211, 0.18)',
     maxWidth: '90%',
   },
   explanationTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#c026d3',
     marginBottom: 12,
     textAlign: 'center',
   },
@@ -1041,20 +1033,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginRight: 8,
     marginTop: 2,
-    color: '#c026d3',
     fontWeight: '700',
   },
   reasonText: {
     flex: 1,
     fontSize: 14,
-    color: '#555',
     lineHeight: 20,
   },
   button: {
     borderRadius: 24,
     marginTop: 8,
     overflow: 'hidden',
-    shadowColor: '#764ba2',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.4,
     shadowRadius: 18,
@@ -1080,29 +1069,20 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
   },
-  buttonEmoji: {
-    fontSize: 20,
-    lineHeight: 24,
-    includeFontPadding: false,
-  },
   secondaryButton: {
     marginTop: 16,
     paddingVertical: 14,
     paddingHorizontal: 32,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderWidth: 2,
-    borderColor: '#c026d3',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#764ba2',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18,
+    shadowOpacity: 0.15,
     shadowRadius: 8,
     elevation: 4,
   },
   secondaryButtonText: {
-    color: '#c026d3',
     fontSize: 17,
     fontWeight: '700',
     letterSpacing: 0.3,

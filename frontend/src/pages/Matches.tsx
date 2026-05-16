@@ -5,6 +5,7 @@ import { api, ApiError } from "../utils/api";
 import { useAuth } from "../context/AuthContext";
 import { getPhotoUrl } from "../utils/photoUrl";
 import { formatPreferredMatchesFromGenders } from "../utils/preferredMatchesLabel";
+import { formatLastActive } from "../utils/formatLastActive";
 import Notification from "../components/Notification";
 import ConfirmModal from "../components/ConfirmModal";
 import PhotoGalleryUnlockCelebration from "../components/PhotoGalleryUnlockCelebration";
@@ -58,6 +59,8 @@ interface Match {
     lookingFor?: string | null;
     dealbreakers?: string[];
     preferredGenders?: string[] | null;
+    /** Present only when the other user has show_active_status enabled. */
+    lastActiveAt?: string | null;
   };
 }
 
@@ -392,6 +395,7 @@ export default function Matches() {
   } | null>(null);
   const [pulseScore, setPulseScore] = useState<number | null>(null);
   const [pulseEngagement, setPulseEngagement] = useState<"cold" | "neutral" | "warming" | "hot" | null>(null);
+  const [currentTime, setCurrentTime] = useState(() => new Date());
 
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadingVideo, setUploadingVideo] = useState(false);
@@ -447,6 +451,19 @@ export default function Matches() {
   useEffect(() => {
     if (selectedMatch?.stage !== "stage1") setPhotoUnlockExplainerOpen(false);
   }, [selectedMatch?.stage]);
+
+  // Refresh relative last-active labels (mirrors mobile MatchesScreen).
+  useEffect(() => {
+    const hasAnyExpiring = matches.some((m) => m.expiresAt);
+    const updateInterval = hasAnyExpiring ? 1000 : 60000;
+    const interval = setInterval(() => setCurrentTime(new Date()), updateInterval);
+    return () => clearInterval(interval);
+  }, [matches]);
+
+  const getLastActiveLabel = useCallback(
+    (lastActiveAt: string | null | undefined) => formatLastActive(lastActiveAt, currentTime),
+    [currentTime]
+  );
 
   const dismissGalleryUnlockCelebration = useCallback(() => {
     setGalleryUnlockCelebrationOpen(false);
@@ -1664,22 +1681,6 @@ export default function Matches() {
     }
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _getActivityStatus = (lastActiveAt: string): string => {
-    const lastActive = new Date(lastActiveAt);
-    const now = new Date();
-    const diffMs = now.getTime() - lastActive.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 5) return "🟢 Active now";
-    if (diffMins < 60) return `Active ${diffMins}m ago`;
-    if (diffHours < 24) return `Active ${diffHours}h ago`;
-    if (diffDays < 7) return `Active ${diffDays}d ago`;
-    return "Last seen a while ago";
-  };
-
   const getDaysRemaining = (expiresAt: string | null): number | null => {
     if (!expiresAt) return null;
     const expirationDate = new Date(expiresAt);
@@ -1975,6 +1976,14 @@ export default function Matches() {
                         {selectedMatch.otherUser.location}
                       </span>
                     ) : null}
+                    {getLastActiveLabel(selectedMatch.otherUser.lastActiveAt) ? (
+                      <span className="chat-partner-drawer-meta-chip chat-partner-drawer-meta-chip--active">
+                        <span className="chat-partner-drawer-meta-chip-icon" aria-hidden>
+                          🟢
+                        </span>
+                        {getLastActiveLabel(selectedMatch.otherUser.lastActiveAt)}
+                      </span>
+                    ) : null}
                   </div>
                   <p className="chat-partner-drawer-tagline">
                     Tap their photo for full size. Scroll for gallery and what they wrote on their profile.
@@ -2177,6 +2186,11 @@ export default function Matches() {
                     <p className="match-meta">
                       {match.otherUser.age} · {match.otherUser.gender}
                     </p>
+                    {getLastActiveLabel(match.otherUser.lastActiveAt) ? (
+                      <p className="match-active-status" aria-label="Last active">
+                        🟢 {getLastActiveLabel(match.otherUser.lastActiveAt)}
+                      </p>
+                    ) : null}
                     {match.stage !== "pending" &&
                       (match.profileCompatibility != null ||
                         match.compatibilityScore != null ||
@@ -2325,6 +2339,11 @@ export default function Matches() {
                       {selectedMatch.otherUser.age} · {selectedMatch.otherUser.gender}
                       {selectedMatch.otherUser.location && ` · ${selectedMatch.otherUser.location}`}
                     </p>
+                    {getLastActiveLabel(selectedMatch.otherUser.lastActiveAt) ? (
+                      <p className="chat-active-status" aria-label="Last active">
+                        🟢 {getLastActiveLabel(selectedMatch.otherUser.lastActiveAt)}
+                      </p>
+                    ) : null}
                     {selectedMatch.stage !== "pending" && selectedMatch.expiresAt ? (
                       <div className="match-timer-header">
                         <span className="timer-icon">⏳</span>

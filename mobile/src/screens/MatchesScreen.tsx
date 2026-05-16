@@ -33,7 +33,11 @@ import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
 import type { ConnectShellMode } from '../lib/connectShellTheme';
 import { androidShellBackdropColors, androidShellTabBodyBg } from '../utils/androidConnectShellChrome';
 import { getPhotoUrl } from '../utils/photoUrl';
-import { getPendingOpenMatchId, clearPendingOpenMatchId } from '../utils/pendingMatchOpen';
+import {
+  getPendingOpenMatchId,
+  clearPendingOpenMatchId,
+  isDemoCelebrationMatchId,
+} from '../utils/pendingMatchOpen';
 import { getPendingGameRequest, clearPendingGameRequest, type PendingGameRequest } from '../utils/pendingGameRequest';
 import { currentMatchIdRef } from '../utils/currentMatchView';
 import { playMatchSound, playMessageSound } from '../utils/sounds';
@@ -1925,6 +1929,10 @@ export default function MatchesScreen() {
   const selectedMatchRef = useRef<Match | null>(null);
   const matchesRef = useRef<Match[]>([]);
   const lastFetchedMatchIdRef = useRef<string | null>(null);
+  /** Prevents repeated fetch/open loops when matchId is in route params but not in the list yet. */
+  const openMatchAttemptRef = useRef<string | null>(null);
+  /** Skip one matches refetch when opening chat from celebration (avoids loading flicker). */
+  const skipNextSelectMatchesRefetchRef = useRef(false);
   const textInputRef = useRef<TextInput>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -2687,8 +2695,10 @@ export default function MatchesScreen() {
     if (!selectedMatch) return;
 
     if (selectedMatch.stage !== 'pending') {
-      // Refetch matches immediately so gameUnlocks (Truth or Dare, etc.) is fresh for the other user
-      fetchMatches();
+      if (!skipNextSelectMatchesRefetchRef.current) {
+        fetchMatches();
+      }
+      skipNextSelectMatchesRefetchRef.current = false;
       setNewMessage(''); // clear input so Mulligan Moment starter doesn't carry over to another match
       // Only clear messages when switching to a *different* match (avoids clearing on effect re-run for same match)
       const matchId = selectedMatch.id;
@@ -2728,50 +2738,23 @@ export default function MatchesScreen() {
     return () => clearInterval(interval);
   }, [selectedMatch?.id, selectedMatch?.stage, fetchMessages]);
 
-  // Handle route params and pending open (e.g. "Send message" on celebration, game request from push) when screen is focused
-  useFocusEffect(
-    useCallback(() => {
-      if (!user || !isAuthenticated || authLoading) return;
-      const pendingId = getPendingOpenMatchId();
-      const pendingGame = getPendingGameRequest();
-      const routeParams = route.params as { matchId?: string; showGameRequest?: boolean; showMatchCelebration?: boolean; matchName?: string } | undefined;
-      const matchIdToOpen = pendingId ?? routeParams?.matchId;
+  const clearOpenMatchRouteParams = useCallback(() => {
+    navigation.setParams({
+      matchId: undefined,
+      showMatchCelebration: undefined,
+      matchName: undefined,
+      showGameRequest: undefined,
+    } as { matchId?: string; showMatchCelebration?: boolean; matchName?: string; showGameRequest?: boolean });
+  }, [navigation]);
 
-      const runPendingLogic = async () => {
-        if (matchIdToOpen) {
-          const matchToSelect = matches.find(m => m.id === matchIdToOpen);
-          if (matchToSelect) {
-            setSelectedMatch(matchToSelect);
-            if (pendingId) clearPendingOpenMatchId();
-            // Refetch matches so gameUnlocks (e.g. Truth or Dare) is fresh for the other user
-            fetchMatches();
-            if (pendingGame && (routeParams?.showGameRequest || pendingGame.matchId === matchIdToOpen)) {
-              setGameRequestToShow(pendingGame);
-              clearPendingGameRequest();
-            }
-          } else {
-            // Match not in list (e.g. just created, opened from notification) - clear cache and fetch for fresh data
-            api.clearCache('/matches');
-            await fetchMatches();
-          }
-        } else if (pendingGame && matches.length > 0 && !loading) {
-          const matchToSelect = matches.find(m => m.id === pendingGame.matchId);
-          if (matchToSelect) {
-            setSelectedMatch(matchToSelect);
-            setGameRequestToShow(pendingGame);
-            clearPendingGameRequest();
-          }
-        }
-      };
-
-      // When we have a pending match to open, run immediately - don't wait for interactions
-      if (matchIdToOpen || (pendingGame && matches.length > 0)) {
-        runPendingLogic();
-      } else {
-        const task = InteractionManager.runAfterInteractions(runPendingLogic);
-        return () => task.cancel();
-      }
-    }, [matches, route.params, user, isAuthenticated, authLoading, loading, fetchMatches])
+  const openMatchChat = useCallback(
+    (match: Match, fromPending: boolean) => {
+      skipNextSelectMatchesRefetchRef.current = true;
+      if (fromPending) clearPendingOpenMatchId();
+      clearOpenMatchRouteParams();
+      setSelectedMatch(match);
+    },
+    [clearOpenMatchRouteParams]
   );
 
   const fetchMatches = useCallback(async () => {
@@ -2803,17 +2786,6 @@ export default function MatchesScreen() {
         if (raw) Image.prefetch(getPhotoUrl(raw)).catch(() => { /* ignore 404 / failed uploads */ });
       });
 
-      // Auto-select match from pending (celebration "Send message") or route params
-      const pendingId = getPendingOpenMatchId();
-      const routeParams = route.params as { matchId?: string } | undefined;
-      const matchIdToOpen = pendingId ?? routeParams?.matchId;
-      if (matchIdToOpen && fetchedMatches.length > 0) {
-        const matchToSelect = fetchedMatches.find(m => m.id === matchIdToOpen);
-        if (matchToSelect) {
-          setSelectedMatch(matchToSelect);
-          if (pendingId) clearPendingOpenMatchId();
-        }
-      }
       return fetchedMatches;
     } catch (error: any) {
       console.error('❌ Failed to fetch matches:', error);
@@ -2830,7 +2802,99 @@ export default function MatchesScreen() {
     } finally {
       setLoading(false);
     }
-  }, [route.params]);
+  }, []);
+
+  // Handle pending open (celebration "Send message", push, game request) when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      if (!user || !isAuthenticated || authLoading) return;
+
+      const pendingId = getPendingOpenMatchId();
+      const pendingGame = getPendingGameRequest();
+      const routeParams = route.params as {
+        matchId?: string;
+        showGameRequest?: boolean;
+        showMatchCelebration?: boolean;
+        matchName?: string;
+      } | undefined;
+      const routeMatchId = routeParams?.matchId;
+      const matchIdToOpen =
+        pendingId ?? (isDemoCelebrationMatchId(routeMatchId) ? null : routeMatchId);
+
+      if (isDemoCelebrationMatchId(routeMatchId) || isDemoCelebrationMatchId(pendingId)) {
+        clearPendingOpenMatchId();
+        clearOpenMatchRouteParams();
+        openMatchAttemptRef.current = null;
+        return;
+      }
+
+      const runPendingLogic = async () => {
+        if (matchIdToOpen) {
+          if (openMatchAttemptRef.current === matchIdToOpen && selectedMatchRef.current?.id === matchIdToOpen) {
+            return;
+          }
+
+          const matchToSelect = matchesRef.current.find((m) => m.id === matchIdToOpen);
+          if (matchToSelect) {
+            openMatchAttemptRef.current = matchIdToOpen;
+            openMatchChat(matchToSelect, !!pendingId);
+            if (pendingGame && (routeParams?.showGameRequest || pendingGame.matchId === matchIdToOpen)) {
+              setGameRequestToShow(pendingGame);
+              clearPendingGameRequest();
+            }
+            return;
+          }
+
+          if (openMatchAttemptRef.current === matchIdToOpen) {
+            return;
+          }
+          openMatchAttemptRef.current = matchIdToOpen;
+          api.clearCache('/matches');
+          const fetched = await fetchMatches();
+          const found = fetched.find((m) => m.id === matchIdToOpen);
+          if (found) {
+            openMatchChat(found, !!pendingId);
+            if (pendingGame && (routeParams?.showGameRequest || pendingGame.matchId === matchIdToOpen)) {
+              setGameRequestToShow(pendingGame);
+              clearPendingGameRequest();
+            }
+          } else {
+            clearPendingOpenMatchId();
+            clearOpenMatchRouteParams();
+            openMatchAttemptRef.current = null;
+          }
+          return;
+        }
+
+        if (pendingGame && matchesRef.current.length > 0 && !loading) {
+          const matchToSelect = matchesRef.current.find((m) => m.id === pendingGame.matchId);
+          if (matchToSelect) {
+            openMatchChat(matchToSelect, false);
+            setGameRequestToShow(pendingGame);
+            clearPendingGameRequest();
+          }
+        }
+      };
+
+      if (matchIdToOpen || (pendingGame && matchesRef.current.length > 0)) {
+        void runPendingLogic();
+      } else {
+        const task = InteractionManager.runAfterInteractions(() => {
+          void runPendingLogic();
+        });
+        return () => task.cancel();
+      }
+    }, [
+      route.params,
+      user,
+      isAuthenticated,
+      authLoading,
+      loading,
+      fetchMatches,
+      openMatchChat,
+      clearOpenMatchRouteParams,
+    ])
+  );
 
   // When new_match is received (e.g. User B matched with User A while A is on Connect tab), refresh list via AuthContext socket
   useEffect(() => {
@@ -2850,22 +2914,13 @@ export default function MatchesScreen() {
 
   // When matches refresh, keep selectedMatch aligned with the row from GET /matches (partner profile edits, photos, etc.).
   useEffect(() => {
-    const pendingId = getPendingOpenMatchId();
-    const routeParams = route.params as { matchId?: string } | undefined;
-    const matchIdToOpen = pendingId ?? routeParams?.matchId;
-    if (matchIdToOpen && matches.length > 0 && !loading) {
-      const matchToSelect = matches.find(m => m.id === matchIdToOpen);
-      if (matchToSelect) {
-        setSelectedMatch(matchToSelect);
-        if (pendingId) clearPendingOpenMatchId();
-      }
-    } else if (selectedMatch?.id && matches.length > 0) {
-      const updated = matches.find(m => m.id === selectedMatch.id);
+    if (selectedMatch?.id && matches.length > 0) {
+      const updated = matches.find((m) => m.id === selectedMatch.id);
       if (updated) {
         setSelectedMatch(updated);
       }
     }
-  }, [matches, route.params, loading, selectedMatch?.id]);
+  }, [matches, selectedMatch?.id]);
 
   const fetchMessages = useCallback(async (matchId: string, retryCount = 0) => {
     const maxRetries = 3;

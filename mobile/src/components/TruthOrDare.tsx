@@ -19,6 +19,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { api } from '../utils/api';
 import TruthOrDareMessageGateModal from './TruthOrDareMessageGateModal';
+import GameUnlockPlayModal from './GameUnlockPlayModal';
 
 // PG-13 — grown-up flirting (matches server fallbacks)
 const TRUTH_PROMPTS = [
@@ -212,6 +213,8 @@ export default function TruthOrDare({
   const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
   const [headerTimerSecs, setHeaderTimerSecs] = useState<number | null>(null);
   const [messageGateModalVisible, setMessageGateModalVisible] = useState(false);
+  const [unlockPlayModalVisible, setUnlockPlayModalVisible] = useState(false);
+  const [unlockPlayLoading, setUnlockPlayLoading] = useState(false);
   const lastUnlockedUntilRef = useRef<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastAnotherOneAtRef = useRef<number>(0);
@@ -242,6 +245,40 @@ export default function TruthOrDare({
       myCount={messageGateCounts.my}
       theirCount={messageGateCounts.their}
       threshold={TRUTH_OR_DARE_MIN_EACH}
+    />
+  );
+
+  const handleUnlockPlayConfirm = async () => {
+    if (!onUnlockWithToken || unlockPlayLoading) return;
+    setUnlockPlayLoading(true);
+    try {
+      await onUnlockWithToken();
+      setUnlockPlayModalVisible(false);
+      handleOpen();
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to open game.');
+    } finally {
+      setUnlockPlayLoading(false);
+    }
+  };
+
+  const unlockPlayModal = (
+    <GameUnlockPlayModal
+      visible={unlockPlayModalVisible}
+      onCancel={() => {
+        if (!unlockPlayLoading) setUnlockPlayModalVisible(false);
+      }}
+      onPlay={() => void handleUnlockPlayConfirm()}
+      playing={unlockPlayLoading}
+      emoji="🎲"
+      kicker="TRUTH OR DARE"
+      title="Ready to play?"
+      subtitle="Use one Mulligan token to unlock a 7-minute Truth or Dare round for you and your match."
+      features={[
+        '7-minute round for both of you',
+        'PG-13, R, or Spicy — you pick together',
+        'Truths and dares land right in your chat',
+      ]}
     />
   );
 
@@ -545,25 +582,7 @@ export default function TruthOrDare({
       }
     }
     if (onUnlockWithToken) {
-      Alert.alert(
-        '🎲 Truth or Dare',
-        '',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Play',
-            style: 'default',
-            onPress: async () => {
-              try {
-                await onUnlockWithToken();
-                handleOpen();
-              } catch (e: any) {
-                Alert.alert('Error', e?.message || 'Failed to open game.');
-              }
-            },
-          },
-        ]
-      );
+      setUnlockPlayModalVisible(true);
     } else {
       Alert.alert('🎲 Truth or Dare', 'Truth or Dare is not available for this match.', [{ text: 'Got it', style: 'default' }]);
     }
@@ -705,6 +724,7 @@ export default function TruthOrDare({
           </TouchableOpacity>
         </Modal>
         {messageGateModal}
+        {unlockPlayModal}
       </>
     );
   }
@@ -753,6 +773,7 @@ export default function TruthOrDare({
         </TouchableOpacity>
       </View>
       {messageGateModal}
+      {unlockPlayModal}
     </>
     );
   }
@@ -949,6 +970,7 @@ export default function TruthOrDare({
         </TouchableOpacity>
       </Modal>
       {messageGateModal}
+      {unlockPlayModal}
     </>
   );
 }

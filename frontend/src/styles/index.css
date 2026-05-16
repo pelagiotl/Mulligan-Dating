@@ -7017,6 +7017,19 @@ button.my-profile-avatar:focus-visible {
   line-height: 1.45;
 }
 
+.match-active-status,
+.chat-active-status {
+  margin: 2px 0 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #22c55e;
+  line-height: 1.35;
+}
+
+.chat-active-status {
+  margin-top: 4px;
+}
+
 .match-timer {
   display: flex;
   align-items: center;

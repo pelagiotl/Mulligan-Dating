@@ -14,6 +14,7 @@ import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { AuthProvider } from './src/context/AuthContext';
 import { ConnectShellThemeProvider } from './src/context/ConnectShellThemeContext';
 import AppNavigator from './src/navigation/AppNavigator';
+import MatchCelebrationDemoLinkHandler from './src/components/MatchCelebrationDemoLinkHandler';
 import { initSentry, captureException, captureMessage } from './src/utils/sentry';
 import { safeClearTimeout } from './src/utils/safeTimers';
 import { ensurePurchasesConfigured } from './src/utils/purchasesReady';
@@ -222,6 +223,7 @@ export default function App() {
         <ConnectShellThemeProvider>
           <ErrorBoundary>
             <AuthProvider>
+              {__DEV__ ? <MatchCelebrationDemoLinkHandler /> : null}
               <AppNavigator />
             </AuthProvider>
           </ErrorBoundary>

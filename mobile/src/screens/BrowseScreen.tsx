@@ -43,6 +43,7 @@ import {
   getConnectSetupMissing,
   isConnectSetupComplete,
 } from '../utils/connectSetup';
+import { subscribeMatchCelebrationDemo } from '../utils/matchCelebrationDemo';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -854,6 +855,45 @@ export default function BrowseScreen() {
     connectTextOpacity.setValue(1);
     connectOverlayOpacity.setValue(0);
   }, []);
+
+  const launchMatchCelebrationDemo = useCallback(() => {
+    if (!__DEV__) return;
+    const demoPhoto =
+      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=600&q=80';
+    setMatchedProfile({
+      id: 'demo-profile',
+      userId: 'demo-user',
+      displayName: 'Alex',
+      age: 28,
+      gender: 'woman',
+      location: 'Portland, OR',
+      bio: 'Preview match for celebration QA.',
+      photoUrl: demoPhoto,
+      photos: [
+        {
+          id: 'demo-photo',
+          url: demoPhoto,
+          displayOrder: 0,
+          isPrimary: true,
+        },
+      ],
+      interests: ['Hiking', 'Coffee', 'Live music'],
+      lookingFor: 'Relationship',
+    });
+    setMatchExplanation({
+      reasons: ['Shared interests in outdoors and music', 'Similar relationship goals'],
+      sharedInterests: ['Hiking', 'Coffee'],
+      sharedValues: 3,
+    });
+    setMatchId(null);
+    setShowMatchCelebration(true);
+    setTimeout(() => setMatchId('dev-celebration-demo'), 1200);
+  }, []);
+
+  useEffect(() => {
+    if (!__DEV__) return;
+    return subscribeMatchCelebrationDemo(launchMatchCelebrationDemo);
+  }, [launchMatchCelebrationDemo]);
 
   // When navigated with resetToLanding (e.g. "Back to Connect" from celebration), show Connect landing page
   useFocusEffect(

@@ -24,6 +24,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { api } from '../utils/api';
 import TruthOrDareMessageGateModal from './TruthOrDareMessageGateModal';
+import GameUnlockPlayModal from './GameUnlockPlayModal';
 import {
   MATCH_CHAT_DEPTH_MIN_EACH,
   matchChatDepthCounts,
@@ -120,6 +121,8 @@ export default function NeverHaveIEver({
 }: NeverHaveIEverProps) {
   const [modalVisible, setModalVisible] = useState(false);
   const [messageGateModalVisible, setMessageGateModalVisible] = useState(false);
+  const [unlockPlayModalVisible, setUnlockPlayModalVisible] = useState(false);
+  const [unlockPlayLoading, setUnlockPlayLoading] = useState(false);
   const [state, setState] = useState<GameState | null>(null);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -164,6 +167,40 @@ export default function NeverHaveIEver({
       kicker="NEVER HAVE I EVER"
       subtitle={`Send at least ${MATCH_CHAT_DEPTH_MIN_EACH} messages each — then Never Have I Ever unlocks for this match.`}
       hintText="Real back-and-forth keeps things fun — we'll nudge you until you've both chimed in enough."
+    />
+  );
+
+  const handleUnlockPlayConfirm = async () => {
+    if (!onUnlockWithToken || unlockPlayLoading) return;
+    setUnlockPlayLoading(true);
+    try {
+      await onUnlockWithToken();
+      setUnlockPlayModalVisible(false);
+      handleOpen();
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to open game.');
+    } finally {
+      setUnlockPlayLoading(false);
+    }
+  };
+
+  const unlockPlayModal = (
+    <GameUnlockPlayModal
+      visible={unlockPlayModalVisible}
+      onCancel={() => {
+        if (!unlockPlayLoading) setUnlockPlayModalVisible(false);
+      }}
+      onPlay={() => void handleUnlockPlayConfirm()}
+      playing={unlockPlayLoading}
+      emoji="🙊"
+      kicker="NEVER HAVE I EVER"
+      title="Ready to play?"
+      subtitle="Use one Mulligan token to unlock Never Have I Ever for you and your match."
+      features={[
+        'Strike tally — see who caves first',
+        'Custom prompts or pick from the deck',
+        'Keeps the vibe going in your chat',
+      ]}
     />
   );
 
@@ -723,25 +760,7 @@ export default function NeverHaveIEver({
       }
     }
     if (onUnlockWithToken) {
-      Alert.alert(
-        '🙊 Never Have I Ever',
-        '',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Play',
-            style: 'default',
-            onPress: async () => {
-              try {
-                await onUnlockWithToken();
-                handleOpen();
-              } catch (e: any) {
-                Alert.alert('Error', e?.message || 'Failed to open game.');
-              }
-            },
-          },
-        ]
-      );
+      setUnlockPlayModalVisible(true);
     } else {
       Alert.alert('🙊 Never Have I Ever', 'Never Have I Ever is not available for this match.', [{ text: 'Got it', style: 'default' }]);
     }
@@ -979,6 +998,7 @@ export default function NeverHaveIEver({
         {headerButton}
         {gameModal}
         {messageGateModal}
+        {unlockPlayModal}
       </>
     );
   }
@@ -1002,6 +1022,7 @@ export default function NeverHaveIEver({
           </TouchableOpacity>
         </View>
         {messageGateModal}
+        {unlockPlayModal}
       </>
     );
   }
@@ -1041,6 +1062,7 @@ export default function NeverHaveIEver({
 
       {gameModal}
       {messageGateModal}
+      {unlockPlayModal}
     </>
   );
 }
