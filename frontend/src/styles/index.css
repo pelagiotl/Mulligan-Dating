@@ -11759,6 +11759,9 @@ button.chat-avatar-btn .chat-avatar img {
 
 .match-celebration-profile-panel .stage2-profile-block {
   margin-bottom: var(--space-4);
+  /* stage2-profile-block defaults to var(--bg-secondary) (#fff) — invisible with light-on-light text */
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.18);
 }
 
 .match-celebration-profile-panel .stage2-profile-block:last-child {
@@ -11769,11 +11772,20 @@ button.chat-avatar-btn .chat-avatar img {
   color: rgba(255, 255, 255, 0.85);
 }
 
-.match-celebration-profile-panel .stage2-profile-text {
+.match-celebration-profile-panel .stage2-profile-text,
+.match-celebration-profile-panel .stage1-bio {
   color: rgba(255, 255, 255, 0.95);
   margin: 0;
   font-size: 0.92rem;
   line-height: 1.5;
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+
+.match-celebration-profile-panel .stage2-dealbreakers-list,
+.match-celebration-profile-panel .stage2-dealbreakers-list li {
+  color: rgba(255, 255, 255, 0.95);
 }
 
 .match-celebration-profile-panel .profile-card-interests .interest-tag,
@@ -11785,7 +11797,7 @@ button.chat-avatar-btn .chat-avatar img {
 
 .match-celebration-profile-panel .qualities-list .quality-item {
   background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   color: #fff;
 }
 
@@ -11793,8 +11805,8 @@ button.chat-avatar-btn .chat-avatar img {
   color: #fff;
 }
 
-.match-celebration-profile-panel .stage2-dealbreakers-list {
-  color: rgba(255, 255, 255, 0.95);
+.match-celebration-profile-panel .qualities-list .quality-importance {
+  color: rgba(255, 255, 255, 0.85);
 }
 
 .match-celebration-profile-panel .stage2-dealbreakers-list li::marker {
