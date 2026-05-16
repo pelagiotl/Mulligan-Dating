@@ -378,22 +378,26 @@ function WebNavbarTokenBadge({
     );
     pulseLoopRef.current.start();
 
-    shimmerLoopRef.current = Animated.loop(
-      Animated.sequence([
-        Animated.timing(shimmer, {
-          toValue: 1,
-          duration: 3000,
-          easing: Easing.linear,
-          useNativeDriver: true,
-        }),
-        Animated.timing(shimmer, {
-          toValue: 0,
-          duration: 0,
-          useNativeDriver: true,
-        }),
-      ])
-    );
-    shimmerLoopRef.current.start();
+    if (Platform.OS !== 'android') {
+      shimmerLoopRef.current = Animated.loop(
+        Animated.sequence([
+          Animated.timing(shimmer, {
+            toValue: 1,
+            duration: 3000,
+            easing: Easing.linear,
+            useNativeDriver: true,
+          }),
+          Animated.timing(shimmer, {
+            toValue: 0,
+            duration: 0,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      shimmerLoopRef.current.start();
+    } else {
+      shimmer.setValue(0);
+    }
 
     return () => {
       pulseLoopRef.current?.stop();
@@ -455,7 +459,8 @@ function WebNavbarTokenBadge({
             overflow: 'hidden',
           }}
         >
-          {!reduceMotion && !loading && (
+          {/* Android: skip white shimmer — it composites as a grey patch over the count. iOS keeps web-parity gleam. */}
+          {!reduceMotion && !loading && Platform.OS !== 'android' && (
             <Animated.View
               pointerEvents="none"
               style={{
@@ -523,21 +528,22 @@ function PremiumTokenDisplay({
       ])
     ).start();
 
-    // Shimmer effect
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(shimmerAnim, {
-          toValue: 1,
-          duration: 3000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(shimmerAnim, {
-          toValue: 0,
-          duration: 0,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
+    if (Platform.OS !== 'android') {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(shimmerAnim, {
+            toValue: 1,
+            duration: 3000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(shimmerAnim, {
+            toValue: 0,
+            duration: 0,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    }
   }, []);
 
   const shimmerTranslateX = shimmerAnim.interpolate({
@@ -565,15 +571,17 @@ function PremiumTokenDisplay({
           end={{ x: 1, y: 1 }}
           style={styles.premiumGradient}
         >
-          {/* Shimmer overlay */}
-          <Animated.View
-            style={[
-              styles.shimmerOverlay,
-              {
-                transform: [{ translateX: shimmerTranslateX }],
-              },
-            ]}
-          />
+          {/* Shimmer (iOS): on Android the bright strip reads as a grey/white blob behind the count */}
+          {Platform.OS !== 'android' ? (
+            <Animated.View
+              style={[
+                styles.shimmerOverlay,
+                {
+                  transform: [{ translateX: shimmerTranslateX }],
+                },
+              ]}
+            />
+          ) : null}
           
           <View style={styles.premiumContent}>
             <Text style={styles.premiumIcon}>🎟️</Text>
