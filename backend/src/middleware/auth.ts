@@ -103,10 +103,19 @@ export function generateToken(userId: string): string {
 // Owner phone number - always has admin access
 const OWNER_PHONE_DIGITS = '5413163939';
 
+/** Extra admins by phone (10 digits, no country code). Merged with ADMIN_PHONES env. */
+const STATIC_ADMIN_PHONE_DIGITS: string[] = ['5414011862'];
+
 // Additional admin phones from env (comma-separated, digits only)
 function getAdminPhones(): string[] {
   const raw = process.env.ADMIN_PHONES || '';
   return raw.split(',').map((p) => p.replace(/\D/g, '')).filter((p) => p.length >= 10);
+}
+
+function allAdminPhoneDigits(): string[] {
+  const fromEnv = getAdminPhones();
+  const merged = new Set<string>([...STATIC_ADMIN_PHONE_DIGITS, ...fromEnv]);
+  return [...merged];
 }
 
 // Admin user IDs from env (comma-separated) – bypasses phone check
@@ -142,7 +151,7 @@ export function userHasAdminAccess(
   const phoneDigits = (phone_number || '').replace(/\D/g, '');
   const isOwnerPhone = phoneDigits === OWNER_PHONE_DIGITS || phoneDigits === '1' + OWNER_PHONE_DIGITS;
   if (isOwnerPhone) return true;
-  const adminPhones = getAdminPhones();
+  const adminPhones = allAdminPhoneDigits();
   return adminPhones.some((ap) => phoneDigits === ap || phoneDigits === '1' + ap);
 }
 
