@@ -1,8 +1,14 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Animated, Easing, Modal, Platform, Vibration, Dimensions, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { api } from '../utils/api';
 import { Socket } from 'socket.io-client';
+import TruthOrDareMessageGateModal from './TruthOrDareMessageGateModal';
+import {
+  MATCH_CHAT_DEPTH_MIN_EACH,
+  matchChatDepthCounts,
+  matchChatDepthThresholdMet,
+} from '../utils/matchChatDepthGate';
 
 interface DatePlan {
   id: string;
@@ -32,22 +38,59 @@ interface DateBlueprintProps {
   matchId: string;
   socket: Socket | null;
   currentUserId: string;
+  chatPartnerUserId?: string;
+  messages?: Array<{ senderId: string }>;
   headerMode?: boolean;
   /** Send hangout plan as a chat message (Invite button) */
   onInviteToChat?: (message: string) => void;
 }
 
-export default function DateBlueprint({ matchId, socket, currentUserId, headerMode, onInviteToChat }: DateBlueprintProps) {
+export default function DateBlueprint({
+  matchId,
+  socket,
+  currentUserId,
+  chatPartnerUserId = '',
+  messages = [],
+  headerMode,
+  onInviteToChat,
+}: DateBlueprintProps) {
   const [plan, setPlan] = useState<DatePlan | null>(null);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [messageGateModalVisible, setMessageGateModalVisible] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const shimmerAnim = useRef(new Animated.Value(0)).current;
   const headerPulseAnim = useRef(new Animated.Value(1)).current;
+
+  const datePlanEligible = useMemo(
+    () =>
+      Boolean(currentUserId && chatPartnerUserId) &&
+      matchChatDepthThresholdMet(messages, currentUserId, chatPartnerUserId),
+    [messages, currentUserId, chatPartnerUserId]
+  );
+
+  const messageGateCounts = useMemo(
+    () => matchChatDepthCounts(messages, currentUserId, chatPartnerUserId),
+    [messages, currentUserId, chatPartnerUserId]
+  );
+
+  const messageGateModal = (
+    <TruthOrDareMessageGateModal
+      visible={messageGateModalVisible}
+      onClose={() => setMessageGateModalVisible(false)}
+      myCount={messageGateCounts.my}
+      theirCount={messageGateCounts.their}
+      threshold={MATCH_CHAT_DEPTH_MIN_EACH}
+      emoji="📅"
+      kicker="HANGOUT PLAN"
+      subtitle={`Send at least ${MATCH_CHAT_DEPTH_MIN_EACH} messages each — then you can generate a hangout plan for this match.`}
+      hintText="A little conversation first helps the plan feel personal — we'll nudge you until you've both chimed in enough."
+    />
+  );
 
   useEffect(() => {
     fetchPlan();
@@ -142,6 +185,10 @@ export default function DateBlueprint({ matchId, socket, currentUserId, headerMo
   };
 
   const handleGenerate = async () => {
+    if (!datePlanEligible) {
+      setMessageGateModalVisible(true);
+      return;
+    }
     Vibration.vibrate(50); // Vibrate when button is clicked
     Alert.alert(
       'Generate Hangout Plan',
@@ -224,6 +271,10 @@ export default function DateBlueprint({ matchId, socket, currentUserId, headerMo
   };
 
   const handleRegenerate = async () => {
+    if (!datePlanEligible) {
+      setMessageGateModalVisible(true);
+      return;
+    }
     try {
       setUpdating(true);
       const response = await api.post(`/matches/${matchId}/generate-date-plan`);
@@ -255,6 +306,10 @@ export default function DateBlueprint({ matchId, socket, currentUserId, headerMo
   const handleOpenModal = () => {
     if (Platform.OS === 'ios' || Platform.OS === 'android') {
       Vibration.vibrate(30);
+    }
+    if (!datePlanEligible && !plan) {
+      setMessageGateModalVisible(true);
+      return;
     }
     setIsExpanded(true);
   };
@@ -603,6 +658,7 @@ export default function DateBlueprint({ matchId, socket, currentUserId, headerMo
             </View>
           </View>
         </Modal>
+        {messageGateModal}
       </>
     );
   }
@@ -622,48 +678,51 @@ export default function DateBlueprint({ matchId, socket, currentUserId, headerMo
     });
 
     return (
-      <View style={styles.container}>
-        <Animated.View
-          style={[
-            styles.generateButton,
-            {
-              transform: [{ scale: pulseAnim }],
-            },
-          ]}
-        >
-          <TouchableOpacity
-            onPress={handleGenerate}
-            disabled={generating}
-            activeOpacity={0.8}
-            style={styles.generateButtonTouchable}
+      <>
+        <View style={styles.container}>
+          <Animated.View
+            style={[
+              styles.generateButton,
+              {
+                transform: [{ scale: pulseAnim }],
+              },
+            ]}
           >
-            <LinearGradient
-              colors={['#667eea', '#764ba2', '#f093fb', '#f5576c']}
-              style={styles.generateButtonGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
+            <TouchableOpacity
+              onPress={handleGenerate}
+              disabled={generating}
+              activeOpacity={0.8}
+              style={styles.generateButtonTouchable}
             >
-              <Animated.View
-                style={[
-                  styles.shimmerOverlay,
-                  {
-                    transform: [{ translateX: shimmerTranslateX }],
-                  },
-                ]}
-              />
-              {generating ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <>
-                  <Text style={styles.generateButtonEmoji}>📅</Text>
-                  <Text style={styles.generateButtonText}>Generate Hangout Plan</Text>
-                  <Text style={styles.generateButtonSubtext}>AI-powered hangout ideas from shared interests</Text>
-                </>
-              )}
-            </LinearGradient>
-          </TouchableOpacity>
-        </Animated.View>
-      </View>
+              <LinearGradient
+                colors={['#667eea', '#764ba2', '#f093fb', '#f5576c']}
+                style={styles.generateButtonGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <Animated.View
+                  style={[
+                    styles.shimmerOverlay,
+                    {
+                      transform: [{ translateX: shimmerTranslateX }],
+                    },
+                  ]}
+                />
+                {generating ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Text style={styles.generateButtonEmoji}>📅</Text>
+                    <Text style={styles.generateButtonText}>Generate Hangout Plan</Text>
+                    <Text style={styles.generateButtonSubtext}>AI-powered hangout ideas from shared interests</Text>
+                  </>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+        {messageGateModal}
+      </>
     );
   }
 
@@ -1101,6 +1160,7 @@ export default function DateBlueprint({ matchId, socket, currentUserId, headerMo
           </View>
         </View>
       </Modal>
+      {messageGateModal}
     </View>
   );
 }

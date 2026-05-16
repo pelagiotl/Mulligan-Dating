@@ -23,6 +23,12 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { api } from '../utils/api';
+import TruthOrDareMessageGateModal from './TruthOrDareMessageGateModal';
+import {
+  MATCH_CHAT_DEPTH_MIN_EACH,
+  matchChatDepthCounts,
+  matchChatDepthThresholdMet,
+} from '../utils/matchChatDepthGate';
 
 /** Subset of match messages for in-game bubbles (same thread as main chat). */
 export type NhieGameChatMessage = {
@@ -72,6 +78,7 @@ interface NeverHaveIEverProps {
   matchId: string;
   messages?: NhieGameChatMessage[];
   currentUserId: string;
+  chatPartnerUserId?: string;
   socket: any;
   /** Send a text message on the match thread (same as main chat). */
   onSendToChat?: (text: string) => void | Promise<void>;
@@ -95,6 +102,7 @@ export default function NeverHaveIEver({
   matchId,
   messages = [],
   currentUserId,
+  chatPartnerUserId = '',
   socket,
   onSendToChat,
   sendingMessage = false,
@@ -111,6 +119,7 @@ export default function NeverHaveIEver({
   headerMode = false,
 }: NeverHaveIEverProps) {
   const [modalVisible, setModalVisible] = useState(false);
+  const [messageGateModalVisible, setMessageGateModalVisible] = useState(false);
   const [state, setState] = useState<GameState | null>(null);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -131,6 +140,32 @@ export default function NeverHaveIEver({
 
   const isUnlocked = gameUnlockedByToken;
   const displayPrompt = prompt || state?.prompt || '';
+
+  const nhieEligible = useMemo(
+    () =>
+      Boolean(currentUserId && chatPartnerUserId) &&
+      matchChatDepthThresholdMet(messages, currentUserId, chatPartnerUserId),
+    [messages, currentUserId, chatPartnerUserId]
+  );
+
+  const messageGateCounts = useMemo(
+    () => matchChatDepthCounts(messages, currentUserId, chatPartnerUserId),
+    [messages, currentUserId, chatPartnerUserId]
+  );
+
+  const messageGateModal = (
+    <TruthOrDareMessageGateModal
+      visible={messageGateModalVisible}
+      onClose={() => setMessageGateModalVisible(false)}
+      myCount={messageGateCounts.my}
+      theirCount={messageGateCounts.their}
+      threshold={MATCH_CHAT_DEPTH_MIN_EACH}
+      emoji="🙊"
+      kicker="NEVER HAVE I EVER"
+      subtitle={`Send at least ${MATCH_CHAT_DEPTH_MIN_EACH} messages each — then Never Have I Ever unlocks for this match.`}
+      hintText="Real back-and-forth keeps things fun — we'll nudge you until you've both chimed in enough."
+    />
+  );
 
   const gameChatTypingActiveRef = useRef(false);
   const gameChatTypingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -676,6 +711,10 @@ export default function NeverHaveIEver({
     if (Platform.OS === 'ios' || Platform.OS === 'android') {
       Vibration.vibrate(30);
     }
+    if (!nhieEligible) {
+      setMessageGateModalVisible(true);
+      return;
+    }
     if (onBeforeUnlockPrompt) {
       const alreadyUnlocked = await onBeforeUnlockPrompt();
       if (alreadyUnlocked) {
@@ -935,26 +974,35 @@ export default function NeverHaveIEver({
   );
 
   if (headerMode) {
-    return <>{headerButton}{gameModal}</>;
+    return (
+      <>
+        {headerButton}
+        {gameModal}
+        {messageGateModal}
+      </>
+    );
   }
 
   if (!isUnlocked) {
     return (
-      <View style={[styles.container, compact && styles.containerCompact, square && styles.containerSquare]}>
-        <TouchableOpacity 
-          onPress={handleLockedPress} 
-          activeOpacity={0.7}
-          style={[styles.lockedCard, square && styles.lockedCardSquare]}
-        >
-          <View style={styles.lockedEmojiWrap}>
-            <Animated.Text style={[styles.lockedEmoji, { transform: [{ scale: emojiScale }, { rotate: monkeyRotateInterp }] }]}>🙊</Animated.Text>
-          </View>
-          <View style={styles.lockedTextWrap}>
-            <Text style={styles.lockedText}>Never Have I Ever</Text>
-            <Text style={styles.lockedSubtext}>Tap to see how to unlock</Text>
-          </View>
-        </TouchableOpacity>
-      </View>
+      <>
+        <View style={[styles.container, compact && styles.containerCompact, square && styles.containerSquare]}>
+          <TouchableOpacity
+            onPress={handleLockedPress}
+            activeOpacity={0.7}
+            style={[styles.lockedCard, square && styles.lockedCardSquare]}
+          >
+            <View style={styles.lockedEmojiWrap}>
+              <Animated.Text style={[styles.lockedEmoji, { transform: [{ scale: emojiScale }, { rotate: monkeyRotateInterp }] }]}>🙊</Animated.Text>
+            </View>
+            <View style={styles.lockedTextWrap}>
+              <Text style={styles.lockedText}>Never Have I Ever</Text>
+              <Text style={styles.lockedSubtext}>Tap to see how to unlock</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+        {messageGateModal}
+      </>
     );
   }
 
@@ -992,6 +1040,7 @@ export default function NeverHaveIEver({
       </View>
 
       {gameModal}
+      {messageGateModal}
     </>
   );
 }

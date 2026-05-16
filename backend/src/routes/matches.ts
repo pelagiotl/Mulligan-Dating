@@ -69,12 +69,20 @@ function bothUsersMetChatMediaThreshold(user1Count: number, user2Count: number):
   return user1Count >= CHAT_MEDIA_MIN_MESSAGES_EACH && user2Count >= CHAT_MEDIA_MIN_MESSAGES_EACH;
 }
 
-/** Truth or Dare unlock (manual unlock-game / game-request) requires more chat back-and-forth than photo/media unlock */
-const TRUTH_OR_DARE_MIN_MESSAGES_EACH = 7;
-const TRUTH_OR_DARE_LOCKED_MESSAGE = `Truth or Dare unlocks after you and your match have each sent at least ${TRUTH_OR_DARE_MIN_MESSAGES_EACH} messages in this chat.`;
+/** Games, NHIE, and date-plan generation require more chat back-and-forth than photo/media unlock */
+const MATCH_CHAT_DEPTH_MIN_MESSAGES_EACH = 7;
 
+const TRUTH_OR_DARE_LOCKED_MESSAGE = `Truth or Dare unlocks after you and your match have each sent at least ${MATCH_CHAT_DEPTH_MIN_MESSAGES_EACH} messages in this chat.`;
+const NEVER_HAVE_I_EVER_LOCKED_MESSAGE = `Never Have I Ever unlocks after you and your match have each sent at least ${MATCH_CHAT_DEPTH_MIN_MESSAGES_EACH} messages in this chat.`;
+const DATE_PLAN_LOCKED_MESSAGE = `Hangout plans unlock after you and your match have each sent at least ${MATCH_CHAT_DEPTH_MIN_MESSAGES_EACH} messages in this chat.`;
+
+function bothUsersMetMatchChatDepthThreshold(user1Count: number, user2Count: number): boolean {
+  return user1Count >= MATCH_CHAT_DEPTH_MIN_MESSAGES_EACH && user2Count >= MATCH_CHAT_DEPTH_MIN_MESSAGES_EACH;
+}
+
+/** @deprecated use bothUsersMetMatchChatDepthThreshold */
 function bothUsersMetTruthOrDareThreshold(user1Count: number, user2Count: number): boolean {
-  return user1Count >= TRUTH_OR_DARE_MIN_MESSAGES_EACH && user2Count >= TRUTH_OR_DARE_MIN_MESSAGES_EACH;
+  return bothUsersMetMatchChatDepthThreshold(user1Count, user2Count);
 }
 
 // Get active match count and slot limit - MUST be before /:matchId routes so "count" isn't treated as matchId
@@ -2009,11 +2017,11 @@ matchesRouter.post("/:matchId/unlock-game", authenticateToken, rateLimitAPI, asy
       return res.status(404).json({ error: "Match not found" });
     }
 
-    if (gameType === "truth_or_dare") {
-      const counts = await getSenderMessageCounts(matchId, match.user1_id, match.user2_id);
-      if (!bothUsersMetTruthOrDareThreshold(counts.user1, counts.user2)) {
-        return res.status(403).json({ error: TRUTH_OR_DARE_LOCKED_MESSAGE });
-      }
+    const counts = await getSenderMessageCounts(matchId, match.user1_id, match.user2_id);
+    if (!bothUsersMetMatchChatDepthThreshold(counts.user1, counts.user2)) {
+      const lockedMessage =
+        gameType === "never_have_i_ever" ? NEVER_HAVE_I_EVER_LOCKED_MESSAGE : TRUTH_OR_DARE_LOCKED_MESSAGE;
+      return res.status(403).json({ error: lockedMessage });
     }
 
     const SEVEN_MINUTES_MS = 7 * 60 * 1000;
@@ -2146,11 +2154,11 @@ matchesRouter.post("/:matchId/game-request", authenticateToken, rateLimitAPI, as
       return res.status(404).json({ error: "Match not found" });
     }
 
-    if (gameType === "truth_or_dare") {
-      const counts = await getSenderMessageCounts(matchId, match.user1_id, match.user2_id);
-      if (!bothUsersMetTruthOrDareThreshold(counts.user1, counts.user2)) {
-        return res.status(403).json({ error: TRUTH_OR_DARE_LOCKED_MESSAGE });
-      }
+    const counts = await getSenderMessageCounts(matchId, match.user1_id, match.user2_id);
+    if (!bothUsersMetMatchChatDepthThreshold(counts.user1, counts.user2)) {
+      const lockedMessage =
+        gameType === "never_have_i_ever" ? NEVER_HAVE_I_EVER_LOCKED_MESSAGE : TRUTH_OR_DARE_LOCKED_MESSAGE;
+      return res.status(403).json({ error: lockedMessage });
     }
 
     const toUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
@@ -3114,6 +3122,11 @@ matchesRouter.post("/:matchId/generate-date-plan", authenticateToken, rateLimitA
 
     if (!match) {
       return res.status(404).json({ error: "Match not found" });
+    }
+
+    const counts = await getSenderMessageCounts(matchId, match.user1_id, match.user2_id);
+    if (!bothUsersMetMatchChatDepthThreshold(counts.user1, counts.user2)) {
+      return res.status(403).json({ error: DATE_PLAN_LOCKED_MESSAGE });
     }
 
     // Get shared interests

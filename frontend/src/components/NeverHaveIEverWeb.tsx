@@ -2,6 +2,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from "react-dom";
 import type { Socket } from "socket.io-client";
 import { api } from "../utils/api";
+import MatchChatDepthGateOverlay from "./MatchChatDepthGateOverlay";
+import { matchChatDepthThresholdMet } from "../utils/matchChatDepthGate";
 
 type SpiceId = "pg13" | "ratedr" | "spicy";
 type AnswerId = "have" | "havent";
@@ -69,6 +71,9 @@ type Props = {
   openForAccept?: boolean;
   onOpenedForAccept?: () => void;
   gameUnlockedByToken?: boolean;
+  /** Required for unlock eligibility (7 messages each) */
+  messages?: Array<{ senderId: string }>;
+  chatPartnerUserId?: string;
 };
 
 const GAME_CHAT_MAX = 80;
@@ -177,8 +182,11 @@ export default function NeverHaveIEverWeb({
   openForAccept,
   onOpenedForAccept,
   gameUnlockedByToken = false,
+  messages = [],
+  chatPartnerUserId,
 }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
+  const [messageGateOpen, setMessageGateOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [state, setState] = useState<GameState | null>(null);
@@ -202,8 +210,12 @@ export default function NeverHaveIEverWeb({
   const gameChatTypingActiveRef = useRef(false);
   const gameChatTypingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const isUnlocked = true;
+  const isUnlocked = !!gameUnlockedByToken;
   const displayPrompt = prompt || state?.prompt || "";
+
+  const nhieEligible =
+    Boolean(currentUserId && chatPartnerUserId) &&
+    matchChatDepthThresholdMet(messages, currentUserId as string, chatPartnerUserId as string);
 
   const stopGameChatTyping = useCallback(() => {
     if (gameChatTypingTimeoutRef.current) {
@@ -651,8 +663,39 @@ export default function NeverHaveIEverWeb({
     }
   };
 
+  const handleLockedPress = async () => {
+    if (!nhieEligible) {
+      setMessageGateOpen(true);
+      return;
+    }
+    const already = (await onBeforeUnlockPrompt?.()) ?? false;
+    if (already) {
+      openModal();
+      return;
+    }
+    if (!onUnlockWithToken) return;
+    if (
+      !window.confirm(
+        "Unlock Never Have I Ever for this match? This uses a Mulligan token so you can play together."
+      )
+    ) {
+      return;
+    }
+    try {
+      await onUnlockWithToken();
+      openModal();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Could not unlock the game.";
+      window.alert(msg);
+    }
+  };
+
   const handleHeaderClick = async () => {
-    openModal();
+    if (isUnlocked) {
+      openModal();
+      return;
+    }
+    await handleLockedPress();
   };
 
   const sendPromptToChat = async () => {
@@ -920,6 +963,19 @@ export default function NeverHaveIEverWeb({
         </button>
       </div>
       {typeof document !== "undefined" && gameModal ? createPortal(gameModal, document.body) : null}
+      {typeof document !== "undefined" && currentUserId ? (
+        createPortal(
+          <MatchChatDepthGateOverlay
+            open={messageGateOpen}
+            onClose={() => setMessageGateOpen(false)}
+            feature="never_have_i_ever"
+            messages={messages}
+            currentUserId={currentUserId}
+            chatPartnerUserId={chatPartnerUserId}
+          />,
+          document.body
+        )
+      ) : null}
     </>
   );
 }

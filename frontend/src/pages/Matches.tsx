@@ -2419,6 +2419,8 @@ export default function Matches() {
                     currentUserId={user.id}
                     isCurrentUserMatchUser1={selectedMatch.isInitiator}
                     onInviteToChat={sendChatText}
+                    messages={messages}
+                    chatPartnerUserId={selectedMatch.otherUser.userId}
                   />
                   <TruthOrDareWeb
                     matchId={selectedMatch.id}
@@ -2479,6 +2481,8 @@ export default function Matches() {
                     socket={socketRef.current}
                     onSendToChat={sendChatText}
                     gameChatMessages={messages}
+                    messages={messages}
+                    chatPartnerUserId={selectedMatch.otherUser.userId}
                     currentUserId={user.id}
                     sendingMessage={sendingMessage}
                     partnerDisplayName={selectedMatch.otherUser.displayName}

@@ -3797,6 +3797,7 @@ export default function MatchesScreen() {
                       matchId={selectedMatch.id}
                       messages={messages}
                       currentUserId={user?.id || ''}
+                      chatPartnerUserId={selectedMatch.otherUser.userId}
                       socket={socketRef.current}
                       onSendToChat={(text) => {
                         void handleSendMessage(text);
@@ -3830,6 +3831,8 @@ export default function MatchesScreen() {
                     matchId={selectedMatch.id}
                     socket={socketRef.current}
                     currentUserId={user?.id || ''}
+                    chatPartnerUserId={selectedMatch.otherUser.userId}
+                    messages={messages}
                     headerMode
                     onInviteToChat={(text) => handleSendMessage(text)}
                   />

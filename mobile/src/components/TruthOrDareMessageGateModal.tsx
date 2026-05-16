@@ -22,6 +22,11 @@ export interface TruthOrDareMessageGateModalProps {
   theirCount: number;
   /** Required from each side (e.g. 7). */
   threshold: number;
+  emoji?: string;
+  kicker?: string;
+  title?: string;
+  subtitle?: string;
+  hintText?: string;
 }
 
 export default function TruthOrDareMessageGateModal({
@@ -30,9 +35,17 @@ export default function TruthOrDareMessageGateModal({
   myCount,
   theirCount,
   threshold,
+  emoji = '🎲',
+  kicker = 'TRUTH OR DARE',
+  title = 'Warm up the chat first',
+  subtitle,
+  hintText = "Real back-and-forth keeps prompts fun — we'll nudge you until you've both chimed in enough.",
 }: TruthOrDareMessageGateModalProps) {
   const myPct = Math.min(100, (myCount / threshold) * 100);
   const theirPct = Math.min(100, (theirCount / threshold) * 100);
+  const resolvedSubtitle =
+    subtitle ??
+    `Send at least ${threshold} messages each — then Truth or Dare unlocks for this match.`;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -62,16 +75,14 @@ export default function TruthOrDareMessageGateModal({
                 style={styles.emojiRingGradient}
               >
                 <View style={styles.emojiInner}>
-                  <Text style={styles.emoji}>🎲</Text>
+                  <Text style={styles.emoji}>{emoji}</Text>
                 </View>
               </LinearGradient>
             </View>
 
-            <Text style={styles.kicker}>TRUTH OR DARE</Text>
-            <Text style={styles.title}>Warm up the chat first</Text>
-            <Text style={styles.subtitle}>
-              {`Send at least ${threshold} messages each — then Truth or Dare unlocks for this match.`}
-            </Text>
+            <Text style={styles.kicker}>{kicker}</Text>
+            <Text style={styles.title}>{title}</Text>
+            <Text style={styles.subtitle}>{resolvedSubtitle}</Text>
 
             <View style={styles.progressBlock}>
               <ProgressRow label="You" current={myCount} threshold={threshold} fillPct={myPct} />
@@ -81,9 +92,7 @@ export default function TruthOrDareMessageGateModal({
 
             <View style={styles.hintPill}>
               <Text style={[styles.hintIcon, styles.hintIconSpacing]}>💬</Text>
-              <Text style={styles.hintText}>
-                Real back-and-forth keeps prompts fun — we’ll nudge you until you’ve both chimed in enough.
-              </Text>
+              <Text style={styles.hintText}>{hintText}</Text>
             </View>
 
             <TouchableOpacity onPress={onClose} activeOpacity={0.88} style={styles.ctaTouchable}>

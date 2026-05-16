@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Socket } from "socket.io-client";
 import { api, ApiError } from "../utils/api";
+import MatchChatDepthGateOverlay from "./MatchChatDepthGateOverlay";
+import { matchChatDepthThresholdMet } from "../utils/matchChatDepthGate";
 
 export interface DatePlan {
   id: string;
@@ -34,6 +36,8 @@ type Props = {
   /** From match list `isInitiator`: current user is `matches.user1_id`. */
   isCurrentUserMatchUser1: boolean;
   onInviteToChat: (text: string) => Promise<boolean | void>;
+  messages?: Array<{ senderId: string }>;
+  chatPartnerUserId?: string;
 };
 
 function planFromResponse(data: unknown): DatePlan | null {
@@ -77,14 +81,21 @@ export default function DateBlueprintWeb({
   currentUserId,
   isCurrentUserMatchUser1,
   onInviteToChat,
+  messages = [],
+  chatPartnerUserId,
 }: Props) {
   const [plan, setPlan] = useState<DatePlan | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const [messageGateOpen, setMessageGateOpen] = useState(false);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [datetimeDraft, setDatetimeDraft] = useState("");
+
+  const datePlanEligible =
+    Boolean(currentUserId && chatPartnerUserId) &&
+    matchChatDepthThresholdMet(messages, currentUserId, chatPartnerUserId as string);
 
   const fetchPlan = useCallback(async () => {
     try {
@@ -125,6 +136,10 @@ export default function DateBlueprintWeb({
   }, [socket, matchId]);
 
   const handleGenerate = async () => {
+    if (!datePlanEligible) {
+      setMessageGateOpen(true);
+      return;
+    }
     if (
       !window.confirm(
         "Create an AI-powered hangout plan based on your shared interests and location?"
@@ -155,6 +170,10 @@ export default function DateBlueprintWeb({
   };
 
   const handleRegenerate = async () => {
+    if (!datePlanEligible) {
+      setMessageGateOpen(true);
+      return;
+    }
     setUpdating(true);
     try {
       const res = await api.post<{ plan?: DatePlan }>(`/matches/${matchId}/generate-date-plan`, {});
@@ -413,12 +432,31 @@ export default function DateBlueprintWeb({
         title={plan ? "Hangout plan" : "Generate hangout plan"}
         aria-label={plan ? "Open hangout plan" : "Generate hangout plan"}
         disabled={loading}
-        onClick={() => setModalOpen(true)}
+        onClick={() => {
+          if (!datePlanEligible && !plan) {
+            setMessageGateOpen(true);
+            return;
+          }
+          setModalOpen(true);
+        }}
       >
         <span className="tod-web-header-emoji">📅</span>
       </button>
       {modal}
       {dateModal}
+      {typeof document !== "undefined" ? (
+        createPortal(
+          <MatchChatDepthGateOverlay
+            open={messageGateOpen}
+            onClose={() => setMessageGateOpen(false)}
+            feature="date_plan"
+            messages={messages}
+            currentUserId={currentUserId}
+            chatPartnerUserId={chatPartnerUserId}
+          />,
+          document.body
+        )
+      ) : null}
     </div>
   );
 }
