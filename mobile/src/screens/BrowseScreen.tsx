@@ -31,7 +31,7 @@ import { useAuth } from '../context/AuthContext';
 import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
 import TokenDisplay from '../components/TokenDisplay';
 import LaunchCountdownBubble from '../components/LaunchCountdownBubble';
-import MatchmakingPausedCard from '../components/MatchmakingPausedCard';
+import MatchmakingPausedModal from '../components/MatchmakingPausedModal';
 import ConnectLandingValueProps from '../components/ConnectLandingValueProps';
 import ConnectLandingMark from '../components/ConnectLandingMark';
 import MatchCelebration from '../components/MatchCelebration';
@@ -203,6 +203,7 @@ export default function BrowseScreen() {
   const connectRequestedRef = useRef(false);
   const [showMatchCelebration, setShowMatchCelebration] = useState(false);
   const [showNoTokensModal, setShowNoTokensModal] = useState(false);
+  const [matchmakingPausedModalVisible, setMatchmakingPausedModalVisible] = useState(false);
   const [showMatchLimitModal, setShowMatchLimitModal] = useState(false);
   const [matchLimitCanExpand, setMatchLimitCanExpand] = useState(false);
   const [matchLimitProfile, setMatchLimitProfile] = useState<Profile | null>(null);
@@ -370,15 +371,10 @@ export default function BrowseScreen() {
     if (unlocking) return;
 
     if (user?.matchmakingEnabled === false) {
-      Alert.alert(
-        'Matching not open yet',
-        (user.matchmakingDisabledMessage && String(user.matchmakingDisabledMessage).trim()) ||
-          'Check the app after our official launch to start connecting.',
-        [{ text: 'OK' }],
-      );
+      setMatchmakingPausedModalVisible(true);
       return;
     }
-    
+
     // Check if user is authenticated
     if (!isAuthenticated || !user) {
       setError('Please log in first');
@@ -504,7 +500,7 @@ export default function BrowseScreen() {
         setBrowseUnlocked(false);
         setCurrentProfile(null);
         void refreshProfile();
-        Alert.alert('Matching not open yet', errorMessage, [{ text: 'OK' }]);
+        setMatchmakingPausedModalVisible(true);
         return;
       }
 
@@ -596,7 +592,7 @@ export default function BrowseScreen() {
             setBrowseUnlocked(false);
             setCurrentProfile(null);
             void refreshProfile();
-            Alert.alert('Matching not open yet', fetchErr?.message || 'Check back soon.', [{ text: 'OK' }]);
+            setMatchmakingPausedModalVisible(true);
             return;
           }
           console.error('❌ Fetch profile error:', fetchErr);
@@ -992,6 +988,42 @@ export default function BrowseScreen() {
     (!needsProfile && !showMatchCelebration) &&
     ((browseUnlocked === false || isAutoMatching) || (!hasActiveProfile && !loading) || matchmakingPaused);
 
+  const openMatchmakingPausedModal = useCallback(() => {
+    if (Platform.OS === 'ios' || Platform.OS === 'android') {
+      Vibration.vibrate(30);
+    }
+    setMatchmakingPausedModalVisible(true);
+  }, []);
+
+  const handleLandingConnectPress = useCallback(() => {
+    if (unlocking) return;
+    if (matchmakingPaused) {
+      openMatchmakingPausedModal();
+      return;
+    }
+    if (connectReady) {
+      void handleUnlockBrowse();
+      return;
+    }
+    if (photoCount === null) {
+      void handleUnlockBrowse();
+      return;
+    }
+    const m = connectMissing[0];
+    if (m === 'name') (navigation as any).navigate('Settings');
+    else if (m === 'location') (navigation as any).navigate('MyProfile');
+    else if (m === 'photos') (navigation as any).navigate('MyProfile', { scrollToPhotos: true });
+  }, [
+    unlocking,
+    matchmakingPaused,
+    openMatchmakingPausedModal,
+    connectReady,
+    handleUnlockBrowse,
+    photoCount,
+    connectMissing,
+    navigation,
+  ]);
+
   // Button pulse animation (only when landing page is shown)
   // MUST be before any early returns
   useEffect(() => {
@@ -1166,12 +1198,7 @@ export default function BrowseScreen() {
 
   const handleConnect = useCallback((profile: Profile, expandSlot?: boolean) => {
     if (user?.matchmakingEnabled === false) {
-      Alert.alert(
-        'Matching not open yet',
-        (user.matchmakingDisabledMessage && String(user.matchmakingDisabledMessage).trim()) ||
-          'Check the app after our official launch to start connecting.',
-        [{ text: 'OK' }],
-      );
+      setMatchmakingPausedModalVisible(true);
       return;
     }
     setError('');
@@ -1272,7 +1299,7 @@ export default function BrowseScreen() {
             setBrowseUnlocked(false);
             if (isAutoMatching) setIsAutoMatching(false);
             void refreshProfile();
-            Alert.alert('Matching not open yet', err.message || 'Check back soon.', [{ text: 'OK' }]);
+            setMatchmakingPausedModalVisible(true);
             return;
           }
           if (apiErr.status === 400 && apiErr.code === 'CONNECT_SETUP_INCOMPLETE') {
@@ -1587,12 +1614,6 @@ export default function BrowseScreen() {
 
               {isAuthenticated ? <ConnectLandingValueProps variant="midnightFeatures" /> : null}
 
-              {matchmakingPaused ? (
-                <MatchmakingPausedCard
-                  connectShell={connectShellMode}
-                  message={matchmakingPausedMessage}
-                />
-              ) : (
               <Animated.View
                 style={[
                   styles.landingButtonContainer,
@@ -1602,21 +1623,7 @@ export default function BrowseScreen() {
                 ]}
               >
                 <TouchableOpacity
-                  onPress={() => {
-                    if (unlocking) return;
-                    if (connectReady) {
-                      handleUnlockBrowse();
-                      return;
-                    }
-                    if (photoCount === null) {
-                      handleUnlockBrowse();
-                      return;
-                    }
-                    const m = connectMissing[0];
-                    if (m === 'name') (navigation as any).navigate('Settings');
-                    else if (m === 'location') (navigation as any).navigate('MyProfile');
-                    else if (m === 'photos') (navigation as any).navigate('MyProfile', { scrollToPhotos: true });
-                  }}
+                  onPress={handleLandingConnectPress}
                   onPressIn={() => {
                     Animated.spring(buttonScale, {
                       toValue: 0.95,
@@ -1686,12 +1693,11 @@ export default function BrowseScreen() {
                   </LinearGradient>
                 </TouchableOpacity>
               </Animated.View>
-              )}
 
               <Animated.View style={[styles.landingHintWrap, { opacity: landingHintOpacity }]}>
                 <Text style={styles.midnightHint}>
                   {matchmakingPaused
-                    ? 'Tap the launch countdown to see time until go-live'
+                    ? 'Tap Connect — matching opens at launch'
                     : !connectReady && photoCount !== null
                     ? connectMissing[0] === 'name'
                       ? 'Add your name in Settings to Connect'
@@ -1761,12 +1767,6 @@ export default function BrowseScreen() {
                       </View>
                     ) : null}
 
-                    {matchmakingPaused ? (
-                      <MatchmakingPausedCard
-                        connectShell={connectShellMode}
-                        message={matchmakingPausedMessage}
-                      />
-                    ) : (
                     <Animated.View
                       style={[
                         styles.landingButtonContainer,
@@ -1776,21 +1776,7 @@ export default function BrowseScreen() {
                       ]}
                     >
                       <TouchableOpacity
-                        onPress={() => {
-                          if (unlocking) return;
-                          if (connectReady) {
-                            handleUnlockBrowse();
-                            return;
-                          }
-                          if (photoCount === null) {
-                            handleUnlockBrowse();
-                            return;
-                          }
-                          const m = connectMissing[0];
-                          if (m === 'name') (navigation as any).navigate('Settings');
-                          else if (m === 'location') (navigation as any).navigate('MyProfile');
-                          else if (m === 'photos') (navigation as any).navigate('MyProfile', { scrollToPhotos: true });
-                        }}
+                        onPress={handleLandingConnectPress}
                         onPressIn={() => {
                           Animated.spring(buttonScale, {
                             toValue: 0.95,
@@ -1856,12 +1842,11 @@ export default function BrowseScreen() {
                         </LinearGradient>
                       </TouchableOpacity>
                     </Animated.View>
-                    )}
 
                     <Animated.View style={[styles.landingHintWrap, { opacity: landingHintOpacity }]}>
                       <Text style={styles.sunnyHint}>
                         {matchmakingPaused
-                          ? 'Tap the launch countdown to see time until go-live'
+                          ? 'Tap Connect — matching opens at launch'
                           : !connectReady && photoCount !== null
                           ? connectMissing[0] === 'name'
                             ? 'Add your name in Settings to Connect'
@@ -1930,12 +1915,6 @@ export default function BrowseScreen() {
                       </View>
                     ) : null}
 
-                    {matchmakingPaused ? (
-                      <MatchmakingPausedCard
-                        connectShell={connectShellMode}
-                        message={matchmakingPausedMessage}
-                      />
-                    ) : (
                     <Animated.View
                       style={[
                         styles.landingButtonContainer,
@@ -1945,21 +1924,7 @@ export default function BrowseScreen() {
                       ]}
                     >
                       <TouchableOpacity
-                        onPress={() => {
-                          if (unlocking) return;
-                          if (connectReady) {
-                            handleUnlockBrowse();
-                            return;
-                          }
-                          if (photoCount === null) {
-                            handleUnlockBrowse();
-                            return;
-                          }
-                          const m = connectMissing[0];
-                          if (m === 'name') (navigation as any).navigate('Settings');
-                          else if (m === 'location') (navigation as any).navigate('MyProfile');
-                          else if (m === 'photos') (navigation as any).navigate('MyProfile', { scrollToPhotos: true });
-                        }}
+                        onPress={handleLandingConnectPress}
                         onPressIn={() => {
                           Animated.spring(buttonScale, {
                             toValue: 0.95,
@@ -2025,12 +1990,11 @@ export default function BrowseScreen() {
                         </LinearGradient>
                       </TouchableOpacity>
                     </Animated.View>
-                    )}
 
                     <Animated.View style={[styles.landingHintWrap, { opacity: landingHintOpacity }]}>
                       <Text style={styles.softHint}>
                         {matchmakingPaused
-                          ? 'Tap the launch countdown to see time until go-live'
+                          ? 'Tap Connect — matching opens at launch'
                           : !connectReady && photoCount !== null
                           ? connectMissing[0] === 'name'
                             ? 'Add your name in Settings to Connect'
@@ -2306,6 +2270,13 @@ export default function BrowseScreen() {
           revealWhenMatchIdReady={true}
         />
       )}
+
+      <MatchmakingPausedModal
+        visible={matchmakingPausedModalVisible}
+        onClose={() => setMatchmakingPausedModalVisible(false)}
+        connectShell={connectShellMode}
+        message={matchmakingPausedMessage}
+      />
 
       {/* No Tokens Modal */}
       <NoTokensModal

@@ -163,8 +163,8 @@ export default MatchmakingPausedCard;
 const styles = StyleSheet.create({
   wrap: {
     width: '100%',
-    marginTop: 4,
-    marginBottom: 8,
+    marginTop: 0,
+    marginBottom: 12,
   },
   wrapAndroid: {
     elevation: 0,
