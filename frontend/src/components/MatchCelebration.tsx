@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useMemo, useCallback, type CSSProperties } from "react";
+import { useEffect, useState, useRef, useMemo, useCallback, type CSSProperties, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { getPhotoUrl } from "../utils/photoUrl";
 import { formatPreferredMatchesFromGenders } from "../utils/preferredMatchesLabel";
@@ -62,6 +62,28 @@ function hasPartnerProfilePanel(d: CelebrationPartnerProfile | null | undefined)
   return hasSubs || prefsKnown;
 }
 
+function AboutSection({
+  icon,
+  label,
+  children,
+}: {
+  icon: string;
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="match-celebration-about-section">
+      <h4 className="match-celebration-about-section-label">
+        <span className="match-celebration-about-section-icon" aria-hidden>
+          {icon}
+        </span>
+        {label}
+      </h4>
+      <div className="match-celebration-about-section-body">{children}</div>
+    </section>
+  );
+}
+
 function MatchCelebrationPartnerSections({
   detail,
 }: {
@@ -71,76 +93,84 @@ function MatchCelebrationPartnerSections({
     detail.gender === "Man" ? "him" : detail.gender === "Woman" ? "her" : "them";
 
   return (
-    <div className="match-celebration-profile-panel">
-      <h4 style={{ marginBottom: "var(--space-3)", color: "rgba(255,255,255,0.92)" }}>About {pronoun}</h4>
-      {detail.lookingFor ? (
-        <div className="stage2-profile-block">
-          <h4>Looking for</h4>
-          <p className="stage2-profile-text">{detail.lookingFor}</p>
-        </div>
-      ) : null}
-      {detail.preferredGenders !== undefined ? (
-        <div className="stage2-profile-block">
-          <h4>Wants to connect with</h4>
-          <p className="stage2-profile-text">{formatPreferredMatchesFromGenders(detail.preferredGenders)}</p>
-        </div>
-      ) : null}
-      {detail.bio ? (
-        <div className="stage2-profile-block">
-          <h4>Bio</h4>
-          <p className="stage1-bio stage2-profile-text">{detail.bio}</p>
-        </div>
-      ) : null}
-      {(detail.partnerQualities?.length ?? 0) > 0 ? (
-        <div className="stage2-profile-block">
-          <h4>What they&apos;re looking for</h4>
-          <div className="qualities-list">
-            {detail.partnerQualities!.map((q, idx) => (
-              <div key={idx} className="quality-item">
-                <span className="quality-name">{q.quality}</span>
-                <span className="quality-importance">{"⭐".repeat(q.importance)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-      {(detail.interests?.length ?? 0) > 0 ? (
-        <div className="stage2-profile-block">
-          <h4>Interests</h4>
-          <div className="profile-card-interests">
-            {detail.interests!.map((interest) => (
-              <span key={interest} className="interest-tag">
-                {interest}
-              </span>
-            ))}
-          </div>
-        </div>
-      ) : null}
-      {(detail.values?.length ?? 0) > 0 ? (
-        <div className="stage2-profile-block">
-          <h4>Values</h4>
-          <div className="profile-card-interests">
-            {detail.values!.map((value) => (
-              <span key={value} className="value-tag">
-                {value}
-              </span>
-            ))}
-          </div>
-        </div>
-      ) : null}
-      {(detail.dealbreakers?.length ?? 0) > 0 ? (
-        <div className="stage2-profile-block">
-          <h4>Dealbreakers</h4>
-          <ul className="stage2-dealbreakers-list">
-            {detail.dealbreakers!.map((desc, i) => (
-              <li key={i}>{desc}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
+    <div className="match-celebration-about">
+      <header className="match-celebration-about-header">
+        <span className="match-celebration-about-header-glow" aria-hidden />
+        <h3 className="match-celebration-about-title">About {pronoun}</h3>
+        <p className="match-celebration-about-subtitle">A quick look at who you matched with</p>
+      </header>
+
+      <div className="match-celebration-about-sections">
+        {detail.lookingFor ? (
+          <AboutSection icon="💫" label="Looking for">
+            <p className="match-celebration-about-text">{detail.lookingFor}</p>
+          </AboutSection>
+        ) : null}
+        {detail.preferredGenders !== undefined ? (
+          <AboutSection icon="🤝" label="Wants to connect with">
+            <p className="match-celebration-about-highlight">
+              {formatPreferredMatchesFromGenders(detail.preferredGenders)}
+            </p>
+          </AboutSection>
+        ) : null}
+        {detail.bio ? (
+          <AboutSection icon="📝" label="Bio">
+            <p className="match-celebration-about-text match-celebration-about-text--bio">{detail.bio}</p>
+          </AboutSection>
+        ) : null}
+        {(detail.partnerQualities?.length ?? 0) > 0 ? (
+          <AboutSection icon="✨" label="What they're looking for">
+            <ul className="match-celebration-about-qualities">
+              {detail.partnerQualities!.map((q, idx) => (
+                <li key={idx} className="match-celebration-about-quality">
+                  <span className="match-celebration-about-quality-name">{q.quality}</span>
+                  <span className="match-celebration-about-quality-stars" aria-label={`Importance ${q.importance} of 3`}>
+                    {"★".repeat(q.importance)}
+                    <span className="match-celebration-about-quality-stars-dim">
+                      {"★".repeat(Math.max(0, 3 - q.importance))}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </AboutSection>
+        ) : null}
+        {(detail.interests?.length ?? 0) > 0 ? (
+          <AboutSection icon="🎯" label="Interests">
+            <div className="match-celebration-about-chips">
+              {detail.interests!.map((interest) => (
+                <span key={interest} className="match-celebration-about-chip match-celebration-about-chip--interest">
+                  {interest}
+                </span>
+              ))}
+            </div>
+          </AboutSection>
+        ) : null}
+        {(detail.values?.length ?? 0) > 0 ? (
+          <AboutSection icon="💎" label="Values">
+            <div className="match-celebration-about-chips">
+              {detail.values!.map((value) => (
+                <span key={value} className="match-celebration-about-chip match-celebration-about-chip--value">
+                  {value}
+                </span>
+              ))}
+            </div>
+          </AboutSection>
+        ) : null}
+        {(detail.dealbreakers?.length ?? 0) > 0 ? (
+          <AboutSection icon="🚫" label="Dealbreakers">
+            <ul className="match-celebration-about-dealbreakers">
+              {detail.dealbreakers!.map((desc, i) => (
+                <li key={i}>{desc}</li>
+              ))}
+            </ul>
+          </AboutSection>
+        ) : null}
+      </div>
     </div>
   );
 }
+
 
 /**
  * Match celebration: play bundled `match-sound.wav` (same asset as mobile, copied to `frontend/public`).
@@ -440,7 +470,9 @@ export default function MatchCelebration({
           {showProfilePanel && partnerProfileDetail ? (
             <details className="match-celebration-profile-details" open>
               <summary className="match-celebration-profile-summary">
-                {`View ${profileName}'s interests, dealbreakers & preferences`}
+                <span className="match-celebration-profile-summary-label">
+                  {profileName}&apos;s profile
+                </span>
               </summary>
               <MatchCelebrationPartnerSections detail={partnerProfileDetail} />
             </details>

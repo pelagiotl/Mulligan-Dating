@@ -11715,102 +11715,279 @@ button.chat-avatar-btn .chat-avatar img {
 .match-celebration-profile-summary {
   cursor: pointer;
   list-style: none;
-  text-align: center;
-  padding: var(--space-3) var(--space-4);
-  margin: 0 auto var(--space-2);
-  max-width: 22rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin: 0 auto var(--space-3);
+  padding: var(--space-2) var(--space-5);
+  max-width: 16rem;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(10px);
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.match-celebration-profile-summary:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: translateY(-1px);
+}
+
+.match-celebration-profile-summary-label {
   font-weight: 700;
-  font-size: 0.95rem;
-  line-height: 1.35;
+  font-size: 0.88rem;
+  letter-spacing: 0.02em;
   color: rgba(255, 255, 255, 0.98);
-  text-decoration: underline;
-  text-underline-offset: 4px;
+}
+
+.match-celebration-profile-summary::after {
+  content: "▾";
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.85);
+  transition: transform 0.25s ease;
+}
+
+.match-celebration-profile-details[open] .match-celebration-profile-summary::after {
+  transform: rotate(180deg);
 }
 
 .match-celebration-profile-summary::-webkit-details-marker {
   display: none;
 }
 
-.match-celebration-profile-details .match-celebration-profile-panel {
-  margin-top: 0;
-}
-
-.match-celebration-profile-panel {
-  margin: var(--space-4) auto 0;
-  padding: var(--space-4) var(--space-4);
+/* About {her/him} profile card */
+.match-celebration-about {
+  position: relative;
+  margin: 0 auto;
   max-width: 22rem;
   width: 100%;
   box-sizing: border-box;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: var(--radius-xl);
-  backdrop-filter: blur(8px);
+  padding: var(--space-5) var(--space-4) var(--space-4);
+  border-radius: var(--radius-2xl);
   text-align: left;
+  background: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.16) 0%,
+    rgba(255, 255, 255, 0.06) 55%,
+    rgba(168, 85, 247, 0.12) 100%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
 }
 
-.match-celebration-profile-panel h4 {
+.match-celebration-about-header {
+  position: relative;
+  text-align: center;
+  margin-bottom: var(--space-5);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.match-celebration-about-header-glow {
+  position: absolute;
+  top: -1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 7rem;
+  height: 3rem;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(236, 72, 153, 0.45) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.match-celebration-about-title {
+  margin: 0 0 var(--space-1);
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #fff;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+}
+
+.match-celebration-about-subtitle {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.72);
+  letter-spacing: 0.01em;
+}
+
+.match-celebration-about-sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.match-celebration-about-section {
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-3);
+  border-radius: var(--radius-lg);
+  background: rgba(0, 0, 0, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-left: 3px solid rgba(236, 72, 153, 0.65);
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.match-celebration-about-section:hover {
+  background: rgba(0, 0, 0, 0.2);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.match-celebration-about-section-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   margin: 0 0 var(--space-2);
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: rgba(255, 255, 255, 0.75);
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.78);
 }
 
-.match-celebration-profile-panel .stage2-profile-block {
-  margin-bottom: var(--space-4);
-  /* stage2-profile-block defaults to var(--bg-secondary) (#fff) — invisible with light-on-light text */
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+.match-celebration-about-section-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  font-size: 0.85rem;
+  line-height: 1;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.12);
+  flex-shrink: 0;
 }
 
-.match-celebration-profile-panel .stage2-profile-block:last-child {
-  margin-bottom: 0;
+.match-celebration-about-section-body {
+  padding-left: 0.15rem;
 }
 
-.match-celebration-profile-panel .stage2-profile-block h4 {
-  color: rgba(255, 255, 255, 0.85);
-}
-
-.match-celebration-profile-panel .stage2-profile-text,
-.match-celebration-profile-panel .stage1-bio {
-  color: rgba(255, 255, 255, 0.95);
+.match-celebration-about-text {
   margin: 0;
   font-size: 0.92rem;
-  line-height: 1.5;
-  display: block;
-  -webkit-line-clamp: unset;
-  overflow: visible;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.94);
 }
 
-.match-celebration-profile-panel .stage2-dealbreakers-list,
-.match-celebration-profile-panel .stage2-dealbreakers-list li {
+.match-celebration-about-text--bio {
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.match-celebration-about-highlight {
+  margin: 0;
+  display: inline-block;
+  padding: var(--space-1) var(--space-3);
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #fff;
+  border-radius: var(--radius-full);
+  background: linear-gradient(135deg, rgba(236, 72, 153, 0.45), rgba(168, 85, 247, 0.4));
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.match-celebration-about-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.match-celebration-about-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.2;
+  border-radius: var(--radius-full);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.match-celebration-about-chip--interest {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.55), rgba(168, 85, 247, 0.45));
+}
+
+.match-celebration-about-chip--value {
+  background: linear-gradient(135deg, rgba(236, 72, 153, 0.5), rgba(244, 63, 94, 0.4));
+}
+
+.match-celebration-about-qualities {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.match-celebration-about-quality {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.match-celebration-about-quality-name {
+  font-size: 0.88rem;
+  font-weight: 600;
   color: rgba(255, 255, 255, 0.95);
+  flex: 1;
+  min-width: 0;
 }
 
-.match-celebration-profile-panel .profile-card-interests .interest-tag,
-.match-celebration-profile-panel .profile-card-interests .value-tag {
-  background: rgba(255, 255, 255, 0.18);
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  color: #fff;
+.match-celebration-about-quality-stars {
+  flex-shrink: 0;
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+  color: #fbbf24;
+  text-shadow: 0 0 8px rgba(251, 191, 36, 0.4);
 }
 
-.match-celebration-profile-panel .qualities-list .quality-item {
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: #fff;
+.match-celebration-about-quality-stars-dim {
+  color: rgba(255, 255, 255, 0.25);
+  text-shadow: none;
 }
 
-.match-celebration-profile-panel .qualities-list .quality-name {
-  color: #fff;
+.match-celebration-about-dealbreakers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
-.match-celebration-profile-panel .qualities-list .quality-importance {
-  color: rgba(255, 255, 255, 0.85);
+.match-celebration-about-dealbreakers li {
+  position: relative;
+  padding: var(--space-2) var(--space-3) var(--space-2) 1.75rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.9);
+  border-radius: var(--radius-md);
+  background: rgba(244, 63, 94, 0.12);
+  border: 1px solid rgba(244, 63, 94, 0.22);
 }
 
-.match-celebration-profile-panel .stage2-dealbreakers-list li::marker {
-  color: rgba(255, 255, 255, 0.6);
+.match-celebration-about-dealbreakers li::before {
+  content: "•";
+  position: absolute;
+  left: 0.65rem;
+  top: 0.55rem;
+  color: rgba(251, 113, 133, 0.95);
+  font-weight: 700;
 }
 
 button.match-celebration-photo-btn {
@@ -11941,6 +12118,14 @@ button.match-celebration-photo-btn:disabled:focus-visible {
 
   .match-celebration-subtitle {
     font-size: 1.25rem;
+  }
+
+  .match-celebration-about {
+    padding: var(--space-4) var(--space-3);
+  }
+
+  .match-celebration-about-title {
+    font-size: 1.2rem;
   }
 
   .match-celebration-message {
