@@ -34,9 +34,15 @@ if (usePostgres) {
     throw new Error('DATABASE_URL environment variable is required for PostgreSQL');
   }
   
+  const postgresNeedsSsl =
+    process.env.NODE_ENV === 'production' ||
+    process.env.DATABASE_SSL === 'true' ||
+    process.env.PGSSLMODE === 'require' ||
+    /\.render\.com|sslmode=require/i.test(connectionString);
+
   pgPool = new Pool({
     connectionString,
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+    ssl: postgresNeedsSsl ? { rejectUnauthorized: false } : false,
     // Support 500–1000 concurrent users: pool allows more in-flight DB ops (default is 10). Keep below your DB plan's max_connections.
     max: process.env.NODE_ENV === 'production' ? 30 : 10,
   });
