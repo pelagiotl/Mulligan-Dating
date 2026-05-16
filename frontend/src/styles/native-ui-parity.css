@@ -3546,11 +3546,6 @@ button.connect-landing__cta:disabled::before {
     0 6px 16px rgba(0, 0, 0, 0.2);
 }
 
-.nhie-web-send-chat {
-  width: 100%;
-  margin-bottom: 0.65rem;
-}
-
 /* In-game match chat (Never Have I Ever modal) */
 .nhie-web-game-chat {
   margin: 0.5rem 0 0.75rem;

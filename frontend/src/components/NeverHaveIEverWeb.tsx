@@ -719,18 +719,6 @@ export default function NeverHaveIEverWeb({
     await handleLockedPress();
   };
 
-  const sendPromptToChat = async () => {
-    const text = displayPrompt.trim();
-    if (!text) return;
-    await onSendToChat(`Never Have I Ever: ${text}`);
-    try {
-      await api.post(`/matches/${matchId}/never-have-i-ever/send-to-chat`, {});
-    } catch (err) {
-      console.warn("Never Have I Ever send-to-chat:", err);
-    }
-    closeModal();
-  };
-
   const showGameChatRoot = Boolean(state && currentUserId);
   const showEmbeddedGameChat = showGameChatRoot && (!compactGameLayout || gameChatPanelOpen);
   const showGameChatFab = showGameChatRoot && compactGameLayout && !gameChatPanelOpen;
@@ -847,9 +835,6 @@ export default function NeverHaveIEverWeb({
                     I haven&apos;t
                   </button>
                 </div>
-                <button type="button" className="tod-web-another nhie-web-send-chat" onClick={() => void sendPromptToChat()} disabled={!displayPrompt}>
-                  Send prompt to chat 💬
-                </button>
               </>
             )}
 

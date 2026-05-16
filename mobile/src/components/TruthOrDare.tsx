@@ -162,7 +162,16 @@ interface GameState {
   needsSpiceChoiceFromUnlocker?: boolean;
   currentPrompt?: string | null;
   currentPromptType?: 'truth' | 'dare' | null;
+  currentTurnUserId?: string | null;
+  isYourTurn?: boolean;
+  roundCount?: number;
   unlockedUntil?: string | null;
+}
+
+function spiceLabel(id: SpiceId | null | undefined): string {
+  if (id === 'ratedr') return 'Rated R';
+  if (id === 'spicy') return 'Spicy';
+  return 'PG-13';
 }
 
 interface TruthOrDareProps {
@@ -219,6 +228,8 @@ export default function TruthOrDare({
   );
 
   const isUnlocked = truthOrDareEligible;
+  const isYourTurn = gameState?.isYourTurn !== false;
+  const roundCount = Math.max(1, Number(gameState?.roundCount ?? 1) || 1);
 
   const messageGateCounts = useMemo(
     () => truthOrDareMessageCounts(messages, currentUserId, chatPartnerUserId),
@@ -312,8 +323,12 @@ export default function TruthOrDare({
 
   const fetchState = useCallback(async () => {
     try {
-      const data = await api.get<GameState>(`/matches/${matchId}/truth-or-dare/state`);
+      const data = await api.get<GameState>(`/matches/${matchId}/truth-or-dare/state`, false);
       setGameState((prev) => ({ ...prev, ...data }));
+      if (data.currentPrompt && data.currentPromptType) {
+        setPrompt(data.currentPrompt);
+        setPromptType(data.currentPromptType);
+      }
       const recentlyRequestedAnother = Date.now() - lastAnotherOneAtRef.current < 5000;
       const recentlyChose = Date.now() - lastChooseAtRef.current < 8000;
       const alreadyShowingPrompt = stepRef.current === 'prompt';
@@ -367,15 +382,15 @@ export default function TruthOrDare({
   useEffect(() => {
     if (!modalVisible) return;
     const onUpdate = () => {
-      // Right after "Another one", socket (and any refetch) can return stale data and overwrite the new prompt. Skip refetch for 6s so the prompt from the API response stays.
       if (Date.now() - lastAnotherOneAtRef.current < 6000) return;
-      fetchState();
+      api.clearCache(`/matches/${matchId}/truth-or-dare/state`);
+      void fetchState();
     };
     socket?.on?.('truth_or_dare_updated', onUpdate);
     return () => {
       socket?.off?.('truth_or_dare_updated', onUpdate);
     };
-  }, [modalVisible, socket, fetchState]);
+  }, [modalVisible, socket, fetchState, matchId]);
 
   useEffect(() => {
     return () => {
@@ -431,6 +446,10 @@ export default function TruthOrDare({
       Alert.alert('Pick a heat level', 'Choose PG-13, Rated R, or Spicy first — both players must pick.');
       return;
     }
+    if (gameStateRef.current?.isYourTurn === false) {
+      Alert.alert('Not your turn', "It's your match's turn to pick Truth or Dare.");
+      return;
+    }
     lastChooseAtRef.current = Date.now();
     intendedPromptTypeRef.current = type;
     if (anotherOne) {
@@ -450,13 +469,14 @@ export default function TruthOrDare({
 
     let finalPrompt = '';
     try {
-      const data = await api.post<{ prompt: string; fromAI: boolean; spiceLevel?: string }>(
+      const data = await api.post<GameState & { prompt: string; fromAI?: boolean }>(
         `/matches/${matchId}/truth-or-dare`,
         { type, anotherOne }
       );
       if (data?.prompt) {
         finalPrompt = data.prompt;
         setPrompt(finalPrompt);
+        setGameState((prev) => (prev ? { ...prev, ...data, isYourTurn: data.isYourTurn ?? true } : prev));
         lastAnotherOneAtRef.current = Date.now();
       } else {
         throw new Error('No prompt returned');
@@ -469,6 +489,13 @@ export default function TruthOrDare({
         setTimeout(() => {
           intendedPromptTypeRef.current = null;
         }, 8000);
+        return;
+      }
+      if (err?.code === 'NOT_YOUR_TURN') {
+        setStep('choose');
+        await fetchState();
+        setLoading(false);
+        Alert.alert('Not your turn', err?.message || "It's your match's turn.");
         return;
       }
       const list = fallbackPromptList(type, gameStateRef.current?.spiceLevel ?? null);
@@ -488,7 +515,10 @@ export default function TruthOrDare({
       const prefix = promptType === 'truth' ? 'Truth: ' : 'Dare: ';
       onSendToChat(`${prefix}${prompt}`);
       try {
-        await api.post(`/matches/${matchId}/truth-or-dare/send-to-chat`);
+        const data = await api.post<GameState>(`/matches/${matchId}/truth-or-dare/send-to-chat`, {});
+        setGameState((prev) => (prev ? { ...prev, ...data } : data));
+        setPrompt('');
+        setStep('choose');
       } catch (e) {
         console.warn('Truth or Dare send-to-chat turn switch failed:', e);
       }
@@ -593,12 +623,14 @@ export default function TruthOrDare({
                 ) : step === 'choose' ? (
                   <View style={styles.chooseContainer}>
                     {gameState?.spiceLevel ? (
-                      <Text style={styles.changeSpiceHint}>This round: {String(gameState.spiceLevel).toUpperCase()}</Text>
+                      <Text style={styles.changeSpiceHint}>This round: {spiceLabel(gameState.spiceLevel)}</Text>
                     ) : null}
-                    <Text style={styles.chooseSubtitle}>Pick Truth or Dare</Text>
-                    <View style={styles.chooseRow}>
-                      <TouchableOpacity onPress={() => handleChoose('truth')} style={styles.choiceButton} activeOpacity={0.8}><LinearGradient colors={['#7c4dff', '#b388ff', '#651fff']} style={styles.choiceGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.choiceEmoji}>✨</Text><Text style={styles.choiceText}>Truth</Text></LinearGradient></TouchableOpacity>
-                      <TouchableOpacity onPress={() => handleChoose('dare')} style={styles.choiceButton} activeOpacity={0.8}><LinearGradient colors={['#ff1744', '#ff4081', '#f50057']} style={styles.choiceGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.choiceEmoji}>🔥</Text><Text style={styles.choiceText}>Dare</Text></LinearGradient></TouchableOpacity>
+                    <Text style={styles.chooseSubtitle}>
+                      {isYourTurn ? 'Your turn — pick Truth or Dare' : 'Waiting for your match to pick Truth or Dare'}
+                    </Text>
+                    <View style={[styles.chooseRow, !isYourTurn && styles.chooseRowDisabled]}>
+                      <TouchableOpacity onPress={() => handleChoose('truth')} style={styles.choiceButton} activeOpacity={0.8} disabled={!isYourTurn || loading}><LinearGradient colors={['#7c4dff', '#b388ff', '#651fff']} style={styles.choiceGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.choiceEmoji}>✨</Text><Text style={styles.choiceText}>Truth</Text></LinearGradient></TouchableOpacity>
+                      <TouchableOpacity onPress={() => handleChoose('dare')} style={styles.choiceButton} activeOpacity={0.8} disabled={!isYourTurn || loading}><LinearGradient colors={['#ff1744', '#ff4081', '#f50057']} style={styles.choiceGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.choiceEmoji}>🔥</Text><Text style={styles.choiceText}>Dare</Text></LinearGradient></TouchableOpacity>
                     </View>
                     <TouchableOpacity onPress={() => setStep('spice')} activeOpacity={0.7}>
                       <Text style={styles.changeSpiceHint}>Change my heat level</Text>
@@ -608,12 +640,15 @@ export default function TruthOrDare({
                   <>
                     {loading ? <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#fff" /><Text style={styles.loadingText}>Generating your prompt...</Text></View> : (
                       <>
+                        <Text style={styles.changeSpiceHint}>
+                          Round {roundCount} · {isYourTurn ? 'Your pick' : "Your match's pick"} · {spiceLabel(gameState?.spiceLevel ?? null)}
+                        </Text>
                         <View style={styles.promptCard}><Text style={styles.promptText}>{prompt}</Text></View>
                       </>
                     )}
                     <View style={styles.promptActions}>
                       {onSendToChat && !loading && <TouchableOpacity onPress={handleSendToChat} style={styles.sendButton} activeOpacity={0.8}><LinearGradient colors={['#7c4dff', '#651fff']} style={styles.sendButtonGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.sendButtonText}>Send to Chat 💬</Text></LinearGradient></TouchableOpacity>}
-                      {!loading && <TouchableOpacity onPress={() => handleChoose(promptType, true)} style={styles.anotherButton} activeOpacity={0.8}><Text style={styles.anotherButtonText}>Another one ↻</Text></TouchableOpacity>}
+                      {!loading && <TouchableOpacity onPress={() => handleChoose(promptType, true)} style={styles.anotherButton} activeOpacity={0.8} disabled={!isYourTurn}><Text style={styles.anotherButtonText}>Another one ↻</Text></TouchableOpacity>}
                     </View>
                   </>
                 )}
@@ -784,17 +819,19 @@ export default function TruthOrDare({
               ) : step === 'choose' ? (
                 <View style={styles.chooseContainer}>
                   {gameState?.spiceLevel ? (
-                    <Text style={styles.changeSpiceHint}>This round: {String(gameState.spiceLevel).toUpperCase()}</Text>
+                    <Text style={styles.changeSpiceHint}>This round: {spiceLabel(gameState.spiceLevel)}</Text>
                   ) : null}
-                  <Text style={styles.chooseSubtitle}>Pick Truth or Dare</Text>
-                  <View style={styles.chooseRow}>
-                    <TouchableOpacity onPress={() => handleChoose('truth')} style={styles.choiceButton} activeOpacity={0.8}>
+                  <Text style={styles.chooseSubtitle}>
+                    {isYourTurn ? 'Your turn — pick Truth or Dare' : 'Waiting for your match to pick Truth or Dare'}
+                  </Text>
+                  <View style={[styles.chooseRow, !isYourTurn && styles.chooseRowDisabled]}>
+                    <TouchableOpacity onPress={() => handleChoose('truth')} style={styles.choiceButton} activeOpacity={0.8} disabled={!isYourTurn || loading}>
                       <LinearGradient colors={['#7c4dff', '#b388ff', '#651fff']} style={styles.choiceGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
                         <Text style={styles.choiceEmoji}>✨</Text>
                         <Text style={styles.choiceText}>Truth</Text>
                       </LinearGradient>
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => handleChoose('dare')} style={styles.choiceButton} activeOpacity={0.8}>
+                    <TouchableOpacity onPress={() => handleChoose('dare')} style={styles.choiceButton} activeOpacity={0.8} disabled={!isYourTurn || loading}>
                       <LinearGradient colors={['#ff1744', '#ff4081', '#f50057']} style={styles.choiceGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
                         <Text style={styles.choiceEmoji}>🔥</Text>
                         <Text style={styles.choiceText}>Dare</Text>
@@ -814,6 +851,9 @@ export default function TruthOrDare({
                     </View>
                   ) : (
                     <>
+                      <Text style={styles.changeSpiceHint}>
+                        Round {roundCount} · {isYourTurn ? 'Your pick' : "Your match's pick"} · {spiceLabel(gameState?.spiceLevel ?? null)}
+                      </Text>
                       <View style={styles.promptCard}>
                         <Text style={styles.promptText}>{prompt}</Text>
                       </View>
@@ -841,6 +881,7 @@ export default function TruthOrDare({
                         onPress={() => handleChoose(promptType, true)}
                         style={styles.anotherButton}
                         activeOpacity={0.8}
+                        disabled={!isYourTurn}
                       >
                         <Text style={styles.anotherButtonText}>Another one ↻</Text>
                       </TouchableOpacity>
@@ -1216,6 +1257,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 16,
     marginBottom: 20,
+  },
+  chooseRowDisabled: {
+    opacity: 0.45,
   },
   choiceButton: {
     flex: 1,

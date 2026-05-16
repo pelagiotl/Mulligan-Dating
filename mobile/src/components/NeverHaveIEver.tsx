@@ -73,6 +73,7 @@ interface GameState {
   winner: 'you' | 'them' | null;
   /** From API so we can map socket user1Strikes/user2Strikes to yourPoints/theirPoints */
   isUser1?: boolean;
+  roundId?: string | null;
 }
 
 interface NeverHaveIEverProps {
@@ -135,6 +136,8 @@ export default function NeverHaveIEver({
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const waitingForOtherPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastRoundCompletedAtRef = useRef<number>(0);
+  const promptLockedUntilRef = useRef(0);
+  const lastAnsweredPromptRef = useRef('');
   const lastKnownPointsRef = useRef<{ yourPoints: number; theirPoints: number }>({ yourPoints: 0, theirPoints: 0 });
   /** Persist isUser1 so socket handler can map user1Strikes/user2Strikes to yourPoints/theirPoints even if state was overwritten */
   const isUser1Ref = useRef<boolean | null>(null);
@@ -260,17 +263,6 @@ export default function NeverHaveIEver({
     }
   };
 
-  const sendPromptToChat = async () => {
-    const text = displayPrompt.trim();
-    if (!text || !onSendToChat) return;
-    onSendToChat(`Never Have I Ever: ${text}`);
-    try {
-      await api.post(`/matches/${matchId}/never-have-i-ever/send-to-chat`, {});
-    } catch (err) {
-      console.warn('Never Have I Ever send-to-chat:', err);
-    }
-  };
-
   const showGameChat = Boolean(state && currentUserId && onSendToChat);
   const showEmbeddedGameChat = showGameChat && (!compactGameChat || gameChatPanelOpen);
   const showGameChatFab = showGameChat && compactGameChat && !gameChatPanelOpen;
@@ -361,13 +353,10 @@ export default function NeverHaveIEver({
     return () => pulse.stop();
   }, [isUnlocked, pulseAnim]);
 
-  const fetchState = useCallback(async (skipIfRecentRound = false) => {
-    if (skipIfRecentRound && Date.now() - lastRoundCompletedAtRef.current < 6000) {
-      return;
-    }
+  const fetchState = useCallback(async () => {
     try {
       const { addBreadcrumb, debugLog } = await import('../utils/debugLogger');
-      addBreadcrumb('NHIE', 'Fetching state', { matchId, skipIfRecentRound });
+      addBreadcrumb('NHIE', 'Fetching state', { matchId });
       // Never use cache so points/prompt don't revert after both answer
       const data = await api.get<any>(`/matches/${matchId}/never-have-i-ever`, false);
       const fetchedYou = Math.max(0, Number(data.yourPoints ?? data.yourStrikes ?? 0));
@@ -397,33 +386,63 @@ export default function NeverHaveIEver({
         gameOver: !!data.gameOver,
         winner: data.winner ?? null,
         isUser1: data.isUser1,
+        roundId: data.roundId ?? null,
       };
-      const recentRoundCooldown = Date.now() - lastRoundCompletedAtRef.current < 6000;
       setState(prev => {
         const recentRound = Date.now() - lastRoundCompletedAtRef.current < 6000;
+        const promptLocked = Date.now() < promptLockedUntilRef.current;
         const fetchedZero = simple.yourPoints === 0 && simple.theirPoints === 0;
         const refHasPoints = lastKnownPointsRef.current.yourPoints > 0 || lastKnownPointsRef.current.theirPoints > 0;
         // Don't overwrite yourAnswer with null from a stale GET — until round completes (server clears answers or sends bothAnswered).
-        // Round complete = server has yourAnswer null and a *new* prompt (cleared for next round), or bothAnswered true
-        const serverClearedForNextRound = simple.yourAnswer === null && (simple.prompt?.trim() ?? '') !== '' && (prev?.yourAnswer != null) && simple.prompt !== (prev?.prompt ?? '');
-        const keptYourAnswer = simple.bothAnswered || serverClearedForNextRound
-          ? (simple.yourAnswer ?? null)
-          : (simple.yourAnswer ?? prev?.yourAnswer ?? null);
-        if (simple.bothAnswered || serverClearedForNextRound) lastRoundCompletedAtRef.current = Date.now();
-        // During round-complete cooldown, don't overwrite prompt with stale GET (avoids old prompt flashing back)
-        const keptPrompt = recentRoundCooldown && (prev?.prompt?.trim() ?? '') !== '' ? (prev.prompt ?? simple.prompt) : simple.prompt;
-        const merged = { ...simple, prompt: keptPrompt, yourAnswer: keptYourAnswer, theirPoints: simple.theirPoints, yourPoints: simple.yourPoints };
+        const serverClearedForNextRound =
+          simple.yourAnswer === null &&
+          (simple.prompt?.trim() ?? '') !== '' &&
+          (prev?.yourAnswer != null) &&
+          simple.prompt !== (prev?.prompt ?? '');
+        const keptYourAnswer =
+          simple.bothAnswered || serverClearedForNextRound
+            ? (simple.yourAnswer ?? null)
+            : (simple.yourAnswer ?? prev?.yourAnswer ?? null);
+        if (simple.bothAnswered || serverClearedForNextRound) {
+          lastRoundCompletedAtRef.current = Date.now();
+        }
+        const staleRoundPrompt =
+          recentRound &&
+          lastAnsweredPromptRef.current.trim() !== '' &&
+          simple.prompt.trim() === lastAnsweredPromptRef.current.trim();
+        const keptPrompt =
+          promptLocked && prev?.prompt
+            ? prev.prompt
+            : staleRoundPrompt
+              ? prev?.prompt ?? ''
+              : recentRound && (prev?.prompt?.trim() ?? '') !== '' && !simple.prompt
+                ? prev?.prompt ?? simple.prompt
+                : simple.prompt;
+        const merged = {
+          ...simple,
+          prompt: keptPrompt,
+          yourAnswer: keptYourAnswer,
+          theirPoints: simple.theirPoints,
+          yourPoints: simple.yourPoints,
+          roundId: data.roundId ?? prev?.roundId ?? simple.roundId ?? null,
+        };
         if (recentRound && fetchedZero && refHasPoints) {
           return { ...merged, yourPoints: lastKnownPointsRef.current.yourPoints, theirPoints: lastKnownPointsRef.current.theirPoints };
         }
-        // Never decrease points ref (stale GET can return 0 right after round complete)
         const refYou = Math.max(lastKnownPointsRef.current.yourPoints, simple.yourPoints);
         const refThem = Math.max(lastKnownPointsRef.current.theirPoints, simple.theirPoints);
         lastKnownPointsRef.current = { yourPoints: refYou, theirPoints: refThem };
         return { ...merged, yourPoints: refYou, theirPoints: refThem };
       });
-      // During round-complete cooldown, don't overwrite displayed prompt with stale GET (POST/socket already set the new one)
-      if (!recentRoundCooldown) setPrompt(simple.prompt || '');
+      const recentRound = Date.now() - lastRoundCompletedAtRef.current < 6000;
+      const promptLocked = Date.now() < promptLockedUntilRef.current;
+      const staleRoundPrompt =
+        recentRound &&
+        lastAnsweredPromptRef.current.trim() !== '' &&
+        simple.prompt.trim() === lastAnsweredPromptRef.current.trim();
+      if (!promptLocked && !staleRoundPrompt && (Date.now() - lastRoundCompletedAtRef.current >= 6000 || simple.prompt)) {
+        setPrompt(simple.prompt || '');
+      }
       addBreadcrumb('NHIE', 'Fetch state received', { fetchedYou: simple.yourPoints, fetchedThem: simple.theirPoints });
       debugLog('NHIE', 'Fetch state full', { yourPoints: data.yourPoints, theirPoints: data.theirPoints, bothAnswered: !!data.bothAnswered });
       if (__DEV__) {
@@ -439,12 +458,19 @@ export default function NeverHaveIEver({
     }
   }, [matchId]);
 
+  const scheduleRoundRefetches = useCallback(() => {
+    setTimeout(() => void fetchState(), 400);
+    setTimeout(() => void fetchState(), 1000);
+    setTimeout(() => void fetchState(), 2000);
+    setTimeout(() => void fetchState(), 3500);
+  }, [fetchState]);
+
   useEffect(() => {
     if (openForAccept) {
       setModalVisible(true);
     setLoading(true);
     fetchState().finally(() => setLoading(false));
-    pollRef.current = setInterval(() => fetchState(true), 2000);
+    pollRef.current = setInterval(() => void fetchState(), 2000);
     onOpenedForAccept?.();
     }
   }, [openForAccept]);
@@ -458,7 +484,7 @@ export default function NeverHaveIEver({
     fetchState().finally(() => setLoading(false));
 
     // Poll every 2s while modal is open so we see other player's points and new prompt quickly
-    pollRef.current = setInterval(() => fetchState(true), 2000);
+    pollRef.current = setInterval(() => void fetchState(), 2000);
   };
 
   const handleClose = () => {
@@ -467,6 +493,8 @@ export default function NeverHaveIEver({
     setModalVisible(false);
     setState(null);
     setPrompt('');
+    lastAnsweredPromptRef.current = '';
+    promptLockedUntilRef.current = 0;
     if (pollRef.current) {
       clearInterval(pollRef.current);
       pollRef.current = null;
@@ -523,7 +551,6 @@ export default function NeverHaveIEver({
       api.clearCache(`/matches/${matchId}/never-have-i-ever`);
       if (payload.roundComplete) {
         lastRoundCompletedAtRef.current = Date.now();
-        // So the 2s poll skips for 6s and doesn't overwrite new prompt with a stale GET
       }
       // Apply authoritative strike counts from server so "them" updates without refetch timing
       const u1 = payload.user1Strikes ?? null;
@@ -552,34 +579,33 @@ export default function NeverHaveIEver({
           };
         });
       }
-      // If round just completed, other user sent us the new prompt — show it immediately so next round appears
-      if (payload.newPrompt && payload.roundComplete) {
+      if (payload.roundComplete && payload.newPrompt?.trim()) {
         if (__DEV__) console.log('[NHIE] Applying new prompt from socket (round complete)');
         setPrompt(payload.newPrompt);
+        promptLockedUntilRef.current = Date.now() + 5000;
         setState(prev => prev ? {
           ...prev,
           prompt: payload.newPrompt!,
+          roundId: payload.roundId ?? prev.roundId ?? null,
           yourAnswer: null,
           theirAnswer: null,
           bothAnswered: false,
         } : null);
+        return;
       }
-      // Refetch so we get new prompt if socket lacked it and any other state updates
-      fetchState(false);
-      setTimeout(() => fetchState(false), 400);
-      setTimeout(() => fetchState(false), 1000);
-      setTimeout(() => fetchState(false), 2000);
+      void fetchState();
+      scheduleRoundRefetches();
     };
     socket?.on?.('never_have_i_ever_updated', onUpdate);
     return () => {
       socket?.off?.('never_have_i_ever_updated', onUpdate);
     };
-  }, [modalVisible, socket, fetchState]);
+  }, [modalVisible, socket, fetchState, scheduleRoundRefetches, matchId]);
 
   // When we've selected but the other hasn't, poll every 1.5s so we catch round-complete from GET (fallback if socket misses)
   useEffect(() => {
     if (!modalVisible || state?.bothAnswered || state?.yourAnswer == null) return;
-    const id = setInterval(() => fetchState(false), 1500);
+    const id = setInterval(() => void fetchState(), 1500);
     waitingForOtherPollRef.current = id;
     const stop = setTimeout(() => {
       if (waitingForOtherPollRef.current === id) {
@@ -625,6 +651,7 @@ export default function NeverHaveIEver({
         gameOver: !!data.gameOver,
         winner: data.winner ?? null,
         isUser1: data.isUser1 ?? state?.isUser1,
+        roundId: data.roundId ?? state?.roundId ?? null,
       };
       setState(prev => ({ ...next, isUser1: next.isUser1 ?? prev?.isUser1 }));
       if (next.prompt) setPrompt(next.prompt);
@@ -649,6 +676,7 @@ export default function NeverHaveIEver({
         gameOver: false,
         winner: null,
         prompt: data.prompt || prev.prompt,
+        roundId: data.roundId ?? null,
       } : null);
       setPrompt(data.prompt || '');
       await fetchState();
@@ -663,6 +691,7 @@ export default function NeverHaveIEver({
   const handleSubmitAnswer = async (answer: 'have' | 'havent') => {
     if (submitting || state?.yourAnswer != null) return;
     setSubmitting(true);
+    lastAnsweredPromptRef.current = displayPrompt;
     try {
       const { addBreadcrumb, debugLog } = await import('../utils/debugLogger');
       addBreadcrumb('NHIE', 'Submitting answer', { matchId, answer, prevYour: state?.yourPoints, prevTheir: state?.theirPoints });
@@ -679,7 +708,10 @@ export default function NeverHaveIEver({
         setState(prev => prev ? { ...prev, yourAnswer: 'havent' } : null);
       }
 
-      const data = await api.post<any>(`/matches/${matchId}/never-have-i-ever/answer`, { answer });
+      const data = await api.post<any>(`/matches/${matchId}/never-have-i-ever/answer`, {
+        answer,
+        roundId: state?.roundId ?? null,
+      });
       if (data.isUser1 !== undefined) isUser1Ref.current = !!data.isUser1;
       const fromRound = data.pointsFromRound as { newYourStrikes?: number; newTheirStrikes?: number } | undefined;
       const serverYourPts = Math.max(
@@ -718,6 +750,7 @@ export default function NeverHaveIEver({
           prompt: newPrompt,
           gameOver: !!data.gameOver,
           winner: data.winner ?? null,
+          roundId: data.roundId ?? prev.roundId ?? null,
         };
       });
       if (roundComplete) setPrompt(nextPromptValue || '');
@@ -726,22 +759,11 @@ export default function NeverHaveIEver({
       if (roundComplete) {
         lastRoundCompletedAtRef.current = Date.now();
         api.clearCache(`/matches/${matchId}/never-have-i-ever`);
-        // If we didn't get a new prompt yet, refetch aggressively so GET completes the round and we get the new prompt
-        if (!nextPromptValue || !nextPromptValue.trim()) {
-          setTimeout(() => fetchState(false), 400);
-          setTimeout(() => fetchState(false), 900);
-          setTimeout(() => fetchState(false), 1800);
-          setTimeout(() => fetchState(false), 3500);
+        if (nextPromptValue.trim()) {
+          promptLockedUntilRef.current = Date.now() + 5000;
+        } else {
+          scheduleRoundRefetches();
         }
-        if (pollRef.current) {
-          clearInterval(pollRef.current);
-          pollRef.current = null;
-        }
-        setTimeout(() => {
-          if (modalVisibleRef.current && !pollRef.current) {
-            pollRef.current = setInterval(() => fetchState(true), 2000);
-          }
-        }, 6000);
       }
     } catch (err) {
       console.warn('Never Have I Ever answer error:', err);
@@ -873,14 +895,6 @@ export default function NeverHaveIEver({
                             <LinearGradient colors={['#27ae60', '#2ecc71']} style={styles.answerGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.answerButtonText}>I haven't</Text></LinearGradient>
                           </TouchableOpacity>
                         </View>
-                        <TouchableOpacity
-                          onPress={() => void sendPromptToChat()}
-                          disabled={!displayPrompt}
-                          style={[styles.nhieSendPromptBtn, !displayPrompt && styles.nhieSendPromptBtnDisabled]}
-                          activeOpacity={0.85}
-                        >
-                          <Text style={styles.nhieSendPromptBtnText}>Send prompt to chat 💬</Text>
-                        </TouchableOpacity>
                       </>
                     )}
                   </>
@@ -1729,26 +1743,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: 'rgba(255,255,255,0.95)',
     fontWeight: '700',
-  },
-  nhieSendPromptBtn: {
-    alignSelf: 'stretch',
-    marginTop: 10,
-    marginBottom: 4,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.22)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
-    alignItems: 'center',
-  },
-  nhieSendPromptBtnDisabled: {
-    opacity: 0.45,
-  },
-  nhieSendPromptBtnText: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#fff',
   },
   gameChat: {
     alignSelf: 'stretch',
