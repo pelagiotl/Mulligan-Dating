@@ -1861,18 +1861,20 @@ button.connect-landing__cta:disabled::before {
 }
 
 .matches-page.native-app-screen .matches-sidebar {
-  background: rgba(255, 255, 255, 0.96);
-  border: 1.5px solid rgba(102, 126, 234, 0.12);
-  box-shadow:
+  background: var(--matches-sidebar-bg, rgba(255, 255, 255, 0.96));
+  border: 1.5px solid var(--matches-sidebar-border, rgba(102, 126, 234, 0.12));
+  box-shadow: var(
+    --matches-sidebar-shadow,
     0 8px 32px rgba(102, 126, 234, 0.12),
-    0 0 0 1px rgba(255, 255, 255, 0.55) inset;
+    0 0 0 1px rgba(255, 255, 255, 0.55) inset
+  );
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
 }
 
 @media (min-width: 901px) {
   .matches-page.native-app-screen .matches-sidebar {
-    border-right: 1px solid rgba(102, 126, 234, 0.1);
+    border-right: 1px solid var(--matches-sidebar-border-right, rgba(102, 126, 234, 0.1));
   }
 }
 
@@ -1896,9 +1898,9 @@ button.connect-landing__cta:disabled::before {
 }
 
 .matches-page.native-app-screen .match-item {
-  background: #fff;
-  border: 1.5px solid rgba(102, 126, 234, 0.12);
-  box-shadow: 0 4px 14px rgba(102, 126, 234, 0.1);
+  background: var(--match-item-bg, #fff);
+  border: 1.5px solid var(--match-item-border, rgba(102, 126, 234, 0.12));
+  box-shadow: var(--match-item-shadow, 0 4px 14px rgba(102, 126, 234, 0.1));
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
@@ -1913,9 +1915,9 @@ button.connect-landing__cta:disabled::before {
 }
 
 .matches-page.native-app-screen .match-item:hover {
-  background: #fff;
-  border-color: rgba(102, 126, 234, 0.28);
-  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.16);
+  background: var(--match-item-bg, #fff);
+  border-color: var(--match-item-border-hover, rgba(102, 126, 234, 0.28));
+  box-shadow: var(--match-item-shadow-hover, 0 8px 24px rgba(102, 126, 234, 0.16));
 }
 
 .matches-page.native-app-screen .match-item:hover::before {
@@ -1923,11 +1925,11 @@ button.connect-landing__cta:disabled::before {
 }
 
 .matches-page.native-app-screen .match-item.active {
-  border-left: 4px solid #667eea;
-  background: rgba(102, 126, 234, 0.09);
-  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.18);
+  border-left: 4px solid var(--match-item-active-accent, #667eea);
+  background: var(--match-item-active-bg, rgba(102, 126, 234, 0.09));
+  box-shadow: var(--match-item-active-shadow, 0 8px 24px rgba(102, 126, 234, 0.18));
   animation: none;
-  border-color: rgba(102, 126, 234, 0.22);
+  border-color: var(--match-item-active-border, rgba(102, 126, 234, 0.22));
 }
 
 .matches-page.native-app-screen .match-item.active::before {
@@ -1936,23 +1938,40 @@ button.connect-landing__cta:disabled::before {
 
 .matches-page.native-app-screen .match-avatar {
   border-color: #fff;
-  box-shadow: 0 3px 10px rgba(102, 126, 234, 0.22);
+  box-shadow: var(--match-avatar-shadow, 0 3px 10px rgba(102, 126, 234, 0.22));
   background: var(--native-gradient-header-3);
 }
 
 .matches-page.native-app-screen .match-item:hover .match-avatar,
 .matches-page.native-app-screen .match-item.active .match-avatar {
   border-color: rgba(255, 255, 255, 0.95);
-  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.32);
+  box-shadow: var(--match-avatar-shadow-hover, 0 4px 16px rgba(102, 126, 234, 0.32));
   animation: none;
 }
 
+.matches-page.native-app-screen .match-item-name {
+  color: var(--match-item-name-color, var(--color-wine-900));
+}
+
+.matches-page.native-app-screen .match-item--unread .match-item-name {
+  color: var(--match-item-unread-name-color, #7f1d1d);
+  font-weight: 850;
+}
+
+.matches-page.native-app-screen .matches-sidebar .no-matches {
+  color: var(--matches-empty-text, var(--text-muted));
+}
+
+.matches-page.native-app-screen .matches-sidebar .no-matches .hint {
+  color: var(--matches-empty-hint, var(--text-secondary));
+}
+
 .matches-page.native-app-screen .matches-sidebar::-webkit-scrollbar-thumb {
-  background: rgba(102, 126, 234, 0.35);
+  background: var(--matches-scrollbar-thumb, rgba(102, 126, 234, 0.35));
 }
 
 .matches-page.native-app-screen .matches-sidebar::-webkit-scrollbar-thumb:hover {
-  background: rgba(102, 126, 234, 0.5);
+  background: var(--matches-scrollbar-thumb-hover, rgba(102, 126, 234, 0.5));
 }
 
 .matches-page.native-app-screen .matches-main {
@@ -2142,14 +2161,14 @@ button.connect-landing__cta:disabled::before {
   color: #fff !important;
   background: var(--native-gradient-header-3);
   border: 2px solid rgba(255, 255, 255, 0.35);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.35);
+  box-shadow: var(--matches-empty-cta-shadow, 0 6px 20px rgba(102, 126, 234, 0.35));
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .matches-page.native-app-screen .matches-empty-cta:hover {
   color: #fff !important;
   transform: translateY(-1px);
-  box-shadow: 0 8px 26px rgba(102, 126, 234, 0.42);
+  box-shadow: var(--matches-empty-cta-shadow-hover, 0 8px 26px rgba(102, 126, 234, 0.42));
 }
 
 /* Loading state — gradient like mobile MatchesScreen */
