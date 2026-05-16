@@ -19,6 +19,7 @@ import { useNavigation } from '@react-navigation/native';
 import Purchases from 'react-native-purchases';
 import type { PurchasesPackage } from 'react-native-purchases';
 import { api } from '../utils/api';
+import { connectShellDisplayLabel } from '../lib/connectShellTheme';
 import { useAuth } from '../context/AuthContext';
 import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
 import {
@@ -734,8 +735,8 @@ export default function SettingsScreen() {
           >
             <Text style={styles.tokensCardTitle}>Hero card & chrome</Text>
             <Text style={[styles.tokensCardDescription, { marginBottom: 14 }]}>
-              Toggle between the midnight graphite Connect card and the soft white pill look. Tokens on Connect landing,
-              tab bar, and backdrop follow this choice. Saved on this device only.
+              Cycle through Midnight, Sunny, and Soft Connect chrome. Tokens on Connect landing, tab bar, and backdrop follow
+              this choice. Saved on this device only.
             </Text>
             <TouchableOpacity
               activeOpacity={0.85}
@@ -744,16 +745,22 @@ export default function SettingsScreen() {
                 styles.settingsShellToggleBase,
                 connectShellMode === 'midnight'
                   ? styles.settingsShellToggleMidnight
-                  : styles.settingsShellToggleSoft,
+                  : connectShellMode === 'sunny'
+                    ? styles.settingsShellToggleSunny
+                    : styles.settingsShellToggleSoft,
               ]}
             >
               <Text
                 style={[
                   styles.settingsShellToggleLabel,
-                  connectShellMode === 'midnight' && styles.settingsShellToggleLabelMidnight,
+                  connectShellMode === 'midnight'
+                    ? styles.settingsShellToggleLabelMidnight
+                    : connectShellMode === 'sunny'
+                      ? styles.settingsShellToggleLabelSunny
+                      : styles.settingsShellToggleLabelSoft,
                 ]}
               >
-                {connectShellMode === 'midnight' ? 'Midnight' : 'Soft'}
+                {connectShellDisplayLabel(connectShellMode)}
               </Text>
             </TouchableOpacity>
           </LinearGradient>
@@ -1337,9 +1344,13 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(244, 114, 182, 0.55)',
     backgroundColor: 'rgba(18, 16, 28, 0.85)',
   },
+  settingsShellToggleSunny: {
+    borderColor: 'rgba(251, 191, 36, 0.65)',
+    backgroundColor: 'rgba(255, 251, 235, 0.98)',
+  },
   settingsShellToggleSoft: {
-    borderColor: 'rgba(255, 255, 255, 0.85)',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderColor: 'rgba(167, 139, 250, 0.55)',
+    backgroundColor: 'rgba(255, 255, 255, 0.96)',
   },
   settingsShellToggleLabel: {
     fontSize: 15,
@@ -1349,6 +1360,12 @@ const styles = StyleSheet.create({
   },
   settingsShellToggleLabelMidnight: {
     color: '#fda4af',
+  },
+  settingsShellToggleLabelSunny: {
+    color: '#9a3412',
+  },
+  settingsShellToggleLabelSoft: {
+    color: '#5b21b6',
   },
   editButton: {
     paddingHorizontal: 18,

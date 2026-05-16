@@ -1,6 +1,6 @@
 /**
- * Connect shell appearance: `data-connect-shell` on <html> plus `.app-layout.connect-shell--midnight|soft`
- * (React-driven, mirrors localStorage). Authenticated chrome inherits shell CSS variables from `.app-layout`;
+ * Connect shell: `data-connect-shell` on <html> plus `.app-layout.connect-shell--midnight|sunny|soft`
+ * (React + localStorage). Authenticated chrome inherits CSS variables from `.app-layout`;
  * portaled widgets (e.g. launch countdown) still rely on <html>.
  */
 
@@ -20,19 +20,35 @@ html[data-connect-shell="midnight"],
   );
 }
 
+html[data-connect-shell="sunny"],
+.app-layout.connect-shell--sunny {
+  --native-tab-bar-bg: #fffbeb;
+  --native-screen-bg: #fff7ed;
+  --native-primary: #c2410c;
+  --native-tab-inactive: #78716c;
+  --native-gradient-screen: linear-gradient(
+    135deg,
+    #38bdf8 0%,
+    #fcd34d 28%,
+    #fb923c 52%,
+    #fda4af 78%,
+    #fef9c3 100%
+  );
+}
+
 html[data-connect-shell="soft"],
 .app-layout.connect-shell--soft {
   --native-tab-bar-bg: #fafafa;
-  --native-screen-bg: #f8f9ff;
-  --native-primary: #8b1538;
+  --native-screen-bg: #f4f6ff;
+  --native-primary: #6d28d9;
   --native-tab-inactive: #94a3b8;
   --native-gradient-screen: linear-gradient(
     135deg,
     #667eea 0%,
-    #764ba2 25%,
-    #f093fb 50%,
-    #f5576c 75%,
-    #4facfe 100%
+    #764ba2 22%,
+    #a855f7 48%,
+    #ec4899 72%,
+    #38bdf8 100%
   );
 }
 
@@ -47,14 +63,24 @@ html[data-connect-shell="soft"],
     background: #0e0c14;
   }
 
+  html[data-connect-shell="sunny"] body:has(.app-layout--native-mobile-shell .main-content[data-native-shell-bg="browse"]),
+  body:has(.app-layout--native-mobile-shell.connect-shell--sunny .main-content[data-native-shell-bg="browse"]) {
+    background: #fff7ed;
+  }
+
+  html[data-connect-shell="sunny"] .app-layout--native-mobile-shell .main-content[data-native-shell-bg="browse"],
+  .app-layout--native-mobile-shell.connect-shell--sunny .main-content[data-native-shell-bg="browse"] {
+    background: #fff7ed;
+  }
+
   html[data-connect-shell="soft"] body:has(.app-layout--native-mobile-shell .main-content[data-native-shell-bg="browse"]),
   body:has(.app-layout--native-mobile-shell.connect-shell--soft .main-content[data-native-shell-bg="browse"]) {
-    background: #f5f5f5;
+    background: #eef2ff;
   }
 
   html[data-connect-shell="soft"] .app-layout--native-mobile-shell .main-content[data-native-shell-bg="browse"],
   .app-layout--native-mobile-shell.connect-shell--soft .main-content[data-native-shell-bg="browse"] {
-    background: #f5f5f5;
+    background: #eef2ff;
   }
 }
 
@@ -89,22 +115,270 @@ html[data-connect-shell="midnight"] .navbar-token-badge,
   border-color: rgba(244, 114, 182, 0.35);
   background: linear-gradient(135deg, rgba(244, 63, 94, 0.12) 0%, rgba(99, 102, 241, 0.1) 100%);
   color: #fda4af;
+  box-shadow: 0 2px 10px rgba(244, 114, 182, 0.18);
 }
 
-/* ─── Soft: Connect hero card (light pill) ─── */
+html[data-connect-shell="soft"] .navbar-token-badge,
+.app-layout.connect-shell--soft .navbar-token-badge {
+  border-color: rgba(129, 140, 248, 0.45);
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(236, 72, 153, 0.08) 100%);
+  color: #5b21b6;
+  box-shadow: 0 2px 10px rgba(129, 140, 248, 0.14);
+}
+
+html[data-connect-shell="sunny"] .navbar-token-badge,
+.app-layout.connect-shell--sunny .navbar-token-badge {
+  border-color: rgba(251, 146, 60, 0.4);
+  background: linear-gradient(135deg, rgba(251, 146, 60, 0.18) 0%, rgba(251, 191, 36, 0.1) 100%);
+  color: #c2410c;
+  box-shadow: 0 2px 10px rgba(251, 146, 60, 0.18);
+}
+
+html[data-connect-shell="midnight"] .navbar-token-badge:hover,
+.app-layout.connect-shell--midnight .navbar-token-badge:hover {
+  background: linear-gradient(135deg, rgba(244, 63, 94, 0.2) 0%, rgba(99, 102, 241, 0.14) 100%) !important;
+  border-color: rgba(244, 114, 182, 0.48) !important;
+  box-shadow: 0 4px 14px rgba(244, 114, 182, 0.32);
+}
+
+html[data-connect-shell="soft"] .navbar-token-badge:hover,
+.app-layout.connect-shell--soft .navbar-token-badge:hover {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.16) 0%, rgba(236, 72, 153, 0.1) 100%) !important;
+  border-color: rgba(129, 140, 248, 0.55) !important;
+  box-shadow: 0 4px 14px rgba(129, 140, 248, 0.26);
+}
+
+html[data-connect-shell="sunny"] .navbar-token-badge:hover,
+.app-layout.connect-shell--sunny .navbar-token-badge:hover {
+  background: linear-gradient(135deg, rgba(251, 146, 60, 0.24) 0%, rgba(251, 191, 36, 0.14) 100%) !important;
+  border-color: rgba(251, 146, 60, 0.5) !important;
+  box-shadow: 0 4px 14px rgba(251, 146, 60, 0.3);
+}
+
+@keyframes navbarTokenQuantityPulseMidnight {
+  0%,
+  100% {
+    box-shadow: 0 2px 10px rgba(244, 114, 182, 0.22);
+    filter: brightness(1);
+  }
+  50% {
+    box-shadow: 0 5px 22px rgba(244, 114, 182, 0.38);
+    filter: brightness(1.05);
+  }
+}
+
+@keyframes navbarTokenQuantityPulseSoft {
+  0%,
+  100% {
+    box-shadow: 0 2px 10px rgba(129, 140, 248, 0.18);
+    filter: brightness(1);
+  }
+  50% {
+    box-shadow: 0 5px 22px rgba(167, 139, 250, 0.34);
+    filter: brightness(1.04);
+  }
+}
+
+@keyframes navbarTokenQuantityPulseSunny {
+  0%,
+  100% {
+    box-shadow: 0 2px 10px rgba(251, 146, 60, 0.2);
+    filter: brightness(1);
+  }
+  50% {
+    box-shadow: 0 5px 22px rgba(251, 146, 60, 0.36);
+    filter: brightness(1.04);
+  }
+}
+
+html[data-connect-shell="midnight"] .navbar-token-badge--pulse,
+.app-layout.connect-shell--midnight .navbar-token-badge--pulse {
+  animation: navbarTokenQuantityPulseMidnight 3s ease-in-out infinite;
+}
+
+html[data-connect-shell="soft"] .navbar-token-badge--pulse,
+.app-layout.connect-shell--soft .navbar-token-badge--pulse {
+  animation: navbarTokenQuantityPulseSoft 3s ease-in-out infinite;
+}
+
+html[data-connect-shell="sunny"] .navbar-token-badge--pulse,
+.app-layout.connect-shell--sunny .navbar-token-badge--pulse {
+  animation: navbarTokenQuantityPulseSunny 3s ease-in-out infinite;
+}
+
+/* Soft: Connect landing token card — airy purple shadow */
+html[data-connect-shell="soft"] .browse-connect-landing-token .token-display.token-display-card,
+.app-layout.connect-shell--soft .browse-connect-landing-token .token-display.token-display-card {
+  border: 2px solid rgba(255, 255, 255, 0.94);
+  box-shadow:
+    0 10px 28px rgba(102, 126, 234, 0.2),
+    0 0 0 1px rgba(129, 140, 248, 0.12);
+}
+
+/* ─── Sunny: Connect hero card (warm sunrise pill) ─── */
+html[data-connect-shell="sunny"] .connect-landing__card,
+.app-layout.connect-shell--sunny .connect-landing__card {
+  background: rgba(255, 251, 235, 0.96);
+  border-radius: 36px;
+  border: 3px solid rgba(251, 191, 36, 0.45);
+  box-shadow:
+    0 18px 44px rgba(251, 146, 60, 0.22),
+    0 0 0 1px rgba(56, 189, 248, 0.12);
+}
+
+html[data-connect-shell="sunny"] .connect-landing__card::before,
+.app-layout.connect-shell--sunny .connect-landing__card::before {
+  background: radial-gradient(120% 80% at 50% -20%, rgba(251, 191, 36, 0.35), transparent 58%);
+}
+
+html[data-connect-shell="sunny"] .connect-landing__card .browse-native-error,
+.app-layout.connect-shell--sunny .connect-landing__card .browse-native-error {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #b91c1c;
+}
+
+html[data-connect-shell="sunny"] .connect-landing__brand,
+.app-layout.connect-shell--sunny .connect-landing__brand {
+  color: #431407;
+  text-transform: none;
+  letter-spacing: 0.03em;
+  text-shadow: 0 1px 3px rgba(251, 146, 60, 0.25);
+}
+
+html[data-connect-shell="sunny"] .connect-landing__logo-icon,
+.app-layout.connect-shell--sunny .connect-landing__logo-icon {
+  color: #ea580c;
+  filter: drop-shadow(0 4px 14px rgba(251, 146, 60, 0.45));
+  animation: logoPulse 3s ease-in-out infinite;
+}
+
+html[data-connect-shell="sunny"] .connect-landing__title,
+.app-layout.connect-shell--sunny .connect-landing__title {
+  color: #7c2d12;
+  letter-spacing: 0.06em;
+  text-transform: none;
+  text-shadow: 0 2px 18px rgba(251, 146, 60, 0.35);
+}
+
+html[data-connect-shell="sunny"] .connect-landing__subtitle,
+.app-layout.connect-shell--sunny .connect-landing__subtitle {
+  color: #57534e;
+  font-weight: 500;
+}
+
+html[data-connect-shell="sunny"] .connect-landing__feature,
+.app-layout.connect-shell--sunny .connect-landing__feature {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+html[data-connect-shell="sunny"] .connect-landing__feature-emoji,
+.app-layout.connect-shell--sunny .connect-landing__feature-emoji {
+  filter: none;
+}
+
+html[data-connect-shell="sunny"] .connect-landing__feature-text,
+.app-layout.connect-shell--sunny .connect-landing__feature-text {
+  color: #44403c;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+html[data-connect-shell="sunny"] .connect-landing__hint,
+.app-layout.connect-shell--sunny .connect-landing__hint {
+  color: #78716c;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-shadow: none;
+}
+
+html[data-connect-shell="sunny"] .connect-landing__subcta,
+.app-layout.connect-shell--sunny .connect-landing__subcta {
+  color: #ea580c;
+}
+
+html[data-connect-shell="sunny"] .connect-landing__subcta:hover,
+.app-layout.connect-shell--sunny .connect-landing__subcta:hover {
+  color: #c2410c;
+}
+
+html[data-connect-shell="sunny"] .connect-landing__legal,
+.app-layout.connect-shell--sunny .connect-landing__legal {
+  color: #777;
+}
+
+html[data-connect-shell="sunny"] .connect-landing__legal a,
+.app-layout.connect-shell--sunny .connect-landing__legal a {
+  color: #ea580c;
+}
+
+html[data-connect-shell="sunny"] .connect-landing__legal a:hover,
+.app-layout.connect-shell--sunny .connect-landing__legal a:hover {
+  color: #c2410c;
+}
+
+html[data-connect-shell="sunny"] .landing-token-chill-guest,
+.app-layout.connect-shell--sunny .landing-token-chill-guest {
+  color: #888;
+}
+
+html[data-connect-shell="sunny"] .landing-token-chill-guest__link,
+.app-layout.connect-shell--sunny .landing-token-chill-guest__link {
+  color: #ea580c;
+}
+
+html[data-connect-shell="sunny"] .landing-token-chill__toggle:hover,
+.app-layout.connect-shell--sunny .landing-token-chill__toggle:hover {
+  background: rgba(251, 191, 36, 0.12);
+}
+
+html[data-connect-shell="sunny"] .landing-token-chill__muted,
+.app-layout.connect-shell--sunny .landing-token-chill__muted {
+  color: #888;
+}
+
+html[data-connect-shell="sunny"] .landing-token-chill__accent,
+.app-layout.connect-shell--sunny .landing-token-chill__accent {
+  color: #ea580c;
+}
+
+html[data-connect-shell="sunny"] .landing-token-chill__chevron,
+.app-layout.connect-shell--sunny .landing-token-chill__chevron {
+  color: #aaa;
+}
+
+html[data-connect-shell="sunny"] .landing-token-chill__toggle-label,
+.app-layout.connect-shell--sunny .landing-token-chill__toggle-label {
+  color: #555;
+}
+
+html[data-connect-shell="sunny"] .landing-token-chill__fallback,
+.app-layout.connect-shell--sunny .landing-token-chill__fallback {
+  color: #999;
+}
+
+html[data-connect-shell="sunny"] .landing-token-chill__fallback a,
+.app-layout.connect-shell--sunny .landing-token-chill__fallback a {
+  color: #ea580c;
+}
+
+/* ─── Soft: Connect hero card (lavender / purple pill) ─── */
 html[data-connect-shell="soft"] .connect-landing__card,
 .app-layout.connect-shell--soft .connect-landing__card {
   background: rgba(255, 255, 255, 0.95);
   border-radius: 36px;
-  border: 3px solid rgba(255, 255, 255, 0.9);
+  border: 3px solid rgba(255, 255, 255, 0.92);
   box-shadow:
-    0 16px 40px rgba(102, 126, 234, 0.28),
-    0 0 0 1px rgba(102, 126, 234, 0.06);
+    0 16px 40px rgba(102, 126, 234, 0.26),
+    0 0 0 1px rgba(129, 140, 248, 0.1);
 }
 
 html[data-connect-shell="soft"] .connect-landing__card::before,
 .app-layout.connect-shell--soft .connect-landing__card::before {
-  background: radial-gradient(120% 80% at 50% -20%, rgba(102, 126, 234, 0.12), transparent 55%);
+  background: radial-gradient(120% 80% at 50% -20%, rgba(129, 140, 248, 0.18), transparent 56%);
 }
 
 html[data-connect-shell="soft"] .connect-landing__card .browse-native-error,
@@ -114,27 +388,27 @@ html[data-connect-shell="soft"] .connect-landing__card .browse-native-error,
   color: #b91c1c;
 }
 
-html[data-connect-shell="soft"] .connect-landing__logo-icon,
-.app-layout.connect-shell--soft .connect-landing__logo-icon {
-  color: #5b6bc6;
-  filter: drop-shadow(0 4px 14px rgba(102, 126, 234, 0.35));
-  animation: logoPulse 3s ease-in-out infinite;
-}
-
 html[data-connect-shell="soft"] .connect-landing__brand,
 .app-layout.connect-shell--soft .connect-landing__brand {
   color: #0f0f0f;
   text-transform: none;
   letter-spacing: 0.03em;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+  text-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+}
+
+html[data-connect-shell="soft"] .connect-landing__logo-icon,
+.app-layout.connect-shell--soft .connect-landing__logo-icon {
+  color: #5b6bc6;
+  filter: drop-shadow(0 4px 14px rgba(102, 126, 234, 0.38));
+  animation: logoPulse 3s ease-in-out infinite;
 }
 
 html[data-connect-shell="soft"] .connect-landing__title,
 .app-layout.connect-shell--soft .connect-landing__title {
-  color: #0f0f0f;
+  color: #0f172a;
   letter-spacing: 0.06em;
   text-transform: none;
-  text-shadow: 0 2px 20px rgba(102, 126, 234, 0.35);
+  text-shadow: 0 2px 20px rgba(102, 126, 234, 0.32);
 }
 
 html[data-connect-shell="soft"] .connect-landing__subtitle,
@@ -145,14 +419,9 @@ html[data-connect-shell="soft"] .connect-landing__subtitle,
 
 html[data-connect-shell="soft"] .connect-landing__feature,
 .app-layout.connect-shell--soft .connect-landing__feature {
-  background: rgba(248, 250, 252, 0.85);
+  background: rgba(248, 250, 252, 0.88);
   border: 1px solid rgba(226, 232, 240, 0.95);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
-}
-
-html[data-connect-shell="soft"] .connect-landing__feature-emoji,
-.app-layout.connect-shell--soft .connect-landing__feature-emoji {
-  filter: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
 }
 
 html[data-connect-shell="soft"] .connect-landing__feature-text,
@@ -181,11 +450,6 @@ html[data-connect-shell="soft"] .connect-landing__subcta:hover,
   color: #4f46e5;
 }
 
-html[data-connect-shell="soft"] .connect-landing__legal,
-.app-layout.connect-shell--soft .connect-landing__legal {
-  color: #777;
-}
-
 html[data-connect-shell="soft"] .connect-landing__legal a,
 .app-layout.connect-shell--soft .connect-landing__legal a {
   color: #667eea;
@@ -196,11 +460,6 @@ html[data-connect-shell="soft"] .connect-landing__legal a:hover,
   color: #4f46e5;
 }
 
-html[data-connect-shell="soft"] .landing-token-chill-guest,
-.app-layout.connect-shell--soft .landing-token-chill-guest {
-  color: #888;
-}
-
 html[data-connect-shell="soft"] .landing-token-chill-guest__link,
 .app-layout.connect-shell--soft .landing-token-chill-guest__link {
   color: #667eea;
@@ -208,12 +467,7 @@ html[data-connect-shell="soft"] .landing-token-chill-guest__link,
 
 html[data-connect-shell="soft"] .landing-token-chill__toggle:hover,
 .app-layout.connect-shell--soft .landing-token-chill__toggle:hover {
-  background: rgba(102, 126, 234, 0.06);
-}
-
-html[data-connect-shell="soft"] .landing-token-chill__muted,
-.app-layout.connect-shell--soft .landing-token-chill__muted {
-  color: #888;
+  background: rgba(99, 102, 241, 0.08);
 }
 
 html[data-connect-shell="soft"] .landing-token-chill__accent,
@@ -221,28 +475,31 @@ html[data-connect-shell="soft"] .landing-token-chill__accent,
   color: #667eea;
 }
 
-html[data-connect-shell="soft"] .landing-token-chill__chevron,
-.app-layout.connect-shell--soft .landing-token-chill__chevron {
-  color: #aaa;
-}
-
-html[data-connect-shell="soft"] .landing-token-chill__toggle-label,
-.app-layout.connect-shell--soft .landing-token-chill__toggle-label {
-  color: #555;
-}
-
-html[data-connect-shell="soft"] .landing-token-chill__fallback,
-.app-layout.connect-shell--soft .landing-token-chill__fallback {
-  color: #999;
-}
-
 html[data-connect-shell="soft"] .landing-token-chill__fallback a,
 .app-layout.connect-shell--soft .landing-token-chill__fallback a {
   color: #667eea;
 }
 
-/* ─── Soft: launch countdown (pastel / airy) ─── */
+/* ─── Sunny: launch countdown (warm halo) ─── */
 @keyframes launchBubbleHaloSoft {
+  0%,
+  100% {
+    box-shadow:
+      0 2px 8px rgba(15, 23, 42, 0.05),
+      0 14px 38px rgba(129, 140, 248, 0.14),
+      0 0 0 1px rgba(255, 255, 255, 0.48) inset,
+      0 0 44px rgba(167, 139, 250, 0.22);
+  }
+  50% {
+    box-shadow:
+      0 2px 10px rgba(15, 23, 42, 0.06),
+      0 18px 46px rgba(147, 51, 234, 0.2),
+      0 0 0 1px rgba(255, 255, 255, 0.56) inset,
+      0 0 56px rgba(192, 132, 252, 0.26);
+  }
+}
+
+@keyframes launchBubbleHaloSunny {
   0%,
   100% {
     box-shadow:
@@ -260,7 +517,7 @@ html[data-connect-shell="soft"] .landing-token-chill__fallback a,
   }
 }
 
-html[data-connect-shell="soft"] .launch-countdown-bubble {
+html[data-connect-shell="sunny"] .launch-countdown-bubble {
   background: linear-gradient(
     125deg,
     rgba(199, 210, 254, 0.88) 0%,
@@ -277,10 +534,10 @@ html[data-connect-shell="soft"] .launch-countdown-bubble {
   animation:
     launchBubbleFloat 7.5s ease-in-out infinite,
     launchBubbleAurora 16s ease-in-out infinite,
-    launchBubbleHaloSoft 6s ease-in-out infinite;
+    launchBubbleHaloSunny 6s ease-in-out infinite;
 }
 
-html[data-connect-shell="soft"] .launch-countdown-bubble__pin {
+html[data-connect-shell="sunny"] .launch-countdown-bubble__pin {
   background: radial-gradient(circle at 32% 28%, #fef3c7 0%, #f9a8d4 38%, #c084fc 88%);
   box-shadow:
     0 0 0 2px rgba(255, 255, 255, 0.85),
@@ -288,7 +545,7 @@ html[data-connect-shell="soft"] .launch-countdown-bubble__pin {
     0 0 20px rgba(167, 139, 250, 0.25);
 }
 
-html[data-connect-shell="soft"] .launch-countdown-bubble .launch-countdown {
+html[data-connect-shell="sunny"] .launch-countdown-bubble .launch-countdown {
   background: linear-gradient(
     168deg,
     rgba(255, 255, 255, 0.94) 0%,
@@ -300,7 +557,7 @@ html[data-connect-shell="soft"] .launch-countdown-bubble .launch-countdown {
     inset 0 -1px 0 rgba(148, 163, 184, 0.06);
 }
 
-html[data-connect-shell="soft"] .launch-countdown__hourglass {
+html[data-connect-shell="sunny"] .launch-countdown__hourglass {
   background:
     radial-gradient(circle at 50% 18%, rgba(251, 191, 36, 0.28), transparent 42%),
     linear-gradient(145deg, rgba(199, 210, 254, 0.72), rgba(251, 207, 232, 0.66));
@@ -311,12 +568,122 @@ html[data-connect-shell="soft"] .launch-countdown__hourglass {
     0 0 24px rgba(244, 114, 182, 0.14);
 }
 
-html[data-connect-shell="soft"] .launch-countdown__hourglass-glow {
+html[data-connect-shell="sunny"] .launch-countdown__hourglass-glow {
   background: radial-gradient(circle, rgba(251, 191, 36, 0.22), transparent 62%);
 }
 
-html[data-connect-shell="soft"] .launch-countdown__hourglass-emoji {
+html[data-connect-shell="sunny"] .launch-countdown__hourglass-emoji {
   filter: drop-shadow(0 2px 7px rgba(245, 158, 11, 0.22));
+}
+
+html[data-connect-shell="sunny"] .launch-countdown-bubble .launch-countdown::after {
+  background: linear-gradient(
+    102deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.55) 45%,
+    rgba(255, 255, 255, 0.08) 52%,
+    transparent 58%
+  );
+}
+
+html[data-connect-shell="sunny"] .launch-countdown__heading {
+  color: #6366f1;
+  background: linear-gradient(105deg, #6366f1 0%, #c026d3 48%, #0891b2 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+@supports not (background-clip: text) {
+  html[data-connect-shell="sunny"] .launch-countdown__heading {
+    color: #5b4d8c;
+    background: none;
+    -webkit-text-fill-color: unset;
+  }
+}
+
+html[data-connect-shell="sunny"] .launch-countdown__sub {
+  color: #64748b;
+}
+
+html[data-connect-shell="sunny"] .launch-countdown__cell {
+  background: rgba(248, 250, 252, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow: 0 1px 2px rgba(99, 102, 241, 0.05);
+}
+
+html[data-connect-shell="sunny"] .launch-countdown__value {
+  color: #1e293b;
+  text-shadow:
+    0 0 18px rgba(167, 139, 250, 0.2),
+    0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+html[data-connect-shell="sunny"] .launch-countdown__unit {
+  color: #7c8aa6;
+}
+
+html[data-connect-shell="sunny"] .launch-countdown__live-msg {
+  color: #334155;
+}
+
+html[data-connect-shell="soft"] .launch-countdown-bubble {
+  background: linear-gradient(
+    125deg,
+    rgba(224, 231, 255, 0.92) 0%,
+    rgba(237, 233, 254, 0.88) 26%,
+    rgba(243, 232, 255, 0.88) 52%,
+    rgba(252, 231, 243, 0.82) 74%,
+    rgba(224, 242, 254, 0.72) 100%
+  );
+  box-shadow:
+    0 2px 8px rgba(15, 23, 42, 0.04),
+    0 14px 38px rgba(129, 140, 248, 0.14),
+    0 0 0 1px rgba(255, 255, 255, 0.48) inset,
+    0 0 44px rgba(167, 139, 250, 0.2);
+  animation:
+    launchBubbleFloat 7.5s ease-in-out infinite,
+    launchBubbleAurora 16s ease-in-out infinite,
+    launchBubbleHaloSoft 6s ease-in-out infinite;
+}
+
+html[data-connect-shell="soft"] .launch-countdown-bubble__pin {
+  background: radial-gradient(circle at 32% 28%, #ede9fe 0%, #c4b5fd 42%, #a855f7 88%);
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.88),
+    0 0 12px rgba(167, 139, 250, 0.45),
+    0 0 22px rgba(129, 140, 248, 0.28);
+}
+
+html[data-connect-shell="soft"] .launch-countdown-bubble .launch-countdown {
+  background: linear-gradient(
+    168deg,
+    rgba(255, 255, 255, 0.96) 0%,
+    rgba(248, 250, 252, 0.93) 42%,
+    rgba(243, 244, 255, 0.94) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.94),
+    inset 0 -1px 0 rgba(129, 140, 248, 0.08);
+}
+
+html[data-connect-shell="soft"] .launch-countdown__hourglass {
+  background:
+    radial-gradient(circle at 50% 18%, rgba(167, 139, 250, 0.22), transparent 42%),
+    linear-gradient(145deg, rgba(199, 210, 254, 0.72), rgba(237, 233, 254, 0.68));
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.82),
+    0 6px 18px rgba(129, 140, 248, 0.14),
+    0 0 26px rgba(167, 139, 250, 0.16);
+}
+
+html[data-connect-shell="soft"] .launch-countdown__hourglass-glow {
+  background: radial-gradient(circle, rgba(129, 140, 248, 0.22), transparent 62%);
+}
+
+html[data-connect-shell="soft"] .launch-countdown__hourglass-emoji {
+  filter: drop-shadow(0 2px 7px rgba(129, 140, 248, 0.28));
 }
 
 html[data-connect-shell="soft"] .launch-countdown-bubble .launch-countdown::after {
@@ -331,7 +698,7 @@ html[data-connect-shell="soft"] .launch-countdown-bubble .launch-countdown::afte
 
 html[data-connect-shell="soft"] .launch-countdown__heading {
   color: #6366f1;
-  background: linear-gradient(105deg, #6366f1 0%, #c026d3 48%, #0891b2 100%);
+  background: linear-gradient(105deg, #6366f1 0%, #7c3aed 48%, #2563eb 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -350,16 +717,16 @@ html[data-connect-shell="soft"] .launch-countdown__sub {
 }
 
 html[data-connect-shell="soft"] .launch-countdown__cell {
-  background: rgba(248, 250, 252, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.55);
-  box-shadow: 0 1px 2px rgba(99, 102, 241, 0.05);
+  background: rgba(248, 250, 252, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  box-shadow: 0 1px 2px rgba(99, 102, 241, 0.06);
 }
 
 html[data-connect-shell="soft"] .launch-countdown__value {
   color: #1e293b;
   text-shadow:
-    0 0 18px rgba(167, 139, 250, 0.2),
-    0 1px 0 rgba(255, 255, 255, 0.9);
+    0 0 18px rgba(129, 140, 248, 0.22),
+    0 1px 0 rgba(255, 255, 255, 0.92);
 }
 
 html[data-connect-shell="soft"] .launch-countdown__unit {
@@ -371,6 +738,21 @@ html[data-connect-shell="soft"] .launch-countdown__live-msg {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html[data-connect-shell="sunny"] .launch-countdown-bubble {
+    animation: none;
+  }
+
+  html[data-connect-shell="sunny"] .launch-countdown-bubble .launch-countdown::after {
+    animation: none;
+    opacity: 0;
+  }
+
+  html[data-connect-shell="sunny"] .launch-countdown__hourglass-glow,
+  html[data-connect-shell="sunny"] .launch-countdown__hourglass-emoji,
+  html[data-connect-shell="sunny"] .launch-countdown__hourglass-sand {
+    animation: none;
+  }
+
   html[data-connect-shell="soft"] .launch-countdown-bubble {
     animation: none;
   }

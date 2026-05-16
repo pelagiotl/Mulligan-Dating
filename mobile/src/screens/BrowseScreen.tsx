@@ -30,6 +30,7 @@ import { getPhotoUrl } from '../utils/photoUrl';
 import { useAuth } from '../context/AuthContext';
 import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
 import TokenDisplay from '../components/TokenDisplay';
+import LaunchCountdownBubble from '../components/LaunchCountdownBubble';
 import ConnectLandingValueProps from '../components/ConnectLandingValueProps';
 import ConnectLandingMark from '../components/ConnectLandingMark';
 import MatchCelebration from '../components/MatchCelebration';
@@ -1428,7 +1429,13 @@ export default function BrowseScreen() {
   const mulliganTokenControls = (
     <View style={styles.tokenOverlayInner}>
       {claimTokenBannerEl}
-      <TokenDisplay compact={true} premium={true} openModalRef={openTokenModalRef} performClaimRef={performClaimRef} />
+      <TokenDisplay
+        compact={true}
+        premium={true}
+        connectShell={connectShellMode}
+        openModalRef={openTokenModalRef}
+        performClaimRef={performClaimRef}
+      />
     </View>
   );
 
@@ -1446,11 +1453,22 @@ export default function BrowseScreen() {
           colors={
             connectShellMode === 'midnight'
               ? ['#15102a', '#221a32', '#1a1528', '#0f172a']
-              : ['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe']
+              : connectShellMode === 'sunny'
+                ? ['#38bdf8', '#fcd34d', '#fb923c', '#fda4af', '#fef08a']
+                : ['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe']
           }
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={[StyleSheet.absoluteFill, { zIndex: 0 }]}
+        />
+      )}
+
+      {showLandingPage && Platform.OS === 'android' && (
+        <LaunchCountdownBubble
+          bottomTabOccupancy={42 + insets.bottom}
+          topInset={insets.top}
+          leftInset={insets.left}
+          rightInset={insets.right}
         />
       )}
 
@@ -1652,6 +1670,166 @@ export default function BrowseScreen() {
               </Animated.View>
               </View>
             </LinearGradient>
+              ) : connectShellMode === 'sunny' ? (
+                <View style={[styles.landingCardSunnyShell, connectLandingFillStyles?.content]}>
+                  <LinearGradient
+                    colors={['rgba(251, 191, 36, 0.38)', 'rgba(251, 146, 60, 0.14)', 'transparent']}
+                    locations={[0, 0.22, 1]}
+                    start={{ x: 0.5, y: 0 }}
+                    end={{ x: 0.5, y: 0.55 }}
+                    style={StyleSheet.absoluteFillObject}
+                    pointerEvents="none"
+                  />
+                  <View style={styles.landingCardSunnyInner}>
+                    <View style={styles.sunnyLogoRow}>
+                      <ConnectLandingMark size={62} />
+                      <Text style={styles.sunnyBrand}>Mulligan</Text>
+                    </View>
+
+                    <Animated.Text
+                      style={[
+                        styles.sunnyHeroTitle,
+                        {
+                          opacity: titleOpacity,
+                          transform: [
+                            { scale: titleScale },
+                            { translateY: titleTranslateY },
+                          ],
+                        },
+                      ]}
+                    >
+                      Discover People
+                    </Animated.Text>
+                    <Text style={styles.sunnySubtitle}>
+                      Find someone who shares your interests and values
+                    </Text>
+
+                    {isAuthenticated ? (
+                      <View style={styles.sunnyFeaturesRow} accessibilityRole="summary">
+                        <View style={styles.sunnyFeature}>
+                          <Text style={styles.sunnyFeatureEmoji} allowFontScaling={false}>✨</Text>
+                          <Text style={styles.sunnyFeatureText}>
+                            Quality{'\n'}Matches
+                          </Text>
+                        </View>
+                        <View style={styles.sunnyFeature}>
+                          <Text style={styles.sunnyFeatureEmoji} allowFontScaling={false}>🎯</Text>
+                          <Text style={styles.sunnyFeatureText}>
+                            Shared{'\n'}Interests
+                          </Text>
+                        </View>
+                        <View style={styles.sunnyFeature}>
+                          <Text style={styles.sunnyFeatureEmoji} allowFontScaling={false}>💝</Text>
+                          <Text style={styles.sunnyFeatureText}>
+                            Meaningful{'\n'}Connections
+                          </Text>
+                        </View>
+                      </View>
+                    ) : null}
+
+                    <Animated.View
+                      style={[
+                        styles.landingButtonContainer,
+                        {
+                          transform: [{ scale: buttonPulse }],
+                        },
+                      ]}
+                    >
+                      <TouchableOpacity
+                        onPress={() => {
+                          if (unlocking) return;
+                          if (connectReady) {
+                            handleUnlockBrowse();
+                            return;
+                          }
+                          if (photoCount === null) {
+                            handleUnlockBrowse();
+                            return;
+                          }
+                          const m = connectMissing[0];
+                          if (m === 'name') (navigation as any).navigate('Settings');
+                          else if (m === 'location') (navigation as any).navigate('MyProfile');
+                          else if (m === 'photos') (navigation as any).navigate('MyProfile', { scrollToPhotos: true });
+                        }}
+                        onPressIn={() => {
+                          Animated.spring(buttonScale, {
+                            toValue: 0.95,
+                            useNativeDriver: true,
+                          }).start();
+                        }}
+                        onPressOut={() => {
+                          Animated.spring(buttonScale, {
+                            toValue: 1,
+                            useNativeDriver: true,
+                          }).start();
+                        }}
+                        disabled={unlocking}
+                        activeOpacity={0.9}
+                        style={styles.landingButtonTouchable}
+                      >
+                        <LinearGradient
+                          colors={['#0284c7', '#ea580c', '#fb923c', '#fbbf24']}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                          style={[styles.landingButton, unlocking && styles.landingButtonDisabled]}
+                        >
+                          {!unlocking && connectReady && (
+                            <Animated.View
+                              style={[
+                                styles.buttonShimmer,
+                                {
+                                  transform: [{ translateX: shimmerTranslate }],
+                                },
+                              ]}
+                            />
+                          )}
+
+                          <Animated.View
+                            style={{
+                              transform: [{ scale: buttonScale }],
+                            }}
+                          >
+                            {unlocking ? (
+                              <ActivityIndicator color="#fff" size="large" />
+                            ) : connectReady ? (
+                              <Text style={[styles.landingButtonText, styles.sunnyConnectLabel]} numberOfLines={1}>
+                                Connect
+                              </Text>
+                            ) : photoCount === null ? (
+                              <Text style={[styles.landingButtonText, styles.sunnyConnectLabel]} numberOfLines={1}>
+                                Connect
+                              </Text>
+                            ) : connectMissing[0] === 'name' ? (
+                              <Text style={[styles.landingButtonText, styles.sunnyConnectLabel]} numberOfLines={2}>
+                                Add your name
+                              </Text>
+                            ) : connectMissing[0] === 'location' ? (
+                              <Text style={[styles.landingButtonText, styles.sunnyConnectLabel]} numberOfLines={2}>
+                                Add location
+                              </Text>
+                            ) : (
+                              <Text style={[styles.landingButtonText, styles.sunnyConnectLabel]} numberOfLines={2}>
+                                Add 3+ photos
+                              </Text>
+                            )}
+                          </Animated.View>
+                        </LinearGradient>
+                      </TouchableOpacity>
+                    </Animated.View>
+
+                    <Animated.View style={[styles.landingHintWrap, { opacity: landingHintOpacity }]}>
+                      <Text style={styles.sunnyHint}>
+                        {!connectReady && photoCount !== null
+                          ? connectMissing[0] === 'name'
+                            ? 'Add your name in Settings to Connect'
+                            : connectMissing[0] === 'location'
+                              ? 'Add city & state on Profile to Connect'
+                              : `Add at least ${MIN_PHOTOS_TO_CONNECT} photos on Profile to Connect`
+                          : '⛳ Use a Mulligan'}
+                      </Text>
+                    </Animated.View>
+                  </View>
+                </View>
               ) : (
                 <View style={[styles.landingCardSoftShell, connectLandingFillStyles?.content]}>
                   <LinearGradient
@@ -2758,6 +2936,123 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '900',
   },
+  sunnyConnectLabel: {
+    letterSpacing: 0.45,
+    fontSize: 20,
+    fontWeight: '900',
+  },
+  landingCardSunnyShell: {
+    width: '100%',
+    maxWidth: 434,
+    alignSelf: 'center',
+    borderRadius: 36,
+    overflow: 'hidden',
+    borderWidth: 3,
+    borderColor: 'rgba(251, 191, 36, 0.45)',
+    backgroundColor: 'rgba(255, 251, 235, 0.96)',
+    shadowColor: '#fb923c',
+    shadowOffset: { width: 0, height: 18 },
+    shadowOpacity: 0.22,
+    shadowRadius: 44,
+    elevation: 22,
+  },
+  landingCardSunnyInner: {
+    width: '100%',
+    paddingTop: 26,
+    paddingBottom: 22,
+    paddingHorizontal: 21,
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  sunnyLogoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 14,
+    marginBottom: 22,
+    flexWrap: 'wrap',
+  },
+  sunnyBrand: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#431407',
+    letterSpacing: 0.5,
+  },
+  sunnyHeroTitle: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#7c2d12',
+    marginBottom: 10,
+    textAlign: 'center',
+    letterSpacing: 0.6,
+    lineHeight: 32,
+    paddingHorizontal: 8,
+    textShadowColor: 'rgba(251, 146, 60, 0.35)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 18,
+  },
+  sunnySubtitle: {
+    fontSize: 16,
+    lineHeight: 24,
+    color: '#57534e',
+    fontWeight: '500',
+    textAlign: 'center',
+    marginBottom: 18,
+    paddingHorizontal: 8,
+  },
+  sunnyFeaturesRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'stretch',
+    gap: 10,
+    marginBottom: 26,
+    width: '100%',
+    paddingHorizontal: 2,
+  },
+  sunnyFeature: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingVertical: 11,
+    paddingHorizontal: 5,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 251, 235, 0.98)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(251, 191, 36, 0.28)',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#ea580c',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.06,
+        shadowRadius: 4,
+      },
+      default: {
+        elevation: 0,
+      },
+    }),
+  },
+  sunnyFeatureEmoji: {
+    fontSize: 26,
+    lineHeight: 30,
+    marginBottom: 7,
+  },
+  sunnyFeatureText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#44403c',
+    textAlign: 'center',
+    lineHeight: 14,
+    letterSpacing: 0.2,
+  },
+  sunnyHint: {
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0.35,
+    color: '#78716c',
+    textAlign: 'center',
+    lineHeight: 19,
+  },
   softConnectLabel: {
     letterSpacing: 0.45,
     fontSize: 20,
@@ -2839,18 +3134,18 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
     paddingHorizontal: 5,
     borderRadius: 14,
-    backgroundColor: 'rgba(248, 250, 252, 0.9)',
+    backgroundColor: 'rgba(255, 255, 255, 0.98)',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(226, 232, 240, 0.95)',
+    borderColor: 'rgba(226, 232, 240, 0.85)',
     ...Platform.select({
       ios: {
         shadowColor: '#64748b',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 4,
       },
       default: {
-        elevation: 1,
+        elevation: 0,
       },
     }),
   },

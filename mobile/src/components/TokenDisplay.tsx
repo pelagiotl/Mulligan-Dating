@@ -325,12 +325,12 @@ function PurchaseSuccessModal({
 function WebNavbarTokenBadge({
   count,
   loading,
-  midnight,
+  shell,
   onPress,
 }: {
   count: number;
   loading?: boolean;
-  midnight: boolean;
+  shell: ConnectShellMode;
   onPress: () => void;
 }) {
   const [reduceMotion, setReduceMotion] = useState(false);
@@ -416,13 +416,31 @@ function WebNavbarTokenBadge({
     outputRange: [-72, 168],
   });
 
-  const gradientColors = midnight
-    ? (['rgba(244, 63, 94, 0.12)', 'rgba(99, 102, 241, 0.1)'] as const)
-    : (['rgba(244, 63, 94, 0.14)', 'rgba(244, 63, 94, 0.07)'] as const);
-  /** Android: soft LinearGradient often renders a brighter band through the pill (reads as grey/white behind the count). */
-  const androidNavbarFill = midnight ? 'rgba(232, 96, 122, 0.22)' : 'rgba(244, 63, 94, 0.13)';
-  const borderColor = midnight ? 'rgba(244, 114, 182, 0.35)' : 'rgba(244, 63, 94, 0.28)';
-  const textColor = midnight ? '#fda4af' : '#e11d48';
+  const gradientColors =
+    shell === 'midnight'
+      ? (['rgba(244, 63, 94, 0.12)', 'rgba(99, 102, 241, 0.1)'] as const)
+      : shell === 'sunny'
+        ? (['rgba(251, 146, 60, 0.2)', 'rgba(251, 191, 36, 0.12)'] as const)
+        : (['rgba(99, 102, 241, 0.13)', 'rgba(236, 72, 153, 0.08)'] as const);
+  /** Android: solid black fill; shell-colored stroke for readability on OLED. */
+  const androidNavbarFillOpaque = '#000000';
+  const androidNavbarBorderColor =
+    shell === 'midnight'
+      ? 'rgba(251, 113, 133, 0.42)'
+      : shell === 'sunny'
+        ? 'rgba(251, 146, 60, 0.48)'
+        : 'rgba(129, 140, 248, 0.45)';
+  const borderColor =
+    shell === 'midnight'
+      ? 'rgba(244, 114, 182, 0.35)'
+      : shell === 'sunny'
+        ? 'rgba(251, 146, 60, 0.38)'
+        : 'rgba(129, 140, 248, 0.38)';
+  const textColor =
+    shell === 'midnight' ? '#fda4af' : shell === 'sunny' ? '#c2410c' : '#6d28d9';
+
+  /** iOS pulse shadow tint — matches Connect shell chrome */
+  const pulseShadowColor = shell === 'midnight' ? '#ec4899' : shell === 'sunny' ? '#ea580c' : '#8b5cf6';
 
   const badgeInnerStyle = {
     flexDirection: 'row' as const,
@@ -436,6 +454,14 @@ function WebNavbarTokenBadge({
     minWidth: loading ? 56 : undefined,
     overflow: 'hidden' as const,
   };
+
+  const androidGlyphStyle =
+    Platform.OS === 'android'
+      ? ({
+          backgroundColor: androidNavbarFillOpaque,
+          includeFontPadding: false,
+        } as const)
+      : null;
 
   const badgeInner = (
     <>
@@ -454,21 +480,31 @@ function WebNavbarTokenBadge({
           }}
         />
       )}
-      <View style={{ flexDirection: 'row', alignItems: 'center', zIndex: 1 }}>
+      <View
+        {...(Platform.OS === 'android' ? { collapsable: false } : {})}
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          zIndex: 1,
+          ...(Platform.OS === 'android' ? { backgroundColor: androidNavbarFillOpaque } : {}),
+        }}
+      >
         {loading ? (
           <ActivityIndicator size="small" color={textColor} />
         ) : (
           <>
-            <Text style={{ fontSize: 16, lineHeight: 18 }}>🎟️</Text>
+            <Text style={[{ fontSize: 16, lineHeight: 18 }, androidGlyphStyle]}>🎟️</Text>
             <Text
-              style={{
-                fontSize: 14,
-                fontWeight: '700',
-                color: textColor,
-                letterSpacing: 0.15,
-                marginLeft: 6,
-                ...(Platform.OS === 'android' ? { backgroundColor: 'transparent' as const } : {}),
-              }}
+              style={[
+                {
+                  fontSize: 14,
+                  fontWeight: '700',
+                  color: textColor,
+                  letterSpacing: 0.15,
+                  marginLeft: 6,
+                },
+                androidGlyphStyle,
+              ]}
             >
               {count}
             </Text>
@@ -490,16 +526,31 @@ function WebNavbarTokenBadge({
       <Animated.View
         style={{
           borderRadius: 14,
-          shadowColor: '#f43f5e',
-          shadowOffset: { width: 0, height: pressed ? 4 : 2 },
-          shadowOpacity,
-          shadowRadius,
-          elevation: pressed ? 8 : 5,
+          ...(Platform.OS === 'android'
+            ? {}
+            : {
+                shadowColor: pulseShadowColor,
+                shadowOffset: { width: 0, height: pressed ? 4 : 2 },
+                shadowOpacity,
+                shadowRadius,
+                elevation: pressed ? 8 : 5,
+              }),
           transform: [{ translateY: pressed ? -2 : 0 }],
         }}
       >
         {Platform.OS === 'android' ? (
-          <View style={[badgeInnerStyle, { backgroundColor: androidNavbarFill }]}>{badgeInner}</View>
+          <View
+            style={[
+              badgeInnerStyle,
+              {
+                backgroundColor: androidNavbarFillOpaque,
+                borderColor: androidNavbarBorderColor,
+                elevation: pressed ? 7 : 4,
+              },
+            ]}
+          >
+            {badgeInner}
+          </View>
         ) : (
           <LinearGradient
             colors={[...gradientColors]}
@@ -515,12 +566,41 @@ function WebNavbarTokenBadge({
   );
 }
 
+function premiumTokenBadgeChrome(shell: ConnectShellMode): {
+  gradient: readonly [string, string, string];
+  androidBg: string;
+  shadowColor: string;
+} {
+  switch (shell) {
+    case 'midnight':
+      return {
+        gradient: ['#5b21b6', '#86198f', '#db2777'],
+        androidBg: '#6b21a8',
+        shadowColor: '#db2777',
+      };
+    case 'sunny':
+      return {
+        gradient: ['#ea580c', '#fb923c', '#fbbf24'],
+        androidBg: '#ea580c',
+        shadowColor: '#f97316',
+      };
+    case 'soft':
+      return {
+        gradient: ['#667eea', '#764ba2', '#f093fb'],
+        androidBg: '#7367dc',
+        shadowColor: '#667eea',
+      };
+  }
+}
+
 // Premium Token Display Component with animations
-function PremiumTokenDisplay({ 
-  count, 
-  onPress 
-}: { 
+function PremiumTokenDisplay({
+  count,
+  shell,
+  onPress,
+}: {
   count: number;
+  shell: ConnectShellMode;
   onPress: () => void;
 }) {
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -566,6 +646,8 @@ function PremiumTokenDisplay({
     outputRange: [-100, 100],
   });
 
+  const chrome = premiumTokenBadgeChrome(shell);
+
   return (
     <TouchableOpacity
       activeOpacity={0.8}
@@ -581,18 +663,18 @@ function PremiumTokenDisplay({
         ]}
       >
         {Platform.OS === 'android' ? (
-          <View style={[styles.premiumGradient, { backgroundColor: '#7367dc' }]}>
-            <View style={styles.premiumContent}>
-              <Text style={styles.premiumIcon}>🎟️</Text>
-              <Text style={[styles.premiumCount, { backgroundColor: 'transparent' }]}>{count}</Text>
+          <View style={[styles.premiumGradient, { backgroundColor: chrome.androidBg, shadowColor: chrome.shadowColor }]}>
+            <View style={styles.premiumContent} collapsable={false}>
+              <Text style={[styles.premiumIcon, styles.premiumGlyphAndroid]}>🎟️</Text>
+              <Text style={[styles.premiumCount, styles.premiumGlyphAndroid, styles.premiumCountAndroid]}>{count}</Text>
             </View>
           </View>
         ) : (
           <LinearGradient
-            colors={['#667eea', '#764ba2', '#f093fb']}
+            colors={[...chrome.gradient]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={styles.premiumGradient}
+            style={[styles.premiumGradient, { shadowColor: chrome.shadowColor }]}
           >
             <Animated.View
               style={[
@@ -920,7 +1002,7 @@ export default function TokenDisplay({
             <View style={styles.browseLandingNavbarBadgeAnchor} pointerEvents="box-none">
               <WebNavbarTokenBadge
                 loading
-                midnight={connectShell === 'midnight'}
+                shell={connectShell}
                 onPress={() => void fetchTokens()}
               />
             </View>
@@ -934,7 +1016,7 @@ export default function TokenDisplay({
       const midnight = connectShell === 'midnight';
       if (compactNavbarChrome) {
         return (
-          <WebNavbarTokenBadge loading midnight={midnight} onPress={() => void fetchTokens()} />
+          <WebNavbarTokenBadge loading shell={connectShell} onPress={() => void fetchTokens()} />
         );
       }
       return (
@@ -945,7 +1027,16 @@ export default function TokenDisplay({
             { minWidth: 56, justifyContent: 'center' },
           ]}
         >
-          <ActivityIndicator size="small" color={midnight ? '#fda4af' : '#8B1538'} />
+          <ActivityIndicator
+            size="small"
+            color={
+              connectShell === 'midnight'
+                ? '#fda4af'
+                : connectShell === 'sunny'
+                  ? '#ea580c'
+                  : '#7c3aed'
+            }
+          />
         </View>
       );
     }
@@ -1259,7 +1350,6 @@ export default function TokenDisplay({
   );
 
   if (browseLandingStrip) {
-    const midnight = connectShell === 'midnight';
     return (
       <>
         <View style={styles.browseLandingTokenWrap}>
@@ -1267,7 +1357,7 @@ export default function TokenDisplay({
             <View style={styles.browseLandingNavbarBadgeAnchor} pointerEvents="box-none">
               <WebNavbarTokenBadge
                 count={data.availableTokens}
-                midnight={midnight}
+                shell={connectShell}
                 onPress={() => {
                   setShowInfoModal(true);
                   fetchPackages();
@@ -1301,8 +1391,9 @@ export default function TokenDisplay({
     if (premium) {
       return (
         <>
-          <PremiumTokenDisplay 
-            count={data.availableTokens} 
+          <PremiumTokenDisplay
+            count={data.availableTokens}
+            shell={connectShell}
             onPress={() => {
               setShowInfoModal(true);
               fetchPackages();
@@ -1314,13 +1405,24 @@ export default function TokenDisplay({
     }
     
     // Standard compact mode (navbar / global tab badge — tap opens same token modals as web)
-    const compactMidnight = connectShell === 'midnight';
+    const compactContainerShell =
+      connectShell === 'midnight'
+        ? styles.compactContainerMidnight
+        : connectShell === 'sunny'
+          ? styles.compactContainerSunny
+          : styles.compactContainerSoft;
+    const compactNumberShell =
+      connectShell === 'midnight'
+        ? styles.compactTokenNumberMidnight
+        : connectShell === 'sunny'
+          ? styles.compactTokenNumberSunny
+          : styles.compactTokenNumberSoft;
     if (compactNavbarChrome) {
       return (
         <>
           <WebNavbarTokenBadge
             count={data.availableTokens}
-            midnight={compactMidnight}
+            shell={connectShell}
             onPress={() => {
               setShowInfoModal(true);
               fetchPackages();
@@ -1338,10 +1440,10 @@ export default function TokenDisplay({
             setShowInfoModal(true);
             fetchPackages();
           }}
-          style={[styles.compactContainer, compactMidnight && styles.compactContainerMidnight]}
+          style={[styles.compactContainer, compactContainerShell]}
         >
           <Text style={styles.tokenIcon}>🎟️</Text>
-          <Text style={[styles.compactTokenNumber, compactMidnight && styles.compactTokenNumberMidnight]}>
+          <Text style={[styles.compactTokenNumber, compactNumberShell]}>
             {data.availableTokens}
           </Text>
         </TouchableOpacity>
@@ -1588,6 +1690,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(244, 114, 182, 0.35)',
   },
+  compactContainerSunny: {
+    backgroundColor: 'rgba(251, 146, 60, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(251, 146, 60, 0.38)',
+  },
+  compactContainerSoft: {
+    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(129, 140, 248, 0.42)',
+  },
   compactTokenNumber: {
     fontSize: 18,
     fontWeight: 'bold',
@@ -1596,6 +1708,12 @@ const styles = StyleSheet.create({
   },
   compactTokenNumberMidnight: {
     color: '#fda4af',
+  },
+  compactTokenNumberSunny: {
+    color: '#c2410c',
+  },
+  compactTokenNumberSoft: {
+    color: '#6d28d9',
   },
   premiumContainer: {
     alignSelf: 'flex-end',
@@ -1629,6 +1747,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     zIndex: 1,
+  },
+  premiumGlyphAndroid: {
+    backgroundColor: '#7367dc',
+    includeFontPadding: false,
+  },
+  premiumCountAndroid: {
+    textShadowColor: 'transparent',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 0,
   },
   premiumIcon: {
     fontSize: 20,

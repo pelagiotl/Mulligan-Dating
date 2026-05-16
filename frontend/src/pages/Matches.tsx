@@ -7,6 +7,8 @@ import { getPhotoUrl } from "../utils/photoUrl";
 import { formatPreferredMatchesFromGenders } from "../utils/preferredMatchesLabel";
 import Notification from "../components/Notification";
 import ConfirmModal from "../components/ConfirmModal";
+import PhotoGalleryUnlockCelebration from "../components/PhotoGalleryUnlockCelebration";
+import PhotoUnlockExplainerModalWeb from "../components/PhotoUnlockExplainerModalWeb";
 import TruthOrDareWeb from "../components/TruthOrDareWeb";
 import NeverHaveIEverWeb from "../components/NeverHaveIEverWeb";
 import DateBlueprintWeb from "../components/DateBlueprintWeb";
@@ -292,6 +294,7 @@ export default function Matches() {
   const socketRef = useRef<Socket | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const selectedMatchIdRef = useRef<string | null>(null);
+  const selectedMatchStageRef = useRef<Match["stage"] | null>(null);
   const userIdRef = useRef<string | null>(null);
   const matchesRef = useRef<Match[]>([]);
   const lightboxTouchX = useRef<number | null>(null);
@@ -305,6 +308,9 @@ export default function Matches() {
   const [chatMediaModal, setChatMediaModal] = useState<
     { variant: "guidelines" | "locked"; kind: ChatMediaKind } | null
   >(null);
+  const [galleryUnlockCelebrationOpen, setGalleryUnlockCelebrationOpen] = useState(false);
+  const [photoUnlockExplainerOpen, setPhotoUnlockExplainerOpen] = useState(false);
+  const galleryUnlockCelebrationDedupeRef = useRef<{ matchId: string; at: number } | null>(null);
 
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [reportTarget, setReportTarget] = useState<{
@@ -361,6 +367,26 @@ export default function Matches() {
     }
     return { my, their };
   }, [messages, selectedMatch?.id, selectedMatch?.otherUser?.userId, user?.id]);
+
+  const triggerGalleryUnlockCelebration = useCallback((matchId: string) => {
+    const now = Date.now();
+    const prev = galleryUnlockCelebrationDedupeRef.current;
+    if (prev && prev.matchId === matchId && now - prev.at < 6000) return;
+    galleryUnlockCelebrationDedupeRef.current = { matchId, at: now };
+    setGalleryUnlockCelebrationOpen(true);
+  }, []);
+
+  useEffect(() => {
+    setGalleryUnlockCelebrationOpen(false);
+  }, [selectedMatch?.id]);
+
+  useEffect(() => {
+    if (selectedMatch?.stage !== "stage1") setPhotoUnlockExplainerOpen(false);
+  }, [selectedMatch?.stage]);
+
+  const dismissGalleryUnlockCelebration = useCallback(() => {
+    setGalleryUnlockCelebrationOpen(false);
+  }, []);
 
   const selectedMatchPhotos = useMemo((): Photo[] => {
     if (!selectedMatch || selectedMatch.stage === "pending") return [];
@@ -470,6 +496,10 @@ export default function Matches() {
   }, [selectedMatch?.id]);
 
   useEffect(() => {
+    selectedMatchStageRef.current = selectedMatch?.stage ?? null;
+  }, [selectedMatch?.stage]);
+
+  useEffect(() => {
     userIdRef.current = user?.id ?? null;
   }, [user?.id]);
 
@@ -570,31 +600,36 @@ export default function Matches() {
 
     // Handle stage advancement
     socket.on('stage_advanced', (data: { matchId: string; stage: string; message: string; autoAdvanced?: boolean }) => {
+      const openId = selectedMatchIdRef.current;
+      const stageBefore = selectedMatchStageRef.current;
+      const shouldCelebrateGallery =
+        data.stage === "stage2" && openId === data.matchId && stageBefore === "stage1";
+
       setMatches((prev) =>
         prev.map((m) =>
           m.id === data.matchId ? { ...m, stage: data.stage as "stage1" | "stage2" } : m
         )
       );
-      if (selectedMatch?.id === data.matchId) {
+
+      if (openId === data.matchId) {
         setSelectedMatch((prev) => (prev ? { ...prev, stage: data.stage as "stage1" | "stage2" } : null));
-        // Fetch photos when stage advances
-        fetchMatchPhotos(selectedMatch);
-        
-        // Show cool notification if auto-advanced
-        if (data.autoAdvanced) {
+        const m = matchesRef.current.find((x) => x.id === data.matchId);
+        if (m && data.stage === "stage2") {
+          void fetchMatchPhotos({ ...m, stage: "stage2" });
+        }
+        if (shouldCelebrateGallery) {
+          triggerGalleryUnlockCelebration(data.matchId);
+        } else if (data.autoAdvanced) {
           setNotification({
             message: "🎉 All photos unlocked! You've each sent 3+ messages.",
-            type: "success"
+            type: "success",
           });
         }
-      } else {
-        // Match advanced but not currently selected - still show notification
-        if (data.autoAdvanced) {
-          setNotification({
-            message: "🎉 Photos unlocked in one of your chats! Check it out!",
-            type: "success"
-          });
-        }
+      } else if (data.autoAdvanced) {
+        setNotification({
+          message: "🎉 Photos unlocked in one of your chats! Check it out!",
+          type: "success",
+        });
       }
     });
 
@@ -795,7 +830,7 @@ export default function Matches() {
     return () => {
       socket.disconnect();
     };
-  }, [user]);
+  }, [user, triggerGalleryUnlockCelebration]);
 
   // Fetch matches on component mount
   useEffect(() => {
@@ -853,9 +888,11 @@ export default function Matches() {
           ? { ...m, otherUser: { ...m.otherUser, photos: photosData.photos } }
           : m
       ));
-      if (selectedMatch?.id === match.id) {
-        setSelectedMatch(prev => prev ? { ...prev, otherUser: { ...prev.otherUser, photos: photosData.photos } } : null);
-      }
+      setSelectedMatch((prev) =>
+        prev?.id === match.id
+          ? { ...prev, otherUser: { ...prev.otherUser, photos: photosData.photos } }
+          : prev
+      );
     } catch {
       // Photos might not exist
     }
@@ -1062,16 +1099,21 @@ export default function Matches() {
     });
     void fetchMessages(matchId);
     if (data.autoAdvanced && data.stage === "stage2" && snap) {
+      const wasStage1 = snap.stage === "stage1";
       setMatches((prev) =>
         prev.map((m) => (m.id === matchId ? { ...m, stage: "stage2" as const } : m))
       );
       setSelectedMatch((prev) =>
         prev && prev.id === matchId ? { ...prev, stage: "stage2" as const } : prev
       );
-      setNotification({
-        message: "🎉 All photos unlocked! You've each sent 3+ messages.",
-        type: "success",
-      });
+      if (wasStage1) {
+        triggerGalleryUnlockCelebration(matchId);
+      } else {
+        setNotification({
+          message: "🎉 All photos unlocked! You've each sent 3+ messages.",
+          type: "success",
+        });
+      }
       const matchForPhotos = { ...snap, id: matchId, stage: "stage2" as const };
       fetchMatchPhotos(matchForPhotos);
     }
@@ -1611,6 +1653,14 @@ export default function Matches() {
           duration={notification.duration ?? 6000}
         />
       )}
+      <PhotoGalleryUnlockCelebration open={galleryUnlockCelebrationOpen} onDismiss={dismissGalleryUnlockCelebration} />
+      {photoUnlockExplainerOpen && selectedMatch?.stage === "stage1" ? (
+        <PhotoUnlockExplainerModalWeb
+          open
+          onClose={() => setPhotoUnlockExplainerOpen(false)}
+          partnerDisplayName={selectedMatch.otherUser.displayName}
+        />
+      ) : null}
       {showUnmatchConfirm && selectedMatch && (
         <ConfirmModal
           isOpen={showUnmatchConfirm}
@@ -2438,6 +2488,15 @@ export default function Matches() {
                     <p className="reveal-unlock-description">
                       Keep the conversation going! When you&apos;ve each sent 3 messages, all photos unlock automatically.
                     </p>
+                    <div className="reveal-unlock-details-row">
+                      <button
+                        type="button"
+                        className="reveal-unlock-details-btn"
+                        onClick={() => setPhotoUnlockExplainerOpen(true)}
+                      >
+                        How it works
+                      </button>
+                    </div>
                     {messageCounts && (
                       <div className="reveal-progress-container">
                         <div className="reveal-progress-bar-wrapper">

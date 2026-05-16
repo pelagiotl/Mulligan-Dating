@@ -9,6 +9,7 @@ import './styles/index.css'
 import './styles/mobile-native-shell.css'
 import './styles/native-ui-parity.css'
 import './styles/connect-shell-theme.css'
+import './styles/legal-document.css'
 import { applyConnectShellMode, readConnectShellMode } from './lib/connectShellTheme'
 
 if (typeof document !== 'undefined') {

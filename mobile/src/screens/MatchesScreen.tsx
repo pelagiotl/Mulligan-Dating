@@ -52,6 +52,7 @@ import NeverHaveIEver from '../components/NeverHaveIEver';
 import OptimizedImage from '../components/OptimizedImage';
 import GameRequestModal from '../components/GameRequestModal';
 import MatchCelebration from '../components/MatchCelebration';
+import PhotoUnlockExplainerModal from '../components/PhotoUnlockExplainerModal';
 
 /** Set to true to show the Never Have I Ever game card in match detail. */
 const SHOW_NEVER_HAVE_I_EVER = true;
@@ -402,7 +403,8 @@ function TypingIndicator() {
 
 // Animated heart icon next to “Your Matches” (header) — Mulligan rose/maroon (soft) or pink/magenta (midnight), not cold blues
 function AnimatedLinkHeaderIcon({ connectShell }: { connectShell: ConnectShellMode }) {
-  const midnight = connectShell === 'midnight';
+  const isMidnight = connectShell === 'midnight';
+  const isSunny = connectShell === 'sunny';
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
   const glowAnim = useRef(new Animated.Value(0.5)).current;
@@ -500,7 +502,11 @@ function AnimatedLinkHeaderIcon({ connectShell }: { connectShell: ConnectShellMo
       <Animated.View
         style={[
           styles.animatedHeartGlow,
-          midnight ? styles.animatedHeartGlowMidnight : styles.animatedHeartGlowSoft,
+          isMidnight
+            ? styles.animatedHeartGlowMidnight
+            : isSunny
+              ? styles.animatedHeartGlowSunny
+              : styles.animatedHeartGlowSoft,
           Platform.OS === 'android' && { elevation: 0 },
           {
             opacity: glowOpacity,
@@ -517,16 +523,22 @@ function AnimatedLinkHeaderIcon({ connectShell }: { connectShell: ConnectShellMo
       <View style={styles.animatedHeartBadgeWrap} collapsable={false}>
         <LinearGradient
           colors={
-            midnight
+            isMidnight
               ? (['#fbcfe8', '#f472b6', '#c026d3'] as const)
-              : (['#fecdd3', '#fb7185', '#be185d'] as const)
+              : isSunny
+                ? (['#fed7aa', '#fb923c', '#ea580c'] as const)
+                : (['#fecdd3', '#fb7185', '#be185d'] as const)
           }
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={[
             StyleSheet.absoluteFillObject,
             styles.animatedHeartGradientDisc,
-            midnight ? styles.animatedHeartGradientMidnight : styles.animatedHeartGradientSoft,
+            isMidnight
+              ? styles.animatedHeartGradientMidnight
+              : isSunny
+                ? styles.animatedHeartGradientSunny
+                : styles.animatedHeartGradientSoft,
             Platform.OS === 'android' && styles.animatedHeartGradientAndroidNoElevation,
           ]}
         >
@@ -1025,8 +1037,8 @@ type QuickViewPalette = {
   compatShadow: string;
 };
 
-function quickViewPalette(midnight: boolean): QuickViewPalette {
-  if (midnight) {
+function quickViewPalette(mode: ConnectShellMode): QuickViewPalette {
+  if (mode === 'midnight') {
     return {
       overlayGradient: ['rgba(8, 6, 16, 0.94)', 'rgba(22, 16, 34, 0.92)', 'rgba(72, 28, 58, 0.88)'],
       sheetBg: '#14101c',
@@ -1053,6 +1065,35 @@ function quickViewPalette(midnight: boolean): QuickViewPalette {
       photoBorder: 'rgba(255, 255, 255, 0.22)',
       thumbBorder: 'rgba(244, 114, 182, 0.35)',
       compatShadow: '#f472b6',
+    };
+  }
+  if (mode === 'sunny') {
+    return {
+      overlayGradient: ['rgba(124, 45, 18, 0.88)', 'rgba(251, 146, 60, 0.74)', 'rgba(253, 224, 71, 0.38)'],
+      sheetBg: '#fffbeb',
+      headerBg: 'rgba(255, 251, 235, 0.96)',
+      headerBorder: 'rgba(251, 146, 60, 0.24)',
+      primaryText: '#431407',
+      secondaryText: '#57534e',
+      mutedText: '#78716c',
+      cardBg: '#ffffff',
+      cardBorder: 'rgba(251, 146, 60, 0.16)',
+      accent: '#ea580c',
+      accentMuted: 'rgba(234, 88, 12, 0.62)',
+      tagBg: 'rgba(254, 215, 170, 0.48)',
+      tagBorder: 'rgba(234, 88, 12, 0.24)',
+      tagText: '#9a3412',
+      tagMutedBg: 'rgba(255, 251, 235, 0.95)',
+      tagMutedBorder: 'rgba(212, 212, 216, 0.45)',
+      tagMutedText: '#57534e',
+      ringGradient: ['#fed7aa', '#fb923c', '#ea580c'],
+      placeholderGradient: ['#ea580c', '#c2410c', '#9a3412'],
+      closeBg: 'rgba(255, 255, 255, 0.92)',
+      closeBorder: 'rgba(251, 146, 60, 0.22)',
+      closeText: '#57534e',
+      photoBorder: '#ffffff',
+      thumbBorder: 'rgba(251, 146, 60, 0.38)',
+      compatShadow: '#fb923c',
     };
   }
   return {
@@ -1107,7 +1148,7 @@ function MatchProfileModal({
   const { user } = useAuth();
   const { mode: connectShellMode } = useConnectShellTheme();
   const insets = useSafeAreaInsets();
-  const palette = useMemo(() => quickViewPalette(connectShellMode === 'midnight'), [connectShellMode]);
+  const palette = useMemo(() => quickViewPalette(connectShellMode), [connectShellMode]);
   const quickViewSheetTop =
     Platform.OS === 'android' ? Math.max(insets.top, 8) + 8 : Math.max(insets.top, 14) + 28;
   const [currentUserInterests, setCurrentUserInterests] = useState<string[]>([]);
@@ -1665,13 +1706,37 @@ function MatchProfileModal({
                     style={[
                       styles.modalReportButton,
                       {
-                        backgroundColor: connectShellMode === 'midnight' ? 'rgba(254, 202, 202, 0.12)' : '#fef2f2',
-                        borderColor: connectShellMode === 'midnight' ? 'rgba(248, 113, 113, 0.35)' : '#fecaca',
+                        backgroundColor:
+                          connectShellMode === 'midnight'
+                            ? 'rgba(254, 202, 202, 0.12)'
+                            : connectShellMode === 'sunny'
+                              ? 'rgba(255, 237, 213, 0.55)'
+                              : '#fef2f2',
+                        borderColor:
+                          connectShellMode === 'midnight'
+                            ? 'rgba(248, 113, 113, 0.35)'
+                            : connectShellMode === 'sunny'
+                              ? 'rgba(251, 146, 60, 0.4)'
+                              : '#fecaca',
                       },
                     ]}
                     activeOpacity={0.8}
                   >
-                    <Text style={[styles.modalReportButtonText, { color: connectShellMode === 'midnight' ? '#fecaca' : '#b91c1c' }]}>🚩 Report</Text>
+                    <Text
+                      style={[
+                        styles.modalReportButtonText,
+                        {
+                          color:
+                            connectShellMode === 'midnight'
+                              ? '#fecaca'
+                              : connectShellMode === 'sunny'
+                                ? '#c2410c'
+                                : '#b91c1c',
+                        },
+                      ]}
+                    >
+                      🚩 Report
+                    </Text>
                   </TouchableOpacity>
                 )}
               </Animated.View>
@@ -1717,6 +1782,96 @@ function renderMatchLocation(location: string | null | undefined) {
         <Text style={styles.matchLocationState}>{state}</Text>
       </View>
     </View>
+  );
+}
+
+/** Stage-1 chat banner — Android-only richer treatment (gradient rim, chips); tap still opens detail alert. */
+function PhotoUnlockStage1BannerAndroid({
+  otherDisplayName,
+  midnight,
+  onPress,
+}: {
+  otherDisplayName: string;
+  midnight: boolean;
+  onPress: () => void;
+}) {
+  const name = otherDisplayName.trim() || 'your match';
+  const rimColors = midnight
+    ? (['rgba(251, 113, 133, 0.85)', 'rgba(251, 191, 36, 0.65)', 'rgba(244, 63, 94, 0.75)'] as const)
+    : (['#f472b6', '#fb923c', '#fbbf24'] as const);
+  const innerBg = midnight ? '#14121e' : '#fffefb';
+  const titleColor = midnight ? '#fde68a' : '#9f1239';
+  const subtitleColor = midnight ? 'rgba(226, 232, 240, 0.72)' : '#78716c';
+  const bodyColor = midnight ? '#e2e8f0' : '#44403c';
+  const nameColor = midnight ? '#fda4af' : '#be123c';
+  const hintColor = midnight ? 'rgba(226, 232, 240, 0.5)' : 'rgba(120, 113, 108, 0.72)';
+  const iconBubbleColors = midnight
+    ? (['#9d174d', '#c2410c'] as const)
+    : (['#db2777', '#ea580c'] as const);
+
+  return (
+    <TouchableOpacity activeOpacity={0.92} onPress={onPress} style={styles.photoUnlockBannerOuter}>
+      <LinearGradient
+        colors={[...rimColors]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.photoUnlockBannerRim}
+      >
+        <View style={[styles.photoUnlockBannerInner, { backgroundColor: innerBg }]}>
+          <View style={styles.photoUnlockBannerHeaderRow}>
+            <LinearGradient colors={[...iconBubbleColors]} style={styles.photoUnlockBannerIconBubble}>
+              <Text style={styles.photoUnlockBannerIconEmoji}>✨</Text>
+            </LinearGradient>
+            <View style={styles.photoUnlockBannerTitleBlock}>
+              <Text style={[styles.photoUnlockBannerTitle, { color: titleColor }]}>Unlock all photos</Text>
+              <Text style={[styles.photoUnlockBannerSubtitle, { color: subtitleColor }]}>
+                One preview now · full galleries after you both chat
+              </Text>
+            </View>
+          </View>
+          <Text style={[styles.photoUnlockBannerBody, { color: bodyColor }]}>
+            You each see one photo at first. After you and{' '}
+            <Text style={[styles.photoUnlockBannerName, { color: nameColor }]}>{name}</Text>
+            {' have each sent at least '}
+            <Text style={[styles.photoUnlockBannerEmphasis, { color: nameColor }]}>3 messages</Text>
+            {" in this chat, you'll both see each other's full galleries."}
+          </Text>
+          <View style={styles.photoUnlockBannerChips}>
+            <View
+              style={[
+                styles.photoUnlockBannerChip,
+                midnight ? styles.photoUnlockBannerChipMidnight : styles.photoUnlockBannerChipDay,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.photoUnlockBannerChipText,
+                  midnight ? styles.photoUnlockBannerChipTextMidnight : styles.photoUnlockBannerChipTextDay,
+                ]}
+              >
+                📷 1 photo each
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.photoUnlockBannerChip,
+                midnight ? styles.photoUnlockBannerChipMidnight : styles.photoUnlockBannerChipDay,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.photoUnlockBannerChipText,
+                  midnight ? styles.photoUnlockBannerChipTextMidnight : styles.photoUnlockBannerChipTextDay,
+                ]}
+              >
+                💬 3 msgs each → unlock
+              </Text>
+            </View>
+          </View>
+          <Text style={[styles.photoUnlockBannerTapHint, { color: hintColor }]}>Tap for a quick recap</Text>
+        </View>
+      </LinearGradient>
+    </TouchableOpacity>
   );
 }
 
@@ -1781,14 +1936,64 @@ export default function MatchesScreen() {
   const [showAgeCardModal, setShowAgeCardModal] = useState(false);
   const [showCompatibilityCardModal, setShowCompatibilityCardModal] = useState(false);
   const [messageLikedToast, setMessageLikedToast] = useState<{ likerName: string } | null>(null);
+  /** Mulligan-styled explainer (replaces system Alert on photo-unlock banner tap). */
+  const [photoUnlockExplainerVisible, setPhotoUnlockExplainerVisible] = useState(false);
+  /** Momentary “photos unlocked” celebration when stage1 → stage2 (each user sent 3+ messages). */
+  const [galleryUnlockCelebration, setGalleryUnlockCelebration] = useState(false);
   const [truthOrDareGateModalVisible, setTruthOrDareGateModalVisible] = useState(false);
   const [chatMediaGateModalVisible, setChatMediaGateModalVisible] = useState(false);
-  
+  const galleryUnlockCelebrationDedupeRef = useRef<{ matchId: string; at: number } | null>(null);
+  const unlockCelebrateOpacity = useRef(new Animated.Value(0)).current;
+  const unlockCelebrateTranslateY = useRef(new Animated.Value(-36)).current;
+
+  const triggerGalleryUnlockCelebration = useCallback((matchId: string) => {
+    const now = Date.now();
+    const prev = galleryUnlockCelebrationDedupeRef.current;
+    if (prev && prev.matchId === matchId && now - prev.at < 6000) return;
+    galleryUnlockCelebrationDedupeRef.current = { matchId, at: now };
+    setGalleryUnlockCelebration(true);
+  }, []);
+
   useEffect(() => {
     if (!messageLikedToast) return;
     const t = setTimeout(() => setMessageLikedToast(null), 3000);
     return () => clearTimeout(t);
   }, [messageLikedToast]);
+
+  useEffect(() => {
+    setGalleryUnlockCelebration(false);
+    setPhotoUnlockExplainerVisible(false);
+  }, [selectedMatch?.id]);
+
+  useEffect(() => {
+    if (selectedMatch?.stage !== 'stage1') setPhotoUnlockExplainerVisible(false);
+  }, [selectedMatch?.stage]);
+
+  useEffect(() => {
+    if (!galleryUnlockCelebration) return;
+    unlockCelebrateOpacity.setValue(0);
+    unlockCelebrateTranslateY.setValue(-36);
+    Animated.parallel([
+      Animated.spring(unlockCelebrateTranslateY, {
+        toValue: 0,
+        friction: 9,
+        tension: 95,
+        useNativeDriver: true,
+      }),
+      Animated.timing(unlockCelebrateOpacity, {
+        toValue: 1,
+        duration: 320,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    try {
+      Vibration.vibrate(Platform.OS === 'ios' ? [0, 40, 60, 90] : [0, 80, 120, 160]);
+    } catch {
+      /* non-critical */
+    }
+    const t = setTimeout(() => setGalleryUnlockCelebration(false), 5200);
+    return () => clearTimeout(t);
+  }, [galleryUnlockCelebration]);
   
   // Header animations
   const headerGradientPos = useRef(new Animated.Value(0)).current;
@@ -2181,25 +2386,26 @@ export default function MatchesScreen() {
     () => (
       <View>
         {selectedMatch?.stage === 'stage1' ? (
-          <TouchableOpacity
-            activeOpacity={0.85}
-            style={styles.photoUnlockHintTouchable}
-            onPress={() => {
-              const name = selectedMatch.otherUser.displayName?.trim() || 'them';
-              Alert.alert(
-                'Unlock all photos',
-                `You each see one photo at first. After you and ${name} have each sent at least 3 messages in this chat, you'll both see each other's full galleries.`,
-                [{ text: 'Got it' }]
-              );
-            }}
-          >
-            <Text style={styles.photoUnlockHintText}>📷 How photos unlock</Text>
-          </TouchableOpacity>
+          Platform.OS === 'android' ? (
+            <PhotoUnlockStage1BannerAndroid
+              otherDisplayName={selectedMatch.otherUser.displayName ?? ''}
+              midnight={connectShellMode === 'midnight'}
+              onPress={() => setPhotoUnlockExplainerVisible(true)}
+            />
+          ) : (
+            <TouchableOpacity
+              activeOpacity={0.85}
+              style={styles.photoUnlockHintTouchable}
+              onPress={() => setPhotoUnlockExplainerVisible(true)}
+            >
+              <Text style={styles.photoUnlockHintText}>📷 How photos unlock</Text>
+            </TouchableOpacity>
+          )
         ) : null}
         {typingUsers.size > 0 ? <TypingIndicator /> : null}
       </View>
     ),
-    [typingUsers.size, selectedMatch?.stage, selectedMatch?.otherUser?.displayName, selectedMatch?.id]
+    [typingUsers.size, selectedMatch?.stage, selectedMatch?.otherUser?.displayName, selectedMatch?.id, connectShellMode]
   );
 
   const messagesContentStyle = useMemo(
@@ -2348,8 +2554,11 @@ export default function MatchesScreen() {
 
       socket.on('stage_advanced', (data: { matchId: string; stage: string }) => {
         if (data.stage !== 'stage2') return;
-        setMatches((prev) => prev.map((m) => m.id === data.matchId ? { ...m, stage: 'stage2' } : m));
-        setSelectedMatch((prev) => prev && prev.id === data.matchId ? { ...prev, stage: 'stage2' } : prev);
+        const current = selectedMatchRef.current;
+        const shouldCelebrate = Boolean(current?.id === data.matchId && current.stage === 'stage1');
+        setMatches((prev) => prev.map((m) => (m.id === data.matchId ? { ...m, stage: 'stage2' } : m)));
+        setSelectedMatch((prev) => (prev && prev.id === data.matchId ? { ...prev, stage: 'stage2' } : prev));
+        if (shouldCelebrate) triggerGalleryUnlockCelebration(data.matchId);
       });
 
       socket.on('game_request_received', (data: { requestId: string; matchId: string; fromUserId: string; fromUserName: string; gameType: 'truth_or_dare' | 'never_have_i_ever' }) => {
@@ -2423,7 +2632,7 @@ export default function MatchesScreen() {
           clearTimeout(typingTimeoutRef.current);
         }
       };
-  }, [user]);
+  }, [user, triggerGalleryUnlockCelebration]);
 
   useEffect(() => {
     // Wait for auth to finish loading before checking authentication
@@ -2735,6 +2944,8 @@ export default function MatchesScreen() {
     const hasVideo = !!videoUrlToSend;
     const hasAudio = !!audioUrlToSend;
     if ((!hasContent && !hasImage && !hasVideo && !hasAudio) || !selectedMatch || !user) return;
+    const wasStage1BeforeSend = selectedMatch.stage === 'stage1';
+    const sendingMatchId = selectedMatch.id;
     // Ref guard: prevent concurrent sends (state update is async so rapid taps can both pass sendingMessage check)
     if (sendInFlightRef.current) return;
     sendInFlightRef.current = true;
@@ -2843,8 +3054,9 @@ export default function MatchesScreen() {
       }
       // When each user has sent 3+ messages, backend returns stage: 'stage2' — update UI immediately
       if (response.stage === 'stage2') {
-        setSelectedMatch((prev) => prev && prev.id === selectedMatch.id ? { ...prev, stage: 'stage2' } : prev);
-        setMatches((prev) => prev.map((m) => m.id === selectedMatch.id ? { ...m, stage: 'stage2' } : m));
+        setSelectedMatch((prev) => (prev && prev.id === sendingMatchId ? { ...prev, stage: 'stage2' } : prev));
+        setMatches((prev) => prev.map((m) => (m.id === sendingMatchId ? { ...m, stage: 'stage2' } : m)));
+        if (wasStage1BeforeSend) triggerGalleryUnlockCelebration(sendingMatchId);
       }
     } catch (error: any) {
       // Remove temp message on error
@@ -4102,6 +4314,81 @@ export default function MatchesScreen() {
         </View>
       ) : null}
 
+      {galleryUnlockCelebration ? (
+        <Animated.View
+          pointerEvents="box-none"
+          style={[
+            styles.galleryUnlockCelebrationOverlay,
+            {
+              top: insets.top + (Platform.OS === 'ios' ? 52 : 58),
+              opacity: unlockCelebrateOpacity,
+              transform: [{ translateY: unlockCelebrateTranslateY }],
+            },
+          ]}
+        >
+          <TouchableOpacity
+            activeOpacity={0.93}
+            onPress={() => setGalleryUnlockCelebration(false)}
+            style={styles.galleryUnlockCelebrationTouchable}
+          >
+            <LinearGradient
+              colors={
+                connectShellMode === 'midnight'
+                  ? ['#fbbf24', '#f472b6', '#a855f7']
+                  : ['#fde047', '#fb7185', '#e879f9']
+              }
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.galleryUnlockCelebrationRim}
+            >
+              <View
+                style={[
+                  styles.galleryUnlockCelebrationInner,
+                  connectShellMode === 'midnight'
+                    ? styles.galleryUnlockCelebrationInnerMidnight
+                    : styles.galleryUnlockCelebrationInnerDay,
+                ]}
+              >
+                <Text style={styles.galleryUnlockCelebrationEmoji}>🎉 📸</Text>
+                <Text
+                  style={[
+                    styles.galleryUnlockCelebrationTitle,
+                    connectShellMode === 'midnight' && styles.galleryUnlockCelebrationTitleMidnight,
+                  ]}
+                >
+                  All photos unlocked!
+                </Text>
+                <Text
+                  style={[
+                    styles.galleryUnlockCelebrationSubtitle,
+                    connectShellMode === 'midnight' && styles.galleryUnlockCelebrationSubtitleMidnight,
+                  ]}
+                >
+                  {"You've both earned it — swipe through each other's full galleries."}
+                </Text>
+                <Text
+                  style={[
+                    styles.galleryUnlockCelebrationDismiss,
+                    connectShellMode === 'midnight' && styles.galleryUnlockCelebrationDismissMidnight,
+                  ]}
+                >
+                  Tap to dismiss
+                </Text>
+              </View>
+            </LinearGradient>
+          </TouchableOpacity>
+        </Animated.View>
+      ) : null}
+
+      {selectedMatch?.stage === 'stage1' ? (
+        <PhotoUnlockExplainerModal
+          visible={photoUnlockExplainerVisible}
+          onClose={() => setPhotoUnlockExplainerVisible(false)}
+          otherDisplayName={selectedMatch.otherUser.displayName ?? ''}
+          midnight={connectShellMode === 'midnight'}
+        />
+      ) : null}
+
         <Animated.View 
           style={[
             styles.inputContainer,
@@ -4343,6 +4630,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(136, 19, 55, 0.28)',
     shadowColor: '#881337',
   },
+  animatedHeartGlowSunny: {
+    backgroundColor: 'rgba(251, 146, 60, 0.32)',
+    shadowColor: '#ea580c',
+  },
   animatedHeartGlowMidnight: {
     backgroundColor: 'rgba(244, 114, 182, 0.36)',
     shadowColor: '#ec4899',
@@ -4369,6 +4660,14 @@ const styles = StyleSheet.create({
     shadowColor: '#881337',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.42,
+    shadowRadius: 10,
+    elevation: 12,
+  },
+  animatedHeartGradientSunny: {
+    borderColor: 'rgba(255, 255, 255, 0.95)',
+    shadowColor: '#ea580c',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
     shadowRadius: 10,
     elevation: 12,
   },
@@ -5371,6 +5670,79 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
   },
+  galleryUnlockCelebrationOverlay: {
+    position: 'absolute',
+    left: 14,
+    right: 14,
+    zIndex: 1002,
+    elevation: 24,
+    alignItems: 'center',
+    pointerEvents: 'box-none',
+  },
+  galleryUnlockCelebrationTouchable: {
+    width: '100%',
+    maxWidth: 420,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.38,
+    shadowRadius: 20,
+    elevation: 20,
+  },
+  galleryUnlockCelebrationRim: {
+    borderRadius: 20,
+    padding: 2,
+  },
+  galleryUnlockCelebrationInner: {
+    borderRadius: 18,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  galleryUnlockCelebrationInnerMidnight: {
+    backgroundColor: 'rgba(18, 16, 28, 0.94)',
+  },
+  galleryUnlockCelebrationInnerDay: {
+    backgroundColor: 'rgba(255, 255, 255, 0.97)',
+  },
+  galleryUnlockCelebrationEmoji: {
+    fontSize: 30,
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  galleryUnlockCelebrationTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    letterSpacing: -0.4,
+    textAlign: 'center',
+    color: '#881337',
+  },
+  galleryUnlockCelebrationTitleMidnight: {
+    color: '#fde68a',
+  },
+  galleryUnlockCelebrationSubtitle: {
+    fontSize: 14,
+    lineHeight: 21,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginTop: 8,
+    color: '#57534e',
+    letterSpacing: 0.12,
+  },
+  galleryUnlockCelebrationSubtitleMidnight: {
+    color: '#e2e8f0',
+  },
+  galleryUnlockCelebrationDismiss: {
+    marginTop: 14,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: 'rgba(136, 19, 55, 0.55)',
+    textAlign: 'center',
+  },
+  galleryUnlockCelebrationDismissMidnight: {
+    color: 'rgba(253, 230, 138, 0.58)',
+  },
   messageStatusSent: {
     fontSize: 11,
     color: 'rgba(255, 255, 255, 0.7)',
@@ -5396,6 +5768,106 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#4c51bf',
     letterSpacing: 0.2,
+  },
+  photoUnlockBannerOuter: {
+    alignSelf: 'stretch',
+    marginHorizontal: 12,
+    marginBottom: 10,
+    elevation: 10,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
+  },
+  photoUnlockBannerRim: {
+    borderRadius: 18,
+    padding: 2,
+  },
+  photoUnlockBannerInner: {
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    overflow: 'hidden',
+  },
+  photoUnlockBannerHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 12,
+  },
+  photoUnlockBannerIconBubble: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoUnlockBannerIconEmoji: {
+    fontSize: 22,
+  },
+  photoUnlockBannerTitleBlock: {
+    flex: 1,
+    minWidth: 0,
+  },
+  photoUnlockBannerTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: -0.35,
+  },
+  photoUnlockBannerSubtitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 3,
+    letterSpacing: 0.15,
+  },
+  photoUnlockBannerBody: {
+    fontSize: 14,
+    lineHeight: 21,
+    marginBottom: 12,
+    letterSpacing: 0.1,
+  },
+  photoUnlockBannerName: {
+    fontWeight: '700',
+  },
+  photoUnlockBannerEmphasis: {
+    fontWeight: '800',
+  },
+  photoUnlockBannerChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 8,
+  },
+  photoUnlockBannerChip: {
+    paddingVertical: 7,
+    paddingHorizontal: 11,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  photoUnlockBannerChipMidnight: {
+    backgroundColor: 'rgba(251, 113, 133, 0.12)',
+    borderColor: 'rgba(251, 191, 36, 0.38)',
+  },
+  photoUnlockBannerChipDay: {
+    backgroundColor: 'rgba(253, 242, 248, 0.95)',
+    borderColor: 'rgba(251, 191, 36, 0.45)',
+  },
+  photoUnlockBannerChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  photoUnlockBannerChipTextMidnight: {
+    color: '#fde68a',
+  },
+  photoUnlockBannerChipTextDay: {
+    color: '#9f1239',
+  },
+  photoUnlockBannerTapHint: {
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.35,
+    textTransform: 'uppercase' as const,
   },
   typingIndicatorContainer: {
     paddingVertical: 8,

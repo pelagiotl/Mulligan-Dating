@@ -1,6 +1,7 @@
 import { useState, useEffect, FormEvent } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useConnectShellTheme } from "../context/ConnectShellThemeContext";
+import { connectShellDisplayLabel } from "../lib/connectShellTheme";
 import { api } from "../utils/api";
 import { Link, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import WebTokenPurchase from "../components/WebTokenPurchase";
@@ -273,8 +274,8 @@ export default function Settings() {
             <div>
               <strong>Hero card &amp; chrome</strong>
               <p className="settings-hint">
-                Toggle between the midnight graphite Connect card and the soft white pill look. The Mulligan tokens
-                strip, tab bar, and launch countdown bubble follow this choice. Saved on this device only.
+                Cycle through Midnight (dark graphite), Sunny (warm sunrise), and Soft (pastel purple) Connect chrome.
+                The Mulligan tokens strip, tab bar, and launch countdown follow this choice. Saved on this device only.
               </p>
             </div>
             <button
@@ -282,7 +283,7 @@ export default function Settings() {
               className={`settings-toggle-btn settings-shell-toggle--${connectShellMode}`}
               onClick={toggleConnectShellMode}
             >
-              {connectShellMode === "midnight" ? "Midnight" : "Soft"}
+              {connectShellDisplayLabel(connectShellMode)}
             </button>
           </div>
         </div>

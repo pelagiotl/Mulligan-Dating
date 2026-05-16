@@ -33,7 +33,8 @@ export default function BrowseConnectLandingTokenStrip({
   onBuyPress,
 }: BrowseConnectLandingTokenStripProps) {
   const meterPct = Math.min(100, (availableTokens / TOKEN_MAX) * 100);
-  const midnight = connectShell === 'midnight';
+  const shell = connectShell;
+  const midnight = shell === 'midnight';
 
   const refillFormatted =
     nextRefillDate &&
@@ -57,13 +58,35 @@ export default function BrowseConnectLandingTokenStrip({
         ? `Next weekly refill: ${refillFormatted}. You'll get up to ${TOKEN_MAX} tokens.`
         : "Weekly tokens aren't ready to claim yet. Check back after your refill date.";
 
-  const headerColors = midnight
-    ? (['#553c9a', '#6b21a8', '#863bb9'] as const)
-    : (['#667eea', '#764ba2', '#f093fb'] as const);
+  const headerColors =
+    shell === 'midnight'
+      ? (['#553c9a', '#6b21a8', '#863bb9'] as const)
+      : shell === 'sunny'
+        ? (['#38bdf8', '#fcd34d', '#fb923c'] as const)
+        : (['#667eea', '#764ba2', '#f093fb'] as const);
+
+  const cardOuterStyle =
+    shell === 'midnight' ? styles.cardOuterMidnight : shell === 'sunny' ? styles.cardOuterSunny : styles.cardOuterSoft;
+
+  const bodyStyle =
+    shell === 'midnight' ? styles.bodyMidnight : shell === 'sunny' ? styles.bodySunny : styles.bodySoft;
+
+  const claimBtnColors = claiming
+    ? (['#94a3b8', '#64748b'] as const)
+    : shell === 'sunny'
+      ? (['#ea580c', '#fb923c', '#fbbf24'] as const)
+      : (['#667eea', '#764ba2', '#f093fb'] as const);
+
+  const footerHintExtra =
+    shell === 'midnight'
+      ? styles.footerHintMidnight
+      : shell === 'sunny'
+        ? styles.footerHintSunny
+        : styles.footerHintSoft;
 
   return (
     <View
-      style={[styles.cardOuter, midnight ? styles.cardOuterMidnight : styles.cardOuterSoft]}
+      style={[styles.cardOuter, cardOuterStyle]}
       accessibilityRole="summary"
       accessibilityLabel="Mulligan tokens"
     >
@@ -83,7 +106,7 @@ export default function BrowseConnectLandingTokenStrip({
         </View>
       </LinearGradient>
 
-      <View style={[styles.body, midnight ? styles.bodyMidnight : styles.bodySoft]}>
+      <View style={[styles.body, bodyStyle]}>
         {error ? (
           <View style={styles.banner}>
             <Text style={[styles.bannerText, midnight && styles.bannerTextMidnight]}>⚠️ {error}</Text>
@@ -104,7 +127,7 @@ export default function BrowseConnectLandingTokenStrip({
             activeOpacity={0.9}
           >
             <LinearGradient
-              colors={claiming ? ['#94a3b8', '#64748b'] : ['#667eea', '#764ba2', '#f093fb']}
+              colors={claimBtnColors}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.claimGradient}
@@ -133,7 +156,7 @@ export default function BrowseConnectLandingTokenStrip({
           </TouchableOpacity>
         ) : null}
 
-        <Text style={[styles.footerHint, midnight && styles.footerHintMidnight]}>
+        <Text style={[styles.footerHint, footerHintExtra]}>
           Use tokens to match with people. Get {TOKEN_MAX} tokens weekly (up to {TOKEN_MAX} max).
         </Text>
       </View>
@@ -163,6 +186,15 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.18,
     shadowRadius: 28,
+    elevation: 10,
+  },
+  cardOuterSunny: {
+    borderWidth: 2,
+    borderColor: 'rgba(251, 191, 36, 0.45)',
+    shadowColor: '#fb923c',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.22,
+    shadowRadius: 26,
     elevation: 10,
   },
   header: {
@@ -223,8 +255,11 @@ const styles = StyleSheet.create({
   bodyMidnight: {
     backgroundColor: 'rgba(18, 16, 28, 0.92)',
   },
+  bodySunny: {
+    backgroundColor: '#fffbeb',
+  },
   bodySoft: {
-    backgroundColor: '#fff',
+    backgroundColor: '#ffffff',
   },
   banner: {
     paddingVertical: 6,
@@ -290,5 +325,11 @@ const styles = StyleSheet.create({
   },
   footerHintMidnight: {
     color: '#94a3b8',
+  },
+  footerHintSunny: {
+    color: '#57534e',
+  },
+  footerHintSoft: {
+    color: '#475569',
   },
 });

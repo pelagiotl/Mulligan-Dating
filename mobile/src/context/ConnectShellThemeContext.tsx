@@ -9,6 +9,7 @@ import React, {
 } from 'react';
 import {
   loadConnectShellMode,
+  nextConnectShellMode,
   saveConnectShellMode,
   type ConnectShellMode,
 } from '../lib/connectShellTheme';
@@ -35,7 +36,7 @@ export function ConnectShellThemeProvider({ children }: { children: ReactNode })
 
   const toggleMode = useCallback(() => {
     setModeState((prev) => {
-      const next: ConnectShellMode = prev === 'midnight' ? 'soft' : 'midnight';
+      const next = nextConnectShellMode(prev);
       void saveConnectShellMode(next);
       return next;
     });
