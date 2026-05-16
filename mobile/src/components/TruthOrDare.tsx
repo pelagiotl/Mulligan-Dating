@@ -1,5 +1,5 @@
 /**
- * Truth or Dare - Unlocked with a Mulligan token
+ * Truth or Dare — unlocks after each person sends enough messages in the match chat.
  */
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -19,7 +19,6 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { api } from '../utils/api';
 import TruthOrDareMessageGateModal from './TruthOrDareMessageGateModal';
-import GameUnlockPlayModal from './GameUnlockPlayModal';
 
 // PG-13 — grown-up flirting (matches server fallbacks)
 const TRUTH_PROMPTS = [
@@ -175,12 +174,8 @@ interface TruthOrDareProps {
   socket: any;
   onSendToChat?: (text: string) => void;
   onRequestGame?: () => void;
-  onUnlockWithToken?: () => Promise<void>;
-  /** If provided, called when user taps locked game. Return true if game is already unlocked (other user unlocked); then we open without prompting for token. */
-  onBeforeUnlockPrompt?: () => Promise<boolean>;
   openForAccept?: boolean;
   onOpenedForAccept?: () => void;
-  gameUnlockedByToken?: boolean;
   compact?: boolean;
   square?: boolean;
   /** When true, renders as a small icon-only button for header placement */
@@ -195,11 +190,8 @@ export default function TruthOrDare({
   socket,
   onSendToChat,
   onRequestGame,
-  onUnlockWithToken,
-  onBeforeUnlockPrompt,
   openForAccept,
   onOpenedForAccept,
-  gameUnlockedByToken = false,
   compact = true,
   square = false,
   headerMode = false,
@@ -210,12 +202,7 @@ export default function TruthOrDare({
   const [promptType, setPromptType] = useState<'truth' | 'dare'>('truth');
   const [loading, setLoading] = useState(false);
   const [gameState, setGameState] = useState<GameState | null>(null);
-  const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
-  const [headerTimerSecs, setHeaderTimerSecs] = useState<number | null>(null);
   const [messageGateModalVisible, setMessageGateModalVisible] = useState(false);
-  const [unlockPlayModalVisible, setUnlockPlayModalVisible] = useState(false);
-  const [unlockPlayLoading, setUnlockPlayLoading] = useState(false);
-  const lastUnlockedUntilRef = useRef<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastAnotherOneAtRef = useRef<number>(0);
   /** When we just chose Truth or Dare, avoid letting fetchState overwrite with stale server currentPromptType */
@@ -224,14 +211,14 @@ export default function TruthOrDare({
   const gameStateRef = useRef<GameState | null>(null);
   gameStateRef.current = gameState;
 
-  const isUnlocked = gameUnlockedByToken;
-
   const truthOrDareEligible = useMemo(
     () =>
       Boolean(currentUserId && chatPartnerUserId) &&
       truthOrDareMessageThresholdMet(messages, currentUserId, chatPartnerUserId),
     [messages, currentUserId, chatPartnerUserId]
   );
+
+  const isUnlocked = truthOrDareEligible;
 
   const messageGateCounts = useMemo(
     () => truthOrDareMessageCounts(messages, currentUserId, chatPartnerUserId),
@@ -248,45 +235,14 @@ export default function TruthOrDare({
     />
   );
 
-  const handleUnlockPlayConfirm = async () => {
-    if (!onUnlockWithToken || unlockPlayLoading) return;
-    setUnlockPlayLoading(true);
+  const ensureGameUnlocked = useCallback(async () => {
+    if (!truthOrDareEligible) return;
     try {
-      await onUnlockWithToken();
-      setUnlockPlayModalVisible(false);
-      handleOpen();
-    } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Failed to open game.');
-    } finally {
-      setUnlockPlayLoading(false);
+      await api.post(`/matches/${matchId}/unlock-game`, { gameType: 'truth_or_dare' });
+    } catch {
+      /* already unlocked or transient — state fetch will surface real errors */
     }
-  };
-
-  const unlockPlayModal = (
-    <GameUnlockPlayModal
-      visible={unlockPlayModalVisible}
-      onCancel={() => {
-        if (!unlockPlayLoading) setUnlockPlayModalVisible(false);
-      }}
-      onPlay={() => void handleUnlockPlayConfirm()}
-      playing={unlockPlayLoading}
-      emoji="🎲"
-      kicker="TRUTH OR DARE"
-      title="Ready to play?"
-      subtitle="Use one Mulligan token to unlock a 7-minute Truth or Dare round for you and your match."
-      features={[
-        '7-minute round for both of you',
-        'PG-13, R, or Spicy — you pick together',
-        'Truths and dares land right in your chat',
-      ]}
-    />
-  );
-
-  const formatTimeRemaining = (secs: number) => {
-    const m = Math.floor(secs / 60);
-    const s = secs % 60;
-    return `${m}:${s.toString().padStart(2, '0')}`;
-  };
+  }, [matchId, truthOrDareEligible]);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const emojiScale = useRef(new Animated.Value(1)).current;
@@ -395,15 +351,18 @@ export default function TruthOrDare({
 
   useEffect(() => {
     if (openForAccept) {
-      setStep('spice');
-      setPrompt('');
-      setModalVisible(true);
-      setLoading(true);
-      fetchState().finally(() => setLoading(false));
-      pollRef.current = setInterval(fetchState, 3000);
-      onOpenedForAccept?.();
+      void (async () => {
+        await ensureGameUnlocked();
+        setStep('spice');
+        setPrompt('');
+        setModalVisible(true);
+        setLoading(true);
+        fetchState().finally(() => setLoading(false));
+        pollRef.current = setInterval(fetchState, 3000);
+        onOpenedForAccept?.();
+      })();
     }
-  }, [openForAccept, fetchState]);
+  }, [openForAccept, fetchState, ensureGameUnlocked, onOpenedForAccept]);
 
   useEffect(() => {
     if (!modalVisible) return;
@@ -424,47 +383,23 @@ export default function TruthOrDare({
     };
   }, []);
 
-  useEffect(() => {
-    const untilStr = gameState?.unlockedUntil ?? lastUnlockedUntilRef.current;
-    if (gameState?.unlockedUntil) lastUnlockedUntilRef.current = gameState.unlockedUntil;
-
-    if (!modalVisible && !untilStr) {
-      setSecondsRemaining(null);
-      return;
-    }
-    if (!modalVisible) {
-      setSecondsRemaining(null);
-    }
-    const tick = () => {
-      if (!untilStr) return;
-      const until = new Date(untilStr);
-      const now = new Date();
-      const secs = Math.max(0, Math.floor((until.getTime() - now.getTime()) / 1000));
-      if (modalVisible) setSecondsRemaining(secs);
-      if (isUnlocked && headerMode) setHeaderTimerSecs(secs);
-      if (secs <= 0 && pollRef.current) {
-        clearInterval(pollRef.current);
-        pollRef.current = null;
-        lastUnlockedUntilRef.current = null;
-        setHeaderTimerSecs(0);
-        fetchState();
-      }
-    };
-    tick();
-    const interval = setInterval(tick, 1000);
-    return () => clearInterval(interval);
-  }, [modalVisible, gameState?.unlockedUntil, isUnlocked, headerMode, fetchState]);
-
   const handleOpen = () => {
     if (Platform.OS === 'ios' || Platform.OS === 'android') {
       Vibration.vibrate(50);
     }
-    setStep('spice');
-    setPrompt('');
-    setModalVisible(true);
-    setLoading(true);
-    fetchState().finally(() => setLoading(false));
-    pollRef.current = setInterval(fetchState, 3000);
+    if (!truthOrDareEligible) {
+      setMessageGateModalVisible(true);
+      return;
+    }
+    void (async () => {
+      await ensureGameUnlocked();
+      setStep('spice');
+      setPrompt('');
+      setModalVisible(true);
+      setLoading(true);
+      fetchState().finally(() => setLoading(false));
+      pollRef.current = setInterval(fetchState, 3000);
+    })();
   };
 
   const handleClose = () => {
@@ -566,33 +501,12 @@ export default function TruthOrDare({
     outputRange: ['-12deg', '12deg'],
   });
 
-  const handleLockedPress = async () => {
+  const handleLockedPress = () => {
     if (Platform.OS === 'ios' || Platform.OS === 'android') {
       Vibration.vibrate(30);
     }
-    if (!truthOrDareEligible) {
-      setMessageGateModalVisible(true);
-      return;
-    }
-    if (onBeforeUnlockPrompt) {
-      const alreadyUnlocked = await onBeforeUnlockPrompt();
-      if (alreadyUnlocked) {
-        handleOpen();
-        return;
-      }
-    }
-    if (onUnlockWithToken) {
-      setUnlockPlayModalVisible(true);
-    } else {
-      Alert.alert('🎲 Truth or Dare', 'Truth or Dare is not available for this match.', [{ text: 'Got it', style: 'default' }]);
-    }
+    handleOpen();
   };
-
-  useEffect(() => {
-    if (headerMode && isUnlocked && !lastUnlockedUntilRef.current) {
-      fetchState();
-    }
-  }, [headerMode, isUnlocked, fetchState]);
 
   useEffect(() => {
     if (!headerMode) return;
@@ -617,22 +531,15 @@ export default function TruthOrDare({
   }, [headerMode]);
 
   const headerButton = (
-    <View style={styles.headerButtonWithTimer}>
-      <Animated.View style={{ transform: [{ scale: headerPulseAnim }] }}>
-        <TouchableOpacity
-          onPress={isUnlocked ? handleOpen : handleLockedPress}
-          activeOpacity={0.8}
-          style={[styles.headerIconButton, !isUnlocked && styles.headerIconButtonLocked]}
-        >
-          <Text style={styles.headerIconEmoji}>🎲</Text>
-        </TouchableOpacity>
-      </Animated.View>
-      {isUnlocked && headerTimerSecs !== null && headerTimerSecs > 0 && (
-        <View style={styles.headerTimerBadge}>
-          <Text style={styles.headerTimerText}>⏱ {formatTimeRemaining(headerTimerSecs)}</Text>
-        </View>
-      )}
-    </View>
+    <Animated.View style={{ transform: [{ scale: headerPulseAnim }] }}>
+      <TouchableOpacity
+        onPress={isUnlocked ? handleOpen : handleLockedPress}
+        activeOpacity={0.8}
+        style={[styles.headerIconButton, !isUnlocked && styles.headerIconButtonLocked]}
+      >
+        <Text style={styles.headerIconEmoji}>🎲</Text>
+      </TouchableOpacity>
+    </Animated.View>
   );
 
   if (headerMode) {
@@ -653,15 +560,7 @@ export default function TruthOrDare({
                         ? '✨ Truth'
                         : '🔥 Dare'}
                 </Text>
-                {gameState?.unlockedUntil && secondsRemaining !== null && secondsRemaining > 0 && (
-                  <View style={styles.timerBadge}><Text style={styles.timerLabel}>Session time left</Text><Text style={styles.timerText}>⏱ {formatTimeRemaining(secondsRemaining)}</Text></View>
-                )}
-                {gameState?.tokenUnlocked && secondsRemaining !== null && secondsRemaining <= 0 ? (
-                  <View style={styles.sessionExpiredContainer}>
-                    <Text style={styles.sessionExpiredTitle}>Session expired</Text>
-                    <Text style={styles.sessionExpiredText}>Use another Mulligan token to play another 7-minute round.</Text>
-                  </View>
-                ) : loading ? (
+                {loading ? (
                   <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#fff" /><Text style={styles.loadingText}>Loading...</Text></View>
                 ) : step === 'spice' || (gameState && !gameState.spiceReady) ? (
                   <View style={styles.chooseContainer}>
@@ -724,7 +623,6 @@ export default function TruthOrDare({
           </TouchableOpacity>
         </Modal>
         {messageGateModal}
-        {unlockPlayModal}
       </>
     );
   }
@@ -773,7 +671,6 @@ export default function TruthOrDare({
         </TouchableOpacity>
       </View>
       {messageGateModal}
-      {unlockPlayModal}
     </>
     );
   }
@@ -851,15 +748,7 @@ export default function TruthOrDare({
                       ? '✨ Truth'
                       : '🔥 Dare'}
               </Text>
-              {gameState?.unlockedUntil && secondsRemaining !== null && secondsRemaining > 0 && (
-                <View style={styles.timerBadge}><Text style={styles.timerLabel}>Session time left</Text><Text style={styles.timerText}>⏱ {formatTimeRemaining(secondsRemaining)}</Text></View>
-              )}
-              {gameState?.tokenUnlocked && secondsRemaining !== null && secondsRemaining <= 0 ? (
-                <View style={styles.sessionExpiredContainer}>
-                  <Text style={styles.sessionExpiredTitle}>Session expired</Text>
-                  <Text style={styles.sessionExpiredText}>Use another Mulligan token to play another 7-minute round.</Text>
-                </View>
-              ) : loading ? (
+              {loading ? (
                 <View style={styles.loadingContainer}>
                   <ActivityIndicator size="large" color="#fff" />
                   <Text style={styles.loadingText}>Loading...</Text>
@@ -970,7 +859,6 @@ export default function TruthOrDare({
         </TouchableOpacity>
       </Modal>
       {messageGateModal}
-      {unlockPlayModal}
     </>
   );
 }

@@ -3826,25 +3826,8 @@ export default function MatchesScreen() {
                         Alert.alert('Error', e?.message || 'Failed to send game request');
                       }
                     }}
-                    onBeforeUnlockPrompt={async () => {
-                      const matches = await fetchMatches();
-                      const m = matches.find(mm => mm.id === selectedMatch.id);
-                      if (m?.gameUnlocks?.truth_or_dare) {
-                        setSelectedMatch(m);
-                        return true;
-                      }
-                      return false;
-                    }}
-                    onUnlockWithToken={async () => {
-                      await api.post(`/matches/${selectedMatch.id}/unlock-game`, { gameType: 'truth_or_dare' });
-                      api.clearCache('/matches');
-                      api.clearCache('/tokens');
-                      setSelectedMatch(prev => prev ? { ...prev, gameUnlocks: { ...(prev.gameUnlocks || { truth_or_dare: false, never_have_i_ever: false }), truth_or_dare: true } } : null);
-                      setMatches(prev => prev.map(m => m.id === selectedMatch.id ? { ...m, gameUnlocks: { ...(m.gameUnlocks || { truth_or_dare: false, never_have_i_ever: false }), truth_or_dare: true } } : m));
-                    }}
                     openForAccept={openGameForAccept?.gameType === 'truth_or_dare' && openGameForAccept?.matchId === selectedMatch.id}
                     onOpenedForAccept={() => setOpenGameForAccept(null)}
-                    gameUnlockedByToken={selectedMatch.gameUnlocks?.truth_or_dare}
                     headerMode
                   />
                   {SHOW_NEVER_HAVE_I_EVER && (

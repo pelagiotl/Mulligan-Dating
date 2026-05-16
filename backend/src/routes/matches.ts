@@ -2025,9 +2025,11 @@ matchesRouter.post("/:matchId/unlock-game", authenticateToken, rateLimitAPI, asy
     }
 
     const SEVEN_MINUTES_MS = 7 * 60 * 1000;
-    const unlockedUntil = new Date(Date.now() + SEVEN_MINUTES_MS);
+    /** Truth or Dare: no session timer. NHIE: 7-minute window. */
+    const unlockedUntil =
+      gameType === 'truth_or_dare' ? null : new Date(Date.now() + SEVEN_MINUTES_MS);
 
-    // Check if already unlocked and within 7-minute window (idempotent)
+    // Check if already unlocked (idempotent)
     const existingUnlock = db
       .prepare('SELECT unlocked_until FROM game_unlocks WHERE match_id = ? AND game_type = ?')
       .get([matchId, gameType]) as { unlocked_until: string | null } | undefined;
@@ -2038,14 +2040,14 @@ matchesRouter.post("/:matchId/unlock-game", authenticateToken, rateLimitAPI, asy
       }
     }
 
-    // Games are free for now — no token spent; just create or extend the unlock record
+    // Games are free — no token spent; create or refresh the unlock record
+    const unlockedUntilDb = unlockedUntil ? unlockedUntil.toISOString() : null;
     if (existingUnlock) {
-      // Extend expired unlock with another 7 minutes
       db.prepare('UPDATE game_unlocks SET unlocked_until = ?, unlocked_at = CURRENT_TIMESTAMP WHERE match_id = ? AND game_type = ?')
-        .run([unlockedUntil.toISOString(), matchId, gameType]);
+        .run([unlockedUntilDb, matchId, gameType]);
     } else {
       db.prepare('INSERT INTO game_unlocks (match_id, game_type, unlocked_by_user_id, unlocked_until) VALUES (?, ?, ?, ?)')
-        .run([matchId, gameType, userId, unlockedUntil.toISOString()]);
+        .run([matchId, gameType, userId, unlockedUntilDb]);
     }
 
     // Reset game state so both users pick PG-13 / Rated R / Spicy again after unlock
@@ -2163,15 +2165,17 @@ matchesRouter.post("/:matchId/game-request", authenticateToken, rateLimitAPI, as
 
     const toUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
 
-    // Games are free for now — unlock without spending a token (same as unlock-game)
+    // Games are free — unlock without spending a token (same as unlock-game)
     const SEVEN_MINUTES_MS = 7 * 60 * 1000;
-    const unlockedUntil = new Date(Date.now() + SEVEN_MINUTES_MS);
+    const unlockedUntil =
+      gameType === 'truth_or_dare' ? null : new Date(Date.now() + SEVEN_MINUTES_MS);
+    const unlockedUntilDb = unlockedUntil ? unlockedUntil.toISOString() : null;
     const existingUnlock = db
       .prepare('SELECT unlocked_until FROM game_unlocks WHERE match_id = ? AND game_type = ?')
       .get([matchId, gameType]) as { unlocked_until: string | null } | undefined;
     if (!existingUnlock) {
       const runIns = db.prepare('INSERT INTO game_unlocks (match_id, game_type, unlocked_by_user_id, unlocked_until) VALUES (?, ?, ?, ?)')
-        .run([matchId, gameType, userId, unlockedUntil.toISOString()]);
+        .run([matchId, gameType, userId, unlockedUntilDb]);
       if (runIns instanceof Promise) await runIns;
       if (gameType === 'truth_or_dare') {
         let exG = db.prepare('SELECT match_id FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
@@ -2202,7 +2206,7 @@ matchesRouter.post("/:matchId/game-request", authenticateToken, rateLimitAPI, as
       const until = existingUnlock.unlocked_until ? new Date(existingUnlock.unlocked_until) : null;
       if (until && until <= new Date()) {
         const runExt = db.prepare('UPDATE game_unlocks SET unlocked_until = ?, unlocked_at = CURRENT_TIMESTAMP WHERE match_id = ? AND game_type = ?')
-          .run([unlockedUntil.toISOString(), matchId, gameType]);
+          .run([unlockedUntilDb, matchId, gameType]);
         if (runExt instanceof Promise) await runExt;
         if (gameType === 'truth_or_dare') {
           let exG2 = db.prepare('SELECT match_id FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
@@ -2369,11 +2373,11 @@ matchesRouter.get("/:matchId/truth-or-dare/state", authenticateToken, async (req
 
     const unlockRow = db.prepare('SELECT unlocked_by_user_id, unlocked_until FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'truth_or_dare']) as { unlocked_by_user_id: string; unlocked_until: string | null } | undefined;
     if (!unlockRow) {
-      return res.status(400).json({ error: "Truth or Dare must be unlocked with a Mulligan token to play." });
+      return res.status(400).json({ error: "Truth or Dare is not available for this match yet." });
     }
     const until = unlockRow.unlocked_until ? new Date(unlockRow.unlocked_until) : null;
     if (until && until <= new Date()) {
-      return res.status(400).json({ error: "Your Truth or Dare session expired. Use another token to play for 7 more minutes." });
+      return res.status(400).json({ error: "Truth or Dare session expired. Open it again from your match chat." });
     }
 
     let gameResult = db.prepare('SELECT * FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
@@ -2458,11 +2462,11 @@ matchesRouter.post("/:matchId/truth-or-dare/spice-choice", authenticateToken, ra
 
     const unlockRow = db.prepare('SELECT unlocked_by_user_id, unlocked_until FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'truth_or_dare']) as { unlocked_by_user_id: string; unlocked_until: string | null } | undefined;
     if (!unlockRow) {
-      return res.status(400).json({ error: "Truth or Dare must be unlocked with a Mulligan token to play." });
+      return res.status(400).json({ error: "Truth or Dare is not available for this match yet." });
     }
     const spiceUntil = unlockRow.unlocked_until ? new Date(unlockRow.unlocked_until) : null;
     if (spiceUntil && spiceUntil <= new Date()) {
-      return res.status(400).json({ error: "Your Truth or Dare session expired. Use another token to play for 7 more minutes." });
+      return res.status(400).json({ error: "Truth or Dare session expired. Open it again from your match chat." });
     }
 
     const isUser1 = match.user1_id === userId;
@@ -2549,11 +2553,11 @@ matchesRouter.post("/:matchId/truth-or-dare", authenticateToken, rateLimitAPI, a
 
     const unlockRowToD = db.prepare('SELECT unlocked_until FROM game_unlocks WHERE match_id = ? AND game_type = ?').get([matchId, 'truth_or_dare']) as { unlocked_until: string | null } | undefined;
     if (!unlockRowToD) {
-      return res.status(400).json({ error: "Truth or Dare must be unlocked with a Mulligan token to play." });
+      return res.status(400).json({ error: "Truth or Dare is not available for this match yet." });
     }
     const todUntil = unlockRowToD.unlocked_until ? new Date(unlockRowToD.unlocked_until) : null;
     if (todUntil && todUntil <= new Date()) {
-      return res.status(400).json({ error: "Your Truth or Dare session expired. Use another token to play for 7 more minutes." });
+      return res.status(400).json({ error: "Truth or Dare session expired. Open it again from your match chat." });
     }
 
     if (!game) {

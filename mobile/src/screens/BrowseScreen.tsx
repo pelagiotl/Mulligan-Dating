@@ -43,7 +43,11 @@ import {
   getConnectSetupMissing,
   isConnectSetupComplete,
 } from '../utils/connectSetup';
-import { subscribeMatchCelebrationDemo } from '../utils/matchCelebrationDemo';
+import {
+  endMatchCelebrationDemoSession,
+  isMatchCelebrationDemoSession,
+  subscribeMatchCelebrationDemo,
+} from '../utils/matchCelebrationDemo';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -837,6 +841,7 @@ export default function BrowseScreen() {
   );
 
   const clearCelebrationAndConnectingState = useCallback(() => {
+    endMatchCelebrationDemoSession();
     setShowMatchCelebration(false);
     setMatchedProfile(null);
     setMatchId(null);
@@ -918,10 +923,18 @@ export default function BrowseScreen() {
   const userProfileId = userProfile?.id;
   useFocusEffect(
     useCallback(() => {
+      if (isMatchCelebrationDemoSession() || showMatchCelebration) return;
       if (currentProfile === null && !loading && !unlocking && userProfileId) {
         clearCelebrationAndConnectingState();
       }
-    }, [currentProfile, loading, unlocking, userProfileId, clearCelebrationAndConnectingState])
+    }, [
+      currentProfile,
+      loading,
+      unlocking,
+      userProfileId,
+      showMatchCelebration,
+      clearCelebrationAndConnectingState,
+    ])
   );
 
   // Fetch user's photo count when on landing page (for 5-photo minimum to Connect)

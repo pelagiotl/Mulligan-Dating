@@ -914,6 +914,65 @@ html[data-connect-shell="midnight"] .launch-countdown-bubble__minimize:hover {
   background: rgba(45, 38, 72, 0.92);
 }
 
+/* Midnight — match list badges (stage + compatibility) on dark cards */
+html[data-connect-shell="midnight"] .matches-page.native-app-screen .stage-badge.stage-pending,
+.app-layout.connect-shell--midnight .matches-page.native-app-screen .stage-badge.stage-pending {
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.32), rgba(245, 158, 11, 0.24));
+  color: #fde68a;
+  border-color: rgba(251, 191, 36, 0.5);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.28);
+}
+
+html[data-connect-shell="midnight"] .matches-page.native-app-screen .stage-badge.stage-1,
+.app-layout.connect-shell--midnight .matches-page.native-app-screen .stage-badge.stage-1 {
+  background: linear-gradient(135deg, rgba(167, 139, 250, 0.38), rgba(244, 114, 182, 0.3));
+  color: #faf5ff;
+  border-color: rgba(196, 181, 253, 0.55);
+  box-shadow:
+    0 1px 6px rgba(0, 0, 0, 0.28),
+    0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+}
+
+html[data-connect-shell="midnight"] .matches-page.native-app-screen .stage-badge.stage-2,
+.app-layout.connect-shell--midnight .matches-page.native-app-screen .stage-badge.stage-2 {
+  background: linear-gradient(135deg, rgba(52, 211, 153, 0.32), rgba(16, 185, 129, 0.26));
+  color: #a7f3d0;
+  border-color: rgba(110, 231, 183, 0.5);
+  box-shadow:
+    0 1px 6px rgba(0, 0, 0, 0.28),
+    0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+  animation: none;
+}
+
+html[data-connect-shell="midnight"] .matches-page.native-app-screen .match-compat-badge--interest,
+.app-layout.connect-shell--midnight .matches-page.native-app-screen .match-compat-badge--interest {
+  background: linear-gradient(135deg, rgba(129, 140, 248, 0.35), rgba(167, 139, 250, 0.28));
+  color: #ede9fe;
+  border-color: rgba(196, 181, 253, 0.55);
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.22);
+}
+
+html[data-connect-shell="midnight"] .matches-page.native-app-screen .match-compat-badge--pulse,
+.app-layout.connect-shell--midnight .matches-page.native-app-screen .match-compat-badge--pulse {
+  background: linear-gradient(135deg, rgba(244, 63, 94, 0.28), rgba(192, 38, 211, 0.24));
+  color: #fce7f3;
+  border-color: rgba(244, 114, 182, 0.5);
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.22);
+  animation: none;
+}
+
+html[data-connect-shell="midnight"] .matches-page.native-app-screen .match-timer.match-timer--card,
+.app-layout.connect-shell--midnight .matches-page.native-app-screen .match-timer.match-timer--card {
+  background: rgba(251, 191, 36, 0.18);
+  border-color: rgba(251, 191, 36, 0.42);
+  color: #fde68a;
+}
+
+html[data-connect-shell="midnight"] .matches-page.native-app-screen .match-meta,
+.app-layout.connect-shell--midnight .matches-page.native-app-screen .match-meta {
+  color: #cbd5e1;
+}
+
 /* Sunny — warm cream / amber (hero sunny card) */
 html[data-connect-shell="sunny"] .launch-countdown-bubble.launch-countdown-bubble--collapsed {
   background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 35%, #fde68a 65%, #fff7ed 100%);

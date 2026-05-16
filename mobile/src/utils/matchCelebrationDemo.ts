@@ -3,6 +3,17 @@ import { navigationRef } from '../navigation/navigationRef';
 
 const DEMO_LISTENERS = new Set<() => void>();
 
+/** Set synchronously before navigation so Browse focus handlers do not clear the preview. */
+let demoSessionActive = false;
+
+export function isMatchCelebrationDemoSession(): boolean {
+  return demoSessionActive;
+}
+
+export function endMatchCelebrationDemoSession(): void {
+  demoSessionActive = false;
+}
+
 function navigateToBrowse(): void {
   if (!navigationRef.current?.isReady()) return;
   navigationRef.current.dispatch(
@@ -27,6 +38,8 @@ function fireDemoListeners(): void {
 export function requestMatchCelebrationDemo(): void {
   if (!__DEV__) return;
 
+  demoSessionActive = true;
+
   let attempts = 0;
   const maxAttempts = 25;
 
@@ -39,6 +52,8 @@ export function requestMatchCelebrationDemo(): void {
     }
     if (attempts < maxAttempts) {
       setTimeout(tick, 400);
+    } else {
+      endMatchCelebrationDemoSession();
     }
   };
 

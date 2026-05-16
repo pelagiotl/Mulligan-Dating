@@ -16,11 +16,10 @@ class MainActivity : ReactActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     // Set the theme to AppTheme BEFORE onCreate to support
     // coloring the background, status bar, and navigation bar.
-    // This is required for expo-splash-screen.
     setTheme(R.style.AppTheme)
-    // Modern edge-to-edge (replaces deprecated statusBarColor-only setup; required for targetSdk 35).
-    enableEdgeToEdge()
+    // Dev launcher must initialize the React delegate before edge-to-edge hooks run.
     super.onCreate(null)
+    enableEdgeToEdge()
   }
 
   /**
