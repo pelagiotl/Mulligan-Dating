@@ -701,6 +701,20 @@ export default function TokenDisplay({
         </View>
       );
     }
+    if (compact) {
+      const midnight = connectShell === 'midnight';
+      return (
+        <View
+          style={[
+            styles.compactContainer,
+            midnight && styles.compactContainerMidnight,
+            { minWidth: 56, justifyContent: 'center' },
+          ]}
+        >
+          <ActivityIndicator size="small" color={midnight ? '#fda4af' : '#8B1538'} />
+        </View>
+      );
+    }
     return (
       <View style={styles.container}>
         <Text style={styles.loadingText}>Loading tokens...</Text>
@@ -1048,12 +1062,25 @@ export default function TokenDisplay({
       );
     }
     
-    // Standard compact mode
+    // Standard compact mode (navbar / global tab badge — tap opens same token modals as web)
+    const compactMidnight = connectShell === 'midnight';
     return (
-      <View style={styles.compactContainer}>
-        <Text style={styles.tokenIcon}>🎟️</Text>
-        <Text style={styles.compactTokenNumber}>{data.availableTokens}</Text>
-      </View>
+      <>
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() => {
+            setShowInfoModal(true);
+            fetchPackages();
+          }}
+          style={[styles.compactContainer, compactMidnight && styles.compactContainerMidnight]}
+        >
+          <Text style={styles.tokenIcon}>🎟️</Text>
+          <Text style={[styles.compactTokenNumber, compactMidnight && styles.compactTokenNumberMidnight]}>
+            {data.availableTokens}
+          </Text>
+        </TouchableOpacity>
+        {tokenManagementModals}
+      </>
     );
   }
 
@@ -1288,11 +1315,19 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(139, 21, 56, 0.1)',
     borderRadius: 20,
   },
+  compactContainerMidnight: {
+    backgroundColor: 'rgba(244, 63, 94, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(244, 114, 182, 0.35)',
+  },
   compactTokenNumber: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#8B1538',
     marginLeft: 6,
+  },
+  compactTokenNumberMidnight: {
+    color: '#fda4af',
   },
   premiumContainer: {
     alignSelf: 'flex-end',

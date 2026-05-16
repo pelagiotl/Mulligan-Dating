@@ -4,12 +4,16 @@
  */
 
 import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import {
+  NavigationContainer,
+  useNavigation,
+  useRoute,
+  type NavigationState,
+} from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Platform, Text, View, StyleSheet, Alert, Vibration, Pressable, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation, useRoute, NavigationContainerRef } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Import screens - React Navigation will lazy load them when lazy={true} is set
@@ -29,6 +33,7 @@ import { useAuth } from '../context/AuthContext';
 import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
 // Import navigation ref from separate file to avoid circular dependencies
 import { navigationRef, RootStackParamList } from './navigationRef';
+import TokenDisplay from '../components/TokenDisplay';
 
 // Types
 export type { RootStackParamList };
@@ -42,6 +47,22 @@ export type MainTabParamList = {
 
 /** Leaf route names when the stack is showing MainTabs (getCurrentRoute() is nested, not "MainTabs"). */
 const MAIN_TAB_SCREEN_NAMES = new Set<string>(['Browse', 'Matches', 'MyProfile', 'Settings', 'Admin']);
+
+/**
+ * Floating 🎟️+count (web navbar parity) on Matches / Profile / Settings / Admin.
+ * Browse uses its own top-right token overlay; hide here to avoid duplicate controls.
+ * Only when the stack is showing MainTabs (not CreateProfile / modals on top).
+ */
+function readMainTabsTokenOverlayVisible(): boolean {
+  const state = navigationRef.current?.getRootState() as NavigationState | undefined;
+  if (!state || typeof state.index !== 'number') return false;
+  const stackRoute = state.routes[state.index];
+  if (!stackRoute || stackRoute.name !== 'MainTabs') return false;
+  const tabState = stackRoute.state as NavigationState | undefined;
+  if (!tabState || typeof tabState.index !== 'number') return false;
+  const tabRoute = tabState.routes[tabState.index];
+  return tabRoute?.name !== 'Browse';
+}
 
 function isInsideMainTabsFlow(routeName: string | undefined): boolean {
   if (!routeName) return false;
@@ -258,6 +279,15 @@ function MainTabs() {
   );
 
   // Memoize screen options — all screens stay mounted, freeze inactive to avoid 5 re-renders on switch
+  const [tokenOverlayVisible, setTokenOverlayVisible] = React.useState(readMainTabsTokenOverlayVisible);
+  React.useEffect(() => {
+    const nav = navigationRef.current;
+    if (!nav) return;
+    const sync = () => setTokenOverlayVisible(readMainTabsTokenOverlayVisible());
+    sync();
+    return nav.addListener('state', sync);
+  }, []);
+
   const screenOptions = React.useMemo(() => ({
     headerShown: false,
     lazy: false,
@@ -325,35 +355,53 @@ function MainTabs() {
   }), [insets.bottom, androidShellMidnight]);
 
   return (
-    <Tab.Navigator screenOptions={screenOptions}>
-      <Tab.Screen 
-        name="Browse" 
-        component={BrowseScreen}
-        options={browseTabOptions}
-      />
-      <Tab.Screen 
-        name="Matches" 
-        component={MatchesScreen}
-        options={matchesTabOptions}
-      />
-      <Tab.Screen 
-        name="MyProfile" 
-        component={MyProfileScreen}
-        options={profileTabOptions}
-      />
-      <Tab.Screen 
-        name="Settings" 
-        component={SettingsScreen}
-        options={settingsTabOptions}
-      />
-      {isAdmin && (
+    <View style={{ flex: 1 }}>
+      <Tab.Navigator screenOptions={screenOptions}>
         <Tab.Screen 
-          name="Admin" 
-          component={AdminScreen}
-          options={adminTabOptions}
+          name="Browse" 
+          component={BrowseScreen}
+          options={browseTabOptions}
         />
-      )}
-    </Tab.Navigator>
+        <Tab.Screen 
+          name="Matches" 
+          component={MatchesScreen}
+          options={matchesTabOptions}
+        />
+        <Tab.Screen 
+          name="MyProfile" 
+          component={MyProfileScreen}
+          options={profileTabOptions}
+        />
+        <Tab.Screen 
+          name="Settings" 
+          component={SettingsScreen}
+          options={settingsTabOptions}
+        />
+        {isAdmin && (
+          <Tab.Screen 
+            name="Admin" 
+            component={AdminScreen}
+            options={adminTabOptions}
+          />
+        )}
+      </Tab.Navigator>
+      {tokenOverlayVisible && user ? (
+        <View pointerEvents="box-none" style={StyleSheet.absoluteFillObject}>
+          <View
+            pointerEvents="box-none"
+            style={{
+              position: 'absolute',
+              top: Math.max(insets.top, 8) + 4,
+              right: 16,
+              zIndex: 120,
+              elevation: 14,
+            }}
+          >
+            <TokenDisplay compact connectShell={connectShellMode} />
+          </View>
+        </View>
+      ) : null}
+    </View>
   );
 }
 
