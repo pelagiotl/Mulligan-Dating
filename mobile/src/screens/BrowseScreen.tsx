@@ -31,6 +31,7 @@ import { useAuth } from '../context/AuthContext';
 import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
 import TokenDisplay from '../components/TokenDisplay';
 import LaunchCountdownBubble from '../components/LaunchCountdownBubble';
+import MatchmakingPausedCard from '../components/MatchmakingPausedCard';
 import ConnectLandingValueProps from '../components/ConnectLandingValueProps';
 import ConnectLandingMark from '../components/ConnectLandingMark';
 import MatchCelebration from '../components/MatchCelebration';
@@ -982,6 +983,8 @@ export default function BrowseScreen() {
 
   const needsProfile = !userProfile && !loading;
   const matchmakingPaused = !!(user && user.matchmakingEnabled === false);
+  const matchmakingPausedMessage =
+    (user?.matchmakingDisabledMessage && String(user.matchmakingDisabledMessage).trim()) || undefined;
   const hasActiveProfile = !!(currentProfile?.id && currentProfile?.userId);
 
   // Show landing page when: browsing is locked, auto-matching, no profile to show, or server paused matchmaking
@@ -1584,6 +1587,12 @@ export default function BrowseScreen() {
 
               {isAuthenticated ? <ConnectLandingValueProps variant="midnightFeatures" /> : null}
 
+              {matchmakingPaused ? (
+                <MatchmakingPausedCard
+                  connectShell={connectShellMode}
+                  message={matchmakingPausedMessage}
+                />
+              ) : (
               <Animated.View
                 style={[
                   styles.landingButtonContainer,
@@ -1677,11 +1686,13 @@ export default function BrowseScreen() {
                   </LinearGradient>
                 </TouchableOpacity>
               </Animated.View>
-              </View>
+              )}
 
               <Animated.View style={[styles.landingHintWrap, { opacity: landingHintOpacity }]}>
                 <Text style={styles.midnightHint}>
-                  {!connectReady && photoCount !== null
+                  {matchmakingPaused
+                    ? 'Tap the launch countdown to see time until go-live'
+                    : !connectReady && photoCount !== null
                     ? connectMissing[0] === 'name'
                       ? 'Add your name in Settings to Connect'
                       : connectMissing[0] === 'location'
@@ -1690,6 +1701,7 @@ export default function BrowseScreen() {
                     : '⛳ Use a Mulligan'}
                 </Text>
               </Animated.View>
+              </View>
               </View>
             </LinearGradient>
               ) : connectShellMode === 'sunny' ? (
@@ -1749,6 +1761,12 @@ export default function BrowseScreen() {
                       </View>
                     ) : null}
 
+                    {matchmakingPaused ? (
+                      <MatchmakingPausedCard
+                        connectShell={connectShellMode}
+                        message={matchmakingPausedMessage}
+                      />
+                    ) : (
                     <Animated.View
                       style={[
                         styles.landingButtonContainer,
@@ -1838,10 +1856,13 @@ export default function BrowseScreen() {
                         </LinearGradient>
                       </TouchableOpacity>
                     </Animated.View>
+                    )}
 
                     <Animated.View style={[styles.landingHintWrap, { opacity: landingHintOpacity }]}>
                       <Text style={styles.sunnyHint}>
-                        {!connectReady && photoCount !== null
+                        {matchmakingPaused
+                          ? 'Tap the launch countdown to see time until go-live'
+                          : !connectReady && photoCount !== null
                           ? connectMissing[0] === 'name'
                             ? 'Add your name in Settings to Connect'
                             : connectMissing[0] === 'location'
@@ -1909,6 +1930,12 @@ export default function BrowseScreen() {
                       </View>
                     ) : null}
 
+                    {matchmakingPaused ? (
+                      <MatchmakingPausedCard
+                        connectShell={connectShellMode}
+                        message={matchmakingPausedMessage}
+                      />
+                    ) : (
                     <Animated.View
                       style={[
                         styles.landingButtonContainer,
@@ -1998,10 +2025,13 @@ export default function BrowseScreen() {
                         </LinearGradient>
                       </TouchableOpacity>
                     </Animated.View>
+                    )}
 
                     <Animated.View style={[styles.landingHintWrap, { opacity: landingHintOpacity }]}>
                       <Text style={styles.softHint}>
-                        {!connectReady && photoCount !== null
+                        {matchmakingPaused
+                          ? 'Tap the launch countdown to see time until go-live'
+                          : !connectReady && photoCount !== null
                           ? connectMissing[0] === 'name'
                             ? 'Add your name in Settings to Connect'
                             : connectMissing[0] === 'location'
