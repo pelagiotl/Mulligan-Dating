@@ -1463,15 +1463,6 @@ export default function BrowseScreen() {
         />
       )}
 
-      {showLandingPage && Platform.OS === 'android' && (
-        <LaunchCountdownBubble
-          bottomTabOccupancy={42 + insets.bottom}
-          topInset={insets.top}
-          leftInset={insets.left}
-          rightInset={insets.right}
-        />
-      )}
-
       {/* Token strip: fixed overlay when browsing; inside white card on Connect landing */}
       {!showLandingPage && (
         <View style={styles.tokenOverlay} pointerEvents="box-none">
@@ -2517,6 +2508,16 @@ export default function BrowseScreen() {
       {/* Legal Footer */}
       <LegalFooter />
       </ScrollView>
+
+      {/* Launch bubble after ScrollView so it stacks above and stays draggable/tappable on Android */}
+      {showLandingPage && Platform.OS === 'android' && (
+        <LaunchCountdownBubble
+          bottomTabOccupancy={42 + insets.bottom}
+          topInset={insets.top}
+          leftInset={insets.left}
+          rightInset={insets.right}
+        />
+      )}
 
       {/* Full-screen loading overlay - shows IMMEDIATELY on tap (Animated, no React re-render) */}
       {!showLandingPage && hasActiveProfile && (

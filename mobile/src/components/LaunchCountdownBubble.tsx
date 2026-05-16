@@ -99,6 +99,17 @@ export default function LaunchCountdownBubble({
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
   const wrapRef = useRef<View>(null);
+  const dragMovedRef = useRef(false);
+  const collapsedLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearCollapsedLongPressTimer = useCallback(() => {
+    if (collapsedLongPressTimerRef.current) {
+      clearTimeout(collapsedLongPressTimerRef.current);
+      collapsedLongPressTimerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => () => clearCollapsedLongPressTimer(), [clearCollapsedLongPressTimer]);
 
   useEffect(() => {
     const id = setInterval(() => setRemaining(computeRemaining()), 1000);
@@ -168,33 +179,72 @@ export default function LaunchCountdownBubble({
     });
   }, [vw, vh]);
 
+  const resetToTopExpanded = useCallback(() => {
+    clearCollapsedLongPressTimer();
+    setEdge('top');
+    setCollapsed(false);
+    setPan({ x: 0, y: 0 });
+    setDragging(false);
+    void persist({ edge: 'top', collapsed: false });
+  }, [persist, clearCollapsedLongPressTimer]);
+
+  const MOVE_PX = 8;
+
   const panResponder = useMemo(
     () =>
       PanResponder.create({
-        onStartShouldSetPanResponder: () => collapsed === false,
+        // Prefer children (e.g. Minimize) until user actually drags — matches web free-drag feel.
+        onStartShouldSetPanResponder: () => false,
+        onStartShouldSetPanResponderCapture: () => false,
         onMoveShouldSetPanResponder: (_, g) =>
-          collapsed === false && (Math.abs(g.dx) > 4 || Math.abs(g.dy) > 4),
+          Math.abs(g.dx) > MOVE_PX || Math.abs(g.dy) > MOVE_PX,
+        onMoveShouldSetPanResponderCapture: (_, g) =>
+          Math.abs(g.dx) > MOVE_PX || Math.abs(g.dy) > MOVE_PX,
         onPanResponderGrant: () => {
+          dragMovedRef.current = false;
           setDragging(true);
+          if (collapsed) {
+            clearCollapsedLongPressTimer();
+            collapsedLongPressTimerRef.current = setTimeout(() => {
+              collapsedLongPressTimerRef.current = null;
+              resetToTopExpanded();
+            }, 480);
+          }
         },
         onPanResponderMove: (_, g) => {
+          if (Math.abs(g.dx) > MOVE_PX || Math.abs(g.dy) > MOVE_PX) {
+            dragMovedRef.current = true;
+            clearCollapsedLongPressTimer();
+          }
           setPan({ x: g.dx, y: g.dy });
         },
         onPanResponderRelease: () => {
-          finishDragSnap();
+          clearCollapsedLongPressTimer();
+          const moved = dragMovedRef.current;
+          dragMovedRef.current = false;
+          setDragging(false);
+          if (collapsed) {
+            if (!moved) {
+              setCollapsed(false);
+              setPan({ x: 0, y: 0 });
+            } else {
+              finishDragSnap();
+            }
+          } else if (moved) {
+            finishDragSnap();
+          } else {
+            setPan({ x: 0, y: 0 });
+          }
         },
         onPanResponderTerminate: () => {
-          finishDragSnap();
+          clearCollapsedLongPressTimer();
+          dragMovedRef.current = false;
+          setDragging(false);
+          setPan({ x: 0, y: 0 });
         },
       }),
-    [collapsed, finishDragSnap]
+    [collapsed, finishDragSnap, clearCollapsedLongPressTimer, resetToTopExpanded]
   );
-
-  const onCollapsedLongPress = useCallback(() => {
-    setEdge('top');
-    setCollapsed(false);
-    void persist({ edge: 'top', collapsed: false });
-  }, [persist]);
 
   const left = basePos.left + pan.x;
   const top = basePos.top + pan.y;
@@ -208,6 +258,7 @@ export default function LaunchCountdownBubble({
     <View style={styles.screenOverlay} pointerEvents="box-none">
       <View
         ref={wrapRef}
+        collapsable={false}
         style={[
           styles.bubbleWrap,
           {
@@ -217,37 +268,31 @@ export default function LaunchCountdownBubble({
           },
         ]}
         onLayout={onLayoutBubble}
-        {...(collapsed ? {} : panResponder.panHandlers)}
+        {...panResponder.panHandlers}
+        accessibilityRole="adjustable"
+        accessibilityHint="Drag to move and dock on an edge. Tap collapsed chip to expand. Hold collapsed chip to reset."
       >
         {collapsed ? (
-          <Pressable
-            onPress={() => setCollapsed(false)}
-            onLongPress={onCollapsedLongPress}
-            delayLongPress={420}
-            accessibilityRole="button"
-            accessibilityHint="Opens countdown. Long-press to reset to the top."
+          <LinearGradient
+            colors={['#fdf4ff', '#ede9fe', '#fce7f3', '#fff7ed']}
+            locations={[0, 0.35, 0.65, 1]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[
+              styles.collapsedGradient,
+              isVerticalDock ? styles.collapsedVertical : styles.collapsedHorizontal,
+            ]}
           >
-            <LinearGradient
-              colors={['#fdf4ff', '#ede9fe', '#fce7f3', '#fff7ed']}
-              locations={[0, 0.35, 0.65, 1]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={[
-                styles.collapsedGradient,
-                isVerticalDock ? styles.collapsedVertical : styles.collapsedHorizontal,
-              ]}
-            >
-              <Text style={styles.collapsedEmoji} allowFontScaling={false}>
-                ⏳
-              </Text>
-              <Text style={styles.collapsedLabel} numberOfLines={1}>
-                {remaining.live ? 'Live' : `${remaining.days}d`}
-              </Text>
-              <Text style={styles.collapsedChevron} allowFontScaling={false}>
-                {expandCue}
-              </Text>
-            </LinearGradient>
-          </Pressable>
+            <Text style={styles.collapsedEmoji} allowFontScaling={false}>
+              ⏳
+            </Text>
+            <Text style={styles.collapsedLabel} numberOfLines={1}>
+              {remaining.live ? 'Live' : `${remaining.days}d`}
+            </Text>
+            <Text style={styles.collapsedChevron} allowFontScaling={false}>
+              {expandCue}
+            </Text>
+          </LinearGradient>
         ) : (
           <View style={styles.expandedOuter}>
             <LinearGradient
@@ -338,11 +383,12 @@ export default function LaunchCountdownBubble({
 const styles = StyleSheet.create({
   screenOverlay: {
     ...StyleSheet.absoluteFillObject,
-    zIndex: 50,
+    zIndex: 200,
+    ...(Platform.OS === 'android' ? { elevation: 24 } : {}),
   },
   bubbleWrap: {
     position: 'absolute',
-    zIndex: 51,
+    zIndex: 201,
     maxWidth: Platform.OS === 'android' ? 320 : 340,
     ...Platform.select({
       ios: {
@@ -351,7 +397,7 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.15,
         shadowRadius: 16,
       },
-      android: { elevation: 10 },
+      android: { elevation: 26 },
     }),
   },
   collapsedGradient: {
