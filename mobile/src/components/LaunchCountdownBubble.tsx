@@ -94,8 +94,8 @@ export default function LaunchCountdownBubble({
   const [edge, setEdge] = useState<Edge>('top');
   const [collapsed, setCollapsed] = useState(false);
   const [hydrated, setHydrated] = useState(false);
-  const [boxW, setBoxW] = useState(280);
-  const [boxH, setBoxH] = useState(168);
+  const [boxW, setBoxW] = useState(248);
+  const [boxH, setBoxH] = useState(152);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
   const wrapRef = useRef<View>(null);
@@ -188,33 +188,42 @@ export default function LaunchCountdownBubble({
     void persist({ edge: 'top', collapsed: false });
   }, [persist, clearCollapsedLongPressTimer]);
 
-  const MOVE_PX = 8;
+  const MOVE_PX = 12;
 
   const panResponder = useMemo(
     () =>
       PanResponder.create({
-        // Prefer children (e.g. Minimize) until user actually drags — matches web free-drag feel.
-        onStartShouldSetPanResponder: () => false,
+        /**
+         * Collapsed chip: claim touches immediately so a tap gets Grant + Release and can expand.
+         * Expanded card: wait for movement so “Minimize” and inner taps work without stealing the responder.
+         */
+        onStartShouldSetPanResponder: () => collapsed,
         onStartShouldSetPanResponderCapture: () => false,
         onMoveShouldSetPanResponder: (_, g) =>
-          Math.abs(g.dx) > MOVE_PX || Math.abs(g.dy) > MOVE_PX,
+          !collapsed && (Math.abs(g.dx) > MOVE_PX || Math.abs(g.dy) > MOVE_PX),
         onMoveShouldSetPanResponderCapture: (_, g) =>
-          Math.abs(g.dx) > MOVE_PX || Math.abs(g.dy) > MOVE_PX,
-        onPanResponderGrant: () => {
-          dragMovedRef.current = false;
-          setDragging(true);
+          !collapsed && (Math.abs(g.dx) > MOVE_PX || Math.abs(g.dy) > MOVE_PX),
+        onPanResponderGrant: (_, g) => {
           if (collapsed) {
+            dragMovedRef.current = false;
+            setDragging(false);
             clearCollapsedLongPressTimer();
             collapsedLongPressTimerRef.current = setTimeout(() => {
               collapsedLongPressTimerRef.current = null;
               resetToTopExpanded();
             }, 480);
+          } else {
+            dragMovedRef.current =
+              Math.abs(g.dx) > MOVE_PX || Math.abs(g.dy) > MOVE_PX;
+            setDragging(true);
+            clearCollapsedLongPressTimer();
           }
         },
         onPanResponderMove: (_, g) => {
           if (Math.abs(g.dx) > MOVE_PX || Math.abs(g.dy) > MOVE_PX) {
             dragMovedRef.current = true;
             clearCollapsedLongPressTimer();
+            setDragging(true);
           }
           setPan({ x: g.dx, y: g.dy });
         },
@@ -389,7 +398,7 @@ const styles = StyleSheet.create({
   bubbleWrap: {
     position: 'absolute',
     zIndex: 201,
-    maxWidth: Platform.OS === 'android' ? 320 : 340,
+    maxWidth: Platform.OS === 'android' ? 292 : 318,
     ...Platform.select({
       ios: {
         shadowColor: '#0f172a',
@@ -401,7 +410,7 @@ const styles = StyleSheet.create({
     }),
   },
   collapsedGradient: {
-    borderRadius: 18,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: 'rgba(167, 139, 250, 0.35)',
     alignItems: 'center',
@@ -409,63 +418,63 @@ const styles = StyleSheet.create({
   },
   collapsedHorizontal: {
     flexDirection: 'row',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    gap: 8,
-    minWidth: 168,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    gap: 6,
+    minWidth: 142,
   },
   collapsedVertical: {
     flexDirection: 'column',
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    gap: 4,
-    minHeight: 120,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    gap: 3,
+    minHeight: 102,
   },
   collapsedEmoji: {
-    fontSize: 18,
+    fontSize: 16,
   },
   collapsedLabel: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
     color: '#86198f',
   },
   collapsedChevron: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#94a3b8',
-    marginLeft: 4,
+    marginLeft: 2,
   },
   expandedOuter: {
-    borderRadius: 24,
+    borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(167, 139, 250, 0.28)',
   },
   expandedCard: {
-    borderRadius: 24,
-    paddingTop: 16,
-    paddingBottom: 14,
-    paddingHorizontal: 18,
-    minWidth: 268,
+    borderRadius: 20,
+    paddingTop: 12,
+    paddingBottom: 11,
+    paddingHorizontal: 14,
+    minWidth: 236,
     overflow: 'hidden',
   },
   expandedCardVertical: {
-    minWidth: 208,
+    minWidth: 188,
   },
   expandedSheen: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    height: 96,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    height: 78,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
   },
   expandedAccentBar: {
     position: 'absolute',
-    top: 10,
-    left: 28,
-    right: 28,
-    height: 3,
+    top: 8,
+    left: 22,
+    right: 22,
+    height: 2,
     borderRadius: 2,
     opacity: 0.92,
   },
@@ -473,17 +482,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    marginBottom: 8,
+    gap: 6,
+    marginBottom: 6,
   },
   dragGrip: {
-    width: 42,
-    height: 5,
-    borderRadius: 3,
+    width: 36,
+    height: 4,
+    borderRadius: 2,
     backgroundColor: 'rgba(148, 163, 184, 0.5)',
   },
   dragHint: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '600',
     color: '#7c8796',
     letterSpacing: 0.35,
@@ -491,16 +500,16 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginBottom: 12,
+    gap: 10,
+    marginBottom: 10,
   },
   headerCopy: {
     flex: 1,
   },
   hourglassBadge: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.92)',
@@ -508,53 +517,53 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(226, 232, 240, 0.95)',
   },
   hourglass: {
-    fontSize: 24,
+    fontSize: 20,
   },
   heading: {
-    fontSize: 19,
+    fontSize: 17,
     fontWeight: '800',
     color: '#701a75',
     letterSpacing: -0.35,
   },
   sub: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '700',
     color: '#64748b',
-    marginTop: 4,
-    letterSpacing: 1.4,
+    marginTop: 3,
+    letterSpacing: 1.2,
     textTransform: 'uppercase',
   },
   grid: {
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 8,
   },
   cellGradient: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 36,
-    borderRadius: 20,
+    paddingVertical: 11,
+    paddingHorizontal: 28,
+    borderRadius: 16,
     borderWidth: 1.5,
     borderColor: 'rgba(236, 72, 153, 0.28)',
-    minWidth: 132,
+    minWidth: 118,
   },
   value: {
-    fontSize: 42,
+    fontSize: 34,
     fontWeight: '900',
     color: '#312e81',
-    letterSpacing: -1,
+    letterSpacing: -0.8,
   },
   unit: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '800',
     color: '#64748b',
-    marginTop: 4,
-    letterSpacing: 2,
+    marginTop: 3,
+    letterSpacing: 1.6,
     textTransform: 'uppercase',
   },
   liveMsg: {
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: 13,
+    lineHeight: 19,
     color: '#475569',
     fontWeight: '600',
     textAlign: 'center',
@@ -562,16 +571,16 @@ const styles = StyleSheet.create({
   },
   collapseBtn: {
     alignSelf: 'center',
-    marginTop: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 18,
+    marginTop: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 14,
     borderRadius: 999,
     backgroundColor: 'rgba(255, 255, 255, 0.72)',
     borderWidth: 1,
     borderColor: 'rgba(219, 39, 119, 0.28)',
   },
   collapseBtnText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: '#be185d',
   },
