@@ -35,6 +35,22 @@ import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
 import LegalFooter from '../components/LegalFooter';
 import ConnectionQualityScore from '../components/ConnectionQualityScore';
 import { androidShellBackdropColors } from '../utils/androidConnectShellChrome';
+import {
+  LOOKING_FOR_OPTIONS,
+  LOOKING_FOR_META,
+  isCanonicalLookingFor,
+  DEALBREAKER_SUGGESTIONS,
+  DEALBREAKER_CANONICAL_SET,
+  DEALBREAKER_EMOJI,
+  canonicalDealbreakerLabel,
+  PARTNER_QUALITY_OPTIONS,
+  PARTNER_QUALITY_EMOJI,
+  isCanonicalPartnerQuality,
+  LIFESTYLE_FIELD_OPTIONS,
+  LIFESTYLE_FIELD_LABEL,
+  lifestyleFormFromApi,
+  type LifestyleForm,
+} from '../constants/profileMySections';
 
 // Animated Emoji Component for section icons
 function AnimatedEmoji({ emoji, delay = 0 }: { emoji: string; delay?: number }) {
@@ -121,6 +137,7 @@ interface ProfileData {
     children: string | null;
     pets: string | null;
     religion: string | null;
+    political?: string | null;
     work_life_balance: string | null;
     works_out: string | null;
   } | null;
@@ -183,6 +200,14 @@ export default function MyProfileScreen() {
   const [editPreferredGenders, setEditPreferredGenders] = useState<string[]>([]);
   const [showBioModal, setShowBioModal] = useState(false);
   const [editBio, setEditBio] = useState('');
+  const [showLookingForModal, setShowLookingForModal] = useState(false);
+  const [editLookingFor, setEditLookingFor] = useState('');
+  const [showDealbreakersModal, setShowDealbreakersModal] = useState(false);
+  const [editDealbreakers, setEditDealbreakers] = useState<string[]>([]);
+  const [showQualitiesModal, setShowQualitiesModal] = useState(false);
+  const [editQualities, setEditQualities] = useState<string[]>([]);
+  const [showLifestyleModal, setShowLifestyleModal] = useState(false);
+  const [editLifestyle, setEditLifestyle] = useState<LifestyleForm>(() => lifestyleFormFromApi(null));
   const [detectingLocation, setDetectingLocation] = useState(false);
   const [updatingField, setUpdatingField] = useState(false);
   const [updatingActiveStatus, setUpdatingActiveStatus] = useState(false);
@@ -578,17 +603,17 @@ export default function MyProfileScreen() {
   useEffect(() => {
     if (!data) return;
     
-    const sectionCount = 2;
+    const sectionCount = 5;
     for (let i = 0; i < sectionCount; i++) {
       if (!sectionAnims[i]) {
         sectionAnims[i] = new Animated.Value(0);
       }
     }
-    
+
     // Staggered animation for all sections
     Animated.stagger(
       120,
-      sectionAnims.map((anim) =>
+      sectionAnims.slice(0, sectionCount).map((anim) =>
         Animated.spring(anim, {
           toValue: 1,
           tension: 60,
@@ -874,6 +899,109 @@ export default function MyProfileScreen() {
     } finally {
       setUpdatingField(false);
     }
+  };
+
+  const refreshProfileData = async () => {
+    const next = await api.get<ProfileData>('/profile');
+    setData(next);
+  };
+
+  const saveLookingFor = async () => {
+    if (!data?.profile) return;
+    const raw = editLookingFor.trim();
+    const lookingFor = raw === '' ? null : raw;
+    if (lookingFor !== null && !isCanonicalLookingFor(lookingFor)) {
+      Alert.alert('Invalid choice', 'Please pick one of the listed options.');
+      return;
+    }
+    setUpdatingField(true);
+    try {
+      await api.post('/profile', {
+        displayName: data.profile.display_name,
+        age: data.profile.age,
+        gender: data.profile.gender,
+        location: data.profile.location ?? null,
+        bio: data.profile.bio ?? null,
+        lookingFor,
+      });
+      setData((prev) => (prev ? { ...prev, profile: { ...prev.profile, looking_for: lookingFor } } : null));
+      setShowLookingForModal(false);
+      api.clearCache('/profile');
+      refreshProfile?.();
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to update.');
+    } finally {
+      setUpdatingField(false);
+    }
+  };
+
+  const saveDealbreakers = async () => {
+    setUpdatingField(true);
+    try {
+      await api.put('/profile/dealbreakers', {
+        dealbreakers: editDealbreakers.filter((d) => DEALBREAKER_CANONICAL_SET.has(d)),
+      });
+      await refreshProfileData();
+      setShowDealbreakersModal(false);
+      api.clearCache('/profile');
+      refreshProfile?.();
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to update dealbreakers.');
+    } finally {
+      setUpdatingField(false);
+    }
+  };
+
+  const saveQualities = async () => {
+    setUpdatingField(true);
+    try {
+      await api.put('/profile/partner-qualities', {
+        qualities: editQualities.map((quality) => ({ quality, importance: 5 })),
+      });
+      await refreshProfileData();
+      setShowQualitiesModal(false);
+      api.clearCache('/profile');
+      refreshProfile?.();
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to update what you are looking for.');
+    } finally {
+      setUpdatingField(false);
+    }
+  };
+
+  const saveLifestyle = async () => {
+    setUpdatingField(true);
+    try {
+      await api.put('/profile/lifestyle', {
+        smoking: editLifestyle.smoking || null,
+        drinking: editLifestyle.drinking || null,
+        children: editLifestyle.children || null,
+        pets: editLifestyle.pets || null,
+        religion: editLifestyle.religion || null,
+        political: editLifestyle.political || null,
+        workLifeBalance: editLifestyle.workLifeBalance || null,
+        worksOut: editLifestyle.worksOut || null,
+      });
+      await refreshProfileData();
+      setShowLifestyleModal(false);
+      api.clearCache('/profile');
+      refreshProfile?.();
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to update lifestyle.');
+    } finally {
+      setUpdatingField(false);
+    }
+  };
+
+  const toggleDealbreakerEdit = (text: string) => {
+    if (!DEALBREAKER_CANONICAL_SET.has(text)) return;
+    setEditDealbreakers((prev) =>
+      prev.includes(text) ? prev.filter((x) => x !== text) : [...prev, text]
+    );
+  };
+
+  const toggleQualityEdit = (q: string) => {
+    setEditQualities((prev) => (prev.includes(q) ? prev.filter((x) => x !== q) : [...prev, q]));
   };
 
   const handlePickImage = async (slotIndex?: number) => {
@@ -1247,7 +1375,7 @@ export default function MyProfileScreen() {
     );
   }
 
-  const { profile, interests } = data!;
+  const { profile, interests, dealbreakers, partnerQualities, lifestyle } = data!;
 
   // Get primary photo or first photo - only use photos from the photos array
   // Don't fall back to profile.photo_url since that may be stale after deletion
@@ -1982,6 +2110,33 @@ export default function MyProfileScreen() {
                 </LinearGradient>
               </TouchableOpacity>
 
+              {/* Relationship goal — same options as web "Looking for" */}
+              <TouchableOpacity
+                activeOpacity={0.9}
+                onPress={() => {
+                  setEditLookingFor(profile.looking_for?.trim() ?? '');
+                  setShowLookingForModal(true);
+                  if (Platform.OS === 'ios') Vibration.vibrate(50);
+                  else Vibration.vibrate(50);
+                }}
+                style={styles.infoCardFullTouchable}
+              >
+                <LinearGradient
+                  colors={['#fda4af', '#fb7185', '#f472b6']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.infoCardFull}
+                >
+                  <Text style={styles.infoCardEmoji}>💕</Text>
+                  <Text style={styles.infoCardLabel}>Looking for</Text>
+                  <Text style={styles.infoCardValueFull}>
+                    {profile.looking_for?.trim()
+                      ? profile.looking_for
+                      : 'Tap to choose (relationship, casual, etc.)'}
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+
               {/* About Me - tappable to open edit modal (keyboard won't cover Save/Cancel) */}
               <View style={styles.bioContainer}>
                 <LinearGradient
@@ -2185,6 +2340,212 @@ export default function MyProfileScreen() {
             </View>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Looking for (relationship goal) */}
+      <Modal visible={showLookingForModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={styles.modalOverlayTouchable} activeOpacity={1} onPress={() => setShowLookingForModal(false)} />
+          <View style={styles.editModalCard}>
+            <LinearGradient
+              colors={['#fda4af', '#fb7185', '#f472b6']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.editModalGradient}
+            >
+              <Text style={styles.editModalEmoji}>💕</Text>
+              <Text style={styles.editModalTitleLight}>Looking for</Text>
+              <Text style={styles.editModalSubtitleLight}>What you want from connections</Text>
+              <ScrollView style={styles.profilePickerModalScroll} keyboardShouldPersistTaps="handled">
+                <View style={styles.editModalInner}>
+                  {LOOKING_FOR_OPTIONS.map((opt) => (
+                    <TouchableOpacity
+                      key={opt}
+                      style={[
+                        styles.preferredGenderOption,
+                        editLookingFor === opt && styles.preferredGenderOptionActive,
+                      ]}
+                      onPress={() => setEditLookingFor(opt)}
+                      activeOpacity={0.85}
+                    >
+                      <Text
+                        style={[
+                          styles.preferredGenderOptionText,
+                          editLookingFor === opt && styles.preferredGenderOptionTextActive,
+                        ]}
+                      >
+                        {LOOKING_FOR_META[opt].emoji} {opt}
+                      </Text>
+                      <Text style={styles.lookingForSub}>{LOOKING_FOR_META[opt].sub}</Text>
+                    </TouchableOpacity>
+                  ))}
+                  <TouchableOpacity
+                    style={styles.preferredGenderOption}
+                    onPress={() => setEditLookingFor('')}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.preferredGenderOptionText}>Clear selection</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+              <View style={styles.editModalActions}>
+                <TouchableOpacity style={styles.editModalCancelPill} onPress={() => setShowLookingForModal(false)} activeOpacity={0.8}>
+                  <Text style={styles.editModalCancelPillText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.editModalSavePill} onPress={saveLookingFor} disabled={updatingField} activeOpacity={0.8}>
+                  <Text style={styles.editModalSavePillText}>{updatingField ? 'Saving...' : 'Save'}</Text>
+                </TouchableOpacity>
+              </View>
+            </LinearGradient>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Dealbreakers edit */}
+      <Modal visible={showDealbreakersModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={styles.modalOverlayTouchable} activeOpacity={1} onPress={() => setShowDealbreakersModal(false)} />
+          <View style={styles.editModalCard}>
+            <LinearGradient
+              colors={['#667eea', '#764ba2', '#f093fb']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.editModalGradient}
+            >
+              <Text style={styles.editModalEmoji}>🚫</Text>
+              <Text style={styles.editModalTitleLight}>Dealbreakers</Text>
+              <Text style={styles.editModalSubtitleLight}>Tap to toggle — hard passes</Text>
+              <ScrollView style={styles.profilePickerModalScroll} keyboardShouldPersistTaps="handled">
+                <View style={[styles.editModalInner, styles.dealbreakerModalGrid]}>
+                  {DEALBREAKER_SUGGESTIONS.map((s) => {
+                    const selected = editDealbreakers.includes(s);
+                    return (
+                      <TouchableOpacity
+                        key={s}
+                        style={[styles.dealbreakerChip, selected && styles.dealbreakerChipSelected]}
+                        onPress={() => toggleDealbreakerEdit(s)}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={[styles.dealbreakerChipText, selected && styles.dealbreakerChipTextSelected]}>
+                          {DEALBREAKER_EMOJI[s]} {s}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+              <View style={styles.editModalActions}>
+                <TouchableOpacity style={styles.editModalCancelPill} onPress={() => setShowDealbreakersModal(false)} activeOpacity={0.8}>
+                  <Text style={styles.editModalCancelPillText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.editModalSavePill} onPress={saveDealbreakers} disabled={updatingField} activeOpacity={0.8}>
+                  <Text style={styles.editModalSavePillText}>{updatingField ? 'Saving...' : 'Save'}</Text>
+                </TouchableOpacity>
+              </View>
+            </LinearGradient>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Partner qualities — what I am looking for */}
+      <Modal visible={showQualitiesModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={styles.modalOverlayTouchable} activeOpacity={1} onPress={() => setShowQualitiesModal(false)} />
+          <View style={styles.editModalCard}>
+            <LinearGradient
+              colors={['#667eea', '#764ba2', '#f093fb']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.editModalGradient}
+            >
+              <Text style={styles.editModalEmoji}>💕</Text>
+              <Text style={styles.editModalTitleLight}>What matters in a match</Text>
+              <Text style={styles.editModalSubtitleLight}>Same list as your interests — tap to toggle</Text>
+              <ScrollView style={styles.profilePickerModalScrollTall} keyboardShouldPersistTaps="handled">
+                <View style={[styles.editModalInner, styles.dealbreakerModalGrid]}>
+                  {PARTNER_QUALITY_OPTIONS.map((q) => {
+                    const selected = editQualities.includes(q);
+                    const em = PARTNER_QUALITY_EMOJI[q] || '✨';
+                    return (
+                      <TouchableOpacity
+                        key={q}
+                        style={[styles.dealbreakerChip, selected && styles.dealbreakerChipSelected]}
+                        onPress={() => toggleQualityEdit(q)}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={[styles.dealbreakerChipText, selected && styles.dealbreakerChipTextSelected]}>
+                          {em} {q}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+              <View style={styles.editModalActions}>
+                <TouchableOpacity style={styles.editModalCancelPill} onPress={() => setShowQualitiesModal(false)} activeOpacity={0.8}>
+                  <Text style={styles.editModalCancelPillText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.editModalSavePill} onPress={saveQualities} disabled={updatingField} activeOpacity={0.8}>
+                  <Text style={styles.editModalSavePillText}>{updatingField ? 'Saving...' : 'Save'}</Text>
+                </TouchableOpacity>
+              </View>
+            </LinearGradient>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Lifestyle edit */}
+      <Modal visible={showLifestyleModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={styles.modalOverlayTouchable} activeOpacity={1} onPress={() => setShowLifestyleModal(false)} />
+          <View style={styles.editModalCard}>
+            <LinearGradient
+              colors={['#34d399', '#10b981', '#059669']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.editModalGradient}
+            >
+              <Text style={styles.editModalEmoji}>🌱</Text>
+              <Text style={styles.editModalTitleLight}>Lifestyle</Text>
+              <Text style={styles.editModalSubtitleLight}>Optional — leave as Not set to skip</Text>
+              <ScrollView style={styles.profilePickerModalScrollTall} keyboardShouldPersistTaps="handled">
+                <View style={styles.editModalInner}>
+                  {(Object.keys(LIFESTYLE_FIELD_OPTIONS) as (keyof typeof LIFESTYLE_FIELD_OPTIONS)[]).map((key) => {
+                    const opts = LIFESTYLE_FIELD_OPTIONS[key];
+                    const val = editLifestyle[key];
+                    return (
+                      <View key={key} style={styles.lifestylePickerRow}>
+                        <Text style={styles.lifestylePickerLabel}>{LIFESTYLE_FIELD_LABEL[key]}</Text>
+                        <View style={styles.lifestylePickerWrap}>
+                          <Picker
+                            selectedValue={val}
+                            onValueChange={(v) => {
+                              setEditLifestyle((prev) => ({ ...prev, [key]: v }));
+                            }}
+                            style={styles.lifestylePicker}
+                            mode={Platform.OS === 'android' ? 'dropdown' : 'dialog'}
+                          >
+                            {opts.map((o) => (
+                              <Picker.Item key={o || 'empty'} label={o || 'Not set'} value={o} />
+                            ))}
+                          </Picker>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+              <View style={styles.editModalActions}>
+                <TouchableOpacity style={styles.editModalCancelPill} onPress={() => setShowLifestyleModal(false)} activeOpacity={0.8}>
+                  <Text style={styles.editModalCancelPillText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.editModalSavePill} onPress={saveLifestyle} disabled={updatingField} activeOpacity={0.8}>
+                  <Text style={styles.editModalSavePillText}>{updatingField ? 'Saving...' : 'Save'}</Text>
+                </TouchableOpacity>
+              </View>
+            </LinearGradient>
+          </View>
+        </View>
       </Modal>
 
       {/* Max distance edit modal - gradient card */}
@@ -2396,36 +2757,40 @@ export default function MyProfileScreen() {
       </Animated.View>
 
       {/* Interests */}
-      {interests.length > 0 && (
-        <Animated.View 
-          style={[
-            styles.section,
-            {
-              opacity: sectionAnims[1] ?? sectionFallbackAnim,
-              transform: [
-                { 
-                  translateY: (sectionAnims[1] ?? sectionFallbackAnim).interpolate({ 
-                    inputRange: [0, 1], 
-                    outputRange: [40, 0] 
-                  }) 
-                },
-                { 
-                  scale: (sectionAnims[1] ?? sectionFallbackAnim).interpolate({ 
-                    inputRange: [0, 1], 
-                    outputRange: [0.92, 1] 
-                  }) 
-                },
-              ],
-            },
-          ]}
-        >
-          <View style={styles.sectionTitleContainer}>
-            <AnimatedEmoji emoji="🎯" delay={200} />
-            <Text style={styles.sectionTitle}> My Interests</Text>
-            <TouchableOpacity style={styles.sectionEditTouchable} onPress={() => navigateToCreateProfile({ initialStep: 7 })} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={styles.sectionEditLink}>Edit</Text>
-            </TouchableOpacity>
-          </View>
+      <Animated.View
+        style={[
+          styles.section,
+          {
+            opacity: sectionAnims[1] ?? sectionFallbackAnim,
+            transform: [
+              {
+                translateY: (sectionAnims[1] ?? sectionFallbackAnim).interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [40, 0],
+                }),
+              },
+              {
+                scale: (sectionAnims[1] ?? sectionFallbackAnim).interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.92, 1],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
+        <View style={styles.sectionTitleContainer}>
+          <AnimatedEmoji emoji="🎯" delay={200} />
+          <Text style={styles.sectionTitle}> My Interests</Text>
+          <TouchableOpacity
+            style={styles.sectionEditTouchable}
+            onPress={() => navigateToCreateProfile({ initialStep: 7 })}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={styles.sectionEditLink}>Edit</Text>
+          </TouchableOpacity>
+        </View>
+        {interests.length > 0 ? (
           <View style={styles.tagsContainer}>
             {interests.map((interest, idx) => (
               <View key={idx} style={styles.tag}>
@@ -2433,8 +2798,232 @@ export default function MyProfileScreen() {
               </View>
             ))}
           </View>
-        </Animated.View>
-      )}
+        ) : (
+          <Text style={styles.sectionEmptyHint}>No interests yet — tap Edit to add (pick at least 3).</Text>
+        )}
+      </Animated.View>
+
+      {/* My Dealbreakers */}
+      <Animated.View
+        style={[
+          styles.section,
+          {
+            opacity: sectionAnims[2] ?? sectionFallbackAnim,
+            transform: [
+              {
+                translateY: (sectionAnims[2] ?? sectionFallbackAnim).interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [40, 0],
+                }),
+              },
+              {
+                scale: (sectionAnims[2] ?? sectionFallbackAnim).interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.92, 1],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
+        <View style={styles.sectionTitleContainer}>
+          <AnimatedEmoji emoji="🚫" delay={280} />
+          <Text style={styles.sectionTitle}> My Dealbreakers</Text>
+          <TouchableOpacity
+            style={styles.sectionEditTouchable}
+            onPress={() => {
+              const next = Array.from(
+                new Set(
+                  dealbreakers
+                    .map((d) => canonicalDealbreakerLabel(d.description))
+                    .filter((x): x is NonNullable<typeof x> => x != null)
+                )
+              );
+              setEditDealbreakers(next);
+              setShowDealbreakersModal(true);
+            }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={styles.sectionEditLink}>Edit</Text>
+          </TouchableOpacity>
+        </View>
+        {dealbreakers.length > 0 ? (
+          <View style={styles.tagsContainer}>
+            {dealbreakers.map((db, idx) => {
+              const canon = canonicalDealbreakerLabel(db.description);
+              const em = canon ? DEALBREAKER_EMOJI[canon] : '🚫';
+              const label = canon ?? db.description;
+              return (
+                <View key={idx} style={styles.tag}>
+                  <Text style={styles.tagText}>
+                    {em} {label}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        ) : (
+          <Text style={styles.sectionEmptyHint}>No dealbreakers yet — tap Edit to add.</Text>
+        )}
+      </Animated.View>
+
+      {/* What I'm looking for (partner qualities) */}
+      <Animated.View
+        style={[
+          styles.section,
+          {
+            opacity: sectionAnims[3] ?? sectionFallbackAnim,
+            transform: [
+              {
+                translateY: (sectionAnims[3] ?? sectionFallbackAnim).interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [40, 0],
+                }),
+              },
+              {
+                scale: (sectionAnims[3] ?? sectionFallbackAnim).interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.92, 1],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
+        <View style={styles.sectionTitleContainer}>
+          <AnimatedEmoji emoji="💕" delay={360} />
+          <Text style={styles.sectionTitle}> What I'm Looking For</Text>
+          <TouchableOpacity
+            style={styles.sectionEditTouchable}
+            onPress={() => {
+              setEditQualities(partnerQualities.map((q) => q.quality));
+              setShowQualitiesModal(true);
+            }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={styles.sectionEditLink}>Edit</Text>
+          </TouchableOpacity>
+        </View>
+        {partnerQualities.length > 0 ? (
+          <View style={styles.tagsContainer}>
+            {partnerQualities.map((q, idx) => {
+              const em = isCanonicalPartnerQuality(q.quality) ? PARTNER_QUALITY_EMOJI[q.quality] : '✨';
+              return (
+                <View key={idx} style={styles.tag}>
+                  <Text style={styles.tagText}>
+                    {em} {q.quality}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        ) : (
+          <Text style={styles.sectionEmptyHint}>
+            No qualities listed yet — tap Edit to choose what matters to you.
+          </Text>
+        )}
+      </Animated.View>
+
+      {/* Lifestyle */}
+      <Animated.View
+        style={[
+          styles.section,
+          {
+            opacity: sectionAnims[4] ?? sectionFallbackAnim,
+            transform: [
+              {
+                translateY: (sectionAnims[4] ?? sectionFallbackAnim).interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [40, 0],
+                }),
+              },
+              {
+                scale: (sectionAnims[4] ?? sectionFallbackAnim).interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.92, 1],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
+        <View style={styles.sectionTitleContainer}>
+          <AnimatedEmoji emoji="🌱" delay={440} />
+          <Text style={styles.sectionTitle}> Lifestyle</Text>
+          <TouchableOpacity
+            style={styles.sectionEditTouchable}
+            onPress={() => {
+              setEditLifestyle(lifestyleFormFromApi(lifestyle));
+              setShowLifestyleModal(true);
+            }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={styles.sectionEditLink}>Edit</Text>
+          </TouchableOpacity>
+        </View>
+        {lifestyle &&
+        (lifestyle.smoking ||
+          lifestyle.drinking ||
+          lifestyle.children ||
+          lifestyle.pets ||
+          lifestyle.religion ||
+          lifestyle.political ||
+          lifestyle.work_life_balance ||
+          lifestyle.works_out) ? (
+          <View style={styles.lifestyleContainer}>
+            {lifestyle.smoking ? (
+              <View style={styles.lifestyleItem}>
+                <Text style={styles.lifestyleLabel}>Smoking</Text>
+                <Text style={styles.lifestyleValue}>{lifestyle.smoking}</Text>
+              </View>
+            ) : null}
+            {lifestyle.drinking ? (
+              <View style={styles.lifestyleItem}>
+                <Text style={styles.lifestyleLabel}>Drinking</Text>
+                <Text style={styles.lifestyleValue}>{lifestyle.drinking}</Text>
+              </View>
+            ) : null}
+            {lifestyle.children ? (
+              <View style={styles.lifestyleItem}>
+                <Text style={styles.lifestyleLabel}>Children</Text>
+                <Text style={styles.lifestyleValue}>{lifestyle.children}</Text>
+              </View>
+            ) : null}
+            {lifestyle.pets ? (
+              <View style={styles.lifestyleItem}>
+                <Text style={styles.lifestyleLabel}>Pets</Text>
+                <Text style={styles.lifestyleValue}>{lifestyle.pets}</Text>
+              </View>
+            ) : null}
+            {lifestyle.religion ? (
+              <View style={styles.lifestyleItem}>
+                <Text style={styles.lifestyleLabel}>Religion</Text>
+                <Text style={styles.lifestyleValue}>{lifestyle.religion}</Text>
+              </View>
+            ) : null}
+            {lifestyle.political ? (
+              <View style={styles.lifestyleItem}>
+                <Text style={styles.lifestyleLabel}>Politics</Text>
+                <Text style={styles.lifestyleValue}>{lifestyle.political}</Text>
+              </View>
+            ) : null}
+            {lifestyle.work_life_balance ? (
+              <View style={styles.lifestyleItem}>
+                <Text style={styles.lifestyleLabel}>Work-life balance</Text>
+                <Text style={styles.lifestyleValue}>{lifestyle.work_life_balance}</Text>
+              </View>
+            ) : null}
+            {lifestyle.works_out ? (
+              <View style={styles.lifestyleItem}>
+                <Text style={styles.lifestyleLabel}>Works out</Text>
+                <Text style={styles.lifestyleValue}>{lifestyle.works_out}</Text>
+              </View>
+            ) : null}
+          </View>
+        ) : (
+          <Text style={styles.sectionEmptyHint}>Lifestyle not set — tap Edit to add preferences.</Text>
+        )}
+      </Animated.View>
 
       {/* Edit Profile Button */}
       <View style={styles.editButton} onLayout={handleEditButtonLayout}>
@@ -3568,6 +4157,75 @@ const styles = StyleSheet.create({
     color: '#667eea',
     fontWeight: '700',
     letterSpacing: 0.2,
+  },
+  sectionEmptyHint: {
+    fontSize: 15,
+    color: '#64748b',
+    fontWeight: '600',
+    lineHeight: 22,
+    paddingHorizontal: 4,
+  },
+  lookingForSub: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 4,
+    fontWeight: '500',
+  },
+  profilePickerModalScroll: {
+    maxHeight: 320,
+    width: '100%',
+  },
+  profilePickerModalScrollTall: {
+    maxHeight: 440,
+    width: '100%',
+  },
+  dealbreakerModalGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    justifyContent: 'center',
+  },
+  dealbreakerChip: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.55)',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    marginBottom: 4,
+    maxWidth: '100%',
+  },
+  dealbreakerChipSelected: {
+    borderColor: '#fff',
+    backgroundColor: 'rgba(255,255,255,0.92)',
+  },
+  dealbreakerChipText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#fff',
+    textAlign: 'center',
+  },
+  dealbreakerChipTextSelected: {
+    color: '#4c1d95',
+  },
+  lifestylePickerRow: {
+    marginBottom: 16,
+  },
+  lifestylePickerLabel: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#1e293b',
+    marginBottom: 6,
+  },
+  lifestylePickerWrap: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.5)',
+  },
+  lifestylePicker: {
+    width: '100%',
   },
   lifestyleContainer: {
     gap: 12,
