@@ -360,7 +360,7 @@ export default function MatchCelebration({
 
       {!revealed && (
         <div className="match-celebration-finding-card" role="status" aria-live="polite">
-          <div className="match-celebration-finding-heart">💕</div>
+          <div className="match-celebration-finding-heart">❤️‍🔥</div>
           <h2 className="match-celebration-finding-title">Finding your curated match</h2>
           <div className="match-celebration-finding-dots">
             <span className="match-celebration-finding-dot" />
@@ -450,9 +450,9 @@ export default function MatchCelebration({
             <h1 className="match-celebration-title">
               <span className="match-celebration-word word-1">It&apos;s</span>
               <span className="match-celebration-word word-2">a</span>
-              <span className="match-celebration-word word-3">Match! 😉</span>
+              <span className="match-celebration-word word-3">Match! ❤️‍🔥</span>
             </h1>
-            <p className="match-celebration-subtitle">You matched — time to say hi 💕</p>
+            <p className="match-celebration-subtitle">You matched — time to say hi ❤️‍🔥</p>
 
             {explanation && explanation.reasons.length > 0 && (
               <div className="match-celebration-explanation">
@@ -473,14 +473,14 @@ export default function MatchCelebration({
                   Send a Message 💌
                 </button>
                 <button type="button" className="match-celebration-button match-celebration-button-secondary" onClick={handleKeepBrowsing}>
-                  Keep Browsing
+                  Back to Connect ❤️‍🔥
                 </button>
               </div>
             )}
           </div>
 
           <div className="match-celebration-sparkles">
-            {(['✨', '💝', '🎯', '💕', '💖', '😍', '💌', '😉', '✨', '💝', '🎯', '💕'] as const).map((emoji, i) => (
+            {(['✨', '❤️‍🔥', '💝', '🎯', '💕', '💖', '❤️‍🔥', '😍', '💌', '😉', '✨', '💝'] as const).map((emoji, i) => (
               <div
                 key={i}
                 className="sparkle"

@@ -72,7 +72,7 @@ function midnightTheme(): MatchCelebrationTheme {
     photoBorder: '#2d2648',
     placeholderGradient: ['#7c3aed', '#c026d3'],
     confettiColors: ['#a855f7', '#ec4899', '#6366f1', '#f472b6', '#c084fc'],
-    floatingEmojis: ['✨', '💝', '🎯', '💕', '💖', '😍', '💌', '😉'],
+    floatingEmojis: ['✨', '❤️‍🔥', '💝', '🎯', '💕', '💖', '❤️‍🔥', '😍', '💌', '😉'],
   };
 }
 
@@ -108,7 +108,7 @@ function sunnyTheme(): MatchCelebrationTheme {
     photoBorder: '#fff',
     placeholderGradient: ['#fb923c', '#fbbf24'],
     confettiColors: ['#fbbf24', '#fb923c', '#38bdf8', '#fda4af', '#fde68a'],
-    floatingEmojis: ['✨', '💝', '🎯', '💕', '😍', '💌', '🌹', '😉'],
+    floatingEmojis: ['✨', '❤️‍🔥', '💝', '🎯', '💕', '❤️‍🔥', '😍', '💌', '🌹', '😉'],
   };
 }
 
@@ -144,7 +144,7 @@ function softTheme(): MatchCelebrationTheme {
     photoBorder: '#fff',
     placeholderGradient: ['#667eea', '#a855f7'],
     confettiColors: ['#667eea', '#a855f7', '#f093fb', '#818cf8', '#c084fc'],
-    floatingEmojis: ['✨', '💝', '🎯', '💕', '💖', '💌', '🦋', '😉'],
+    floatingEmojis: ['✨', '❤️‍🔥', '💝', '🎯', '💕', '💖', '❤️‍🔥', '💌', '🦋', '😉'],
   };
 }
 

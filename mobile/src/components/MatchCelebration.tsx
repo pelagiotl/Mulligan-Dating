@@ -23,7 +23,7 @@ import { matchCelebrationTheme, type MatchCelebrationTheme } from '../lib/matchC
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 /** NBSP keeps "Match!" on one line (avoids orphan "!" on narrow widths, e.g. iPhone SE). */
-const TITLE_MATCH_TAIL = 'Match!\u00a0😉';
+const TITLE_MATCH_TAIL = 'Match!\u00a0❤️‍🔥';
 
 interface MatchExplanation {
   reasons: string[];
@@ -158,7 +158,7 @@ function FindingMatchLoading({ theme }: { theme: MatchCelebrationTheme }) {
       style={[styles.loadingCard, { borderColor: theme.loadingBorder }]}
     >
       <Animated.View style={[styles.loadingHeartWrap, { transform: [{ scale: pulse }] }]}>
-        <Text style={styles.loadingHeart}>💕</Text>
+        <Text style={styles.loadingHeart}>❤️‍🔥</Text>
       </Animated.View>
       <Text style={[styles.loadingTitle, { color: theme.loadingTitle }]}>Finding your curated match</Text>
       <View style={styles.loadingDotsRow}>
@@ -625,7 +625,7 @@ export default function MatchCelebration({
 
             <View style={styles.subtitleContainer}>
               <Text style={[styles.subtitle, { color: theme.subtitle }]}>
-                You matched — time to say hi 💕
+                You matched — time to say hi ❤️‍🔥
               </Text>
             </View>
 
@@ -692,7 +692,7 @@ export default function MatchCelebration({
                   activeOpacity={0.7}
                 >
                   <Text style={[styles.secondaryButtonText, { color: theme.secondaryText }]}>
-                    Back to Connect 😍
+                    Back to Connect ❤️‍🔥
                   </Text>
                 </TouchableOpacity>
               </Animated.View>

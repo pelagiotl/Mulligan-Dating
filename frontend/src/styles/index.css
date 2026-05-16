@@ -10313,6 +10313,37 @@ button.chat-avatar-btn .chat-avatar img {
   min-width: 8rem;
 }
 
+.settings-dev-section .settings-hint {
+  margin-bottom: var(--space-4);
+}
+
+.settings-dev-celebration-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-full);
+  border: 2px solid rgba(236, 72, 153, 0.55);
+  background: rgba(236, 72, 153, 0.12);
+  color: var(--color-wine-900);
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.settings-dev-celebration-btn:hover {
+  background: rgba(236, 72, 153, 0.2);
+  border-color: rgba(236, 72, 153, 0.75);
+  transform: translateY(-1px);
+}
+
+.settings-dev-celebration-btn:active {
+  transform: translateY(0);
+}
+
 .settings-section {
   background: var(--bg-secondary);
   border-radius: var(--radius-2xl);
