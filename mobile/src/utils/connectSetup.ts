@@ -49,3 +49,8 @@ export function isConnectSetupComplete(profile: ConnectProfileLike, photoCount: 
   if (photoCount === null) return false;
   return getConnectSetupMissing(profile, photoCount).length === 0;
 }
+
+/** Same gate as web `computeConnectSetupComplete` — name, city+state, min photos. */
+export function computeConnectSetupComplete(profile: ConnectProfileLike, photoCount: number): boolean {
+  return isConnectSetupComplete(profile, photoCount);
+}

@@ -69,4 +69,6 @@ export const CANONICAL_DEALBREAKER_LOWERCASE = new Set([
   "not religious",
   "political",
   "workaholic",
+  "doesn't play fortnite",
+  "doesnt play fortnite",
 ]);

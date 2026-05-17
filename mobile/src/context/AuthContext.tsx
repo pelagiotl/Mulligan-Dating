@@ -15,6 +15,7 @@ import { registerForPushNotificationsAsync, clearPushToken, refreshAndSendPushTo
 import { getStoredPushToken, hydrateStoredPushToken, shouldSendTokenToServer } from '../utils/pushTokenStore';
 import * as Notifications from 'expo-notifications';
 import { navigationRef } from '../navigation/navigationRef';
+import { computeConnectSetupComplete } from '../utils/connectSetup';
 import { playMessageSound, playMatchSound } from '../utils/sounds';
 import { setPendingGameRequest } from '../utils/pendingGameRequest';
 import { currentMatchIdRef } from '../utils/currentMatchView';
@@ -34,6 +35,8 @@ export type MessageNotification = MessageNotificationItem | null;
 interface AuthContextType {
   user: User | null;
   profile: Profile | null;
+  /** True when display name, city+state location, and min photos satisfy Connect rules (see web parity). */
+  connectSetupComplete: boolean;
   loading: boolean;
   isAuthenticated: boolean;
   /** Stack of in-app message notifications (newest first). */
@@ -59,6 +62,7 @@ const MAX_STACKED_MESSAGE_NOTIFICATIONS = 5;
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [connectSetupComplete, setConnectSetupComplete] = useState(false);
   const [loading, setLoading] = useState(true);
   const [messageNotifications, setMessageNotifications] = useState<MessageNotificationItem[]>([]);
   const messageNotificationTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
@@ -694,6 +698,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!token) {
         setUser(null);
         setProfile(null);
+        setConnectSetupComplete(false);
         setLoading(false);
         return;
       }
@@ -712,6 +717,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // Allow user to still use the app, they'll just need to login again when backend is up
           setUser(null);
           setProfile(null);
+          setConnectSetupComplete(false);
           setLoading(false);
           return;
         }
@@ -720,6 +726,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await AsyncStorage.removeItem('token');
           setUser(null);
           setProfile(null);
+          setConnectSetupComplete(false);
           setLoading(false);
           return;
         }
@@ -741,6 +748,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           typeof data.matchmakingDisabledMessage === 'string' ? data.matchmakingDisabledMessage : null,
       });
       setProfile(data.profile || null);
+
+      let photoCount = 0;
+      try {
+        const photoData = await api.get<{ photos?: unknown[] }>('/photos/me', false);
+        photoCount = Array.isArray(photoData?.photos) ? photoData.photos.length : 0;
+      } catch {
+        photoCount = 0;
+      }
+      setConnectSetupComplete(computeConnectSetupComplete(data.profile || null, photoCount));
 
       const uid = data.user.id;
       const now = Date.now();
@@ -788,6 +804,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setUser(null);
       setProfile(null);
+      setConnectSetupComplete(false);
     } finally {
       setLoading(false);
     }
@@ -831,6 +848,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await AsyncStorage.removeItem('token');
       setUser(null);
       setProfile(null);
+      setConnectSetupComplete(false);
       throw error;
     }
   };
@@ -860,6 +878,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await AsyncStorage.removeItem('AGE_GATE_ACCEPTED'); // So next login shows age gate again
     setUser(null);
     setProfile(null);
+    setConnectSetupComplete(false);
     revenueCatLoggedInUserIdRef.current = null;
     lastFetchUserPushRegisterRef.current = null;
   };
@@ -911,6 +930,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         profile,
+        connectSetupComplete,
         loading,
         isAuthenticated: !!user,
         messageNotifications,

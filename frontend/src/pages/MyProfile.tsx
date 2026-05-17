@@ -200,6 +200,7 @@ const DEALBREAKER_SUGGESTIONS = [
   "Doesn't like pets",
   "Religious",
   "Political",
+  "Doesn't play Fortnite",
 ] as const;
 
 /** Only these preset dealbreakers are editable in the web profile UI. */
@@ -215,6 +216,7 @@ const DEALBREAKER_EMOJI: Record<(typeof DEALBREAKER_SUGGESTIONS)[number], string
   "Doesn't like pets": "🐕❌",
   Religious: "⛪",
   Political: "🗳️",
+  "Doesn't play Fortnite": "⛏️",
 };
 
 function canonicalDealbreakerLabel(raw: string | null | undefined): (typeof DEALBREAKER_SUGGESTIONS)[number] | null {

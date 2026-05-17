@@ -422,10 +422,17 @@ export default function AppNavigator() {
     );
   }
 
-  const { user, profile, loading } = authContext;
+  const { user, profile, loading, connectSetupComplete } = authContext;
   const [isNavigationReady, setIsNavigationReady] = React.useState(false);
   const [gateStatusLoaded, setGateStatusLoaded] = React.useState(false);
   const [ageGatePassed, setAgeGatePassed] = React.useState<boolean | null>(null);
+
+  const postAuthHomeRoute = React.useCallback(() => {
+    if (!connectSetupComplete) {
+      return { name: 'CreateProfile' as const, params: { startFromBeginning: true } };
+    }
+    return { name: 'MainTabs' as const };
+  }, [connectSetupComplete]);
 
   // Load age-gate acceptance from storage (for store compliance: 18+ confirmation)
   const loadAgeGateStatus = React.useCallback(() => {
@@ -479,7 +486,7 @@ export default function AppNavigator() {
           if (ageGatePassed === true) {
             navigationRef.current.reset({
               index: 0,
-              routes: [{ name: 'MainTabs' }],
+              routes: [postAuthHomeRoute()],
             });
           } else {
             AsyncStorage.getItem('AGE_GATE_ACCEPTED').then((v) => {
@@ -487,7 +494,7 @@ export default function AppNavigator() {
                 setAgeGatePassed(true);
                 navigationRef.current?.reset({
                   index: 0,
-                  routes: [{ name: 'MainTabs' }],
+                  routes: [postAuthHomeRoute()],
                 });
                 return;
               }
@@ -528,6 +535,22 @@ export default function AppNavigator() {
         user &&
         gateStatusLoaded &&
         ageGatePassed === true &&
+        !connectSetupComplete &&
+        currentRoute?.name !== 'CreateProfile'
+      ) {
+        try {
+          navigationRef.current.reset({
+            index: 0,
+            routes: [{ name: 'CreateProfile', params: { startFromBeginning: true } }],
+          });
+        } catch (err) {
+          console.error('Navigation error in AppNavigator:', err);
+        }
+      } else if (
+        user &&
+        gateStatusLoaded &&
+        ageGatePassed === true &&
+        connectSetupComplete &&
         !isInsideMainTabsFlow(currentRoute?.name) &&
         currentRoute?.name !== 'CreateProfile'
       ) {
@@ -538,7 +561,7 @@ export default function AppNavigator() {
         }
       }
     }
-  }, [loading, user?.id, isNavigationReady, gateStatusLoaded, ageGatePassed]);
+  }, [loading, user?.id, isNavigationReady, gateStatusLoaded, ageGatePassed, connectSetupComplete, postAuthHomeRoute]);
 
   // Brief seamless splash while checking auth and (if logged in) age gate status
   if (loading || (user && !gateStatusLoaded)) {

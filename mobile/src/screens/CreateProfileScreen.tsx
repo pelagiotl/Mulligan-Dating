@@ -45,10 +45,23 @@ import {
   PARTNER_QUALITY_EMOJI,
   LIFESTYLE_FIELD_OPTIONS,
   LIFESTYLE_FIELD_LABEL,
+  LIFESTYLE_FIELD_EMOJI,
   lifestyleFormFromApi,
-  lifestylePickerItemLabel,
+  lifestyleOptionParts,
+  type LifestyleFieldKey,
   type LifestyleForm,
 } from '../constants/profileMySections';
+
+const LIFESTYLE_FIELD_GRADIENTS: Record<LifestyleFieldKey, readonly [string, string, string]> = {
+  smoking: ['#6ee7b7', '#34d399', '#10b981'],
+  drinking: ['#93c5fd', '#60a5fa', '#3b82f6'],
+  children: ['#fcd34d', '#fbbf24', '#f59e0b'],
+  pets: ['#c4b5fd', '#a78bfa', '#8b5cf6'],
+  religion: ['#f9a8d4', '#f472b6', '#ec4899'],
+  political: ['#a5b4fc', '#818cf8', '#6366f1'],
+  workLifeBalance: ['#67e8f9', '#22d3ee', '#06b6d4'],
+  worksOut: ['#86efac', '#4ade80', '#22c55e'],
+};
 
 const GENDER_OPTIONS = ['Man', 'Woman', 'Other'];
 // API values: Man, Woman. "Everyone" = match all. Display labels: Men, Women, Everyone.
@@ -114,7 +127,7 @@ export default function CreateProfileScreen() {
   const routeParams = route.params as { startFromBeginning?: boolean; initialStep?: number } | undefined;
   const startFromBeginning = routeParams?.startFromBeginning === true;
   const initialStep = routeParams?.initialStep;
-  const { refreshProfile, profile: existingProfile, logout } = useAuth();
+  const { refreshProfile, profile: existingProfile, connectSetupComplete, logout } = useAuth();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [savingInCreateProfile, setSavingInCreateProfile] = useState(false);
@@ -1696,58 +1709,146 @@ export default function CreateProfileScreen() {
     </View>
   );
 
-  const renderStepLifestyle = () => (
-    <View style={styles.stepContainer}>
-      <LinearGradient
-        colors={['#34d399', '#10b981', '#059669']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.modernHeaderMinimal}
-      >
-        <Text style={styles.modernHeaderEmojiMinimal}>🌱</Text>
-        <Text style={styles.modernHeaderTitleMinimal}>Lifestyle</Text>
-        <Text style={styles.modernHeaderSubtitleMinimal}>Optional — use Skip for now anytime</Text>
-      </LinearGradient>
-      <ScrollView
-        style={styles.stepContent}
-        contentContainerStyle={styles.lifestyleStepScroll}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator
-      >
-        <View style={styles.lifestyleStepInner}>
-          {(Object.keys(LIFESTYLE_FIELD_OPTIONS) as (keyof typeof LIFESTYLE_FIELD_OPTIONS)[]).map((key) => {
+  const renderStepLifestyle = () => {
+    const lifestyleFilledCount = (Object.keys(LIFESTYLE_FIELD_OPTIONS) as LifestyleFieldKey[]).filter(
+      (key) => Boolean(lifestyleForm[key]?.trim())
+    ).length;
+
+    return (
+      <View style={styles.stepContainer}>
+        <LinearGradient
+          colors={['#667eea', '#764ba2', '#10b981']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.modernHeaderMinimal}
+        >
+          <Text style={styles.modernHeaderEmojiMinimal}>🌱</Text>
+          <Text style={styles.modernHeaderTitleMinimal}>Lifestyle</Text>
+          <Text style={styles.modernHeaderSubtitleMinimal}>
+            Help matches understand your day-to-day — all optional
+          </Text>
+          <View style={styles.selectionCounterMinimal}>
+            <Text style={styles.selectionCounterTextMinimal}>
+              {lifestyleFilledCount} of {Object.keys(LIFESTYLE_FIELD_OPTIONS).length} answered
+            </Text>
+          </View>
+        </LinearGradient>
+        <ScrollView
+          style={styles.stepContent}
+          contentContainerStyle={styles.lifestyleStepScroll}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator
+          scrollIndicatorInsets={{ right: 1 }}
+        >
+          <View style={styles.lifestyleStepIntro}>
+            <Text style={styles.lifestyleStepIntroEmoji}>✨</Text>
+            <Text style={styles.lifestyleStepIntroText}>
+              Tap a card below for each topic — or pick Skip for now.
+            </Text>
+          </View>
+          {(Object.keys(LIFESTYLE_FIELD_OPTIONS) as LifestyleFieldKey[]).map((key) => {
             const opts = LIFESTYLE_FIELD_OPTIONS[key];
             const val = lifestyleForm[key];
+            const hasValue = Boolean(val?.trim());
+            const gradient = LIFESTYLE_FIELD_GRADIENTS[key];
             return (
-              <View key={key} style={styles.lifestyleStepRow}>
-                <Text style={styles.lifestyleStepFieldTitle}>{LIFESTYLE_FIELD_LABEL[key]}</Text>
-                <View style={styles.lifestyleStepPickerShell}>
-                  <Picker
-                    selectedValue={val}
-                    onValueChange={(v) =>
-                      setLifestyleForm((prev) => ({ ...prev, [key]: typeof v === 'string' ? v : String(v) }))
-                    }
-                    style={styles.lifestyleStepPicker}
-                    itemStyle={Platform.OS === 'ios' ? styles.lifestyleStepPickerItemIos : undefined}
-                    dropdownIconColor="#334155"
-                    mode={Platform.OS === 'android' ? 'dropdown' : 'dialog'}
-                  >
-                    {opts.map((o) => (
-                      <Picker.Item
-                        key={String(o || '__empty')}
-                        label={lifestylePickerItemLabel(key, o)}
-                        value={o}
-                      />
-                    ))}
-                  </Picker>
+              <View key={key} style={styles.lifestyleFieldCard}>
+                <LinearGradient
+                  colors={[gradient[0], gradient[1], gradient[2]]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.lifestyleFieldCardAccent}
+                />
+                <View style={styles.lifestyleFieldCardBody}>
+                  <View style={styles.lifestyleFieldHeader}>
+                    <LinearGradient
+                      colors={[gradient[0], gradient[2]]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.lifestyleFieldEmojiWrap}
+                    >
+                      <Text style={[styles.lifestyleFieldEmoji, { fontSize: rs.lifestyleEmojiSize }]}>
+                        {LIFESTYLE_FIELD_EMOJI[key]}
+                      </Text>
+                    </LinearGradient>
+                    <View style={styles.lifestyleFieldHeaderText}>
+                      <Text style={styles.lifestyleFieldTitle}>{LIFESTYLE_FIELD_LABEL[key]}</Text>
+                      <Text style={styles.lifestyleFieldHint}>
+                        {hasValue ? 'Selected — tap another to change' : 'Optional'}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.lifestyleOptionsGrid}>
+                    {opts.map((o) => {
+                      const selected = val === o;
+                      const { emoji, text, isSkip } = lifestyleOptionParts(key, o);
+                      return (
+                        <TouchableOpacity
+                          key={String(o || '__skip__')}
+                          style={styles.lifestyleOptionChip}
+                          onPress={() =>
+                            setLifestyleForm((prev) => ({
+                              ...prev,
+                              [key]: o,
+                            }))
+                          }
+                          activeOpacity={0.85}
+                        >
+                          {selected ? (
+                            <LinearGradient
+                              colors={[gradient[0], gradient[1], gradient[2]]}
+                              start={{ x: 0, y: 0 }}
+                              end={{ x: 1, y: 1 }}
+                              style={[
+                                styles.lifestyleOptionInner,
+                                styles.lifestyleOptionInnerSelected,
+                              ]}
+                            >
+                              <Text style={styles.lifestyleOptionEmoji}>{emoji}</Text>
+                              <Text style={styles.lifestyleOptionTextSelected} numberOfLines={3}>
+                                {text}
+                              </Text>
+                              <View style={styles.lifestyleOptionCheck}>
+                                <Text style={styles.lifestyleOptionCheckMark}>✓</Text>
+                              </View>
+                            </LinearGradient>
+                          ) : (
+                            <View
+                              style={[
+                                styles.lifestyleOptionInner,
+                                isSkip ? styles.lifestyleOptionInnerSkip : styles.lifestyleOptionInnerIdle,
+                              ]}
+                            >
+                              <Text style={styles.lifestyleOptionEmojiIdle}>{emoji}</Text>
+                              <Text style={styles.lifestyleOptionTextIdle} numberOfLines={3}>
+                                {text}
+                              </Text>
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
                 </View>
               </View>
             );
           })}
-        </View>
-      </ScrollView>
-    </View>
-  );
+          <View style={styles.scrollHintCondensed}>
+            <Text style={styles.scrollHintTextCondensed}>
+              👆 All fields are optional — skip any you prefer not to share
+            </Text>
+          </View>
+        </ScrollView>
+        <LinearGradient
+          colors={['transparent', 'rgba(248, 249, 250, 0.85)', '#f8f9fa']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={styles.bottomFade}
+          pointerEvents="none"
+        />
+      </View>
+    );
+  };
 
   // Steps 11–13: One card per page (min age, max age, max distance)
   const renderStep10MinAge = () => basicInfoStepWrapper(
@@ -1964,7 +2065,7 @@ export default function CreateProfileScreen() {
         end={{ x: 1, y: 1 }}
         style={[styles.header, { position: 'relative' }]}
       >
-        {existingProfile && !startFromBeginning ? (
+        {connectSetupComplete && existingProfile && !startFromBeginning ? (
           <View style={styles.exitSaveRow}>
             <TouchableOpacity
               style={[styles.exitButton, styles.saveButton]}
@@ -3136,38 +3237,178 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   lifestyleStepScroll: {
-    paddingBottom: 48,
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 56,
+    backgroundColor: '#f8f9fa',
   },
-  lifestyleStepInner: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 28,
-    backgroundColor: '#f8fafc',
-  },
-  lifestyleStepRow: {
+  lifestyleStepIntro: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
     marginBottom: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    backgroundColor: 'rgba(102, 126, 234, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(102, 126, 234, 0.18)',
   },
-  lifestyleStepFieldTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#0f172a',
-    marginBottom: 6,
+  lifestyleStepIntroEmoji: {
+    fontSize: 22,
   },
-  lifestyleStepPickerShell: {
-    borderRadius: 12,
+  lifestyleStepIntroText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#475569',
+    lineHeight: 18,
+  },
+  lifestyleFieldCard: {
+    marginBottom: 14,
+    borderRadius: 18,
+    backgroundColor: '#fff',
     overflow: 'hidden',
-    borderWidth: 1.5,
-    borderColor: '#e2e8f0',
-    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: 'rgba(102, 126, 234, 0.12)',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 4,
   },
-  lifestyleStepPicker: {
+  lifestyleFieldCardAccent: {
+    height: 4,
     width: '100%',
-    color: '#1e293b',
-    backgroundColor: '#fff',
   },
-  lifestyleStepPickerItemIos: {
+  lifestyleFieldCardBody: {
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 10,
+  },
+  lifestyleFieldHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    gap: 12,
+  },
+  lifestyleFieldEmojiWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  lifestyleFieldEmoji: {
+    textAlign: 'center',
+  },
+  lifestyleFieldHeaderText: {
+    flex: 1,
+  },
+  lifestyleFieldTitle: {
+    fontSize: 16,
+    fontWeight: '800',
     color: '#1e293b',
-    fontSize: 17,
+    letterSpacing: 0.2,
+  },
+  lifestyleFieldHint: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#94a3b8',
+    marginTop: 2,
+  },
+  lifestyleOptionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    justifyContent: 'space-between',
+  },
+  lifestyleOptionChip: {
+    width: '48%',
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  lifestyleOptionInner: {
+    minHeight: 76,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  lifestyleOptionInnerSelected: {
+    minHeight: 76,
+    borderRadius: 16,
+  },
+  lifestyleOptionInnerIdle: {
+    backgroundColor: '#fff',
+    borderWidth: 1.5,
+    borderColor: 'rgba(102, 126, 234, 0.14)',
+    borderRadius: 16,
+  },
+  lifestyleOptionInnerSkip: {
+    backgroundColor: 'rgba(248, 250, 252, 0.95)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(148, 163, 184, 0.45)',
+    borderStyle: 'dashed',
+    borderRadius: 16,
+  },
+  lifestyleOptionEmoji: {
+    fontSize: 22,
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  lifestyleOptionEmojiIdle: {
+    fontSize: 20,
+    marginBottom: 6,
+    textAlign: 'center',
+    opacity: 0.85,
+  },
+  lifestyleOptionTextSelected: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#fff',
+    textAlign: 'center',
+    lineHeight: 14,
+    letterSpacing: 0.15,
+    textShadowColor: 'rgba(0, 0, 0, 0.15)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  lifestyleOptionTextIdle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569',
+    textAlign: 'center',
+    lineHeight: 14,
+  },
+  lifestyleOptionCheck: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.35)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  lifestyleOptionCheckMark: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#fff',
   },
   modernInterestTextSelectedCondensed: {
     fontSize: 12,
