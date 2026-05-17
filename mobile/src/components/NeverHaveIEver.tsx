@@ -138,6 +138,7 @@ export default function NeverHaveIEver({
   const lastRoundCompletedAtRef = useRef<number>(0);
   const promptLockedUntilRef = useRef(0);
   const lastAnsweredPromptRef = useRef('');
+  const roundIdRef = useRef<string | null>(null);
   const lastKnownPointsRef = useRef<{ yourPoints: number; theirPoints: number }>({ yourPoints: 0, theirPoints: 0 });
   /** Persist isUser1 so socket handler can map user1Strikes/user2Strikes to yourPoints/theirPoints even if state was overwritten */
   const isUser1Ref = useRef<boolean | null>(null);
@@ -146,6 +147,10 @@ export default function NeverHaveIEver({
 
   const isUnlocked = gameUnlockedByToken;
   const displayPrompt = prompt || state?.prompt || '';
+
+  useEffect(() => {
+    if (state?.roundId) roundIdRef.current = state.roundId;
+  }, [state?.roundId]);
 
   const nhieEligible = useMemo(
     () =>
@@ -399,12 +404,28 @@ export default function NeverHaveIEver({
           (simple.prompt?.trim() ?? '') !== '' &&
           (prev?.yourAnswer != null) &&
           simple.prompt !== (prev?.prompt ?? '');
-        const keptYourAnswer =
-          simple.bothAnswered || serverClearedForNextRound
-            ? (simple.yourAnswer ?? null)
-            : (simple.yourAnswer ?? prev?.yourAnswer ?? null);
+        const promptChanged =
+          (prev?.prompt?.trim() ?? '') !== '' &&
+          (simple.prompt?.trim() ?? '') !== '' &&
+          simple.prompt.trim() !== (prev?.prompt ?? '').trim();
         if (simple.bothAnswered || serverClearedForNextRound) {
           lastRoundCompletedAtRef.current = Date.now();
+        }
+        // Mirror web: trust server answers unless we're waiting on our optimistic pick.
+        // After a new prompt (socket/POST), ignore stale GETs that still carry old answers.
+        let yourAnswer: 'have' | 'havent' | null = simple.yourAnswer ?? null;
+        let theirAnswer: 'have' | 'havent' | null = simple.theirAnswer ?? null;
+        if (promptLocked && prev?.yourAnswer == null && prev?.theirAnswer == null) {
+          yourAnswer = null;
+          theirAnswer = null;
+        } else if (promptChanged || serverClearedForNextRound) {
+          yourAnswer = simple.yourAnswer ?? null;
+          theirAnswer = simple.theirAnswer ?? null;
+          if (yourAnswer == null && theirAnswer == null && simple.prompt?.trim()) {
+            lastAnsweredPromptRef.current = '';
+          }
+        } else if (simple.yourAnswer == null && prev?.yourAnswer != null && !simple.bothAnswered) {
+          yourAnswer = prev.yourAnswer;
         }
         const staleRoundPrompt =
           recentRound &&
@@ -418,13 +439,16 @@ export default function NeverHaveIEver({
               : recentRound && (prev?.prompt?.trim() ?? '') !== '' && !simple.prompt
                 ? prev?.prompt ?? simple.prompt
                 : simple.prompt;
+        const mergedRoundId = data.roundId ?? simple.roundId ?? prev?.roundId ?? null;
+        if (mergedRoundId) roundIdRef.current = mergedRoundId;
         const merged = {
           ...simple,
           prompt: keptPrompt,
-          yourAnswer: keptYourAnswer,
+          yourAnswer,
+          theirAnswer,
           theirPoints: simple.theirPoints,
           yourPoints: simple.yourPoints,
-          roundId: data.roundId ?? prev?.roundId ?? simple.roundId ?? null,
+          roundId: mergedRoundId,
         };
         if (recentRound && fetchedZero && refHasPoints) {
           return { ...merged, yourPoints: lastKnownPointsRef.current.yourPoints, theirPoints: lastKnownPointsRef.current.theirPoints };
@@ -451,6 +475,9 @@ export default function NeverHaveIEver({
           theirPoints: simple.theirPoints,
           bothAnswered: !!data.bothAnswered,
           promptLen: (simple.prompt || '').length,
+          yourAnswer: simple.yourAnswer,
+          theirAnswer: simple.theirAnswer,
+          roundId: simple.roundId,
         });
       }
     } catch (err) {
@@ -495,6 +522,7 @@ export default function NeverHaveIEver({
     setPrompt('');
     lastAnsweredPromptRef.current = '';
     promptLockedUntilRef.current = 0;
+    roundIdRef.current = null;
     if (pollRef.current) {
       clearInterval(pollRef.current);
       pollRef.current = null;
@@ -581,16 +609,23 @@ export default function NeverHaveIEver({
       }
       if (payload.roundComplete && payload.newPrompt?.trim()) {
         if (__DEV__) console.log('[NHIE] Applying new prompt from socket (round complete)');
+        const nextRoundId = payload.roundId ?? null;
+        if (nextRoundId) roundIdRef.current = nextRoundId;
         setPrompt(payload.newPrompt);
         promptLockedUntilRef.current = Date.now() + 5000;
+        lastAnsweredPromptRef.current = '';
         setState(prev => prev ? {
           ...prev,
           prompt: payload.newPrompt!,
-          roundId: payload.roundId ?? prev.roundId ?? null,
+          roundId: nextRoundId,
           yourAnswer: null,
           theirAnswer: null,
           bothAnswered: false,
         } : null);
+        return;
+      }
+      if (payload.roundComplete && !payload.newPrompt?.trim()) {
+        scheduleRoundRefetches();
         return;
       }
       void fetchState();
@@ -655,6 +690,7 @@ export default function NeverHaveIEver({
       };
       setState(prev => ({ ...next, isUser1: next.isUser1 ?? prev?.isUser1 }));
       if (next.prompt) setPrompt(next.prompt);
+      if (next.roundId) roundIdRef.current = next.roundId;
     } catch (err) {
       console.warn('Never Have I Ever spice choice error:', err);
     } finally {
@@ -708,11 +744,30 @@ export default function NeverHaveIEver({
         setState(prev => prev ? { ...prev, yourAnswer: 'havent' } : null);
       }
 
+      const submitRoundId = roundIdRef.current ?? state?.roundId ?? null;
+      if (__DEV__) {
+        console.log('[NHIE] Submitting answer', { answer, roundId: submitRoundId });
+      }
       const data = await api.post<any>(`/matches/${matchId}/never-have-i-ever/answer`, {
         answer,
-        roundId: state?.roundId ?? null,
+        roundId: submitRoundId,
       });
       if (data.isUser1 !== undefined) isUser1Ref.current = !!data.isUser1;
+      const responseRoundId = data.roundId ?? null;
+      if (responseRoundId) roundIdRef.current = responseRoundId;
+      const roundComplete = !!data.bothAnswered || !!data.roundJustCompleted;
+      if (
+        !roundComplete &&
+        submitRoundId &&
+        responseRoundId &&
+        submitRoundId !== responseRoundId
+      ) {
+        if (__DEV__) {
+          console.warn('[NHIE] Stale roundId on answer — refetching', { submitRoundId, responseRoundId });
+        }
+        await fetchState();
+        return;
+      }
       const fromRound = data.pointsFromRound as { newYourStrikes?: number; newTheirStrikes?: number } | undefined;
       const serverYourPts = Math.max(
         0,
@@ -722,8 +777,6 @@ export default function NeverHaveIEver({
         0,
         Number(fromRound?.newTheirStrikes ?? data.theirPoints ?? data.theirStrikes ?? 0)
       );
-      const roundComplete = !!data.bothAnswered || !!data.roundJustCompleted;
-
       addBreadcrumb('NHIE', 'Answer response', { serverYourPts, serverTheirPts, roundComplete, bothAnswered: !!data.bothAnswered });
       debugLog('NHIE', 'Answer response full', { yourPoints: data.yourPoints, theirPoints: data.theirPoints, pointsFromRound: data.pointsFromRound, stateYourStrikes: data.yourStrikes, stateTheirStrikes: data.theirStrikes });
 
@@ -734,6 +787,8 @@ export default function NeverHaveIEver({
       };
 
       const nextPromptValue = data.newPrompt ?? data.prompt ?? state?.prompt ?? '';
+      const nextRoundId = data.roundId ?? roundIdRef.current ?? state?.roundId ?? null;
+      if (nextRoundId) roundIdRef.current = nextRoundId;
       // When round completes, clear the old prompt immediately so it disappears; then show new prompt when we have it
       setState(prev => {
         if (!prev) return null;
@@ -750,20 +805,23 @@ export default function NeverHaveIEver({
           prompt: newPrompt,
           gameOver: !!data.gameOver,
           winner: data.winner ?? null,
-          roundId: data.roundId ?? prev.roundId ?? null,
+          roundId: nextRoundId,
         };
       });
-      if (roundComplete) setPrompt(nextPromptValue || '');
-      else if (nextPromptValue) setPrompt(nextPromptValue);
+      if (roundComplete) {
+        setPrompt(nextPromptValue || '');
+        lastAnsweredPromptRef.current = '';
+      } else if (nextPromptValue) {
+        setPrompt(nextPromptValue);
+      }
 
       if (roundComplete) {
         lastRoundCompletedAtRef.current = Date.now();
         api.clearCache(`/matches/${matchId}/never-have-i-ever`);
         if (nextPromptValue.trim()) {
           promptLockedUntilRef.current = Date.now() + 5000;
-        } else {
-          scheduleRoundRefetches();
         }
+        scheduleRoundRefetches();
       }
     } catch (err) {
       console.warn('Never Have I Ever answer error:', err);
