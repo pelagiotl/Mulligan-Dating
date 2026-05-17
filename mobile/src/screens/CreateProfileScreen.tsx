@@ -837,7 +837,7 @@ export default function CreateProfileScreen() {
     }
     if (step === 4) {
       if (preferredGenders.length < 1) {
-        setError('Please choose who you’d like to connect with (select Everyone if you’re open to anyone)');
+        setError('Please choose who you’d like to match with (select Everyone if you’re open to anyone)');
         return;
       }
     }
@@ -1369,7 +1369,7 @@ export default function CreateProfileScreen() {
     );
   };
 
-  // Steps 1-6: One card per page (display name, age, gender, preferred connections, location, bio)
+  // Steps 1-6: One card per page (display name, age, gender, preferred matches, location, bio)
   const basicInfoStepWrapper = (content: React.ReactNode) => (
     <ScrollView style={styles.stepContent} contentContainerStyle={[styles.lifestyleScrollContent, { flexGrow: 1 }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
       {content}
@@ -1891,12 +1891,12 @@ export default function CreateProfileScreen() {
     <View style={[styles.focusedFieldSection, { minHeight: rs.sectionMinHeight, paddingHorizontal: rs.sectionPaddingH, paddingVertical: rs.sectionPaddingV }]}>
       <Animated.View style={[{ transform: [{ scale: preferredGendersScale }], opacity: preferredGendersOpacity }]}>
         <LinearGradient colors={['#4facfe', '#00f2fe', '#667eea']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.focusedFieldCard, { padding: rs.cardPadding }]}>
-          <Text style={[styles.focusedEmoji, { fontSize: rs.emojiSize, marginBottom: 16 }]}>🔗</Text>
-          <Text style={[styles.focusedTitle, { fontSize: rs.titleSize, marginBottom: rs.titleMargin }]}>Preferred connections</Text>
+          <Text style={[styles.focusedEmoji, { fontSize: rs.emojiSize, marginBottom: 16 }]}>🎯</Text>
+          <Text style={[styles.focusedTitle, { fontSize: rs.titleSize, marginBottom: rs.titleMargin }]}>Preferred matches</Text>
           <Text style={[styles.focusedSubtitle, { fontSize: rs.subtitleSizeSmall, lineHeight: Math.round(20 * (screenWidth / 375)), marginBottom: rs.subtitleMarginSmall }]}>
-            Mulligan Dating lets you meet people for hikes, coffee, gaming, events, or just good conversation. Gender preference helps match you with people you{"'"}re most comfortable meeting.
+            You{"'"}re here to actually meet people—not collect profiles. Coffee, trails, game nights, events, good convo: pick who you want in your matches.
           </Text>
-          <Text style={[styles.focusedTitle, { fontSize: rs.titleSizeSmall, marginBottom: 12, fontWeight: '700' }]}>Who would you like to connect with?</Text>
+          <Text style={[styles.focusedTitle, { fontSize: rs.titleSizeSmall, marginBottom: 12, fontWeight: '700' }]}>Who would you like to match with?</Text>
           <Text style={[styles.focusedSubtitle, { fontSize: rs.subtitleSizeTiny, marginBottom: 10, opacity: 0.95 }]}>Who to show</Text>
           <View style={styles.preferencesGenderGrid}>
             {PREFERRED_GENDER_OPTIONS.map((pref) => {
@@ -1932,7 +1932,7 @@ export default function CreateProfileScreen() {
         <LinearGradient colors={['#4facfe', '#00f2fe', '#667eea']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.focusedFieldCard, keyboardVisible && styles.focusedCardWithKeyboard, { padding: keyboardVisible ? rs.cardPaddingKeyboard : rs.cardPadding }]}>
           <Text style={[styles.focusedEmoji, keyboardVisible && styles.focusedEmojiSmall, { fontSize: keyboardVisible ? rs.emojiSizeSmall : rs.emojiSize, marginBottom: keyboardVisible ? 8 : 20 }]}>📍</Text>
           <Text style={[styles.focusedTitle, keyboardVisible && styles.focusedTitleSmall, { fontSize: rs.titleSizeSmall, marginBottom: keyboardVisible ? 6 : rs.titleMargin }]}>Maximum Distance</Text>
-          <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleSmall, { fontSize: rs.subtitleSizeSmall, marginBottom: keyboardVisible ? 16 : rs.subtitleMargin }]}>How far to search for connections</Text>
+          <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleSmall, { fontSize: rs.subtitleSizeSmall, marginBottom: keyboardVisible ? 16 : rs.subtitleMargin }]}>How far to search for matches</Text>
           <View style={styles.preferenceInputWrapper}>
             <View style={styles.preferenceInputContainer}>
               <TextInput ref={maxDistanceInputRef} style={styles.preferenceNumberInputLarge} value={maxDistance === null ? '' : maxDistance.toString()} onChangeText={(t) => { if (t === '' || t === '0') setMaxDistance(1); else { const v = parseInt(t); if (!isNaN(v) && v >= 1) setMaxDistance(v); } }} keyboardType="number-pad" returnKeyType="done" placeholder="50" placeholderTextColor="rgba(255, 255, 255, 0.7)" />
