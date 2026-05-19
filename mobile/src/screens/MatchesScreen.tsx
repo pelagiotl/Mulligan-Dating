@@ -1800,6 +1800,7 @@ function PhotoUnlockStage1BannerAndroid({
   onPress: () => void;
 }) {
   const name = otherDisplayName.trim() || 'your match';
+  const bodyCopy = `You each see one photo at first. After you and ${name} have each sent at least 3 messages in this chat, you'll both see each other's full galleries.`;
   const rimColors = midnight
     ? (['rgba(251, 113, 133, 0.85)', 'rgba(251, 191, 36, 0.65)', 'rgba(244, 63, 94, 0.75)'] as const)
     : (['#f472b6', '#fb923c', '#fbbf24'] as const);
@@ -1807,7 +1808,6 @@ function PhotoUnlockStage1BannerAndroid({
   const titleColor = midnight ? '#fde68a' : '#9f1239';
   const subtitleColor = midnight ? 'rgba(226, 232, 240, 0.72)' : '#78716c';
   const bodyColor = midnight ? '#e2e8f0' : '#44403c';
-  const nameColor = midnight ? '#fda4af' : '#be123c';
   const hintColor = midnight ? 'rgba(226, 232, 240, 0.5)' : 'rgba(120, 113, 108, 0.72)';
   const iconBubbleColors = midnight
     ? (['#9d174d', '#c2410c'] as const)
@@ -1833,13 +1833,7 @@ function PhotoUnlockStage1BannerAndroid({
               </Text>
             </View>
           </View>
-          <Text style={[styles.photoUnlockBannerBody, { color: bodyColor }]}>
-            You each see one photo at first. After you and{' '}
-            <Text style={[styles.photoUnlockBannerName, { color: nameColor }]}>{name}</Text>
-            {' have each sent at least '}
-            <Text style={[styles.photoUnlockBannerEmphasis, { color: nameColor }]}>3 messages</Text>
-            {" in this chat, you'll both see each other's full galleries."}
-          </Text>
+          <Text style={[styles.photoUnlockBannerBody, { color: bodyColor }]}>{bodyCopy}</Text>
           <View style={styles.photoUnlockBannerChips}>
             <View
               style={[
@@ -1934,6 +1928,8 @@ export default function MatchesScreen() {
   /** Skip one matches refetch when opening chat from celebration (avoids loading flicker). */
   const skipNextSelectMatchesRefetchRef = useRef(false);
   const textInputRef = useRef<TextInput>(null);
+  /** Blocks Android multiline TextInput from echoing pre-send text after clear. */
+  const suppressInputEchoRef = useRef(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
@@ -2228,9 +2224,21 @@ export default function MatchesScreen() {
     }, 500)
   ).current;
 
+  const clearMessageInput = useCallback(() => {
+    suppressInputEchoRef.current = true;
+    setNewMessage('');
+    textInputRef.current?.clear?.();
+  }, []);
+
   const handleTextChange = useCallback((text: string) => {
     // During send, ignore non-empty native TextInput churn (Android multiline can echo old text after clear)
     if (sendingMessage && text !== '') {
+      return;
+    }
+    if (suppressInputEchoRef.current) {
+      if (text === '') {
+        suppressInputEchoRef.current = false;
+      }
       return;
     }
     setNewMessage(text);
@@ -3016,10 +3024,7 @@ export default function MatchesScreen() {
       typingTimeoutRef.current = null;
     }
 
-    setNewMessage('');
-    if (Platform.OS === 'android') {
-      queueMicrotask(() => textInputRef.current?.clear?.());
-    }
+    clearMessageInput();
     Keyboard.dismiss();
     setTimeout(() => setKeyboardHeight(0), 100);
     
@@ -3075,6 +3080,7 @@ export default function MatchesScreen() {
         { timeoutMs: 35000 }
       );
 
+    let sendFailed = false;
     try {
       let response: Awaited<ReturnType<typeof doSend>>;
       try {
@@ -3114,8 +3120,10 @@ export default function MatchesScreen() {
         if (wasStage1BeforeSend) triggerGalleryUnlockCelebration(sendingMatchId);
       }
     } catch (error: any) {
+      sendFailed = true;
       // Remove temp message on error
       setMessages((prev) => prev.filter((m) => m.id !== tempMessage.id));
+      suppressInputEchoRef.current = false;
       setNewMessage(messageContent);
       const msg = error?.message || 'Failed to send message';
       Alert.alert('Error', msg.includes('timeout') ? 'Network request timed out. Please check your connection and try again.' : msg);
@@ -3126,6 +3134,10 @@ export default function MatchesScreen() {
       }
       sendInFlightRef.current = false;
       setSendingMessage(false);
+      // Android multiline often re-fires onChangeText with the old value after send completes
+      if (!sendFailed) {
+        clearMessageInput();
+      }
     }
   };
 
@@ -4299,7 +4311,7 @@ export default function MatchesScreen() {
 
       {/* New Features: Mulligan Moments - fixed at top (Date Blueprint moved to header) */}
       {selectedMatch && selectedMatch.stage !== 'pending' && (
-        <View style={[styles.featuresContainer, { maxHeight: Math.min(200, windowHeight * 0.32) }]}>
+        <View style={styles.featuresContainer}>
           <MulliganMoments 
             matchId={selectedMatch.id} 
             socket={socketRef.current}
@@ -5552,12 +5564,10 @@ const styles = StyleSheet.create({
   featuresContainer: {
     width: '100%',
     maxWidth: '100%',
-    overflow: 'hidden',
-    backgroundColor: '#f5f7fa',
+    overflow: 'visible',
+    backgroundColor: 'transparent',
     paddingVertical: 4,
-    paddingHorizontal: 4,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    paddingHorizontal: 0,
   },
   featuresRow: {
     flexDirection: 'row',
@@ -5866,12 +5876,7 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     marginBottom: 12,
     letterSpacing: 0.1,
-  },
-  photoUnlockBannerName: {
-    fontWeight: '700',
-  },
-  photoUnlockBannerEmphasis: {
-    fontWeight: '800',
+    flexShrink: 1,
   },
   photoUnlockBannerChips: {
     flexDirection: 'row',

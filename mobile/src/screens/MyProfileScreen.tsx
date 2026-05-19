@@ -42,6 +42,7 @@ import {
   DEALBREAKER_EMOJI,
   canonicalDealbreakerLabel,
   PARTNER_QUALITY_EMOJI,
+  getInterestEmoji,
   isCanonicalPartnerQuality,
   LIFESTYLE_FIELD_LABEL,
   lifestylePickerItemLabel,
@@ -2566,7 +2567,9 @@ export default function MyProfileScreen() {
           <View style={styles.tagsContainer}>
             {interests.map((interest, idx) => (
               <View key={idx} style={styles.tag}>
-                <Text style={styles.tagText}>{interest.name}</Text>
+                <Text style={styles.tagText}>
+                  {getInterestEmoji(interest.name)} {interest.name}
+                </Text>
               </View>
             ))}
           </View>

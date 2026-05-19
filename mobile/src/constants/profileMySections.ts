@@ -132,6 +132,17 @@ export function isCanonicalPartnerQuality(v: string): v is (typeof PARTNER_QUALI
   return (PARTNER_QUALITY_OPTIONS as readonly string[]).includes(v);
 }
 
+/** Same options/emojis as partner qualities — used for "My Interests" chips. */
+export const INTEREST_EMOJI = PARTNER_QUALITY_EMOJI;
+
+export function getInterestEmoji(interestName: string): string {
+  const trimmed = interestName.trim();
+  if (!trimmed) return '✨';
+  if (INTEREST_EMOJI[trimmed]) return INTEREST_EMOJI[trimmed];
+  const key = Object.keys(INTEREST_EMOJI).find((k) => k.toLowerCase() === trimmed.toLowerCase());
+  return key ? INTEREST_EMOJI[key]! : '✨';
+}
+
 export const LIFESTYLE_FIELD_OPTIONS = {
   smoking: ['', 'Non-smoker', 'Social smoker', 'Smoker', 'Trying to quit', 'Prefer not to say'],
   drinking: ['', 'Non-drinker', 'Socially', 'Regularly', 'Sober-curious', 'Prefer not to say'],

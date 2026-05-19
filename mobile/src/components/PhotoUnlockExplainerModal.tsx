@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   TouchableWithoutFeedback,
-  ScrollView,
   Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -23,13 +22,13 @@ export default function PhotoUnlockExplainerModal({
   midnight: boolean;
 }) {
   const name = otherDisplayName.trim() || 'your match';
+  const bodyCopy = `You each see one photo at first. After you and ${name} have each sent at least 3 messages in this chat, you'll both see each other's full galleries.`;
   const rimColors = midnight
     ? (['rgba(251, 113, 133, 0.85)', 'rgba(251, 191, 36, 0.65)', 'rgba(244, 63, 94, 0.75)'] as const)
     : (['#f472b6', '#fb923c', '#fbbf24'] as const);
   const innerBg = midnight ? '#14121e' : '#fffefb';
   const titleColor = midnight ? '#fde68a' : '#9f1239';
   const bodyColor = midnight ? '#e2e8f0' : '#44403c';
-  const nameColor = midnight ? '#fda4af' : '#be123c';
   const chipBorder = midnight ? 'rgba(251, 191, 36, 0.38)' : 'rgba(251, 191, 36, 0.45)';
   const chipBg = midnight ? 'rgba(251, 113, 133, 0.12)' : 'rgba(253, 242, 248, 0.95)';
   const chipText = midnight ? '#fde68a' : '#9f1239';
@@ -42,21 +41,10 @@ export default function PhotoUnlockExplainerModal({
             <View style={styles.sheetWrap}>
               <LinearGradient colors={[...rimColors]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.rim}>
                 <View style={[styles.inner, { backgroundColor: innerBg }]}>
-                  <ScrollView
-                    showsVerticalScrollIndicator={false}
-                    contentContainerStyle={styles.scrollContent}
-                    bounces={false}
-                  >
+                  <View style={styles.content}>
                     <Text style={styles.emoji}>📸 ✨</Text>
                     <Text style={[styles.title, { color: titleColor }]}>Unlock all photos</Text>
-                    <Text style={[styles.lead, { color: bodyColor }]}>
-                      You each see{' '}
-                      <Text style={[styles.emphasis, { color: nameColor }]}>one photo</Text> at first. After you and{' '}
-                      <Text style={[styles.emphasis, { color: nameColor }]}>{name}</Text>
-                      {" have each sent at least "}
-                      <Text style={[styles.emphasis, { color: nameColor }]}>3 messages</Text>
-                      {" in this chat, you'll both see each other's full galleries."}
-                    </Text>
+                    <Text style={[styles.lead, { color: bodyColor }]}>{bodyCopy}</Text>
                     <View style={styles.chips}>
                       <View style={[styles.chip, { backgroundColor: chipBg, borderColor: chipBorder }]}>
                         <Text style={[styles.chipText, { color: chipText }]}>📷 1 preview each</Text>
@@ -65,7 +53,7 @@ export default function PhotoUnlockExplainerModal({
                         <Text style={[styles.chipText, { color: chipText }]}>💬 3 msgs each</Text>
                       </View>
                     </View>
-                  </ScrollView>
+                  </View>
                   <TouchableOpacity
                     style={[styles.cta, midnight ? styles.ctaMidnight : styles.ctaDay]}
                     onPress={onClose}
@@ -112,9 +100,8 @@ const styles = StyleSheet.create({
   inner: {
     borderRadius: 20,
     overflow: 'hidden',
-    maxHeight: '85%',
   },
-  scrollContent: {
+  content: {
     paddingHorizontal: 18,
     paddingTop: 18,
     paddingBottom: 12,
@@ -137,9 +124,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     letterSpacing: 0.15,
     marginBottom: 14,
-  },
-  emphasis: {
-    fontWeight: '700',
+    flexShrink: 1,
   },
   chips: {
     flexDirection: 'row',

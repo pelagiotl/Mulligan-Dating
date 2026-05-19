@@ -5,6 +5,11 @@
 
 import { db } from '../database.js';
 import { v4 as uuidv4 } from 'uuid';
+import {
+  MULLIGAN_MOMENT_SYSTEM_PROMPT,
+  pickMulliganMomentFallback,
+  sanitizeMulliganMomentStarter,
+} from './gamePromptGuards.js';
 
 async function awaitRow<T>(result: T | Promise<T>): Promise<T> {
   return result instanceof Promise ? await result : result;
@@ -65,14 +70,6 @@ export async function isConversationDead(matchId: string): Promise<boolean> {
   return Date.now() - last > limitMs;
 }
 
-function pickFallbackStarter(shared: string[]): string {
-  if (shared.length > 0) {
-    const topic = shared[0];
-    return `Okay but we both care about ${topic} — what's the hottest take you have about it?`;
-  }
-  return "I'm calling a Mulligan on the small talk — hit me with something real nobody asks on a first chat.";
-}
-
 const DEFAULT_EXPLANATION =
   'Fresh starter based on your profiles and what you have in common. Send it when it feels right.';
 
@@ -104,30 +101,28 @@ export async function resetConversation(
       const openai = new OpenAI({ apiKey: openaiKey });
       const interestsLine =
         shared.length > 0
-          ? `Shared interests (use subtly, do not list): ${shared.slice(0, 8).join(', ')}.`
-          : 'No shared interests on profiles — still write a bold, specific opener for two people who matched.';
+          ? `Shared interests (background only — do NOT make them the main hook): ${shared.slice(0, 8).join(', ')}.`
+          : 'No shared interests on profiles — write a bold, mature opener for two adults who matched and the chat went quiet.';
 
       const completion = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
         messages: [
-          {
-            role: 'system',
-            content: `You write ONE short conversation starter message for a dating app chat, first person ("I" / "me"), max 220 characters. Cool, confident, adult — not cheesy, not a pun, not corporate. No hashtags. Output ONLY the message text.`,
-          },
+          { role: 'system', content: MULLIGAN_MOMENT_SYSTEM_PROMPT },
           {
             role: 'user',
             content: `${interestsLine}\nWrite one opener they can paste into chat.`,
           },
         ],
-        temperature: 0.95,
+        temperature: 0.92,
         max_tokens: 120,
       });
 
-      const content = completion.choices[0]?.message?.content?.trim();
-      if (content && content.length >= 8 && content.length <= 400) {
-        starter = content;
+      const raw = completion.choices[0]?.message?.content?.trim() ?? '';
+      const sanitized = sanitizeMulliganMomentStarter(raw);
+      if (sanitized) {
+        starter = sanitized;
         explanation =
-          'AI-generated opener using your match context. You can edit before sending — keep it you.';
+          'AI-generated opener using your match context. Edit it so it sounds like you, then send.';
       }
     } catch (e) {
       console.warn('[mulliganMoments] OpenAI starter failed:', e);
@@ -135,7 +130,7 @@ export async function resetConversation(
   }
 
   if (!starter) {
-    starter = pickFallbackStarter(shared);
+    starter = pickMulliganMomentFallback(shared);
     explanation = DEFAULT_EXPLANATION;
   }
 
