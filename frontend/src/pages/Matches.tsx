@@ -508,6 +508,7 @@ export default function Matches() {
 
   const openMatchThread = useCallback((match: Match) => {
     const clearedMatch = { ...match, unreadCount: 0 };
+    setNewMessage("");
     setSelectedMatch(clearedMatch);
     setMatches((prev) =>
       prev.map((m) => (m.id === match.id ? { ...m, unreadCount: 0 } : m))
@@ -1520,10 +1521,22 @@ export default function Matches() {
   };
 
   useEffect(() => {
+    setNewMessage("");
+    setIsTyping(false);
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
     clearPendingImage();
     clearPendingVideo();
     cancelVoiceRecording();
     setChatMediaModal(null);
+    return () => {
+      const leavingId = selectedMatchIdRef.current;
+      if (leavingId && socketRef.current) {
+        socketRef.current.emit("stop_typing", { matchId: leavingId });
+      }
+    };
   }, [selectedMatch?.id, clearPendingImage, clearPendingVideo, cancelVoiceRecording]);
 
   const openImagePicker = () => {
