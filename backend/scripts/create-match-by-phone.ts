@@ -13,9 +13,33 @@ import 'dotenv/config';
 import { db, initDatabase } from '../src/database.js';
 import { v4 as uuidv4 } from 'uuid';
 
+function digitsOnly(phone: string | null | undefined): string {
+  return String(phone ?? '').replace(/\D/g, '');
+}
+
 function normalizePhone(raw: string): string {
-  const t = raw.trim();
-  return t.startsWith('+') ? t : `+${t.replace(/\D/g, '')}`;
+  const d = digitsOnly(raw);
+  if (!d) return '';
+  return d.length === 10 ? `+1${d}` : `+${d}`;
+}
+
+function samePhoneDigits(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  return a === b || a.slice(-10) === b.slice(-10);
+}
+
+async function findUserByPhone(raw: string): Promise<{ id: string; phone_number: string } | null> {
+  const target = digitsOnly(raw);
+  if (!target) return null;
+
+  const rowsResult = db.prepare('SELECT id, phone_number FROM users WHERE phone_number IS NOT NULL').all();
+  const rows = (rowsResult instanceof Promise ? await rowsResult : rowsResult) as Array<{
+    id: string;
+    phone_number: string | null;
+  }>;
+
+  const found = rows.find((row) => samePhoneDigits(digitsOnly(row.phone_number), target));
+  return found?.phone_number ? { id: found.id, phone_number: found.phone_number } : null;
 }
 
 const phoneA = process.argv[2];
@@ -35,32 +59,33 @@ async function createMatchByPhone() {
     const n1 = normalizePhone(phoneA);
     const n2 = normalizePhone(phoneB);
 
-    console.log(`🔍 Resolving users: ${n1}, ${n2}`);
+    const dbLabel = process.env.DATABASE_URL
+      ? 'PostgreSQL (DATABASE_URL)'
+      : 'local SQLite (backend/mulligan.db)';
+    console.log(`🔍 Database: ${dbLabel}`);
+    console.log(`🔍 Looking up: ${n1} and ${n2} (last-10-digit match)`);
 
-    const u1Result = db.prepare('SELECT id FROM users WHERE phone_number = ?').get([n1]);
-    const u1 = (u1Result instanceof Promise ? await u1Result : u1Result) as { id: string } | undefined;
-
-    const u2Result = db.prepare('SELECT id FROM users WHERE phone_number = ?').get([n2]);
-    const u2 = (u2Result instanceof Promise ? await u2Result : u2Result) as { id: string } | undefined;
+    const u1 = await findUserByPhone(phoneA);
+    const u2 = await findUserByPhone(phoneB);
 
     if (!u1) {
-      console.error(`❌ No user with phone ${n1}`);
-      if (!process.env.DATABASE_URL) {
-        console.error(
-          '💡 Local SQLite has no such user. For production accounts, set DATABASE_URL (e.g. in backend/.env) and run again.'
-        );
-      }
+      console.error(`❌ No user found for ${n1}`);
+      console.error(
+        '💡 Your accounts live on production Postgres. Add DATABASE_URL to backend/.env (copy from Render → your backend service → Environment), then run this again.'
+      );
+      console.error('   One-liner: DATABASE_URL="postgresql://..." npm run create-match-by-phone -- +15414011862 +15413163939');
       process.exit(1);
     }
     if (!u2) {
-      console.error(`❌ No user with phone ${n2}`);
-      if (!process.env.DATABASE_URL) {
-        console.error(
-          '💡 Local SQLite has no such user. For production accounts, set DATABASE_URL (e.g. in backend/.env) and run again.'
-        );
-      }
+      console.error(`❌ No user found for ${n2}`);
+      console.error(
+        '💡 Your accounts live on production Postgres. Add DATABASE_URL to backend/.env (copy from Render → your backend service → Environment), then run this again.'
+      );
       process.exit(1);
     }
+
+    console.log(`   Found: ${u1.phone_number} → ${u1.id}`);
+    console.log(`   Found: ${u2.phone_number} → ${u2.id}`);
 
     const userId = u1.id;
     const targetUserId = u2.id;
@@ -99,8 +124,8 @@ async function createMatchByPhone() {
     }
 
     console.log(`✅ Created match ${matchId}`);
-    console.log(`   user1_id (phone ${n1}): ${userId}`);
-    console.log(`   user2_id (phone ${n2}): ${targetUserId}`);
+    console.log(`   user1_id (${u1.phone_number}): ${userId}`);
+    console.log(`   user2_id (${u2.phone_number}): ${targetUserId}`);
     console.log(`   expires_at: ${sevenDaysFromNow.toISOString()}`);
 
     process.exit(0);

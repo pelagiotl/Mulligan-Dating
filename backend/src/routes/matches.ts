@@ -3021,6 +3021,56 @@ matchesRouter.post("/:matchId/never-have-i-ever/next", authenticateToken, rateLi
   }
 });
 
+matchesRouter.post("/:matchId/never-have-i-ever/return-to-lobby", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { matchId } = req.params;
+
+    const matchResult = db
+      .prepare('SELECT user1_id, user2_id FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?)')
+      .get([matchId, userId, userId]);
+    const match = (matchResult instanceof Promise
+      ? await matchResult
+      : matchResult) as { user1_id: string; user2_id: string } | undefined;
+
+    if (!match) {
+      return res.status(404).json({ error: "Match not found" });
+    }
+
+    const { returnToLobby } = await import('../services/neverHaveIEver.js');
+    const state = await returnToLobby(matchId, userId, match);
+
+    try {
+      const { getIO } = await import('../socket.js');
+      const io = getIO();
+      if (io) {
+        io.to(`match:${matchId}`).emit('never_have_i_ever_updated', {
+          matchId,
+          roundReset: true,
+          lobbyReset: true,
+          user1Strikes: 0,
+          user2Strikes: 0,
+        });
+      }
+    } catch (socketError) {
+      console.warn('⚠️  Socket.io not available for Never Have I Ever return-to-lobby notification');
+    }
+
+    res.json({
+      ...state,
+      tokenUnlocked: true,
+      needsSpiceChoiceFromUnlocker: false,
+      isUser1: userId === match.user1_id,
+      yourPoints: 0,
+      theirPoints: 0,
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Never Have I Ever return-to-lobby error:", error);
+    res.status(500).json({ error: `Failed to return to lobby: ${errorMessage}` });
+  }
+});
+
 matchesRouter.post("/:matchId/never-have-i-ever/restart", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;

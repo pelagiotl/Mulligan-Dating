@@ -9,10 +9,12 @@ interface MulliganMomentsProps {
   matchId: string;
   socket: Socket | null;
   onStarterGenerated?: (starter: string) => void;
+  /** Parent calls this ref after the opener is sent so the preview card can dismiss. */
+  dismissStarterRef?: React.MutableRefObject<(() => void) | null>;
   compact?: boolean;
 }
 
-export default function MulliganMoments({ matchId, socket, onStarterGenerated, compact }: MulliganMomentsProps) {
+export default function MulliganMoments({ matchId, socket, onStarterGenerated, dismissStarterRef, compact }: MulliganMomentsProps) {
   const [canReset, setCanReset] = useState(false);
   const [checking, setChecking] = useState(false);
   const [resetting, setResetting] = useState(false);
@@ -23,6 +25,17 @@ export default function MulliganMoments({ matchId, socket, onStarterGenerated, c
   useEffect(() => {
     checkConversationStatus();
   }, [matchId]);
+
+  useEffect(() => {
+    if (!dismissStarterRef) return;
+    dismissStarterRef.current = () => {
+      setStarter(null);
+      setExplanation(null);
+    };
+    return () => {
+      dismissStarterRef.current = null;
+    };
+  }, [dismissStarterRef]);
 
   useEffect(() => {
     if (!socket) return;

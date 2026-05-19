@@ -1930,6 +1930,7 @@ export default function MatchesScreen() {
   const textInputRef = useRef<TextInput>(null);
   /** Blocks Android multiline TextInput from echoing pre-send text after clear. */
   const suppressInputEchoRef = useRef(false);
+  const mulliganDismissStarterRef = useRef<(() => void) | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
@@ -2238,8 +2239,10 @@ export default function MatchesScreen() {
     if (suppressInputEchoRef.current) {
       if (text === '') {
         suppressInputEchoRef.current = false;
+        return;
       }
-      return;
+      // User is typing new content after send — release suppress (Android may never fire empty onChange)
+      suppressInputEchoRef.current = false;
     }
     setNewMessage(text);
 
@@ -3025,8 +3028,11 @@ export default function MatchesScreen() {
     }
 
     clearMessageInput();
+    textInputRef.current?.blur();
     Keyboard.dismiss();
+    setKeyboardHeight(0);
     setTimeout(() => setKeyboardHeight(0), 100);
+    setTimeout(() => setKeyboardHeight(0), 350);
     
     if (sendSafetyTimeoutRef.current) clearTimeout(sendSafetyTimeoutRef.current);
     sendSafetyTimeoutRef.current = setTimeout(() => {
@@ -3119,6 +3125,7 @@ export default function MatchesScreen() {
         setMatches((prev) => prev.map((m) => (m.id === sendingMatchId ? { ...m, stage: 'stage2' } : m)));
         if (wasStage1BeforeSend) triggerGalleryUnlockCelebration(sendingMatchId);
       }
+      mulliganDismissStarterRef.current?.();
     } catch (error: any) {
       sendFailed = true;
       // Remove temp message on error
@@ -3134,9 +3141,11 @@ export default function MatchesScreen() {
       }
       sendInFlightRef.current = false;
       setSendingMessage(false);
-      // Android multiline often re-fires onChangeText with the old value after send completes
       if (!sendFailed) {
-        clearMessageInput();
+        suppressInputEchoRef.current = false;
+        setNewMessage('');
+        textInputRef.current?.clear?.();
+        setKeyboardHeight(0);
       }
     }
   };
@@ -4316,6 +4325,7 @@ export default function MatchesScreen() {
             matchId={selectedMatch.id} 
             socket={socketRef.current}
             compact
+            dismissStarterRef={mulliganDismissStarterRef}
             onStarterGenerated={(starter) => {
               setNewMessage(starter);
               if (textInputRef.current) {

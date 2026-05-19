@@ -498,6 +498,56 @@ async function ensureCurrentRoundId(matchId: string, row: GameRow | undefined | 
   return next;
 }
 
+/** Only treat an answer as belonging to the active round (prevents stuck rounds after roundId drift). */
+function answerForCurrentRound(
+  answer: 'have' | 'havent' | null,
+  answerRoundId: string | null | undefined,
+  currentRoundId: string
+): 'have' | 'havent' | null {
+  if (answer == null) return null;
+  if (answerRoundId == null || String(answerRoundId).trim() === '') return answer;
+  return String(answerRoundId) === String(currentRoundId) ? answer : null;
+}
+
+/** Clear answers tied to a previous round so completion logic and new submissions are not blocked. */
+async function clearOrphanedAnswersForRound(matchId: string, currentRoundId: string): Promise<boolean> {
+  const rowResult = db
+    .prepare(
+      'SELECT user1_answer, user2_answer, user1_answer_round_id, user2_answer_round_id FROM never_have_i_ever_games WHERE match_id = ?'
+    )
+    .get([matchId]);
+  const row = (rowResult instanceof Promise ? await rowResult : rowResult) as GameRow | undefined;
+  if (!row) return false;
+
+  const r1 = row.user1_answer_round_id;
+  const r2 = row.user2_answer_round_id;
+  const u1Orphan =
+    getAnswerVal(row as unknown as Record<string, unknown>, 'user1_answer') != null &&
+    r1 != null &&
+    String(r1) !== String(currentRoundId);
+  const u2Orphan =
+    getAnswerVal(row as unknown as Record<string, unknown>, 'user2_answer') != null &&
+    r2 != null &&
+    String(r2) !== String(currentRoundId);
+  if (!u1Orphan && !u2Orphan) return false;
+
+  nhieLog('clearOrphanedAnswersForRound', { matchId, currentRoundId, u1Orphan, u2Orphan });
+  const ts = new Date().toISOString();
+  const updateResult = db
+    .prepare(
+      `UPDATE never_have_i_ever_games SET
+        user1_answer = CASE WHEN user1_answer_round_id IS NOT NULL AND user1_answer_round_id != ? THEN NULL ELSE user1_answer END,
+        user1_answer_round_id = CASE WHEN user1_answer_round_id IS NOT NULL AND user1_answer_round_id != ? THEN NULL ELSE user1_answer_round_id END,
+        user2_answer = CASE WHEN user2_answer_round_id IS NOT NULL AND user2_answer_round_id != ? THEN NULL ELSE user2_answer END,
+        user2_answer_round_id = CASE WHEN user2_answer_round_id IS NOT NULL AND user2_answer_round_id != ? THEN NULL ELSE user2_answer_round_id END,
+        updated_at = ?
+      WHERE match_id = ?`
+    )
+    .run([currentRoundId, currentRoundId, currentRoundId, currentRoundId, ts, matchId]);
+  if (updateResult instanceof Promise) await updateResult;
+  return true;
+}
+
 export async function getGameState(
   matchId: string,
   userId: string,
@@ -572,9 +622,46 @@ export async function getGameState(
 
   const yourStrikes = isUser1 ? rowUser1Strikes : rowUser2Strikes;
   const theirStrikes = isUser1 ? rowUser2Strikes : rowUser1Strikes;
+  const level = (spiceLevel || row.spice_level || 'pg13') as SpiceLevel;
+  const currentRoundId = await ensureCurrentRoundId(matchId, row);
+
+  if (await clearOrphanedAnswersForRound(matchId, currentRoundId)) {
+    const rowRefresh = db.prepare('SELECT * FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
+    row = (rowRefresh instanceof Promise ? await rowRefresh : rowRefresh) as GameRow | undefined;
+    if (!row) {
+      return {
+        prompt: '',
+        roundId: currentRoundId,
+        yourStrikes: 0,
+        theirStrikes: 0,
+        yourAnswer: null,
+        theirAnswer: null,
+        bothAnswered: false,
+        gameOver: false,
+        winner: null,
+        phase: 'playing',
+        yourSpiceChoice: yourSpiceChoice || null,
+        theirSpiceChoice: theirSpiceChoice || null,
+        spiceReady: spiceReady || false,
+        spiceLevel: level,
+        currentTurnUserId: null,
+        isYourTurn: false,
+        inactiveReset: inactiveReset || undefined,
+      };
+    }
+  }
+
   const rowAny = row as unknown as Record<string, unknown>;
-  let yourAnswer = (isUser1 ? getAnswerVal(rowAny, 'user1_answer') : getAnswerVal(rowAny, 'user2_answer')) as 'have' | 'havent' | null;
-  let theirAnswer = (isUser1 ? getAnswerVal(rowAny, 'user2_answer') : getAnswerVal(rowAny, 'user1_answer')) as 'have' | 'havent' | null;
+  let yourAnswer = answerForCurrentRound(
+    (isUser1 ? getAnswerVal(rowAny, 'user1_answer') : getAnswerVal(rowAny, 'user2_answer')) as 'have' | 'havent' | null,
+    isUser1 ? row.user1_answer_round_id : row.user2_answer_round_id,
+    currentRoundId
+  );
+  let theirAnswer = answerForCurrentRound(
+    (isUser1 ? getAnswerVal(rowAny, 'user2_answer') : getAnswerVal(rowAny, 'user1_answer')) as 'have' | 'havent' | null,
+    isUser1 ? row.user2_answer_round_id : row.user1_answer_round_id,
+    currentRoundId
+  );
 
   const bothAnswered = yourAnswer !== null && theirAnswer !== null;
   const gameOver = yourStrikes >= STRIKES_TO_LOSE || theirStrikes >= STRIKES_TO_LOSE;
@@ -582,9 +669,6 @@ export async function getGameState(
   if (gameOver) {
     winner = theirStrikes >= STRIKES_TO_LOSE ? 'you' : 'them';
   }
-
-  const level = (spiceLevel || row.spice_level || 'pg13') as SpiceLevel;
-  const currentRoundId = await ensureCurrentRoundId(matchId, row);
 
   // Complete the round in this same read when GET asks for it: we already see both answers, so no second-read race
   if (options?.completeRoundIfBothAnswered && bothAnswered && !gameOver) {
@@ -696,6 +780,10 @@ export async function completeRoundIfBothAnswered(matchId: string): Promise<{ co
     return { completed: false };
   }
   const currentRoundId = await ensureCurrentRoundId(matchId, row as unknown as GameRow);
+  if (await clearOrphanedAnswersForRound(matchId, currentRoundId)) {
+    row = await readRow();
+    if (!row) return { completed: false };
+  }
   // Retry with backoff so we see commits after replica lag (Render/PostgreSQL read replica can be seconds behind)
   const retryDelays = [400, 800, 1500, 3000, 5000, 8000];
   for (let i = 0; i < retryDelays.length; i++) {
@@ -933,14 +1021,13 @@ export async function submitAnswer(
     otherAnswerBefore !== null &&
     (otherAnswerRoundBefore == null || String(otherAnswerRoundBefore) === currentRoundId);
   if (submittedRoundId && submittedRoundId !== currentRoundId) {
-    const state = await getGameState(matchId, userId, match);
-    return {
-      state,
-      pointsFromRound: {
-        newYourStrikes: state.yourStrikes,
-        newTheirStrikes: state.theirStrikes,
-      },
-    };
+    nhieLog('submitAnswer: stale roundId from client — clearing orphans and applying to current round', {
+      matchId,
+      submittedRoundId,
+      currentRoundId,
+    });
+    await clearOrphanedAnswersForRound(matchId, currentRoundId);
+    return submitAnswer(matchId, userId, match, answer, currentRoundId);
   }
 
   const ts = new Date().toISOString();
@@ -1128,6 +1215,29 @@ export async function advanceToNextRound(
   ).run([prompt, uuidv4(), new Date().toISOString(), matchId]);
   if (runResult instanceof Promise) await runResult;
 
+  return getGameState(matchId, userId, match);
+}
+
+/** Reset NHIE to the spice lobby for both players (clears scores, prompt, and mode picks). */
+export async function returnToLobby(
+  matchId: string,
+  userId: string,
+  match: { user1_id: string; user2_id: string }
+): Promise<GameState> {
+  const now = new Date().toISOString();
+  const rowResult = db.prepare('SELECT match_id FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
+  const row = rowResult instanceof Promise ? await rowResult : rowResult;
+
+  if (row) {
+    const updateResult = db
+      .prepare(
+        `UPDATE never_have_i_ever_games SET user1_strikes = 0, user2_strikes = 0, user1_spice_choice = NULL, user2_spice_choice = NULL, spice_level = NULL, current_prompt = NULL, current_round_id = NULL, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, user1_answer_round_id = NULL, user2_answer_round_id = NULL, updated_at = ? WHERE match_id = ?`
+      )
+      .run([now, matchId]);
+    if (updateResult instanceof Promise) await updateResult;
+  }
+
+  await touchNeverHaveIEverActivity(matchId, userId, match);
   return getGameState(matchId, userId, match);
 }
 

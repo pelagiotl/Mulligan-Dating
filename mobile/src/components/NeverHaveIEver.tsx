@@ -18,9 +18,11 @@ import {
   Alert,
   ScrollView,
   TextInput,
+  Keyboard,
   KeyboardAvoidingView,
   useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { api } from '../utils/api';
 import TruthOrDareMessageGateModal from './TruthOrDareMessageGateModal';
@@ -130,7 +132,10 @@ export default function NeverHaveIEver({
   const [prompt, setPrompt] = useState('');
   const [gameChatDraft, setGameChatDraft] = useState('');
   const [gameChatSending, setGameChatSending] = useState(false);
-  const { width: windowWidth } = useWindowDimensions();
+  const [gameChatKeyboardHeight, setGameChatKeyboardHeight] = useState(0);
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const gameChatScrollRef = useRef<ScrollView>(null);
   const compactGameChat = windowWidth < 430;
   const [gameChatPanelOpen, setGameChatPanelOpen] = useState(true);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -147,6 +152,8 @@ export default function NeverHaveIEver({
 
   const isUnlocked = gameUnlockedByToken;
   const displayPrompt = prompt || state?.prompt || '';
+  const displayPromptRef = useRef('');
+  displayPromptRef.current = displayPrompt;
 
   useEffect(() => {
     if (state?.roundId) roundIdRef.current = state.roundId;
@@ -271,6 +278,41 @@ export default function NeverHaveIEver({
   const showGameChat = Boolean(state && currentUserId && onSendToChat);
   const showEmbeddedGameChat = showGameChat && (!compactGameChat || gameChatPanelOpen);
   const showGameChatFab = showGameChat && compactGameChat && !gameChatPanelOpen;
+  const gameChatKeyboardPad =
+    gameChatKeyboardHeight > 0 && Platform.OS === 'android'
+      ? gameChatKeyboardHeight + 28
+      : gameChatKeyboardHeight;
+  const gameChatScrollMaxHeight =
+    gameChatKeyboardPad > 0
+      ? Math.min(100, Math.max(56, windowHeight * 0.12))
+      : compactGameChat && gameChatPanelOpen
+        ? 120
+        : 140;
+
+  const scrollGameChatToEnd = useCallback(() => {
+    requestAnimationFrame(() => {
+      gameChatScrollRef.current?.scrollToEnd({ animated: true });
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!modalVisible) {
+      setGameChatKeyboardHeight(0);
+      return;
+    }
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const onShow = Keyboard.addListener(showEvent, (e) => {
+      setGameChatKeyboardHeight(e.endCoordinates.height);
+      setTimeout(scrollGameChatToEnd, 50);
+      setTimeout(scrollGameChatToEnd, 200);
+    });
+    const onHide = Keyboard.addListener(hideEvent, () => setGameChatKeyboardHeight(0));
+    return () => {
+      onShow.remove();
+      onHide.remove();
+    };
+  }, [modalVisible, scrollGameChatToEnd]);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const emojiScale = useRef(new Animated.Value(1)).current;
@@ -408,6 +450,21 @@ export default function NeverHaveIEver({
           (prev?.prompt?.trim() ?? '') !== '' &&
           (simple.prompt?.trim() ?? '') !== '' &&
           simple.prompt.trim() !== (prev?.prompt ?? '').trim();
+        const firstPromptShown =
+          !(prev?.prompt?.trim()) &&
+          !!(simple.prompt?.trim()) &&
+          simple.phase === 'playing' &&
+          !simple.bothAnswered;
+        if (firstPromptShown) {
+          promptLockedUntilRef.current = Date.now() + 8000;
+        }
+        const midRoundPromptSwap =
+          !!(prev?.prompt?.trim()) &&
+          !!(simple.prompt?.trim()) &&
+          simple.prompt.trim() !== (prev?.prompt ?? '').trim() &&
+          (simple.roundId ?? null) === (prev?.roundId ?? null) &&
+          !simple.bothAnswered &&
+          Date.now() < promptLockedUntilRef.current;
         if (simple.bothAnswered || serverClearedForNextRound) {
           lastRoundCompletedAtRef.current = Date.now();
         }
@@ -425,20 +482,24 @@ export default function NeverHaveIEver({
             lastAnsweredPromptRef.current = '';
           }
         } else if (simple.yourAnswer == null && prev?.yourAnswer != null && !simple.bothAnswered) {
-          yourAnswer = prev.yourAnswer;
+          const roundAdvanced =
+            (simple.roundId ?? null) !== (prev?.roundId ?? null) && !!(simple.roundId ?? null);
+          yourAnswer = roundAdvanced ? null : prev.yourAnswer;
         }
         const staleRoundPrompt =
           recentRound &&
           lastAnsweredPromptRef.current.trim() !== '' &&
           simple.prompt.trim() === lastAnsweredPromptRef.current.trim();
         const keptPrompt =
-          promptLocked && prev?.prompt
-            ? prev.prompt
-            : staleRoundPrompt
-              ? prev?.prompt ?? ''
-              : recentRound && (prev?.prompt?.trim() ?? '') !== '' && !simple.prompt
-                ? prev?.prompt ?? simple.prompt
-                : simple.prompt;
+          midRoundPromptSwap
+            ? prev!.prompt
+            : promptLocked && prev?.prompt
+              ? prev.prompt
+              : staleRoundPrompt
+                ? prev?.prompt ?? ''
+                : recentRound && (prev?.prompt?.trim() ?? '') !== '' && !simple.prompt
+                  ? prev?.prompt ?? simple.prompt
+                  : simple.prompt;
         const mergedRoundId = data.roundId ?? simple.roundId ?? prev?.roundId ?? null;
         if (mergedRoundId) roundIdRef.current = mergedRoundId;
         const merged = {
@@ -464,8 +525,25 @@ export default function NeverHaveIEver({
         recentRound &&
         lastAnsweredPromptRef.current.trim() !== '' &&
         simple.prompt.trim() === lastAnsweredPromptRef.current.trim();
-      if (!promptLocked && !staleRoundPrompt && (Date.now() - lastRoundCompletedAtRef.current >= 6000 || simple.prompt)) {
+      const displayed = displayPromptRef.current.trim();
+      const incoming = (simple.prompt || '').trim();
+      const sameRound = (simple.roundId ?? null) === (roundIdRef.current ?? null);
+      const blockedMidRoundSwap =
+        displayed !== '' &&
+        incoming !== '' &&
+        incoming !== displayed &&
+        sameRound &&
+        !simple.bothAnswered &&
+        promptLocked;
+      if (
+        !blockedMidRoundSwap &&
+        !promptLocked &&
+        !staleRoundPrompt &&
+        (Date.now() - lastRoundCompletedAtRef.current >= 6000 || simple.prompt)
+      ) {
         setPrompt(simple.prompt || '');
+      } else if (blockedMidRoundSwap && displayed) {
+        setPrompt(displayed);
       }
       addBreadcrumb('NHIE', 'Fetch state received', { fetchedYou: simple.yourPoints, fetchedThem: simple.theirPoints });
       debugLog('NHIE', 'Fetch state full', { yourPoints: data.yourPoints, theirPoints: data.theirPoints, bothAnswered: !!data.bothAnswered });
@@ -559,6 +637,7 @@ export default function NeverHaveIEver({
       roundComplete?: boolean;
       roundReset?: boolean;
       inactiveReset?: boolean;
+      lobbyReset?: boolean;
       user1Strikes?: number;
       user2Strikes?: number;
     } = {}) => {
@@ -577,13 +656,20 @@ export default function NeverHaveIEver({
         roundComplete: payload?.roundComplete,
       });
       api.clearCache(`/matches/${matchId}/never-have-i-ever`);
+      if (payload.lobbyReset) {
+        setPrompt('');
+        lastAnsweredPromptRef.current = '';
+        promptLockedUntilRef.current = 0;
+        roundIdRef.current = null;
+        lastKnownPointsRef.current = { yourPoints: 0, theirPoints: 0 };
+      }
       if (payload.roundComplete) {
         lastRoundCompletedAtRef.current = Date.now();
       }
       // Apply authoritative strike counts from server so "them" updates without refetch timing
       const u1 = payload.user1Strikes ?? null;
       const u2 = payload.user2Strikes ?? null;
-      if (payload.inactiveReset || payload.roundReset) {
+      if (payload.inactiveReset || payload.roundReset || payload.lobbyReset) {
         lastKnownPointsRef.current = { yourPoints: 0, theirPoints: 0 };
       }
       if (u1 != null && u2 != null) {
@@ -593,7 +679,7 @@ export default function NeverHaveIEver({
           const isUser1 = isUser1Ref.current ?? prev.isUser1 ?? true;
           const yourPts = isUser1 ? u1 : u2;
           const theirPts = isUser1 ? u2 : u1;
-          const forceZero = payload.inactiveReset || payload.roundReset;
+          const forceZero = payload.inactiveReset || payload.roundReset || payload.lobbyReset;
           lastKnownPointsRef.current = forceZero
             ? { yourPoints: yourPts, theirPoints: theirPts }
             : {
@@ -689,13 +775,80 @@ export default function NeverHaveIEver({
         roundId: data.roundId ?? state?.roundId ?? null,
       };
       setState(prev => ({ ...next, isUser1: next.isUser1 ?? prev?.isUser1 }));
-      if (next.prompt) setPrompt(next.prompt);
+      if (next.prompt?.trim()) {
+        promptLockedUntilRef.current = Date.now() + 8000;
+        setPrompt(next.prompt);
+      }
       if (next.roundId) roundIdRef.current = next.roundId;
     } catch (err) {
       console.warn('Never Have I Ever spice choice error:', err);
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const applyLobbyStateFromApi = (data: any) => {
+    if (data.isUser1 !== undefined) isUser1Ref.current = !!data.isUser1;
+    const next: GameState = {
+      prompt: '',
+      phase: 'lobby',
+      yourSpiceChoice: data.yourSpiceChoice ?? null,
+      theirSpiceChoice: data.theirSpiceChoice ?? null,
+      spiceReady: false,
+      spiceLevel: null,
+      yourPoints: 0,
+      theirPoints: 0,
+      yourAnswer: null,
+      theirAnswer: null,
+      bothAnswered: false,
+      gameOver: false,
+      winner: null,
+      isUser1: data.isUser1 ?? state?.isUser1,
+      roundId: null,
+    };
+    setState(next);
+    setPrompt('');
+    lastAnsweredPromptRef.current = '';
+    promptLockedUntilRef.current = 0;
+    roundIdRef.current = null;
+    lastKnownPointsRef.current = { yourPoints: 0, theirPoints: 0 };
+  };
+
+  const handleReturnToLobby = () => {
+    Alert.alert(
+      'Change mode?',
+      'This returns both of you to the lobby to pick PG-13, Rated R, or Spicy again. Scores and the current round reset.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Return to lobby',
+          style: 'destructive',
+          onPress: async () => {
+            setSubmitting(true);
+            try {
+              const data = await api.post<any>(`/matches/${matchId}/never-have-i-ever/return-to-lobby`, {});
+              applyLobbyStateFromApi(data);
+              api.clearCache(`/matches/${matchId}/never-have-i-ever`);
+            } catch (err: any) {
+              Alert.alert('Could not return to lobby', err?.message || 'Please try again.');
+            } finally {
+              setSubmitting(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleQuitGame = () => {
+    Alert.alert(
+      'Quit Never Have I Ever?',
+      'You can reopen the game anytime from the chat header. Your match can keep playing until they leave too.',
+      [
+        { text: 'Keep playing', style: 'cancel' },
+        { text: 'Quit', style: 'default', onPress: () => handleClose() },
+      ]
+    );
   };
 
   const handleRestart = async () => {
@@ -748,14 +901,14 @@ export default function NeverHaveIEver({
       if (__DEV__) {
         console.log('[NHIE] Submitting answer', { answer, roundId: submitRoundId });
       }
-      const data = await api.post<any>(`/matches/${matchId}/never-have-i-ever/answer`, {
+      let data = await api.post<any>(`/matches/${matchId}/never-have-i-ever/answer`, {
         answer,
         roundId: submitRoundId,
       });
       if (data.isUser1 !== undefined) isUser1Ref.current = !!data.isUser1;
-      const responseRoundId = data.roundId ?? null;
+      let responseRoundId = data.roundId ?? null;
       if (responseRoundId) roundIdRef.current = responseRoundId;
-      const roundComplete = !!data.bothAnswered || !!data.roundJustCompleted;
+      let roundComplete = !!data.bothAnswered || !!data.roundJustCompleted;
       if (
         !roundComplete &&
         submitRoundId &&
@@ -763,10 +916,25 @@ export default function NeverHaveIEver({
         submitRoundId !== responseRoundId
       ) {
         if (__DEV__) {
-          console.warn('[NHIE] Stale roundId on answer — refetching', { submitRoundId, responseRoundId });
+          console.warn('[NHIE] Stale roundId on answer — syncing and retrying', { submitRoundId, responseRoundId });
         }
-        await fetchState();
-        return;
+        api.clearCache(`/matches/${matchId}/never-have-i-ever`);
+        const fresh = await api.get<any>(`/matches/${matchId}/never-have-i-ever`, false);
+        const activeRoundId = fresh.roundId ?? responseRoundId;
+        if (activeRoundId) roundIdRef.current = activeRoundId;
+        if (fresh.yourAnswer == null) {
+          data = await api.post<any>(`/matches/${matchId}/never-have-i-ever/answer`, {
+            answer,
+            roundId: activeRoundId,
+          });
+          if (data.isUser1 !== undefined) isUser1Ref.current = !!data.isUser1;
+          responseRoundId = data.roundId ?? activeRoundId;
+          if (responseRoundId) roundIdRef.current = responseRoundId;
+          roundComplete = !!data.bothAnswered || !!data.roundJustCompleted;
+        } else {
+          await fetchState();
+          return;
+        }
       }
       const fromRound = data.pointsFromRound as { newYourStrikes?: number; newTheirStrikes?: number } | undefined;
       const serverYourPts = Math.max(
@@ -811,7 +979,7 @@ export default function NeverHaveIEver({
       if (roundComplete) {
         setPrompt(nextPromptValue || '');
         lastAnsweredPromptRef.current = '';
-      } else if (nextPromptValue) {
+      } else if (nextPromptValue && roundComplete) {
         setPrompt(nextPromptValue);
       }
 
@@ -875,7 +1043,8 @@ export default function NeverHaveIEver({
     <Modal visible={modalVisible} transparent animationType="slide" onRequestClose={handleClose}>
       <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={handleClose}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior="padding"
+          keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 28 : 28}
           style={styles.modalKb}
         >
           <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={styles.modalContent}>
@@ -909,6 +1078,14 @@ export default function NeverHaveIEver({
                         <Text style={styles.restartButtonText}>Play again</Text>
                       </LinearGradient>
                     </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={handleReturnToLobby}
+                      style={styles.gameOverSecondaryAction}
+                      disabled={submitting}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.gameOverSecondaryActionText}>Change mode (lobby)</Text>
+                    </TouchableOpacity>
                   </View>
                 ) : (
                   <>
@@ -925,6 +1102,28 @@ export default function NeverHaveIEver({
                       </View>
                     </View>
                     <Text style={styles.versionLabel}>Playing at: {state.spiceLevel === 'ratedr' ? 'R' : state.spiceLevel === 'pg13' ? 'PG-13' : 'Spicy'}</Text>
+                    <View style={styles.gameMenuRow}>
+                      <TouchableOpacity
+                        onPress={handleReturnToLobby}
+                        style={styles.gameMenuButton}
+                        disabled={submitting}
+                        activeOpacity={0.85}
+                        accessibilityRole="button"
+                        accessibilityLabel="Return to lobby to change PG-13, Rated R, or Spicy mode"
+                      >
+                        <Text style={styles.gameMenuButtonText}>Change mode</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={handleQuitGame}
+                        style={[styles.gameMenuButton, styles.gameMenuButtonSecondary]}
+                        disabled={submitting}
+                        activeOpacity={0.85}
+                        accessibilityRole="button"
+                        accessibilityLabel="Quit Never Have I Ever"
+                      >
+                        <Text style={styles.gameMenuButtonText}>Quit</Text>
+                      </TouchableOpacity>
+                    </View>
                     {submitting && !displayPrompt ? (
                       <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#fff" /><Text style={styles.loadingText}>Getting prompt...</Text></View>
                     ) : (
@@ -960,7 +1159,9 @@ export default function NeverHaveIEver({
               </>
             ) : null}
             {showEmbeddedGameChat ? (
-              <View
+              <KeyboardAvoidingView
+                behavior="padding"
+                keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 40 : 40}
                 style={[
                   styles.gameChat,
                   compactGameChat && gameChatPanelOpen ? styles.gameChatSheet : null,
@@ -992,7 +1193,8 @@ export default function NeverHaveIEver({
                   <Text style={styles.gameChatTyping}>{partnerDisplayName} is typing…</Text>
                 ) : null}
                 <ScrollView
-                  style={styles.gameChatScroll}
+                  ref={gameChatScrollRef}
+                  style={[styles.gameChatScroll, { maxHeight: gameChatScrollMaxHeight }]}
                   nestedScrollEnabled
                   keyboardShouldPersistTaps="handled"
                   showsVerticalScrollIndicator={false}
@@ -1036,6 +1238,10 @@ export default function NeverHaveIEver({
                       setGameChatDraft(v);
                       pulseGameChatTypingFromValue(v);
                     }}
+                    onFocus={() => {
+                      setTimeout(scrollGameChatToEnd, 80);
+                      setTimeout(scrollGameChatToEnd, 280);
+                    }}
                     multiline
                     maxLength={1000}
                     editable={!gameChatSending && !sendingMessage}
@@ -1052,7 +1258,18 @@ export default function NeverHaveIEver({
                     <Text style={styles.gameChatSendText}>Send</Text>
                   </TouchableOpacity>
                 </View>
-              </View>
+              </KeyboardAvoidingView>
+            ) : null}
+            {state?.phase === 'lobby' ? (
+              <TouchableOpacity
+                onPress={handleQuitGame}
+                style={styles.lobbyQuitLink}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Quit Never Have I Ever"
+              >
+                <Text style={styles.lobbyQuitLinkText}>Quit game</Text>
+              </TouchableOpacity>
             ) : null}
             <TouchableOpacity onPress={handleClose} style={styles.closeButton} activeOpacity={0.8}><View style={styles.closeButtonInner}><Text style={styles.closeButtonText}>Close</Text></View></TouchableOpacity>
           </LinearGradient>
@@ -1783,6 +2000,18 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#fff',
   },
+  gameOverSecondaryAction: {
+    marginTop: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  gameOverSecondaryActionText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.92)',
+    textDecorationLine: 'underline',
+    textAlign: 'center',
+  },
   closeButton: {
     alignSelf: 'center',
     marginTop: 18,
@@ -1801,6 +2030,45 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: 'rgba(255,255,255,0.95)',
     fontWeight: '700',
+  },
+  gameMenuRow: {
+    flexDirection: 'row',
+    alignSelf: 'stretch',
+    gap: 8,
+    marginTop: 6,
+    marginBottom: 8,
+    paddingHorizontal: 2,
+  },
+  gameMenuButton: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.22)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.28)',
+    alignItems: 'center',
+  },
+  gameMenuButtonSecondary: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
+  gameMenuButtonText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: 'rgba(255,255,255,0.96)',
+    letterSpacing: 0.2,
+  },
+  lobbyQuitLink: {
+    alignSelf: 'center',
+    marginTop: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  lobbyQuitLinkText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.88)',
+    textDecorationLine: 'underline',
   },
   gameChat: {
     alignSelf: 'stretch',
