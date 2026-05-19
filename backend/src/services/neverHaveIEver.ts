@@ -16,6 +16,13 @@ function nhieLog(message: string, data?: Record<string, unknown>): void {
   console.log(`[NHIE] ${message}${payload}`);
 }
 import { getSharedInterests } from './mulliganMoments.js';
+import {
+  filterBannedGamePrompts,
+  GAME_PROMPT_HARD_BANS,
+  GAME_PROMPT_INTERESTS_RULE,
+  GAME_PROMPT_MATURE_TONE,
+  hasBannedGamePromptTheme,
+} from './gamePromptGuards.js';
 
 const STRIKES_TO_LOSE = 10;
 
@@ -176,9 +183,6 @@ function pickRandom<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-const BANNED_THEME_RE =
-  /\b(concert|concerts|festival|festivals|gig|gigs|band|bands|playlist|playlists|karaoke|song|songs|music scene|live music|travel|travels|traveled|travelling|traveling|trip|trips|vacation|vacations|airport|airports|flight|flights|road trip|roadtrip|hotel|resort|sports game|game day|stadium)\b/i;
-
 const NHIE_PROMPT_ANGLES = [
   'texting habits and overthinking at 1 a.m.',
   'emotional availability and mixed signals',
@@ -197,6 +201,10 @@ const NHIE_PROMPT_ANGLES = [
   'adult flirting that crossed a line — barely',
   'rules you broke for the right person',
   'chemistry that made you ignore your own standards',
+  'a message you rewrote five times and still hesitated to send',
+  'pretending to be unbothered when you were not',
+  'wanting someone more after they went quiet',
+  'the difference between attention and actual interest',
 ];
 
 function fallbackPromptsForLevel(spiceLevel: SpiceLevel): string[] {
@@ -206,7 +214,7 @@ function fallbackPromptsForLevel(spiceLevel: SpiceLevel): string[] {
       : spiceLevel === 'ratedr'
       ? FALLBACK_PROMPTS_R
       : FALLBACK_PROMPTS;
-  return prompts.filter((prompt) => !hasBannedTheme(prompt));
+  return filterBannedGamePrompts(prompts);
 }
 
 function normalizePromptForCompare(prompt: string | null | undefined): string {
@@ -218,7 +226,7 @@ function normalizePromptForCompare(prompt: string | null | undefined): string {
 }
 
 function hasBannedTheme(prompt: string | null | undefined): boolean {
-  return BANNED_THEME_RE.test(String(prompt || ''));
+  return hasBannedGamePromptTheme(prompt);
 }
 
 export async function generateNeverHaveIEverPrompt(matchId: string, spiceLevel: SpiceLevel = 'pg13'): Promise<string> {
@@ -245,14 +253,14 @@ export async function generateNeverHaveIEverPrompt(matchId: string, spiceLevel: 
     }
 
     const interestsContext = sharedInterests.length > 0
-      ? ` Shared interests are background only: ${sharedInterests.slice(0, 5).join(', ')}. Do not build the prompt around hobbies, concerts, music events, sports, travel, or vacations even if those interests are listed.`
+      ? ` Shared interests (background only, do not center the prompt on them): ${sharedInterests.slice(0, 5).join(', ')}. ${GAME_PROMPT_INTERESTS_RULE}`
       : '';
 
     const spiceInstruction = isSpicy
-      ? 'SPICY: Maximum heat for consenting adults — almost edgy. Center on hookups, first-date tension, risky late-night texts, FWB, secret crushes, jealousy, power plays, situationships, and desire people hide. Sound like a VIP lounge after midnight: bold, seductive, self-aware. No pornographic anatomy or illegal content. App-store safe but push the line.'
+      ? 'SPICE: SPICY — maximum heat for consenting adults, almost edgy. Hookups, risky late-night texts, FWB, secret crushes, jealousy, power plays, situationships, desire people hide, boundaries bent. VIP-lounge-after-midnight energy: bold, seductive, self-aware. No pornographic anatomy or illegal content. App-store safe but push the line.'
       : isR
-      ? 'RATED R: Mature audience — suggestive, sexually charged stories and habits without graphic porn. Hookups, exes, risqué DMs, attraction, boundaries bent, and real adult dating messiness. Confident bar-stool honesty, not teen party games.'
-      : 'PG-13: Grown-up dating energy — witty, emotionally intelligent, flirty. Real chemistry and choices, never childish icebreakers.';
+      ? 'SPICE: RATED R — suggestive, sexually charged stories and habits without graphic porn. Hookups, exes, risqué DMs, attraction, tension, real adult dating messiness. Confident bar-stool honesty.'
+      : 'SPICE: PG-13 — grown-up dating energy: witty, emotionally intelligent, flirty. Real chemistry and choices; never childish icebreakers or hobby-tourism prompts.';
 
     const { default: OpenAI } = await import('openai');
     const openai = new OpenAI({ apiKey: openaiApiKey });
@@ -266,11 +274,11 @@ export async function generateNeverHaveIEverPrompt(matchId: string, spiceLevel: 
           role: 'system',
           content: `You generate "Never have I ever" prompts for a dating app game for adults. Output ONLY the activity part (the thing after "Never have I ever"), NOT the full phrase. 4-10 words. ${spiceInstruction}
 
-Be mature, cool, varied, and psychologically sharp. Write for adults who date — attraction, texting, vulnerability, boundaries, mixed signals, chemistry, jealousy, ego, confidence, exes, situationships, risk, and self-awareness. Never sound like a schoolyard party game.
+${GAME_PROMPT_MATURE_TONE}
 
-Hard bans: no concerts, festivals, bands, songs, playlists, karaoke, music scenes, travel, trips, vacations, airports, hotels, road trips, sports games, stadiums, or public-event prompts.
+${GAME_PROMPT_HARD_BANS}
 
-Do not make prompts about hobbies or outings. Make them about choices, feelings, tension, habits, boundaries, and dating behavior.
+Do NOT make prompts about hobbies, music taste, playlists, travel stories, concerts, festivals, sports outings, or "gone to X" activities. Make them about choices, feelings, tension, habits, boundaries, texting, attraction, and dating behavior between adults.
 
 Examples of the tone:
 - "overthought a simple text"
@@ -278,6 +286,7 @@ Examples of the tone:
 - "wanted someone unavailable"
 - "sent a message that felt too honest"
 - "kept a situationship going too long"
+- "pretended I was fine when I was jealous"
 
 Output ONLY the activity, nothing else.`,
         },
@@ -289,7 +298,10 @@ Spice: ${spiceLevel.toUpperCase()}.
 Creative angle: ${creativeAngle}.
 ${interestsContext}
 
-Avoid any concert/music/travel/vacation/sports/public-event theme. Return ONLY the activity (4-10 words):`,
+${GAME_PROMPT_INTERESTS_RULE}
+${GAME_PROMPT_HARD_BANS}
+
+Return ONLY the activity (4-10 words):`,
         },
       ],
       temperature: 1.0,

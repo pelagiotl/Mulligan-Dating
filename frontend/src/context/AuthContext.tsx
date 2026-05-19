@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useRef, ReactNode, useM
 import { api } from '../utils/api'
 import { browserSupportsWebPush, getVapidPublicKey, registerWebPush } from '../lib/webPush'
 import { computeConnectSetupComplete } from '../utils/connectProfileEligibility'
+import { clearAgeGateAccepted } from '../lib/ageGate'
 
 /** Same as mobile `MainTabs`: owner line always sees admin UI (API `requireAdmin` already matches this number). */
 function isOwnerAdminPhone(phone: string | null | undefined): boolean {
@@ -293,6 +294,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     // Clear token and state
     localStorage.removeItem('token')
+    clearAgeGateAccepted()
     setUser(null)
     setProfile(null)
     setConnectSetupComplete(false)

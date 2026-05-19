@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../utils/api'
 import { useAuth } from '../context/AuthContext'
 import BrandMark from '../components/BrandMark'
+import { isAgeGateAccepted } from '../lib/ageGate'
 
 export default function PhoneLogin() {
   const [phoneNumber, setPhoneNumber] = useState('')
@@ -88,9 +89,12 @@ export default function PhoneLogin() {
     try {
       // Use phoneLogin from AuthContext which handles token storage and user fetching
       const { connectSetupComplete: ready } = await phoneLogin(phoneNumber, code)
-      
-      // Navigate after successful login
-      navigate(ready ? '/browse' : '/create-profile', { replace: true })
+
+      if (!isAgeGateAccepted()) {
+        navigate('/age-gate', { replace: true })
+      } else {
+        navigate(ready ? '/browse' : '/create-profile', { replace: true })
+      }
     } catch (err: any) {
       setShake(true)
       setTimeout(() => setShake(false), 600)

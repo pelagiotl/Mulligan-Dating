@@ -811,6 +811,12 @@ export async function initDatabase() {
   try {
     await execSQL(`ALTER TABLE truth_or_dare_games ADD COLUMN used_prompts ${usePostgres ? 'TEXT' : 'TEXT'}`);
   } catch (e) { /* exists */ }
+  try {
+    await execSQL(`ALTER TABLE truth_or_dare_games ADD COLUMN user1_another_one_count ${usePostgres ? 'INT' : 'INTEGER'} DEFAULT 0`);
+  } catch (e) { /* exists */ }
+  try {
+    await execSQL(`ALTER TABLE truth_or_dare_games ADD COLUMN user2_another_one_count ${usePostgres ? 'INT' : 'INTEGER'} DEFAULT 0`);
+  } catch (e) { /* exists */ }
 
   // Game unlocks: when a user spends a Mulligan token to unlock a game for a match (alternative to 10 messages each)
   await execSQL(`

@@ -78,7 +78,7 @@ const DEFAULT_EXPLANATION =
 
 /**
  * Records a conversation reset and returns an AI (or fallback) starter for the match.
- * Token consumption is handled by the route before this runs.
+ * Free for all users — no Mulligan token required.
  */
 export async function resetConversation(
   matchId: string,

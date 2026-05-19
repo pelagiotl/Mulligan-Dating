@@ -2324,6 +2324,33 @@ img {
   font-size: 0.875rem;
 }
 
+.age-gate-page .age-gate-card {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 380px;
+  margin: 0 auto;
+  padding: 28px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  text-align: center;
+}
+
+.age-gate-page .age-gate-body {
+  margin-bottom: 28px;
+  line-height: 1.5;
+}
+
+.age-gate-page .age-gate-primary {
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.age-gate-page .age-gate-secondary {
+  width: 100%;
+}
+
 /* ═══════════════════════════════════════════════════════════════
    CREATE PROFILE PAGE
    ═══════════════════════════════════════════════════════════════ */

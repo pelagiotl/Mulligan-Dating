@@ -1940,27 +1940,7 @@ matchesRouter.post("/:matchId/reset-conversation", authenticateToken, rateLimitA
       return res.status(404).json({ error: "Match not found" });
     }
 
-    // Check if user has tokens available
-    const tokensResult = db
-      .prepare('SELECT id FROM mulligan_tokens WHERE user_id = ? AND used_at IS NULL')
-      .get([userId]);
-    const token = (tokensResult instanceof Promise
-      ? await tokensResult
-      : tokensResult) as { id: string } | undefined;
-
-    if (!token) {
-      return res.status(400).json({ 
-        error: "No tokens available. You need a token to reset a conversation.",
-        code: "NO_TOKENS"
-      });
-    }
-
-    // Use the token
-    await (db
-      .prepare('UPDATE mulligan_tokens SET used_at = CURRENT_TIMESTAMP, match_id = ? WHERE id = ?')
-      .run([matchId, token.id]) as Promise<any>);
-
-    // Reset conversation and generate starter
+    // Reset conversation and generate starter (no token required)
     const { resetConversation } = await import('../services/mulliganMoments.js');
     const { starter, explanation, resetId } = await resetConversation(matchId, userId, true);
 
@@ -2063,7 +2043,7 @@ matchesRouter.post("/:matchId/unlock-game", authenticateToken, rateLimitAPI, asy
         }
       }
       const runUp = db.prepare(
-        'UPDATE truth_or_dare_games SET user1_spice_choice = NULL, user2_spice_choice = NULL, spice_level = NULL, current_prompt = NULL, current_prompt_type = NULL, used_prompts = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?'
+        'UPDATE truth_or_dare_games SET user1_spice_choice = NULL, user2_spice_choice = NULL, spice_level = NULL, current_prompt = NULL, current_prompt_type = NULL, used_prompts = ?, user1_another_one_count = 0, user2_another_one_count = 0, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?'
       ).run(['[]', matchId]);
       if (runUp instanceof Promise) await runUp;
     }
@@ -2188,7 +2168,7 @@ matchesRouter.post("/:matchId/game-request", authenticateToken, rateLimitAPI, as
             /* ignore */
           }
         }
-        const ru = db.prepare('UPDATE truth_or_dare_games SET user1_spice_choice = NULL, user2_spice_choice = NULL, spice_level = NULL, current_prompt = NULL, current_prompt_type = NULL, used_prompts = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run(['[]', matchId]);
+        const ru = db.prepare('UPDATE truth_or_dare_games SET user1_spice_choice = NULL, user2_spice_choice = NULL, spice_level = NULL, current_prompt = NULL, current_prompt_type = NULL, used_prompts = ?, user1_another_one_count = 0, user2_another_one_count = 0, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run(['[]', matchId]);
         if (ru instanceof Promise) await ru;
       }
       if (gameType === 'never_have_i_ever') {
@@ -2219,7 +2199,7 @@ matchesRouter.post("/:matchId/game-request", authenticateToken, rateLimitAPI, as
               /* ignore */
             }
           }
-          const ru2 = db.prepare('UPDATE truth_or_dare_games SET user1_spice_choice = NULL, user2_spice_choice = NULL, spice_level = NULL, current_prompt = NULL, current_prompt_type = NULL, used_prompts = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run(['[]', matchId]);
+          const ru2 = db.prepare('UPDATE truth_or_dare_games SET user1_spice_choice = NULL, user2_spice_choice = NULL, spice_level = NULL, current_prompt = NULL, current_prompt_type = NULL, used_prompts = ?, user1_another_one_count = 0, user2_another_one_count = 0, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run(['[]', matchId]);
           if (ru2 instanceof Promise) await ru2;
         }
         if (gameType === 'never_have_i_ever') {
@@ -2416,6 +2396,9 @@ matchesRouter.get("/:matchId/truth-or-dare/state", authenticateToken, async (req
     const currentPrompt = game.current_prompt ?? null;
     const currentPromptType = (game.current_prompt_type === 'truth' || game.current_prompt_type === 'dare') ? game.current_prompt_type : null;
 
+    const { truthOrDareAnotherOneStatus } = await import('../services/truthOrDare.js');
+    const anotherOneStatus = truthOrDareAnotherOneStatus(game, userId, match);
+
     res.json({
       yourSpiceChoice,
       theirSpiceChoice,
@@ -2429,6 +2412,7 @@ matchesRouter.get("/:matchId/truth-or-dare/state", authenticateToken, async (req
       isYourTurn: !!(currentTurnUserId && currentTurnUserId === userId),
       roundCount,
       unlockedUntil: unlockRow.unlocked_until ?? null,
+      ...anotherOneStatus,
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -2588,12 +2572,24 @@ matchesRouter.post("/:matchId/truth-or-dare", authenticateToken, rateLimitAPI, a
         code: 'NOT_YOUR_TURN',
       });
     }
+    const isUser1 = match.user1_id === userId;
+    const { truthOrDareAnotherOneStatus, TRUTH_OR_DARE_MAX_ANOTHER_ONE } = await import('../services/truthOrDare.js');
+    const anotherOneBefore = truthOrDareAnotherOneStatus(game, userId, match);
+
+    if (anotherOne && anotherOneBefore.anotherOneRemaining <= 0) {
+      return res.status(400).json({
+        error: `You've used all ${TRUTH_OR_DARE_MAX_ANOTHER_ONE} "Another one" rerolls for this game.`,
+        code: 'ANOTHER_ONE_LIMIT',
+        ...anotherOneBefore,
+      });
+    }
+
     const currentPrompt = game.current_prompt ?? null;
     const currentPromptType = game.current_prompt_type ?? null;
 
     // If there's already a prompt of this type and user didn't click "Another one", return it (don't regenerate)
     if (!anotherOne && currentPrompt && currentPrompt.trim() && currentPromptType === type) {
-      return res.json({ prompt: currentPrompt, fromAI: false, spiceLevel: levelNorm });
+      return res.json({ prompt: currentPrompt, fromAI: false, spiceLevel: levelNorm, ...anotherOneBefore });
     }
 
     let usedPrompts: string[] = [];
@@ -2625,14 +2621,44 @@ matchesRouter.post("/:matchId/truth-or-dare", authenticateToken, rateLimitAPI, a
     }
 
     const newUsedPrompts = [...usedPrompts, prompt];
-    db.prepare('UPDATE truth_or_dare_games SET current_prompt = ?, current_prompt_type = ?, current_turn_user_id = COALESCE(current_turn_user_id, ?), round_count = COALESCE(round_count, 1), used_prompts = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([prompt, type, currentTurnUserId, JSON.stringify(newUsedPrompts), matchId]);
+    const anotherOneAfter = anotherOne
+      ? {
+          anotherOneUsed: anotherOneBefore.anotherOneUsed + 1,
+          anotherOneRemaining: Math.max(0, anotherOneBefore.anotherOneRemaining - 1),
+          anotherOneMax: anotherOneBefore.anotherOneMax,
+        }
+      : anotherOneBefore;
+
+    if (anotherOne) {
+      if (isUser1) {
+        db.prepare(
+          'UPDATE truth_or_dare_games SET current_prompt = ?, current_prompt_type = ?, current_turn_user_id = COALESCE(current_turn_user_id, ?), round_count = COALESCE(round_count, 1), used_prompts = ?, user1_another_one_count = COALESCE(user1_another_one_count, 0) + 1, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?'
+        ).run([prompt, type, currentTurnUserId, JSON.stringify(newUsedPrompts), matchId]);
+      } else {
+        db.prepare(
+          'UPDATE truth_or_dare_games SET current_prompt = ?, current_prompt_type = ?, current_turn_user_id = COALESCE(current_turn_user_id, ?), round_count = COALESCE(round_count, 1), used_prompts = ?, user2_another_one_count = COALESCE(user2_another_one_count, 0) + 1, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?'
+        ).run([prompt, type, currentTurnUserId, JSON.stringify(newUsedPrompts), matchId]);
+      }
+    } else {
+      db.prepare(
+        'UPDATE truth_or_dare_games SET current_prompt = ?, current_prompt_type = ?, current_turn_user_id = COALESCE(current_turn_user_id, ?), round_count = COALESCE(round_count, 1), used_prompts = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?'
+      ).run([prompt, type, currentTurnUserId, JSON.stringify(newUsedPrompts), matchId]);
+    }
     try {
       const { getIO } = await import('../socket.js');
       const io = getIO();
       if (io) io.to(`match:${matchId}`).emit('truth_or_dare_updated', { matchId });
     } catch (e) { /* ignore */ }
 
-    res.json({ prompt, fromAI, spiceLevel: levelNorm, currentTurnUserId, isYourTurn: true, roundCount: Math.max(1, Number(game.round_count) || 1) });
+    res.json({
+      prompt,
+      fromAI,
+      spiceLevel: levelNorm,
+      currentTurnUserId,
+      isYourTurn: true,
+      roundCount: Math.max(1, Number(game.round_count) || 1),
+      ...anotherOneAfter,
+    });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error("Truth or Dare error:", error);

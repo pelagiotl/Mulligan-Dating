@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Socket } from "socket.io-client";
 import { api, ApiError } from "../utils/api";
+import { filterBannedGamePrompts } from "../utils/gamePromptGuards";
 
 const TRUTH_PROMPTS = [
   "What's the one thing that would make you actually stop scrolling?",
@@ -92,13 +93,13 @@ type SpiceId = "pg13" | "ratedr" | "spicy";
 function fallbackPromptList(type: "truth" | "dare", spiceLevel: SpiceId | null): string[] {
   const level = spiceLevel ?? "pg13";
   if (type === "truth") {
-    if (level === "spicy") return [...TRUTH_PROMPTS, ...TRUTH_PROMPTS_R, ...TRUTH_PROMPTS_SPICY];
-    if (level === "ratedr") return [...TRUTH_PROMPTS, ...TRUTH_PROMPTS_R];
-    return TRUTH_PROMPTS;
+    if (level === "spicy") return filterBannedGamePrompts([...TRUTH_PROMPTS, ...TRUTH_PROMPTS_R, ...TRUTH_PROMPTS_SPICY]);
+    if (level === "ratedr") return filterBannedGamePrompts([...TRUTH_PROMPTS, ...TRUTH_PROMPTS_R]);
+    return filterBannedGamePrompts(TRUTH_PROMPTS);
   }
-  if (level === "spicy") return [...DARE_PROMPTS, ...DARE_PROMPTS_R, ...DARE_PROMPTS_SPICY];
-  if (level === "ratedr") return [...DARE_PROMPTS, ...DARE_PROMPTS_R];
-  return DARE_PROMPTS;
+  if (level === "spicy") return filterBannedGamePrompts([...DARE_PROMPTS, ...DARE_PROMPTS_R, ...DARE_PROMPTS_SPICY]);
+  if (level === "ratedr") return filterBannedGamePrompts([...DARE_PROMPTS, ...DARE_PROMPTS_R]);
+  return filterBannedGamePrompts(DARE_PROMPTS);
 }
 
 function formatTimeRemaining(secs: number): string {

@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { api } from '../utils/api';
+import { filterBannedGamePrompts } from '../utils/gamePromptGuards';
 import TruthOrDareMessageGateModal from './TruthOrDareMessageGateModal';
 
 // PG-13 — grown-up flirting (matches server fallbacks)
@@ -106,13 +107,13 @@ type SpiceId = "pg13" | "ratedr" | "spicy";
 function fallbackPromptList(type: "truth" | "dare", spiceLevel: SpiceId | null): string[] {
   const level = spiceLevel ?? "pg13";
   if (type === "truth") {
-    if (level === "spicy") return [...TRUTH_PROMPTS, ...TRUTH_PROMPTS_R, ...TRUTH_PROMPTS_SPICY];
-    if (level === "ratedr") return [...TRUTH_PROMPTS, ...TRUTH_PROMPTS_R];
-    return TRUTH_PROMPTS;
+    if (level === "spicy") return filterBannedGamePrompts([...TRUTH_PROMPTS, ...TRUTH_PROMPTS_R, ...TRUTH_PROMPTS_SPICY]);
+    if (level === "ratedr") return filterBannedGamePrompts([...TRUTH_PROMPTS, ...TRUTH_PROMPTS_R]);
+    return filterBannedGamePrompts(TRUTH_PROMPTS);
   }
-  if (level === "spicy") return [...DARE_PROMPTS, ...DARE_PROMPTS_R, ...DARE_PROMPTS_SPICY];
-  if (level === "ratedr") return [...DARE_PROMPTS, ...DARE_PROMPTS_R];
-  return DARE_PROMPTS;
+  if (level === "spicy") return filterBannedGamePrompts([...DARE_PROMPTS, ...DARE_PROMPTS_R, ...DARE_PROMPTS_SPICY]);
+  if (level === "ratedr") return filterBannedGamePrompts([...DARE_PROMPTS, ...DARE_PROMPTS_R]);
+  return filterBannedGamePrompts(DARE_PROMPTS);
 }
 
 function pickRandom<T>(arr: T[]): T {
@@ -166,6 +167,9 @@ interface GameState {
   isYourTurn?: boolean;
   roundCount?: number;
   unlockedUntil?: string | null;
+  anotherOneUsed?: number;
+  anotherOneRemaining?: number;
+  anotherOneMax?: number;
 }
 
 function spiceLabel(id: SpiceId | null | undefined): string {
@@ -214,6 +218,8 @@ export default function TruthOrDare({
   const [messageGateModalVisible, setMessageGateModalVisible] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastAnotherOneAtRef = useRef<number>(0);
+  /** True while "Another one" POST is in flight — blocks poll/socket from restoring the old prompt */
+  const regeneratingAnotherOneRef = useRef(false);
   /** When we just chose Truth or Dare, avoid letting fetchState overwrite with stale server currentPromptType */
   const lastChooseAtRef = useRef<number>(0);
   const intendedPromptTypeRef = useRef<'truth' | 'dare' | null>(null);
@@ -230,6 +236,8 @@ export default function TruthOrDare({
   const isUnlocked = truthOrDareEligible;
   const isYourTurn = gameState?.isYourTurn !== false;
   const roundCount = Math.max(1, Number(gameState?.roundCount ?? 1) || 1);
+  const anotherOneRemaining = gameState?.anotherOneRemaining ?? 3;
+  const canRequestAnotherOne = isYourTurn && anotherOneRemaining > 0;
 
   const messageGateCounts = useMemo(
     () => truthOrDareMessageCounts(messages, currentUserId, chatPartnerUserId),
@@ -325,6 +333,9 @@ export default function TruthOrDare({
     try {
       const data = await api.get<GameState>(`/matches/${matchId}/truth-or-dare/state`, false);
       setGameState((prev) => ({ ...prev, ...data }));
+      if (regeneratingAnotherOneRef.current) {
+        return;
+      }
       if (data.currentPrompt && data.currentPromptType) {
         setPrompt(data.currentPrompt);
         setPromptType(data.currentPromptType);
@@ -333,7 +344,6 @@ export default function TruthOrDare({
       const recentlyChose = Date.now() - lastChooseAtRef.current < 8000;
       const alreadyShowingPrompt = stepRef.current === 'prompt';
       if (recentlyRequestedAnother && alreadyShowingPrompt) {
-        setLoading(false);
         return;
       }
       // Don't overwrite promptType with stale server data when we just chose Truth/Dare (avoids revert flicker)
@@ -345,7 +355,6 @@ export default function TruthOrDare({
       if (recentlyRequestedAnother && data.currentPrompt && data.currentPromptType) {
         setPromptType(data.currentPromptType);
         setStep('prompt');
-        setLoading(false);
         return;
       }
       if (alreadyShowingPrompt) return;
@@ -453,13 +462,17 @@ export default function TruthOrDare({
     lastChooseAtRef.current = Date.now();
     intendedPromptTypeRef.current = type;
     if (anotherOne) {
+      const remaining = gameStateRef.current?.anotherOneRemaining ?? 0;
+      if (remaining <= 0) {
+        Alert.alert('No rerolls left', 'You\'ve used all 3 "Another one" rerolls for this game.');
+        return;
+      }
       lastAnotherOneAtRef.current = Date.now();
+      regeneratingAnotherOneRef.current = true;
       setPromptType(type);
       setStep('prompt');
       setLoading(true);
       setPrompt('');
-      // Let React commit the clear/loading state so the UI shows "Generating..." instead of the old prompt
-      await new Promise((r) => setTimeout(r, 0));
     } else {
       setPromptType(type);
       setStep('prompt');
@@ -498,16 +511,56 @@ export default function TruthOrDare({
         Alert.alert('Not your turn', err?.message || "It's your match's turn.");
         return;
       }
+      if (err?.code === 'ANOTHER_ONE_LIMIT') {
+        setGameState((prev) =>
+          prev
+            ? {
+                ...prev,
+                anotherOneRemaining: 0,
+                anotherOneUsed: err?.anotherOneUsed ?? prev.anotherOneMax ?? 3,
+              }
+            : prev
+        );
+        setLoading(false);
+        Alert.alert('No rerolls left', err?.message || 'You\'ve used all 3 "Another one" rerolls for this game.');
+        return;
+      }
+      if (anotherOne) {
+        Alert.alert('Error', err?.message || 'Could not generate another prompt. Try again.');
+        await fetchState();
+        return;
+      }
       const list = fallbackPromptList(type, gameStateRef.current?.spiceLevel ?? null);
       finalPrompt = pickRandom(list);
       setPrompt(finalPrompt);
       lastAnotherOneAtRef.current = Date.now();
     } finally {
+      regeneratingAnotherOneRef.current = false;
       setLoading(false);
       // Clear after a short delay so future fetchState can apply server state; 8s window still prevents mid-request overwrite
       setTimeout(() => { intendedPromptTypeRef.current = null; }, 8000);
       // Only send to chat when user explicitly clicks "Send to Chat", never on "Another one"
     }
+  };
+
+  const renderAnotherOneButton = () => {
+    if (loading) return null;
+    return (
+      <TouchableOpacity
+        onPress={() => handleChoose(promptType, true)}
+        style={[styles.anotherButton, !canRequestAnotherOne && styles.anotherButtonDisabled]}
+        activeOpacity={0.8}
+        disabled={!canRequestAnotherOne}
+      >
+        <Text style={[styles.anotherButtonText, !canRequestAnotherOne && styles.anotherButtonTextDisabled]}>
+          {canRequestAnotherOne
+            ? anotherOneRemaining < 3
+              ? `Another one ↻ · ${anotherOneRemaining} left`
+              : 'Another one ↻'
+            : 'No rerolls left'}
+        </Text>
+      </TouchableOpacity>
+    );
   };
 
   const handleSendToChat = async () => {
@@ -648,7 +701,7 @@ export default function TruthOrDare({
                     )}
                     <View style={styles.promptActions}>
                       {onSendToChat && !loading && <TouchableOpacity onPress={handleSendToChat} style={styles.sendButton} activeOpacity={0.8}><LinearGradient colors={['#7c4dff', '#651fff']} style={styles.sendButtonGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.sendButtonText}>Send to Chat 💬</Text></LinearGradient></TouchableOpacity>}
-                      {!loading && <TouchableOpacity onPress={() => handleChoose(promptType, true)} style={styles.anotherButton} activeOpacity={0.8} disabled={!isYourTurn}><Text style={styles.anotherButtonText}>Another one ↻</Text></TouchableOpacity>}
+                      {renderAnotherOneButton()}
                     </View>
                   </>
                 )}
@@ -876,16 +929,7 @@ export default function TruthOrDare({
                         </LinearGradient>
                       </TouchableOpacity>
                     )}
-                    {!loading && (
-                      <TouchableOpacity
-                        onPress={() => handleChoose(promptType, true)}
-                        style={styles.anotherButton}
-                        activeOpacity={0.8}
-                        disabled={!isYourTurn}
-                      >
-                        <Text style={styles.anotherButtonText}>Another one ↻</Text>
-                      </TouchableOpacity>
-                    )}
+                    {renderAnotherOneButton()}
                   </View>
                 </>
               )}
@@ -1456,10 +1500,16 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: 'center',
   },
+  anotherButtonDisabled: {
+    opacity: 0.45,
+  },
   anotherButtonText: {
     fontSize: 15,
     fontWeight: '600',
     color: 'rgba(255,255,255,0.95)',
+  },
+  anotherButtonTextDisabled: {
+    color: 'rgba(255,255,255,0.55)',
   },
   closeButton: {
     paddingVertical: 10,

@@ -4,12 +4,13 @@
  */
 
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/navigationRef';
+import { useAuth } from '../context/AuthContext';
 
 const AGE_GATE_STORAGE_KEY = 'AGE_GATE_ACCEPTED';
 
@@ -19,26 +20,36 @@ type AgeGateNavProp = StackNavigationProp<RootStackParamList, 'AgeGate'>;
 export default function AgeGateScreen() {
   const navigation = useNavigation<AgeGateNavProp>();
   const route = useRoute<AgeGateRouteProp>();
-  const nextRoute = route.params?.nextRoute ?? 'MainTabs';
+  const { connectSetupComplete, logout } = useAuth();
+  const nextRoute =
+    route.params?.nextRoute ?? (connectSetupComplete ? 'MainTabs' : 'CreateProfile');
 
   const handleConfirm = async () => {
     try {
       await AsyncStorage.setItem(AGE_GATE_STORAGE_KEY, 'true');
+      const goToCreateProfile = !connectSetupComplete || nextRoute === 'CreateProfile';
       navigation.reset({
         index: 0,
-        routes: [nextRoute === 'CreateProfile' ? { name: 'CreateProfile' } : { name: 'MainTabs' }],
+        routes: goToCreateProfile
+          ? [{ name: 'CreateProfile', params: { startFromBeginning: true } }]
+          : [{ name: 'MainTabs' }],
       });
     } catch (e) {
       Alert.alert('Error', 'Could not save. Please try again.');
     }
   };
 
-  const handleUnderAge = () => {
-    Alert.alert(
-      'Sorry',
-      'You must be 18 or older to use Mulligan. Come back when you\'re 18!',
-      [{ text: 'OK' }]
-    );
+  const handleUnderAge = async () => {
+    try {
+      await AsyncStorage.removeItem(AGE_GATE_STORAGE_KEY);
+    } catch {
+      /* ignore */
+    }
+    await logout();
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'PhoneLogin' }],
+    });
   };
 
   return (

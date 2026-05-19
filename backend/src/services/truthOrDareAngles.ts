@@ -32,6 +32,10 @@ const TRUTH_ANGLES = [
   "what they wish people asked on dates more often",
   "a compliment that actually landed",
   "the line between flirting and leading someone on",
+  "a text they rewrote too many times before sending",
+  "when they pretended to be unbothered but were not",
+  "what attention vs real interest feels like to them",
+  "a situationship they should have ended sooner",
 ];
 
 const DARE_ANGLES = [

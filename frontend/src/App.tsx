@@ -7,6 +7,8 @@ import Landing from './pages/Landing'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
 import PhoneLogin from './pages/PhoneLogin'
+import AgeGate from './pages/AgeGate'
+import { isAgeGateAccepted } from './lib/ageGate'
 import CreateProfile from './pages/CreateProfile'
 import Browse from './pages/Browse'
 import Matches from './pages/Matches'
@@ -85,6 +87,10 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
   
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />
+  }
+
+  if (!isAgeGateAccepted()) {
+    return <Navigate to="/age-gate" replace />
   }
   
   return <>{children}</>
@@ -195,9 +201,31 @@ function AuthRedirectRoute({ children }: { children: React.ReactNode }) {
   }
   
   if (isAuthenticated) {
+    if (!isAgeGateAccepted()) {
+      return <Navigate to="/age-gate" replace />
+    }
     return <Navigate to={connectSetupComplete ? '/browse' : '/create-profile'} replace />
   }
   
+  return <>{children}</>
+}
+
+/** Logged-in users only; used for age gate (before 18+ confirmation). */
+function AgeGateRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, loading, connectSetupComplete } = useAuth()
+
+  if (loading) {
+    return <div className="loading-screen-immersive">Loading...</div>
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />
+  }
+
+  if (isAgeGateAccepted()) {
+    return <Navigate to={connectSetupComplete ? '/browse' : '/create-profile'} replace />
+  }
+
   return <>{children}</>
 }
 
@@ -507,6 +535,7 @@ export default function App() {
         <Route path="/login" element={<AuthRedirectRoute><PhoneLogin /></AuthRedirectRoute>} />
         <Route path="/signup" element={<AuthRedirectRoute><PhoneLogin /></AuthRedirectRoute>} />
         <Route path="/phone-login" element={<AuthRedirectRoute><PhoneLogin /></AuthRedirectRoute>} />
+        <Route path="/age-gate" element={<AgeGateRoute><AgeGate /></AgeGateRoute>} />
         <Route path="/terms" element={<Terms />} />
         <Route path="/privacy" element={<Privacy />} />
         <Route element={<Layout />}>

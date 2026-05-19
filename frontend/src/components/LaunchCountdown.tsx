@@ -125,7 +125,7 @@ export default function LaunchCountdown() {
     w: typeof window !== "undefined" ? window.innerWidth : 400,
     h: typeof window !== "undefined" ? window.innerHeight : 800,
   });
-  const [boxSize, setBoxSize] = useState({ w: 280, h: 200 });
+  const [boxSize, setBoxSize] = useState({ w: 216, h: 148 });
 
   const bubbleRef = useRef<HTMLDivElement | null>(null);
   const collapsedRef = useRef(collapsed);

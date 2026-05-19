@@ -702,8 +702,7 @@ export default function PhoneLoginScreen() {
     try {
       await phoneLogin(submittedPhone, codeToUse);
       setLoading(false);
-      // Do not navigate here. AppNavigator will redirect based on auth state and age gate:
-      // if age gate not passed → AgeGate, then MainTabs; otherwise → MainTabs (profile stub is created on the server).
+      // AppNavigator routes to CreateProfile (incomplete setup), AgeGate, or MainTabs — never Connect first for new users.
     } catch (err: any) {
       const errorMessage = err?.message || 'Invalid verification code';
       setError(errorMessage);

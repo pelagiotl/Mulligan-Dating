@@ -434,6 +434,10 @@ export default function AppNavigator() {
     return { name: 'MainTabs' as const };
   }, [connectSetupComplete]);
 
+  const ageGateNextRoute = React.useCallback((): 'CreateProfile' | 'MainTabs' => {
+    return connectSetupComplete ? 'MainTabs' : 'CreateProfile';
+  }, [connectSetupComplete]);
+
   // Load age-gate acceptance from storage (for store compliance: 18+ confirmation)
   const loadAgeGateStatus = React.useCallback(() => {
     AsyncStorage.getItem('AGE_GATE_ACCEPTED').then((v) => {
@@ -479,9 +483,7 @@ export default function AppNavigator() {
           }
         }
       } else if (user && currentRoute?.name === 'PhoneLogin') {
-        // Post-login route decision:
-        // - if age gate already accepted, continue directly
-        // - otherwise show age gate once
+        // Post-login: never show MainTabs until Connect setup is complete.
         try {
           if (ageGatePassed === true) {
             navigationRef.current.reset({
@@ -500,7 +502,7 @@ export default function AppNavigator() {
               }
               navigationRef.current?.reset({
                 index: 0,
-                routes: [{ name: 'AgeGate', params: { nextRoute: 'MainTabs' } }],
+                routes: [{ name: 'AgeGate', params: { nextRoute: ageGateNextRoute() } }],
               });
             });
           }
@@ -561,53 +563,60 @@ export default function AppNavigator() {
         }
       }
     }
-  }, [loading, user?.id, isNavigationReady, gateStatusLoaded, ageGatePassed, connectSetupComplete, postAuthHomeRoute]);
+  }, [
+    loading,
+    user?.id,
+    isNavigationReady,
+    gateStatusLoaded,
+    ageGatePassed,
+    connectSetupComplete,
+    postAuthHomeRoute,
+    ageGateNextRoute,
+  ]);
 
-  // Brief seamless splash while checking auth and (if logged in) age gate status
-  if (loading || (user && !gateStatusLoaded)) {
-    return (
-      <View style={styles.loadingScreen}>
-        <View style={{ opacity: 0.5 }}>
-          <ActivityIndicator size="small" color="#8B1538" />
-        </View>
-      </View>
-    );
-  }
+  const showAuthOverlay = loading || (user && !gateStatusLoaded);
 
   try {
     return (
-      <NavigationContainer
-        ref={navigationRef}
-        onReady={handleNavigationReady}
-        theme={{
-          dark: false,
-          colors: {
-            primary: '#8B1538',
-            background: '#f8f9ff',
-            card: '#ffffff',
-            text: '#1a1a2e',
-            border: '#e2e8f0',
-            notification: '#8B1538',
-          },
-        }}
-      >
-        <Stack.Navigator
-          initialRouteName="MainTabs"
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: '#f8f9ff' },
+      <View style={styles.navRoot}>
+        <NavigationContainer
+          ref={navigationRef}
+          onReady={handleNavigationReady}
+          theme={{
+            dark: false,
+            colors: {
+              primary: '#8B1538',
+              background: '#f8f9ff',
+              card: '#ffffff',
+              text: '#1a1a2e',
+              border: '#e2e8f0',
+              notification: '#8B1538',
+            },
           }}
         >
-          <Stack.Screen name="PhoneLogin" component={PhoneLoginScreen} />
-          <Stack.Screen name="AgeGate" component={AgeGateScreen} />
-          <Stack.Screen name="CreateProfile" component={CreateProfileScreen} />
-          <Stack.Screen name="MainTabs" component={MainTabs} />
-          <Stack.Screen name="Terms" component={TermsScreen} />
-          <Stack.Screen name="Privacy" component={PrivacyScreen} />
-          <Stack.Screen name="PushNotificationSettings" component={PushNotificationSettingsScreen} />
-          <Stack.Screen name="BlockedUsers" component={BlockedUsersScreen} />
-        </Stack.Navigator>
-      </NavigationContainer>
+          <Stack.Navigator
+            initialRouteName="PhoneLogin"
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: '#f8f9ff' },
+            }}
+          >
+            <Stack.Screen name="PhoneLogin" component={PhoneLoginScreen} />
+            <Stack.Screen name="AgeGate" component={AgeGateScreen} />
+            <Stack.Screen name="CreateProfile" component={CreateProfileScreen} />
+            <Stack.Screen name="MainTabs" component={MainTabs} />
+            <Stack.Screen name="Terms" component={TermsScreen} />
+            <Stack.Screen name="Privacy" component={PrivacyScreen} />
+            <Stack.Screen name="PushNotificationSettings" component={PushNotificationSettingsScreen} />
+            <Stack.Screen name="BlockedUsers" component={BlockedUsersScreen} />
+          </Stack.Navigator>
+        </NavigationContainer>
+        {showAuthOverlay ? (
+          <View style={styles.loadingOverlay} pointerEvents="auto">
+            <ActivityIndicator size="small" color="#8B1538" />
+          </View>
+        ) : null}
+      </View>
     );
   } catch (error) {
     console.error('❌ Navigation setup error:', error);
@@ -622,11 +631,15 @@ export default function AppNavigator() {
 }
 
 const styles = StyleSheet.create({
-  loadingScreen: {
+  navRoot: {
     flex: 1,
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#f8f9ff',
+    zIndex: 999,
   },
   tabIcon: {
     fontSize: 20,

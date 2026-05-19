@@ -21,6 +21,13 @@ import {
   EXTRA_TRUTHS_R,
   EXTRA_TRUTHS_SPICY,
 } from './truthOrDareExtraPools.js';
+import {
+  filterBannedGamePrompts,
+  GAME_PROMPT_HARD_BANS,
+  GAME_PROMPT_INTERESTS_RULE,
+  GAME_PROMPT_MATURE_TONE,
+  hasBannedGamePromptTheme,
+} from './gamePromptGuards.js';
 
 // PG-13: grown-up dating energy — flirty, direct, never teen-party cute.
 const TRUTH_FALLBACKS = [
@@ -86,6 +93,24 @@ function pickRandomExcluding(list: string[], excludePrompts: string[]): string {
 }
 
 export type SpiceLevel = 'pg13' | 'ratedr' | 'spicy';
+
+/** Max "Another one" prompt rerolls per user per Truth or Dare game session. */
+export const TRUTH_OR_DARE_MAX_ANOTHER_ONE = 3;
+
+export function truthOrDareAnotherOneStatus(
+  game: { user1_another_one_count?: number | null; user2_another_one_count?: number | null } | null | undefined,
+  userId: string,
+  match: { user1_id: string; user2_id: string }
+): { anotherOneUsed: number; anotherOneRemaining: number; anotherOneMax: number } {
+  const isUser1 = match.user1_id === userId;
+  const raw = Number(isUser1 ? game?.user1_another_one_count : game?.user2_another_one_count) || 0;
+  const used = Math.min(TRUTH_OR_DARE_MAX_ANOTHER_ONE, Math.max(0, raw));
+  return {
+    anotherOneUsed: used,
+    anotherOneRemaining: Math.max(0, TRUTH_OR_DARE_MAX_ANOTHER_ONE - used),
+    anotherOneMax: TRUTH_OR_DARE_MAX_ANOTHER_ONE,
+  };
+}
 
 /** Each user picks a max heat; prompts use the more conservative of the two. */
 export function moreConservativeSpice(a: SpiceLevel, b: SpiceLevel): SpiceLevel {
@@ -175,18 +200,18 @@ const DARE_FALLBACKS_SPICY: string[] = [
 ];
 
 function truthFallbacksForLevel(level: SpiceLevel): string[] {
-  const pg = [...TRUTH_FALLBACKS, ...EXTRA_TRUTHS_PG];
-  const r = [...TRUTH_FALLBACKS_R, ...EXTRA_TRUTHS_R];
-  const s = [...TRUTH_FALLBACKS_SPICY, ...EXTRA_TRUTHS_SPICY];
+  const pg = filterBannedGamePrompts([...TRUTH_FALLBACKS, ...EXTRA_TRUTHS_PG]);
+  const r = filterBannedGamePrompts([...TRUTH_FALLBACKS_R, ...EXTRA_TRUTHS_R]);
+  const s = filterBannedGamePrompts([...TRUTH_FALLBACKS_SPICY, ...EXTRA_TRUTHS_SPICY]);
   if (level === 'spicy') return [...pg, ...r, ...s];
   if (level === 'ratedr') return [...pg, ...r];
   return pg;
 }
 
 function dareFallbacksForLevel(level: SpiceLevel): string[] {
-  const pg = [...DARE_FALLBACKS, ...EXTRA_DARES_PG];
-  const r = [...DARE_FALLBACKS_R, ...EXTRA_DARES_R];
-  const s = [...DARE_FALLBACKS_SPICY, ...EXTRA_DARES_SPICY];
+  const pg = filterBannedGamePrompts([...DARE_FALLBACKS, ...EXTRA_DARES_PG]);
+  const r = filterBannedGamePrompts([...DARE_FALLBACKS_R, ...EXTRA_DARES_R]);
+  const s = filterBannedGamePrompts([...DARE_FALLBACKS_SPICY, ...EXTRA_DARES_SPICY]);
   if (level === 'spicy') return [...pg, ...r, ...s];
   if (level === 'ratedr') return [...pg, ...r];
   return pg;
@@ -223,7 +248,7 @@ export async function generateTruthOrDarePrompt(
     }
 
     const interestsContext = sharedInterests.length > 0
-      ? ` They have shared interests: ${sharedInterests.slice(0, 5).join(', ')}. You may optionally reference these for a more personal prompt.`
+      ? ` Shared interests (background only): ${sharedInterests.slice(0, 5).join(', ')}. ${GAME_PROMPT_INTERESTS_RULE}`
       : '';
 
     const typeLabel = type === 'truth' ? 'Truth' : 'Dare';
@@ -253,11 +278,11 @@ export async function generateTruthOrDarePrompt(
 
     const noBanalEventsNote =
       spiceLevel === 'spicy' || spiceLevel === 'ratedr'
-        ? "\n- NEVER center prompts on: sports, games, teams, concerts, festivals, stadiums, hobbies as activities, or 'go do X in public'. Users find that boring and off-brand. Keep everything about the two people, chemistry, chat, voice, selfies, short clips, tension, desire — not events or outings."
-        : "\n- Avoid sports, concerts, festivals, and travel as the main hook; center the two people, chemistry, and chat — not outings or events.";
+        ? "\n- NEVER center prompts on: sports, games, teams, concerts, festivals, playlists, music scenes, travel, trips, vacations, hobbies-as-activities, or 'go do X in public'. Keep everything about the two people, chemistry, chat, voice, selfies, short clips, tension, desire — not events or outings."
+        : "\n- Avoid sports, concerts, festivals, playlists, music, travel, and trips as the main hook; center the two people, chemistry, and chat — not outings or events.";
 
     const toneNote =
-      '\n- TONE: Cool, badass, and sexy — current, Gen Z/millennial-friendly. Write for adults. NO corny wordplay, NO puns, NO cringe or try-hard humor, NO generic dating clichés. Confident, specific, flirty with edge — never cheesy or childish.\n- WORD CHOICE: Use clear, everyday words. NEVER use vague or old-fashioned words like "sultry", "smoldering", "sultry selfie", "bedroom eyes". Prefer clear phrasing: "flirty selfie", "confident selfie", "selfie that shows you\'re into them", "look that says you\'re interested".';
+      `\n- ${GAME_PROMPT_MATURE_TONE}\n- NO corny wordplay, NO puns, NO cringe or try-hard humor, NO generic dating clichés. Confident, specific, flirty with edge.\n- WORD CHOICE: Use clear, everyday words. NEVER use vague or old-fashioned words like "sultry", "smoldering", "bedroom eyes". Prefer: "flirty selfie", "confident selfie", "look that says you're interested".`;
 
     const lengthNote =
       spiceLevel === 'spicy'
@@ -268,6 +293,7 @@ export async function generateTruthOrDarePrompt(
 
 ${spiceBlock}
 ${lengthNote}
+${GAME_PROMPT_HARD_BANS}
 - Specific to ${type}: ${typeInstruction}${noTravelNote}${noBanalEventsNote}${toneNote}
 - Generate something FRESH and varied each time — we rely on you for unlimited variety, not a fixed list.
 - Output ONLY the prompt text, nothing else. No quotes, no numbering, no explanation.`;
@@ -276,21 +302,14 @@ ${lengthNote}
       ? `\n\nIMPORTANT: Do NOT use any of these prompts (already shown this game): ${toExclude.map((p) => `"${p}"`).join(', ')}. Generate a different one.`
       : '';
 
-    const interestsNote =
-      sharedInterests.length > 0
-        ? spiceLevel === 'spicy'
-          ? ' Shared interests are context only — do NOT build the prompt around sports, music scenes, or concert-like activities even if listed.'
-          : spiceLevel === 'ratedr'
-            ? " Shared interests may add flavor — do NOT center the prompt on sports, concerts, festivals, or plans like meeting at a game or show."
-            : ' If you use shared interests, keep it subtle; do not center on sports, concerts, trips, or public events — stay about the connection.'
-        : '';
+    const interestsNote = sharedInterests.length > 0 ? ` ${GAME_PROMPT_INTERESTS_RULE}` : '';
 
     const varietyLine =
       spiceLevel === 'spicy'
-        ? 'Prioritize tension, desire, boundaries, late-night honesty, and chat-native actions — not hobbies-as-activities.'
+        ? 'Prioritize tension, desire, boundaries, late-night honesty, and chat-native actions — never music, travel, concerts, or hobby-as-activity prompts.'
         : spiceLevel === 'ratedr'
-          ? 'Prioritize adult dating tension, stories, and in-chat actions — not events, outings, or hobby tourism.'
-          : 'Prioritize mature chemistry, standards, and emotional honesty — confident adults, not party games.';
+          ? 'Prioritize adult dating tension, stories, and in-chat actions — never events, outings, playlists, travel, or hobby tourism.'
+          : 'Prioritize mature chemistry, standards, and emotional honesty — confident adults, not party games or hobby prompts.';
 
     const creativeAngle = randomCreativeAngle(type);
 
@@ -327,11 +346,12 @@ Return ONLY the prompt:`;
       const cleaned = content.replace(/^["']|["']$/g, '');
       const normalizedCleaned = normalizePrompt(cleaned);
       const isDuplicate = toExclude.some((p) => normalizePrompt(p) === normalizedCleaned);
-      if (!isBad && !isDuplicate) {
+      const isBannedTheme = hasBannedGamePromptTheme(cleaned);
+      if (!isBad && !isDuplicate && !isBannedTheme) {
         return { prompt: cleaned, fromAI: true };
       }
-      if (isDuplicate) {
-        throw new Error('AI returned duplicate prompt');
+      if (isDuplicate || isBannedTheme) {
+        throw new Error(isBannedTheme ? 'AI returned banned theme' : 'AI returned duplicate prompt');
       }
     }
 
