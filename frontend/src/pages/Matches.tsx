@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { io, Socket } from "socket.io-client";
 import { api, ApiError } from "../utils/api";
@@ -362,6 +362,8 @@ export default function Matches() {
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const selectedMatchIdRef = useRef<string | null>(null);
   const selectedMatchStageRef = useRef<Match["stage"] | null>(null);
+  /** Tracks last thread so we only clear the composer when the user opens a different match. */
+  const composerMatchIdRef = useRef<string | null>(null);
   const userIdRef = useRef<string | null>(null);
   const matchesRef = useRef<Match[]>([]);
   const lightboxTouchX = useRef<number | null>(null);
@@ -508,7 +510,6 @@ export default function Matches() {
 
   const openMatchThread = useCallback((match: Match) => {
     const clearedMatch = { ...match, unreadCount: 0 };
-    setNewMessage("");
     setSelectedMatch(clearedMatch);
     setMatches((prev) =>
       prev.map((m) => (m.id === match.id ? { ...m, unreadCount: 0 } : m))
@@ -835,7 +836,7 @@ export default function Matches() {
           gameType: data.gameType,
         });
         const m = matchesRef.current.find((x) => x.id === data.matchId);
-        if (m) setSelectedMatch(m);
+        if (m) openMatchThread(m);
       }
     );
 
@@ -845,7 +846,7 @@ export default function Matches() {
         if (!data.accepted) return;
         const m = matchesRef.current.find((x) => x.id === data.matchId);
         if (m) {
-          setSelectedMatch(m);
+          openMatchThread(m);
           if (data.gameType === "truth_or_dare" || data.gameType === "never_have_i_ever") {
             setOpenGameForAccept({
               matchId: data.matchId,
@@ -1520,7 +1521,7 @@ export default function Matches() {
     }
   };
 
-  useEffect(() => {
+  const resetComposerForMatchSwitch = useCallback(() => {
     setNewMessage("");
     setIsTyping(false);
     if (typingTimeoutRef.current) {
@@ -1531,13 +1532,23 @@ export default function Matches() {
     clearPendingVideo();
     cancelVoiceRecording();
     setChatMediaModal(null);
+  }, [clearPendingImage, clearPendingVideo, cancelVoiceRecording]);
+
+  useLayoutEffect(() => {
+    const matchId = selectedMatch?.id ?? null;
+    if (composerMatchIdRef.current === matchId) return;
+    composerMatchIdRef.current = matchId;
+    resetComposerForMatchSwitch();
+  }, [selectedMatch?.id, resetComposerForMatchSwitch]);
+
+  useEffect(() => {
     return () => {
       const leavingId = selectedMatchIdRef.current;
       if (leavingId && socketRef.current) {
         socketRef.current.emit("stop_typing", { matchId: leavingId });
       }
     };
-  }, [selectedMatch?.id, clearPendingImage, clearPendingVideo, cancelVoiceRecording]);
+  }, [selectedMatch?.id]);
 
   const openImagePicker = () => {
     if (sendingMessage || uploadingImage || uploadingVideo || uploadingAudio || isRecordingVoice) return;
@@ -1819,7 +1830,7 @@ export default function Matches() {
                 [gameKey]: true,
               },
             };
-            setSelectedMatch(updated);
+            openMatchThread(updated);
             setMatches((prev) => prev.map((x) => (x.id === matchId ? updated : x)));
           }
           if (gameType === "truth_or_dare") {
@@ -2721,7 +2732,7 @@ export default function Matches() {
                   )}
                 </div>
 
-                <div className="message-input-container">
+                <div key={`composer-${selectedMatch.id}`} className="message-input-container">
                   <input
                     ref={imageFileInputRef}
                     type="file"
@@ -2835,9 +2846,16 @@ export default function Matches() {
                       </button>
                     </div>
                     <input
+                      key={`chat-message-${selectedMatch.id}`}
                       type="text"
                       className="message-input"
                       value={newMessage}
+                      autoComplete="off"
+                      autoCorrect="off"
+                      spellCheck
+                      data-lpignore="true"
+                      data-form-type="other"
+                      name={`mulligan-chat-${selectedMatch.id}`}
                       onChange={(e) => {
                         setNewMessage(e.target.value);
                         handleTyping();
