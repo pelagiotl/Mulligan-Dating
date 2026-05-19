@@ -362,8 +362,11 @@ export default function Matches() {
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const selectedMatchIdRef = useRef<string | null>(null);
   const selectedMatchStageRef = useRef<Match["stage"] | null>(null);
-  /** Tracks last thread so we only clear the composer when the user opens a different match. */
+  /** Tracks last thread so we only swap composer text when the user opens a different match. */
   const composerMatchIdRef = useRef<string | null>(null);
+  /** Per-match message drafts — restored when returning to the same thread. */
+  const messageDraftsRef = useRef<Record<string, string>>({});
+  const composerTextRef = useRef("");
   const userIdRef = useRef<string | null>(null);
   const matchesRef = useRef<Match[]>([]);
   const lightboxTouchX = useRef<number | null>(null);
@@ -1390,6 +1393,7 @@ export default function Matches() {
         autoAdvanced?: boolean;
         stage?: string;
       }>(`/matches/${matchId}/messages`, body);
+      clearMessageDraftForMatch(matchId);
       setNewMessage("");
       clearPendingImage();
       onMessageSentSuccess(data, matchId, snap);
@@ -1429,6 +1433,7 @@ export default function Matches() {
         autoAdvanced?: boolean;
         stage?: string;
       }>(`/matches/${matchId}/messages`, body);
+      clearMessageDraftForMatch(matchId);
       setNewMessage("");
       clearPendingVideo();
       onMessageSentSuccess(data, matchId, snap);
@@ -1465,6 +1470,7 @@ export default function Matches() {
     if (!newMessage.trim()) return;
 
     const messageContent = newMessage.trim();
+    clearMessageDraftForMatch(matchId);
     setNewMessage("");
     stopTypingForSend(matchId);
     setSendingMessage(true);
@@ -1477,6 +1483,8 @@ export default function Matches() {
       onMessageSentSuccess(data, matchId, snap);
     } catch (error) {
       console.error("Failed to send message:", error);
+      messageDraftsRef.current[matchId] = messageContent;
+      composerTextRef.current = messageContent;
       setNewMessage(messageContent);
       const msg =
         error instanceof ApiError
@@ -1521,8 +1529,7 @@ export default function Matches() {
     }
   };
 
-  const resetComposerForMatchSwitch = useCallback(() => {
-    setNewMessage("");
+  const clearComposerExtras = useCallback(() => {
     setIsTyping(false);
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
@@ -1534,12 +1541,30 @@ export default function Matches() {
     setChatMediaModal(null);
   }, [clearPendingImage, clearPendingVideo, cancelVoiceRecording]);
 
+  useEffect(() => {
+    composerTextRef.current = newMessage;
+  }, [newMessage]);
+
   useLayoutEffect(() => {
-    const matchId = selectedMatch?.id ?? null;
-    if (composerMatchIdRef.current === matchId) return;
-    composerMatchIdRef.current = matchId;
-    resetComposerForMatchSwitch();
-  }, [selectedMatch?.id, resetComposerForMatchSwitch]);
+    const nextId = selectedMatch?.id ?? null;
+    const prevId = composerMatchIdRef.current;
+    if (prevId === nextId) return;
+
+    if (prevId) {
+      messageDraftsRef.current[prevId] = composerTextRef.current;
+    }
+
+    composerMatchIdRef.current = nextId;
+    clearComposerExtras();
+
+    const restored = nextId ? (messageDraftsRef.current[nextId] ?? "") : "";
+    composerTextRef.current = restored;
+    setNewMessage(restored);
+  }, [selectedMatch?.id, clearComposerExtras]);
+
+  const clearMessageDraftForMatch = useCallback((matchId: string) => {
+    delete messageDraftsRef.current[matchId];
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -2751,8 +2776,60 @@ export default function Matches() {
                   />
                   {!chatMediaUnlocked && (
                     <div className="chat-media-lock-hint" role="note">
-                      <p className="chat-media-lock-hint-line">{CHAT_MEDIA_LOCKED_HINT}</p>
-                      <p className="chat-media-lock-hint-warning">{CHAT_MEDIA_MODERATION_WARNING}</p>
+                      <div className="chat-media-lock-hint-rim">
+                        <div className="chat-media-lock-hint-inner">
+                          <div className="chat-media-lock-hint-head">
+                            <span className="chat-media-lock-hint-icon" aria-hidden>
+                              🔒
+                            </span>
+                            <div>
+                              <p className="chat-media-lock-hint-kicker">Chat media</p>
+                              <p className="chat-media-lock-hint-title">Unlocks after 3 messages each</p>
+                            </div>
+                          </div>
+                          <p className="chat-media-lock-hint-lead">{CHAT_MEDIA_LOCKED_HINT}</p>
+                          <div className="chat-media-lock-hint-chips" aria-hidden>
+                            <span className="chat-media-lock-hint-chip">📷 Photos</span>
+                            <span className="chat-media-lock-hint-chip">🎬 Video</span>
+                            <span className="chat-media-lock-hint-chip">🎙️ Voice</span>
+                          </div>
+                          <div className="chat-media-lock-hint-progress">
+                            <div className="chat-media-lock-hint-progress-row">
+                              <span>You</span>
+                              <span className={chatMediaMessageCounts.my >= 3 ? "chat-media-lock-hint-count chat-media-lock-hint-count--done" : "chat-media-lock-hint-count"}>
+                                {Math.min(chatMediaMessageCounts.my, 3)}/3
+                              </span>
+                            </div>
+                            <div className="chat-media-lock-hint-track">
+                              <div
+                                className={chatMediaMessageCounts.my >= 3 ? "chat-media-lock-hint-fill chat-media-lock-hint-fill--done" : "chat-media-lock-hint-fill"}
+                                style={{ width: `${Math.min(100, (chatMediaMessageCounts.my / 3) * 100)}%` }}
+                              />
+                            </div>
+                            <div className="chat-media-lock-hint-progress-row">
+                              <span>Your match</span>
+                              <span className={chatMediaMessageCounts.their >= 3 ? "chat-media-lock-hint-count chat-media-lock-hint-count--done" : "chat-media-lock-hint-count"}>
+                                {Math.min(chatMediaMessageCounts.their, 3)}/3
+                              </span>
+                            </div>
+                            <div className="chat-media-lock-hint-track">
+                              <div
+                                className={chatMediaMessageCounts.their >= 3 ? "chat-media-lock-hint-fill chat-media-lock-hint-fill--done" : "chat-media-lock-hint-fill"}
+                                style={{ width: `${Math.min(100, (chatMediaMessageCounts.their / 3) * 100)}%` }}
+                              />
+                            </div>
+                          </div>
+                          <div className="chat-media-lock-hint-standards">
+                            <span className="chat-media-lock-hint-standards-icon" aria-hidden>
+                              🛡️
+                            </span>
+                            <div>
+                              <p className="chat-media-lock-hint-standards-kicker">Community standards</p>
+                              <p className="chat-media-lock-hint-standards-text">{CHAT_MEDIA_MODERATION_WARNING}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   )}
                   {pendingImagePreviewUrl ? (
@@ -2857,7 +2934,12 @@ export default function Matches() {
                       data-form-type="other"
                       name={`mulligan-chat-${selectedMatch.id}`}
                       onChange={(e) => {
-                        setNewMessage(e.target.value);
+                        const value = e.target.value;
+                        composerTextRef.current = value;
+                        if (selectedMatch?.id) {
+                          messageDraftsRef.current[selectedMatch.id] = value;
+                        }
+                        setNewMessage(value);
                         handleTyping();
                       }}
                       onKeyDown={(e) => {

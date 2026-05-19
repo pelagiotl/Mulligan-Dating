@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { debounce } from '../utils/debounce';
 import {
   View,
@@ -1928,6 +1928,10 @@ export default function MatchesScreen() {
   /** Skip one matches refetch when opening chat from celebration (avoids loading flicker). */
   const skipNextSelectMatchesRefetchRef = useRef(false);
   const textInputRef = useRef<TextInput>(null);
+  /** Tracks last thread so composer text only carries over when returning to the same match. */
+  const composerMatchIdRef = useRef<string | null>(null);
+  const messageDraftsRef = useRef<Record<string, string>>({});
+  const composerTextRef = useRef('');
   /** Blocks Android multiline TextInput from echoing pre-send text after clear. */
   const suppressInputEchoRef = useRef(false);
   const mulliganDismissStarterRef = useRef<(() => void) | null>(null);
@@ -2227,8 +2231,15 @@ export default function MatchesScreen() {
 
   const clearMessageInput = useCallback(() => {
     suppressInputEchoRef.current = true;
+    const matchId = selectedMatchRef.current?.id;
+    if (matchId) delete messageDraftsRef.current[matchId];
+    composerTextRef.current = '';
     setNewMessage('');
     textInputRef.current?.clear?.();
+  }, []);
+
+  const clearMessageDraftForMatch = useCallback((matchId: string) => {
+    delete messageDraftsRef.current[matchId];
   }, []);
 
   const handleTextChange = useCallback((text: string) => {
@@ -2243,6 +2254,10 @@ export default function MatchesScreen() {
       }
       // User is typing new content after send — release suppress (Android may never fire empty onChange)
       suppressInputEchoRef.current = false;
+    }
+    composerTextRef.current = text;
+    if (selectedMatch?.id) {
+      messageDraftsRef.current[selectedMatch.id] = text;
     }
     setNewMessage(text);
 
@@ -2687,6 +2702,32 @@ export default function MatchesScreen() {
   }, [selectedMatch?.id]);
 
   useEffect(() => {
+    composerTextRef.current = newMessage;
+  }, [newMessage]);
+
+  useLayoutEffect(() => {
+    const nextId = selectedMatch?.id ?? null;
+    const prevId = composerMatchIdRef.current;
+    if (prevId === nextId) return;
+
+    if (prevId) {
+      messageDraftsRef.current[prevId] = composerTextRef.current;
+    }
+
+    composerMatchIdRef.current = nextId;
+
+    const restored = nextId ? (messageDraftsRef.current[nextId] ?? '') : '';
+    composerTextRef.current = restored;
+    suppressInputEchoRef.current = false;
+    setNewMessage(restored);
+    if (restored) {
+      textInputRef.current?.setNativeProps?.({ text: restored });
+    } else {
+      textInputRef.current?.clear?.();
+    }
+  }, [selectedMatch?.id]);
+
+  useEffect(() => {
     selectedMatchRef.current = selectedMatch;
 
     // Chat transition: fade only (no translateX so messages/input stay on screen)
@@ -2710,7 +2751,6 @@ export default function MatchesScreen() {
         fetchMatches();
       }
       skipNextSelectMatchesRefetchRef.current = false;
-      setNewMessage(''); // clear input so Mulligan Moment starter doesn't carry over to another match
       // Only clear messages when switching to a *different* match (avoids clearing on effect re-run for same match)
       const matchId = selectedMatch.id;
       if (lastFetchedMatchIdRef.current !== null && lastFetchedMatchIdRef.current !== matchId) {
@@ -3131,7 +3171,10 @@ export default function MatchesScreen() {
       // Remove temp message on error
       setMessages((prev) => prev.filter((m) => m.id !== tempMessage.id));
       suppressInputEchoRef.current = false;
+      messageDraftsRef.current[sendingMatchId] = messageContent;
+      composerTextRef.current = messageContent;
       setNewMessage(messageContent);
+      textInputRef.current?.setNativeProps?.({ text: messageContent });
       const msg = error?.message || 'Failed to send message';
       Alert.alert('Error', msg.includes('timeout') ? 'Network request timed out. Please check your connection and try again.' : msg);
     } finally {
@@ -3142,7 +3185,9 @@ export default function MatchesScreen() {
       sendInFlightRef.current = false;
       setSendingMessage(false);
       if (!sendFailed) {
+        clearMessageDraftForMatch(sendingMatchId);
         suppressInputEchoRef.current = false;
+        composerTextRef.current = '';
         setNewMessage('');
         textInputRef.current?.clear?.();
         setKeyboardHeight(0);
@@ -4327,6 +4372,10 @@ export default function MatchesScreen() {
             compact
             dismissStarterRef={mulliganDismissStarterRef}
             onStarterGenerated={(starter) => {
+              if (selectedMatch?.id) {
+                messageDraftsRef.current[selectedMatch.id] = starter;
+              }
+              composerTextRef.current = starter;
               setNewMessage(starter);
               if (textInputRef.current) {
                 textInputRef.current.focus();
@@ -4548,6 +4597,7 @@ export default function MatchesScreen() {
                 </Text>
               </TouchableOpacity>
               <TextInput
+                key={selectedMatch ? `chat-input-${selectedMatch.id}` : 'chat-input-none'}
                 ref={textInputRef}
                 style={styles.input}
                 value={newMessage}
