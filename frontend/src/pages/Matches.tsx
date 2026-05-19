@@ -2775,62 +2775,37 @@ export default function Matches() {
                     aria-hidden
                   />
                   {!chatMediaUnlocked && (
-                    <div className="chat-media-lock-hint" role="note">
-                      <div className="chat-media-lock-hint-rim">
-                        <div className="chat-media-lock-hint-inner">
-                          <div className="chat-media-lock-hint-head">
-                            <span className="chat-media-lock-hint-icon" aria-hidden>
-                              🔒
-                            </span>
-                            <div>
-                              <p className="chat-media-lock-hint-kicker">Chat media</p>
-                              <p className="chat-media-lock-hint-title">Unlocks after 3 messages each</p>
-                            </div>
-                          </div>
-                          <p className="chat-media-lock-hint-lead">{CHAT_MEDIA_LOCKED_HINT}</p>
-                          <div className="chat-media-lock-hint-chips" aria-hidden>
-                            <span className="chat-media-lock-hint-chip">📷 Photos</span>
-                            <span className="chat-media-lock-hint-chip">🎬 Video</span>
-                            <span className="chat-media-lock-hint-chip">🎙️ Voice</span>
-                          </div>
-                          <div className="chat-media-lock-hint-progress">
-                            <div className="chat-media-lock-hint-progress-row">
-                              <span>You</span>
-                              <span className={chatMediaMessageCounts.my >= 3 ? "chat-media-lock-hint-count chat-media-lock-hint-count--done" : "chat-media-lock-hint-count"}>
-                                {Math.min(chatMediaMessageCounts.my, 3)}/3
-                              </span>
-                            </div>
-                            <div className="chat-media-lock-hint-track">
-                              <div
-                                className={chatMediaMessageCounts.my >= 3 ? "chat-media-lock-hint-fill chat-media-lock-hint-fill--done" : "chat-media-lock-hint-fill"}
-                                style={{ width: `${Math.min(100, (chatMediaMessageCounts.my / 3) * 100)}%` }}
-                              />
-                            </div>
-                            <div className="chat-media-lock-hint-progress-row">
-                              <span>Your match</span>
-                              <span className={chatMediaMessageCounts.their >= 3 ? "chat-media-lock-hint-count chat-media-lock-hint-count--done" : "chat-media-lock-hint-count"}>
-                                {Math.min(chatMediaMessageCounts.their, 3)}/3
-                              </span>
-                            </div>
-                            <div className="chat-media-lock-hint-track">
-                              <div
-                                className={chatMediaMessageCounts.their >= 3 ? "chat-media-lock-hint-fill chat-media-lock-hint-fill--done" : "chat-media-lock-hint-fill"}
-                                style={{ width: `${Math.min(100, (chatMediaMessageCounts.their / 3) * 100)}%` }}
-                              />
-                            </div>
-                          </div>
-                          <div className="chat-media-lock-hint-standards">
-                            <span className="chat-media-lock-hint-standards-icon" aria-hidden>
-                              🛡️
-                            </span>
-                            <div>
-                              <p className="chat-media-lock-hint-standards-kicker">Community standards</p>
-                              <p className="chat-media-lock-hint-standards-text">{CHAT_MEDIA_MODERATION_WARNING}</p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                    <p className="chat-media-lock-hint" role="note">
+                      <span className="chat-media-lock-hint-icon" aria-hidden>
+                        🔒
+                      </span>
+                      <span className="chat-media-lock-hint-text">
+                        <strong>Photos, video &amp; voice</strong> unlock after 3 messages each.{" "}
+                        <span className="chat-media-lock-hint-counts">
+                          You{" "}
+                          <span
+                            className={
+                              chatMediaMessageCounts.my >= 3
+                                ? "chat-media-lock-hint-count chat-media-lock-hint-count--done"
+                                : "chat-media-lock-hint-count"
+                            }
+                          >
+                            {Math.min(chatMediaMessageCounts.my, 3)}/3
+                          </span>
+                          {" · "}
+                          Match{" "}
+                          <span
+                            className={
+                              chatMediaMessageCounts.their >= 3
+                                ? "chat-media-lock-hint-count chat-media-lock-hint-count--done"
+                                : "chat-media-lock-hint-count"
+                            }
+                          >
+                            {Math.min(chatMediaMessageCounts.their, 3)}/3
+                          </span>
+                        </span>
+                      </span>
+                    </p>
                   )}
                   {pendingImagePreviewUrl ? (
                     <div className="chat-pending-media">
