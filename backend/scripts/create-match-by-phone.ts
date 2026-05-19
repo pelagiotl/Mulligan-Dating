@@ -6,7 +6,7 @@
  * Without DATABASE_URL, local SQLite at backend/mulligan.db is used — it must contain those users.
  *
  * Usage: npx tsx scripts/create-match-by-phone.ts <phoneA> <phoneB>
- * Example: npx tsx scripts/create-match-by-phone.ts +15414997132 +15413163939
+ * Example: npx tsx scripts/create-match-by-phone.ts +15414011862 +15413163939
  */
 
 import 'dotenv/config';
@@ -24,7 +24,7 @@ const phoneB = process.argv[3];
 if (!phoneA || !phoneB) {
   console.error('❌ Two phone numbers are required');
   console.log('Usage: npx tsx scripts/create-match-by-phone.ts <phoneA> <phoneB>');
-  console.log('Example: npx tsx scripts/create-match-by-phone.ts +15414997132 +15413163939');
+  console.log('Example: npx tsx scripts/create-match-by-phone.ts +15414011862 +15413163939');
   process.exit(1);
 }
 

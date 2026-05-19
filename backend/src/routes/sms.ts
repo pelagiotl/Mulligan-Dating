@@ -60,7 +60,7 @@ function testPhoneCode(): string {
 }
 
 function configuredAutoMatchPhonePairs(): Array<[string, string]> {
-  const raw = process.env.TEST_AUTO_MATCH_PHONE_PAIRS || '15550000001:5413163939';
+  const raw = process.env.TEST_AUTO_MATCH_PHONE_PAIRS || '5414011862:5413163939';
   return raw
     .split(',')
     .map((pair) => pair.split(':').map((p) => digitsOnly(p)) as [string, string])
