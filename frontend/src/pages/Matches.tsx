@@ -2647,7 +2647,7 @@ export default function Matches() {
                 )}
               </div>
             ) : (
-              <>
+              <div className="matches-chat-column">
                 <div className="messages-container">
                   {selectedMatch.stage === "stage1" ? (
                     <div className="chat-messages-scroll-top">
@@ -2942,7 +2942,7 @@ export default function Matches() {
                     </button>
                   </div>
                 </div>
-              </>
+              </div>
             )}
           </>
         ) : (
