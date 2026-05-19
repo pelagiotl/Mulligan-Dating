@@ -704,6 +704,8 @@ interface TokenDisplayProps {
   openModalRef?: React.MutableRefObject<(() => void) | null>;
   /** When set, parent can trigger claim directly (e.g. from "Claim your 7 tokens!" banner) and show custom success message */
   performClaimRef?: React.MutableRefObject<((opts?: { onSuccess?: () => void; successMessage?: string }) => Promise<void>) | null>;
+  /** Called after token balance is refreshed (claim, purchase, or poll). */
+  onTokensUpdated?: () => void;
   /** With `compact` (non-premium): mirror web `.navbar-token-badge` — gradient, shadow pulse, skew shimmer (respects reduce motion). */
   compactNavbarChrome?: boolean;
 }
@@ -717,6 +719,7 @@ export default function TokenDisplay({
   connectShell = 'midnight',
   openModalRef,
   performClaimRef,
+  onTokensUpdated,
   compactNavbarChrome = false,
 }: TokenDisplayProps) {
   const { user, registerTokensBalanceRefresh } = useAuth();
@@ -816,6 +819,7 @@ export default function TokenDisplay({
       setError('');
       const tokenData = await api.get<TokenData>('/tokens');
       setData(tokenData);
+      onTokensUpdated?.();
     } catch (err: any) {
       // 401/403: session expired; API client clears token and notifies AuthContext to logout — don't log or set error
       if (err?.status === 401 || err?.status === 403) return;
@@ -843,7 +847,8 @@ export default function TokenDisplay({
         await new Promise((r) => setTimeout(r, delayMs));
       }
     }
-  }, [user?.id]);
+    onTokensUpdated?.();
+  }, [user?.id, onTokensUpdated]);
 
   useEffect(() => {
     registerTokensBalanceRefresh(syncTokensAfterPurchase);

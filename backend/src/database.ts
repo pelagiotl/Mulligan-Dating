@@ -64,6 +64,7 @@ if (usePostgres) {
   
   console.log('📁 Using SQLite database at:', dbPath);
   sqliteDb = new Database(dbPath);
+  sqliteDb.pragma('foreign_keys = ON');
 }
 
 // Database wrapper to provide unified interface

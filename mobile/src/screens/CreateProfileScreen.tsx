@@ -1399,7 +1399,7 @@ export default function CreateProfileScreen() {
           <Text style={[styles.focusedTitle, keyboardVisible && styles.focusedTitleSmall, { fontSize: rs.titleSizeSmall, marginBottom: keyboardVisible ? 6 : rs.titleMargin }]}>How old are you?</Text>
           <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleSmall, { fontSize: rs.subtitleSizeSmall, marginBottom: keyboardVisible ? 16 : rs.subtitleMargin }]}>We need to know your age</Text>
           <Animated.View style={[styles.focusedInputWrapper, { shadowOpacity: ageGlow.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.6] }), shadowRadius: ageGlow.interpolate({ inputRange: [0, 1], outputRange: [8, 20] }) }]}>
-            <TextInput ref={ageInputRef} style={styles.focusedAgeInput} value={age} onChangeText={(t) => setAge(t.replace(/[^0-9]/g, ''))} placeholder="Your age" placeholderTextColor="rgba(255, 255, 255, 0.6)" keyboardType="number-pad" returnKeyType="done" />
+            <TextInput ref={ageInputRef} style={styles.focusedAgeInput} value={age} onChangeText={(t) => setAge(t.replace(/[^0-9]/g, ''))} placeholder="Your age" placeholderTextColor="#4a5568" keyboardType="number-pad" returnKeyType="done" />
           </Animated.View>
           {age.trim().length > 0 && parseInt(age) >= 18 && <Animated.View style={[styles.successIndicator, { opacity: ageOpacity }]}><Text style={styles.successText}>✓ Perfect! Tap Continue</Text></Animated.View>}
         </LinearGradient>

@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { db } from "../database.js";
 import { authenticateToken, AuthRequest } from "../middleware/auth.js";
+import { deleteUserAccountData } from "../services/deleteUserAccount.js";
 
 export const settingsRouter = Router();
 
@@ -48,7 +49,7 @@ settingsRouter.post("/delete-account", authenticateToken, async (req: AuthReques
       return res.status(404).json({ error: "User not found" });
     }
 
-    await (db.prepare("DELETE FROM users WHERE id = ?").run([userId]) as Promise<any>);
+    await deleteUserAccountData(userId);
 
     res.json({ message: "Account deleted successfully" });
   } catch (error) {

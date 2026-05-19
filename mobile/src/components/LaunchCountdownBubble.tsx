@@ -276,6 +276,7 @@ export default function LaunchCountdownBubble({
         collapsable={false}
         style={[
           styles.bubbleWrap,
+          collapsed && styles.bubbleWrapCollapsed,
           {
             left,
             top,
@@ -451,36 +452,47 @@ const styles = StyleSheet.create({
       android: { elevation: 20 },
     }),
   },
+  bubbleWrapCollapsed: {
+    maxWidth: Platform.OS === 'android' ? 168 : 184,
+    ...Platform.select({
+      ios: {
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 6,
+      },
+      android: { elevation: 10 },
+    }),
+  },
   collapsedGradient: {
-    borderRadius: 14,
+    borderRadius: 11,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
   collapsedHorizontal: {
     flexDirection: 'row',
-    paddingVertical: 5,
-    paddingHorizontal: 9,
-    gap: 4,
-    minWidth: 104,
+    paddingVertical: 3,
+    paddingHorizontal: 6,
+    gap: 3,
+    minWidth: 76,
   },
   collapsedVertical: {
     flexDirection: 'column',
-    paddingVertical: 6,
-    paddingHorizontal: 6,
-    gap: 2,
-    minHeight: 72,
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+    gap: 1,
+    minHeight: 52,
   },
   collapsedEmoji: {
-    fontSize: 13,
+    fontSize: 11,
   },
   collapsedLabel: {
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: 10,
+    fontWeight: '700',
   },
   collapsedChevron: {
-    fontSize: 9,
-    marginLeft: 1,
+    fontSize: 8,
+    marginLeft: 0,
   },
   expandedOuter: {
     borderRadius: 16,

@@ -230,7 +230,8 @@ export default function BrowseScreen() {
   const [browseUnlocked, setBrowseUnlocked] = useState<boolean>(false); // Start as locked (false)
   const [unlocking, setUnlocking] = useState(false);
   const [isAutoMatching, setIsAutoMatching] = useState(false); // Track when auto-matching to prevent UI flash
-  const [canClaimTokens, setCanClaimTokens] = useState<boolean>(false); // Track if user can claim tokens
+  const [canClaimTokens, setCanClaimTokens] = useState<boolean>(false); // Weekly claim available from API
+  const [availableTokens, setAvailableTokens] = useState<number>(0);
   const [photoCount, setPhotoCount] = useState<number | null>(null); // User's photo count (for 5-photo minimum)
   const [photoCountLoading, setPhotoCountLoading] = useState(false); // True while fetching count so we don't briefly show wrong state
   const profileConnectKey = `${(userProfile as { display_name?: string } | null)?.display_name ?? ''}|${userProfile?.displayName ?? ''}|${userProfile?.location ?? ''}`;
@@ -296,23 +297,24 @@ export default function BrowseScreen() {
   const refreshConnectLandingEconomy = useCallback(async () => {
     if (!isAuthenticated) {
       setCanClaimTokens(false);
+      setAvailableTokens(0);
       return;
     }
     try {
+      api.clearCache('/tokens');
       const tokenData = await api.get<{
         availableTokens: number;
         canClaimWeeklyToken: boolean;
         nextRefillDate?: string | null;
       }>('/tokens', false);
+      const balance = tokenData.availableTokens ?? 0;
+      setAvailableTokens(balance);
       setCanClaimTokens(!!tokenData.canClaimWeeklyToken);
     } catch {
       setCanClaimTokens(false);
+      setAvailableTokens(0);
     }
   }, [isAuthenticated]);
-
-  const checkCanClaimTokens = useCallback(() => {
-    void refreshConnectLandingEconomy();
-  }, [refreshConnectLandingEconomy]);
 
   const checkBrowseUnlocked = async () => {
     try {
@@ -430,8 +432,10 @@ export default function BrowseScreen() {
     // This keeps the user on landing and shows the no-tokens modal immediately.
     try {
       const tokenData = await api.get<{ availableTokens: number; canClaimWeeklyToken: boolean }>('/tokens', false);
-      setCanClaimTokens(tokenData.canClaimWeeklyToken || false);
-      if ((tokenData.availableTokens || 0) <= 0) {
+      const balance = tokenData.availableTokens || 0;
+      setAvailableTokens(balance);
+      setCanClaimTokens(!!tokenData.canClaimWeeklyToken);
+      if (balance <= 0) {
         setShowNoTokensModal(true);
         return;
       }
@@ -1470,8 +1474,10 @@ export default function BrowseScreen() {
     );
   }
 
+  const showClaimTokenBanner = canClaimTokens && availableTokens <= 0;
+
   const claimTokenBannerEl =
-    canClaimTokens ? (
+    showClaimTokenBanner ? (
         <TouchableOpacity
           activeOpacity={1}
           onPress={() => {
@@ -1479,7 +1485,9 @@ export default function BrowseScreen() {
             else Vibration.vibrate(30);
             performClaimRef.current?.({
               onSuccess: () => {
-                checkCanClaimTokens();
+                setCanClaimTokens(false);
+                api.clearCache('/tokens');
+                void refreshConnectLandingEconomy();
                 setBrowseUnlocked(false);
                 setCurrentProfile(null);
                 setHasMore(true);
@@ -1518,6 +1526,7 @@ export default function BrowseScreen() {
         connectShell={connectShellMode}
         openModalRef={openTokenModalRef}
         performClaimRef={performClaimRef}
+        onTokensUpdated={refreshConnectLandingEconomy}
       />
     </View>
   );
@@ -1590,6 +1599,7 @@ export default function BrowseScreen() {
                   connectShell={connectShellMode}
                   openModalRef={openTokenModalRef}
                   performClaimRef={performClaimRef}
+                  onTokensUpdated={refreshConnectLandingEconomy}
                 />
               </View>
 
@@ -2344,9 +2354,8 @@ export default function BrowseScreen() {
         onTokenClaimed={() => {
           // Claim just happened, so weekly-claim CTA should disappear immediately.
           setCanClaimTokens(false);
-          // Refresh from backend to keep landing state accurate after claim.
           api.clearCache('/tokens');
-          checkCanClaimTokens();
+          void refreshConnectLandingEconomy();
           setShowNoTokensModal(false);
           // Reset to landing page after claiming tokens
           setBrowseUnlocked(false);
