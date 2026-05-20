@@ -1,4 +1,4 @@
-export const MIN_PHOTOS_TO_CONNECT = 3;
+export const MIN_PHOTOS_TO_CONNECT = 1;
 
 /** Auth/me and browse payloads may use displayName and/or display_name. */
 export type ConnectProfileLike = {

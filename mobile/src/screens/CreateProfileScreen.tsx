@@ -120,7 +120,7 @@ const INTEREST_EMOJIS: { [key: string]: string } = {
 };
 
 const TOTAL_STEPS = 14; // 1-6 basics; 7 interests; 8 dealbreakers; 9 partner qualities; 10 lifestyle; 11-13 age/distance; 14 photos
-const MIN_PHOTOS_REQUIRED = 3;
+const MIN_PHOTOS_REQUIRED = 1;
 const PHOTO_SLOT_COUNT = 6;
 
 type ProfilePhoto = { id?: string; url: string; uri?: string };
@@ -1250,7 +1250,9 @@ export default function CreateProfileScreen() {
     }
 
     if (readyCount < MIN_PHOTOS_REQUIRED) {
-      setError(`Please upload at least ${MIN_PHOTOS_REQUIRED} photos to complete your profile`);
+      setError(
+        `Please upload at least ${MIN_PHOTOS_REQUIRED} ${MIN_PHOTOS_REQUIRED === 1 ? 'photo' : 'photos'} to complete your profile`
+      );
       setLoading(false);
       return;
     }
@@ -2028,7 +2030,8 @@ export default function CreateProfileScreen() {
           <Text style={styles.modernHeaderEmojiCondensed}>📸</Text>
           <Text style={styles.modernHeaderTitleCondensed}>Add Your Photos</Text>
           <Text style={styles.modernHeaderSubtitleCondensed}>
-            Upload at least {MIN_PHOTOS_REQUIRED} photos (up to 6 total)
+            Upload at least {MIN_PHOTOS_REQUIRED}{' '}
+            {MIN_PHOTOS_REQUIRED === 1 ? 'photo' : 'photos'} (up to 6 total)
           </Text>
           <Text style={[styles.modernHeaderSubtitleCondensed, { marginTop: 8, fontSize: 14, opacity: 0.9 }]}>
             {uploadedPhotoCount} / {MIN_PHOTOS_REQUIRED} minimum ({photosReady ? '✓ Ready' : 'Need more'})

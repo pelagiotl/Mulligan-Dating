@@ -414,7 +414,7 @@ export default function BrowseScreen() {
           ? 'Add your name in Settings (at least 2 characters) before you can Connect.'
           : first === 'location'
             ? 'Add your city and state on your Profile (e.g. Medford, Oregon) before you can Connect.'
-            : `Add at least ${MIN_PHOTOS_TO_CONNECT} photos on your Profile before you can Connect.`;
+            : `Add at least ${MIN_PHOTOS_TO_CONNECT} photo${MIN_PHOTOS_TO_CONNECT === 1 ? '' : 's'} on your Profile before you can Connect.`;
       Alert.alert('Finish your profile', msg, [
         {
           text: first === 'name' ? 'Open Settings' : 'Open Profile',
@@ -1749,7 +1749,7 @@ export default function BrowseScreen() {
                         </Text>
                       ) : (
                         <Text style={[styles.landingButtonText, styles.midnightConnectLabel]} numberOfLines={2}>
-                          Add 3+ photos
+                          Add a photo
                         </Text>
                       )}
                     </Animated.View>
@@ -1766,7 +1766,7 @@ export default function BrowseScreen() {
                       ? 'Add your name in Settings to Connect'
                       : connectMissing[0] === 'location'
                         ? 'Add city & state on Profile to Connect'
-                        : `Add at least ${MIN_PHOTOS_TO_CONNECT} photos on Profile to Connect`
+                        : `Add at least ${MIN_PHOTOS_TO_CONNECT} photo${MIN_PHOTOS_TO_CONNECT === 1 ? '' : 's'} on Profile to Connect`
                     : '⛳ Use a Mulligan'}
                 </Text>
               </Animated.View>
@@ -1898,7 +1898,7 @@ export default function BrowseScreen() {
                               </Text>
                             ) : (
                               <Text style={[styles.landingButtonText, styles.sunnyConnectLabel]} numberOfLines={2}>
-                                Add 3+ photos
+                                Add a photo
                               </Text>
                             )}
                           </Animated.View>
@@ -1915,7 +1915,7 @@ export default function BrowseScreen() {
                             ? 'Add your name in Settings to Connect'
                             : connectMissing[0] === 'location'
                               ? 'Add city & state on Profile to Connect'
-                              : `Add at least ${MIN_PHOTOS_TO_CONNECT} photos on Profile to Connect`
+                              : `Add at least ${MIN_PHOTOS_TO_CONNECT} photo${MIN_PHOTOS_TO_CONNECT === 1 ? '' : 's'} on Profile to Connect`
                           : '⛳ Use a Mulligan'}
                       </Text>
                     </Animated.View>
@@ -2046,7 +2046,7 @@ export default function BrowseScreen() {
                               </Text>
                             ) : (
                               <Text style={[styles.landingButtonText, styles.softConnectLabel]} numberOfLines={2}>
-                                Add 3+ photos
+                                Add a photo
                               </Text>
                             )}
                           </Animated.View>
@@ -2063,7 +2063,7 @@ export default function BrowseScreen() {
                             ? 'Add your name in Settings to Connect'
                             : connectMissing[0] === 'location'
                               ? 'Add city & state on Profile to Connect'
-                              : `Add at least ${MIN_PHOTOS_TO_CONNECT} photos on Profile to Connect`
+                              : `Add at least ${MIN_PHOTOS_TO_CONNECT} photo${MIN_PHOTOS_TO_CONNECT === 1 ? '' : 's'} on Profile to Connect`
                           : '⛳ Use a Mulligan'}
                       </Text>
                     </Animated.View>

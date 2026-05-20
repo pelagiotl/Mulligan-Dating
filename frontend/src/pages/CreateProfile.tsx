@@ -62,7 +62,7 @@ const INTEREST_EMOJIS: Record<string, string> = {
 };
 
 const TOTAL_STEPS = 11;
-const MIN_PHOTOS_REQUIRED = 3;
+const MIN_PHOTOS_REQUIRED = 1;
 const MAX_PHOTO_SLOTS = 6;
 
 type SlotPhoto = { id: string; url: string };
@@ -584,7 +584,9 @@ export default function CreateProfile() {
       }
 
       if (readyCount < MIN_PHOTOS_REQUIRED) {
-        setError(`Please upload at least ${MIN_PHOTOS_REQUIRED} photos to complete your profile`);
+        setError(
+          `Please upload at least ${MIN_PHOTOS_REQUIRED} ${MIN_PHOTOS_REQUIRED === 1 ? "photo" : "photos"} to complete your profile`
+        );
         return;
       }
 
@@ -917,7 +919,8 @@ export default function CreateProfile() {
               <span className="create-profile-interests-emoji">📸</span>
               <h2 className="create-profile-interests-title">Add Your Photos</h2>
               <p className="create-profile-interests-sub">
-                Upload at least {MIN_PHOTOS_REQUIRED} photos (up to {MAX_PHOTO_SLOTS} total)
+                Upload at least {MIN_PHOTOS_REQUIRED}{" "}
+                {MIN_PHOTOS_REQUIRED === 1 ? "photo" : "photos"} (up to {MAX_PHOTO_SLOTS} total)
               </p>
               <p className="create-profile-photos-count">
                 {photoCount} / {MIN_PHOTOS_REQUIRED} minimum ({photoCount >= MIN_PHOTOS_REQUIRED ? "✓ Ready" : "Need more"})
