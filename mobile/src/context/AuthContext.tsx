@@ -730,6 +730,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setLoading(false);
           return;
         }
+        // JWT decodes but user row is gone (DB reset, deleted account, stale deploy)
+        if (apiError?.status === 404) {
+          await AsyncStorage.removeItem('token');
+          setTokenCache(null);
+          setUser(null);
+          setProfile(null);
+          setConnectSetupComplete(false);
+          setLoading(false);
+          return;
+        }
         throw apiError; // Re-throw other errors
       }
       
@@ -798,9 +808,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error?.status !== 429) {
         console.error('Fetch user error:', error);
       }
-      // Only clear token for auth errors, not network errors
-      if (error?.status === 401 || error?.status === 403) {
+      // Only clear token for auth/session errors, not network errors
+      if (error?.status === 401 || error?.status === 403 || error?.status === 404) {
         await AsyncStorage.removeItem('token');
+        setTokenCache(null);
       }
       setUser(null);
       setProfile(null);
