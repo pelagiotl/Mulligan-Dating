@@ -27,6 +27,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Picker } from '@react-native-picker/picker';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { navigationRef } from '../navigation/navigationRef';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
@@ -120,10 +121,40 @@ const INTEREST_EMOJIS: { [key: string]: string } = {
 
 const TOTAL_STEPS = 14; // 1-6 basics; 7 interests; 8 dealbreakers; 9 partner qualities; 10 lifestyle; 11-13 age/distance; 14 photos
 const MIN_PHOTOS_REQUIRED = 3;
+const PHOTO_SLOT_COUNT = 6;
+
+type ProfilePhoto = { id?: string; url: string; uri?: string };
+
+function emptyPhotoSlots(): (ProfilePhoto | null)[] {
+  return Array(PHOTO_SLOT_COUNT).fill(null);
+}
+
+function countUploadedPhotos(slots: (ProfilePhoto | null)[]): number {
+  return slots.filter((p): p is ProfilePhoto => p != null).length;
+}
+
+function photoSlotsFromApi(
+  list: Array<{ id: string; url: string; displayOrder?: number }>
+): (ProfilePhoto | null)[] {
+  const slots = emptyPhotoSlots();
+  list.forEach((photo, i) => {
+    const byOrder =
+      typeof photo.displayOrder === 'number' &&
+      photo.displayOrder >= 0 &&
+      photo.displayOrder < PHOTO_SLOT_COUNT
+        ? photo.displayOrder
+        : slots.findIndex((s) => !s);
+    if (byOrder >= 0 && byOrder < PHOTO_SLOT_COUNT) {
+      slots[byOrder] = { id: photo.id, url: photo.url };
+    }
+  });
+  return slots;
+}
 
 export default function CreateProfileScreen() {
   const navigation = useNavigation();
   const route = useRoute();
+  const insets = useSafeAreaInsets();
   const routeParams = route.params as { startFromBeginning?: boolean; initialStep?: number } | undefined;
   const startFromBeginning = routeParams?.startFromBeginning === true;
   const initialStep = routeParams?.initialStep;
@@ -220,9 +251,12 @@ export default function CreateProfileScreen() {
   const [maxAgeCardY, setMaxAgeCardY] = useState<number | null>(null);
   const [preferredGendersCardY, setPreferredGendersCardY] = useState<number | null>(null);
 
-  // Photos (final step)
-  const [photos, setPhotos] = useState<Array<{ id?: string; url: string; uri?: string }>>([]);
+  // Photos (final step) — fixed slots so grid index matches upload slot
+  const [photos, setPhotos] = useState<(ProfilePhoto | null)[]>(() => emptyPhotoSlots());
   const [uploadingSlotIndex, setUploadingSlotIndex] = useState<number | null>(null);
+  /** Prevents async /photos/me fetch from wiping in-progress uploads on step 14 */
+  const photoSlotsTouchedRef = useRef(false);
+  const uploadedPhotoCount = countUploadedPhotos(photos);
 
   // Track keyboard visibility
   useEffect(() => {
@@ -549,16 +583,15 @@ export default function CreateProfileScreen() {
 
             console.log('✅ All profile data saved successfully');
 
-            // Load existing photos in parallel (non-blocking)
-            if (photos.length === 0) {
-              api.get('/photos/me').then((data) => {
-                if (data.photos && Array.isArray(data.photos)) {
-                  setPhotos(data.photos.map((photo: any) => ({
-                    id: photo.id,
-                    url: photo.url,
-                  })));
+            // Load existing photos (do not overwrite slots user is filling on this step)
+            if (!photoSlotsTouchedRef.current && countUploadedPhotos(photos) === 0) {
+              api.clearCache('/photos/me');
+              api.get<{ photos: Array<{ id: string; url: string; displayOrder?: number }> }>('/photos/me').then((data) => {
+                if (photoSlotsTouchedRef.current) return;
+                if (data.photos && Array.isArray(data.photos) && data.photos.length > 0) {
+                  setPhotos(photoSlotsFromApi(data.photos));
                 }
-              }).catch((err) => {
+              }).catch(() => {
                 console.log('No existing photos found');
               });
             }
@@ -1032,7 +1065,13 @@ export default function CreateProfileScreen() {
           // Add the uploaded photo to the photos array
           if (result.photos && result.photos.length > 0) {
             const newPhoto = result.photos[0];
-            setPhotos(prev => [...prev, { id: newPhoto.id, url: newPhoto.url, uri: uri }]);
+            photoSlotsTouchedRef.current = true;
+            setPhotos((prev) => {
+              const next = [...prev];
+              while (next.length < PHOTO_SLOT_COUNT) next.push(null);
+              next[slotIndex] = { id: newPhoto.id, url: newPhoto.url, uri };
+              return next;
+            });
           }
 
           // Invalidate photos cache so Profile tab shows new photos when user navigates there
@@ -1097,7 +1136,7 @@ export default function CreateProfileScreen() {
   const handlePickPhoto = async (slotIndex: number) => {
     try {
       // Check if we can upload more photos
-      if (photos.length >= 6) {
+      if (uploadedPhotoCount >= PHOTO_SLOT_COUNT) {
         Alert.alert('Limit reached', 'You can only upload up to 6 photos');
         return;
       }
@@ -1161,7 +1200,13 @@ export default function CreateProfileScreen() {
                 if (photo.id) {
                   await api.delete(`/photos/${photo.id}`);
                 }
-                setPhotos(prev => prev.filter((_, i) => i !== index));
+                photoSlotsTouchedRef.current = true;
+                setPhotos((prev) => {
+                  const next = [...prev];
+                  while (next.length < PHOTO_SLOT_COUNT) next.push(null);
+                  next[index] = null;
+                  return next;
+                });
                 api.clearCache('/photos/me');
                 return;
               } catch (error: any) {
@@ -1189,8 +1234,29 @@ export default function CreateProfileScreen() {
     setLoading(true);
     setError('');
 
-    if (photos.length < MIN_PHOTOS_REQUIRED) {
+    let readyCount = countUploadedPhotos(photos);
+    if (readyCount < MIN_PHOTOS_REQUIRED) {
+      try {
+        api.clearCache('/photos/me');
+        const data = await api.get<{ photos: Array<{ id: string; url: string; displayOrder?: number }> }>('/photos/me');
+        if (data.photos?.length >= MIN_PHOTOS_REQUIRED) {
+          const synced = photoSlotsFromApi(data.photos);
+          setPhotos(synced);
+          readyCount = countUploadedPhotos(synced);
+        }
+      } catch {
+        // fall through to validation error below
+      }
+    }
+
+    if (readyCount < MIN_PHOTOS_REQUIRED) {
       setError(`Please upload at least ${MIN_PHOTOS_REQUIRED} photos to complete your profile`);
+      setLoading(false);
+      return;
+    }
+
+    if (uploadingSlotIndex !== null) {
+      setError('Please wait for your photo upload to finish');
       setLoading(false);
       return;
     }
@@ -1946,8 +2012,9 @@ export default function CreateProfileScreen() {
   );
 
   const renderStep7 = () => {
-    const photoSlots = Array.from({ length: 6 }, (_, i) => i);
-    const canAddMore = photos.length < 6;
+    const photoSlots = Array.from({ length: PHOTO_SLOT_COUNT }, (_, i) => i);
+    const canAddMore = uploadedPhotoCount < PHOTO_SLOT_COUNT;
+    const photosReady = uploadedPhotoCount >= MIN_PHOTOS_REQUIRED;
 
     return (
       <View style={styles.stepContainer}>
@@ -1964,7 +2031,7 @@ export default function CreateProfileScreen() {
             Upload at least {MIN_PHOTOS_REQUIRED} photos (up to 6 total)
           </Text>
           <Text style={[styles.modernHeaderSubtitleCondensed, { marginTop: 8, fontSize: 14, opacity: 0.9 }]}>
-            {photos.length} / {MIN_PHOTOS_REQUIRED} minimum ({photos.length >= MIN_PHOTOS_REQUIRED ? '✓ Ready' : 'Need more'})
+            {uploadedPhotoCount} / {MIN_PHOTOS_REQUIRED} minimum ({photosReady ? '✓ Ready' : 'Need more'})
           </Text>
         </LinearGradient>
 
@@ -2005,14 +2072,14 @@ export default function CreateProfileScreen() {
                     <TouchableOpacity
                       style={[
                         styles.addPhotoButton,
-                        isRequired && photos.length < MIN_PHOTOS_REQUIRED && styles.addPhotoButtonRequired
+                        isRequired && !photosReady && styles.addPhotoButtonRequired
                       ]}
                       onPress={canAddMore ? () => handlePickPhoto(slotIndex) : undefined}
                       disabled={!canAddMore || uploadingSlotIndex !== null}
                     >
                       <LinearGradient
                         colors={
-                          isRequired && photos.length < MIN_PHOTOS_REQUIRED
+                          isRequired && !photosReady
                             ? ['#f5576c', '#f093fb']
                             : ['rgba(102, 126, 234, 0.3)', 'rgba(118, 75, 162, 0.3)']
                         }
@@ -2052,6 +2119,9 @@ export default function CreateProfileScreen() {
     );
   };
 
+  const completeProfileDisabled =
+    loading || uploadingSlotIndex !== null || uploadedPhotoCount < MIN_PHOTOS_REQUIRED;
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -2059,6 +2129,7 @@ export default function CreateProfileScreen() {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       enabled={true}
     >
+      <View style={styles.createProfileBody}>
       <LinearGradient
         colors={['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe']}
         start={{ x: 0, y: 0 }}
@@ -2140,7 +2211,9 @@ export default function CreateProfileScreen() {
       {step === 13 && renderStep13MaxDistance()}
       {step === 14 && renderStep7()}
 
-      <View style={styles.actions}>
+      </View>
+
+      <View style={[styles.actions, { paddingBottom: Math.max(insets.bottom, 12) }]}>
           {step > 1 ? (
             <TouchableOpacity 
               style={styles.modernBackButton} 
@@ -2179,11 +2252,12 @@ export default function CreateProfileScreen() {
             <TouchableOpacity
               style={styles.modernNextButton}
               onPress={handleSubmit}
-              disabled={loading || photos.length < MIN_PHOTOS_REQUIRED}
+              disabled={completeProfileDisabled}
               activeOpacity={0.8}
+              hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
             >
               <LinearGradient
-                colors={loading || photos.length < MIN_PHOTOS_REQUIRED 
+                colors={completeProfileDisabled
                   ? ['#ccc', '#bbb'] 
                   : ['#667eea', '#764ba2', '#f093fb']}
                 start={{ x: 0, y: 0 }}
@@ -2221,6 +2295,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8f9fa',
+  },
+  createProfileBody: {
+    flex: 1,
+    minHeight: 0,
   },
   header: {
     padding: 24,
@@ -3814,12 +3892,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: 12,
-    paddingTop: 4,
-    paddingBottom: Platform.OS === 'ios' ? 12 : 4, // Minimal padding at bottom
+    paddingTop: 8,
     backgroundColor: '#f8f9fa',
     borderTopWidth: 1,
     borderTopColor: '#e2e8f0',
     gap: 8,
+    flexShrink: 0,
   },
   backButton: {
     paddingVertical: 12,
@@ -3887,11 +3965,11 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   modernNextButtonGradient: {
-    paddingVertical: 8,
+    paddingVertical: 12,
     paddingHorizontal: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 36,
+    minHeight: 48,
   },
   modernNextButtonText: {
     color: '#fff',
