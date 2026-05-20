@@ -71,6 +71,29 @@ function emptyPhotoSlots(): (SlotPhoto | null)[] {
   return Array.from({ length: MAX_PHOTO_SLOTS }, () => null);
 }
 
+function countUploadedPhotos(slots: (SlotPhoto | null)[]): number {
+  return slots.filter((p): p is SlotPhoto => p != null).length;
+}
+
+function photoSlotsFromApi(
+  list: Array<{ id: string; url: string; displayOrder?: number }>
+): (SlotPhoto | null)[] {
+  const next = emptyPhotoSlots();
+  const sorted = [...list].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
+  sorted.forEach((ph, i) => {
+    const byOrder =
+      typeof ph.displayOrder === "number" &&
+      ph.displayOrder >= 0 &&
+      ph.displayOrder < MAX_PHOTO_SLOTS
+        ? ph.displayOrder
+        : next.findIndex((s) => !s);
+    if (byOrder >= 0 && byOrder < MAX_PHOTO_SLOTS) {
+      next[byOrder] = { id: ph.id, url: ph.url };
+    }
+  });
+  return next;
+}
+
 function getApiBase(): string {
   const API_URL = (import.meta.env as { VITE_API_URL?: string; VITE_NGROK_URL?: string }).VITE_API_URL
     || (import.meta.env as { VITE_NGROK_URL?: string }).VITE_NGROK_URL
@@ -175,7 +198,8 @@ export default function CreateProfile() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [profileReadyForPhotos, setProfileReadyForPhotos] = useState(false);
-  const profileSavedRef = useRef(false);
+  const [savingProfileDraft, setSavingProfileDraft] = useState(false);
+  const photoSlotsTouchedRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingSlotIndex, setPendingSlotIndex] = useState<number | null>(null);
   const [uploadingSlot, setUploadingSlot] = useState<number | null>(null);
@@ -196,7 +220,7 @@ export default function CreateProfile() {
 
   const [photoSlots, setPhotoSlots] = useState<(SlotPhoto | null)[]>(() => emptyPhotoSlots());
 
-  const photoCount = photoSlots.filter(Boolean).length;
+  const photoCount = countUploadedPhotos(photoSlots);
 
   const nameValid = displayName.trim().length >= 2;
   const locationValid = hasCityAndState(location);
@@ -301,15 +325,12 @@ export default function CreateProfile() {
 
   useEffect(() => {
     if (step < 11) {
-      profileSavedRef.current = false;
       setProfileReadyForPhotos(false);
     }
   }, [step]);
 
   useEffect(() => {
-    if (step !== 11 || profileSavedRef.current) return;
-    profileSavedRef.current = true;
-    setProfileReadyForPhotos(false);
+    if (step !== 11 || profileReadyForPhotos) return;
     setError("");
     let cancelled = false;
     (async () => {
@@ -317,38 +338,31 @@ export default function CreateProfile() {
         await saveProfileBeforePhotos();
         if (cancelled) return;
         setProfileReadyForPhotos(true);
+        if (photoSlotsTouchedRef.current) return;
         try {
+          api.clearCache("/photos/me");
           const me = await api.get<{ photos: Array<{ id: string; url: string; displayOrder: number }> }>("/photos/me");
-          const sorted = [...(me.photos || [])].sort((a, b) => a.displayOrder - b.displayOrder);
-          if (sorted.length > 0 && !cancelled) {
-            setPhotoSlots((prev) => {
-              if (prev.some(Boolean)) return prev;
-              const next = emptyPhotoSlots();
-              sorted.forEach((ph, i) => {
-                if (i < MAX_PHOTO_SLOTS) next[i] = { id: ph.id, url: ph.url };
-              });
-              return next;
-            });
+          if (me.photos?.length && !cancelled && !photoSlotsTouchedRef.current) {
+            setPhotoSlots(photoSlotsFromApi(me.photos));
           }
         } catch {
           /* no photos yet */
         }
       } catch (err) {
         if (cancelled) return;
-        profileSavedRef.current = false;
         const msg = err instanceof Error ? err.message : "Failed to save profile";
         const low = msg.toLowerCase();
         if (low.includes("authentication") || low.includes("401")) {
-          setError("Session issue while saving. Please try Continue again or log in.");
+          setError("Session issue while saving. Tap Complete Profile to try again or log in.");
         } else {
-          setError(msg);
+          setError(`${msg} Tap Complete Profile to retry.`);
         }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [step, saveProfileBeforePhotos]);
+  }, [step, profileReadyForPhotos, saveProfileBeforePhotos]);
 
   useEffect(() => {
     const load = async () => {
@@ -407,16 +421,10 @@ export default function CreateProfile() {
         }
 
         try {
+          api.clearCache("/photos/me");
           const me = await api.get<{ photos: Array<{ id: string; url: string; displayOrder: number }> }>("/photos/me");
-          const sorted = [...(me.photos || [])].sort((a, b) => a.displayOrder - b.displayOrder);
-          if (sorted.length > 0) {
-            setPhotoSlots(() => {
-              const next = emptyPhotoSlots();
-              sorted.forEach((ph, i) => {
-                if (i < MAX_PHOTO_SLOTS) next[i] = { id: ph.id, url: ph.url };
-              });
-              return next;
-            });
+          if (me.photos?.length && !photoSlotsTouchedRef.current) {
+            setPhotoSlots(photoSlotsFromApi(me.photos));
           }
         } catch {
           /* ignore */
@@ -519,6 +527,7 @@ export default function CreateProfile() {
     setUploadingSlot(slot);
     try {
       const uploaded = await uploadOnePhoto(file);
+      photoSlotsTouchedRef.current = true;
       setPhotoSlots((prev) => {
         const next = [...prev];
         next[slot] = uploaded;
@@ -537,6 +546,7 @@ export default function CreateProfile() {
     if (!window.confirm("Remove this photo?")) return;
     try {
       await api.delete(`/photos/${ph.id}`);
+      photoSlotsTouchedRef.current = true;
       setPhotoSlots((prev) => {
         const next = [...prev];
         next[slotIndex] = null;
@@ -549,16 +559,35 @@ export default function CreateProfile() {
 
   const handleCompleteProfile = async () => {
     setError("");
-    if (!profileReadyForPhotos) {
-      setError("Still saving your profile—please wait a moment.");
+    if (uploadingSlot !== null) {
+      setError("Please wait for your photo upload to finish");
       return;
     }
-    if (photoCount < MIN_PHOTOS_REQUIRED) {
-      setError(`Please upload at least ${MIN_PHOTOS_REQUIRED} photos to complete your profile`);
-      return;
-    }
+
     setLoading(true);
     try {
+      if (!profileReadyForPhotos) {
+        setSavingProfileDraft(true);
+        await saveProfileBeforePhotos();
+        setProfileReadyForPhotos(true);
+      }
+
+      let readyCount = countUploadedPhotos(photoSlots);
+      if (readyCount < MIN_PHOTOS_REQUIRED) {
+        api.clearCache("/photos/me");
+        const me = await api.get<{ photos: Array<{ id: string; url: string; displayOrder?: number }> }>("/photos/me");
+        if (me.photos?.length) {
+          const synced = photoSlotsFromApi(me.photos);
+          setPhotoSlots(synced);
+          readyCount = countUploadedPhotos(synced);
+        }
+      }
+
+      if (readyCount < MIN_PHOTOS_REQUIRED) {
+        setError(`Please upload at least ${MIN_PHOTOS_REQUIRED} photos to complete your profile`);
+        return;
+      }
+
       await api.post("/profile", {
         displayName,
         age: parseInt(age, 10),
@@ -584,9 +613,13 @@ export default function CreateProfile() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create profile");
     } finally {
+      setSavingProfileDraft(false);
       setLoading(false);
     }
   };
+
+  const completeProfileDisabled =
+    loading || savingProfileDraft || uploadingSlot !== null || photoCount < MIN_PHOTOS_REQUIRED;
 
   const minAgeOptions = Array.from({ length: 103 }, (_, i) => 18 + i);
   const maxAgeOptions = Array.from({ length: 121 - minAge }, (_, i) => minAge + i);
@@ -889,8 +922,11 @@ export default function CreateProfile() {
               <p className="create-profile-photos-count">
                 {photoCount} / {MIN_PHOTOS_REQUIRED} minimum ({photoCount >= MIN_PHOTOS_REQUIRED ? "✓ Ready" : "Need more"})
               </p>
-              {!profileReadyForPhotos ? (
+              {!profileReadyForPhotos && !savingProfileDraft ? (
                 <p className="create-profile-photos-saving">Saving your profile…</p>
+              ) : null}
+              {savingProfileDraft ? (
+                <p className="create-profile-photos-saving">Preparing to finish…</p>
               ) : null}
             </div>
             <input
@@ -980,10 +1016,10 @@ export default function CreateProfile() {
           <button
             type="button"
             className="create-profile-btn create-profile-btn--next"
-            disabled={loading || !profileReadyForPhotos || photoCount < MIN_PHOTOS_REQUIRED}
+            disabled={completeProfileDisabled}
             onClick={() => void handleCompleteProfile()}
           >
-            {loading ? "Saving…" : "Complete Profile →"}
+            {loading || savingProfileDraft ? "Saving…" : "Complete Profile →"}
           </button>
         )}
       </div>

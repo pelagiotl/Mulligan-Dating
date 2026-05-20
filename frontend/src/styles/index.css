@@ -2563,14 +2563,31 @@ img {
 }
 
 /* Create profile — mobile-aligned wizard (11 steps) */
+.main-content:has(.create-profile-wizard) {
+  padding: 0;
+  max-width: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.app-layout:has(.create-profile-wizard) {
+  min-height: 100dvh;
+}
+
+.app-layout:has(.create-profile-wizard) .app-footer-global {
+  display: none;
+}
+
 .create-profile-wizard {
   max-width: 480px;
   margin: 0 auto;
-  min-height: 100vh;
-  min-height: 100dvh;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
   display: flex;
   flex-direction: column;
-  padding-bottom: calc(var(--space-8) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 .create-profile-hero {
@@ -2670,8 +2687,10 @@ img {
 
 .create-profile-body {
   flex: 1;
+  min-height: 0;
   padding: 0 var(--space-4);
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .create-profile-focus {
@@ -3141,11 +3160,15 @@ img {
   justify-content: space-between;
   align-items: center;
   gap: var(--space-3);
+  flex-shrink: 0;
   padding: var(--space-4);
   padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
   margin-top: auto;
   border-top: 1px solid var(--border-light);
   background: var(--bg-primary);
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
 }
 
 .create-profile-btn {
