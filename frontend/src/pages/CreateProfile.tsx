@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { api } from "../utils/api";
+import { api, ApiError } from "../utils/api";
 import { useAuth } from "../context/AuthContext";
 import { hasCityAndState, handleLocationChange } from "../utils/locationUtils";
 import { getPhotoUrl } from "../utils/photoUrl";
@@ -48,8 +48,26 @@ function validateProfileWizardFields(
 }
 
 function apiErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof ApiError) {
+    if (err.status === 429) return "Too many requests. Please wait a moment and try again.";
+    if (err.status === 408) return err.message;
+    if (err.status === 401 || err.status === 403) return "Session expired. Please log in again.";
+    if (err.message.trim()) return err.message;
+  }
   if (err instanceof Error && err.message.trim()) return err.message;
   return fallback;
+}
+
+async function postProfileWithRetry(body: Record<string, unknown>): Promise<void> {
+  try {
+    await api.post("/profile", body);
+  } catch (err) {
+    const retryable =
+      err instanceof ApiError && (err.status >= 500 || err.status === 409 || err.status === 0);
+    if (!retryable) throw err;
+    await new Promise((r) => setTimeout(r, 450));
+    await api.post("/profile", body);
+  }
 }
 
 const INTEREST_OPTIONS = [
@@ -376,7 +394,7 @@ export default function CreateProfile() {
   );
 
   const saveProfileProgress = useCallback(
-    async (options: { requireLocation: boolean }) => {
+    async (options: { requireLocation: boolean; includePreferences?: boolean }) => {
       if (displayName.trim().length < 2) {
         throw new Error("Please enter at least 2 characters for your name");
       }
@@ -400,14 +418,20 @@ export default function CreateProfile() {
         lookingFor: null,
       };
 
-      if (profileSaveInFlightRef.current) {
-        await profileSaveInFlightRef.current;
-        return;
+      const includePreferences = options.includePreferences !== false;
+
+      const prior = profileSaveInFlightRef.current;
+      if (prior) {
+        try {
+          await prior;
+        } catch {
+          /* prior attempt failed — run a fresh save with latest form state */
+        }
       }
 
       const run = (async () => {
         try {
-          await api.post("/profile", profileBody);
+          await postProfileWithRetry(profileBody);
         } catch (err) {
           throw new Error(apiErrorMessage(err, "Failed to save profile"));
         }
@@ -420,16 +444,18 @@ export default function CreateProfile() {
             throw new Error(apiErrorMessage(err, "Failed to save interests"));
           }
         }
-        try {
-          await api.put("/profile/preferences", {
-            minAge,
-            maxAge: maxAge >= minAge && maxAge <= 120 ? maxAge : null,
-            preferredGenders: preferredGendersPayload(preferredGenders),
-            maxDistance,
-            relationshipType: null,
-          });
-        } catch (err) {
-          throw new Error(apiErrorMessage(err, "Failed to save match preferences"));
+        if (includePreferences) {
+          try {
+            await api.put("/profile/preferences", {
+              minAge,
+              maxAge: maxAge >= minAge && maxAge <= 120 ? maxAge : null,
+              preferredGenders: preferredGendersPayload(preferredGenders),
+              maxDistance: maxDistance != null ? Number(maxDistance) : null,
+              relationshipType: null,
+            });
+          } catch (err) {
+            throw new Error(apiErrorMessage(err, "Failed to save match preferences"));
+          }
         }
       })();
 
@@ -486,13 +512,10 @@ export default function CreateProfile() {
         }
       } catch (err) {
         if (cancelled) return;
-        const msg = err instanceof Error ? err.message : "Failed to save profile";
-        const low = msg.toLowerCase();
-        if (low.includes("authentication") || low.includes("401")) {
-          setError("Session issue while saving. Tap Complete Profile to try again or log in.");
-        } else {
-          setError(`${msg} Tap Complete Profile to retry.`);
+        if (__DEV__) {
+          console.warn("CreateProfile background save on photos step:", err);
         }
+        /* Don't block the wizard — Complete Profile will retry with a visible error if needed */
       }
     })();
     return () => {
@@ -705,7 +728,10 @@ export default function CreateProfile() {
           throw new Error(apiErrorMessage(err, "Failed to save your name"));
         }
       } else if (step >= 3) {
-        await saveProfileProgress({ requireLocation: step >= 5 });
+        await saveProfileProgress({
+          requireLocation: step >= 5,
+          includePreferences: step >= 4,
+        });
       }
       persistLocalDraft(nextStep);
       setStep(nextStep);
@@ -1246,18 +1272,38 @@ export default function CreateProfile() {
           aria-modal="true"
           aria-labelledby="profile-ready-title"
         >
+          <div className="create-profile-ready-orbs" aria-hidden>
+            <span className="create-profile-ready-orb create-profile-ready-orb--1" />
+            <span className="create-profile-ready-orb create-profile-ready-orb--2" />
+            <span className="create-profile-ready-orb create-profile-ready-orb--3" />
+          </div>
+          <div className="create-profile-ready-confetti" aria-hidden>
+            {["✨", "💫", "⭐", "🔥", "💖", "✨", "💫", "⭐", "🔥", "✨", "💫", "⭐"].map((emoji, i) => (
+              <span
+                key={i}
+                className="create-profile-ready-confetti-piece"
+                style={{ ["--confetti-i" as string]: i }}
+              >
+                {emoji}
+              </span>
+            ))}
+          </div>
           <div className="create-profile-ready-card">
-            <h2 id="profile-ready-title">Nice — you&apos;re in.</h2>
+            <span className="create-profile-ready-emoji" aria-hidden>
+              🎉
+            </span>
+            <h2 id="profile-ready-title" className="create-profile-ready-title">
+              Nice — you&apos;re in.
+            </h2>
             <p className="create-profile-ready-sub">
-              Your profile&apos;s live. When you&apos;re ready, we&apos;ll show you people you might actually click with —
-              low stakes, your pace.
+              Your profile&apos;s live. Time to meet people you might actually click with — low stakes, your pace.
             </p>
             <button
               type="button"
-              className="create-profile-btn create-profile-btn--next create-profile-ready-cta"
+              className="create-profile-ready-cta"
               onClick={() => navigate("/browse", { replace: true })}
             >
-              Let&apos;s go →
+              <span className="create-profile-ready-cta-label">Let&apos;s go →</span>
             </button>
           </div>
         </div>
