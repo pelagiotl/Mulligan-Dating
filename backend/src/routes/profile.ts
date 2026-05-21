@@ -79,6 +79,10 @@ profileRouter.post('/', authenticateToken, rateLimitAPI, async (req: AuthRequest
       photoUrl: profileData.photoUrl || null, // URL validation already done by Zod
       lookingFor: profileData.lookingFor ? sanitizeText(profileData.lookingFor, 500) : null
     };
+
+    if (sanitizedData.displayName.trim().length < 2) {
+      return res.status(400).json({ error: 'Name must be at least 2 characters' });
+    }
     
     const runProfileUpdate = async (profileId: string) => {
       const updateStmt = db.prepare(`

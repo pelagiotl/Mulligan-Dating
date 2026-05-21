@@ -1,6 +1,16 @@
+/** Normalize iOS/autofill punctuation so server location validation matches the client. */
+export function normalizeLocationInput(location: string): string {
+  return location
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\uFF0C\u201A\u201E]/g, ",")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 /** Returns true if trimmed value has at least one comma with non-empty city and state. */
 export function hasCityAndState(location: string): boolean {
-  const t = location.trim();
+  const t = normalizeLocationInput(location);
   const commaIdx = t.indexOf(",");
   if (commaIdx === -1) return false;
   const city = t.slice(0, commaIdx).trim();

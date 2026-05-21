@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, type ReactNode } from "react"
 import { useNavigate } from "react-router-dom";
 import { api, ApiError } from "../utils/api";
 import { useAuth } from "../context/AuthContext";
-import { hasCityAndState, handleLocationChange } from "../utils/locationUtils";
+import { hasCityAndState, handleLocationChange, normalizeLocationInput } from "../utils/locationUtils";
 import { getPhotoUrl } from "../utils/photoUrl";
 import {
   clearWebCreateProfileDraft,
@@ -41,7 +41,8 @@ function validateProfileWizardFields(
   if (!gender?.trim()) {
     return "Please select your gender";
   }
-  if (!location?.trim() || !hasCityAndState(location)) {
+  const loc = normalizeLocationInput(location);
+  if (!loc || !hasCityAndState(loc)) {
     return "Please enter both city and state (e.g. Medford, Oregon)";
   }
   return null;
@@ -59,15 +60,20 @@ function apiErrorMessage(err: unknown, fallback: string): string {
 }
 
 async function postProfileWithRetry(body: Record<string, unknown>): Promise<void> {
-  try {
-    await api.post("/profile", body);
-  } catch (err) {
-    const retryable =
-      err instanceof ApiError && (err.status >= 500 || err.status === 409 || err.status === 0);
-    if (!retryable) throw err;
-    await new Promise((r) => setTimeout(r, 450));
-    await api.post("/profile", body);
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await api.post("/profile", body);
+      return;
+    } catch (err) {
+      lastErr = err;
+      const retryable =
+        err instanceof ApiError && (err.status >= 500 || err.status === 409 || err.status === 0);
+      if (!retryable || attempt === 2) throw err;
+      await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+    }
   }
+  throw lastErr;
 }
 
 const INTEREST_OPTIONS = [
@@ -251,7 +257,9 @@ export default function CreateProfile() {
   const [profileReadyForPhotos, setProfileReadyForPhotos] = useState(false);
   const [savingProfileDraft, setSavingProfileDraft] = useState(false);
   const [savingProgress, setSavingProgress] = useState(false);
-  const profileSaveInFlightRef = useRef<Promise<void> | null>(null);
+  /** Serializes profile saves (prevents concurrent POST /profile races on iOS). */
+  const profileSaveChainRef = useRef<Promise<void>>(Promise.resolve());
+  const profileSaveSnapshotRef = useRef<string | null>(null);
   const photoSlotsTouchedRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingSlotIndex, setPendingSlotIndex] = useState<number | null>(null);
@@ -375,6 +383,33 @@ export default function CreateProfile() {
     ]
   );
 
+  const buildProfileSaveSnapshot = useCallback(() => {
+    const loc = normalizeLocationInput(location);
+    return JSON.stringify({
+      displayName: displayName.trim(),
+      age: age.trim(),
+      gender: gender.trim(),
+      location: loc,
+      bio: bio.trim(),
+      interests: [...interests].sort(),
+      preferredGenders: [...preferredGenders].sort(),
+      minAge,
+      maxAge,
+      maxDistance,
+    });
+  }, [
+    displayName,
+    age,
+    gender,
+    location,
+    bio,
+    interests,
+    preferredGenders,
+    minAge,
+    maxAge,
+    maxDistance,
+  ]);
+
   const syncPhotosFromServer = useCallback(
     async (options?: { force?: boolean }) => {
       try {
@@ -405,7 +440,8 @@ export default function CreateProfile() {
       if (!gender?.trim()) {
         throw new Error("Please select your gender");
       }
-      if (options.requireLocation && !hasCityAndState(location)) {
+      const normalizedLocation = normalizeLocationInput(location);
+      if (options.requireLocation && !hasCityAndState(normalizedLocation)) {
         throw new Error("Please enter both city and state (e.g. Medford, Oregon)");
       }
 
@@ -413,23 +449,16 @@ export default function CreateProfile() {
         displayName: displayName.trim(),
         age: ageNum,
         gender: gender.trim(),
-        location: hasCityAndState(location) ? location.trim() : null,
+        location: hasCityAndState(normalizedLocation) ? normalizedLocation : null,
         bio: bio?.trim() || null,
         lookingFor: null,
       };
 
       const includePreferences = options.includePreferences !== false;
+      const maxDist =
+        maxDistance != null && !Number.isNaN(Number(maxDistance)) ? Number(maxDistance) : null;
 
-      const prior = profileSaveInFlightRef.current;
-      if (prior) {
-        try {
-          await prior;
-        } catch {
-          /* prior attempt failed — run a fresh save with latest form state */
-        }
-      }
-
-      const run = (async () => {
+      const executeSave = async () => {
         try {
           await postProfileWithRetry(profileBody);
         } catch (err) {
@@ -447,26 +476,22 @@ export default function CreateProfile() {
         if (includePreferences) {
           try {
             await api.put("/profile/preferences", {
-              minAge,
-              maxAge: maxAge >= minAge && maxAge <= 120 ? maxAge : null,
+              minAge: Number(minAge),
+              maxAge: maxAge >= minAge && maxAge <= 120 ? Number(maxAge) : null,
               preferredGenders: preferredGendersPayload(preferredGenders),
-              maxDistance: maxDistance != null ? Number(maxDistance) : null,
+              maxDistance: maxDist != null && maxDist >= 1 ? maxDist : null,
               relationshipType: null,
             });
           } catch (err) {
             throw new Error(apiErrorMessage(err, "Failed to save match preferences"));
           }
         }
-      })();
+        profileSaveSnapshotRef.current = buildProfileSaveSnapshot();
+      };
 
-      profileSaveInFlightRef.current = run;
-      try {
-        await run;
-      } finally {
-        if (profileSaveInFlightRef.current === run) {
-          profileSaveInFlightRef.current = null;
-        }
-      }
+      const chained = profileSaveChainRef.current.then(executeSave, executeSave);
+      profileSaveChainRef.current = chained.catch(() => {});
+      await chained;
     },
     [
       displayName,
@@ -479,6 +504,7 @@ export default function CreateProfile() {
       maxAge,
       preferredGenders,
       maxDistance,
+      buildProfileSaveSnapshot,
     ]
   );
 
@@ -515,7 +541,6 @@ export default function CreateProfile() {
         if (__DEV__) {
           console.warn("CreateProfile background save on photos step:", err);
         }
-        /* Don't block the wizard — Complete Profile will retry with a visible error if needed */
       }
     })();
     return () => {
@@ -814,8 +839,13 @@ export default function CreateProfile() {
     setLoading(true);
     try {
       setSavingProfileDraft(true);
-      await saveProfileBeforePhotos();
-      setProfileReadyForPhotos(true);
+      const snap = buildProfileSaveSnapshot();
+      const alreadySaved =
+        profileReadyForPhotos && profileSaveSnapshotRef.current === snap;
+      if (!alreadySaved) {
+        await saveProfileBeforePhotos();
+        setProfileReadyForPhotos(true);
+      }
 
       let readyCount = countUploadedPhotos(photoSlots);
       if (readyCount < MIN_PHOTOS_REQUIRED) {
@@ -842,6 +872,14 @@ export default function CreateProfile() {
         setError("Session expired. Please log in again and finish your profile.");
       } else if (low.includes("too many requests") || low.includes("429")) {
         setError("Too many attempts. Wait a moment, then tap Complete Profile again.");
+      } else if (low.includes("interests")) {
+        setError(`${msg} Your profile may be partially saved — tap Complete Profile again.`);
+      } else if (low.includes("preferences") || low.includes("match preferences")) {
+        setError(`${msg} Tap Complete Profile again to retry.`);
+      } else if (low.includes("failed to save profile")) {
+        setError(
+          "We couldn't save your profile to the server. Check your connection and tap Complete Profile again."
+        );
       } else {
         setError(msg);
       }
