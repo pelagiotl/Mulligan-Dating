@@ -31,15 +31,36 @@ function rowLocation(row: unknown): string {
   return String(v);
 }
 
+export type ConnectSetupGap = "name" | "location" | "photos";
+
+export function getConnectSetupGaps(profileRow: unknown, photoCount: number): ConnectSetupGap[] {
+  const gaps: ConnectSetupGap[] = [];
+  if (!profileRow || typeof profileRow !== "object") {
+    return ["name", "location", "photos"];
+  }
+  if (!hasConnectDisplayName(rowDisplayName(profileRow))) gaps.push("name");
+  if (!isValidConnectLocation(rowLocation(profileRow))) gaps.push("location");
+  if (photoCount < MIN_PHOTOS_TO_CONNECT) gaps.push("photos");
+  return gaps;
+}
+
+export function formatConnectSetupGapMessage(gaps: ConnectSetupGap[]): string {
+  if (gaps.length === 0) {
+    return "Profile not ready yet. Tap Complete Profile again.";
+  }
+  const parts: string[] = [];
+  if (gaps.includes("name")) parts.push("your name (at least 2 characters)");
+  if (gaps.includes("location")) {
+    parts.push("city and state on your profile (e.g. Medford, Oregon)");
+  }
+  if (gaps.includes("photos")) {
+    parts.push(`at least ${MIN_PHOTOS_TO_CONNECT} photos saved on the server`);
+  }
+  return `Still missing on the server: ${parts.join(", ")}. Check your connection and try again.`;
+}
+
 export function computeConnectSetupComplete(profileRow: unknown, photoCount: number): boolean {
-  if (!profileRow || typeof profileRow !== "object") return false;
-  const name = rowDisplayName(profileRow);
-  const loc = rowLocation(profileRow);
-  return (
-    hasConnectDisplayName(name) &&
-    isValidConnectLocation(loc) &&
-    photoCount >= MIN_PHOTOS_TO_CONNECT
-  );
+  return getConnectSetupGaps(profileRow, photoCount).length === 0;
 }
 
 /** Connect rules met and create-profile wizard finished (no in-progress draft). */

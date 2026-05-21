@@ -4,7 +4,11 @@ import { api, ApiError } from "../utils/api";
 import { useAuth } from "../context/AuthContext";
 import { hasCityAndState, handleLocationChange, normalizeLocationInput } from "../utils/locationUtils";
 import { getPhotoUrl } from "../utils/photoUrl";
-import { computeConnectSetupComplete } from "../utils/connectProfileEligibility";
+import {
+  formatConnectSetupGapMessage,
+  getConnectSetupGaps,
+  type ConnectSetupGap,
+} from "../utils/connectProfileEligibility";
 import {
   clearWebCreateProfileDraft,
   computeWebCreateProfileResumeStep,
@@ -514,16 +518,20 @@ export default function CreateProfile() {
   }, [saveProfileProgress]);
 
   /** Same bar as Connect: name, city+state location, and ≥3 photos (not interests). */
-  const verifyConnectReadyOnServer = useCallback(async (): Promise<boolean> => {
+  const readConnectReadyOnServer = useCallback(async (): Promise<{
+    ready: boolean;
+    gaps: ConnectSetupGap[];
+  }> => {
     try {
       const [profileRes, photoRes] = await Promise.all([
         api.get<{ profile: unknown }>("/profile"),
         api.get<{ photos?: unknown[] }>(`/photos/me?_=${Date.now()}`),
       ]);
       const photoCount = Array.isArray(photoRes.photos) ? photoRes.photos.length : 0;
-      return computeConnectSetupComplete(profileRes.profile, photoCount);
+      const gaps = getConnectSetupGaps(profileRes.profile, photoCount);
+      return { ready: gaps.length === 0, gaps };
     } catch {
-      return false;
+      return { ready: false, gaps: ["name", "location", "photos"] };
     }
   }, []);
 
@@ -934,30 +942,39 @@ export default function CreateProfile() {
     try {
       setSavingProfileDraft(true);
 
-      let readyCount = countUploadedPhotos(photoSlots);
-      if (readyCount < MIN_PHOTOS_REQUIRED) {
-        const syncedCount = await syncPhotosFromServer({ force: true });
-        if (syncedCount > 0) {
-          readyCount = syncedCount;
-        }
-      }
+      // Reconcile with server so local draft slots cannot mask missing uploads (common on iOS Safari).
+      const syncedCount = await syncPhotosFromServer({ force: true });
+      const readyCount =
+        syncedCount > 0 ? syncedCount : countUploadedPhotos(photoSlots);
 
       if (readyCount < MIN_PHOTOS_REQUIRED) {
         setError(
-          `Please upload at least ${MIN_PHOTOS_REQUIRED} photos to complete your profile`
+          `Please upload at least ${MIN_PHOTOS_REQUIRED} photos. They must finish saving on the server before you can complete your profile.`
         );
         return;
       }
 
-      let serverReady = await verifyConnectReadyOnServer();
+      let { ready: serverReady, gaps } = await readConnectReadyOnServer();
       if (!serverReady) {
         try {
           await saveProfileForComplete();
         } catch (saveErr) {
-          serverReady = await verifyConnectReadyOnServer();
-          if (!serverReady) throw saveErr;
+          const retry = await readConnectReadyOnServer();
+          if (!retry.ready) throw saveErr;
+          serverReady = true;
+          gaps = [];
+        }
+        if (!serverReady) {
+          const afterSave = await readConnectReadyOnServer();
+          serverReady = afterSave.ready;
+          gaps = afterSave.gaps;
         }
       }
+
+      if (!serverReady) {
+        throw new Error(formatConnectSetupGapMessage(gaps));
+      }
+
       setProfileReadyForPhotos(true);
       profileSaveSnapshotRef.current = buildProfileSaveSnapshot();
 
@@ -975,9 +992,11 @@ export default function CreateProfile() {
         setError(`${msg} Your profile may be partially saved — tap Complete Profile again.`);
       } else if (low.includes("preferences") || low.includes("match preferences")) {
         setError(`${msg} Tap Complete Profile again to retry.`);
+      } else if (low.includes("still missing on the server")) {
+        setError(msg);
       } else if (low.includes("failed to save profile")) {
         setError(
-          "Your profile is filled out, but we couldn't confirm it on the server. Check your connection and tap Complete Profile again."
+          "Your profile is filled out, but we couldn't save it on the server. Check your connection and tap Complete Profile again."
         );
       } else {
         setError(msg);
