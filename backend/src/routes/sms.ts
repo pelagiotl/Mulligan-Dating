@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { sendVerificationCode, formatPhoneNumber, isValidPhoneNumber, isTwilioVerifyConfigured, sendVerificationCodeViaVerify, verifyCodeViaVerify } from '../services/sms.js';
 import { sendVerificationCodeSNS, formatPhoneNumber as formatPhoneNumberSNS, isValidPhoneNumber as isValidPhoneNumberSNS, isSNSConfigured } from '../services/aws-sns.js';
 import { rateLimitAuth } from '../middleware/security.js';
+import { ensureStubProfile } from '../utils/ensureStubProfile.js';
 
 export const smsRouter = Router();
 
@@ -155,9 +156,12 @@ async function completePhoneLogin(
 
   const { generateToken } = await import('../middleware/auth.js');
   const token = generateToken(userId);
-  const profileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
-  const profileResult = profileStmt.get(userId);
-  const profile = (profileResult instanceof Promise ? await profileResult : profileResult) as { id: string } | null;
+  await ensureStubProfile(userId);
+  const profileStmtAfter = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
+  const profileAfterResult = profileStmtAfter.get(userId);
+  const profileAfter = (profileAfterResult instanceof Promise
+    ? await profileAfterResult
+    : profileAfterResult) as { id: string } | null;
 
   await ensureTestAutoMatchesForPhone(formattedPhone);
 
@@ -165,7 +169,7 @@ async function completePhoneLogin(
     message: existingUser ? 'Login successful' : 'Account created successfully',
     token,
     userId,
-    hasProfile: !!profile,
+    hasProfile: !!profileAfter,
     isNewUser,
   };
 }
@@ -418,6 +422,7 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
       }
       const { generateToken } = await import('../middleware/auth.js');
       const token = generateToken(userId);
+      await ensureStubProfile(userId);
       const profileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
       const profile = await (profileStmt.get(userId) as Promise<{ id: string } | null>);
       const hasProfile = !!profile;
@@ -497,7 +502,7 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
       const { generateToken } = await import('../middleware/auth.js');
       const token = generateToken(userId);
 
-      // Check if profile exists
+      await ensureStubProfile(userId);
       const profileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
       const profile = await (profileStmt.get(userId) as Promise<{ id: string } | null>);
       const hasProfile = !!profile;
@@ -592,7 +597,7 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
     const { generateToken } = await import('../middleware/auth.js');
     const token = generateToken(userId);
 
-    // Check if profile exists
+    await ensureStubProfile(userId);
     const profileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
     const profile = await (profileStmt.get(userId) as Promise<{ id: string } | null>);
     const hasProfile = !!profile;

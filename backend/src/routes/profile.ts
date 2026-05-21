@@ -7,6 +7,7 @@ import { authenticateToken, AuthRequest } from '../middleware/auth.js';
 import { sanitizeText } from '../middleware/security.js';
 import { rateLimitAPI } from '../middleware/security.js';
 import { notifyPartnersProfileChanged } from '../services/partnerProfileBroadcast.js';
+import { isUniqueViolation } from '../utils/ensureStubProfile.js';
 
 export const profileRouter = Router();
 
@@ -79,12 +80,7 @@ profileRouter.post('/', authenticateToken, rateLimitAPI, async (req: AuthRequest
       lookingFor: profileData.lookingFor ? sanitizeText(profileData.lookingFor, 500) : null
     };
     
-    // Check if profile exists
-    const existingProfileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
-    const existingProfile = await (existingProfileStmt.get([userId]) as Promise<{ id: string } | undefined>);
-    
-    if (existingProfile) {
-      // Update existing profile
+    const runProfileUpdate = async (profileId: string) => {
       const updateStmt = db.prepare(`
         UPDATE profiles SET 
           display_name = ?, age = ?, gender = ?, location = ?, 
@@ -101,12 +97,22 @@ profileRouter.post('/', authenticateToken, rateLimitAPI, async (req: AuthRequest
         sanitizedData.lookingFor,
         userId
       ]) as Promise<any>);
-      
       notifyPartnersProfileChanged(userId);
+      return profileId;
+    };
+
+    const existingProfileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
+    let existingProfile = await (existingProfileStmt.get([userId]) as Promise<{ id: string } | undefined>);
+
+    if (existingProfile) {
+      await runProfileUpdate(existingProfile.id);
       res.json({ message: 'Profile updated', profileId: existingProfile.id });
-    } else {
-      // Create new profile
-      const profileId = uuidv4();
+      return;
+    }
+
+    // Create new profile (race-safe: concurrent saves may hit UNIQUE on user_id)
+    const profileId = uuidv4();
+    try {
       const insertStmt = db.prepare(`
         INSERT INTO profiles (id, user_id, display_name, age, gender, location, bio, photo_url, looking_for)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -123,22 +129,33 @@ profileRouter.post('/', authenticateToken, rateLimitAPI, async (req: AuthRequest
         sanitizedData.lookingFor
       ]) as Promise<any>);
 
-      // Create default preferences
       const prefId = uuidv4();
-      const prefStmt = db.prepare(`
-        INSERT INTO preferences (id, profile_id) VALUES (?, ?)
-      `);
-      await (prefStmt.run([prefId, profileId]) as Promise<any>);
-      
+      const prefStmt = db.prepare(`INSERT INTO preferences (id, profile_id) VALUES (?, ?)`);
+      try {
+        await (prefStmt.run([prefId, profileId]) as Promise<any>);
+      } catch (prefErr: unknown) {
+        if (!isUniqueViolation(prefErr)) throw prefErr;
+      }
+
       notifyPartnersProfileChanged(userId);
       res.status(201).json({ message: 'Profile created', profileId });
+    } catch (insertErr: unknown) {
+      if (!isUniqueViolation(insertErr)) throw insertErr;
+      existingProfile = await (existingProfileStmt.get([userId]) as Promise<{ id: string } | undefined>);
+      if (!existingProfile) throw insertErr;
+      await runProfileUpdate(existingProfile.id);
+      res.json({ message: 'Profile updated', profileId: existingProfile.id });
     }
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors[0].message });
     }
     console.error('Profile error:', error);
-    res.status(500).json({ error: 'Failed to save profile' });
+    const detail = error instanceof Error ? error.message : String(error);
+    res.status(500).json({
+      error: 'Failed to save profile',
+      ...(process.env.NODE_ENV !== 'production' ? { details: detail } : {}),
+    });
   }
 });
 

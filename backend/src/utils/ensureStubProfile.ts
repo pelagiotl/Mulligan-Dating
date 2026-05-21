@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { db } from '../database.js';
 
-function isUniqueViolation(err: unknown): boolean {
+export function isUniqueViolation(err: unknown): boolean {
   const e = err as { code?: string };
   return e?.code === 'SQLITE_CONSTRAINT_UNIQUE' || e?.code === '23505';
 }

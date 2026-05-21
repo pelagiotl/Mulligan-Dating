@@ -19,6 +19,33 @@ function preferredGendersPayload(g: string[]): string[] | null {
   return only.length > 0 ? only : null;
 }
 
+function validateProfileWizardFields(
+  displayName: string,
+  age: string,
+  gender: string,
+  location: string
+): string | null {
+  if (displayName.trim().length < 2) {
+    return "Please enter at least 2 characters for your name";
+  }
+  const ageNum = parseInt(age, 10);
+  if (!age?.trim() || Number.isNaN(ageNum) || ageNum < 18 || ageNum > 120) {
+    return "Please enter a valid age (18–120)";
+  }
+  if (!gender?.trim()) {
+    return "Please select your gender";
+  }
+  if (!location?.trim() || !hasCityAndState(location)) {
+    return "Please enter both city and state (e.g. Medford, Oregon)";
+  }
+  return null;
+}
+
+function apiErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof Error && err.message.trim()) return err.message;
+  return fallback;
+}
+
 const INTEREST_OPTIONS = [
   "Travel", "Music", "Sports", "Cooking", "Reading", "Movies", "Fitness", "Art",
   "Photography", "Dancing", "Gaming", "Fortnite", "Hiking", "Yoga", "Writing", "Technology",
@@ -199,6 +226,7 @@ export default function CreateProfile() {
   const [error, setError] = useState("");
   const [profileReadyForPhotos, setProfileReadyForPhotos] = useState(false);
   const [savingProfileDraft, setSavingProfileDraft] = useState(false);
+  const profileSaveInFlightRef = useRef<Promise<void> | null>(null);
   const photoSlotsTouchedRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingSlotIndex, setPendingSlotIndex] = useState<number | null>(null);
@@ -289,27 +317,62 @@ export default function CreateProfile() {
   };
 
   const saveProfileBeforePhotos = useCallback(async () => {
-    await api.post("/profile", {
-      displayName,
-      age: parseInt(age, 10),
-      gender,
-      location,
-      bio,
-      lookingFor: null,
-    });
-    await new Promise((r) => setTimeout(r, 200));
-    if (interests.length > 0) {
-      await api.put("/profile/interests", {
-        interests: interests.map((name) => ({ name })),
-      });
+    const validationError = validateProfileWizardFields(displayName, age, gender, location);
+    if (validationError) {
+      throw new Error(validationError);
     }
-    await api.put("/profile/preferences", {
-      minAge,
-      maxAge: maxAge >= minAge && maxAge <= 120 ? maxAge : null,
-      preferredGenders: preferredGendersPayload(preferredGenders),
-      maxDistance,
-      relationshipType: null,
-    });
+
+    const ageNum = parseInt(age, 10);
+    const profileBody = {
+      displayName: displayName.trim(),
+      age: ageNum,
+      gender: gender.trim(),
+      location: location.trim(),
+      bio: bio?.trim() || null,
+      lookingFor: null,
+    };
+
+    if (profileSaveInFlightRef.current) {
+      await profileSaveInFlightRef.current;
+      return;
+    }
+
+    const run = (async () => {
+      try {
+        await api.post("/profile", profileBody);
+      } catch (err) {
+        throw new Error(apiErrorMessage(err, "Failed to save profile"));
+      }
+      if (interests.length > 0) {
+        try {
+          await api.put("/profile/interests", {
+            interests: interests.map((name) => ({ name })),
+          });
+        } catch (err) {
+          throw new Error(apiErrorMessage(err, "Failed to save interests"));
+        }
+      }
+      try {
+        await api.put("/profile/preferences", {
+          minAge,
+          maxAge: maxAge >= minAge && maxAge <= 120 ? maxAge : null,
+          preferredGenders: preferredGendersPayload(preferredGenders),
+          maxDistance,
+          relationshipType: null,
+        });
+      } catch (err) {
+        throw new Error(apiErrorMessage(err, "Failed to save match preferences"));
+      }
+    })();
+
+    profileSaveInFlightRef.current = run;
+    try {
+      await run;
+    } finally {
+      if (profileSaveInFlightRef.current === run) {
+        profileSaveInFlightRef.current = null;
+      }
+    }
   }, [
     displayName,
     age,
@@ -564,13 +627,17 @@ export default function CreateProfile() {
       return;
     }
 
+    const validationError = validateProfileWizardFields(displayName, age, gender, location);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
     setLoading(true);
     try {
-      if (!profileReadyForPhotos) {
-        setSavingProfileDraft(true);
-        await saveProfileBeforePhotos();
-        setProfileReadyForPhotos(true);
-      }
+      setSavingProfileDraft(true);
+      await saveProfileBeforePhotos();
+      setProfileReadyForPhotos(true);
 
       let readyCount = countUploadedPhotos(photoSlots);
       if (readyCount < MIN_PHOTOS_REQUIRED) {
@@ -590,30 +657,18 @@ export default function CreateProfile() {
         return;
       }
 
-      await api.post("/profile", {
-        displayName,
-        age: parseInt(age, 10),
-        gender,
-        location,
-        bio,
-        lookingFor: null,
-      });
-      if (interests.length > 0) {
-        await api.put("/profile/interests", {
-          interests: interests.map((name) => ({ name })),
-        });
-      }
-      await api.put("/profile/preferences", {
-        minAge,
-        maxAge: maxAge >= minAge && maxAge <= 120 ? maxAge : null,
-        preferredGenders: preferredGendersPayload(preferredGenders),
-        maxDistance,
-        relationshipType: null,
-      });
       await refreshProfile();
       setShowProfileReadySplash(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create profile");
+      const msg = apiErrorMessage(err, "Failed to create profile");
+      const low = msg.toLowerCase();
+      if (low.includes("authentication") || low.includes("401") || low.includes("403")) {
+        setError("Session expired. Please log in again and finish your profile.");
+      } else if (low.includes("too many requests") || low.includes("429")) {
+        setError("Too many attempts. Wait a moment, then tap Complete Profile again.");
+      } else {
+        setError(msg);
+      }
     } finally {
       setSavingProfileDraft(false);
       setLoading(false);
