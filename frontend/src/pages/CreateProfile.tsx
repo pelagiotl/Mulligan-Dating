@@ -421,11 +421,13 @@ export default function CreateProfile() {
         const me = await api.get<{ photos: Array<{ id: string; url: string; displayOrder?: number }> }>(
           `/photos/me?_=${Date.now()}`
         );
-        if (!me.photos?.length) return 0;
+        const serverPhotos = me.photos ?? [];
         if (options?.force || !photoSlotsTouchedRef.current) {
-          setPhotoSlots(photoSlotsFromApi(me.photos));
+          setPhotoSlots(
+            serverPhotos.length > 0 ? photoSlotsFromApi(serverPhotos) : emptyPhotoSlots()
+          );
         }
-        return me.photos.length;
+        return serverPhotos.length;
       } catch {
         return countUploadedPhotos(photoSlots);
       }
@@ -743,15 +745,11 @@ export default function CreateProfile() {
         /* no photos on server yet */
       }
 
-      if (photoCount === 0 && draft?.photoSlots?.length) {
-        const fromDraft = emptyPhotoSlots();
-        draft.photoSlots.forEach((p, i) => {
-          if (p && i < MAX_PHOTO_SLOTS) fromDraft[i] = { id: p.id, url: p.url };
-        });
-        if (countUploadedPhotos(fromDraft) > 0) {
-          setPhotoSlots(fromDraft);
-          photoCount = countUploadedPhotos(fromDraft);
-        }
+      // Do not restore photo slots from localStorage when the server has none — avoids
+      // showing deleted-account photos after re-signup on the same iPhone browser.
+      if (photoCount === 0 && draft?.photoSlots?.some(Boolean)) {
+        const { photoSlots: _stale, ...draftWithoutPhotos } = draft;
+        writeWebCreateProfileDraft({ ...draftWithoutPhotos, photoSlots: emptyPhotoSlots().map(() => null) });
       }
 
       setDisplayName(dn);
@@ -944,10 +942,8 @@ export default function CreateProfile() {
 
       // Reconcile with server so local draft slots cannot mask missing uploads (common on iOS Safari).
       const syncedCount = await syncPhotosFromServer({ force: true });
-      const readyCount =
-        syncedCount > 0 ? syncedCount : countUploadedPhotos(photoSlots);
 
-      if (readyCount < MIN_PHOTOS_REQUIRED) {
+      if (syncedCount < MIN_PHOTOS_REQUIRED) {
         setError(
           `Please upload at least ${MIN_PHOTOS_REQUIRED} photos. They must finish saving on the server before you can complete your profile.`
         );
@@ -995,8 +991,11 @@ export default function CreateProfile() {
       } else if (low.includes("still missing on the server")) {
         setError(msg);
       } else if (low.includes("failed to save profile")) {
+        const hasDetail = msg.length > 40 && !msg.toLowerCase().startsWith("failed to save profile");
         setError(
-          "Your profile is filled out, but we couldn't save it on the server. Check your connection and tap Complete Profile again."
+          hasDetail
+            ? msg
+            : "Your profile is filled out, but we couldn't save it on the server. Check your connection and tap Complete Profile again."
         );
       } else {
         setError(msg);

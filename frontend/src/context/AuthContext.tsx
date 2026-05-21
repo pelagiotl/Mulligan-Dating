@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, useRef, ReactNode, useM
 import { api } from '../utils/api'
 import { browserSupportsWebPush, getVapidPublicKey, registerWebPush } from '../lib/webPush'
 import { computeAppConnectReady } from '../utils/connectProfileEligibility'
-import { hasWebCreateProfileDraft } from '../utils/createProfileProgress'
+import { clearWebCreateProfileDraft, hasWebCreateProfileDraft } from '../utils/createProfileProgress'
 import { clearAgeGateAccepted } from '../lib/ageGate'
 
 /** Same as mobile `MainTabs`: owner line always sees admin UI (API `requireAdmin` already matches this number). */
@@ -281,6 +281,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     // Store token
     localStorage.setItem('token', data.token)
+
+    // New phone signup must not reuse wizard draft/photos from a deleted prior account on this device.
+    if (data.isNewUser) {
+      clearWebCreateProfileDraft()
+    }
     
     const { connectSetupComplete: ready } = await fetchUser()
     return { connectSetupComplete: ready }
@@ -295,6 +300,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     // Clear token and state
     localStorage.removeItem('token')
+    clearWebCreateProfileDraft()
     clearAgeGateAccepted()
     setUser(null)
     setProfile(null)
