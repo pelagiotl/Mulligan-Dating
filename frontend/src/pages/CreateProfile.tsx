@@ -4,6 +4,7 @@ import { api, ApiError } from "../utils/api";
 import { useAuth } from "../context/AuthContext";
 import { hasCityAndState, handleLocationChange, normalizeLocationInput } from "../utils/locationUtils";
 import { getPhotoUrl } from "../utils/photoUrl";
+import { computeConnectSetupComplete } from "../utils/connectProfileEligibility";
 import {
   clearWebCreateProfileDraft,
   computeWebCreateProfileResumeStep,
@@ -57,11 +58,6 @@ function apiErrorMessage(err: unknown, fallback: string): string {
   }
   if (err instanceof Error && err.message.trim()) return err.message;
   return fallback;
-}
-
-function rowDisplayName(row: { display_name?: string; displayName?: string } | null): string {
-  if (!row) return "";
-  return (row.displayName ?? row.display_name ?? "").trim();
 }
 
 async function postProfileWithRetry(body: Record<string, unknown>): Promise<void> {
@@ -517,37 +513,98 @@ export default function CreateProfile() {
     await saveProfileProgress({ requireLocation: true });
   }, [saveProfileProgress]);
 
-  /** True when incremental Continue saves already persisted the full wizard on the server. */
-  const verifyWizardReadyOnServer = useCallback(async (): Promise<boolean> => {
+  /** Same bar as Connect: name, city+state location, and ≥3 photos (not interests). */
+  const verifyConnectReadyOnServer = useCallback(async (): Promise<boolean> => {
     try {
       const [profileRes, photoRes] = await Promise.all([
-        api.get<{
-          profile: {
-            display_name?: string;
-            displayName?: string;
-            age?: number;
-            gender?: string;
-            location?: string | null;
-          } | null;
-          interests?: Array<{ name: string }>;
-        }>("/profile"),
+        api.get<{ profile: unknown }>("/profile"),
         api.get<{ photos?: unknown[] }>(`/photos/me?_=${Date.now()}`),
       ]);
-      const p = profileRes.profile;
-      if (!p) return false;
-      const name = rowDisplayName(p);
-      if (name.length < 2) return false;
-      if (!p.age || p.age < 18 || p.age > 120) return false;
-      if (!p.gender?.trim()) return false;
-      if (!p.location || !hasCityAndState(normalizeLocationInput(p.location))) return false;
-      const interestCount = profileRes.interests?.length ?? 0;
-      if (interestCount < 3) return false;
       const photoCount = Array.isArray(photoRes.photos) ? photoRes.photos.length : 0;
-      return photoCount >= MIN_PHOTOS_REQUIRED;
+      return computeConnectSetupComplete(profileRes.profile, photoCount);
     } catch {
       return false;
     }
   }, []);
+
+  /** Complete Profile: POST must succeed; interests/prefs are best-effort. */
+  const saveProfileForComplete = useCallback(async () => {
+    if (displayName.trim().length < 2) {
+      throw new Error("Please enter at least 2 characters for your name");
+    }
+    const ageNum = parseInt(age, 10);
+    if (!age?.trim() || Number.isNaN(ageNum) || ageNum < 18 || ageNum > 120) {
+      throw new Error("Please enter a valid age (18–120)");
+    }
+    if (!gender?.trim()) {
+      throw new Error("Please select your gender");
+    }
+    const normalizedLocation = normalizeLocationInput(location);
+    if (!hasCityAndState(normalizedLocation)) {
+      throw new Error("Please enter both city and state (e.g. Medford, Oregon)");
+    }
+
+    const profileBody = {
+      displayName: displayName.trim(),
+      age: ageNum,
+      gender: gender.trim(),
+      location: normalizedLocation,
+      bio: bio?.trim() || null,
+      lookingFor: null,
+    };
+
+    const maxDist =
+      maxDistance != null && !Number.isNaN(Number(maxDistance)) ? Number(maxDistance) : null;
+
+    const executeSave = async () => {
+      try {
+        await postProfileWithRetry(profileBody);
+      } catch (err) {
+        throw new Error(apiErrorMessage(err, "Failed to save profile"));
+      }
+      if (interests.length > 0) {
+        try {
+          await api.put("/profile/interests", {
+            interests: interests.map((name) => ({ name })),
+          });
+        } catch (err) {
+          if (__DEV__) {
+            console.warn("CreateProfile: interests save on complete (non-fatal):", err);
+          }
+        }
+      }
+      try {
+        await api.put("/profile/preferences", {
+          minAge: Number(minAge),
+          maxAge: maxAge >= minAge && maxAge <= 120 ? Number(maxAge) : null,
+          preferredGenders: preferredGendersPayload(preferredGenders),
+          maxDistance: maxDist != null && maxDist >= 1 ? maxDist : null,
+          relationshipType: null,
+        });
+      } catch (err) {
+        if (__DEV__) {
+          console.warn("CreateProfile: preferences save on complete (non-fatal):", err);
+        }
+      }
+      profileSaveSnapshotRef.current = buildProfileSaveSnapshot();
+    };
+
+    const chained = profileSaveChainRef.current.then(executeSave, executeSave);
+    profileSaveChainRef.current = chained.catch(() => {});
+    await chained;
+  }, [
+    displayName,
+    age,
+    gender,
+    location,
+    bio,
+    interests,
+    minAge,
+    maxAge,
+    preferredGenders,
+    maxDistance,
+    buildProfileSaveSnapshot,
+  ]);
 
   const ensureProfileReadyForPhotos = useCallback(async () => {
     if (profileReadyForPhotos) return;
@@ -892,24 +949,17 @@ export default function CreateProfile() {
         return;
       }
 
-      const serverAlreadyComplete = await verifyWizardReadyOnServer();
-      const snap = buildProfileSaveSnapshot();
-      const locallySaved =
-        profileReadyForPhotos && profileSaveSnapshotRef.current === snap;
-
-      if (!serverAlreadyComplete && !locallySaved) {
+      let serverReady = await verifyConnectReadyOnServer();
+      if (!serverReady) {
         try {
-          await saveProfileBeforePhotos();
-          setProfileReadyForPhotos(true);
+          await saveProfileForComplete();
         } catch (saveErr) {
-          const recovered = await verifyWizardReadyOnServer();
-          if (!recovered) throw saveErr;
-          setProfileReadyForPhotos(true);
+          serverReady = await verifyConnectReadyOnServer();
+          if (!serverReady) throw saveErr;
         }
-      } else {
-        setProfileReadyForPhotos(true);
-        profileSaveSnapshotRef.current = snap;
       }
+      setProfileReadyForPhotos(true);
+      profileSaveSnapshotRef.current = buildProfileSaveSnapshot();
 
       clearWebCreateProfileDraft();
       await refreshProfile();
