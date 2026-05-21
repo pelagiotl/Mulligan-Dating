@@ -1345,6 +1345,9 @@
 }
 
 .connect-landing__feature-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   font-size: 0.62rem;
   font-weight: 800;
   color: #cbd5e1;
@@ -1352,6 +1355,11 @@
   text-align: center;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+.connect-landing__feature-line {
+  display: block;
+  white-space: nowrap;
 }
 
 .connect-landing__cta {

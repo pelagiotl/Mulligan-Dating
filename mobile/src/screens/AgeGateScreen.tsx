@@ -20,7 +20,7 @@ type AgeGateNavProp = StackNavigationProp<RootStackParamList, 'AgeGate'>;
 export default function AgeGateScreen() {
   const navigation = useNavigation<AgeGateNavProp>();
   const route = useRoute<AgeGateRouteProp>();
-  const { connectSetupComplete, logout } = useAuth();
+  const { connectSetupComplete, profile, logout } = useAuth();
   const nextRoute =
     route.params?.nextRoute ?? (connectSetupComplete ? 'MainTabs' : 'CreateProfile');
 
@@ -31,7 +31,7 @@ export default function AgeGateScreen() {
       navigation.reset({
         index: 0,
         routes: goToCreateProfile
-          ? [{ name: 'CreateProfile', params: { startFromBeginning: true } }]
+          ? [{ name: 'CreateProfile', params: { startFromBeginning: !profile?.id } }]
           : [{ name: 'MainTabs' }],
       });
     } catch (e) {

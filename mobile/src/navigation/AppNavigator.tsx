@@ -429,10 +429,15 @@ export default function AppNavigator() {
 
   const postAuthHomeRoute = React.useCallback(() => {
     if (!connectSetupComplete) {
-      return { name: 'CreateProfile' as const, params: { startFromBeginning: true } };
+      // Existing accounts should resume the wizard with server data, not a blank "new profile" flow.
+      const hasExistingProfile = !!(profile?.id);
+      return {
+        name: 'CreateProfile' as const,
+        params: { startFromBeginning: !hasExistingProfile },
+      };
     }
     return { name: 'MainTabs' as const };
-  }, [connectSetupComplete]);
+  }, [connectSetupComplete, profile?.id]);
 
   const ageGateNextRoute = React.useCallback((): 'CreateProfile' | 'MainTabs' => {
     return connectSetupComplete ? 'MainTabs' : 'CreateProfile';
@@ -543,7 +548,7 @@ export default function AppNavigator() {
         try {
           navigationRef.current.reset({
             index: 0,
-            routes: [{ name: 'CreateProfile', params: { startFromBeginning: true } }],
+            routes: [postAuthHomeRoute()],
           });
         } catch (err) {
           console.error('Navigation error in AppNavigator:', err);

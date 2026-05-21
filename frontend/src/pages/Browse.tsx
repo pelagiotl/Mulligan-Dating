@@ -10,6 +10,7 @@ import ConnectLandingMark from "../components/ConnectLandingMark";
 import LaunchCountdown from "../components/LaunchCountdown";
 import { io, Socket } from "socket.io-client";
 import { emitTokenBalanceUpdated } from "../lib/tokenBalanceEvents";
+import { CONNECT_LANDING_TAGLINE } from "../constants/connectLanding";
 
 interface Photo {
   id: string;
@@ -93,33 +94,28 @@ function BrowseConnectLandingChrome({
           </div>
 
           <h1 className="connect-landing__title">Discover People</h1>
-          <p className="connect-landing__subtitle">
-            Find someone who shares your interests and values
-          </p>
+          <p className="connect-landing__subtitle">{CONNECT_LANDING_TAGLINE}</p>
 
           <div className="connect-landing__features">
             <div className="connect-landing__feature">
               <span className="connect-landing__feature-emoji">✨</span>
               <span className="connect-landing__feature-text">
-                Quality
-                <br />
-                Matches
+                <span className="connect-landing__feature-line">Quality</span>
+                <span className="connect-landing__feature-line">Matches</span>
               </span>
             </div>
             <div className="connect-landing__feature">
               <span className="connect-landing__feature-emoji">🎯</span>
               <span className="connect-landing__feature-text">
-                Shared
-                <br />
-                Interests
+                <span className="connect-landing__feature-line">Shared</span>
+                <span className="connect-landing__feature-line">Interests</span>
               </span>
             </div>
             <div className="connect-landing__feature">
               <span className="connect-landing__feature-emoji">💝</span>
               <span className="connect-landing__feature-text">
-                Meaningful
-                <br />
-                Connections
+                <span className="connect-landing__feature-line">Meaningful</span>
+                <span className="connect-landing__feature-line">Connections</span>
               </span>
             </div>
           </div>
@@ -825,7 +821,7 @@ export default function Browse() {
           <div className="browse-native-scroll">
             <header className="browse-native-header">
               <h1>Discover People</h1>
-              <p>Find someone who shares your interests and values</p>
+              <p>{CONNECT_LANDING_TAGLINE}</p>
             </header>
             {error && (
               <div className="browse-native-error" role="alert">

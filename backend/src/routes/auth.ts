@@ -219,6 +219,19 @@ authRouter.get('/me', authenticateToken, async (req: AuthRequest, res) => {
       webPushSubscriptionCount = 0;
     }
 
+    let photoCount = 0;
+    if (profile?.id) {
+      try {
+        const photoCntRow = await (db
+          .prepare('SELECT COUNT(*) as c FROM photos WHERE profile_id = ?')
+          .get(profile.id) as Promise<{ c: number } | undefined>);
+        photoCount = Number(photoCntRow?.c ?? 0);
+      } catch (photoCountErr) {
+        console.error('Photo count query error in /auth/me:', photoCountErr);
+        photoCount = 0;
+      }
+    }
+
     const matchmakingOff = isMatchmakingGloballyDisabled();
     const isAdmin = userHasAdminAccess(user.id, user.is_admin, user.phone_number);
     res.json({
@@ -233,6 +246,7 @@ authRouter.get('/me', authenticateToken, async (req: AuthRequest, res) => {
         webPushSubscriptionCount,
       },
       profile,
+      photoCount,
       matchmakingEnabled: !matchmakingOff,
       matchmakingDisabledMessage: matchmakingOff ? getMatchmakingDisabledMessage() : null,
     });

@@ -46,7 +46,10 @@ export function getConnectSetupMissing(
 }
 
 export function isConnectSetupComplete(profile: ConnectProfileLike, photoCount: number | null): boolean {
-  if (photoCount === null) return false;
+  // Unknown photo count (request failed): gate on name + location only, not photos.
+  if (photoCount === null) {
+    return hasConnectDisplayName(profile) && isValidConnectLocation(profileLocationText(profile));
+  }
   return getConnectSetupMissing(profile, photoCount).length === 0;
 }
 

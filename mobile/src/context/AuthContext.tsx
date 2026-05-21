@@ -15,8 +15,15 @@ import { registerForPushNotificationsAsync, clearPushToken, refreshAndSendPushTo
 import { getStoredPushToken, hydrateStoredPushToken, shouldSendTokenToServer } from '../utils/pushTokenStore';
 import * as Notifications from 'expo-notifications';
 import { navigationRef } from '../navigation/navigationRef';
-import { computeAppConnectReady } from '../utils/connectSetup';
-import { hasMobileCreateProfileDraft } from '../utils/createProfileProgress';
+import {
+  computeAppConnectReady,
+  computeConnectSetupComplete,
+  getConnectSetupMissing,
+} from '../utils/connectSetup';
+import {
+  clearMobileCreateProfileDraft,
+  hasMobileCreateProfileDraft,
+} from '../utils/createProfileProgress';
 import { playMessageSound, playMatchSound } from '../utils/sounds';
 import { setPendingGameRequest } from '../utils/pendingGameRequest';
 import { currentMatchIdRef } from '../utils/currentMatchView';
@@ -760,17 +767,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       setProfile(data.profile || null);
 
-      let photoCount = 0;
-      try {
-        const photoData = await api.get<{ photos?: unknown[] }>('/photos/me', false);
-        photoCount = Array.isArray(photoData?.photos) ? photoData.photos.length : 0;
-      } catch {
-        photoCount = 0;
+      let photoCount =
+        typeof data.photoCount === 'number' && Number.isFinite(data.photoCount)
+          ? data.photoCount
+          : null;
+      if (photoCount === null) {
+        try {
+          const photoData = await api.get<{ photos?: unknown[] }>('/photos/me', false);
+          photoCount = Array.isArray(photoData?.photos) ? photoData.photos.length : 0;
+        } catch {
+          photoCount = null;
+        }
       }
-      const wizardDraftActive = await hasMobileCreateProfileDraft();
-      setConnectSetupComplete(
-        computeAppConnectReady(data.profile || null, photoCount, wizardDraftActive)
-      );
+      // Server profile already satisfies Connect rules — ignore stale wizard draft on this device
+      // (draft is not keyed by user; leftover from logout or another login blocks returning users).
+      const serverConnectReady = computeConnectSetupComplete(data.profile || null, photoCount);
+      if (serverConnectReady) {
+        await clearMobileCreateProfileDraft();
+        setConnectSetupComplete(true);
+      } else {
+        const wizardDraftActive = await hasMobileCreateProfileDraft();
+        setConnectSetupComplete(
+          computeAppConnectReady(data.profile || null, photoCount ?? 0, wizardDraftActive)
+        );
+        if (__DEV__) {
+          const missing = getConnectSetupMissing(data.profile || null, photoCount ?? 0);
+          console.warn('[Auth] Connect setup incomplete', {
+            missing,
+            photoCount,
+            wizardDraftActive,
+            displayName: data.profile?.display_name ?? data.profile?.displayName,
+            location: data.profile?.location,
+          });
+        }
+      }
 
       const uid = data.user.id;
       const now = Date.now();
@@ -843,6 +873,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       await AsyncStorage.setItem('token', data.token);
       setTokenCache(data.token);
+      // Wizard draft is device-local, not per user — always clear on login.
+      await clearMobileCreateProfileDraft();
       await fetchUser(false);
       
       // Register for push notifications after login
@@ -889,6 +921,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     clearTokenCache();
     api.clearCache(); // Prevent next account from seeing previous user's cached profile/data
+    await clearMobileCreateProfileDraft();
     await AsyncStorage.removeItem('token');
     await AsyncStorage.removeItem('AGE_GATE_ACCEPTED'); // So next login shows age gate again
     setUser(null);

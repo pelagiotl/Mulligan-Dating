@@ -14,6 +14,7 @@ import {
   Vibration,
   Modal,
   useWindowDimensions,
+  InteractionManager,
 } from 'react-native';
 import { TouchableOpacity as GestureTouchable } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -32,7 +33,8 @@ import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
 import TokenDisplay from '../components/TokenDisplay';
 import LaunchCountdownBubble from '../components/LaunchCountdownBubble';
 import MatchmakingPausedModal from '../components/MatchmakingPausedModal';
-import ConnectLandingValueProps from '../components/ConnectLandingValueProps';
+import ConnectLandingValueProps, { ConnectFeatureLabel } from '../components/ConnectLandingValueProps';
+import { CONNECT_LANDING_TAGLINE } from '../constants/connectLanding';
 import ConnectLandingMark from '../components/ConnectLandingMark';
 import MatchCelebration from '../components/MatchCelebration';
 import LegalFooter from '../components/LegalFooter';
@@ -1131,9 +1133,14 @@ export default function BrowseScreen() {
     };
   }, [showLandingPage, unlocking, landingHintOpacity]);
 
-  // Connect button pulse/shimmer: start on layout (view ready), stop when Connect button not shown
+  // Connect button pulse/shimmer — always stop then start so tab blur (opacity 0 on Android) cannot leave stale "running" refs.
   const startConnectButtonAnimations = useCallback(() => {
-    if (connectButtonLoopsRef.current) return; // already running
+    const loops = connectButtonLoopsRef.current;
+    if (loops) {
+      loops.pulseLoop.stop();
+      loops.shimmerLoop.stop();
+      connectButtonLoopsRef.current = null;
+    }
     connectButtonPulse.setValue(1);
     connectButtonShimmer.setValue(0);
     const pulseLoop = Animated.loop(
@@ -1151,7 +1158,7 @@ export default function BrowseScreen() {
     pulseLoop.start();
     shimmerLoop.start();
     connectButtonLoopsRef.current = { pulseLoop, shimmerLoop };
-  }, []);
+  }, [connectButtonPulse, connectButtonShimmer]);
 
   const stopConnectButtonAnimations = useCallback(() => {
     const loops = connectButtonLoopsRef.current;
@@ -1164,11 +1171,28 @@ export default function BrowseScreen() {
     connectButtonShimmer.setValue(0);
   }, []);
 
-  // When Connect button mounts/layouts: stop any stale loops then start after a short delay so native view is attached and animations run
+  const scheduleConnectButtonAnimationStart = useCallback(() => {
+    if (!shouldShowConnectButtonRef.current) return () => {};
+    let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    const delayMs = Platform.OS === 'android' ? 80 : 0;
+    const task = InteractionManager.runAfterInteractions(() => {
+      timeoutId = setTimeout(() => {
+        if (!cancelled && shouldShowConnectButtonRef.current) {
+          startConnectButtonAnimations();
+        }
+      }, delayMs);
+    });
+    return () => {
+      cancelled = true;
+      task.cancel();
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [startConnectButtonAnimations]);
+
   const handleConnectButtonLayout = useCallback(() => {
-    stopConnectButtonAnimations();
-    setTimeout(() => startConnectButtonAnimations(), 200);
-  }, [stopConnectButtonAnimations, startConnectButtonAnimations]);
+    scheduleConnectButtonAnimationStart();
+  }, [scheduleConnectButtonAnimationStart]);
 
   const openNoProfilesDistancePicker = useCallback(async () => {
     setNoProfilesUpdating(true);
@@ -1218,40 +1242,43 @@ export default function BrowseScreen() {
   }, [noProfilesCurrentPrefs, noProfilesSelectedDistance]);
 
   useEffect(() => {
-    const shouldShowConnectButton = hasActiveProfile && !showLandingPage && !needsProfile && !loading;
-    if (!shouldShowConnectButton) stopConnectButtonAnimations();
-    return () => stopConnectButtonAnimations();
-  }, [hasActiveProfile, showLandingPage, needsProfile, loading, stopConnectButtonAnimations]);
-
-  // Restart Connect button animations when returning to Connect tab. Use ref so delayed callback sees current visibility (avoids re-renders from checkCanClaimTokens etc. cancelling the start).
-  const shouldShowConnectButton = hasActiveProfile && !showLandingPage && !needsProfile && !loading;
-  shouldShowConnectButtonRef.current = shouldShowConnectButton;
-
-  // When tab gains focus and Connect button is visible, ensure animations are running (content stays mounted when unfocused so they keep running)
-  useFocusEffect(
-    useCallback(() => {
-      const timeoutId = setTimeout(() => {
-        if (shouldShowConnectButtonRef.current) {
-          stopConnectButtonAnimations();
-          startConnectButtonAnimations();
-        }
-      }, 100);
-      return () => clearTimeout(timeoutId);
-    }, [startConnectButtonAnimations, stopConnectButtonAnimations])
-  );
-
-  useEffect(() => {
-    if (!isFocused) return;
-    if (!shouldShowConnectButton) {
+    const visible = hasActiveProfile && !showLandingPage && !needsProfile && !loading;
+    shouldShowConnectButtonRef.current = visible;
+    if (!visible) {
       stopConnectButtonAnimations();
       return;
     }
-    const timeoutId = setTimeout(() => {
-      stopConnectButtonAnimations();
-      startConnectButtonAnimations();
-    }, 150);
-    return () => clearTimeout(timeoutId);
-  }, [isFocused, shouldShowConnectButton, startConnectButtonAnimations, stopConnectButtonAnimations]);
+    if (isFocused) {
+      const cancel = scheduleConnectButtonAnimationStart();
+      return () => {
+        cancel?.();
+        stopConnectButtonAnimations();
+      };
+    }
+    return () => stopConnectButtonAnimations();
+  }, [
+    hasActiveProfile,
+    showLandingPage,
+    needsProfile,
+    loading,
+    isFocused,
+    stopConnectButtonAnimations,
+    scheduleConnectButtonAnimationStart,
+  ]);
+
+  const shouldShowConnectButton = hasActiveProfile && !showLandingPage && !needsProfile && !loading;
+  shouldShowConnectButtonRef.current = shouldShowConnectButton;
+
+  // Tab blur hides this screen (opacity 0); Android pauses native-driver loops. Stop on blur, restart after focus when visible again.
+  useFocusEffect(
+    useCallback(() => {
+      const cancelScheduled = scheduleConnectButtonAnimationStart();
+      return () => {
+        cancelScheduled?.();
+        stopConnectButtonAnimations();
+      };
+    }, [scheduleConnectButtonAnimationStart, stopConnectButtonAnimations])
+  );
 
   const handleConnect = useCallback((profile: Profile, expandSlot?: boolean) => {
     if (user?.matchmakingEnabled === false) {
@@ -1454,7 +1481,6 @@ export default function BrowseScreen() {
     }
   }, [isFocused]);
 
-  // When tab not focused: keep full content mounted but hidden so Connect button animations keep running; when we return they're still active.
   const showConnectButton = hasActiveProfile && !showLandingPage && !needsProfile && !loading;
 
   // Only show initial loading screen if we're not auto-matching (auto-matching should show landing page)
@@ -1671,9 +1697,7 @@ export default function BrowseScreen() {
               >
                 Discover People
               </Animated.Text>
-              <Text style={styles.midnightSubtitle}>
-                Find someone who shares your interests and values
-              </Text>
+              <Text style={styles.midnightSubtitle}>{CONNECT_LANDING_TAGLINE}</Text>
 
               {isAuthenticated ? <ConnectLandingValueProps variant="midnightFeatures" /> : null}
 
@@ -1803,29 +1827,21 @@ export default function BrowseScreen() {
                     >
                       Discover People
                     </Animated.Text>
-                    <Text style={styles.sunnySubtitle}>
-                      Find someone who shares your interests and values
-                    </Text>
+                    <Text style={styles.sunnySubtitle}>{CONNECT_LANDING_TAGLINE}</Text>
 
                     {isAuthenticated ? (
                       <View style={styles.sunnyFeaturesRow} accessibilityRole="summary">
                         <View style={styles.sunnyFeature}>
                           <Text style={styles.sunnyFeatureEmoji} allowFontScaling={false}>✨</Text>
-                          <Text style={styles.sunnyFeatureText}>
-                            Quality{'\n'}Matches
-                          </Text>
+                          <ConnectFeatureLabel lines={['Quality', 'Matches']} style={styles.sunnyFeatureText} />
                         </View>
                         <View style={styles.sunnyFeature}>
                           <Text style={styles.sunnyFeatureEmoji} allowFontScaling={false}>🎯</Text>
-                          <Text style={styles.sunnyFeatureText}>
-                            Shared{'\n'}Interests
-                          </Text>
+                          <ConnectFeatureLabel lines={['Shared', 'Interests']} style={styles.sunnyFeatureText} />
                         </View>
                         <View style={styles.sunnyFeature}>
                           <Text style={styles.sunnyFeatureEmoji} allowFontScaling={false}>💝</Text>
-                          <Text style={styles.sunnyFeatureText}>
-                            Meaningful{'\n'}Connections
-                          </Text>
+                          <ConnectFeatureLabel lines={['Meaningful', 'Connections']} style={styles.sunnyFeatureText} />
                         </View>
                       </View>
                     ) : null}
@@ -1951,29 +1967,21 @@ export default function BrowseScreen() {
                     >
                       Discover People
                     </Animated.Text>
-                    <Text style={styles.softSubtitle}>
-                      Find someone who shares your interests and values
-                    </Text>
+                    <Text style={styles.softSubtitle}>{CONNECT_LANDING_TAGLINE}</Text>
 
                     {isAuthenticated ? (
                       <View style={styles.softFeaturesRow} accessibilityRole="summary">
                         <View style={styles.softFeature}>
                           <Text style={styles.softFeatureEmoji} allowFontScaling={false}>✨</Text>
-                          <Text style={styles.softFeatureText}>
-                            Quality{'\n'}Matches
-                          </Text>
+                          <ConnectFeatureLabel lines={['Quality', 'Matches']} style={styles.softFeatureText} />
                         </View>
                         <View style={styles.softFeature}>
                           <Text style={styles.softFeatureEmoji} allowFontScaling={false}>🎯</Text>
-                          <Text style={styles.softFeatureText}>
-                            Shared{'\n'}Interests
-                          </Text>
+                          <ConnectFeatureLabel lines={['Shared', 'Interests']} style={styles.softFeatureText} />
                         </View>
                         <View style={styles.softFeature}>
                           <Text style={styles.softFeatureEmoji} allowFontScaling={false}>💝</Text>
-                          <Text style={styles.softFeatureText}>
-                            Meaningful{'\n'}Connections
-                          </Text>
+                          <ConnectFeatureLabel lines={['Meaningful', 'Connections']} style={styles.softFeatureText} />
                         </View>
                       </View>
                     ) : null}

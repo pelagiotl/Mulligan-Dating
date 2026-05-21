@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
-import { View, Text, StyleSheet, Platform } from 'react-native';
+import { View, Text, StyleSheet, Platform, type TextStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { CONNECT_LANDING_TAGLINE } from '../constants/connectLanding';
 
 const INK = '#1a1a2e';
 const BURGUNDY = '#8B1538';
@@ -17,6 +18,36 @@ const cardShadow =
 
 type ConnectLandingValuePropsVariant = 'full' | 'featuresOnly' | 'midnightFeatures';
 
+/** Two-line feature labels — each line stays on one row (avoids orphan letters on narrow Android). */
+export function ConnectFeatureLabel({
+  lines,
+  style,
+}: {
+  lines: readonly [string, string];
+  style: TextStyle;
+}) {
+  return (
+    <View style={featureLabelStyles.stack}>
+      {lines.map((line) => (
+        <Text
+          key={line}
+          style={style}
+          numberOfLines={1}
+          {...(Platform.OS === 'android' ? { textBreakStrategy: 'simple' as const } : {})}
+        >
+          {line}
+        </Text>
+      ))}
+    </View>
+  );
+}
+
+const featureLabelStyles = StyleSheet.create({
+  stack: {
+    alignItems: 'center',
+  },
+});
+
 interface ConnectLandingValuePropsProps {
   /** When hero title/subtitle are rendered above (Browse landing), show only the three feature tiles. */
   variant?: ConnectLandingValuePropsVariant;
@@ -30,25 +61,19 @@ function MidnightFeaturesRow() {
         <Text style={midnightStyles.featureEmoji} allowFontScaling={false}>
           ✨
         </Text>
-        <Text style={midnightStyles.featureText}>
-          Quality{'\n'}Matches
-        </Text>
+        <ConnectFeatureLabel lines={['Quality', 'Matches']} style={midnightStyles.featureText} />
       </View>
       <View style={midnightStyles.feature}>
         <Text style={midnightStyles.featureEmoji} allowFontScaling={false}>
           🎯
         </Text>
-        <Text style={midnightStyles.featureText}>
-          Shared{'\n'}Interests
-        </Text>
+        <ConnectFeatureLabel lines={['Shared', 'Interests']} style={midnightStyles.featureText} />
       </View>
       <View style={midnightStyles.feature}>
         <Text style={midnightStyles.featureEmoji} allowFontScaling={false}>
           💝
         </Text>
-        <Text style={midnightStyles.featureText}>
-          Meaningful{'\n'}Connections
-        </Text>
+        <ConnectFeatureLabel lines={['Meaningful', 'Connections']} style={midnightStyles.featureText} />
       </View>
     </View>
   );
@@ -82,9 +107,7 @@ const ConnectLandingValueProps = memo(function ConnectLandingValueProps({
         {!featuresOnly ? (
           <>
             <Text style={styles.title}>Discover People</Text>
-            <Text style={styles.subtitle}>
-              Find someone who shares your interests and values
-            </Text>
+            <Text style={styles.subtitle}>{CONNECT_LANDING_TAGLINE}</Text>
           </>
         ) : null}
         <View style={[styles.row, featuresOnly && styles.rowFeaturesOnly]}>
@@ -92,25 +115,19 @@ const ConnectLandingValueProps = memo(function ConnectLandingValueProps({
             <Text style={styles.emoji} accessibilityLabel="Sparkle">
               ✨
             </Text>
-            <Text style={styles.featureText}>
-              Quality{'\n'}Matches
-            </Text>
+            <ConnectFeatureLabel lines={['Quality', 'Matches']} style={styles.featureText} />
           </View>
           <View style={styles.feature}>
             <Text style={styles.emoji} accessibilityLabel="Target">
               🎯
             </Text>
-            <Text style={styles.featureText}>
-              Shared{'\n'}Interests
-            </Text>
+            <ConnectFeatureLabel lines={['Shared', 'Interests']} style={styles.featureText} />
           </View>
           <View style={styles.feature}>
             <Text style={styles.emoji} accessibilityLabel="Heart gift">
               💝
             </Text>
-            <Text style={styles.featureText}>
-              Meaningful{'\n'}Connections
-            </Text>
+            <ConnectFeatureLabel lines={['Meaningful', 'Connections']} style={styles.featureText} />
           </View>
         </View>
       </LinearGradient>
@@ -232,7 +249,7 @@ const midnightStyles = StyleSheet.create({
     color: '#cbd5e1',
     textAlign: 'center',
     lineHeight: 15,
-    letterSpacing: 0.8,
+    letterSpacing: 0.45,
     textTransform: 'uppercase',
   },
 });
