@@ -2174,7 +2174,7 @@ export default function CreateProfileScreen() {
     <View style={[styles.focusedFieldSection, { minHeight: rs.sectionMinHeight, paddingHorizontal: rs.sectionPaddingH, paddingVertical: rs.sectionPaddingV }]}>
       <Animated.View style={[{ transform: [{ scale: preferredGendersScale }], opacity: preferredGendersOpacity }]}>
         <LinearGradient colors={['#4facfe', '#00f2fe', '#667eea']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.focusedFieldCard, { padding: rs.cardPadding }]}>
-          <Text style={[styles.focusedEmoji, { fontSize: rs.emojiSize, marginBottom: 16 }]}>🎯</Text>
+          <Text style={[styles.focusedEmoji, { fontSize: rs.emojiSize, marginBottom: 16 }]}>💕</Text>
           <Text style={[styles.focusedTitle, { fontSize: rs.titleSize, marginBottom: rs.titleMargin }]}>Preferred matches</Text>
           <Text style={[styles.focusedSubtitle, { fontSize: rs.subtitleSizeSmall, lineHeight: Math.round(20 * (screenWidth / 375)), marginBottom: rs.subtitleMarginSmall }]}>
             You{"'"}re here to actually meet people—not collect profiles. Coffee, trails, game nights, events, good convo: pick who you want in your matches.

@@ -947,7 +947,7 @@ export default function MyProfile() {
               setShowPreferredModal(true);
             }}
           >
-            <span className="my-profile-full-card-emoji">🔗</span>
+            <span className="my-profile-full-card-emoji">💕</span>
             <span className="my-profile-full-card-label">Preferred matches</span>
             <span className="my-profile-full-card-value">
               {formatPreferredMatchesLabel(data.preferences?.preferred_genders ?? null)}
@@ -1453,7 +1453,7 @@ export default function MyProfile() {
             </button>
             <div className="my-profile-modal-head">
               <span className="my-profile-modal-icon" aria-hidden>
-                🔗
+                💕
               </span>
               <div>
                 <h3 id="pref-title">Preferred matches</h3>

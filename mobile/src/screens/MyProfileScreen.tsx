@@ -2013,7 +2013,7 @@ export default function MyProfileScreen() {
                   end={{ x: 1, y: 1 }}
                   style={styles.infoCardFull}
                 >
-                  <Text style={styles.infoCardEmoji}>🔗</Text>
+                  <Text style={styles.infoCardEmoji}>💕</Text>
                   <Text style={styles.infoCardLabel}>Preferred connections</Text>
                   <Text style={styles.infoCardValueFull}>
                     {(() => {
@@ -2151,7 +2151,7 @@ export default function MyProfileScreen() {
               end={{ x: 1, y: 1 }}
               style={styles.editModalGradient}
             >
-              <Text style={styles.editModalEmoji}>🔗</Text>
+              <Text style={styles.editModalEmoji}>💕</Text>
               <Text style={styles.editModalTitleLight}>Preferred connections</Text>
               <Text style={styles.editModalSubtitleLight}>Who you want to see in Connect</Text>
               <ScrollView style={styles.preferredGendersScroll} contentContainerStyle={styles.preferredGendersScrollContent} showsVerticalScrollIndicator={true}>

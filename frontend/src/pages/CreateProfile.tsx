@@ -974,7 +974,7 @@ export default function CreateProfile() {
         {step === 4 &&
           focusCard(
             "ocean",
-            "🔗",
+            "💕",
             "Preferred matches",
             "Who would you like to connect with?",
             <>
