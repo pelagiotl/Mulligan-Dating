@@ -2330,25 +2330,87 @@ img {
   width: 100%;
   max-width: 380px;
   margin: 0 auto;
-  padding: 28px;
-  background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  padding: 2rem 1.75rem 1.75rem;
+  background: rgba(255, 255, 255, 0.97);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  box-shadow:
+    0 4px 24px rgba(102, 126, 234, 0.12),
+    0 12px 40px rgba(118, 75, 162, 0.14);
   text-align: center;
+  overflow: hidden;
+}
+
+.age-gate-page .age-gate-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 45%, #f093fb 100%);
+}
+
+.age-gate-page .age-gate-icon {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.1rem;
+}
+
+.age-gate-page .age-gate-icon-inner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 50%;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #fff;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 55%, #f093fb 100%);
+  box-shadow: 0 6px 20px rgba(118, 75, 162, 0.35);
+}
+
+.age-gate-page .age-gate-title {
+  margin-bottom: 0.35rem;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--color-wine-900, #1a1a2e);
+}
+
+.age-gate-page .age-gate-lead {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #5b6478;
 }
 
 .age-gate-page .age-gate-body {
-  margin-bottom: 28px;
-  line-height: 1.5;
+  margin: 0 0 1.5rem;
+  line-height: 1.55;
+  font-size: 0.9375rem;
+  color: var(--text-secondary);
+}
+
+.age-gate-page .age-gate-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .age-gate-page .age-gate-primary {
   width: 100%;
-  margin-bottom: 12px;
+  margin-bottom: 0;
+  border-radius: 12px;
+  font-weight: 700;
+  box-shadow: 0 4px 16px rgba(139, 21, 56, 0.28);
 }
 
 .age-gate-page .age-gate-secondary {
   width: 100%;
+  color: #64748b;
+  font-weight: 600;
 }
 
 /* ═══════════════════════════════════════════════════════════════

@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -58,12 +58,34 @@ export default function AgeGateScreen() {
       style={styles.container}
     >
       <View style={styles.card}>
+        <LinearGradient
+          colors={['#667eea', '#764ba2', '#f093fb']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.accentBar}
+        />
+        <LinearGradient
+          colors={['#667eea', '#764ba2', '#f093fb']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.iconBadge}
+        >
+          <Text style={styles.iconBadgeText}>18+</Text>
+        </LinearGradient>
         <Text style={styles.title}>Age requirement</Text>
+        <Text style={styles.lead}>Mulligan is for adults only.</Text>
         <Text style={styles.body}>
-          Mulligan is for people 18 and older. By continuing, you confirm that you are at least 18 years of age.
+          By continuing, you confirm that you are at least 18 years of age.
         </Text>
-        <TouchableOpacity style={styles.primaryButton} onPress={handleConfirm} activeOpacity={0.8}>
-          <Text style={styles.primaryButtonText}>I am 18 or older</Text>
+        <TouchableOpacity onPress={handleConfirm} activeOpacity={0.85}>
+          <LinearGradient
+            colors={['#667eea', '#764ba2', '#f093fb']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.primaryButton}
+          >
+            <Text style={styles.primaryButtonText}>I am 18 or older</Text>
+          </LinearGradient>
         </TouchableOpacity>
         <TouchableOpacity style={styles.secondaryButton} onPress={handleUnderAge} activeOpacity={0.8}>
           <Text style={styles.secondaryButtonText}>I'm not 18 yet</Text>
@@ -82,32 +104,64 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 28,
+    borderRadius: 20,
+    paddingTop: 8,
+    paddingHorizontal: 28,
+    paddingBottom: 28,
     width: '100%',
     maxWidth: 380,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.9)',
+    shadowColor: '#764ba2',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.14,
+    shadowRadius: 20,
+    elevation: 6,
+  },
+  accentBar: {
+    height: 4,
+    marginHorizontal: -28,
+    marginBottom: 20,
+  },
+  iconBadge: {
+    alignSelf: 'center',
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    marginBottom: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  iconBadgeText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#fff',
+    letterSpacing: 0.3,
   },
   title: {
     fontSize: 22,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#1a1a2e',
-    marginBottom: 12,
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  lead: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#5b6478',
+    marginBottom: 8,
     textAlign: 'center',
   },
   body: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: '#4a5568',
-    marginBottom: 28,
+    fontSize: 15,
+    lineHeight: 22,
+    color: '#64748b',
+    marginBottom: 24,
     textAlign: 'center',
   },
   primaryButton: {
-    backgroundColor: '#8B1538',
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',

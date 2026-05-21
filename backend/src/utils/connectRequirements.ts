@@ -1,6 +1,6 @@
 import { db } from '../database.js';
 
-export const MIN_PHOTOS_TO_CONNECT = 1;
+export const MIN_PHOTOS_TO_CONNECT = 3;
 
 export function hasConnectDisplayName(displayName: string | null | undefined): boolean {
   return typeof displayName === 'string' && displayName.trim().length >= 2;

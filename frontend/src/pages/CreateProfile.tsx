@@ -89,7 +89,7 @@ const INTEREST_EMOJIS: Record<string, string> = {
 };
 
 const TOTAL_STEPS = 11;
-const MIN_PHOTOS_REQUIRED = 1;
+const MIN_PHOTOS_REQUIRED = 3;
 const MAX_PHOTO_SLOTS = 6;
 
 type SlotPhoto = { id: string; url: string };

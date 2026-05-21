@@ -1749,7 +1749,7 @@ export default function BrowseScreen() {
                         </Text>
                       ) : (
                         <Text style={[styles.landingButtonText, styles.midnightConnectLabel]} numberOfLines={2}>
-                          Add a photo
+                          Add 3+ photos
                         </Text>
                       )}
                     </Animated.View>
@@ -1898,7 +1898,7 @@ export default function BrowseScreen() {
                               </Text>
                             ) : (
                               <Text style={[styles.landingButtonText, styles.sunnyConnectLabel]} numberOfLines={2}>
-                                Add a photo
+                                Add 3+ photos
                               </Text>
                             )}
                           </Animated.View>
@@ -2046,7 +2046,7 @@ export default function BrowseScreen() {
                               </Text>
                             ) : (
                               <Text style={[styles.landingButtonText, styles.softConnectLabel]} numberOfLines={2}>
-                                Add a photo
+                                Add 3+ photos
                               </Text>
                             )}
                           </Animated.View>

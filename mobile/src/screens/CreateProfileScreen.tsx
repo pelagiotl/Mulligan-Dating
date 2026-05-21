@@ -120,7 +120,7 @@ const INTEREST_EMOJIS: { [key: string]: string } = {
 };
 
 const TOTAL_STEPS = 14; // 1-6 basics; 7 interests; 8 dealbreakers; 9 partner qualities; 10 lifestyle; 11-13 age/distance; 14 photos
-const MIN_PHOTOS_REQUIRED = 1;
+const MIN_PHOTOS_REQUIRED = 3;
 const PHOTO_SLOT_COUNT = 6;
 
 type ProfilePhoto = { id?: string; url: string; uri?: string };
