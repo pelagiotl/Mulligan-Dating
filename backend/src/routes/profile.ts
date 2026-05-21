@@ -16,7 +16,7 @@ const profileSchema = z.object({
     .min(2, 'Name must be at least 2 characters')
     .max(50, 'Name must be at most 50 characters')
     .refine(val => val.trim().length >= 2, 'Name cannot be only whitespace'),
-  age: z.number().min(18, 'Must be at least 18').max(120),
+  age: z.coerce.number().min(18, 'Must be at least 18').max(120),
   gender: z.string()
     .min(1, 'Gender is required')
     .max(50, 'Gender must be at most 50 characters'),
@@ -105,10 +105,21 @@ profileRouter.post('/', authenticateToken, rateLimitAPI, async (req: AuthRequest
       return profileId;
     };
 
-    const existingProfileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
-    let existingProfile = await (existingProfileStmt.get([userId]) as Promise<{ id: string } | undefined>);
+    const existingProfileStmt = db.prepare(
+      'SELECT id, photo_url, looking_for FROM profiles WHERE user_id = ?'
+    );
+    let existingProfile = await (existingProfileStmt.get([userId]) as Promise<
+      { id: string; photo_url: string | null; looking_for: string | null } | undefined
+    >);
 
     if (existingProfile) {
+      // Wizard POST omits photoUrl — preserve uploaded gallery primary URL on update
+      if (profileData.photoUrl === undefined && existingProfile.photo_url) {
+        sanitizedData.photoUrl = existingProfile.photo_url;
+      }
+      if (profileData.lookingFor === undefined && existingProfile.looking_for) {
+        sanitizedData.lookingFor = existingProfile.looking_for;
+      }
       await runProfileUpdate(existingProfile.id);
       res.json({ message: 'Profile updated', profileId: existingProfile.id });
       return;
@@ -145,8 +156,16 @@ profileRouter.post('/', authenticateToken, rateLimitAPI, async (req: AuthRequest
       res.status(201).json({ message: 'Profile created', profileId });
     } catch (insertErr: unknown) {
       if (!isUniqueViolation(insertErr)) throw insertErr;
-      existingProfile = await (existingProfileStmt.get([userId]) as Promise<{ id: string } | undefined>);
+      existingProfile = await (existingProfileStmt.get([userId]) as Promise<
+        { id: string; photo_url: string | null; looking_for: string | null } | undefined
+      >);
       if (!existingProfile) throw insertErr;
+      if (profileData.photoUrl === undefined && existingProfile.photo_url) {
+        sanitizedData.photoUrl = existingProfile.photo_url;
+      }
+      if (profileData.lookingFor === undefined && existingProfile.looking_for) {
+        sanitizedData.lookingFor = existingProfile.looking_for;
+      }
       await runProfileUpdate(existingProfile.id);
       res.json({ message: 'Profile updated', profileId: existingProfile.id });
     }
@@ -158,7 +177,7 @@ profileRouter.post('/', authenticateToken, rateLimitAPI, async (req: AuthRequest
     const detail = error instanceof Error ? error.message : String(error);
     res.status(500).json({
       error: 'Failed to save profile',
-      ...(process.env.NODE_ENV !== 'production' ? { details: detail } : {}),
+      details: detail,
     });
   }
 });

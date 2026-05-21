@@ -59,6 +59,11 @@ function apiErrorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
+function rowDisplayName(row: { display_name?: string; displayName?: string } | null): string {
+  if (!row) return "";
+  return (row.displayName ?? row.display_name ?? "").trim();
+}
+
 async function postProfileWithRetry(body: Record<string, unknown>): Promise<void> {
   let lastErr: unknown;
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -512,6 +517,38 @@ export default function CreateProfile() {
     await saveProfileProgress({ requireLocation: true });
   }, [saveProfileProgress]);
 
+  /** True when incremental Continue saves already persisted the full wizard on the server. */
+  const verifyWizardReadyOnServer = useCallback(async (): Promise<boolean> => {
+    try {
+      const [profileRes, photoRes] = await Promise.all([
+        api.get<{
+          profile: {
+            display_name?: string;
+            displayName?: string;
+            age?: number;
+            gender?: string;
+            location?: string | null;
+          } | null;
+          interests?: Array<{ name: string }>;
+        }>("/profile"),
+        api.get<{ photos?: unknown[] }>(`/photos/me?_=${Date.now()}`),
+      ]);
+      const p = profileRes.profile;
+      if (!p) return false;
+      const name = rowDisplayName(p);
+      if (name.length < 2) return false;
+      if (!p.age || p.age < 18 || p.age > 120) return false;
+      if (!p.gender?.trim()) return false;
+      if (!p.location || !hasCityAndState(normalizeLocationInput(p.location))) return false;
+      const interestCount = profileRes.interests?.length ?? 0;
+      if (interestCount < 3) return false;
+      const photoCount = Array.isArray(photoRes.photos) ? photoRes.photos.length : 0;
+      return photoCount >= MIN_PHOTOS_REQUIRED;
+    } catch {
+      return false;
+    }
+  }, []);
+
   const ensureProfileReadyForPhotos = useCallback(async () => {
     if (profileReadyForPhotos) return;
     await saveProfileBeforePhotos();
@@ -839,13 +876,6 @@ export default function CreateProfile() {
     setLoading(true);
     try {
       setSavingProfileDraft(true);
-      const snap = buildProfileSaveSnapshot();
-      const alreadySaved =
-        profileReadyForPhotos && profileSaveSnapshotRef.current === snap;
-      if (!alreadySaved) {
-        await saveProfileBeforePhotos();
-        setProfileReadyForPhotos(true);
-      }
 
       let readyCount = countUploadedPhotos(photoSlots);
       if (readyCount < MIN_PHOTOS_REQUIRED) {
@@ -860,6 +890,25 @@ export default function CreateProfile() {
           `Please upload at least ${MIN_PHOTOS_REQUIRED} photos to complete your profile`
         );
         return;
+      }
+
+      const serverAlreadyComplete = await verifyWizardReadyOnServer();
+      const snap = buildProfileSaveSnapshot();
+      const locallySaved =
+        profileReadyForPhotos && profileSaveSnapshotRef.current === snap;
+
+      if (!serverAlreadyComplete && !locallySaved) {
+        try {
+          await saveProfileBeforePhotos();
+          setProfileReadyForPhotos(true);
+        } catch (saveErr) {
+          const recovered = await verifyWizardReadyOnServer();
+          if (!recovered) throw saveErr;
+          setProfileReadyForPhotos(true);
+        }
+      } else {
+        setProfileReadyForPhotos(true);
+        profileSaveSnapshotRef.current = snap;
       }
 
       clearWebCreateProfileDraft();
@@ -878,7 +927,7 @@ export default function CreateProfile() {
         setError(`${msg} Tap Complete Profile again to retry.`);
       } else if (low.includes("failed to save profile")) {
         setError(
-          "We couldn't save your profile to the server. Check your connection and tap Complete Profile again."
+          "Your profile is filled out, but we couldn't confirm it on the server. Check your connection and tap Complete Profile again."
         );
       } else {
         setError(msg);

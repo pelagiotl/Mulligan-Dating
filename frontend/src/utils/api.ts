@@ -55,10 +55,14 @@ async function request<T = any>(endpoint: string, options: RequestInit = {}): Pr
     }
 
     if (!response.ok) {
-      const message =
+      const detailStr = typeof data.details === 'string' ? data.details.trim() : '';
+      let message =
         data.error ||
-        (typeof data.details === 'string' ? data.details : null) ||
-        `Request failed with status ${response.status}`
+        detailStr ||
+        `Request failed with status ${response.status}`;
+      if (detailStr && data.error && !message.includes(detailStr)) {
+        message = `${data.error}: ${detailStr}`;
+      }
       const apiError = new ApiError(response.status, message)
       // Preserve additional error data (AT_MATCH_LIMIT, etc.) for error handling
       if (data.code) (apiError as any).code = data.code
