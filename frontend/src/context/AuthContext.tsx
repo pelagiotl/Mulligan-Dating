@@ -135,15 +135,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const rawProfile = data.profile || null
       setProfile(rawProfile)
 
-      let photoCount = 0
-      try {
-        const pm = await api.get<{ photos?: unknown[] }>('/photos/me')
-        photoCount = Array.isArray(pm.photos) ? pm.photos.length : 0
-      } catch {
-        photoCount = 0
+      let photoCount =
+        typeof data.photoCount === 'number' && Number.isFinite(data.photoCount) ? data.photoCount : 0
+      if (typeof data.photoCount !== 'number') {
+        try {
+          const pm = await api.get<{ photos?: unknown[] }>('/photos/me')
+          photoCount = Array.isArray(pm.photos) ? pm.photos.length : 0
+        } catch {
+          photoCount = 0
+        }
       }
 
-      const complete = computeAppConnectReady(rawProfile, photoCount, hasWebCreateProfileDraft())
+      const serverSaysComplete = data.connectSetupComplete === true
+      const serverSaysIncomplete = data.connectSetupComplete === false
+      const clientReady = computeAppConnectReady(rawProfile, photoCount, hasWebCreateProfileDraft())
+      const complete =
+        serverSaysComplete || (!serverSaysIncomplete && clientReady)
+      if (complete) {
+        clearWebCreateProfileDraft()
+      }
       setConnectSetupComplete(complete)
       return { connectSetupComplete: complete }
     } catch (error: any) {
@@ -309,29 +319,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const refreshProfile = async () => {
-    try {
-      const data: any = await api.get('/profile')
-      if (data.profile) {
-        setProfile(data.profile)
-        console.log('Profile refreshed:', data.profile)
-        let photoCount = 0
-        try {
-          const pm = await api.get<{ photos?: unknown[] }>('/photos/me')
-          photoCount = Array.isArray(pm.photos) ? pm.photos.length : 0
-        } catch {
-          photoCount = 0
-        }
-        setConnectSetupComplete(computeAppConnectReady(data.profile, photoCount, hasWebCreateProfileDraft()))
-      } else {
-        setProfile(null)
-        setConnectSetupComplete(false)
-      }
-    } catch (error) {
-      console.error('Failed to refresh profile:', error)
-      // Profile might not exist yet, set to null
-      setProfile(null)
-      setConnectSetupComplete(false)
-    }
+    await fetchUser()
   }
 
   const refreshSession = async () => {

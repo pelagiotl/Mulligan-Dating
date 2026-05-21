@@ -6,6 +6,7 @@ import { useAuth } from "../context/AuthContext";
 import { getPhotoUrl } from "../utils/photoUrl";
 import MatchCelebration, { type CelebrationPartnerProfile } from "../components/MatchCelebration";
 import TokenDisplay from "../components/TokenDisplay";
+import ConnectButtonEffects from "../components/ConnectButtonEffects";
 import ConnectLandingMark from "../components/ConnectLandingMark";
 import LaunchCountdown from "../components/LaunchCountdown";
 import { io, Socket } from "socket.io-client";
@@ -138,19 +139,21 @@ function BrowseConnectLandingChrome({
               ) : null}
               <button
                 type="button"
-                className="connect-landing__cta"
+                className="connect-landing__cta connect-landing__cta--effects"
                 onClick={() => onConnect?.()}
                 disabled={unlocking}
                 aria-busy={unlocking}
               >
-                {unlocking ? (
-                  <>
-                    <span className="connect-landing__spinner" />
-                    <span>Connecting…</span>
-                  </>
-                ) : (
-                  "Connect"
-                )}
+                <ConnectButtonEffects active={!unlocking} borderRadius={18}>
+                  {unlocking ? (
+                    <>
+                      <span className="connect-landing__spinner" />
+                      <span>Connecting…</span>
+                    </>
+                  ) : (
+                    "Connect"
+                  )}
+                </ConnectButtonEffects>
               </button>
             </>
           ) : (
@@ -924,11 +927,13 @@ export default function Browse() {
           <div className="browse-native-connect-bar">
             <button
               type="button"
-              className="browse-native-connect-btn"
+              className="browse-native-connect-btn browse-native-connect-btn--effects"
               onClick={() => !connecting && handleConnect(currentProfile)}
               disabled={connecting}
             >
-              {connecting ? "Connecting..." : "Connect & Match 🎟️"}
+              <ConnectButtonEffects active={!connecting} borderRadius={28}>
+                {connecting ? "Connecting..." : "Connect & Match 🎟️"}
+              </ConnectButtonEffects>
             </button>
           </div>
         </>

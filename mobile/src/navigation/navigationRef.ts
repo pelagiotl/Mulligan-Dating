@@ -9,8 +9,13 @@ import { NavigationContainerRef } from '@react-navigation/native';
 export type RootStackParamList = {
   PhoneLogin: undefined;
   AgeGate: { nextRoute: 'CreateProfile' | 'MainTabs' } | undefined;
-  CreateProfile: { startFromBeginning?: boolean; initialStep?: number } | undefined;
-  MainTabs: undefined;
+  CreateProfile: {
+    startFromBeginning?: boolean;
+    initialStep?: number;
+    /** Set when routed here after SMS login — allows auto-skip to Connect when profile is already complete. */
+    fromPostAuthLogin?: boolean;
+  } | undefined;
+  MainTabs: { screen?: string; params?: object } | undefined;
   Terms: undefined;
   Privacy: undefined;
   PushNotificationSettings: undefined;

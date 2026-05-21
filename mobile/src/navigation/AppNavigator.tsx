@@ -433,7 +433,10 @@ export default function AppNavigator() {
       const hasExistingProfile = !!(profile?.id);
       return {
         name: 'CreateProfile' as const,
-        params: { startFromBeginning: !hasExistingProfile },
+        params: {
+          startFromBeginning: !hasExistingProfile,
+          fromPostAuthLogin: true,
+        },
       };
     }
     return { name: 'MainTabs' as const };
@@ -558,11 +561,15 @@ export default function AppNavigator() {
         gateStatusLoaded &&
         ageGatePassed === true &&
         connectSetupComplete &&
-        !isInsideMainTabsFlow(currentRoute?.name) &&
-        currentRoute?.name !== 'CreateProfile'
+        (currentRoute?.name === 'CreateProfile'
+          ? !!(currentRoute.params as { fromPostAuthLogin?: boolean } | undefined)?.fromPostAuthLogin
+          : !isInsideMainTabsFlow(currentRoute?.name))
       ) {
         try {
-          navigationRef.current.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
+          navigationRef.current.reset({
+            index: 0,
+            routes: [{ name: 'MainTabs', params: { screen: 'Browse' } }],
+          });
         } catch (err) {
           console.error('Navigation error in AppNavigator:', err);
         }

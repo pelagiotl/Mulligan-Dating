@@ -31,7 +31,12 @@ export default function AgeGateScreen() {
       navigation.reset({
         index: 0,
         routes: goToCreateProfile
-          ? [{ name: 'CreateProfile', params: { startFromBeginning: !profile?.id } }]
+          ? [
+              {
+                name: 'CreateProfile',
+                params: { startFromBeginning: !profile?.id, fromPostAuthLogin: true },
+              },
+            ]
           : [{ name: 'MainTabs' }],
       });
     } catch (e) {

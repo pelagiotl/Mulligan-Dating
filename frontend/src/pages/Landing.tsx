@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import ConnectButtonEffects from "../components/ConnectButtonEffects";
 import ConnectLandingMark from "../components/ConnectLandingMark";
 import LaunchCountdown from "../components/LaunchCountdown";
 import WebTokenPurchase from "../components/WebTokenPurchase";
@@ -64,8 +65,10 @@ export default function Landing() {
               </div>
             </div>
 
-            <Link to="/signup" className="connect-landing__cta">
-              Get started
+            <Link to="/signup" className="connect-landing__cta connect-landing__cta--effects">
+              <ConnectButtonEffects active borderRadius={18}>
+                Get started
+              </ConnectButtonEffects>
             </Link>
             <Link to="/login" className="connect-landing__subcta">
               I already have an account

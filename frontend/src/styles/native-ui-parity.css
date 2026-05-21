@@ -429,6 +429,12 @@
     0 0 0 2px rgba(255, 255, 255, 0.3) inset;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   transition: transform 0.15s ease, opacity 0.15s ease;
+  position: relative;
+}
+
+.browse-native-connect-btn--effects {
+  overflow: hidden;
+  isolation: isolate;
 }
 
 .browse-native-connect-btn:hover:not(:disabled) {

@@ -10,6 +10,7 @@ import {
   Alert,
   Dimensions,
   Animated,
+  Easing,
   Platform,
   Vibration,
   Modal,
@@ -36,6 +37,9 @@ import MatchmakingPausedModal from '../components/MatchmakingPausedModal';
 import ConnectLandingValueProps, { ConnectFeatureLabel } from '../components/ConnectLandingValueProps';
 import { CONNECT_LANDING_TAGLINE } from '../constants/connectLanding';
 import ConnectLandingMark from '../components/ConnectLandingMark';
+import ConnectButtonShimmerEffect, {
+  CONNECT_SHIMMER_DURATION_MS,
+} from '../components/ConnectButtonShimmerEffect';
 import MatchCelebration from '../components/MatchCelebration';
 import LegalFooter from '../components/LegalFooter';
 import NoTokensModal from '../components/NoTokensModal';
@@ -122,6 +126,7 @@ export default function BrowseScreen() {
   const route = useRoute();
   const insets = useSafeAreaInsets();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const connectButtonSweepWidth = Math.max(280, windowWidth - 48);
   /** iPad / large tablets: white Connect card should fill the viewport (not a short strip on gradient). */
   const connectLandingFillTablet =
     windowWidth >= 768 || (Platform.OS === 'ios' && Platform.isPad);
@@ -152,12 +157,13 @@ export default function BrowseScreen() {
     };
   }, [connectLandingFillTablet, windowHeight, insets.top, insets.bottom, insets.left, insets.right]);
   const isFocused = useIsFocused();
-  /** useIsFocused() can be false on the first paint; hiding then causes a black screen (transparent scene over default black). */
-  const browseWasFocusedRef = useRef(false);
-  if (isFocused) browseWasFocusedRef.current = true;
-  const hideBrowseWhenBlurred = !isFocused && browseWasFocusedRef.current;
   const { profile: userProfile, user, isAuthenticated, refreshProfile } = useAuth();
   const { mode: connectShellMode } = useConnectShellTheme();
+  const shellBackdropColor = useMemo(() => {
+    if (connectShellMode === 'midnight') return '#15102a';
+    if (connectShellMode === 'sunny') return '#38bdf8';
+    return '#667eea';
+  }, [connectShellMode]);
   const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
   
   // Profile card animations
@@ -249,7 +255,7 @@ export default function BrowseScreen() {
   // Button animations
   const buttonPulse = useRef(new Animated.Value(1)).current;
   const buttonScale = useRef(new Animated.Value(1)).current;
-  const shimmerTranslate = useRef(new Animated.Value(-200)).current;
+  const shimmerProgress = useRef(new Animated.Value(0)).current;
   
   // Animated gradient colors (matching web version)
   const gradientPosition = useRef(new Animated.Value(0)).current;
@@ -1113,14 +1119,20 @@ export default function BrowseScreen() {
 
       shimmerLoop = Animated.loop(
         Animated.sequence([
-          Animated.timing(shimmerTranslate, { toValue: 400, duration: 2000, useNativeDriver: true }),
-          Animated.timing(shimmerTranslate, { toValue: -200, duration: 0, useNativeDriver: true }),
+          Animated.timing(shimmerProgress, {
+            toValue: 1,
+            duration: CONNECT_SHIMMER_DURATION_MS,
+            easing: Easing.linear,
+            useNativeDriver: true,
+          }),
+          Animated.delay(50),
+          Animated.timing(shimmerProgress, { toValue: 0, duration: 0, useNativeDriver: true }),
         ])
       );
       shimmerLoop.start();
     } else {
       buttonPulse.setValue(1);
-      shimmerTranslate.setValue(-200);
+      shimmerProgress.setValue(0);
       gradientPosition.setValue(0);
       titleScale.setValue(0.9);
       titleOpacity.setValue(0);
@@ -1151,7 +1163,13 @@ export default function BrowseScreen() {
     );
     const shimmerLoop = Animated.loop(
       Animated.sequence([
-        Animated.timing(connectButtonShimmer, { toValue: 1, duration: 3000, useNativeDriver: true }),
+        Animated.timing(connectButtonShimmer, {
+          toValue: 1,
+          duration: CONNECT_SHIMMER_DURATION_MS,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        }),
+        Animated.delay(50),
         Animated.timing(connectButtonShimmer, { toValue: 0, duration: 0, useNativeDriver: true }),
       ])
     );
@@ -1561,8 +1579,7 @@ export default function BrowseScreen() {
     <View
       style={[
         styles.container,
-        showLandingPage && { backgroundColor: 'transparent' },
-        hideBrowseWhenBlurred && { opacity: 0, pointerEvents: 'none' as const },
+        showLandingPage && { backgroundColor: shellBackdropColor },
       ]}
     >
       {/* Beautiful gradient background (matching web version) - full screen behind everything */}
@@ -1589,7 +1606,7 @@ export default function BrowseScreen() {
       )}
 
       <ScrollView 
-        style={[styles.scrollView, showLandingPage && { backgroundColor: 'transparent' }]} 
+        style={[styles.scrollView, showLandingPage && { backgroundColor: shellBackdropColor }]} 
         contentContainerStyle={[
           styles.contentContainer,
           showLandingPage && {
@@ -1738,19 +1755,17 @@ export default function BrowseScreen() {
                     ]}
                   >
                     {!unlocking && connectReady && (
-                      <Animated.View
-                        style={[
-                          styles.buttonShimmer,
-                          {
-                            transform: [{ translateX: shimmerTranslate }],
-                          },
-                        ]}
+                      <ConnectButtonShimmerEffect
+                        progress={shimmerProgress}
+                        borderRadius={22}
+                        sweepWidth={connectButtonSweepWidth}
                       />
                     )}
 
                     <Animated.View
                       style={{
                         transform: [{ scale: buttonScale }],
+                        zIndex: 4,
                       }}
                     >
                       {unlocking ? (
@@ -1879,19 +1894,17 @@ export default function BrowseScreen() {
                           style={[styles.landingButton, unlocking && styles.landingButtonDisabled]}
                         >
                           {!unlocking && connectReady && (
-                            <Animated.View
-                              style={[
-                                styles.buttonShimmer,
-                                {
-                                  transform: [{ translateX: shimmerTranslate }],
-                                },
-                              ]}
+                            <ConnectButtonShimmerEffect
+                              progress={shimmerProgress}
+                              borderRadius={22}
+                              sweepWidth={connectButtonSweepWidth}
                             />
                           )}
 
                           <Animated.View
                             style={{
                               transform: [{ scale: buttonScale }],
+                              zIndex: 4,
                             }}
                           >
                             {unlocking ? (
@@ -2019,19 +2032,17 @@ export default function BrowseScreen() {
                           style={[styles.landingButton, unlocking && styles.landingButtonDisabled]}
                         >
                           {!unlocking && connectReady && (
-                            <Animated.View
-                              style={[
-                                styles.buttonShimmer,
-                                {
-                                  transform: [{ translateX: shimmerTranslate }],
-                                },
-                              ]}
+                            <ConnectButtonShimmerEffect
+                              progress={shimmerProgress}
+                              borderRadius={22}
+                              sweepWidth={connectButtonSweepWidth}
                             />
                           )}
 
                           <Animated.View
                             style={{
                               transform: [{ scale: buttonScale }],
+                              zIndex: 4,
                             }}
                           >
                             {unlocking ? (
@@ -2679,16 +2690,10 @@ export default function BrowseScreen() {
                   connecting && styles.connectButtonDisabled,
                 ]}
               >
-                <Animated.View
-                  style={[
-                    styles.connectButtonShimmer,
-                    {
-                      transform: [
-                        { translateX: connectButtonShimmer.interpolate({ inputRange: [0, 1], outputRange: [-200, 400] }) },
-                        { rotate: connectButtonShimmer.interpolate({ inputRange: [0, 1], outputRange: ['-20deg', '-20deg'] }) },
-                      ],
-                    },
-                  ]}
+                <ConnectButtonShimmerEffect
+                  progress={connectButtonShimmer}
+                  borderRadius={28}
+                  sweepWidth={connectButtonSweepWidth}
                 />
                 <View style={styles.connectButtonContent}>
                   <Animated.View style={[StyleSheet.absoluteFill, { opacity: connectSpinnerOpacity, justifyContent: 'center', alignItems: 'center' }]} pointerEvents="none">
@@ -3384,7 +3389,7 @@ const styles = StyleSheet.create({
   landingButtonTouchable: {
     width: '100%',
     borderRadius: 16,
-    overflow: 'hidden',
+    overflow: 'visible',
   },
   landingButton: {
     paddingHorizontal: 36,
@@ -3400,19 +3405,9 @@ const styles = StyleSheet.create({
     elevation: 16,
     borderWidth: 3,
     borderColor: 'rgba(255, 255, 255, 0.5)',
-    overflow: 'hidden',
+    overflow: 'visible',
     position: 'relative',
     minHeight: 58,
-  },
-  buttonShimmer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    width: 100,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    transform: [{ skewX: '-20deg' }],
   },
   landingButtonDisabled: {
     opacity: 0.6,
@@ -3682,7 +3677,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     marginVertical: 20,
     borderRadius: 28,
-    overflow: 'hidden',
+    overflow: 'visible',
     alignSelf: 'stretch',
   },
   connectButtonFixed: {
@@ -3700,6 +3695,7 @@ const styles = StyleSheet.create({
     minWidth: 140,
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 4,
   },
   connectButtonGradient: {
     paddingVertical: 20,
@@ -3714,18 +3710,8 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.3)',
     minHeight: 60,
-    overflow: 'hidden',
+    overflow: 'visible',
     position: 'relative',
-  },
-  connectButtonShimmer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    width: 50,
-    backgroundColor: 'rgba(255, 255, 255, 0.4)',
-    transform: [{ skewX: '-20deg' }],
   },
   connectButtonDisabled: {
     opacity: 0.6,

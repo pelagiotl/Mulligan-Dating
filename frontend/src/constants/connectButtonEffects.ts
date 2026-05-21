@@ -1,0 +1,46 @@
+/** Shared with mobile ConnectButtonShimmerEffect / ConnectButtonHeartFireworks. */
+export const CONNECT_SHIMMER_DURATION_MS = 3400;
+
+export const CONNECT_TRACE_COLOR = 'rgba(103, 232, 249, 0.95)';
+export const CONNECT_TRACE_EDGE_PX = 2.5;
+
+export type ShootingHeartSpec = {
+  emoji: string;
+  left: string;
+  delayMs: number;
+  durationMs: number;
+  startY: number;
+  endY: number;
+  driftX: number;
+  sizePx: number;
+  startRotationDeg: number;
+  endRotationDeg: number;
+};
+
+export type BurstHeartSpec = {
+  emoji: string;
+  delayMs: number;
+  durationMs: number;
+  offsetX: number;
+  offsetY: number;
+  sizePx: number;
+};
+
+export const CONNECT_SHOOTING_HEARTS: ShootingHeartSpec[] = [
+  { emoji: '💕', left: '6%', delayMs: 0, durationMs: 2200, startY: -36, endY: 34, driftX: 14, sizePx: 15, startRotationDeg: -18, endRotationDeg: 8 },
+  { emoji: '💖', left: '22%', delayMs: 280, durationMs: 2400, startY: -42, endY: 30, driftX: -10, sizePx: 17, startRotationDeg: 12, endRotationDeg: -6 },
+  { emoji: '✨', left: '38%', delayMs: 520, durationMs: 2000, startY: -38, endY: 36, driftX: 6, sizePx: 14, startRotationDeg: 0, endRotationDeg: 0 },
+  { emoji: '💝', left: '54%', delayMs: 120, durationMs: 2600, startY: -44, endY: 32, driftX: -14, sizePx: 16, startRotationDeg: -8, endRotationDeg: 14 },
+  { emoji: '💗', left: '70%', delayMs: 640, durationMs: 2300, startY: -40, endY: 35, driftX: 10, sizePx: 15, startRotationDeg: 16, endRotationDeg: -10 },
+  { emoji: '💕', left: '86%', delayMs: 400, durationMs: 2100, startY: -34, endY: 38, driftX: -8, sizePx: 14, startRotationDeg: -12, endRotationDeg: 6 },
+  { emoji: '✨', left: '48%', delayMs: 900, durationMs: 1800, startY: -48, endY: 28, driftX: 0, sizePx: 13, startRotationDeg: 0, endRotationDeg: 0 },
+  { emoji: '💖', left: '14%', delayMs: 1100, durationMs: 2500, startY: -46, endY: 40, driftX: 18, sizePx: 16, startRotationDeg: 20, endRotationDeg: -12 },
+];
+
+export const CONNECT_BURST_HEARTS: BurstHeartSpec[] = [
+  { emoji: '💕', delayMs: 0, durationMs: 1400, offsetX: -42, offsetY: -8, sizePx: 12 },
+  { emoji: '💖', delayMs: 450, durationMs: 1500, offsetX: 38, offsetY: -12, sizePx: 13 },
+  { emoji: '✨', delayMs: 900, durationMs: 1200, offsetX: -28, offsetY: 14, sizePx: 11 },
+  { emoji: '💗', delayMs: 1350, durationMs: 1400, offsetX: 44, offsetY: 10, sizePx: 12 },
+  { emoji: '💝', delayMs: 1800, durationMs: 1300, offsetX: 0, offsetY: -16, sizePx: 13 },
+];

@@ -39,6 +39,7 @@ import {
   readMobileCreateProfileDraft,
   writeMobileCreateProfileDraft,
 } from '../utils/createProfileProgress';
+import { computeConnectSetupComplete } from '../utils/connectSetup';
 import ProfileCompleteCelebration from '../components/ProfileCompleteCelebration';
 import { useAuth } from '../context/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -161,8 +162,11 @@ export default function CreateProfileScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   const insets = useSafeAreaInsets();
-  const routeParams = route.params as { startFromBeginning?: boolean; initialStep?: number } | undefined;
+  const routeParams = route.params as
+    | { startFromBeginning?: boolean; initialStep?: number; fromPostAuthLogin?: boolean }
+    | undefined;
   const startFromBeginning = routeParams?.startFromBeginning === true;
+  const fromPostAuthLogin = routeParams?.fromPostAuthLogin === true;
   const initialStep = routeParams?.initialStep;
   const { refreshProfile, profile: existingProfile, connectSetupComplete, logout } = useAuth();
   const [step, setStep] = useState(1);
@@ -644,6 +648,26 @@ export default function CreateProfileScreen() {
     setMaxAge(maxAgeVal);
     setMaxDistance(maxDist);
 
+    const profileForConnect = { display_name: dn, displayName: dn, location: loc };
+    const connectReadyOnDevice = computeConnectSetupComplete(profileForConnect, photoCount);
+
+    // Post-login only: profile already complete on device → Connect tab (same path as tapping Exit).
+    if (fromPostAuthLogin && connectReadyOnDevice && initialStep == null) {
+      await clearMobileCreateProfileDraft();
+      await refreshProfile();
+      if (navigationRef.current?.isReady()) {
+        navigationRef.current.reset({
+          index: 0,
+          routes: [{ name: 'MainTabs', params: { screen: 'Browse' } }],
+        });
+      } else {
+        (navigation as { navigate: (name: string, params?: object) => void }).navigate('MainTabs', {
+          screen: 'Browse',
+        });
+      }
+      return;
+    }
+
     const resumeStep = computeMobileCreateProfileResumeStep({
       displayName: dn,
       age: ageStr,
@@ -660,7 +684,7 @@ export default function CreateProfileScreen() {
     const targetStep =
       initialStep != null && initialStep >= 1 && initialStep <= TOTAL_STEPS ? initialStep : resumeStep;
     setStep(targetStep);
-  }, [initialStep]);
+  }, [initialStep, fromPostAuthLogin, navigation, refreshProfile]);
 
   // Load profile on mount and when edit params change (not when startFromBeginning = new account/delete)
   useEffect(() => {

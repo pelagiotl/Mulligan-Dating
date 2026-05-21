@@ -7,6 +7,7 @@ import { db } from '../database.js';
 import { generateToken, authenticateToken, AuthRequest, userHasAdminAccess } from '../middleware/auth.js';
 import { sanitizeText, rateLimitAuth, rateLimitSignup, rateLimitAPI } from '../middleware/security.js';
 import { isWebPushConfigured } from '../services/webPushDelivery.js';
+import { getConnectSetupViolationsForUser } from '../utils/connectRequirements.js';
 
 export const authRouter = Router();
 
@@ -232,6 +233,9 @@ authRouter.get('/me', authenticateToken, async (req: AuthRequest, res) => {
       }
     }
 
+    const connectSetupMissing = await getConnectSetupViolationsForUser(user.id);
+    const connectSetupComplete = connectSetupMissing.length === 0;
+
     const matchmakingOff = isMatchmakingGloballyDisabled();
     const isAdmin = userHasAdminAccess(user.id, user.is_admin, user.phone_number);
     res.json({
@@ -247,6 +251,8 @@ authRouter.get('/me', authenticateToken, async (req: AuthRequest, res) => {
       },
       profile,
       photoCount,
+      connectSetupComplete,
+      connectSetupMissing,
       matchmakingEnabled: !matchmakingOff,
       matchmakingDisabledMessage: matchmakingOff ? getMatchmakingDisabledMessage() : null,
     });

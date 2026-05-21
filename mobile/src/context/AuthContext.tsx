@@ -773,16 +773,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           : null;
       if (photoCount === null) {
         try {
-          const photoData = await api.get<{ photos?: unknown[] }>('/photos/me', false);
+          api.clearCache('/photos/me');
+          const photoData = await api.get<{ photos?: unknown[] }>(
+            `/photos/me?_=${Date.now()}`,
+            false
+          );
           photoCount = Array.isArray(photoData?.photos) ? photoData.photos.length : 0;
         } catch {
           photoCount = null;
         }
+      } else {
+        try {
+          api.clearCache('/photos/me');
+          const photoData = await api.get<{ photos?: unknown[] }>(
+            `/photos/me?_=${Date.now()}`,
+            false
+          );
+          const liveCount = Array.isArray(photoData?.photos) ? photoData.photos.length : 0;
+          photoCount = Math.max(photoCount, liveCount);
+        } catch {
+          /* keep auth/me DB count */
+        }
       }
-      // Server profile already satisfies Connect rules — ignore stale wizard draft on this device
-      // (draft is not keyed by user; leftover from logout or another login blocks returning users).
-      const serverConnectReady = computeConnectSetupComplete(data.profile || null, photoCount);
-      if (serverConnectReady) {
+      // Prefer server connect gate (same rules as Connect API); fall back to client if older backend.
+      const serverSaysComplete = data.connectSetupComplete === true;
+      const clientConnectReady = computeConnectSetupComplete(data.profile || null, photoCount);
+      // Trust client when /photos/me shows a complete profile even if server flag lags (e.g. filtered photo list).
+      const connectReady = serverSaysComplete || clientConnectReady;
+
+      if (connectReady) {
         await clearMobileCreateProfileDraft();
         setConnectSetupComplete(true);
       } else {
@@ -791,10 +810,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           computeAppConnectReady(data.profile || null, photoCount ?? 0, wizardDraftActive)
         );
         if (__DEV__) {
-          const missing = getConnectSetupMissing(data.profile || null, photoCount ?? 0);
+          const missing =
+            Array.isArray(data.connectSetupMissing) && data.connectSetupMissing.length > 0
+              ? data.connectSetupMissing
+              : getConnectSetupMissing(data.profile || null, photoCount ?? 0);
           console.warn('[Auth] Connect setup incomplete', {
             missing,
             photoCount,
+            serverSaysComplete,
+            clientConnectReady,
             wizardDraftActive,
             displayName: data.profile?.display_name ?? data.profile?.displayName,
             location: data.profile?.location,
