@@ -229,7 +229,7 @@ function AgeGateRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-/** Connect/Matches require the same setup as unlock-browse (name, city+state, min photos). Stub profiles stay on the wizard. */
+/** Connect/Matches require finished create-profile wizard (draft cleared) plus name, city+state, min photos. */
 function RequireConnectSetup({ children }: { children: React.ReactNode }) {
   const { connectSetupComplete } = useAuth()
   if (!connectSetupComplete) {

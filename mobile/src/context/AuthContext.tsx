@@ -15,7 +15,8 @@ import { registerForPushNotificationsAsync, clearPushToken, refreshAndSendPushTo
 import { getStoredPushToken, hydrateStoredPushToken, shouldSendTokenToServer } from '../utils/pushTokenStore';
 import * as Notifications from 'expo-notifications';
 import { navigationRef } from '../navigation/navigationRef';
-import { computeConnectSetupComplete } from '../utils/connectSetup';
+import { computeAppConnectReady } from '../utils/connectSetup';
+import { hasMobileCreateProfileDraft } from '../utils/createProfileProgress';
 import { playMessageSound, playMatchSound } from '../utils/sounds';
 import { setPendingGameRequest } from '../utils/pendingGameRequest';
 import { currentMatchIdRef } from '../utils/currentMatchView';
@@ -766,7 +767,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch {
         photoCount = 0;
       }
-      setConnectSetupComplete(computeConnectSetupComplete(data.profile || null, photoCount));
+      const wizardDraftActive = await hasMobileCreateProfileDraft();
+      setConnectSetupComplete(
+        computeAppConnectReady(data.profile || null, photoCount, wizardDraftActive)
+      );
 
       const uid = data.user.id;
       const now = Date.now();

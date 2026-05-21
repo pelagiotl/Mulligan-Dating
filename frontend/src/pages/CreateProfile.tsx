@@ -806,8 +806,8 @@ export default function CreateProfile() {
         return;
       }
 
-      await refreshProfile();
       clearWebCreateProfileDraft();
+      await refreshProfile();
       setShowProfileReadySplash(true);
     } catch (err) {
       const msg = apiErrorMessage(err, "Failed to create profile");

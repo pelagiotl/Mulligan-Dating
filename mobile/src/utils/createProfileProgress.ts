@@ -73,6 +73,11 @@ export async function readMobileCreateProfileDraft(): Promise<MobileCreateProfil
   }
 }
 
+/** True while the user has not tapped Complete Profile (draft cleared on finish). */
+export async function hasMobileCreateProfileDraft(): Promise<boolean> {
+  return (await readMobileCreateProfileDraft()) != null;
+}
+
 export async function writeMobileCreateProfileDraft(draft: MobileCreateProfileDraft): Promise<void> {
   try {
     const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;

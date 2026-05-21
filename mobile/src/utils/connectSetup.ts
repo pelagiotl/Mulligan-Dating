@@ -54,3 +54,12 @@ export function isConnectSetupComplete(profile: ConnectProfileLike, photoCount: 
 export function computeConnectSetupComplete(profile: ConnectProfileLike, photoCount: number): boolean {
   return isConnectSetupComplete(profile, photoCount);
 }
+
+/** Connect rules met and create-profile wizard finished (no in-progress draft). */
+export function computeAppConnectReady(
+  profile: ConnectProfileLike,
+  photoCount: number,
+  wizardDraftActive: boolean
+): boolean {
+  return computeConnectSetupComplete(profile, photoCount) && !wizardDraftActive;
+}

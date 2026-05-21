@@ -1,7 +1,8 @@
 import { createContext, useContext, useState, useEffect, useRef, ReactNode, useMemo } from 'react'
 import { api } from '../utils/api'
 import { browserSupportsWebPush, getVapidPublicKey, registerWebPush } from '../lib/webPush'
-import { computeConnectSetupComplete } from '../utils/connectProfileEligibility'
+import { computeAppConnectReady } from '../utils/connectProfileEligibility'
+import { hasWebCreateProfileDraft } from '../utils/createProfileProgress'
 import { clearAgeGateAccepted } from '../lib/ageGate'
 
 /** Same as mobile `MainTabs`: owner line always sees admin UI (API `requireAdmin` already matches this number). */
@@ -33,7 +34,7 @@ interface Profile {
 interface AuthContextType {
   user: User | null
   profile: Profile | null
-  /** True when name, city/state location, and min photos satisfy Connect rules (stub profiles are false). */
+  /** True when Connect rules are met and create-profile wizard was finished (no in-progress draft). */
   connectSetupComplete: boolean
   isAuthenticated: boolean
   isAdmin: boolean
@@ -142,7 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         photoCount = 0
       }
 
-      const complete = computeConnectSetupComplete(rawProfile, photoCount)
+      const complete = computeAppConnectReady(rawProfile, photoCount, hasWebCreateProfileDraft())
       setConnectSetupComplete(complete)
       return { connectSetupComplete: complete }
     } catch (error: any) {
@@ -314,7 +315,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } catch {
           photoCount = 0
         }
-        setConnectSetupComplete(computeConnectSetupComplete(data.profile, photoCount))
+        setConnectSetupComplete(computeAppConnectReady(data.profile, photoCount, hasWebCreateProfileDraft()))
       } else {
         setProfile(null)
         setConnectSetupComplete(false)

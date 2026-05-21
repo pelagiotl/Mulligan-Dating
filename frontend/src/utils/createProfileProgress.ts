@@ -71,6 +71,11 @@ export function readWebCreateProfileDraft(): WebCreateProfileDraft | null {
   }
 }
 
+/** True while the user has not tapped Complete Profile (draft cleared on finish). */
+export function hasWebCreateProfileDraft(): boolean {
+  return readWebCreateProfileDraft() != null;
+}
+
 export function writeWebCreateProfileDraft(draft: WebCreateProfileDraft): void {
   try {
     localStorage.setItem(WEB_CREATE_PROFILE_DRAFT_KEY, JSON.stringify(draft));

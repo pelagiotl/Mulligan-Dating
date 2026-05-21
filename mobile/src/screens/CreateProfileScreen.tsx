@@ -1529,8 +1529,8 @@ export default function CreateProfileScreen() {
       });
 
       // Photos are already uploaded on the photos step; refresh profile
-      await refreshProfile();
       await clearMobileCreateProfileDraft();
+      await refreshProfile();
 
       // Show celebration before navigating
       setShowCelebration(true);

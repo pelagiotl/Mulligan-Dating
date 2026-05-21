@@ -41,3 +41,12 @@ export function computeConnectSetupComplete(profileRow: unknown, photoCount: num
     photoCount >= MIN_PHOTOS_TO_CONNECT
   );
 }
+
+/** Connect rules met and create-profile wizard finished (no in-progress draft). */
+export function computeAppConnectReady(
+  profileRow: unknown,
+  photoCount: number,
+  wizardDraftActive: boolean
+): boolean {
+  return computeConnectSetupComplete(profileRow, photoCount) && !wizardDraftActive;
+}
