@@ -44,7 +44,7 @@ export function connectSetupErrorPayload(violations: string[]) {
     profile: 'Complete your profile first.',
     name: 'Add your name in Settings before connecting.',
     location: 'Add your city and state on your Profile before connecting (e.g. Medford, Oregon).',
-    photos: `Add at least ${MIN_PHOTOS_TO_CONNECT} photo${MIN_PHOTOS_TO_CONNECT === 1 ? '' : 's'} on your Profile before connecting.`,
+    photos: `Add at least ${MIN_PHOTOS_TO_CONNECT} photos on your Profile before connecting.`,
   };
   const primary = violations[0] ?? 'profile';
   return {

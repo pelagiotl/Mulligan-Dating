@@ -1427,7 +1427,7 @@ export default function CreateProfileScreen() {
 
     if (readyCount < MIN_PHOTOS_REQUIRED) {
       setError(
-        `Please upload at least ${MIN_PHOTOS_REQUIRED} ${MIN_PHOTOS_REQUIRED === 1 ? 'photo' : 'photos'} to complete your profile`
+        `Please upload at least ${MIN_PHOTOS_REQUIRED} photos to complete your profile`
       );
       setLoading(false);
       return;
@@ -2207,8 +2207,7 @@ export default function CreateProfileScreen() {
           <Text style={styles.modernHeaderEmojiCondensed}>📸</Text>
           <Text style={styles.modernHeaderTitleCondensed}>Add Your Photos</Text>
           <Text style={styles.modernHeaderSubtitleCondensed}>
-            Upload at least {MIN_PHOTOS_REQUIRED}{' '}
-            {MIN_PHOTOS_REQUIRED === 1 ? 'photo' : 'photos'} (up to 6 total)
+            Upload at least {MIN_PHOTOS_REQUIRED} photos (up to 6 total)
           </Text>
           <Text style={[styles.modernHeaderSubtitleCondensed, { marginTop: 8, fontSize: 14, opacity: 0.9 }]}>
             {uploadedPhotoCount} / {MIN_PHOTOS_REQUIRED} minimum ({photosReady ? '✓ Ready' : 'Need more'})
