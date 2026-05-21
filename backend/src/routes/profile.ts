@@ -11,6 +11,19 @@ import { isUniqueViolation } from '../utils/ensureStubProfile.js';
 
 export const profileRouter = Router();
 
+/** Match PostgreSQL column limits after initDatabase widen migrations. */
+const DB_PHOTO_URL_MAX = 2000;
+const DB_LOOKING_FOR_MAX = 500;
+
+function clampForDb(value: string | null | undefined, max: number): string | null {
+  if (value == null || value === '') return null;
+  const t = value.trim();
+  if (!t) return null;
+  if (t.length <= max) return t;
+  console.warn(`Profile field truncated from ${t.length} to ${max} characters for DB`);
+  return t.slice(0, max);
+}
+
 const profileSchema = z.object({
   displayName: z.string()
     .min(2, 'Name must be at least 2 characters')
@@ -39,7 +52,7 @@ const profileSchema = z.object({
     .optional()
     .nullable(),
   photoUrl: z.string()
-    .max(5000, 'Photo URL must be at most 5000 characters')
+    .max(DB_PHOTO_URL_MAX, `Photo URL must be at most ${DB_PHOTO_URL_MAX} characters`)
     .optional()
     .nullable()
     .transform((val) => {
@@ -47,7 +60,7 @@ const profileSchema = z.object({
       return val.trim();
     }),
   lookingFor: z.string()
-    .max(500, 'Looking for must be at most 500 characters')
+    .max(DB_LOOKING_FOR_MAX, `Looking for must be at most ${DB_LOOKING_FOR_MAX} characters`)
     .optional()
     .nullable()
 });
@@ -76,8 +89,10 @@ profileRouter.post('/', authenticateToken, rateLimitAPI, async (req: AuthRequest
       gender: sanitizeText(profileData.gender, 50),
       location: profileData.location ? sanitizeText(profileData.location, 100) : null,
       bio: profileData.bio ? sanitizeText(profileData.bio, 500) : null,
-      photoUrl: profileData.photoUrl || null, // URL validation already done by Zod
-      lookingFor: profileData.lookingFor ? sanitizeText(profileData.lookingFor, 500) : null
+      photoUrl: clampForDb(profileData.photoUrl, DB_PHOTO_URL_MAX),
+      lookingFor: profileData.lookingFor
+        ? clampForDb(sanitizeText(profileData.lookingFor, DB_LOOKING_FOR_MAX), DB_LOOKING_FOR_MAX)
+        : null,
     };
 
     if (sanitizedData.displayName.trim().length < 2) {
@@ -115,10 +130,10 @@ profileRouter.post('/', authenticateToken, rateLimitAPI, async (req: AuthRequest
     if (existingProfile) {
       // Wizard POST omits photoUrl — preserve uploaded gallery primary URL on update
       if (profileData.photoUrl === undefined && existingProfile.photo_url) {
-        sanitizedData.photoUrl = existingProfile.photo_url;
+        sanitizedData.photoUrl = clampForDb(existingProfile.photo_url, DB_PHOTO_URL_MAX);
       }
       if (profileData.lookingFor === undefined && existingProfile.looking_for) {
-        sanitizedData.lookingFor = existingProfile.looking_for;
+        sanitizedData.lookingFor = clampForDb(existingProfile.looking_for, DB_LOOKING_FOR_MAX);
       }
       await runProfileUpdate(existingProfile.id);
       res.json({ message: 'Profile updated', profileId: existingProfile.id });
@@ -161,10 +176,10 @@ profileRouter.post('/', authenticateToken, rateLimitAPI, async (req: AuthRequest
       >);
       if (!existingProfile) throw insertErr;
       if (profileData.photoUrl === undefined && existingProfile.photo_url) {
-        sanitizedData.photoUrl = existingProfile.photo_url;
+        sanitizedData.photoUrl = clampForDb(existingProfile.photo_url, DB_PHOTO_URL_MAX);
       }
       if (profileData.lookingFor === undefined && existingProfile.looking_for) {
-        sanitizedData.lookingFor = existingProfile.looking_for;
+        sanitizedData.lookingFor = clampForDb(existingProfile.looking_for, DB_LOOKING_FOR_MAX);
       }
       await runProfileUpdate(existingProfile.id);
       res.json({ message: 'Profile updated', profileId: existingProfile.id });
@@ -175,8 +190,12 @@ profileRouter.post('/', authenticateToken, rateLimitAPI, async (req: AuthRequest
     }
     console.error('Profile error:', error);
     const detail = error instanceof Error ? error.message : String(error);
-    res.status(500).json({
-      error: 'Failed to save profile',
+    const tooLong =
+      /value too long|too long for type character varying/i.test(detail);
+    res.status(tooLong ? 400 : 500).json({
+      error: tooLong
+        ? 'One of your profile fields is too long. Shorten your bio and try again.'
+        : 'Failed to save profile',
       details: detail,
     });
   }

@@ -284,6 +284,26 @@ export async function initDatabase() {
     )
   `);
 
+  // Production Postgres may have been created with VARCHAR(255) on text fields; widen so
+  // bios (up to 500) and Cloudinary URLs do not fail profile saves.
+  if (usePostgres) {
+    const profileColumnWidens: { sql: string; label: string }[] = [
+      { sql: 'ALTER TABLE profiles ALTER COLUMN bio TYPE TEXT', label: 'profiles.bio' },
+      { sql: 'ALTER TABLE profiles ALTER COLUMN photo_url TYPE VARCHAR(2000)', label: 'profiles.photo_url' },
+      { sql: 'ALTER TABLE profiles ALTER COLUMN looking_for TYPE VARCHAR(500)', label: 'profiles.looking_for' },
+      { sql: 'ALTER TABLE photos ALTER COLUMN url TYPE VARCHAR(2000)', label: 'photos.url' },
+    ];
+    for (const { sql, label } of profileColumnWidens) {
+      try {
+        await execSQL(sql);
+        console.log(`✅ PostgreSQL widened ${label}`);
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.warn(`⚠️  Could not widen ${label} (may already be correct):`, msg);
+      }
+    }
+  }
+
   // Photos table - multiple photos per profile
   await execSQL(`
     CREATE TABLE IF NOT EXISTS photos (
