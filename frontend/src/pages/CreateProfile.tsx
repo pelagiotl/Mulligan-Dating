@@ -375,12 +375,6 @@ export default function CreateProfile() {
     []
   );
 
-  const ensureProfileReadyForPhotos = useCallback(async () => {
-    if (profileReadyForPhotos) return;
-    await saveProfileBeforePhotos();
-    setProfileReadyForPhotos(true);
-  }, [profileReadyForPhotos, saveProfileBeforePhotos]);
-
   const saveProfileProgress = useCallback(
     async (options: { requireLocation: boolean }) => {
       if (displayName.trim().length < 2) {
@@ -465,6 +459,12 @@ export default function CreateProfile() {
   const saveProfileBeforePhotos = useCallback(async () => {
     await saveProfileProgress({ requireLocation: true });
   }, [saveProfileProgress]);
+
+  const ensureProfileReadyForPhotos = useCallback(async () => {
+    if (profileReadyForPhotos) return;
+    await saveProfileBeforePhotos();
+    setProfileReadyForPhotos(true);
+  }, [profileReadyForPhotos, saveProfileBeforePhotos]);
 
   useEffect(() => {
     if (step < 11) {
