@@ -46,7 +46,7 @@ android {
         applicationId "app.mulligandating"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 62
+        versionCode 63
         versionName "1.0.0"
     }
     signingConfigs {

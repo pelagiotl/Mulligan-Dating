@@ -33,6 +33,12 @@ import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import { api, getToken, ensureTokenPrefetched } from '../utils/api';
 import { handleLocationChange, hasCityAndState } from '../utils/locationUtils';
+import {
+  clearMobileCreateProfileDraft,
+  computeMobileCreateProfileResumeStep,
+  readMobileCreateProfileDraft,
+  writeMobileCreateProfileDraft,
+} from '../utils/createProfileProgress';
 import ProfileCompleteCelebration from '../components/ProfileCompleteCelebration';
 import { useAuth } from '../context/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -162,6 +168,7 @@ export default function CreateProfileScreen() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [savingInCreateProfile, setSavingInCreateProfile] = useState(false);
+  const [savingProgress, setSavingProgress] = useState(false);
   const [error, setError] = useState('');
   const [showCelebration, setShowCelebration] = useState(false);
   const step1ScrollViewRef = useRef<ScrollView>(null);
@@ -391,72 +398,235 @@ export default function CreateProfileScreen() {
     }
   }, [step]);
 
+  const saveAllProfileProgress = useCallback(async () => {
+    await ensureTokenPrefetched();
+    let token = await getToken();
+    if (!token?.trim()) {
+      await new Promise((r) => setTimeout(r, 200));
+      token = await getToken();
+    }
+    if (!token?.trim()) {
+      throw new Error('Session expired. Please log in again.');
+    }
+
+    await api.post('/profile', {
+      displayName,
+      age: parseInt(age, 10),
+      gender,
+      location,
+      bio,
+      lookingFor: null,
+    });
+
+    if (interests.length > 0) {
+      await api.put('/profile/interests', {
+        interests: interests.map((name) => ({ name })),
+      });
+    }
+
+    await api.put('/profile/dealbreakers', {
+      dealbreakers: dealbreakers.filter((d) => DEALBREAKER_CANONICAL_SET.has(d)),
+    });
+
+    await api.put('/profile/partner-qualities', {
+      qualities: partnerQualities.map((quality) => ({ quality, importance: 5 })),
+    });
+
+    await api.put('/profile/lifestyle', {
+      smoking: lifestyleForm.smoking || null,
+      drinking: lifestyleForm.drinking || null,
+      children: lifestyleForm.children || null,
+      pets: lifestyleForm.pets || null,
+      religion: lifestyleForm.religion || null,
+      political: lifestyleForm.political || null,
+      workLifeBalance: lifestyleForm.workLifeBalance || null,
+      worksOut: lifestyleForm.worksOut || null,
+    });
+
+    await api.put('/profile/preferences', {
+      minAge,
+      maxAge: maxAge >= minAge && maxAge <= 120 ? maxAge : null,
+      preferredGenders: preferredGendersPayload(preferredGenders),
+      maxDistance,
+      relationshipType: null,
+    });
+  }, [
+    displayName,
+    age,
+    gender,
+    location,
+    bio,
+    interests,
+    dealbreakers,
+    partnerQualities,
+    lifestyleForm,
+    minAge,
+    maxAge,
+    preferredGenders,
+    maxDistance,
+  ]);
+
+  const persistLocalDraft = useCallback(
+    async (nextStep: number) => {
+      await writeMobileCreateProfileDraft({
+        step: nextStep,
+        displayName,
+        age,
+        gender,
+        location,
+        bio,
+        interests,
+        dealbreakers,
+        partnerQualities,
+        preferredGenders,
+        minAge,
+        maxAge,
+        maxDistance,
+      });
+    },
+    [
+      displayName,
+      age,
+      gender,
+      location,
+      bio,
+      interests,
+      dealbreakers,
+      partnerQualities,
+      preferredGenders,
+      minAge,
+      maxAge,
+      maxDistance,
+    ]
+  );
+
   // Load existing profile into form (used when editing; skip when startFromBeginning = new account/delete)
-  const loadProfileForForm = useCallback(async (stepToJumpTo?: number) => {
+  const loadProfileForForm = useCallback(async () => {
+    const draft = await readMobileCreateProfileDraft();
+    let dn = draft?.displayName ?? '';
+    let ageStr = draft?.age ?? '';
+    let genderVal = draft?.gender ?? '';
+    let loc = draft?.location ?? '';
+    let bioVal = draft?.bio ?? '';
+    let interestList: string[] = draft?.interests ?? [];
+    let dealbreakerList: string[] = draft?.dealbreakers ?? [];
+    let qualityList: string[] = draft?.partnerQualities ?? [];
+    let prefGenders: string[] = draft?.preferredGenders ?? [];
+    let minAgeVal = draft?.minAge ?? 18;
+    let maxAgeVal = draft?.maxAge ?? 100;
+    let maxDist: number | null = draft?.maxDistance ?? 50;
+    let photoCount = 0;
+
+    let lifestyle = lifestyleFormFromApi(null);
+
     try {
-      // Bypass cache when editing so we always get current server data
       const data = await api.get('/profile', false);
       if (data?.profile) {
-        setDisplayName(data.profile.display_name ?? '');
-        setAge((data.profile.age ?? '').toString());
-        setGender(data.profile.gender ?? '');
-        setLocation(data.profile.location ?? '');
-        setBio(data.profile.bio ?? '');
-        if (data.interests?.length) {
-          setInterests(data.interests.map((i: any) => i.name));
-        }
-        if (data.dealbreakers?.length) {
-          const fromApi = (data.dealbreakers as { description?: string }[])
-            .map((d) => canonicalDealbreakerLabel(d.description ?? ''))
-            .filter((x): x is NonNullable<typeof x> => x != null && DEALBREAKER_CANONICAL_SET.has(x));
-          setDealbreakers(Array.from(new Set(fromApi)));
-        } else {
-          setDealbreakers([]);
-        }
-        if (data.partnerQualities?.length) {
-          setPartnerQualities((data.partnerQualities as { quality: string }[]).map((q) => q.quality));
-        } else {
-          setPartnerQualities([]);
-        }
-        setLifestyleForm(lifestyleFormFromApi(data.lifestyle ?? null));
-        if (data.preferences) {
-          setMinAge(data.preferences.min_age ?? 18);
-          setMaxAge((data.preferences as any).max_age ?? 100);
-          setMaxDistance(data.preferences.max_distance ?? 50);
-          if (data.preferences.preferred_genders) {
-            try {
-              const genders = JSON.parse(data.preferences.preferred_genders) as string[];
-              const withoutOther = genders.filter((g) => g !== 'Other');
-              const legacyAllThree =
-                genders.length === 3 && ['Man', 'Woman', 'Other'].every((g) => genders.includes(g));
-              const isEveryone =
-                genders.includes('Everyone') ||
-                genders.length === 0 ||
-                legacyAllThree ||
-                (withoutOther.length === 0 && genders.length > 0);
-              setPreferredGenders(isEveryone ? ['Everyone'] : withoutOther);
-            } catch {
-              setPreferredGenders(['Everyone']);
-            }
-          } else {
-            setPreferredGenders(['Everyone']);
+        const stubName = !(data.profile.display_name ?? '').trim();
+        if (!stubName) dn = data.profile.display_name ?? '';
+        if (data.profile.age) ageStr = String(data.profile.age);
+        if (data.profile.gender) genderVal = data.profile.gender ?? genderVal;
+        if (data.profile.location) loc = data.profile.location ?? '';
+        if (data.profile.bio) bioVal = data.profile.bio ?? '';
+
+        const isStubLike =
+          dn.trim().length >= 2 &&
+          data.profile.gender === 'Other' &&
+          !data.profile.location &&
+          (data.interests?.length ?? 0) === 0;
+        if (isStubLike && !draft?.age) ageStr = '';
+      }
+      if (data?.interests?.length) {
+        interestList = data.interests.map((i: { name: string }) => i.name);
+      }
+      if (data?.dealbreakers?.length) {
+        const fromApi = (data.dealbreakers as { description?: string }[])
+          .map((d) => canonicalDealbreakerLabel(d.description ?? ''))
+          .filter((x): x is NonNullable<typeof x> => x != null && DEALBREAKER_CANONICAL_SET.has(x));
+        dealbreakerList = Array.from(new Set(fromApi));
+      }
+      if (data?.partnerQualities?.length) {
+        qualityList = (data.partnerQualities as { quality: string }[]).map((q) => q.quality);
+      }
+      lifestyle = lifestyleFormFromApi(data?.lifestyle ?? null);
+      if (data?.preferences) {
+        minAgeVal = data.preferences.min_age ?? 18;
+        maxAgeVal = (data.preferences as { max_age?: number }).max_age ?? 100;
+        maxDist = data.preferences.max_distance ?? 50;
+        if (data.preferences.preferred_genders) {
+          try {
+            const genders = JSON.parse(data.preferences.preferred_genders) as string[];
+            const withoutOther = genders.filter((g) => g !== 'Other');
+            const legacyAllThree =
+              genders.length === 3 && ['Man', 'Woman', 'Other'].every((g) => genders.includes(g));
+            const isEveryone =
+              genders.includes('Everyone') ||
+              genders.length === 0 ||
+              legacyAllThree ||
+              (withoutOther.length === 0 && genders.length > 0);
+            prefGenders = isEveryone ? ['Everyone'] : withoutOther;
+          } catch {
+            prefGenders = ['Everyone'];
           }
+        } else {
+          prefGenders = ['Everyone'];
         }
-        const targetStep = stepToJumpTo ?? initialStep;
-        if (targetStep != null && targetStep >= 1 && targetStep <= TOTAL_STEPS) {
-          setStep(targetStep);
+      }
+
+      try {
+        api.clearCache('/photos/me');
+        const photoData = await api.get<{ photos: Array<{ id: string; url: string; displayOrder?: number }> }>(
+          '/photos/me',
+          false
+        );
+        if (photoData.photos?.length && !photoSlotsTouchedRef.current) {
+          setPhotos(photoSlotsFromApi(photoData.photos));
+          photoCount = photoData.photos.length;
         }
+      } catch {
+        /* no photos yet */
       }
     } catch (err) {
       if (__DEV__) console.log('CreateProfile loadProfileForForm:', err);
     }
+
+    setDisplayName(dn);
+    setAge(ageStr);
+    setGender(genderVal);
+    setLocation(loc);
+    setBio(bioVal);
+    setInterests(interestList);
+    setDealbreakers(dealbreakerList);
+    setPartnerQualities(qualityList);
+    setLifestyleForm(lifestyle);
+    setPreferredGenders(prefGenders.length > 0 ? prefGenders : []);
+    setMinAge(minAgeVal);
+    setMaxAge(maxAgeVal);
+    setMaxDistance(maxDist);
+
+    const resumeStep = computeMobileCreateProfileResumeStep({
+      displayName: dn,
+      age: ageStr,
+      gender: genderVal,
+      location: loc,
+      interests: interestList,
+      preferredGenders: prefGenders.length > 0 ? prefGenders : [],
+      minAge: minAgeVal,
+      maxAge: maxAgeVal,
+      maxDistance: maxDist,
+      photoCount,
+      minPhotosRequired: MIN_PHOTOS_REQUIRED,
+    });
+    const targetStep =
+      initialStep != null && initialStep >= 1 && initialStep <= TOTAL_STEPS ? initialStep : resumeStep;
+    setStep(targetStep);
   }, [initialStep]);
 
   // Load profile on mount and when edit params change (not when startFromBeginning = new account/delete)
   useEffect(() => {
     if (startFromBeginning) return;
-    loadProfileForForm(initialStep ?? undefined);
-  }, [startFromBeginning, initialStep, loadProfileForForm]);
+    loadProfileForForm();
+  }, [startFromBeginning, loadProfileForForm]);
 
   // Prefetch auth token on mount (handles AsyncStorage timing / cache sync after login)
   useEffect(() => {
@@ -848,7 +1018,7 @@ export default function CreateProfileScreen() {
     }
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (step === 1) {
       if (!displayName?.trim() || displayName.trim().length < 2) {
         setError('Please enter at least 2 characters for your name');
@@ -884,7 +1054,6 @@ export default function CreateProfileScreen() {
         return;
       }
     }
-    // Step 6 (bio) - optional
     if (step === 7) {
       if (interests.length < 3) {
         setError('Please select at least 3 interests');
@@ -909,26 +1078,33 @@ export default function CreateProfileScreen() {
         return;
       }
     }
-    
-    Keyboard.dismiss();
-    if (Platform.OS === 'ios') Vibration.vibrate(50);
-    else Vibration.vibrate(50);
-    setError('');
-    
+
     const nextStep = step + 1;
     if (nextStep > TOTAL_STEPS) {
       setError('Invalid step number');
       return;
     }
-    
-    // If moving to final step (photos), validation happens on submit
-    
+
+    Keyboard.dismiss();
+    if (Platform.OS === 'ios') Vibration.vibrate(50);
+    else Vibration.vibrate(50);
+
+    setSavingProgress(true);
+    setError('');
     try {
+      if (step === 1) {
+        await api.put('/profile/basics', { displayName: displayName.trim() });
+      } else if (step >= 3) {
+        await saveAllProfileProgress();
+        profileSavedRef.current = true;
+      }
+      await persistLocalDraft(nextStep);
       setStep(nextStep);
-    } catch (error: any) {
-      console.error('Error advancing to next step:', error);
-      console.error('Current step:', step, 'Next step:', nextStep);
-      setError('An error occurred. Please try again.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to save progress';
+      setError(msg);
+    } finally {
+      setSavingProgress(false);
     }
   };
 
@@ -1316,7 +1492,8 @@ export default function CreateProfileScreen() {
 
       // Photos are already uploaded on the photos step; refresh profile
       await refreshProfile();
-      
+      await clearMobileCreateProfileDraft();
+
       // Show celebration before navigating
       setShowCelebration(true);
     } catch (err: any) {
@@ -2123,7 +2300,7 @@ export default function CreateProfileScreen() {
   };
 
   const completeProfileDisabled =
-    loading || uploadingSlotIndex !== null || uploadedPhotoCount < MIN_PHOTOS_REQUIRED;
+    loading || savingProgress || uploadingSlotIndex !== null || uploadedPhotoCount < MIN_PHOTOS_REQUIRED;
 
   return (
     <KeyboardAvoidingView
@@ -2239,7 +2416,8 @@ export default function CreateProfileScreen() {
           {step < TOTAL_STEPS ? (
             <TouchableOpacity
               style={styles.modernNextButton}
-              onPress={handleNext}
+              onPress={() => void handleNext()}
+              disabled={savingProgress}
               activeOpacity={0.8}
             >
               <LinearGradient
@@ -2248,7 +2426,9 @@ export default function CreateProfileScreen() {
                 end={{ x: 1, y: 1 }}
                 style={styles.modernNextButtonGradient}
               >
-                <Text style={styles.modernNextButtonText}>Continue →</Text>
+                <Text style={styles.modernNextButtonText}>
+                  {savingProgress ? 'Saving…' : 'Continue →'}
+                </Text>
               </LinearGradient>
             </TouchableOpacity>
           ) : (

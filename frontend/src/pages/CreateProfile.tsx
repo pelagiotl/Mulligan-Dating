@@ -4,6 +4,12 @@ import { api } from "../utils/api";
 import { useAuth } from "../context/AuthContext";
 import { hasCityAndState, handleLocationChange } from "../utils/locationUtils";
 import { getPhotoUrl } from "../utils/photoUrl";
+import {
+  clearWebCreateProfileDraft,
+  computeWebCreateProfileResumeStep,
+  readWebCreateProfileDraft,
+  writeWebCreateProfileDraft,
+} from "../utils/createProfileProgress";
 
 const GENDER_OPTIONS = ["Man", "Woman", "Other"] as const;
 const PREFERRED_GENDER_OPTIONS = ["Man", "Woman", "Everyone"] as const;
@@ -226,6 +232,7 @@ export default function CreateProfile() {
   const [error, setError] = useState("");
   const [profileReadyForPhotos, setProfileReadyForPhotos] = useState(false);
   const [savingProfileDraft, setSavingProfileDraft] = useState(false);
+  const [savingProgress, setSavingProgress] = useState(false);
   const profileSaveInFlightRef = useRef<Promise<void> | null>(null);
   const photoSlotsTouchedRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -316,75 +323,120 @@ export default function CreateProfile() {
     }
   };
 
-  const saveProfileBeforePhotos = useCallback(async () => {
-    const validationError = validateProfileWizardFields(displayName, age, gender, location);
-    if (validationError) {
-      throw new Error(validationError);
-    }
+  const persistLocalDraft = useCallback(
+    (nextStep: number) => {
+      writeWebCreateProfileDraft({
+        step: nextStep,
+        displayName,
+        age,
+        gender,
+        location,
+        bio,
+        interests,
+        preferredGenders,
+        minAge,
+        maxAge,
+        maxDistance,
+      });
+    },
+    [
+      displayName,
+      age,
+      gender,
+      location,
+      bio,
+      interests,
+      preferredGenders,
+      minAge,
+      maxAge,
+      maxDistance,
+    ]
+  );
 
-    const ageNum = parseInt(age, 10);
-    const profileBody = {
-      displayName: displayName.trim(),
-      age: ageNum,
-      gender: gender.trim(),
-      location: location.trim(),
-      bio: bio?.trim() || null,
-      lookingFor: null,
-    };
-
-    if (profileSaveInFlightRef.current) {
-      await profileSaveInFlightRef.current;
-      return;
-    }
-
-    const run = (async () => {
-      try {
-        await api.post("/profile", profileBody);
-      } catch (err) {
-        throw new Error(apiErrorMessage(err, "Failed to save profile"));
+  const saveProfileProgress = useCallback(
+    async (options: { requireLocation: boolean }) => {
+      if (displayName.trim().length < 2) {
+        throw new Error("Please enter at least 2 characters for your name");
       }
-      if (interests.length > 0) {
+      const ageNum = parseInt(age, 10);
+      if (!age?.trim() || Number.isNaN(ageNum) || ageNum < 18 || ageNum > 120) {
+        throw new Error("Please enter a valid age (18–120)");
+      }
+      if (!gender?.trim()) {
+        throw new Error("Please select your gender");
+      }
+      if (options.requireLocation && !hasCityAndState(location)) {
+        throw new Error("Please enter both city and state (e.g. Medford, Oregon)");
+      }
+
+      const profileBody = {
+        displayName: displayName.trim(),
+        age: ageNum,
+        gender: gender.trim(),
+        location: hasCityAndState(location) ? location.trim() : null,
+        bio: bio?.trim() || null,
+        lookingFor: null,
+      };
+
+      if (profileSaveInFlightRef.current) {
+        await profileSaveInFlightRef.current;
+        return;
+      }
+
+      const run = (async () => {
         try {
-          await api.put("/profile/interests", {
-            interests: interests.map((name) => ({ name })),
+          await api.post("/profile", profileBody);
+        } catch (err) {
+          throw new Error(apiErrorMessage(err, "Failed to save profile"));
+        }
+        if (interests.length > 0) {
+          try {
+            await api.put("/profile/interests", {
+              interests: interests.map((name) => ({ name })),
+            });
+          } catch (err) {
+            throw new Error(apiErrorMessage(err, "Failed to save interests"));
+          }
+        }
+        try {
+          await api.put("/profile/preferences", {
+            minAge,
+            maxAge: maxAge >= minAge && maxAge <= 120 ? maxAge : null,
+            preferredGenders: preferredGendersPayload(preferredGenders),
+            maxDistance,
+            relationshipType: null,
           });
         } catch (err) {
-          throw new Error(apiErrorMessage(err, "Failed to save interests"));
+          throw new Error(apiErrorMessage(err, "Failed to save match preferences"));
+        }
+      })();
+
+      profileSaveInFlightRef.current = run;
+      try {
+        await run;
+      } finally {
+        if (profileSaveInFlightRef.current === run) {
+          profileSaveInFlightRef.current = null;
         }
       }
-      try {
-        await api.put("/profile/preferences", {
-          minAge,
-          maxAge: maxAge >= minAge && maxAge <= 120 ? maxAge : null,
-          preferredGenders: preferredGendersPayload(preferredGenders),
-          maxDistance,
-          relationshipType: null,
-        });
-      } catch (err) {
-        throw new Error(apiErrorMessage(err, "Failed to save match preferences"));
-      }
-    })();
+    },
+    [
+      displayName,
+      age,
+      gender,
+      location,
+      bio,
+      interests,
+      minAge,
+      maxAge,
+      preferredGenders,
+      maxDistance,
+    ]
+  );
 
-    profileSaveInFlightRef.current = run;
-    try {
-      await run;
-    } finally {
-      if (profileSaveInFlightRef.current === run) {
-        profileSaveInFlightRef.current = null;
-      }
-    }
-  }, [
-    displayName,
-    age,
-    gender,
-    location,
-    bio,
-    interests,
-    minAge,
-    maxAge,
-    preferredGenders,
-    maxDistance,
-  ]);
+  const saveProfileBeforePhotos = useCallback(async () => {
+    await saveProfileProgress({ requireLocation: true });
+  }, [saveProfileProgress]);
 
   useEffect(() => {
     if (step < 11) {
@@ -429,6 +481,19 @@ export default function CreateProfile() {
 
   useEffect(() => {
     const load = async () => {
+      const draft = readWebCreateProfileDraft();
+      let dn = draft?.displayName ?? "";
+      let ageStr = draft?.age ?? "";
+      let genderVal = draft?.gender ?? "";
+      let loc = draft?.location ?? "";
+      let bioVal = draft?.bio ?? "";
+      let interestList: string[] = draft?.interests ?? [];
+      let prefGenders: string[] = draft?.preferredGenders ?? [];
+      let minAgeVal = draft?.minAge ?? 18;
+      let maxAgeVal = draft?.maxAge ?? 100;
+      let maxDist = draft?.maxDistance ?? 50;
+      let photoCount = 0;
+
       try {
         const data = await api.get<{
           profile: {
@@ -448,21 +513,29 @@ export default function CreateProfile() {
         }>("/profile");
 
         if (data.profile) {
-          setDisplayName(data.profile.display_name);
-          setAge(String(data.profile.age));
-          setGender(data.profile.gender);
-          setLocation(data.profile.location || "");
-          setBio(data.profile.bio || "");
+          const stubName = !(data.profile.display_name ?? "").trim();
+          if (!stubName) dn = data.profile.display_name;
+          if (data.profile.age) ageStr = String(data.profile.age);
+          if (data.profile.gender && data.profile.gender !== "Other") genderVal = data.profile.gender;
+          else if (data.profile.gender && !genderVal) genderVal = data.profile.gender;
+          if (data.profile.location) loc = data.profile.location;
+          if (data.profile.bio) bioVal = data.profile.bio;
+          const isStubLike =
+            dn.trim().length >= 2 &&
+            data.profile.gender === "Other" &&
+            !data.profile.location &&
+            (data.interests?.length ?? 0) === 0;
+          if (isStubLike && !draft?.age) ageStr = "";
         }
         if (data.interests?.length) {
-          setInterests(data.interests.map((i) => i.name));
+          interestList = data.interests.map((i) => i.name);
         }
         if (data.preferences) {
-          setMinAge(data.preferences.min_age);
+          minAgeVal = data.preferences.min_age;
           if (data.preferences.max_age != null) {
-            setMaxAge(data.preferences.max_age);
+            maxAgeVal = data.preferences.max_age;
           }
-          setMaxDistance(data.preferences.max_distance ?? 50);
+          maxDist = data.preferences.max_distance ?? 50;
           if (data.preferences.preferred_genders) {
             try {
               const genders = JSON.parse(data.preferences.preferred_genders) as string[];
@@ -474,12 +547,12 @@ export default function CreateProfile() {
                 genders.length === 0 ||
                 legacyAllThree ||
                 (withoutOther.length === 0 && genders.length > 0);
-              setPreferredGenders(isEveryone ? ["Everyone"] : withoutOther);
+              prefGenders = isEveryone ? ["Everyone"] : withoutOther;
             } catch {
-              setPreferredGenders(["Everyone"]);
+              prefGenders = ["Everyone"];
             }
           } else {
-            setPreferredGenders(["Everyone"]);
+            prefGenders = ["Everyone"];
           }
         }
 
@@ -488,18 +561,45 @@ export default function CreateProfile() {
           const me = await api.get<{ photos: Array<{ id: string; url: string; displayOrder: number }> }>("/photos/me");
           if (me.photos?.length && !photoSlotsTouchedRef.current) {
             setPhotoSlots(photoSlotsFromApi(me.photos));
+            photoCount = me.photos.length;
           }
         } catch {
           /* ignore */
         }
       } catch {
-        /* new user */
+        /* new user — draft-only restore */
       }
+
+      setDisplayName(dn);
+      setAge(ageStr);
+      setGender(genderVal);
+      setLocation(loc);
+      setBio(bioVal);
+      setInterests(interestList);
+      setPreferredGenders(prefGenders.length > 0 ? prefGenders : []);
+      setMinAge(minAgeVal);
+      setMaxAge(maxAgeVal);
+      setMaxDistance(maxDist);
+
+      const resumeStep = computeWebCreateProfileResumeStep({
+        displayName: dn,
+        age: ageStr,
+        gender: genderVal,
+        location: loc,
+        interests: interestList,
+        preferredGenders: prefGenders.length > 0 ? prefGenders : [],
+        minAge: minAgeVal,
+        maxAge: maxAgeVal,
+        maxDistance: maxDist,
+        photoCount,
+        minPhotosRequired: MIN_PHOTOS_REQUIRED,
+      });
+      setStep(resumeStep);
     };
     void load();
   }, []);
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (step === 1) {
       if (!nameValid) {
         setError("Please enter at least 2 characters for your name");
@@ -560,8 +660,26 @@ export default function CreateProfile() {
       }
     }
 
+    const nextStep = Math.min(step + 1, TOTAL_STEPS);
+    setSavingProgress(true);
     setError("");
-    setStep((s) => Math.min(s + 1, TOTAL_STEPS));
+    try {
+      if (step === 1) {
+        try {
+          await api.put("/profile/basics", { displayName: displayName.trim() });
+        } catch (err) {
+          throw new Error(apiErrorMessage(err, "Failed to save your name"));
+        }
+      } else if (step >= 3) {
+        await saveProfileProgress({ requireLocation: step >= 5 });
+      }
+      persistLocalDraft(nextStep);
+      setStep(nextStep);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save progress");
+    } finally {
+      setSavingProgress(false);
+    }
   };
 
   const handleBack = () => {
@@ -658,6 +776,7 @@ export default function CreateProfile() {
       }
 
       await refreshProfile();
+      clearWebCreateProfileDraft();
       setShowProfileReadySplash(true);
     } catch (err) {
       const msg = apiErrorMessage(err, "Failed to create profile");
@@ -676,7 +795,11 @@ export default function CreateProfile() {
   };
 
   const completeProfileDisabled =
-    loading || savingProfileDraft || uploadingSlot !== null || photoCount < MIN_PHOTOS_REQUIRED;
+    loading ||
+    savingProfileDraft ||
+    savingProgress ||
+    uploadingSlot !== null ||
+    photoCount < MIN_PHOTOS_REQUIRED;
 
   const minAgeOptions = Array.from({ length: 103 }, (_, i) => 18 + i);
   const maxAgeOptions = Array.from({ length: 121 - minAge }, (_, i) => minAge + i);
@@ -1058,7 +1181,11 @@ export default function CreateProfile() {
           <button
             type="button"
             className="create-profile-btn create-profile-btn--next"
-            disabled={(step === 1 && !nameValid) || (step === 5 && (!locationValid || detectingLocation))}
+            disabled={
+              savingProgress ||
+              (step === 1 && !nameValid) ||
+              (step === 5 && (!locationValid || detectingLocation))
+            }
             title={
               step === 1 && !nameValid
                 ? "Enter at least 2 characters for your name"
@@ -1066,9 +1193,9 @@ export default function CreateProfile() {
                   ? "Enter city and state (e.g. Medford, Oregon) or use your location"
                   : undefined
             }
-            onClick={handleNext}
+            onClick={() => void handleNext()}
           >
-            Continue →
+            {savingProgress ? "Saving…" : "Continue →"}
           </button>
         ) : (
           <button
