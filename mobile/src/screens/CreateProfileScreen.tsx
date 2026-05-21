@@ -263,6 +263,7 @@ export default function CreateProfileScreen() {
   const [uploadingSlotIndex, setUploadingSlotIndex] = useState<number | null>(null);
   /** Prevents async /photos/me fetch from wiping in-progress uploads on step 14 */
   const photoSlotsTouchedRef = useRef(false);
+  const profileSavedRef = useRef(false);
   const uploadedPhotoCount = countUploadedPhotos(photos);
 
   // Track keyboard visibility
@@ -467,9 +468,10 @@ export default function CreateProfileScreen() {
   ]);
 
   const persistLocalDraft = useCallback(
-    async (nextStep: number) => {
+    async (nextStep?: number, slots?: (ProfilePhoto | null)[]) => {
+      const slotsToSave = slots ?? photos;
       await writeMobileCreateProfileDraft({
-        step: nextStep,
+        step: nextStep ?? step,
         displayName,
         age,
         gender,
@@ -482,9 +484,11 @@ export default function CreateProfileScreen() {
         minAge,
         maxAge,
         maxDistance,
+        photoSlots: slotsToSave.map((p) => (p?.id && p?.url ? { id: p.id, url: p.url } : null)),
       });
     },
     [
+      step,
       displayName,
       age,
       gender,
@@ -497,8 +501,32 @@ export default function CreateProfileScreen() {
       minAge,
       maxAge,
       maxDistance,
+      photos,
     ]
   );
+
+  const syncPhotosFromServer = useCallback(async (options?: { force?: boolean }) => {
+    try {
+      api.clearCache('/photos/me');
+      const photoData = await api.get<{ photos: Array<{ id: string; url: string; displayOrder?: number }> }>(
+        `/photos/me?_=${Date.now()}`,
+        false
+      );
+      if (!photoData.photos?.length) return 0;
+      if (options?.force || !photoSlotsTouchedRef.current) {
+        setPhotos(photoSlotsFromApi(photoData.photos));
+      }
+      return photoData.photos.length;
+    } catch {
+      return countUploadedPhotos(photos);
+    }
+  }, [photos]);
+
+  const ensureProfileSavedForPhotos = useCallback(async () => {
+    if (profileSavedRef.current) return;
+    await saveAllProfileProgress();
+    profileSavedRef.current = true;
+  }, [saveAllProfileProgress]);
 
   // Load existing profile into form (used when editing; skip when startFromBeginning = new account/delete)
   const loadProfileForForm = useCallback(async () => {
@@ -573,21 +601,33 @@ export default function CreateProfileScreen() {
         }
       }
 
-      try {
-        api.clearCache('/photos/me');
-        const photoData = await api.get<{ photos: Array<{ id: string; url: string; displayOrder?: number }> }>(
-          '/photos/me',
-          false
-        );
-        if (photoData.photos?.length && !photoSlotsTouchedRef.current) {
-          setPhotos(photoSlotsFromApi(photoData.photos));
-          photoCount = photoData.photos.length;
-        }
-      } catch {
-        /* no photos yet */
-      }
     } catch (err) {
       if (__DEV__) console.log('CreateProfile loadProfileForForm:', err);
+    }
+
+    try {
+      api.clearCache('/photos/me');
+      const photoData = await api.get<{ photos: Array<{ id: string; url: string; displayOrder?: number }> }>(
+        `/photos/me?_=${Date.now()}`,
+        false
+      );
+      if (photoData.photos?.length) {
+        setPhotos(photoSlotsFromApi(photoData.photos));
+        photoCount = photoData.photos.length;
+      }
+    } catch {
+      /* no photos yet */
+    }
+
+    if (photoCount === 0 && draft?.photoSlots?.length) {
+      const fromDraft = emptyPhotoSlots();
+      draft.photoSlots.forEach((p, i) => {
+        if (p && i < PHOTO_SLOT_COUNT) fromDraft[i] = { id: p.id, url: p.url };
+      });
+      if (countUploadedPhotos(fromDraft) > 0) {
+        setPhotos(fromDraft);
+        photoCount = countUploadedPhotos(fromDraft);
+      }
     }
 
     setDisplayName(dn);
@@ -634,8 +674,6 @@ export default function CreateProfileScreen() {
   }, []);
 
   // Save profile data and load existing photos when entering final (photos) step
-  const profileSavedRef = useRef(false);
-  
   useEffect(() => {
     const saveProfileAndLoadPhotos = async () => {
       if (step === 14 && !profileSavedRef.current) {
@@ -1118,6 +1156,8 @@ export default function CreateProfileScreen() {
       setUploadingSlotIndex(slotIndex);
       setError(''); // Clear any previous errors
 
+      await ensureProfileSavedForPhotos();
+
       // Extract filename and determine MIME type
       const filename = uri.split('/').pop() || 'photo.jpg';
       const match = /\.(\w+)$/.exec(filename.toLowerCase());
@@ -1242,15 +1282,14 @@ export default function CreateProfileScreen() {
           if (result.photos && result.photos.length > 0) {
             const newPhoto = result.photos[0];
             photoSlotsTouchedRef.current = true;
-            setPhotos((prev) => {
-              const next = [...prev];
-              while (next.length < PHOTO_SLOT_COUNT) next.push(null);
-              next[slotIndex] = { id: newPhoto.id, url: newPhoto.url, uri };
-              return next;
-            });
+            const next = [...photos];
+            while (next.length < PHOTO_SLOT_COUNT) next.push(null);
+            next[slotIndex] = { id: newPhoto.id, url: newPhoto.url, uri };
+            setPhotos(next);
+            await syncPhotosFromServer({ force: true });
+            await persistLocalDraft(step, next);
           }
 
-          // Invalidate photos cache so Profile tab shows new photos when user navigates there
           api.clearCache('/photos/me');
 
           // Success! Exit retry loop
@@ -1377,12 +1416,11 @@ export default function CreateProfileScreen() {
                   await api.delete(`/photos/${photo.id}`);
                 }
                 photoSlotsTouchedRef.current = true;
-                setPhotos((prev) => {
-                  const next = [...prev];
-                  while (next.length < PHOTO_SLOT_COUNT) next.push(null);
-                  next[index] = null;
-                  return next;
-                });
+                const next = [...photos];
+                while (next.length < PHOTO_SLOT_COUNT) next.push(null);
+                next[index] = null;
+                setPhotos(next);
+                await persistLocalDraft(step, next);
                 api.clearCache('/photos/me');
                 return;
               } catch (error: any) {

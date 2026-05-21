@@ -169,6 +169,8 @@ export const api = {
   }),
   delete: <T>(endpoint: string) => request<T>(endpoint, {
     method: 'DELETE'
-  })
+  }),
+  /** No-op on web (no GET cache); keeps parity with mobile api.clearCache calls. */
+  clearCache: (_endpoint?: string) => {},
 }
 

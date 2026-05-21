@@ -324,9 +324,10 @@ export default function CreateProfile() {
   };
 
   const persistLocalDraft = useCallback(
-    (nextStep: number) => {
+    (nextStep?: number, slots?: (SlotPhoto | null)[]) => {
+      const slotsToSave = slots ?? photoSlots;
       writeWebCreateProfileDraft({
-        step: nextStep,
+        step: nextStep ?? step,
         displayName,
         age,
         gender,
@@ -337,9 +338,11 @@ export default function CreateProfile() {
         minAge,
         maxAge,
         maxDistance,
+        photoSlots: slotsToSave.map((p) => (p ? { id: p.id, url: p.url } : null)),
       });
     },
     [
+      step,
       displayName,
       age,
       gender,
@@ -350,8 +353,33 @@ export default function CreateProfile() {
       minAge,
       maxAge,
       maxDistance,
+      photoSlots,
     ]
   );
+
+  const syncPhotosFromServer = useCallback(
+    async (options?: { force?: boolean }) => {
+      try {
+        const me = await api.get<{ photos: Array<{ id: string; url: string; displayOrder?: number }> }>(
+          `/photos/me?_=${Date.now()}`
+        );
+        if (!me.photos?.length) return 0;
+        if (options?.force || !photoSlotsTouchedRef.current) {
+          setPhotoSlots(photoSlotsFromApi(me.photos));
+        }
+        return me.photos.length;
+      } catch {
+        return countUploadedPhotos(photoSlots);
+      }
+    },
+    []
+  );
+
+  const ensureProfileReadyForPhotos = useCallback(async () => {
+    if (profileReadyForPhotos) return;
+    await saveProfileBeforePhotos();
+    setProfileReadyForPhotos(true);
+  }, [profileReadyForPhotos, saveProfileBeforePhotos]);
 
   const saveProfileProgress = useCallback(
     async (options: { requireLocation: boolean }) => {
@@ -453,15 +481,8 @@ export default function CreateProfile() {
         await saveProfileBeforePhotos();
         if (cancelled) return;
         setProfileReadyForPhotos(true);
-        if (photoSlotsTouchedRef.current) return;
-        try {
-          api.clearCache("/photos/me");
-          const me = await api.get<{ photos: Array<{ id: string; url: string; displayOrder: number }> }>("/photos/me");
-          if (me.photos?.length && !cancelled && !photoSlotsTouchedRef.current) {
-            setPhotoSlots(photoSlotsFromApi(me.photos));
-          }
-        } catch {
-          /* no photos yet */
+        if (!cancelled) {
+          await syncPhotosFromServer({ force: true });
         }
       } catch (err) {
         if (cancelled) return;
@@ -477,7 +498,7 @@ export default function CreateProfile() {
     return () => {
       cancelled = true;
     };
-  }, [step, profileReadyForPhotos, saveProfileBeforePhotos]);
+  }, [step, profileReadyForPhotos, saveProfileBeforePhotos, syncPhotosFromServer]);
 
   useEffect(() => {
     const load = async () => {
@@ -556,18 +577,31 @@ export default function CreateProfile() {
           }
         }
 
-        try {
-          api.clearCache("/photos/me");
-          const me = await api.get<{ photos: Array<{ id: string; url: string; displayOrder: number }> }>("/photos/me");
-          if (me.photos?.length && !photoSlotsTouchedRef.current) {
-            setPhotoSlots(photoSlotsFromApi(me.photos));
-            photoCount = me.photos.length;
-          }
-        } catch {
-          /* ignore */
+      } catch {
+        /* profile fetch failed — still try photos + draft below */
+      }
+
+      try {
+        const me = await api.get<{ photos: Array<{ id: string; url: string; displayOrder?: number }> }>(
+          `/photos/me?_=${Date.now()}`
+        );
+        if (me.photos?.length) {
+          setPhotoSlots(photoSlotsFromApi(me.photos));
+          photoCount = me.photos.length;
         }
       } catch {
-        /* new user — draft-only restore */
+        /* no photos on server yet */
+      }
+
+      if (photoCount === 0 && draft?.photoSlots?.length) {
+        const fromDraft = emptyPhotoSlots();
+        draft.photoSlots.forEach((p, i) => {
+          if (p && i < MAX_PHOTO_SLOTS) fromDraft[i] = { id: p.id, url: p.url };
+        });
+        if (countUploadedPhotos(fromDraft) > 0) {
+          setPhotoSlots(fromDraft);
+          photoCount = countUploadedPhotos(fromDraft);
+        }
       }
 
       setDisplayName(dn);
@@ -707,13 +741,14 @@ export default function CreateProfile() {
     setError("");
     setUploadingSlot(slot);
     try {
+      await ensureProfileReadyForPhotos();
       const uploaded = await uploadOnePhoto(file);
       photoSlotsTouchedRef.current = true;
-      setPhotoSlots((prev) => {
-        const next = [...prev];
-        next[slot] = uploaded;
-        return next;
-      });
+      const next = [...photoSlots];
+      next[slot] = uploaded;
+      setPhotoSlots(next);
+      await syncPhotosFromServer({ force: true });
+      persistLocalDraft(step, next);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
@@ -728,11 +763,10 @@ export default function CreateProfile() {
     try {
       await api.delete(`/photos/${ph.id}`);
       photoSlotsTouchedRef.current = true;
-      setPhotoSlots((prev) => {
-        const next = [...prev];
-        next[slotIndex] = null;
-        return next;
-      });
+      const next = [...photoSlots];
+      next[slotIndex] = null;
+      setPhotoSlots(next);
+      persistLocalDraft(step, next);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to remove photo");
     }
@@ -759,12 +793,9 @@ export default function CreateProfile() {
 
       let readyCount = countUploadedPhotos(photoSlots);
       if (readyCount < MIN_PHOTOS_REQUIRED) {
-        api.clearCache("/photos/me");
-        const me = await api.get<{ photos: Array<{ id: string; url: string; displayOrder?: number }> }>("/photos/me");
-        if (me.photos?.length) {
-          const synced = photoSlotsFromApi(me.photos);
-          setPhotoSlots(synced);
-          readyCount = countUploadedPhotos(synced);
+        const syncedCount = await syncPhotosFromServer({ force: true });
+        if (syncedCount > 0) {
+          readyCount = syncedCount;
         }
       }
 

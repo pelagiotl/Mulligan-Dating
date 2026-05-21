@@ -3,6 +3,8 @@ import { hasCityAndState } from './locationUtils';
 export const MOBILE_CREATE_PROFILE_STEPS = 14;
 export const MOBILE_CREATE_PROFILE_DRAFT_KEY = 'mulligan:create-profile:mobile';
 
+export type DraftPhotoSlot = { id: string; url: string };
+
 export type MobileCreateProfileDraft = {
   step?: number;
   displayName?: string;
@@ -17,6 +19,7 @@ export type MobileCreateProfileDraft = {
   minAge?: number;
   maxAge?: number;
   maxDistance?: number | null;
+  photoSlots?: Array<DraftPhotoSlot | null>;
 };
 
 export type MobileProfileProgressInput = {

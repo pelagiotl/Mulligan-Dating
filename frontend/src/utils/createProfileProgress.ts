@@ -3,6 +3,8 @@ import { hasCityAndState } from "./locationUtils";
 export const WEB_CREATE_PROFILE_STEPS = 11;
 export const WEB_CREATE_PROFILE_DRAFT_KEY = "mulligan:create-profile:web";
 
+export type DraftPhotoSlot = { id: string; url: string };
+
 export type WebCreateProfileDraft = {
   step?: number;
   displayName?: string;
@@ -15,6 +17,8 @@ export type WebCreateProfileDraft = {
   minAge?: number;
   maxAge?: number;
   maxDistance?: number;
+  /** Persisted after each successful upload so refresh can restore thumbnails. */
+  photoSlots?: Array<DraftPhotoSlot | null>;
 };
 
 export type WebProfileProgressInput = {
