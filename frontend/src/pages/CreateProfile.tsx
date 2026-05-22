@@ -1,9 +1,11 @@
-import { useState, useEffect, useRef, useCallback, type ReactNode } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, ApiError } from "../utils/api";
 import { useAuth } from "../context/AuthContext";
 import { hasCityAndState, handleLocationChange, normalizeLocationInput } from "../utils/locationUtils";
 import { getPhotoUrl } from "../utils/photoUrl";
+import { usePhotoDragReorder } from "../hooks/usePhotoDragReorder";
+import { uploadPhotoFiles } from "../utils/photoBatchUpload";
 import {
   formatConnectSetupGapMessage,
   getConnectSetupGaps,
@@ -157,91 +159,6 @@ function photoSlotsFromApi(
   return next;
 }
 
-function getApiBase(): string {
-  const API_URL = (import.meta.env as { VITE_API_URL?: string; VITE_NGROK_URL?: string }).VITE_API_URL
-    || (import.meta.env as { VITE_NGROK_URL?: string }).VITE_NGROK_URL
-    || "";
-  return API_URL ? `${API_URL}/api` : "/api";
-}
-
-async function compressImage(file: File, maxWidth = 1920, maxHeight = 1920, quality = 0.85): Promise<File> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        let width = img.width;
-        let height = img.height;
-        if (width > height) {
-          if (width > maxWidth) {
-            height = (height * maxWidth) / width;
-            width = maxWidth;
-          }
-        } else if (height > maxHeight) {
-          width = (width * maxHeight) / height;
-          height = maxHeight;
-        }
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) {
-          reject(new Error("Could not get canvas context"));
-          return;
-        }
-        ctx.drawImage(img, 0, 0, width, height);
-        canvas.toBlob(
-          (blob) => {
-            if (!blob) {
-              reject(new Error("Compression failed"));
-              return;
-            }
-            resolve(new File([blob], file.name, { type: "image/jpeg", lastModified: Date.now() }));
-          },
-          "image/jpeg",
-          quality
-        );
-      };
-      img.onerror = () => reject(new Error("Failed to load image"));
-      img.src = e.target?.result as string;
-    };
-    reader.onerror = () => reject(new Error("Failed to read file"));
-    reader.readAsDataURL(file);
-  });
-}
-
-async function uploadOnePhoto(file: File): Promise<SlotPhoto> {
-  let toSend = file;
-  try {
-    toSend = await compressImage(file);
-  } catch {
-    // use original
-  }
-  const formData = new FormData();
-  formData.append("photos", toSend);
-  const token = localStorage.getItem("token");
-  const res = await fetch(`${getApiBase()}/photos`, {
-    method: "POST",
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-    body: formData,
-  });
-  const text = await res.text();
-  let data: { photos?: Array<{ id: string; url: string }>; error?: string } = {};
-  try {
-    data = text ? JSON.parse(text) : {};
-  } catch {
-    /* ignore */
-  }
-  if (!res.ok) {
-    throw new Error(data.error || `Upload failed (${res.status})`);
-  }
-  const p = data.photos?.[0];
-  if (!p?.id || !p?.url) {
-    throw new Error("Invalid response from server");
-  }
-  return { id: p.id, url: p.url };
-}
-
 export default function CreateProfile() {
   const navigate = useNavigate();
   const { refreshProfile, logout, markConnectSetupComplete } = useAuth();
@@ -268,8 +185,8 @@ export default function CreateProfile() {
   const profileSaveSnapshotRef = useRef<string | null>(null);
   const photoSlotsTouchedRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [pendingSlotIndex, setPendingSlotIndex] = useState<number | null>(null);
-  const [uploadingSlot, setUploadingSlot] = useState<number | null>(null);
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
+  const [reorderingPhotos, setReorderingPhotos] = useState(false);
   const [showProfileReadySplash, setShowProfileReadySplash] = useState(false);
 
   const [displayName, setDisplayName] = useState("");
@@ -288,6 +205,10 @@ export default function CreateProfile() {
   const [photoSlots, setPhotoSlots] = useState<(SlotPhoto | null)[]>(() => emptyPhotoSlots());
 
   const photoCount = countUploadedPhotos(photoSlots);
+  const filledPhotos = useMemo(
+    () => photoSlots.filter((p): p is SlotPhoto => p != null),
+    [photoSlots]
+  );
 
   const nameValid = displayName.trim().length >= 2;
   const locationValid = hasCityAndState(location);
@@ -433,8 +354,33 @@ export default function CreateProfile() {
         return countUploadedPhotos(photoSlots);
       }
     },
-    []
+    [photoSlots]
   );
+
+  const applyPhotoReorder = useCallback(
+    async (photoIds: string[]) => {
+      setReorderingPhotos(true);
+      setError("");
+      try {
+        await api.put("/photos/reorder", { photoIds });
+        photoSlotsTouchedRef.current = true;
+        await syncPhotosFromServer({ force: true });
+        persistLocalDraft(step);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to reorder photos");
+        await syncPhotosFromServer({ force: true });
+      } finally {
+        setReorderingPhotos(false);
+      }
+    },
+    [step, syncPhotosFromServer, persistLocalDraft]
+  );
+
+  const photoDragReorder = usePhotoDragReorder({
+    items: filledPhotos,
+    onReorder: applyPhotoReorder,
+    disabled: reorderingPhotos || uploadingPhotos,
+  });
 
   const saveProfileProgress = useCallback(
     async (options: { requireLocation: boolean; includePreferences?: boolean }) => {
@@ -873,38 +819,41 @@ export default function CreateProfile() {
     setStep((s) => Math.max(1, s - 1));
   };
 
-  const openPhotoPicker = (slotIndex: number) => {
-    const filled = photoSlots.filter(Boolean).length;
-    if (!photoSlots[slotIndex] && filled >= MAX_PHOTO_SLOTS) return;
-    setPendingSlotIndex(slotIndex);
+  const openPhotoPicker = () => {
+    if (photoCount >= MAX_PHOTO_SLOTS) return;
     fileInputRef.current?.click();
   };
 
   const onPhotoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    const slot = pendingSlotIndex;
+    const files = Array.from(e.target.files ?? []);
     e.target.value = "";
-    setPendingSlotIndex(null);
-    if (!file || slot === null) return;
-    if (!file.type.startsWith("image/")) {
-      setError("Please choose an image file");
+    if (files.length === 0) return;
+
+    const remaining = MAX_PHOTO_SLOTS - photoCount;
+    if (files.length > remaining) {
+      setError(`You can only add ${remaining} more photo${remaining === 1 ? "" : "s"}.`);
       return;
     }
+
+    for (const file of files) {
+      if (!file.type.startsWith("image/")) {
+        setError("Please choose image files only");
+        return;
+      }
+    }
+
     setError("");
-    setUploadingSlot(slot);
+    setUploadingPhotos(true);
     try {
       await ensureProfileReadyForPhotos();
-      const uploaded = await uploadOnePhoto(file);
+      await uploadPhotoFiles(files);
       photoSlotsTouchedRef.current = true;
-      const next = [...photoSlots];
-      next[slot] = uploaded;
-      setPhotoSlots(next);
       await syncPhotosFromServer({ force: true });
-      persistLocalDraft(step, next);
+      persistLocalDraft(step);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
-      setUploadingSlot(null);
+      setUploadingPhotos(false);
     }
   };
 
@@ -926,7 +875,7 @@ export default function CreateProfile() {
 
   const handleCompleteProfile = async () => {
     setError("");
-    if (uploadingSlot !== null) {
+    if (uploadingPhotos) {
       setError("Please wait for your photo upload to finish");
       return;
     }
@@ -1012,7 +961,7 @@ export default function CreateProfile() {
     loading ||
     savingProfileDraft ||
     savingProgress ||
-    uploadingSlot !== null ||
+    uploadingPhotos ||
     photoCount < MIN_PHOTOS_REQUIRED;
 
   const minAgeOptions = Array.from({ length: 103 }, (_, i) => 18 + i);
@@ -1332,17 +1281,39 @@ export default function CreateProfile() {
               ref={fileInputRef}
               type="file"
               accept="image/*"
+              multiple
               className="create-profile-file-input"
               onChange={(ev) => void onPhotoFileChange(ev)}
             />
+            {filledPhotos.length > 1 ? (
+              <p className="create-profile-photos-reorder-hint">
+                Drag photos to reorder. The first photo is your profile thumbnail.
+              </p>
+            ) : null}
+            {uploadingPhotos ? (
+              <p className="create-profile-photos-saving">Uploading photos…</p>
+            ) : null}
             <div className="create-profile-photos-grid">
               {photoSlots.map((ph, slotIndex) => {
                 const isRequired = slotIndex < MIN_PHOTOS_REQUIRED;
+                const canDrag = !!ph && filledPhotos.length > 1;
                 return (
                   <div key={slotIndex} className="create-profile-photo-slot">
                     {ph ? (
-                      <div className="create-profile-photo-filled">
-                        <img src={getPhotoUrl(ph.url)} alt="" className="create-profile-photo-img" />
+                      <div
+                        className={photoDragReorder.getDragItemClassName(
+                          ph.id,
+                          "create-profile-photo-filled"
+                        )}
+                        draggable={canDrag}
+                        onDragStart={(e) => photoDragReorder.handleDragStart(e, ph.id)}
+                        onDragEnd={photoDragReorder.handleDragEnd}
+                        onDragOver={(e) => photoDragReorder.handleDragOver(e, ph.id)}
+                        onDragLeave={photoDragReorder.handleDragLeave}
+                        onDrop={(e) => void photoDragReorder.handleDrop(e, ph.id)}
+                      >
+                        {canDrag ? <span className="photo-drag-handle" aria-hidden>⋮⋮</span> : null}
+                        <img src={getPhotoUrl(ph.url)} alt="" className="create-profile-photo-img" draggable={false} />
                         <button
                           type="button"
                           className="create-profile-photo-remove"
@@ -1357,15 +1328,15 @@ export default function CreateProfile() {
                       <button
                         type="button"
                         className={`create-profile-photo-add ${isRequired && photoCount < MIN_PHOTOS_REQUIRED ? "is-required" : ""}`}
-                        onClick={() => openPhotoPicker(slotIndex)}
-                        disabled={uploadingSlot !== null || photoCount >= MAX_PHOTO_SLOTS}
+                        onClick={openPhotoPicker}
+                        disabled={uploadingPhotos || reorderingPhotos || photoCount >= MAX_PHOTO_SLOTS}
                       >
-                        {uploadingSlot === slotIndex ? (
+                        {uploadingPhotos ? (
                           <span className="create-profile-photo-uploading">…</span>
                         ) : (
                           <>
                             <span className="create-profile-photo-add-icon">📷</span>
-                            <span>{isRequired ? "Required" : "Optional"}</span>
+                            <span>{isRequired ? "Add photos" : "Optional"}</span>
                           </>
                         )}
                       </button>
@@ -1377,6 +1348,7 @@ export default function CreateProfile() {
             <div className="create-profile-photo-tips">
               <strong>💡 Photo Tips</strong>
               <ul>
+                <li>Select multiple photos at once from your gallery</li>
                 <li>Use clear, recent photos</li>
                 <li>Include a mix of close-ups and full-body shots</li>
                 <li>Show your personality and interests</li>

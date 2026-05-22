@@ -31,7 +31,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { navigationRef } from '../navigation/navigationRef';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
+import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { api, getToken, ensureTokenPrefetched } from '../utils/api';
+import { uploadPhotoUris } from '../utils/batchPhotoUpload';
 import { handleLocationChange, hasCityAndState } from '../utils/locationUtils';
 import {
   clearMobileCreateProfileDraft,
@@ -266,6 +268,12 @@ export default function CreateProfileScreen() {
   // Photos (final step) — fixed slots so grid index matches upload slot
   const [photos, setPhotos] = useState<(ProfilePhoto | null)[]>(() => emptyPhotoSlots());
   const [uploadingSlotIndex, setUploadingSlotIndex] = useState<number | null>(null);
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
+  const [draggingPhotoId, setDraggingPhotoId] = useState<string | null>(null);
+  const [draggingSlotIndex, setDraggingSlotIndex] = useState<number | null>(null);
+  const [reorderingPhotos, setReorderingPhotos] = useState(false);
+  const dragAnimatedValue = useRef(new Animated.ValueXY()).current;
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Prevents async /photos/me fetch from wiping in-progress uploads on step 14 */
   const photoSlotsTouchedRef = useRef(false);
   const profileSavedRef = useRef(false);
@@ -1176,206 +1184,146 @@ export default function CreateProfileScreen() {
     if (step > 1) setStep(step - 1);
   };
 
-  const uploadPhoto = async (uri: string, slotIndex: number) => {
+  const uploadPhotosBatch = async (uris: string[]) => {
+    if (uris.length === 0) return;
     try {
-      setUploadingSlotIndex(slotIndex);
-      setError(''); // Clear any previous errors
+      setUploadingPhotos(true);
+      setError('');
 
       await ensureProfileSavedForPhotos();
-
-      // Extract filename and determine MIME type
-      const filename = uri.split('/').pop() || 'photo.jpg';
-      const match = /\.(\w+)$/.exec(filename.toLowerCase());
-      let mimeType = 'image/jpeg'; // default
-      
-      if (match) {
-        const ext = match[1].toLowerCase();
-        const mimeTypes: { [key: string]: string } = {
-          'jpg': 'image/jpeg',
-          'jpeg': 'image/jpeg',
-          'png': 'image/png',
-          'gif': 'image/gif',
-          'webp': 'image/webp',
-        };
-        mimeType = mimeTypes[ext] || 'image/jpeg';
-      }
-
-      // Ensure auth token is loaded (handles cache timing / AsyncStorage race)
       await ensureTokenPrefetched();
-      let token = await getToken();
-      if (!token || typeof token !== 'string' || !token.trim()) {
-        await new Promise((r) => setTimeout(r, 200));
-        token = await getToken();
-      }
-      if (!token || typeof token !== 'string' || !token.trim()) {
-        setError('Session expired. Please log in again.');
-        return;
-      }
 
-      const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://mulligan-backend.onrender.com';
-      
-      // Create FormData for React Native
-      const formData = new FormData();
-      formData.append('photos', {
-        uri: uri,
-        type: mimeType,
-        name: filename,
-      } as any);
-
-      console.log('📤 Uploading photo:', { uri, filename, mimeType, apiUrl: `${API_URL}/api/photos` });
-      
-      // Retry logic for network failures
       const maxRetries = 3;
-      let lastError: any = null;
-      
+      let lastError: unknown = null;
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-          // Create AbortController for timeout (5 minutes for large files)
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minutes for large files
-          
-          console.log(`📤 Upload attempt ${attempt}/${maxRetries}...`);
-          
-          const response = await fetch(`${API_URL}/api/photos`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              // Don't set Content-Type - let fetch set it with boundary for multipart/form-data
-            },
-            body: formData,
-            signal: controller.signal, // Add abort signal for timeout
-          });
-          
-          clearTimeout(timeoutId); // Clear timeout if request succeeds
-          
-          // If we get here, the request succeeded
-          console.log('📥 Upload response status:', response.status);
-          
-          if (!response.ok) {
-            const errorText = await response.text().catch(() => 'Unknown error');
-            console.error('❌ Upload error response:', errorText);
-            let errorData;
-            try {
-              errorData = JSON.parse(errorText);
-            } catch {
-              errorData = { error: errorText || `Upload failed with status ${response.status}` };
-            }
-            
-            // Auth error - session expired, redirect to login
-            if (response.status === 401 || (typeof errorData?.error === 'string' && errorData.error.toLowerCase().includes('authentication'))) {
-              setError('Session issue while uploading. Please try again.');
-              return;
-            }
-            
-            // Log detailed error information
-            console.error('❌ Upload error details:', {
-              status: response.status,
-              error: errorData.error,
-              details: errorData.details,
-              http_code: errorData.http_code,
-              suggestion: errorData.suggestion,
-              fullErrorData: errorData
-            });
-            
-            // Create a more detailed error message
-            let errorMessage = errorData.error || `Upload failed with status ${response.status}`;
-            if (errorData.details) {
-              errorMessage += `\n\nDetails: ${errorData.details}`;
-            }
-            if (errorData.http_code) {
-              errorMessage += `\nHTTP Code: ${errorData.http_code}`;
-            }
-            if (errorData.suggestion) {
-              errorMessage += `\n\n${errorData.suggestion}`;
-            }
-            
-            // Create error with all details
-            const detailedError = new Error(errorMessage);
-            (detailedError as any).http_code = errorData.http_code;
-            (detailedError as any).details = errorData.details;
-            throw detailedError;
-          }
-
-          const result = await response.json().catch((parseError) => {
-            console.error('❌ JSON parse error:', parseError);
-            throw new Error('Invalid response from server');
-          });
-          
-          console.log('✅ Upload successful:', result);
-          
-          // Add the uploaded photo to the photos array
-          if (result.photos && result.photos.length > 0) {
-            const newPhoto = result.photos[0];
-            photoSlotsTouchedRef.current = true;
-            const next = [...photos];
-            while (next.length < PHOTO_SLOT_COUNT) next.push(null);
-            next[slotIndex] = { id: newPhoto.id, url: newPhoto.url, uri };
-            setPhotos(next);
-            await syncPhotosFromServer({ force: true });
-            await persistLocalDraft(step, next);
-          }
-
+          await uploadPhotoUris(uris);
+          photoSlotsTouchedRef.current = true;
+          await syncPhotosFromServer({ force: true });
+          await persistLocalDraft(step);
           api.clearCache('/photos/me');
-
-          // Success! Exit retry loop
           return;
-          
-        } catch (fetchError: any) {
+        } catch (fetchError: unknown) {
           lastError = fetchError;
-          console.error(`❌ Upload attempt ${attempt} failed:`, fetchError);
-          
-          // Check if it's a timeout/abort
-          if (fetchError.name === 'AbortError') {
-            if (attempt < maxRetries) {
-              console.log(`⏳ Upload timed out, retrying... (${attempt}/${maxRetries})`);
-              // Wait before retry (exponential backoff)
-              await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
-              continue;
-            }
-            throw new Error('Upload timed out after multiple attempts. The file may be too large. Please try a smaller image.');
+          const msg = fetchError instanceof Error ? fetchError.message : '';
+          if (
+            attempt < maxRetries &&
+            (msg.includes('Network request failed') || msg.includes('Failed to fetch'))
+          ) {
+            await new Promise((r) => setTimeout(r, 1000 * attempt));
+            continue;
           }
-          
-          // Check for network errors
-          if (fetchError.message?.includes('Network request failed') || fetchError.message?.includes('Failed to fetch')) {
-            if (attempt < maxRetries) {
-              console.log(`🔄 Network error, retrying... (${attempt}/${maxRetries})`);
-              // Wait before retry (exponential backoff)
-              await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
-              continue;
-            }
-            throw new Error('Network error: Unable to connect to server after multiple attempts. Please check your internet connection and try again.');
-          }
-          
-          // For other errors, don't retry
           throw fetchError;
         }
       }
-      
-      // If we get here, all retries failed
       throw lastError || new Error('Upload failed after multiple attempts');
-    } catch (err: any) {
-      console.error('Upload error:', err);
-      console.error('Upload error details:', {
-        message: err?.message,
-        name: err?.name,
-        stack: err?.stack,
-        error: err
-      });
-      const errorMessage = err?.message || 'Failed to upload photo';
-      const isAuthError = err?.status === 401 || (typeof err?.message === 'string' && err.message.toLowerCase().includes('authentication'));
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to upload photos';
+      const isAuthError =
+        typeof errorMessage === 'string' && errorMessage.toLowerCase().includes('authentication');
       if (isAuthError) {
         setError('Session issue while uploading. Please try again.');
       } else {
         Alert.alert('Upload Failed', errorMessage, [{ text: 'OK' }]);
       }
     } finally {
+      setUploadingPhotos(false);
       setUploadingSlotIndex(null);
     }
   };
 
-  const handlePickPhoto = async (slotIndex: number) => {
+  const handleReorderPhotos = async (photoIds: string[]) => {
     try {
-      // Check if we can upload more photos
+      setReorderingPhotos(true);
+      await api.put('/photos/reorder', { photoIds });
+      photoSlotsTouchedRef.current = true;
+      await syncPhotosFromServer({ force: true });
+      await persistLocalDraft(step);
+      if (Platform.OS === 'ios') {
+        Vibration.vibrate([0, 50]);
+      } else {
+        Vibration.vibrate(50);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to reorder photos';
+      Alert.alert('Error', msg);
+      await syncPhotosFromServer({ force: true });
+    } finally {
+      setReorderingPhotos(false);
+    }
+  };
+
+  const onPhotoLongPress = (photoId: string, slotIndex: number) => {
+    setDraggingPhotoId(photoId);
+    setDraggingSlotIndex(slotIndex);
+    if (Platform.OS === 'ios') {
+      Vibration.vibrate([0, 100]);
+    } else {
+      Vibration.vibrate(100);
+    }
+  };
+
+  const onPhotoDragEnd = (event: { nativeEvent: { translationX: number; translationY: number } }) => {
+    if (draggingPhotoId === null || draggingSlotIndex === null) {
+      setDraggingPhotoId(null);
+      setDraggingSlotIndex(null);
+      dragAnimatedValue.setValue({ x: 0, y: 0 });
+      return;
+    }
+
+    const filledIndices = photos
+      .map((p, i) => (p ? i : -1))
+      .filter((i) => i >= 0);
+    const dragPosInFilled = filledIndices.indexOf(draggingSlotIndex);
+    if (dragPosInFilled < 0) {
+      setDraggingPhotoId(null);
+      setDraggingSlotIndex(null);
+      dragAnimatedValue.setValue({ x: 0, y: 0 });
+      return;
+    }
+
+    const { translationX, translationY } = event.nativeEvent;
+    const gridWidth = Dimensions.get('window').width - 48;
+    const photosPerRow = 2;
+    const photoWidth = gridWidth / photosPerRow;
+    const photoHeight = photoWidth * 1.25;
+    const colOffset = Math.round(translationX / photoWidth);
+    const rowOffset = Math.round(translationY / photoHeight);
+    const currentCol = draggingSlotIndex % photosPerRow;
+    const currentRow = Math.floor(draggingSlotIndex / photosPerRow);
+    const newCol = Math.max(0, Math.min(photosPerRow - 1, currentCol + colOffset));
+    const newRow = Math.max(
+      0,
+      Math.min(Math.ceil(filledIndices.length / photosPerRow) - 1, currentRow + rowOffset)
+    );
+    const newSlotIndex = Math.min(
+      Math.max(0, newRow * photosPerRow + newCol),
+      PHOTO_SLOT_COUNT - 1
+    );
+    const newPosInFilled = filledIndices.indexOf(newSlotIndex);
+
+    if (newPosInFilled >= 0 && newPosInFilled !== dragPosInFilled) {
+      const filledPhotos = filledIndices.map((i) => photos[i]!);
+      const [dragged] = filledPhotos.splice(dragPosInFilled, 1);
+      filledPhotos.splice(newPosInFilled, 0, dragged);
+      const next = emptyPhotoSlots();
+      filledPhotos.forEach((p, i) => {
+        next[i] = p;
+      });
+      setPhotos(next);
+      const photoIds = filledPhotos.map((p) => p.id).filter(Boolean) as string[];
+      if (photoIds.length) {
+        void handleReorderPhotos(photoIds);
+      }
+    }
+
+    setDraggingPhotoId(null);
+    setDraggingSlotIndex(null);
+    dragAnimatedValue.setValue({ x: 0, y: 0 });
+  };
+
+  const handlePickPhoto = async () => {
+    try {
       if (uploadedPhotoCount >= PHOTO_SLOT_COUNT) {
         Alert.alert('Limit reached', 'You can only upload up to 6 photos');
         return;
@@ -1390,33 +1338,34 @@ export default function CreateProfileScreen() {
         return;
       }
 
+      const remaining = PHOTO_SLOT_COUNT - uploadedPhotoCount;
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
         quality: 0.85,
+        allowsMultipleSelection: true,
+        selectionLimit: remaining,
       });
 
-      if (!result.canceled && result.assets[0]) {
-        const asset = result.assets[0];
-        // Log file size for debugging
-        if (asset.fileSize) {
-          const sizeMB = (asset.fileSize / (1024 * 1024)).toFixed(2);
-          console.log(`📸 Selected image size: ${sizeMB} MB`);
-          if (asset.fileSize > 50 * 1024 * 1024) { // 50MB
+      if (!result.canceled && result.assets.length > 0) {
+        for (const asset of result.assets) {
+          if (asset.fileSize && asset.fileSize > 50 * 1024 * 1024) {
+            const sizeMB = (asset.fileSize / (1024 * 1024)).toFixed(2);
             Alert.alert(
               'Image Too Large',
-              `This image is ${sizeMB} MB. Maximum size is 50 MB. Please select a smaller image.`,
+              `One selected image is ${sizeMB} MB. Maximum size is 50 MB per photo.`,
               [{ text: 'OK' }]
             );
             return;
           }
         }
-        // Upload immediately - use the slot that was tapped so only that slot shows spinner
-        await uploadPhoto(asset.uri, slotIndex);
+        const uris = result.assets.map((a) => a.uri).filter(Boolean) as string[];
+        setUploadingSlotIndex(0);
+        await uploadPhotosBatch(uris);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error picking photo:', error);
-      Alert.alert('Error', 'Failed to pick photo. Please try again.');
+      Alert.alert('Error', 'Failed to pick photos. Please try again.');
     }
   };
 
@@ -1496,7 +1445,7 @@ export default function CreateProfileScreen() {
       return;
     }
 
-    if (uploadingSlotIndex !== null) {
+    if (uploadingPhotos) {
       setError('Please wait for your photo upload to finish');
       setLoading(false);
       return;
@@ -2282,42 +2231,97 @@ export default function CreateProfileScreen() {
           contentContainerStyle={styles.photosScrollContent}
           showsVerticalScrollIndicator={false}
         >
+          {uploadedPhotoCount > 1 ? (
+            <Text style={styles.photosReorderHint}>
+              Long-press a photo, then drag to reorder. The first photo is your profile thumbnail.
+            </Text>
+          ) : null}
+          {uploadingPhotos ? (
+            <Text style={styles.photosUploadingHint}>Uploading photos…</Text>
+          ) : null}
           <View style={styles.photosGrid}>
             {photoSlots.map((slotIndex) => {
               const photo = photos[slotIndex];
-              const isEmpty = !photo;
               const isRequired = slotIndex < MIN_PHOTOS_REQUIRED;
+              const filledCount = uploadedPhotoCount;
 
               return (
                 <View key={slotIndex} style={styles.photoSlot}>
                   {photo ? (
-                    <View style={styles.photoContainer}>
-                      <OptimizedImage
-                        source={photo.url || photo.uri}
-                        style={styles.photoImage}
-                        resizeMode="cover"
-                        showLoadingIndicator={false}
-                      />
-                      <TouchableOpacity
-                        style={styles.removePhotoButton}
-                        onPress={() => handleRemovePhoto(slotIndex)}
-                      >
-                        <Text style={styles.removePhotoText}>×</Text>
-                      </TouchableOpacity>
-                      {slotIndex === 0 && (
-                        <View style={styles.primaryBadge}>
-                          <Text style={styles.primaryBadgeText}>Primary</Text>
-                        </View>
+                    <PanGestureHandler
+                      onGestureEvent={Animated.event(
+                        [{ nativeEvent: { translationX: dragAnimatedValue.x, translationY: dragAnimatedValue.y } }],
+                        { useNativeDriver: false }
                       )}
-                    </View>
+                      onHandlerStateChange={(event) => {
+                        const { state } = event.nativeEvent;
+                        const photoId = photo.id || photo.url;
+                        const isDragging = draggingPhotoId === photoId;
+                        if (state === State.BEGAN && !isDragging && filledCount > 1) {
+                          longPressTimerRef.current = setTimeout(() => {
+                            onPhotoLongPress(photoId, slotIndex);
+                          }, 300);
+                        } else if (state === State.ACTIVE && isDragging) {
+                          const { translationX, translationY } = event.nativeEvent;
+                          dragAnimatedValue.setValue({ x: translationX, y: translationY });
+                        } else if (
+                          state === State.END ||
+                          state === State.CANCELLED ||
+                          state === State.FAILED
+                        ) {
+                          if (longPressTimerRef.current) {
+                            clearTimeout(longPressTimerRef.current);
+                            longPressTimerRef.current = null;
+                          }
+                          if (isDragging) {
+                            onPhotoDragEnd(event);
+                          }
+                        }
+                      }}
+                      minPointers={1}
+                      maxPointers={1}
+                      enabled={filledCount > 1}
+                    >
+                      <Animated.View
+                        style={[
+                          styles.photoContainer,
+                          draggingPhotoId === (photo.id || photo.url) && {
+                            opacity: 0.5,
+                            transform: [
+                              { translateX: dragAnimatedValue.x },
+                              { translateY: dragAnimatedValue.y },
+                              { scale: 1.05 },
+                            ],
+                          },
+                        ]}
+                      >
+                        <OptimizedImage
+                          source={photo.url || photo.uri}
+                          style={styles.photoImage}
+                          resizeMode="cover"
+                          showLoadingIndicator={false}
+                        />
+                        <TouchableOpacity
+                          style={styles.removePhotoButton}
+                          onPress={() => handleRemovePhoto(slotIndex)}
+                        >
+                          <Text style={styles.removePhotoText}>×</Text>
+                        </TouchableOpacity>
+                        {slotIndex === 0 && (
+                          <View style={styles.primaryBadge}>
+                            <Text style={styles.primaryBadgeText}>Primary</Text>
+                          </View>
+                        )}
+                      </Animated.View>
+                    </PanGestureHandler>
                   ) : (
                     <TouchableOpacity
                       style={[
                         styles.addPhotoButton,
                         isRequired && !photosReady && styles.addPhotoButtonRequired
                       ]}
-                      onPress={canAddMore ? () => handlePickPhoto(slotIndex) : undefined}
-                      disabled={!canAddMore || uploadingSlotIndex !== null}
+                      onPress={canAddMore ? () => void handlePickPhoto() : undefined}
+                      disabled={!canAddMore || uploadingPhotos || reorderingPhotos}
                     >
                       <LinearGradient
                         colors={
@@ -2329,13 +2333,13 @@ export default function CreateProfileScreen() {
                         end={{ x: 1, y: 1 }}
                         style={styles.addPhotoButtonGradient}
                       >
-                        {uploadingSlotIndex === slotIndex ? (
+                        {uploadingPhotos ? (
                           <ActivityIndicator color="#fff" size="small" />
                         ) : (
                           <>
                             <Text style={styles.addPhotoIcon}>📷</Text>
                             <Text style={styles.addPhotoText}>
-                              {isRequired ? 'Required' : 'Optional'}
+                              {isRequired ? 'Add photos' : 'Optional'}
                             </Text>
                           </>
                         )}
@@ -2350,6 +2354,7 @@ export default function CreateProfileScreen() {
           <View style={styles.photosInfoCard}>
             <Text style={styles.photosInfoTitle}>💡 Photo Tips</Text>
             <Text style={styles.photosInfoText}>
+              • Select multiple photos at once from your gallery{'\n'}
               • Use clear, recent photos{'\n'}
               • Include a mix of close-ups and full-body shots{'\n'}
               • Show your personality and interests{'\n'}
@@ -2362,7 +2367,7 @@ export default function CreateProfileScreen() {
   };
 
   const completeProfileDisabled =
-    loading || savingProgress || uploadingSlotIndex !== null || uploadedPhotoCount < MIN_PHOTOS_REQUIRED;
+    loading || savingProgress || uploadingPhotos || uploadedPhotoCount < MIN_PHOTOS_REQUIRED;
 
   return (
     <KeyboardAvoidingView
@@ -4342,6 +4347,23 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     fontWeight: '600',
+  },
+  photosReorderHint: {
+    marginBottom: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#5c4d6e',
+    backgroundColor: 'rgba(102, 126, 234, 0.12)',
+    borderRadius: 10,
+  },
+  photosUploadingHint: {
+    marginBottom: 8,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#667eea',
+    textAlign: 'center',
   },
   photosInfoCard: {
     backgroundColor: '#fff',

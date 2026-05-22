@@ -26,7 +26,8 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GestureHandlerRootView, PanGestureHandler, State } from 'react-native-gesture-handler';
-import { api, getToken } from '../utils/api';
+import { api } from '../utils/api';
+import { uploadPhotoUris } from '../utils/batchPhotoUpload';
 import { handleLocationChange, hasCityAndState } from '../utils/locationUtils';
 import { getPhotoUrl } from '../utils/photoUrl';
 import OptimizedImage from '../components/OptimizedImage';
@@ -176,6 +177,7 @@ export default function MyProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [uploadingSlotIndex, setUploadingSlotIndex] = useState<number | null>(null);
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const [showPhotoGallery, setShowPhotoGallery] = useState(false);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const photoGalleryScrollRef = useRef<FlatList<Photo>>(null);
@@ -941,15 +943,18 @@ export default function MyProfileScreen() {
         return;
       }
 
+      const remaining = 6 - photos.length;
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
         quality: 0.85,
-        allowsMultipleSelection: false,
+        allowsMultipleSelection: true,
+        selectionLimit: remaining,
       });
 
-      if (!result.canceled && result.assets[0]) {
-        await uploadPhoto(result.assets[0].uri, slotIndex ?? -1);
+      if (!result.canceled && result.assets.length > 0) {
+        const uris = result.assets.map((a) => a.uri).filter(Boolean) as string[];
+        await uploadPhotos(uris, slotIndex ?? -1);
       } else if (result.canceled) {
         return;
       }
@@ -963,104 +968,21 @@ export default function MyProfileScreen() {
     }
   };
 
-  const uploadPhoto = async (uri: string, slotIndex: number = -1) => {
+  const uploadPhotos = async (uris: string[], slotIndex: number = -1) => {
+    if (uris.length === 0) return;
     try {
+      setUploadingPhotos(true);
       setUploadingSlotIndex(slotIndex);
 
-      // Extract filename and determine MIME type
-      const filename = uri.split('/').pop() || 'photo.jpg';
-      const match = /\.(\w+)$/.exec(filename.toLowerCase());
-      let mimeType = 'image/jpeg'; // default
-      
-      if (match) {
-        const ext = match[1].toLowerCase();
-        const mimeTypes: { [key: string]: string } = {
-          'jpg': 'image/jpeg',
-          'jpeg': 'image/jpeg',
-          'png': 'image/png',
-          'gif': 'image/gif',
-          'webp': 'image/webp',
-        };
-        mimeType = mimeTypes[ext] || 'image/jpeg';
-      }
+      await uploadPhotoUris(uris);
 
-      const token = await getToken();
-      if (!token || !token.trim()) {
-        throw new Error('No authentication token found. Please log in again.');
-      }
-
-      const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://mulligan-backend.onrender.com';
-      
-      console.log('📤 Uploading photo:', { uri, filename, mimeType, apiUrl: `${API_URL}/api/photos` });
-
-      // Create FormData for React Native
-      // React Native FormData requires a specific format
-      const formData = new FormData();
-      
-      // For React Native, we need to append the file with the correct structure
-      // The key must match what multer expects: 'photos' (plural, array)
-      // React Native handles file:// URIs correctly, so we keep it as-is
-      formData.append('photos', {
-        uri: uri,
-        type: mimeType,
-        name: filename,
-      } as any);
-
-      console.log('📦 FormData created, sending request...');
-      
-      const response = await fetch(`${API_URL}/api/photos`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          // Don't set Content-Type - let fetch set it with boundary for multipart/form-data
-        },
-        body: formData,
-      }).catch((fetchError) => {
-        console.error('❌ Fetch error:', fetchError);
-        throw new Error(`Network error: ${fetchError.message || 'Failed to connect to server'}`);
-      });
-
-      console.log('📥 Upload response status:', response.status);
-
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => 'Unknown error');
-        console.error('❌ Upload error response:', errorText);
-        let errorData;
-        try {
-          errorData = JSON.parse(errorText);
-        } catch {
-          errorData = { error: errorText || `Upload failed with status ${response.status}` };
-        }
-        throw new Error(errorData.error || errorData.message || `Upload failed with status ${response.status}`);
-      }
-
-      const result = await response.json().catch((parseError) => {
-        console.error('❌ JSON parse error:', parseError);
-        throw new Error('Invalid response from server');
-      });
-      
-      console.log('✅ Upload successful:', result);
-
-      // Clear cache so fetchPhotos gets fresh list; then refresh photos and profile
       api.clearCache('/photos/me');
-      await Promise.all([
-        fetchPhotos(),
-        fetchProfile(),
-        refreshProfile(),
-      ]);
-
-      Alert.alert('Success', 'Photo uploaded successfully!');
+      await Promise.all([fetchPhotos(), fetchProfile(), refreshProfile?.() ?? Promise.resolve()]);
     } catch (err: any) {
       console.error('Upload error:', err);
-      const errorMessage = err?.message || 'Failed to upload photo';
-      console.error('Error details:', {
-        message: errorMessage,
-        name: err?.name,
-        stack: err?.stack,
-        error: err,
-      });
-      Alert.alert('Error', errorMessage);
+      Alert.alert('Error', err?.message || 'Failed to upload photos');
     } finally {
+      setUploadingPhotos(false);
       setUploadingSlotIndex(null);
     }
   };
@@ -2513,9 +2435,9 @@ export default function MyProfileScreen() {
                 key={`empty-${index}`}
                 style={styles.addPhotoButton}
                 onPress={() => handlePickImage(index)}
-                disabled={uploadingSlotIndex !== null}
+                disabled={uploadingPhotos || uploadingSlotIndex !== null}
               >
-                {uploadingSlotIndex === index ? (
+                {uploadingPhotos || uploadingSlotIndex === index ? (
                   <ActivityIndicator color="#667eea" />
                 ) : (
                   <Text style={styles.addPhotoText}>+</Text>
@@ -2525,7 +2447,9 @@ export default function MyProfileScreen() {
           })}
         </View>
         <Text style={styles.photoHint}>
-          {photos.length}/6 photos {photos.length < 6 && '(tap + to add)'}
+          {photos.length}/6 photos
+          {photos.length < 6 && ' · tap + to add (select multiple)'}
+          {photos.length > 1 && ' · long-press a photo to drag and reorder'}
         </Text>
       </Animated.View>
 

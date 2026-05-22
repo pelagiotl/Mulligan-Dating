@@ -1,6 +1,8 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { api } from "../utils/api";
 import { getPhotoUrl } from "../utils/photoUrl";
+import { usePhotoDragReorder } from "../hooks/usePhotoDragReorder";
+import { uploadPhotoFiles } from "../utils/photoBatchUpload";
 
 interface Photo {
   id: string;
@@ -107,66 +109,6 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
     }
   };
 
-  // Compress and resize image before upload
-  const compressImage = (file: File, maxWidth = 1920, maxHeight = 1920, quality = 0.85): Promise<File> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          let width = img.width;
-          let height = img.height;
-
-          // Calculate new dimensions
-          if (width > height) {
-            if (width > maxWidth) {
-              height = (height * maxWidth) / width;
-              width = maxWidth;
-            }
-          } else {
-            if (height > maxHeight) {
-              width = (width * maxHeight) / height;
-              height = maxHeight;
-            }
-          }
-
-          canvas.width = width;
-          canvas.height = height;
-
-          const ctx = canvas.getContext('2d');
-          if (!ctx) {
-            reject(new Error('Could not get canvas context'));
-            return;
-          }
-
-          ctx.drawImage(img, 0, 0, width, height);
-
-          canvas.toBlob(
-            (blob) => {
-              if (!blob) {
-                reject(new Error('Compression failed'));
-                return;
-              }
-              // Create a new File with the compressed blob
-              const compressedFile = new File([blob], file.name, {
-                type: 'image/jpeg',
-                lastModified: Date.now(),
-              });
-              resolve(compressedFile);
-            },
-            'image/jpeg',
-            quality
-          );
-        };
-        img.onerror = () => reject(new Error('Failed to load image'));
-        img.src = e.target?.result as string;
-      };
-      reader.onerror = () => reject(new Error('Failed to read file'));
-      reader.readAsDataURL(file);
-    });
-  };
-
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -193,99 +135,18 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
     setError("");
 
     try {
-      // Compress images before upload
-      console.log('🔄 Starting compression for', validFiles.length, 'file(s)');
       setUploadProgress(5);
-      const compressedFiles: File[] = [];
-      for (let i = 0; i < validFiles.length; i++) {
-        setUploadingIndex(i);
-        const progress = 5 + (i / validFiles.length) * 35;
-        setUploadProgress(progress);
-        console.log(`Compressing file ${i + 1}/${validFiles.length}...`);
-        try {
-          const originalSize = validFiles[i].size;
-          const compressed = await compressImage(validFiles[i]);
-          const newSize = compressed.size;
-          const reduction = ((1 - newSize / originalSize) * 100).toFixed(1);
-          console.log(`✅ Compressed ${validFiles[i].name}: ${(originalSize / 1024 / 1024).toFixed(2)}MB → ${(newSize / 1024 / 1024).toFixed(2)}MB (${reduction}% reduction)`);
-          compressedFiles.push(compressed);
-        } catch (compressionError) {
-          console.warn('⚠️ Compression failed, using original:', compressionError);
-          compressedFiles.push(validFiles[i]);
-        }
-      }
+      await uploadPhotoFiles(validFiles, {
+        onCompressProgress: (i, total) => {
+          setUploadingIndex(i);
+          setUploadProgress(5 + ((i + 1) / total) * 35);
+        },
+        onUploadProgress: (percent) => {
+          setUploadProgress(40 + percent * 0.5);
+        },
+      });
       setUploadingIndex(null);
-      setUploadProgress(40);
-      console.log('✅ Compression complete, starting upload...');
-
-      const formData = new FormData();
-      compressedFiles.forEach((file) => {
-        formData.append("photos", file);
-      });
-
-      // Use the same API URL logic as the api utility
-      const API_URL: string = (import.meta.env as any).VITE_API_URL || (import.meta.env as any).VITE_NGROK_URL || '';
-      const BASE_URL = API_URL ? `${API_URL}/api` : '/api';
-      
-      const token = localStorage.getItem("token");
-      
-      // Use XMLHttpRequest for progress tracking
-      const result = await new Promise<any>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        
-        // Track upload progress (40% to 90% of total progress)
-        xhr.upload.addEventListener('progress', (e) => {
-          if (e.lengthComputable) {
-            const percentComplete = 40 + (e.loaded / e.total) * 50;
-            const progress = Math.min(percentComplete, 90);
-            setUploadProgress(progress);
-            console.log(`📤 Upload progress: ${Math.round(progress)}% (${(e.loaded / 1024 / 1024).toFixed(2)}MB / ${(e.total / 1024 / 1024).toFixed(2)}MB)`);
-          }
-        });
-
-        xhr.addEventListener('load', () => {
-          setUploadProgress(95);
-          if (xhr.status >= 200 && xhr.status < 300) {
-            try {
-              const contentType = xhr.getResponseHeader('content-type');
-              if (contentType && contentType.includes('application/json')) {
-                const data = JSON.parse(xhr.responseText);
-                resolve(data);
-              } else {
-                resolve({ message: 'Photo uploaded successfully' });
-              }
-            } catch (parseError) {
-              console.error('Error parsing response:', parseError);
-              resolve({ message: 'Photo uploaded successfully' });
-            }
-          } else {
-            let errorMessage = `Failed to upload photos (${xhr.status})`;
-            try {
-              const errorData = JSON.parse(xhr.responseText);
-              errorMessage = errorData.error || errorData.message || errorMessage;
-            } catch {
-              errorMessage = xhr.responseText || errorMessage;
-            }
-            reject(new Error(errorMessage));
-          }
-        });
-
-        xhr.addEventListener('error', () => {
-          reject(new Error('Network error during upload'));
-        });
-
-        xhr.addEventListener('abort', () => {
-          reject(new Error('Upload cancelled'));
-        });
-
-        xhr.open('POST', `${BASE_URL}/photos`);
-        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-        // Don't set Content-Type - let browser set it with boundary for FormData
-        xhr.send(formData);
-      });
-      
       setUploadProgress(100);
-      console.log('Photo upload success:', result);
       
       // Refresh photos
       if (profileId) {
@@ -349,46 +210,49 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
     }
   };
 
-  const movePhotoInOrder = async (photoId: string, delta: number) => {
-    if (profileId || reordering || delta === 0) return;
-    const order = [...photos].sort((a, b) => a.displayOrder - b.displayOrder);
-    const idx = order.findIndex((p) => p.id === photoId);
-    if (idx < 0) return;
-    const newIdx = idx + delta;
-    if (newIdx < 0 || newIdx >= order.length) return;
+  const applyPhotoReorder = useCallback(
+    async (photoIds: string[]) => {
+      if (profileId || reordering) return;
+      const order = [...photos].sort((a, b) => a.displayOrder - b.displayOrder);
+      const byId = new Map(order.map((p) => [p.id, p]));
+      const optimistic = photoIds
+        .map((id, i) => {
+          const p = byId.get(id);
+          return p ? { ...p, displayOrder: i, isPrimary: i === 0 } : null;
+        })
+        .filter((p): p is Photo => p != null);
 
-    const next = [...order];
-    const [removed] = next.splice(idx, 1);
-    next.splice(newIdx, 0, removed);
-    const photoIds = next.map((p) => p.id);
-    const optimistic = next.map((p, i) => ({
-      ...p,
-      displayOrder: i,
-      isPrimary: i === 0,
-    }));
+      setReordering(true);
+      setError("");
+      setPhotos(optimistic);
+      try {
+        await api.put("/photos/reorder", { photoIds });
+        if (profileId) {
+          await fetchPhotos();
+        } else {
+          await fetchMyPhotos();
+        }
+        onPhotosUpdated?.();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to reorder photos");
+        if (profileId) {
+          await fetchPhotos();
+        } else {
+          await fetchMyPhotos();
+        }
+      } finally {
+        setReordering(false);
+      }
+    },
+    [profileId, reordering, photos, onPhotosUpdated]
+  );
 
-    setReordering(true);
-    setError("");
-    setPhotos(optimistic);
-    try {
-      await api.put("/photos/reorder", { photoIds });
-      if (profileId) {
-        await fetchPhotos();
-      } else {
-        await fetchMyPhotos();
-      }
-      onPhotosUpdated?.();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to reorder photos");
-      if (profileId) {
-        await fetchPhotos();
-      } else {
-        await fetchMyPhotos();
-      }
-    } finally {
-      setReordering(false);
-    }
-  };
+  const sortedForDrag = [...photos].sort((a, b) => a.displayOrder - b.displayOrder);
+  const dragReorder = usePhotoDragReorder({
+    items: sortedForDrag,
+    onReorder: applyPhotoReorder,
+    disabled: !!profileId || reordering,
+  });
 
   if (loading) {
     return <div className="photo-upload-loading">Loading photos...</div>;
@@ -437,7 +301,12 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
 
       {!profileId && sortedPhotos.length > 1 ? (
         <p className="photo-upload-reorder-hint">
-          Tip: use <strong>Earlier</strong> / <strong>Later</strong> on each photo to change order. The first photo is your profile thumbnail.
+          Drag photos to reorder. The first photo is your profile thumbnail. You can also select multiple photos at once when adding.
+        </p>
+      ) : null}
+      {!profileId && sortedPhotos.length <= 1 && sortedPhotos.length < maxPhotos ? (
+        <p className="photo-upload-reorder-hint">
+          Select multiple photos at once when adding — up to {maxPhotos} total.
         </p>
       ) : null}
 
@@ -470,9 +339,24 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
         {slots.map((slot) => {
           if (slot.photo) {
             // Filled slot - show photo
+            const canDrag = !profileId && sortedPhotos.length > 1;
             return (
-              <div key={slot.photo.id} className="photo-item">
+              <div
+                key={slot.photo.id}
+                className={dragReorder.getDragItemClassName(slot.photo.id, "photo-item")}
+                draggable={canDrag}
+                onDragStart={(e) => dragReorder.handleDragStart(e, slot.photo!.id)}
+                onDragEnd={dragReorder.handleDragEnd}
+                onDragOver={(e) => dragReorder.handleDragOver(e, slot.photo!.id)}
+                onDragLeave={dragReorder.handleDragLeave}
+                onDrop={(e) => void dragReorder.handleDrop(e, slot.photo!.id)}
+              >
                 <div className="photo-container">
+                  {canDrag ? (
+                    <span className="photo-drag-handle" aria-hidden>
+                      ⋮⋮
+                    </span>
+                  ) : null}
                   <button
                     type="button"
                     className="photo-upload-thumb"
@@ -490,36 +374,6 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
                     />
                   </button>
                   {slot.photo.isPrimary && <div className="photo-primary-badge">⭐ Primary</div>}
-                  {!profileId && sortedPhotos.length > 1 ? (
-                    <div className="photo-reorder" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        type="button"
-                        className="photo-reorder-btn"
-                        disabled={reordering || slot.index === 0}
-                        title="Move earlier in gallery"
-                        aria-label={`Move photo ${slot.index + 1} earlier in gallery order`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void movePhotoInOrder(slot.photo!.id, -1);
-                        }}
-                      >
-                        ‹
-                      </button>
-                      <button
-                        type="button"
-                        className="photo-reorder-btn"
-                        disabled={reordering || slot.index === sortedPhotos.length - 1}
-                        title="Move later in gallery"
-                        aria-label={`Move photo ${slot.index + 1} later in gallery order`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void movePhotoInOrder(slot.photo!.id, 1);
-                        }}
-                      >
-                        ›
-                      </button>
-                    </div>
-                  ) : null}
                   {!profileId && (
                     <div className="photo-actions">
                       {!slot.photo.isPrimary && (
@@ -562,7 +416,7 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
                     disabled={uploading}
                   >
                     <span className="photo-upload-icon">➕</span>
-                    <span>Add Photo</span>
+                    <span>Add Photos</span>
                     <span className="photo-upload-slot-number">{slot.index + 1}</span>
                   </button>
                 )}
