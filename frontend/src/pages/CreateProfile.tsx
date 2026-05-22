@@ -203,6 +203,7 @@ export default function CreateProfile() {
   const [uploadingSlotIndices, setUploadingSlotIndices] = useState<number[]>([]);
   const uploadingPhotos = uploadingSlotIndices.length > 0;
   const [reorderingPhotos, setReorderingPhotos] = useState(false);
+  const [removingPhotoId, setRemovingPhotoId] = useState<string | null>(null);
   const [showProfileReadySplash, setShowProfileReadySplash] = useState(false);
 
   const [displayName, setDisplayName] = useState("");
@@ -879,17 +880,20 @@ export default function CreateProfile() {
 
   const removePhotoAt = async (slotIndex: number) => {
     const ph = photoSlots[slotIndex];
-    if (!ph) return;
-    if (!window.confirm("Remove this photo?")) return;
+    if (!ph || removingPhotoId) return;
+    if (!window.confirm("Remove this photo from your profile?")) return;
+    setRemovingPhotoId(ph.id);
+    setError("");
     try {
       await api.delete(`/photos/${ph.id}`);
       photoSlotsTouchedRef.current = true;
-      const next = [...photoSlots];
-      next[slotIndex] = null;
-      setPhotoSlots(next);
-      persistLocalDraft(step, next);
+      await syncPhotosFromServer({ force: true });
+      persistLocalDraft(step);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to remove photo");
+      await syncPhotosFromServer({ force: true });
+    } finally {
+      setRemovingPhotoId(null);
     }
   };
 
@@ -1321,9 +1325,12 @@ export default function CreateProfile() {
               className="create-profile-file-input"
               onChange={(ev) => void onPhotoFileChange(ev)}
             />
-            {filledPhotos.length > 1 ? (
+            {filledPhotos.length > 0 ? (
               <p className="create-profile-photos-reorder-hint">
-                Drag photos to reorder. The first photo is your profile thumbnail.
+                {filledPhotos.length > 1
+                  ? "Drag photos to reorder. The first photo is your profile thumbnail."
+                  : "The first photo is your profile thumbnail."}{" "}
+                Use <strong>Remove</strong> on any photo to delete it.
               </p>
             ) : null}
             {uploadingPhotos ? (
@@ -1348,17 +1355,27 @@ export default function CreateProfile() {
                         onDragLeave={photoDragReorder.handleDragLeave}
                         onDrop={(e) => void photoDragReorder.handleDrop(e, ph.id)}
                       >
-                        {canDrag ? <span className="photo-drag-handle" aria-hidden>⋮⋮</span> : null}
+                        {canDrag ? (
+                          <span className="photo-drag-handle create-profile-photo-drag-handle" aria-hidden>
+                            ⋮⋮
+                          </span>
+                        ) : null}
                         <img src={getPhotoUrl(ph.url)} alt="" className="create-profile-photo-img" draggable={false} />
-                        <button
-                          type="button"
-                          className="create-profile-photo-remove"
-                          onClick={() => void removePhotoAt(slotIndex)}
-                          aria-label="Remove photo"
-                        >
-                          ×
-                        </button>
                         {slotIndex === 0 ? <span className="create-profile-photo-primary">Primary</span> : null}
+                        <div className="create-profile-photo-actions">
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-danger create-profile-photo-remove-btn"
+                            disabled={removingPhotoId === ph.id || uploadingPhotos || reorderingPhotos}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void removePhotoAt(slotIndex);
+                            }}
+                            aria-label="Remove photo"
+                          >
+                            {removingPhotoId === ph.id ? "…" : "Remove"}
+                          </button>
+                        </div>
                       </div>
                     ) : (
                       <button
@@ -1385,6 +1402,7 @@ export default function CreateProfile() {
               <strong>💡 Photo Tips</strong>
               <ul>
                 <li>Select multiple photos at once from your gallery</li>
+                <li>Tap <strong>Remove</strong> on a photo to delete it and upload a different one</li>
                 <li>Use clear, recent photos</li>
                 <li>Include a mix of close-ups and full-body shots</li>
                 <li>Show your personality and interests</li>

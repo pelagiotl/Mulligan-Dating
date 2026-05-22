@@ -3185,19 +3185,32 @@ img {
   display: block;
 }
 
-.create-profile-photo-remove {
-  position: absolute;
+.create-profile-photo-filled .create-profile-photo-drag-handle {
   top: 6px;
-  right: 6px;
-  width: 28px;
-  height: 28px;
-  border: none;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.55);
-  color: #fff;
-  font-size: 1.25rem;
-  line-height: 1;
-  cursor: pointer;
+  left: 6px;
+  right: auto;
+}
+
+.create-profile-photo-actions {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  right: 8px;
+  z-index: 3;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.create-profile-photo-remove-btn {
+  pointer-events: auto;
+  width: 100%;
+  max-width: 9rem;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border-radius: var(--radius-full);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.28);
 }
 
 .create-profile-photo-primary {
