@@ -23,6 +23,7 @@ import {
   writeWebCreateProfileDraft,
 } from "../utils/createProfileProgress";
 import { getCreateProfileSupportMailtoUrl } from "../constants/support";
+import { markWebPushPromptAfterProfile } from "../constants/webPushPrompt";
 
 const GENDER_OPTIONS = ["Man", "Woman", "Other"] as const;
 const GENDER_OPTION_META: Record<(typeof GENDER_OPTIONS)[number], { emoji: string; label: string }> = {
@@ -952,6 +953,7 @@ export default function CreateProfile() {
 
       clearWebCreateProfileDraft();
       markConnectSetupComplete();
+      markWebPushPromptAfterProfile();
       await refreshProfile({ silent: true });
       navigate("/browse", { replace: true });
     } catch (err) {

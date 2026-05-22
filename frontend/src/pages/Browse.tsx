@@ -12,6 +12,8 @@ import LaunchCountdown from "../components/LaunchCountdown";
 import { io, Socket } from "socket.io-client";
 import { emitTokenBalanceUpdated } from "../lib/tokenBalanceEvents";
 import ConnectLandingTagline from "../components/ConnectLandingTagline";
+import WebPushOnboardingPrompt from "../components/WebPushOnboardingPrompt";
+import { shouldShowWebPushPromptAfterProfile } from "../constants/webPushPrompt";
 
 interface Photo {
   id: string;
@@ -214,6 +216,7 @@ export default function Browse() {
   );
   const [hasFetched, setHasFetched] = useState(false); // Track if we've fetched at least once
   const [matchNotification, setMatchNotification] = useState<{ message: string; type: "success" | "info" | "warning" | "error" } | null>(null);
+  const [showWebPushPrompt, setShowWebPushPrompt] = useState(() => shouldShowWebPushPromptAfterProfile());
   const matchNotificationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showMatchCelebrationRef = useRef(false);
   const socketRef = useRef<Socket | null>(null);
@@ -938,6 +941,11 @@ export default function Browse() {
           </div>
         </>
       ) : null}
+
+      <WebPushOnboardingPrompt
+        open={showWebPushPrompt}
+        onClose={() => setShowWebPushPrompt(false)}
+      />
 
       {showMatchCelebration && matchedProfile ? (
         <MatchCelebration
