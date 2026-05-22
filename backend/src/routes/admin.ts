@@ -2,6 +2,7 @@ import { Router, type Response } from 'express';
 import { db } from '../database.js';
 import { authenticateToken, requireAdmin, AuthRequest, isOwnerAdmin } from '../middleware/auth.js';
 import { deleteUserAccountData } from '../services/deleteUserAccount.js';
+import { forceMatchByPhone } from '../services/forceMatchByPhone.js';
 import { v4 as uuidv4 } from 'uuid';
 
 export const adminRouter = Router();
@@ -979,6 +980,44 @@ adminRouter.post('/grant-tokens-by-phone', authenticateToken, requireAdmin, asyn
   } catch (error: any) {
     console.error('Error granting tokens by phone:', error);
     res.status(500).json({ error: 'Failed to grant tokens', details: error.message });
+  }
+});
+
+// Force a stage1 match between two users by phone (bypasses tokens / preferences / distance)
+adminRouter.post('/matches/force-by-phone', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const phoneA = String(req.body?.phoneA ?? req.body?.phone1 ?? '').trim();
+    const phoneB = String(req.body?.phoneB ?? req.body?.phone2 ?? '').trim();
+
+    if (!phoneA || !phoneB) {
+      return res.status(400).json({ error: 'phoneA and phoneB are required' });
+    }
+
+    const result = await forceMatchByPhone(phoneA, phoneB);
+    if (!result.ok) {
+      return res.status(result.status).json({ error: result.error });
+    }
+
+    if (result.created) {
+      return res.json({
+        message: 'Match created',
+        matchId: result.matchId,
+        user1: result.user1,
+        user2: result.user2,
+        expiresAt: result.expiresAt,
+      });
+    }
+
+    return res.json({
+      message: 'Match already exists',
+      matchId: result.matchId,
+      stage: result.stage,
+      user1: result.user1,
+      user2: result.user2,
+    });
+  } catch (error: any) {
+    console.error('Error forcing match by phone:', error);
+    res.status(500).json({ error: 'Failed to force match', details: error.message });
   }
 });
 
