@@ -13,18 +13,20 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { ConnectShellMode } from '../lib/connectShellTheme';
 import { launchCountdownTheme } from '../lib/launchCountdownTheme';
+import {
+  launchDockFromRect,
+  launchDockTopLeft,
+  normalizeLaunchDockPersisted,
+  type LaunchDockEdge,
+  type LaunchDockInsets,
+  type LaunchDockPersisted,
+} from '../utils/launchCountdownDock';
 
 /** Same launch instant as web `frontend/src/components/LaunchCountdown.tsx` */
 const LAUNCH_MS = new Date(2026, 5, 6, 0, 0, 0, 0).getTime();
 
 const STORAGE_KEY = 'mulligan-launch-bubble-mobile-v1';
 
-type Edge = 'top' | 'right' | 'bottom' | 'left';
-
-type Persisted = {
-  edge: Edge;
-  collapsed: boolean;
-};
 
 type Remaining = { live: true; days: 0 } | { live: false; days: number };
 
@@ -32,49 +34,6 @@ function computeRemaining(): Remaining {
   const diff = LAUNCH_MS - Date.now();
   if (diff <= 0) return { live: true, days: 0 };
   return { live: false, days: Math.floor(diff / 86400000) };
-}
-
-function nearestEdge(cx: number, cy: number, vw: number, vh: number): Edge {
-  const dTop = cy;
-  const dBottom = vh - cy;
-  const dLeft = cx;
-  const dRight = vw - cx;
-  const min = Math.min(dTop, dBottom, dLeft, dRight);
-  if (min === dTop) return 'top';
-  if (min === dBottom) return 'bottom';
-  if (min === dLeft) return 'left';
-  return 'right';
-}
-
-function presetTopLeft(
-  edge: Edge,
-  vw: number,
-  vh: number,
-  topInset: number,
-  leftInset: number,
-  rightInset: number,
-  bottomChrome: number,
-  w: number,
-  h: number
-): { left: number; top: number } {
-  const m = 8;
-  switch (edge) {
-    case 'top':
-      return { left: Math.max(m + leftInset, (vw - w) / 2), top: topInset + m };
-    case 'bottom':
-      return {
-        left: Math.max(m + leftInset, (vw - w) / 2),
-        top: Math.max(m + topInset, vh - bottomChrome - h - m),
-      };
-    case 'left':
-      return { left: leftInset + m, top: Math.max(m + topInset, (vh - h) / 2) };
-    case 'right':
-    default:
-      return {
-        left: Math.max(m + leftInset, vw - rightInset - m - w),
-        top: Math.max(m + topInset, (vh - h) / 2),
-      };
-  }
 }
 
 export type LaunchCountdownBubbleProps = {
@@ -97,7 +56,8 @@ export default function LaunchCountdownBubble({
   const theme = useMemo(() => launchCountdownTheme(connectShell), [connectShell]);
   const { width: vw, height: vh } = useWindowDimensions();
   const [remaining, setRemaining] = useState<Remaining>(() => computeRemaining());
-  const [edge, setEdge] = useState<Edge>('top');
+  const [edge, setEdge] = useState<LaunchDockEdge>('top');
+  const [along, setAlong] = useState(0.5);
   const [collapsed, setCollapsed] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [boxW, setBoxW] = useState(200);
@@ -128,12 +88,11 @@ export default function LaunchCountdownBubble({
       try {
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
         if (raw && !cancelled) {
-          const j = JSON.parse(raw) as Partial<Persisted>;
-          if (j.edge === 'top' || j.edge === 'bottom' || j.edge === 'left' || j.edge === 'right') {
-            setEdge(j.edge);
-          }
-          if (typeof j.collapsed === 'boolean') {
-            setCollapsed(j.collapsed);
+          const saved = normalizeLaunchDockPersisted(JSON.parse(raw));
+          if (saved) {
+            setEdge(saved.edge);
+            setAlong(saved.along);
+            setCollapsed(saved.collapsed);
           }
         }
       } catch {
@@ -147,7 +106,7 @@ export default function LaunchCountdownBubble({
     };
   }, []);
 
-  const persist = useCallback(async (next: Persisted) => {
+  const persist = useCallback(async (next: LaunchDockPersisted) => {
     try {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
     } catch {
@@ -155,14 +114,24 @@ export default function LaunchCountdownBubble({
     }
   }, []);
 
+  const dockInsets = useMemo<LaunchDockInsets>(
+    () => ({
+      top: topInset,
+      left: leftInset,
+      right: rightInset,
+      bottomChrome: bottomTabOccupancy,
+    }),
+    [topInset, leftInset, rightInset, bottomTabOccupancy]
+  );
+
   useEffect(() => {
     if (!hydrated) return;
-    void persist({ edge, collapsed });
-  }, [edge, collapsed, hydrated, persist]);
+    void persist({ edge, along, collapsed });
+  }, [edge, along, collapsed, hydrated, persist]);
 
   const basePos = useMemo(
-    () => presetTopLeft(edge, vw, vh, topInset, leftInset, rightInset, bottomTabOccupancy, boxW, boxH),
-    [edge, vw, vh, topInset, leftInset, rightInset, bottomTabOccupancy, boxW, boxH]
+    () => launchDockTopLeft(edge, along, vw, vh, boxW, boxH, dockInsets),
+    [edge, along, vw, vh, boxW, boxH, dockInsets]
   );
 
   const onLayoutBubble = useCallback((e: LayoutChangeEvent) => {
@@ -175,23 +144,23 @@ export default function LaunchCountdownBubble({
 
   const finishDragSnap = useCallback(() => {
     wrapRef.current?.measureInWindow((x, y, w, h) => {
-      const cx = x + w / 2;
-      const cy = y + h / 2;
-      const nextEdge = nearestEdge(cx, cy, vw, vh);
-      setEdge(nextEdge);
+      const dock = launchDockFromRect(x, y, w, h, vw, vh, dockInsets);
+      setEdge(dock.edge);
+      setAlong(dock.along);
       setCollapsed(true);
       setPan({ x: 0, y: 0 });
       setDragging(false);
     });
-  }, [vw, vh]);
+  }, [vw, vh, dockInsets]);
 
   const resetToTopExpanded = useCallback(() => {
     clearCollapsedLongPressTimer();
     setEdge('top');
+    setAlong(0.5);
     setCollapsed(false);
     setPan({ x: 0, y: 0 });
     setDragging(false);
-    void persist({ edge: 'top', collapsed: false });
+    void persist({ edge: 'top', along: 0.5, collapsed: false });
   }, [persist, clearCollapsedLongPressTimer]);
 
   const MOVE_PX = 12;
@@ -286,7 +255,7 @@ export default function LaunchCountdownBubble({
         onLayout={onLayoutBubble}
         {...panResponder.panHandlers}
         accessibilityRole="adjustable"
-        accessibilityHint="Drag to move and dock on an edge. Tap collapsed chip to expand. Hold collapsed chip to reset."
+        accessibilityHint="Drag to any position along an edge to dock. Tap collapsed chip to expand. Hold collapsed chip to reset."
       >
         {collapsed ? (
           <LinearGradient
@@ -348,7 +317,7 @@ export default function LaunchCountdownBubble({
 
               <View style={styles.dragHintRow}>
                 <View style={[styles.dragGrip, { backgroundColor: theme.dragGrip }]} />
-                <Text style={[styles.dragHint, { color: theme.dragHint }]}>Drag to an edge to dock</Text>
+                <Text style={[styles.dragHint, { color: theme.dragHint }]}>Drag to any spot on an edge</Text>
               </View>
 
               {remaining.live ? (

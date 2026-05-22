@@ -1,15 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import {
+  launchDockFromRect,
+  launchDockTopLeft,
+  normalizeLaunchDockPersisted,
+  type LaunchDockEdge,
+  type LaunchDockInsets,
+  type LaunchDockPersisted,
+} from "../utils/launchCountdownDock";
 
 /** Local midnight at the start of launch day (June 6, 2026). */
 const LAUNCH_MS = new Date(2026, 5, 6, 0, 0, 0, 0).getTime();
 
-/** Same semantics as mobile `STORAGE_KEY` shape (`edge` + `collapsed`). Legacy `{ left, top }` is migrated. */
+/** Same semantics as mobile `STORAGE_KEY` shape (`edge`, `along`, `collapsed`). Legacy `{ left, top }` is migrated. */
 const BUBBLE_POS_KEY = "mulligan-launch-bubble-pos";
 
 const MOVE_PX = 8;
-
-type Edge = "top" | "right" | "bottom" | "left";
 
 type Remaining =
   | { live: true; days: 0 }
@@ -26,18 +32,6 @@ function computeRemaining(): Remaining {
   };
 }
 
-function nearestEdge(cx: number, cy: number, vw: number, vh: number): Edge {
-  const dTop = cy;
-  const dBottom = vh - cy;
-  const dLeft = cx;
-  const dRight = vw - cx;
-  const min = Math.min(dTop, dBottom, dLeft, dRight);
-  if (min === dTop) return "top";
-  if (min === dBottom) return "bottom";
-  if (min === dLeft) return "left";
-  return "right";
-}
-
 function readBottomChromePx(): number {
   if (typeof document === "undefined") return 24;
   const root = document.documentElement;
@@ -47,58 +41,28 @@ function readBottomChromePx(): number {
   return Math.max(24, tab + safe + 12);
 }
 
-function presetTopLeft(
-  edge: Edge,
-  vw: number,
-  vh: number,
-  boxW: number,
-  boxH: number,
-  bottomChrome: number
-): { left: number; top: number } {
-  const m = 8;
-  const leftInset = m;
-  const topInset = m;
-  const rightInset = m;
-  switch (edge) {
-    case "top":
-      return { left: Math.max(leftInset, (vw - boxW) / 2), top: topInset };
-    case "bottom":
-      return {
-        left: Math.max(leftInset, (vw - boxW) / 2),
-        top: Math.max(topInset, vh - bottomChrome - boxH - m),
-      };
-    case "left":
-      return { left: leftInset, top: Math.max(topInset, (vh - boxH) / 2) };
-    case "right":
-    default:
-      return {
-        left: Math.max(leftInset, vw - rightInset - boxW - m),
-        top: Math.max(topInset, (vh - boxH) / 2),
-      };
-  }
+function readDockInsets(bottomChrome: number): LaunchDockInsets {
+  return { top: 8, left: 8, right: 8, bottomChrome };
 }
 
-function readPersisted(): { edge: Edge; collapsed: boolean } | null {
+function readPersisted(bottomChrome: number): LaunchDockPersisted | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = localStorage.getItem(BUBBLE_POS_KEY);
     if (!raw) return null;
-    const p = JSON.parse(raw) as Record<string, unknown>;
-    if (!p || typeof p !== "object") return null;
+    const p = JSON.parse(raw) as unknown;
+    const normalized = normalizeLaunchDockPersisted(p);
+    if (normalized) return normalized;
 
-    if (
-      typeof p.edge === "string" &&
-      (p.edge === "top" || p.edge === "right" || p.edge === "bottom" || p.edge === "left")
-    ) {
-      return { edge: p.edge, collapsed: !!p.collapsed };
-    }
-
-    if (typeof p.left === "number" && typeof p.top === "number") {
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      const cx = p.left + 140;
-      const cy = p.top + 90;
-      return { edge: nearestEdge(cx, cy, vw, vh), collapsed: false };
+    if (p && typeof p === "object") {
+      const legacy = p as Record<string, unknown>;
+      if (typeof legacy.left === "number" && typeof legacy.top === "number") {
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const insets = readDockInsets(bottomChrome);
+        const dock = launchDockFromRect(legacy.left, legacy.top, 280, 180, vw, vh, insets);
+        return { ...dock, collapsed: false };
+      }
     }
   } catch {
     /* ignore */
@@ -106,9 +70,9 @@ function readPersisted(): { edge: Edge; collapsed: boolean } | null {
   return null;
 }
 
-function persistState(edge: Edge, collapsed: boolean) {
+function persistState(state: LaunchDockPersisted) {
   try {
-    localStorage.setItem(BUBBLE_POS_KEY, JSON.stringify({ edge, collapsed }));
+    localStorage.setItem(BUBBLE_POS_KEY, JSON.stringify(state));
   } catch {
     /* ignore */
   }
@@ -116,7 +80,8 @@ function persistState(edge: Edge, collapsed: boolean) {
 
 export default function LaunchCountdown() {
   const [state, setState] = useState<Remaining>(() => computeRemaining());
-  const [edge, setEdge] = useState<Edge>("top");
+  const [edge, setEdge] = useState<LaunchDockEdge>("top");
+  const [along, setAlong] = useState(0.5);
   const [collapsed, setCollapsed] = useState(false);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
@@ -146,9 +111,10 @@ export default function LaunchCountdown() {
   }, []);
 
   useEffect(() => {
-    const saved = readPersisted();
+    const saved = readPersisted(readBottomChromePx());
     if (saved) {
       setEdge(saved.edge);
+      setAlong(saved.along);
       setCollapsed(saved.collapsed);
     }
     setHydrated(true);
@@ -156,8 +122,8 @@ export default function LaunchCountdown() {
 
   useEffect(() => {
     if (!hydrated) return;
-    persistState(edge, collapsed);
-  }, [edge, collapsed, hydrated]);
+    persistState({ edge, along, collapsed });
+  }, [edge, along, collapsed, hydrated]);
 
   useEffect(() => {
     const onResize = () => {
@@ -185,9 +151,23 @@ export default function LaunchCountdown() {
 
   const bottomChrome = useMemo(() => readBottomChromePx(), [viewport.w, viewport.h]);
 
+  const dockInsets = useMemo(
+    () => readDockInsets(bottomChrome),
+    [bottomChrome]
+  );
+
   const basePos = useMemo(
-    () => presetTopLeft(edge, viewport.w, viewport.h, boxSize.w, boxSize.h, bottomChrome),
-    [edge, viewport.w, viewport.h, boxSize.w, boxSize.h, bottomChrome]
+    () =>
+      launchDockTopLeft(
+        edge,
+        along,
+        viewport.w,
+        viewport.h,
+        boxSize.w,
+        boxSize.h,
+        dockInsets
+      ),
+    [edge, along, viewport.w, viewport.h, boxSize.w, boxSize.h, dockInsets]
   );
 
   const clearLongPress = useCallback(() => {
@@ -200,10 +180,11 @@ export default function LaunchCountdown() {
   const resetToTopExpanded = useCallback(() => {
     clearLongPress();
     setEdge("top");
+    setAlong(0.5);
     setCollapsed(false);
     setPan({ x: 0, y: 0 });
     setDragging(false);
-    persistState("top", false);
+    persistState({ edge: "top", along: 0.5, collapsed: false });
   }, [clearLongPress]);
 
   const finishDragSnap = useCallback(() => {
@@ -212,14 +193,21 @@ export default function LaunchCountdown() {
     const r = el.getBoundingClientRect();
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    const cx = r.left + r.width / 2;
-    const cy = r.top + r.height / 2;
-    const nextEdge = nearestEdge(cx, cy, vw, vh);
-    setEdge(nextEdge);
+    const dock = launchDockFromRect(
+      r.left,
+      r.top,
+      r.width,
+      r.height,
+      vw,
+      vh,
+      dockInsets
+    );
+    setEdge(dock.edge);
+    setAlong(dock.along);
     setCollapsed(true);
     setPan({ x: 0, y: 0 });
     setDragging(false);
-  }, []);
+  }, [dockInsets]);
 
   const finishDragSnapRef = useRef(finishDragSnap);
   finishDragSnapRef.current = finishDragSnap;
@@ -400,7 +388,7 @@ export default function LaunchCountdown() {
       }}
       onPointerDown={onBubblePointerDown}
       onDoubleClick={onDoubleClickBubble}
-      title="Drag toward an edge to dock (collapsed). Click chip to expand. Double-click to reset."
+      title="Drag anywhere along an edge to dock (collapsed). Tap chip to expand. Double-click to reset."
       role="group"
       aria-label="Launch countdown widget"
     >
@@ -432,7 +420,7 @@ export default function LaunchCountdown() {
         >
           <div className="launch-countdown-bubble__drag-hint">
             <span className="launch-countdown-bubble__drag-grip" aria-hidden />
-            <span className="launch-countdown-bubble__drag-label">Drag to an edge to dock</span>
+            <span className="launch-countdown-bubble__drag-label">Drag to any spot on an edge</span>
           </div>
           {countdownSection}
           <button
