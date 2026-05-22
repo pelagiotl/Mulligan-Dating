@@ -176,8 +176,8 @@ export default function MyProfileScreen() {
   const [settings, setSettings] = useState<SettingsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [uploadingSlotIndex, setUploadingSlotIndex] = useState<number | null>(null);
-  const [uploadingPhotos, setUploadingPhotos] = useState(false);
+  const [uploadingSlotIndices, setUploadingSlotIndices] = useState<number[]>([]);
+  const uploadingPhotos = uploadingSlotIndices.length > 0;
   const [showPhotoGallery, setShowPhotoGallery] = useState(false);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const photoGalleryScrollRef = useRef<FlatList<Photo>>(null);
@@ -968,11 +968,18 @@ export default function MyProfileScreen() {
     }
   };
 
-  const uploadPhotos = async (uris: string[], slotIndex: number = -1) => {
+  const uploadPhotos = async (uris: string[], tappedIndex?: number) => {
     if (uris.length === 0) return;
+    const targetSlots: number[] = [];
+    if (tappedIndex !== undefined && tappedIndex >= 0 && tappedIndex < 6 && !photos[tappedIndex]) {
+      targetSlots.push(tappedIndex);
+    }
+    for (let i = 0; i < 6 && targetSlots.length < uris.length; i++) {
+      if (photos[i]) continue;
+      if (!targetSlots.includes(i)) targetSlots.push(i);
+    }
     try {
-      setUploadingPhotos(true);
-      setUploadingSlotIndex(slotIndex);
+      setUploadingSlotIndices(targetSlots.slice(0, uris.length));
 
       await uploadPhotoUris(uris);
 
@@ -982,8 +989,7 @@ export default function MyProfileScreen() {
       console.error('Upload error:', err);
       Alert.alert('Error', err?.message || 'Failed to upload photos');
     } finally {
-      setUploadingPhotos(false);
-      setUploadingSlotIndex(null);
+      setUploadingSlotIndices([]);
     }
   };
 
@@ -2435,9 +2441,9 @@ export default function MyProfileScreen() {
                 key={`empty-${index}`}
                 style={styles.addPhotoButton}
                 onPress={() => handlePickImage(index)}
-                disabled={uploadingPhotos || uploadingSlotIndex !== null}
+                disabled={uploadingPhotos}
               >
-                {uploadingPhotos || uploadingSlotIndex === index ? (
+                {uploadingSlotIndices.includes(index) ? (
                   <ActivityIndicator color="#667eea" />
                 ) : (
                   <Text style={styles.addPhotoText}>+</Text>
@@ -2852,10 +2858,10 @@ export default function MyProfileScreen() {
                       console.error('Failed to upload photo:', error);
                     }
                   }}
-                  disabled={uploadingSlotIndex !== null}
+                  disabled={uploadingPhotos}
                   activeOpacity={0.8}
                 >
-                  {uploadingSlotIndex !== null ? (
+                  {uploadingPhotos ? (
                     <ActivityIndicator color="#fff" size="small" />
                   ) : (
                     <Text style={styles.photoGalleryAddText}>➕</Text>

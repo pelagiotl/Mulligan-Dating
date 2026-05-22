@@ -185,7 +185,8 @@ export default function CreateProfile() {
   const profileSaveSnapshotRef = useRef<string | null>(null);
   const photoSlotsTouchedRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploadingPhotos, setUploadingPhotos] = useState(false);
+  const [uploadingSlotIndices, setUploadingSlotIndices] = useState<number[]>([]);
+  const uploadingPhotos = uploadingSlotIndices.length > 0;
   const [reorderingPhotos, setReorderingPhotos] = useState(false);
   const [showProfileReadySplash, setShowProfileReadySplash] = useState(false);
 
@@ -842,8 +843,12 @@ export default function CreateProfile() {
       }
     }
 
+    const emptyIndices = photoSlots
+      .map((p, i) => (p ? -1 : i))
+      .filter((i) => i >= 0)
+      .slice(0, files.length);
     setError("");
-    setUploadingPhotos(true);
+    setUploadingSlotIndices(emptyIndices);
     try {
       await ensureProfileReadyForPhotos();
       await uploadPhotoFiles(files);
@@ -853,7 +858,7 @@ export default function CreateProfile() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
-      setUploadingPhotos(false);
+      setUploadingSlotIndices([]);
     }
   };
 
@@ -1331,8 +1336,8 @@ export default function CreateProfile() {
                         onClick={openPhotoPicker}
                         disabled={uploadingPhotos || reorderingPhotos || photoCount >= MAX_PHOTO_SLOTS}
                       >
-                        {uploadingPhotos ? (
-                          <span className="create-profile-photo-uploading">…</span>
+                        {uploadingSlotIndices.includes(slotIndex) ? (
+                          <span className="photo-slot-spinner create-profile-photo-slot-spinner" aria-hidden />
                         ) : (
                           <>
                             <span className="create-profile-photo-add-icon">📷</span>

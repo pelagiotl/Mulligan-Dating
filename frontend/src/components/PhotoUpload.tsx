@@ -23,6 +23,8 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
+  /** Grid slot indices (0..maxPhotos-1) currently receiving an upload. */
+  const [uploadingSlotIndices, setUploadingSlotIndices] = useState<number[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
@@ -130,8 +132,13 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
       validFiles.push(file);
     }
 
+    const targetSlots = Array.from({ length: validFiles.length }, (_, i) => photos.length + i).filter(
+      (idx) => idx < maxPhotos
+    );
+
     setUploading(true);
     setUploadProgress(0);
+    setUploadingSlotIndices(targetSlots);
     setError("");
 
     try {
@@ -169,6 +176,7 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
       setUploadingIndex(null);
     } finally {
       setUploading(false);
+      setUploadingSlotIndices([]);
     }
   };
 
@@ -406,7 +414,7 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
               </div>
             );
           } else {
-            // Empty slot - show upload button
+            const slotUploading = uploadingSlotIndices.includes(slot.index);
             return (
               <div key={`empty-${slot.index}`} className="photo-item photo-upload-placeholder">
                 {!profileId && (
@@ -414,10 +422,17 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
                     className="photo-upload-btn"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={uploading}
+                    aria-busy={slotUploading}
                   >
-                    <span className="photo-upload-icon">➕</span>
-                    <span>Add Photos</span>
-                    <span className="photo-upload-slot-number">{slot.index + 1}</span>
+                    {slotUploading ? (
+                      <span className="photo-slot-spinner" aria-hidden />
+                    ) : (
+                      <>
+                        <span className="photo-upload-icon">➕</span>
+                        <span>Add Photos</span>
+                        <span className="photo-upload-slot-number">{slot.index + 1}</span>
+                      </>
+                    )}
                   </button>
                 )}
               </div>

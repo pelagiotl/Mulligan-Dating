@@ -267,8 +267,8 @@ export default function CreateProfileScreen() {
 
   // Photos (final step) — fixed slots so grid index matches upload slot
   const [photos, setPhotos] = useState<(ProfilePhoto | null)[]>(() => emptyPhotoSlots());
-  const [uploadingSlotIndex, setUploadingSlotIndex] = useState<number | null>(null);
-  const [uploadingPhotos, setUploadingPhotos] = useState(false);
+  const [uploadingSlotIndices, setUploadingSlotIndices] = useState<number[]>([]);
+  const uploadingPhotos = uploadingSlotIndices.length > 0;
   const [draggingPhotoId, setDraggingPhotoId] = useState<string | null>(null);
   const [draggingSlotIndex, setDraggingSlotIndex] = useState<number | null>(null);
   const [reorderingPhotos, setReorderingPhotos] = useState(false);
@@ -1186,8 +1186,12 @@ export default function CreateProfileScreen() {
 
   const uploadPhotosBatch = async (uris: string[]) => {
     if (uris.length === 0) return;
+    const emptyIndices = photos
+      .map((p, i) => (p ? -1 : i))
+      .filter((i) => i >= 0)
+      .slice(0, uris.length);
     try {
-      setUploadingPhotos(true);
+      setUploadingSlotIndices(emptyIndices);
       setError('');
 
       await ensureProfileSavedForPhotos();
@@ -1227,8 +1231,7 @@ export default function CreateProfileScreen() {
         Alert.alert('Upload Failed', errorMessage, [{ text: 'OK' }]);
       }
     } finally {
-      setUploadingPhotos(false);
-      setUploadingSlotIndex(null);
+      setUploadingSlotIndices([]);
     }
   };
 
@@ -1360,7 +1363,6 @@ export default function CreateProfileScreen() {
           }
         }
         const uris = result.assets.map((a) => a.uri).filter(Boolean) as string[];
-        setUploadingSlotIndex(0);
         await uploadPhotosBatch(uris);
       }
     } catch (error: unknown) {
@@ -2333,7 +2335,7 @@ export default function CreateProfileScreen() {
                         end={{ x: 1, y: 1 }}
                         style={styles.addPhotoButtonGradient}
                       >
-                        {uploadingPhotos ? (
+                        {uploadingSlotIndices.includes(slotIndex) ? (
                           <ActivityIndicator color="#fff" size="small" />
                         ) : (
                           <>
