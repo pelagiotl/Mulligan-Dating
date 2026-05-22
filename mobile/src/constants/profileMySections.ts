@@ -24,7 +24,6 @@ export function isCanonicalLookingFor(v: string | null | undefined): v is Lookin
 
 export const DEALBREAKER_SUGGESTIONS = [
   'Smokes cigarettes',
-  'Marijuana',
   'Frequent drinking',
   "Doesn't want children",
   'Wants children',
@@ -39,7 +38,6 @@ export const DEALBREAKER_CANONICAL_SET = new Set<string>(DEALBREAKER_SUGGESTIONS
 
 export const DEALBREAKER_EMOJI: Record<(typeof DEALBREAKER_SUGGESTIONS)[number], string> = {
   'Smokes cigarettes': '🚬',
-  Marijuana: '🌿',
   'Frequent drinking': '🍷',
   "Doesn't want children": '👶❌',
   'Wants children': '👪',

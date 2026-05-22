@@ -43,9 +43,25 @@ const PREFERRED_GENDER_META: Record<(typeof PREFERRED_GENDER_OPTIONS)[number], {
 };
 
 function preferredGendersPayload(g: string[]): string[] | null {
-  if (g.includes("Everyone") || g.length === 0) return null;
+  if (g.length === 0) return null;
+  if (g.includes("Everyone")) return ["Everyone"];
   const only = g.filter((x) => x === "Man" || x === "Woman");
   return only.length > 0 ? only : null;
+}
+
+function parsePreferredGendersFromApi(raw: string | null | undefined): string[] {
+  if (!raw?.trim()) return [];
+  try {
+    const genders = JSON.parse(raw) as string[];
+    if (!Array.isArray(genders) || genders.length === 0) return [];
+    if (genders.includes("Everyone")) return ["Everyone"];
+    const legacyAllThree =
+      genders.length === 3 && ["Man", "Woman", "Other"].every((g) => genders.includes(g));
+    if (legacyAllThree) return [];
+    return genders.filter((g) => g === "Man" || g === "Woman");
+  } catch {
+    return [];
+  }
 }
 
 function validateProfileWizardFields(
@@ -625,7 +641,8 @@ export default function CreateProfile() {
       let loc = draft?.location ?? "";
       let bioVal = draft?.bio ?? "";
       let interestList: string[] = draft?.interests ?? [];
-      let prefGenders: string[] = draft?.preferredGenders ?? [];
+      let prefGenders: string[] =
+        draft?.preferredGenders && draft.preferredGenders.length > 0 ? draft.preferredGenders : [];
       let minAgeVal = draft?.minAge ?? 18;
       let maxAgeVal = draft?.maxAge ?? 100;
       let maxDist = draft?.maxDistance ?? 50;
@@ -673,23 +690,8 @@ export default function CreateProfile() {
             maxAgeVal = data.preferences.max_age;
           }
           maxDist = data.preferences.max_distance ?? 50;
-          if (data.preferences.preferred_genders) {
-            try {
-              const genders = JSON.parse(data.preferences.preferred_genders) as string[];
-              const withoutOther = genders.filter((g) => g !== "Other");
-              const legacyAllThree =
-                genders.length === 3 && ["Man", "Woman", "Other"].every((g) => genders.includes(g));
-              const isEveryone =
-                genders.includes("Everyone") ||
-                genders.length === 0 ||
-                legacyAllThree ||
-                (withoutOther.length === 0 && genders.length > 0);
-              prefGenders = isEveryone ? ["Everyone"] : withoutOther;
-            } catch {
-              prefGenders = ["Everyone"];
-            }
-          } else {
-            prefGenders = ["Everyone"];
+          if (!(draft?.preferredGenders && draft.preferredGenders.length > 0)) {
+            prefGenders = parsePreferredGendersFromApi(data.preferences.preferred_genders);
           }
         }
 

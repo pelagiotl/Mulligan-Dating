@@ -193,7 +193,6 @@ function isCanonicalPartnerQuality(v: string): v is (typeof INTEREST_EDIT_OPTION
 
 const DEALBREAKER_SUGGESTIONS = [
   "Smokes cigarettes",
-  "Marijuana",
   "Frequent drinking",
   "Doesn't want children",
   "Wants children",
@@ -209,7 +208,6 @@ const DEALBREAKER_CANONICAL_SET = new Set<string>(DEALBREAKER_SUGGESTIONS);
 
 const DEALBREAKER_EMOJI: Record<(typeof DEALBREAKER_SUGGESTIONS)[number], string> = {
   "Smokes cigarettes": "🚬",
-  Marijuana: "🌿",
   "Frequent drinking": "🍷",
   "Doesn't want children": "👶❌",
   "Wants children": "👪",

@@ -1,11 +1,15 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import ConnectButtonHeartFireworks from './ConnectButtonHeartFireworks';
+import {
+  connectButtonShimmerColors,
+  type ConnectShellMode,
+} from '../lib/connectShellTheme';
 
 /** One loop of the perimeter trace (linear progress 0→1). */
 export const CONNECT_SHIMMER_DURATION_MS = 3400;
 
-const TRACE = 'rgba(103, 232, 249, 0.95)';
+const EDGE = 2.5;
 
 type ConnectButtonShimmerEffectProps = {
   /** Loops 0 → 1 (linear timing — constant speed along the perimeter). */
@@ -15,6 +19,8 @@ type ConnectButtonShimmerEffectProps = {
   sweepWidth?: number;
   /** Shooting-star hearts + mini bursts on the button. */
   showHearts?: boolean;
+  /** Landing chrome — trace contrast on sunny/soft shells. */
+  shell?: ConnectShellMode;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -36,10 +42,7 @@ function computeMetrics(width: number, height: number, borderRadius: number): Tr
  * Shared corner window: top/bottom still finish while the right edge begins moving
  * so speed does not drop when the sweep reaches the right side.
  */
-function buildSweepInterpolates(
-  progress: Animated.Value,
-  metrics: TraceMetrics
-) {
+function buildSweepInterpolates(progress: Animated.Value, metrics: TraceMetrics) {
   const { traceW, sideSegmentH, hEnd } = metrics;
   const halfW = traceW / 2;
 
@@ -70,7 +73,11 @@ function buildSweepInterpolates(
 
 type CornerKind = 'tl' | 'tr' | 'bl' | 'br';
 
-function cornerLStyle(kind: CornerKind, borderRadius: number) {
+function cornerLStyle(
+  kind: CornerKind,
+  borderRadius: number,
+  traceColor: string
+) {
   const arm = borderRadius + EDGE;
   const base = {
     position: 'absolute' as const,
@@ -86,8 +93,8 @@ function cornerLStyle(kind: CornerKind, borderRadius: number) {
         top: 0,
         borderTopWidth: EDGE,
         borderLeftWidth: EDGE,
-        borderTopColor: TRACE,
-        borderLeftColor: TRACE,
+        borderTopColor: traceColor,
+        borderLeftColor: traceColor,
         borderTopLeftRadius: borderRadius,
       };
     case 'tr':
@@ -97,8 +104,8 @@ function cornerLStyle(kind: CornerKind, borderRadius: number) {
         top: 0,
         borderTopWidth: EDGE,
         borderRightWidth: EDGE,
-        borderTopColor: TRACE,
-        borderRightColor: TRACE,
+        borderTopColor: traceColor,
+        borderRightColor: traceColor,
         borderTopRightRadius: borderRadius,
       };
     case 'bl':
@@ -108,8 +115,8 @@ function cornerLStyle(kind: CornerKind, borderRadius: number) {
         bottom: 0,
         borderBottomWidth: EDGE,
         borderLeftWidth: EDGE,
-        borderBottomColor: TRACE,
-        borderLeftColor: TRACE,
+        borderBottomColor: traceColor,
+        borderLeftColor: traceColor,
         borderBottomLeftRadius: borderRadius,
       };
     case 'br':
@@ -119,8 +126,8 @@ function cornerLStyle(kind: CornerKind, borderRadius: number) {
         bottom: 0,
         borderBottomWidth: EDGE,
         borderRightWidth: EDGE,
-        borderBottomColor: TRACE,
-        borderRightColor: TRACE,
+        borderBottomColor: traceColor,
+        borderRightColor: traceColor,
         borderBottomRightRadius: borderRadius,
       };
   }
@@ -134,20 +141,36 @@ export default function ConnectButtonShimmerEffect({
   borderRadius = 22,
   sweepWidth = 320,
   showHearts = true,
+  shell = 'midnight',
   style,
 }: ConnectButtonShimmerEffectProps) {
+  const colors = useMemo(() => connectButtonShimmerColors(shell), [shell]);
   const layoutLocked = useRef(false);
   const [metrics, setMetrics] = useState(() =>
     computeMetrics(sweepWidth, 56, borderRadius)
   );
 
+  useEffect(() => {
+    layoutLocked.current = false;
+    setMetrics(computeMetrics(sweepWidth, 56, borderRadius));
+  }, [shell, borderRadius, sweepWidth]);
+
   const onLayout = useCallback(
     (e: { nativeEvent: { layout: { width: number; height: number } } }) => {
-      if (layoutLocked.current) return;
       const { width, height } = e.nativeEvent.layout;
       if (width > 0 && height > 0) {
+        const next = computeMetrics(width, height, borderRadius);
+        setMetrics((prev) => {
+          if (
+            prev.traceW === next.traceW &&
+            prev.sideSegmentH === next.sideSegmentH &&
+            prev.hEnd === next.hEnd
+          ) {
+            return prev;
+          }
+          return next;
+        });
         layoutLocked.current = true;
-        setMetrics(computeMetrics(width, height, borderRadius));
       }
     },
     [borderRadius]
@@ -199,6 +222,53 @@ export default function ConnectButtonShimmerEffect({
     [progress, hEnd]
   );
 
+  const edgeStyles = useMemo(
+    () => ({
+      left: {
+        position: 'absolute' as const,
+        left: 0,
+        width: EDGE,
+        backgroundColor: colors.trace,
+        shadowColor: colors.glow,
+        shadowOpacity: 0.6,
+        shadowRadius: 5,
+      },
+      top: {
+        position: 'absolute' as const,
+        top: 0,
+        height: EDGE,
+        backgroundColor: colors.trace,
+        shadowColor: colors.glow,
+        shadowOpacity: 0.7,
+        shadowRadius: 6,
+      },
+      bottom: {
+        position: 'absolute' as const,
+        bottom: 0,
+        height: EDGE,
+        backgroundColor: colors.trace,
+        shadowColor: colors.glow,
+        shadowOpacity: 0.7,
+        shadowRadius: 6,
+      },
+      right: {
+        position: 'absolute' as const,
+        right: 0,
+        top: 0,
+        width: EDGE,
+        backgroundColor: colors.trace,
+        shadowColor: colors.glow,
+        shadowOpacity: 0.85,
+        shadowRadius: 6,
+      },
+      resting: {
+        borderWidth: 1,
+        borderColor: colors.resting,
+      },
+    }),
+    [colors]
+  );
+
   return (
     <View
       style={[StyleSheet.absoluteFill, style]}
@@ -210,20 +280,21 @@ export default function ConnectButtonShimmerEffect({
           style={[
             StyleSheet.absoluteFill,
             styles.restingPerimeter,
+            edgeStyles.resting,
             { borderRadius },
           ]}
         />
 
         <Animated.View style={[StyleSheet.absoluteFill, { opacity: traceOpacity }]}>
           <Animated.View
-            style={[cornerLStyle('tl', borderRadius), { opacity: leftCornerOpacity }]}
+            style={[cornerLStyle('tl', borderRadius, colors.trace), { opacity: leftCornerOpacity }]}
           />
           <Animated.View
-            style={[cornerLStyle('bl', borderRadius), { opacity: leftCornerOpacity }]}
+            style={[cornerLStyle('bl', borderRadius, colors.trace), { opacity: leftCornerOpacity }]}
           />
           <Animated.View
             style={[
-              styles.edgeLeft,
+              edgeStyles.left,
               {
                 top: borderRadius,
                 bottom: borderRadius,
@@ -234,13 +305,13 @@ export default function ConnectButtonShimmerEffect({
 
           <Animated.View
             style={[
-              styles.edgeTop,
+              edgeStyles.top,
               { width: traceW, left: 0, transform: sweepTransform },
             ]}
           />
           <Animated.View
             style={[
-              styles.edgeBottom,
+              edgeStyles.bottom,
               { width: traceW, left: 0, transform: sweepTransform },
             ]}
           />
@@ -249,8 +320,8 @@ export default function ConnectButtonShimmerEffect({
             style={[styles.rightStack, { opacity: rightPhaseOpacity }]}
             pointerEvents="none"
           >
-            <View style={cornerLStyle('tr', borderRadius)} />
-            <View style={cornerLStyle('br', borderRadius)} />
+            <View style={cornerLStyle('tr', borderRadius, colors.trace)} />
+            <View style={cornerLStyle('br', borderRadius, colors.trace)} />
             <View
               style={[
                 styles.rightEdgeClip,
@@ -259,7 +330,7 @@ export default function ConnectButtonShimmerEffect({
             >
               <Animated.View
                 style={[
-                  styles.edgeRightFill,
+                  edgeStyles.right,
                   {
                     height: sideSegmentH,
                     transform: [{ translateY: rightEdgeY }],
@@ -275,40 +346,8 @@ export default function ConnectButtonShimmerEffect({
   );
 }
 
-const EDGE = 2.5;
-
 const styles = StyleSheet.create({
-  restingPerimeter: {
-    borderWidth: 1,
-    borderColor: 'rgba(103, 232, 249, 0.2)',
-  },
-  edgeLeft: {
-    position: 'absolute',
-    left: 0,
-    width: EDGE,
-    backgroundColor: TRACE,
-    shadowColor: '#22d3ee',
-    shadowOpacity: 0.6,
-    shadowRadius: 5,
-  },
-  edgeTop: {
-    position: 'absolute',
-    top: 0,
-    height: EDGE,
-    backgroundColor: TRACE,
-    shadowColor: '#22d3ee',
-    shadowOpacity: 0.7,
-    shadowRadius: 6,
-  },
-  edgeBottom: {
-    position: 'absolute',
-    bottom: 0,
-    height: EDGE,
-    backgroundColor: TRACE,
-    shadowColor: '#22d3ee',
-    shadowOpacity: 0.7,
-    shadowRadius: 6,
-  },
+  restingPerimeter: {},
   rightStack: {
     ...StyleSheet.absoluteFillObject,
   },
@@ -317,15 +356,5 @@ const styles = StyleSheet.create({
     right: 0,
     width: EDGE,
     overflow: 'hidden',
-  },
-  edgeRightFill: {
-    position: 'absolute',
-    right: 0,
-    top: 0,
-    width: EDGE,
-    backgroundColor: TRACE,
-    shadowColor: '#22d3ee',
-    shadowOpacity: 0.85,
-    shadowRadius: 6,
   },
 });

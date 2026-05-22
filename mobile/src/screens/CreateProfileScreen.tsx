@@ -105,9 +105,26 @@ function isStubProfileGender(
 }
 
 function preferredGendersPayload(g: string[]): string[] | null {
-  if (g.includes('Everyone') || g.length === 0) return null;
+  if (g.length === 0) return null;
+  if (g.includes('Everyone')) return ['Everyone'];
   const only = g.filter((x) => x === 'Man' || x === 'Woman');
   return only.length > 0 ? only : null;
+}
+
+/** Parse API preferences — never default to Everyone; null/empty means no UI selection yet. */
+function parsePreferredGendersFromApi(raw: string | null | undefined): string[] {
+  if (!raw?.trim()) return [];
+  try {
+    const genders = JSON.parse(raw) as string[];
+    if (!Array.isArray(genders) || genders.length === 0) return [];
+    if (genders.includes('Everyone')) return ['Everyone'];
+    const legacyAllThree =
+      genders.length === 3 && ['Man', 'Woman', 'Other'].every((g) => genders.includes(g));
+    if (legacyAllThree) return [];
+    return genders.filter((g) => g === 'Man' || g === 'Woman');
+  } catch {
+    return [];
+  }
 }
 const INTEREST_OPTIONS = [
   'Travel', 'Music', 'Sports', 'Cooking', 'Reading', 'Movies', 'Fitness', 'Art',
@@ -575,7 +592,8 @@ export default function CreateProfileScreen() {
     let interestList: string[] = draft?.interests ?? [];
     let dealbreakerList: string[] = draft?.dealbreakers ?? [];
     let qualityList: string[] = draft?.partnerQualities ?? [];
-    let prefGenders: string[] = draft?.preferredGenders ?? [];
+    let prefGenders: string[] =
+      draft?.preferredGenders && draft.preferredGenders.length > 0 ? draft.preferredGenders : [];
     let minAgeVal = draft?.minAge ?? 18;
     let maxAgeVal = draft?.maxAge ?? 100;
     let maxDist: number | null = draft?.maxDistance ?? 50;
@@ -623,23 +641,8 @@ export default function CreateProfileScreen() {
         minAgeVal = data.preferences.min_age ?? 18;
         maxAgeVal = (data.preferences as { max_age?: number }).max_age ?? 100;
         maxDist = data.preferences.max_distance ?? 50;
-        if (data.preferences.preferred_genders) {
-          try {
-            const genders = JSON.parse(data.preferences.preferred_genders) as string[];
-            const withoutOther = genders.filter((g) => g !== 'Other');
-            const legacyAllThree =
-              genders.length === 3 && ['Man', 'Woman', 'Other'].every((g) => genders.includes(g));
-            const isEveryone =
-              genders.includes('Everyone') ||
-              genders.length === 0 ||
-              legacyAllThree ||
-              (withoutOther.length === 0 && genders.length > 0);
-            prefGenders = isEveryone ? ['Everyone'] : withoutOther;
-          } catch {
-            prefGenders = ['Everyone'];
-          }
-        } else {
-          prefGenders = ['Everyone'];
+        if (!(draft?.preferredGenders && draft.preferredGenders.length > 0)) {
+          prefGenders = parsePreferredGendersFromApi(data.preferences.preferred_genders);
         }
       }
 
@@ -1306,11 +1309,12 @@ export default function CreateProfileScreen() {
         relationshipType: null
       });
 
-      // Photos are already uploaded on the photos step; refresh profile
+      // Photos are already uploaded on the photos step
       await clearMobileCreateProfileDraft();
-      await refreshProfile();
 
-      // Show celebration before navigating
+      // Show celebration first — refreshProfile() after the user taps "Start Connecting".
+      // Eager refresh flips connectSetupComplete and AppNavigator auto-resets to MainTabs
+      // (fromPostAuthLogin), which dismisses this modal in ~500ms.
       setShowCelebration(true);
     } catch (err: any) {
       setError(err?.message || 'Failed to create profile');
@@ -2396,12 +2400,19 @@ export default function CreateProfileScreen() {
         visible={showCelebration}
         onClose={async () => {
           setShowCelebration(false);
-          // Ensure auth context has the new profile before navigating (fixes "Profile required" on Matches tab)
+          // Refresh after dismiss so AppNavigator does not steal the screen mid-celebration.
           await refreshProfile();
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'MainTabs' as never }],
-          });
+          if (navigationRef.current?.isReady()) {
+            navigationRef.current.reset({
+              index: 0,
+              routes: [{ name: 'MainTabs', params: { screen: 'Browse' } }],
+            });
+          } else {
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'MainTabs' as never, params: { screen: 'Browse' } }],
+            });
+          }
         }}
       />
     </KeyboardAvoidingView>

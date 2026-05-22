@@ -256,6 +256,7 @@ export default function BrowseScreen() {
   const buttonPulse = useRef(new Animated.Value(1)).current;
   const buttonScale = useRef(new Animated.Value(1)).current;
   const shimmerProgress = useRef(new Animated.Value(0)).current;
+  const landingShimmerLoopRef = useRef<Animated.CompositeAnimation | null>(null);
   
   // Animated gradient colors (matching web version)
   const gradientPosition = useRef(new Animated.Value(0)).current;
@@ -1089,11 +1090,35 @@ export default function BrowseScreen() {
     navigation,
   ]);
 
+  const stopLandingShimmerLoop = useCallback(() => {
+    landingShimmerLoopRef.current?.stop();
+    landingShimmerLoopRef.current = null;
+    shimmerProgress.stopAnimation();
+    shimmerProgress.setValue(0);
+  }, [shimmerProgress]);
+
+  const startLandingShimmerLoop = useCallback(() => {
+    stopLandingShimmerLoop();
+    const shimmerLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmerProgress, {
+          toValue: 1,
+          duration: CONNECT_SHIMMER_DURATION_MS,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        }),
+        Animated.delay(50),
+        Animated.timing(shimmerProgress, { toValue: 0, duration: 0, useNativeDriver: true }),
+      ])
+    );
+    landingShimmerLoopRef.current = shimmerLoop;
+    shimmerLoop.start();
+  }, [shimmerProgress, stopLandingShimmerLoop]);
+
   // Button pulse animation (only when landing page is shown)
   // MUST be before any early returns
   useEffect(() => {
     let buttonLoop: Animated.CompositeAnimation | null = null;
-    let shimmerLoop: Animated.CompositeAnimation | null = null;
     if (showLandingPage && !unlocking) {
       // Animate "Discover People" title
       Animated.parallel([
@@ -1117,22 +1142,11 @@ export default function BrowseScreen() {
       );
       buttonLoop.start();
 
-      shimmerLoop = Animated.loop(
-        Animated.sequence([
-          Animated.timing(shimmerProgress, {
-            toValue: 1,
-            duration: CONNECT_SHIMMER_DURATION_MS,
-            easing: Easing.linear,
-            useNativeDriver: true,
-          }),
-          Animated.delay(50),
-          Animated.timing(shimmerProgress, { toValue: 0, duration: 0, useNativeDriver: true }),
-        ])
-      );
-      shimmerLoop.start();
+      // Restart perimeter trace when shell changes — Android drops stale native-driver links on remount.
+      startLandingShimmerLoop();
     } else {
       buttonPulse.setValue(1);
-      shimmerProgress.setValue(0);
+      stopLandingShimmerLoop();
       gradientPosition.setValue(0);
       titleScale.setValue(0.9);
       titleOpacity.setValue(0);
@@ -1141,9 +1155,16 @@ export default function BrowseScreen() {
     }
     return () => {
       buttonLoop?.stop();
-      shimmerLoop?.stop();
+      stopLandingShimmerLoop();
     };
-  }, [showLandingPage, unlocking, landingHintOpacity]);
+  }, [
+    showLandingPage,
+    unlocking,
+    landingHintOpacity,
+    connectShellMode,
+    startLandingShimmerLoop,
+    stopLandingShimmerLoop,
+  ]);
 
   // Connect button pulse/shimmer — always stop then start so tab blur (opacity 0 on Android) cannot leave stale "running" refs.
   const startConnectButtonAnimations = useCallback(() => {
@@ -1154,6 +1175,7 @@ export default function BrowseScreen() {
       connectButtonLoopsRef.current = null;
     }
     connectButtonPulse.setValue(1);
+    connectButtonShimmer.stopAnimation();
     connectButtonShimmer.setValue(0);
     const pulseLoop = Animated.loop(
       Animated.sequence([
@@ -1186,8 +1208,9 @@ export default function BrowseScreen() {
       connectButtonLoopsRef.current = null;
     }
     connectButtonPulse.setValue(1);
+    connectButtonShimmer.stopAnimation();
     connectButtonShimmer.setValue(0);
-  }, []);
+  }, [connectButtonPulse, connectButtonShimmer]);
 
   const scheduleConnectButtonAnimationStart = useCallback(() => {
     if (!shouldShowConnectButtonRef.current) return () => {};
@@ -1281,6 +1304,22 @@ export default function BrowseScreen() {
     loading,
     isFocused,
     stopConnectButtonAnimations,
+    scheduleConnectButtonAnimationStart,
+    connectShellMode,
+  ]);
+
+  // Restart floating Connect button perimeter trace after appearance toggle (same remount issue as landing).
+  useEffect(() => {
+    if (!hasActiveProfile || showLandingPage || needsProfile || loading || !isFocused) return;
+    const cancel = scheduleConnectButtonAnimationStart();
+    return cancel;
+  }, [
+    connectShellMode,
+    hasActiveProfile,
+    showLandingPage,
+    needsProfile,
+    loading,
+    isFocused,
     scheduleConnectButtonAnimationStart,
   ]);
 
@@ -1756,6 +1795,8 @@ export default function BrowseScreen() {
                   >
                     {!unlocking && connectReady && (
                       <ConnectButtonShimmerEffect
+                        key={`landing-shimmer-${connectShellMode}`}
+                        shell={connectShellMode}
                         progress={shimmerProgress}
                         borderRadius={22}
                         sweepWidth={connectButtonSweepWidth}
@@ -1895,6 +1936,8 @@ export default function BrowseScreen() {
                         >
                           {!unlocking && connectReady && (
                             <ConnectButtonShimmerEffect
+                              key={`landing-shimmer-${connectShellMode}`}
+                              shell={connectShellMode}
                               progress={shimmerProgress}
                               borderRadius={22}
                               sweepWidth={connectButtonSweepWidth}
@@ -2033,6 +2076,8 @@ export default function BrowseScreen() {
                         >
                           {!unlocking && connectReady && (
                             <ConnectButtonShimmerEffect
+                              key={`landing-shimmer-${connectShellMode}`}
+                              shell={connectShellMode}
                               progress={shimmerProgress}
                               borderRadius={22}
                               sweepWidth={connectButtonSweepWidth}
@@ -2691,6 +2736,8 @@ export default function BrowseScreen() {
                 ]}
               >
                 <ConnectButtonShimmerEffect
+                  key={`connect-shimmer-${connectShellMode}`}
+                  shell={connectShellMode}
                   progress={connectButtonShimmer}
                   borderRadius={28}
                   sweepWidth={connectButtonSweepWidth}

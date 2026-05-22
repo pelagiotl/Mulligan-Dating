@@ -36,6 +36,36 @@ export function connectShellDisplayLabel(mode: ConnectShellMode): string {
   }
 }
 
+/** Perimeter trace on Connect landing / floating button (mobile). */
+export type ConnectButtonShimmerColors = {
+  trace: string;
+  resting: string;
+  glow: string;
+};
+
+export function connectButtonShimmerColors(mode: ConnectShellMode): ConnectButtonShimmerColors {
+  switch (mode) {
+    case 'midnight':
+      return {
+        trace: 'rgba(103, 232, 249, 0.95)',
+        resting: 'rgba(103, 232, 249, 0.22)',
+        glow: '#22d3ee',
+      };
+    case 'sunny':
+      return {
+        trace: 'rgba(255, 255, 255, 0.98)',
+        resting: 'rgba(255, 255, 255, 0.42)',
+        glow: '#fef08a',
+      };
+    case 'soft':
+      return {
+        trace: 'rgba(255, 255, 255, 0.95)',
+        resting: 'rgba(255, 255, 255, 0.38)',
+        glow: '#ddd6fe',
+      };
+  }
+}
+
 export async function loadConnectShellMode(userId?: string | null): Promise<ConnectShellMode> {
   try {
     if (userId) {
