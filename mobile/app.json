@@ -32,12 +32,12 @@
     },
     "android": {
       "package": "app.mulligandating",
-      "versionCode": 63,
+      "versionCode": 64,
       "googleServicesFile": "./google-services.json",
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#5B21B6"
+        "backgroundColor": "#926ce2"
       },
       "permissions": [
         "android.permission.ACCESS_FINE_LOCATION",
@@ -66,6 +66,7 @@
           "android": {
             "compileSdkVersion": 35,
             "targetSdkVersion": 35,
+            "buildToolsVersion": "35.0.0",
             "ndkVersion": "28.0.12674087",
             "packagingOptions": {
               "jniLibs": {

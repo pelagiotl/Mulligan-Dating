@@ -2,7 +2,12 @@ import { useState, useEffect, useRef, useCallback, useMemo, type ReactNode } fro
 import { useNavigate } from "react-router-dom";
 import { api, ApiError } from "../utils/api";
 import { useAuth } from "../context/AuthContext";
-import { hasCityAndState, handleLocationChange, normalizeLocationInput } from "../utils/locationUtils";
+import {
+  compactCityState,
+  hasCityAndState,
+  handleLocationChange,
+  normalizeLocationInput,
+} from "../utils/locationUtils";
 import { getPhotoUrl } from "../utils/photoUrl";
 import { usePhotoDragReorder } from "../hooks/usePhotoDragReorder";
 import { uploadPhotoFiles } from "../utils/photoBatchUpload";
@@ -20,11 +25,21 @@ import {
 import { getCreateProfileSupportMailtoUrl } from "../constants/support";
 
 const GENDER_OPTIONS = ["Man", "Woman", "Other"] as const;
+const GENDER_OPTION_META: Record<(typeof GENDER_OPTIONS)[number], { emoji: string; label: string }> = {
+  Man: { emoji: "👨", label: "Man" },
+  Woman: { emoji: "👩", label: "Woman" },
+  Other: { emoji: "✨", label: "Other" },
+};
 const PREFERRED_GENDER_OPTIONS = ["Man", "Woman", "Everyone"] as const;
 const PREFERRED_GENDER_LABELS: Record<string, string> = {
   Man: "Men",
   Woman: "Women",
   Everyone: "Everyone",
+};
+const PREFERRED_GENDER_META: Record<(typeof PREFERRED_GENDER_OPTIONS)[number], { emoji: string }> = {
+  Man: { emoji: "👨" },
+  Woman: { emoji: "👩" },
+  Everyone: { emoji: "🌍" },
 };
 
 function preferredGendersPayload(g: string[]): string[] | null {
@@ -263,12 +278,12 @@ export default function CreateProfile() {
       const state = address.state || address.region || "";
       const country = address.country || "";
       if (country === "United States" || country === "Canada") {
-        if (city && state) setLocation(`${city}, ${state}`);
-        else if (city) setLocation(city);
+        if (city && state) setLocation(compactCityState(`${city}, ${state}`));
+        else if (city) setLocation(compactCityState(city));
       } else if (city && country) {
-        setLocation(`${city}, ${country}`);
+        setLocation(compactCityState(`${city}, ${country}`));
       } else if (city) {
-        setLocation(city);
+        setLocation(compactCityState(city));
       }
     } catch {
       /* user can type manually */
@@ -703,7 +718,7 @@ export default function CreateProfile() {
       setDisplayName(dn);
       setAge(ageStr);
       setGender(genderVal);
-      setLocation(loc);
+      setLocation(loc ? compactCityState(loc) : "");
       setBio(bioVal);
       setInterests(interestList);
       setPreferredGenders(prefGenders.length > 0 ? prefGenders : []);
@@ -1071,20 +1086,32 @@ export default function CreateProfile() {
             "⚧️",
             "What's your gender?",
             "This is how you show up on your profile",
-            <select
-              className="create-profile-focus-select"
-              value={gender}
-              onChange={(e) => setGender(e.target.value)}
-              aria-label="Gender"
-            >
-              <option value="">Select gender</option>
-              {GENDER_OPTIONS.map((g) => (
-                <option key={g} value={g}>
-                  {g}
-                </option>
-              ))}
-            </select>,
-            gender ? <span>✓ Selected: {gender}</span> : null
+            <div className="create-profile-self-gender-grid" role="group" aria-label="Gender">
+              {GENDER_OPTIONS.map((g) => {
+                const meta = GENDER_OPTION_META[g];
+                const selected = gender === g;
+                return (
+                  <button
+                    key={g}
+                    type="button"
+                    className={`create-profile-gender-chip create-profile-self-gender-chip ${selected ? "is-selected" : ""}`}
+                    onClick={() => setGender(g)}
+                    aria-pressed={selected}
+                  >
+                    <span className="create-profile-gender-chip-emoji" aria-hidden>
+                      {meta.emoji}
+                    </span>
+                    <span>{meta.label}</span>
+                    {selected ? <span className="create-profile-gender-check">✓</span> : null}
+                  </button>
+                );
+              })}
+            </div>,
+            gender && (GENDER_OPTIONS as readonly string[]).includes(gender) ? (
+              <span>
+                ✓ Selected: {GENDER_OPTION_META[gender as (typeof GENDER_OPTIONS)[number]].emoji} {gender}
+              </span>
+            ) : null
           )}
 
         {step === 4 &&
@@ -1105,7 +1132,10 @@ export default function CreateProfile() {
                       className={`create-profile-gender-chip ${selected ? "is-selected" : ""}`}
                       onClick={() => togglePreferredGender(pref)}
                     >
-                      {PREFERRED_GENDER_LABELS[pref]}
+                      <span className="create-profile-gender-chip-emoji" aria-hidden>
+                        {PREFERRED_GENDER_META[pref].emoji}
+                      </span>
+                      <span>{PREFERRED_GENDER_LABELS[pref]}</span>
                       {selected ? <span className="create-profile-gender-check">✓</span> : null}
                     </button>
                   );
@@ -1131,9 +1161,10 @@ export default function CreateProfile() {
             <>
               <input
                 type="text"
-                className="create-profile-focus-input"
+                className="create-profile-focus-input create-profile-focus-input--location"
                 value={location}
                 onChange={(e) => handleLocationChange(e.target.value, setLocation)}
+                onBlur={(e) => setLocation(compactCityState(e.target.value))}
                 placeholder="City, State"
                 disabled={detectingLocation}
                 autoComplete="address-level2"

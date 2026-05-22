@@ -33,9 +33,10 @@ Android uses the SAME design as iOS (icon.png) but only shows the inner ~66% as 
 Content outside this zone gets cut off on some launchers.
 
 We generate adaptive-icon.png from icon.png so both platforms use the same artwork:
-- Run: node mobile/scripts/generate-adaptive-icon-from-icon.js
-- The script scales icon.png to 66% and centers it on a 1024x1024 transparent canvas.
-- Android foreground = adaptive-icon.png; background = app.json adaptiveIcon.backgroundColor (#8B1538).
+- Run from mobile/: npm run icons:from-web
+- Copies frontend/public/app-icon.png, scales artwork to the 66% safe zone (no crop/zoom),
+  and syncs Android mipmap PNGs.
+- Android foreground = adaptive-icon.png; background = app.json adaptiveIcon.backgroundColor.
 
 No manual design needed: keep using icon.png for iOS; regenerate adaptive-icon.png whenever
 you change icon.png so Android matches and is not cut off.

@@ -2846,6 +2846,15 @@ img {
   font-weight: 700;
 }
 
+.create-profile-focus-input--location {
+  text-align: center;
+  font-weight: 600;
+  font-size: clamp(0.8rem, 2.6vw, 1.05rem);
+  line-height: 1.35;
+  min-height: 3.1rem;
+  padding: 0.7rem 0.65rem;
+}
+
 .create-profile-focus-textarea {
   min-height: 140px;
   resize: vertical;
@@ -2886,10 +2895,23 @@ img {
   margin: var(--space-2) 0 0;
 }
 
-.create-profile-gender-grid {
+.create-profile-gender-grid,
+.create-profile-self-gender-grid {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+}
+
+.create-profile-self-gender-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+@media (max-width: 380px) {
+  .create-profile-self-gender-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .create-profile-gender-chip {
@@ -2897,6 +2919,7 @@ img {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 0.5rem;
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-lg);
   border: 2px solid rgba(255, 255, 255, 0.5);
@@ -2916,6 +2939,18 @@ img {
   background: linear-gradient(135deg, #f5576c, #f093fb, #667eea);
   border-color: transparent;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+}
+
+.create-profile-self-gender-chip {
+  flex-direction: column;
+  gap: 0.35rem;
+  min-height: 5.25rem;
+  padding: var(--space-3) var(--space-2);
+}
+
+.create-profile-gender-chip-emoji {
+  font-size: 1.75rem;
+  line-height: 1;
 }
 
 .create-profile-gender-check {
@@ -5143,6 +5178,82 @@ button.my-profile-avatar:focus-visible {
 .my-profile-mini-value {
   font-size: 1.15rem;
   font-weight: 800;
+}
+
+/* Animated perimeter ring — profile tab cards (web) */
+.profile-perimeter-border {
+  --perimeter-delay: 0ms;
+  --perimeter-rotate-duration: 22s;
+  position: relative;
+  padding: 2px;
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  margin-bottom: var(--space-3);
+}
+
+.profile-perimeter-border::before {
+  content: "";
+  position: absolute;
+  inset: -45%;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.95),
+    rgba(103, 232, 249, 0.88),
+    rgba(240, 147, 251, 0.88),
+    rgba(255, 255, 255, 0.95)
+  );
+  animation: profilePerimeterRotate var(--perimeter-rotate-duration) linear infinite;
+  animation-delay: var(--perimeter-delay);
+}
+
+@keyframes profilePerimeterRotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.profile-perimeter-border__inner {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  border-radius: calc(var(--radius-xl) - 2px);
+  overflow: hidden;
+}
+
+.profile-perimeter-border--stat {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.profile-perimeter-border--mini {
+  margin-bottom: 0;
+  height: 100%;
+}
+
+.profile-perimeter-border--section {
+  margin-bottom: var(--space-6);
+  border-radius: var(--radius-2xl);
+}
+
+.profile-perimeter-border--section .profile-perimeter-border__inner {
+  border-radius: calc(var(--radius-2xl) - 2px);
+}
+
+.profile-perimeter-border .my-profile-full-card,
+.profile-perimeter-border .my-profile-bio-block {
+  margin-bottom: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-perimeter-border::before {
+    animation: none;
+    opacity: 0.55;
+  }
 }
 
 .my-profile-full-card {

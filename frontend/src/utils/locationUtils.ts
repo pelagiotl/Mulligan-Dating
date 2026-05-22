@@ -1,3 +1,40 @@
+const MAX_CITY_LEN = 36;
+const MAX_STATE_LEN = 22;
+
+function trimEndWords(text: string, maxLen: number): string {
+  const t = text.trim();
+  if (t.length <= maxLen) return t;
+  const cut = t.slice(0, maxLen);
+  const lastSpace = cut.lastIndexOf(" ");
+  return (lastSpace > maxLen * 0.5 ? cut.slice(0, lastSpace) : cut).trim();
+}
+
+/** Shorten geocode strings to "City, State" so inputs and cards fit on all screens. */
+export function compactCityState(raw: string): string {
+  const t = normalizeLocationInput(raw);
+  if (!t) return "";
+
+  const parts = t.split(",").map((p) => p.trim()).filter(Boolean);
+  if (parts.length >= 2) {
+    const city = trimEndWords(parts[0], MAX_CITY_LEN);
+    const countryIdx = parts.findIndex((p) =>
+      /^(united states|usa|u\.s\.a?|canada)$/i.test(p)
+    );
+    let statePart = parts[1];
+    if (countryIdx >= 2) {
+      statePart = parts[countryIdx - 1];
+    } else if (parts.length >= 3) {
+      statePart = parts[2];
+    }
+    const state = trimEndWords(statePart, MAX_STATE_LEN);
+    if (!city) return state;
+    if (!state) return city;
+    return `${city}, ${state}`;
+  }
+
+  return trimEndWords(t, MAX_CITY_LEN + MAX_STATE_LEN + 2);
+}
+
 /** Normalize iOS/autofill punctuation so server location validation matches the client. */
 export function normalizeLocationInput(location: string): string {
   return location

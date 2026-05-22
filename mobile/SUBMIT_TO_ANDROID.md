@@ -24,13 +24,17 @@ npx eas-cli build --platform android --profile production
 - Build takes about **15–25 minutes**.
 - You get an `.aab` (Android App Bundle) when it finishes.
 
+**16 KB page size (Google Play):** Production builds use AGP 8.8.2, NDK 28, `useLegacyPackaging: false`, and `extractNativeLibs="false"`. Commit and push before building so EAS picks up `mobile/android/`. If Play still flags alignment after a fresh build, see [Expo’s 16 KB guide](https://github.com/expo/fyi/blob/main/android-16kb-page-sizes.md) (SDK 53+ may be required for some prebuilt native libs).
+
 ### Step 3: Submit to Google Play
 
 **Option A – EAS Submit (recommended):**
 
 ```bash
-npx eas-cli submit --platform android --profile production
+npx eas-cli submit --platform android --profile production --latest
 ```
+
+Or: `npm run eas:submit-android` (from `mobile/`).
 
 - EAS will ask you to link your Play Console app (or create one).
 - For automated uploads you may need a **Google Play service account**; EAS will guide you.

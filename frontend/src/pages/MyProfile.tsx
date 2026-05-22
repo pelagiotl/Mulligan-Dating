@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../utils/api";
 import PhotoUpload from "../components/PhotoUpload";
+import ProfilePerimeterBorder from "../components/ProfilePerimeterBorder";
 import { getPhotoUrl } from "../utils/photoUrl";
 import { hasCityAndState } from "../utils/locationUtils";
 import { useAuth } from "../context/AuthContext";
@@ -847,64 +848,73 @@ export default function MyProfile() {
 
           {settings && (
             <div className="my-profile-stats-row">
-              <div className="my-profile-stat-card my-profile-stat-card--member">
-                <span className="my-profile-stat-emoji">🎉</span>
-                <span className="my-profile-stat-label">Member Since</span>
-                <span className="my-profile-stat-value">
-                  {settings.createdAt
-                    ? new Date(settings.createdAt).toLocaleDateString("en-US", {
-                        month: "short",
-                        year: "numeric",
-                      })
-                    : "—"}
-                </span>
-              </div>
-              <button
-                type="button"
-                className="my-profile-stat-card my-profile-stat-card--active"
-                onClick={() => void toggleActiveStatus()}
-                disabled={updatingActiveStatus}
-              >
-                <span className="my-profile-stat-emoji">🟢</span>
-                <span className="my-profile-stat-label">Last Active</span>
-                <span className="my-profile-stat-value">
-                  {settings.lastActiveAt
-                    ? new Date(settings.lastActiveAt).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                      })
-                    : "Just now"}
-                </span>
-                <span className="my-profile-stat-sub">
-                  {settings.showActiveStatus !== false ? "Visible: On" : "Visible: Off"}
-                </span>
-                <span className="my-profile-stat-hint">Tap to toggle</span>
-              </button>
+              <ProfilePerimeterBorder delay={0} className="profile-perimeter-border--stat">
+                <div className="my-profile-stat-card my-profile-stat-card--member">
+                  <span className="my-profile-stat-emoji">🎉</span>
+                  <span className="my-profile-stat-label">Member Since</span>
+                  <span className="my-profile-stat-value">
+                    {settings.createdAt
+                      ? new Date(settings.createdAt).toLocaleDateString("en-US", {
+                          month: "short",
+                          year: "numeric",
+                        })
+                      : "—"}
+                  </span>
+                </div>
+              </ProfilePerimeterBorder>
+              <ProfilePerimeterBorder delay={180} className="profile-perimeter-border--stat">
+                <button
+                  type="button"
+                  className="my-profile-stat-card my-profile-stat-card--active"
+                  onClick={() => void toggleActiveStatus()}
+                  disabled={updatingActiveStatus}
+                >
+                  <span className="my-profile-stat-emoji">🟢</span>
+                  <span className="my-profile-stat-label">Last Active</span>
+                  <span className="my-profile-stat-value">
+                    {settings.lastActiveAt
+                      ? new Date(settings.lastActiveAt).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                        })
+                      : "Just now"}
+                  </span>
+                  <span className="my-profile-stat-sub">
+                    {settings.showActiveStatus !== false ? "Visible: On" : "Visible: Off"}
+                  </span>
+                  <span className="my-profile-stat-hint">Tap to toggle</span>
+                </button>
+              </ProfilePerimeterBorder>
             </div>
           )}
 
           <div className="my-profile-info-grid">
-            <div className="my-profile-mini-card my-profile-mini-card--age">
-              <span>🎂</span>
-              <span className="my-profile-mini-label">Age</span>
-              <span className="my-profile-mini-value">{profile.age}</span>
-            </div>
-            <div className="my-profile-mini-card my-profile-mini-card--gender">
-              <span>⚧️</span>
-              <span className="my-profile-mini-label">Gender</span>
-              <span className="my-profile-mini-value">{profile.gender}</span>
-            </div>
+            <ProfilePerimeterBorder delay={360} className="profile-perimeter-border--mini">
+              <div className="my-profile-mini-card my-profile-mini-card--age">
+                <span>🎂</span>
+                <span className="my-profile-mini-label">Age</span>
+                <span className="my-profile-mini-value">{profile.age}</span>
+              </div>
+            </ProfilePerimeterBorder>
+            <ProfilePerimeterBorder delay={520} className="profile-perimeter-border--mini">
+              <div className="my-profile-mini-card my-profile-mini-card--gender">
+                <span>⚧️</span>
+                <span className="my-profile-mini-label">Gender</span>
+                <span className="my-profile-mini-value">{profile.gender}</span>
+              </div>
+            </ProfilePerimeterBorder>
           </div>
 
-          <button
-            type="button"
-            className="my-profile-full-card my-profile-full-card--location"
-            onClick={() => {
-              setEditLocation(profile.location || "");
-              setShowLocationModal(true);
-            }}
-          >
-            <span className="my-profile-full-card-shine" aria-hidden />
+          <ProfilePerimeterBorder delay={0}>
+            <button
+              type="button"
+              className="my-profile-full-card my-profile-full-card--location"
+              onClick={() => {
+                setEditLocation(profile.location || "");
+                setShowLocationModal(true);
+              }}
+            >
+              <span className="my-profile-full-card-shine" aria-hidden />
             <span className="my-profile-full-card-inner">
               <span className="my-profile-full-card-icon-tile" aria-hidden>
                 📍
@@ -920,11 +930,13 @@ export default function MyProfile() {
                 ›
               </span>
             </span>
-          </button>
+            </button>
+          </ProfilePerimeterBorder>
 
-          <button
-            type="button"
-            className="my-profile-full-card my-profile-full-card--distance"
+          <ProfilePerimeterBorder delay={200}>
+            <button
+              type="button"
+              className="my-profile-full-card my-profile-full-card--distance"
             onClick={() => {
               setEditMaxDistance(data.preferences?.max_distance ?? 50);
               setShowDistanceModal(true);
@@ -937,44 +949,50 @@ export default function MyProfile() {
                 ? "Any distance"
                 : `${data.preferences.max_distance} mi`}
             </span>
-          </button>
+            </button>
+          </ProfilePerimeterBorder>
 
-          <button
-            type="button"
-            className="my-profile-full-card my-profile-full-card--preferred"
-            onClick={() => {
-              setEditPreferredGenders(parsePreferredGendersInitial(data.preferences?.preferred_genders));
-              setShowPreferredModal(true);
-            }}
-          >
-            <span className="my-profile-full-card-emoji">💕</span>
-            <span className="my-profile-full-card-label">Preferred matches</span>
-            <span className="my-profile-full-card-value">
-              {formatPreferredMatchesLabel(data.preferences?.preferred_genders ?? null)}
-            </span>
-          </button>
+          <ProfilePerimeterBorder delay={400}>
+            <button
+              type="button"
+              className="my-profile-full-card my-profile-full-card--preferred"
+              onClick={() => {
+                setEditPreferredGenders(parsePreferredGendersInitial(data.preferences?.preferred_genders));
+                setShowPreferredModal(true);
+              }}
+            >
+              <span className="my-profile-full-card-emoji">💕</span>
+              <span className="my-profile-full-card-label">Preferred matches</span>
+              <span className="my-profile-full-card-value">
+                {formatPreferredMatchesLabel(data.preferences?.preferred_genders ?? null)}
+              </span>
+            </button>
+          </ProfilePerimeterBorder>
 
-          <button
-            type="button"
-            className="my-profile-full-card my-profile-full-card--looking"
-            onClick={() => {
-              const cur = profile.looking_for ?? "";
-              setEditLookingFor(isCanonicalLookingFor(cur) ? cur : "");
-              setShowLookingForModal(true);
-            }}
-          >
-            <span className="my-profile-full-card-emoji">❤️</span>
-            <span className="my-profile-full-card-label">Looking for</span>
-            <span className="my-profile-full-card-value">
-              {profile.looking_for?.trim()
-                ? profile.looking_for
-                : "Tap to choose"}
-            </span>
-          </button>
+          <ProfilePerimeterBorder delay={600}>
+            <button
+              type="button"
+              className="my-profile-full-card my-profile-full-card--looking"
+              onClick={() => {
+                const cur = profile.looking_for ?? "";
+                setEditLookingFor(isCanonicalLookingFor(cur) ? cur : "");
+                setShowLookingForModal(true);
+              }}
+            >
+              <span className="my-profile-full-card-emoji">❤️</span>
+              <span className="my-profile-full-card-label">Looking for</span>
+              <span className="my-profile-full-card-value">
+                {profile.looking_for?.trim()
+                  ? profile.looking_for
+                  : "Tap to choose"}
+              </span>
+            </button>
+          </ProfilePerimeterBorder>
 
-          <button
-            type="button"
-            className="my-profile-bio-block"
+          <ProfilePerimeterBorder delay={800}>
+            <button
+              type="button"
+              className="my-profile-bio-block"
             onClick={() => {
               setEditBio(profile.bio || "");
               setShowBioModal(true);
@@ -1005,11 +1023,13 @@ export default function MyProfile() {
                 ›
               </span>
             </span>
-          </button>
+            </button>
+          </ProfilePerimeterBorder>
 
         </div>
       </div>
 
+      <ProfilePerimeterBorder delay={700} className="profile-perimeter-border--section">
       <div className="profile-detail-section" id="my-photos">
         <h2 className="profile-detail-title">
           <span>📸</span> My Photos
@@ -1021,7 +1041,9 @@ export default function MyProfile() {
           }}
         />
       </div>
+      </ProfilePerimeterBorder>
 
+      <ProfilePerimeterBorder delay={900} className="profile-perimeter-border--section">
       <div className="profile-detail-section">
         <div className="profile-detail-title-row">
           <h2 className="profile-detail-title">
@@ -1050,7 +1072,9 @@ export default function MyProfile() {
           <p className="my-profile-empty-hint">No interests yet — tap Edit to add (pick at least 3).</p>
         )}
       </div>
+      </ProfilePerimeterBorder>
 
+      <ProfilePerimeterBorder delay={1100} className="profile-perimeter-border--section">
       <div className="profile-detail-section">
         <div className="profile-detail-title-row">
           <h2 className="profile-detail-title">
@@ -1091,7 +1115,9 @@ export default function MyProfile() {
           <p className="my-profile-empty-hint">No dealbreakers yet — tap Edit to add.</p>
         )}
       </div>
+      </ProfilePerimeterBorder>
 
+      <ProfilePerimeterBorder delay={1300} className="profile-perimeter-border--section">
       <div className="profile-detail-section">
         <div className="profile-detail-title-row">
           <h2 className="profile-detail-title">
@@ -1124,7 +1150,9 @@ export default function MyProfile() {
           <p className="my-profile-empty-hint">No qualities listed yet — tap Edit to choose what matters to you.</p>
         )}
       </div>
+      </ProfilePerimeterBorder>
 
+      <ProfilePerimeterBorder delay={1500} className="profile-perimeter-border--section">
       <div className="profile-detail-section">
         <div className="profile-detail-title-row">
           <h2 className="profile-detail-title">
@@ -1196,6 +1224,7 @@ export default function MyProfile() {
           <p className="my-profile-empty-hint">Lifestyle not set — tap Edit to add preferences.</p>
         )}
       </div>
+      </ProfilePerimeterBorder>
 
       <div className="text-center mt-8">
         <Link to="/create-profile" className="btn btn-secondary">

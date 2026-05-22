@@ -33,6 +33,10 @@ import { formatPackagePerTokenLine, normalizePackageFormattedPrice } from '../ut
 import { purchaseTokensWithGooglePay } from '../utils/googlePay';
 import { navigationRef } from '../navigation/navigationRef';
 import LegalFooter from '../components/LegalFooter';
+
+/** Android elevation renders as a harsh grey box behind rounded cards — disable it there. */
+const E = (n: number) => (Platform.OS === 'android' ? 0 : n);
+const SO = (n: number) => (Platform.OS === 'android' ? 0 : n);
 import { androidShellBackdropColors } from '../utils/androidConnectShellChrome';
 
 interface SettingsData {
@@ -71,6 +75,9 @@ export default function SettingsScreen() {
   // Delete account
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const logoutModalScale = useRef(new Animated.Value(0.9)).current;
+  const logoutModalOpacity = useRef(new Animated.Value(0)).current;
 
   // Token purchase (backend packages + RevenueCat price/package for purchase)
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
@@ -419,6 +426,35 @@ export default function SettingsScreen() {
         },
       ]
     );
+  }, [logout, navigation]);
+
+  useEffect(() => {
+    if (showLogoutModal) {
+      logoutModalScale.setValue(0.9);
+      logoutModalOpacity.setValue(0);
+      Animated.parallel([
+        Animated.spring(logoutModalScale, {
+          toValue: 1,
+          friction: 7,
+          tension: 80,
+          useNativeDriver: true,
+        }),
+        Animated.timing(logoutModalOpacity, {
+          toValue: 1,
+          duration: 220,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [showLogoutModal, logoutModalScale, logoutModalOpacity]);
+
+  const handleConfirmLogout = useCallback(() => {
+    setShowLogoutModal(false);
+    logout();
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'PhoneLogin' as never }],
+    });
   }, [logout, navigation]);
 
   if (loading) {
@@ -946,22 +982,8 @@ export default function SettingsScreen() {
       >
         <TouchableOpacity
           style={[styles.button, styles.logoutButton]}
-          onPress={() => {
-            Alert.alert('Logout', 'Are you sure you want to logout?', [
-              { text: 'Cancel', style: 'cancel' },
-              {
-                text: 'Logout',
-                style: 'destructive',
-                onPress: () => {
-                  logout();
-                  navigation.reset({
-                    index: 0,
-                    routes: [{ name: 'PhoneLogin' as never }],
-                  });
-                },
-              },
-            ]);
-          }}
+          onPress={() => setShowLogoutModal(true)}
+          activeOpacity={0.85}
         >
           <Text style={[styles.buttonText, styles.logoutButtonText]}>🚪 Logout</Text>
         </TouchableOpacity>
@@ -999,6 +1021,69 @@ export default function SettingsScreen() {
       </TouchableOpacity>
 
       </ScrollView>
+
+      {/* Logout confirmation */}
+      <Modal
+        visible={showLogoutModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowLogoutModal(false)}
+      >
+        <View style={styles.logoutModalOverlay}>
+          <TouchableOpacity
+            style={styles.logoutModalBackdrop}
+            activeOpacity={1}
+            onPress={() => setShowLogoutModal(false)}
+          />
+          <Animated.View
+            style={[
+              styles.logoutModalCardWrap,
+              {
+                opacity: logoutModalOpacity,
+                transform: [{ scale: logoutModalScale }],
+              },
+            ]}
+          >
+            <View style={styles.logoutModalCard}>
+              <LinearGradient
+                colors={['#667eea', '#764ba2', '#f5576c']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.logoutModalGradient}
+              >
+                <Text style={styles.logoutModalEmoji}>👋</Text>
+                <Text style={styles.logoutModalTitle}>Log out?</Text>
+                <Text style={styles.logoutModalSubtitle}>
+                  You&apos;ll need to sign in again to browse, match, and chat on Mulligan.
+                </Text>
+                <View style={styles.logoutModalActions}>
+                  <TouchableOpacity
+                    style={styles.logoutModalStayButton}
+                    onPress={() => setShowLogoutModal(false)}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.logoutModalStayText}>Stay</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.logoutModalConfirmWrap}
+                    onPress={handleConfirmLogout}
+                    activeOpacity={0.9}
+                  >
+                    <LinearGradient
+                      colors={['rgba(255,255,255,0.35)', 'rgba(255,255,255,0.18)']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.logoutModalConfirmButton}
+                    >
+                      <Text style={styles.logoutModalConfirmText}>Log out</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
+              </LinearGradient>
+            </View>
+          </Animated.View>
+        </View>
+      </Modal>
 
       {/* Purchase Modal */}
       <Modal
@@ -1150,9 +1235,9 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     shadowColor: '#667eea',
     shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.4,
+    shadowOpacity: SO(0.4),
     shadowRadius: 30,
-    elevation: 16,
+    elevation: E(16),
     borderWidth: 3,
     borderColor: 'rgba(255, 255, 255, 0.4)',
     marginHorizontal: 20,
@@ -1172,9 +1257,9 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.9)',
     shadowColor: '#667eea',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.45,
+    shadowOpacity: SO(0.45),
     shadowRadius: 20,
-    elevation: 12,
+    elevation: E(12),
     overflow: 'hidden',
   },
   headerIcon: {
@@ -1252,9 +1337,9 @@ const styles = StyleSheet.create({
     padding: 24,
     shadowColor: '#667eea',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
+    shadowOpacity: SO(0.2),
     shadowRadius: 24,
-    elevation: 12,
+    elevation: E(12),
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.8)',
     marginBottom: 16,
@@ -1297,9 +1382,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     shadowColor: '#667eea',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
+    shadowOpacity: SO(0.4),
     shadowRadius: 20,
-    elevation: 12,
+    elevation: E(12),
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.3)',
   },
@@ -1328,9 +1413,9 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.2)',
     shadowColor: '#667eea',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
+    shadowOpacity: SO(0.2),
     shadowRadius: 20,
-    elevation: 10,
+    elevation: E(10),
   },
   tokensCardTitle: {
     fontSize: 20,
@@ -1391,9 +1476,9 @@ const styles = StyleSheet.create({
     borderColor: '#667eea',
     shadowColor: '#667eea',
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
+    shadowOpacity: SO(0.25),
     shadowRadius: 8,
-    elevation: 4,
+    elevation: E(4),
   },
   editButtonText: {
     fontSize: 13,
@@ -1422,9 +1507,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     shadowColor: '#667eea',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
+    shadowOpacity: SO(0.3),
     shadowRadius: 16,
-    elevation: 10,
+    elevation: E(10),
   },
   primaryButton: {
     paddingVertical: 16,
@@ -1441,9 +1526,9 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: SO(0.1),
     shadowRadius: 6,
-    elevation: 3,
+    elevation: E(3),
   },
   dangerButton: {
     backgroundColor: '#ef4444',
@@ -1453,9 +1538,9 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     shadowColor: '#ef4444',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
+    shadowOpacity: SO(0.4),
     shadowRadius: 12,
-    elevation: 8,
+    elevation: E(8),
   },
   pushNotificationsRowWrap: {
     marginTop: 24,
@@ -1472,9 +1557,9 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.35)',
     shadowColor: '#667eea',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
+    shadowOpacity: SO(0.25),
     shadowRadius: 12,
-    elevation: 6,
+    elevation: E(6),
   },
   pushNotificationsRowIcon: {
     fontSize: 22,
@@ -1576,9 +1661,9 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     shadowColor: '#666',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: SO(0.3),
     shadowRadius: 12,
-    elevation: 8,
+    elevation: E(8),
   },
   buttonDisabled: {
     opacity: 0.5,
@@ -1616,9 +1701,9 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(239, 68, 68, 0.25)',
     shadowColor: '#ef4444',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
+    shadowOpacity: SO(0.2),
     shadowRadius: 16,
-    elevation: 8,
+    elevation: E(8),
   },
   dangerText: {
     fontSize: 15,
@@ -1643,6 +1728,96 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: '#fff',
   },
+  logoutModalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 28,
+  },
+  logoutModalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(8, 10, 22, 0.72)',
+  },
+  logoutModalCardWrap: {
+    width: '100%',
+    maxWidth: 340,
+    zIndex: 2,
+  },
+  logoutModalCard: {
+    borderRadius: 28,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.35)',
+  },
+  logoutModalGradient: {
+    paddingVertical: 32,
+    paddingHorizontal: 26,
+    alignItems: 'center',
+  },
+  logoutModalEmoji: {
+    fontSize: 52,
+    marginBottom: 12,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
+  },
+  logoutModalTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#fff',
+    letterSpacing: -0.3,
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  logoutModalSubtitle: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.92)',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 26,
+    paddingHorizontal: 4,
+  },
+  logoutModalActions: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: 12,
+    width: '100%',
+  },
+  logoutModalStayButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+  },
+  logoutModalStayText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#5b21b6',
+    letterSpacing: 0.2,
+  },
+  logoutModalConfirmWrap: {
+    flex: 1,
+    borderRadius: 999,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.45)',
+  },
+  logoutModalConfirmButton: {
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoutModalConfirmText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#fff',
+    letterSpacing: 0.3,
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -1656,9 +1831,9 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     shadowColor: '#667eea',
     shadowOffset: { width: 0, height: -8 },
-    shadowOpacity: 0.3,
+    shadowOpacity: SO(0.3),
     shadowRadius: 24,
-    elevation: 20,
+    elevation: E(20),
     borderWidth: 3,
     borderColor: '#fff',
   },
@@ -1696,9 +1871,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     shadowColor: '#667eea',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.15,
+    shadowOpacity: SO(0.15),
     shadowRadius: 16,
-    elevation: 8,
+    elevation: E(8),
   },
   packageItemBestValue: {
     borderColor: '#10b981',
@@ -1706,9 +1881,9 @@ const styles = StyleSheet.create({
     borderWidth: 3.5,
     shadowColor: '#10b981',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
+    shadowOpacity: SO(0.3),
     shadowRadius: 20,
-    elevation: 12,
+    elevation: E(12),
   },
   packageHeader: {
     flexDirection: 'row',
@@ -1792,9 +1967,9 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.2)',
     shadowColor: '#667eea',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
+    shadowOpacity: SO(0.2),
     shadowRadius: 20,
-    elevation: 10,
+    elevation: E(10),
     overflow: 'hidden',
   },
   preferencesCardTitle: {
@@ -1848,18 +2023,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     shadowColor: '#667eea',
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
+    shadowOpacity: SO(0.25),
     shadowRadius: 6,
-    elevation: 4,
+    elevation: E(4),
   },
   distanceButtonActive: {
     backgroundColor: '#667eea',
     borderColor: '#fff',
     shadowColor: '#667eea',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.5,
+    shadowOpacity: SO(0.5),
     shadowRadius: 12,
-    elevation: 8,
+    elevation: E(8),
     transform: [{ scale: 1.05 }],
   },
   distanceButtonText: {

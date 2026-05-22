@@ -29,12 +29,12 @@ import { Picker } from '@react-native-picker/picker';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { navigationRef } from '../navigation/navigationRef';
-import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { api, getToken, ensureTokenPrefetched } from '../utils/api';
 import { uploadPhotoUris } from '../utils/batchPhotoUpload';
-import { handleLocationChange, hasCityAndState } from '../utils/locationUtils';
+import { compactCityState, handleLocationChange, hasCityAndState } from '../utils/locationUtils';
+import { detectUserLocation } from '../utils/detectUserLocation';
 import {
   clearMobileCreateProfileDraft,
   computeMobileCreateProfileResumeStep,
@@ -74,10 +74,20 @@ const LIFESTYLE_FIELD_GRADIENTS: Record<LifestyleFieldKey, readonly [string, str
   worksOut: ['#86efac', '#4ade80', '#22c55e'],
 };
 
-const GENDER_OPTIONS = ['Man', 'Woman', 'Other'];
+const GENDER_OPTIONS = ['Man', 'Woman', 'Other'] as const;
+const GENDER_OPTION_META: Record<(typeof GENDER_OPTIONS)[number], { emoji: string; label: string }> = {
+  Man: { emoji: '👨', label: 'Man' },
+  Woman: { emoji: '👩', label: 'Woman' },
+  Other: { emoji: '✨', label: 'Other' },
+};
 // API values: Man, Woman. "Everyone" = match all. Display labels: Men, Women, Everyone.
 const PREFERRED_GENDER_OPTIONS = ['Man', 'Woman', 'Everyone'] as const;
 const PREFERRED_GENDER_LABELS: Record<string, string> = { Man: 'Men', Woman: 'Women', Everyone: 'Everyone' };
+const PREFERRED_GENDER_META: Record<(typeof PREFERRED_GENDER_OPTIONS)[number], { emoji: string }> = {
+  Man: { emoji: '👨' },
+  Woman: { emoji: '👩' },
+  Everyone: { emoji: '🌍' },
+};
 function preferredGenderDisplayLabel(value: string) { return PREFERRED_GENDER_LABELS[value] ?? value; }
 
 /** API: null = everyone; otherwise only Man/Woman (no legacy Other). */
@@ -646,7 +656,7 @@ export default function CreateProfileScreen() {
     setDisplayName(dn);
     setAge(ageStr);
     setGender(genderVal);
-    setLocation(loc);
+    setLocation(loc ? compactCityState(loc) : '');
     setBio(bioVal);
     setInterests(interestList);
     setDealbreakers(dealbreakerList);
@@ -851,239 +861,12 @@ export default function CreateProfileScreen() {
   const detectLocation = async () => {
     setDetectingLocation(true);
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Location permission is required to detect your location.');
-        setDetectingLocation(false);
-        return;
-      }
-
-      const locationData = await Location.getCurrentPositionAsync({});
-      const { latitude, longitude } = locationData.coords;
-
-      // Reverse geocode using Nominatim
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&addressdetails=1`,
-        {
-          headers: {
-            'User-Agent': 'Mulligan-Dating-App/1.0'
-          }
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to reverse geocode');
-      }
-
-      const data = await response.json();
-      const address = data.address || {};
-      
-      // Log the full address object for debugging
-      console.log('📍 Full address data:', JSON.stringify(address, null, 2));
-      console.log('📍 Display name:', data.display_name);
-      console.log('📍 All address keys:', Object.keys(address));
-      
-      // Try multiple fields for city
-      const city = address.city || 
-                   address.town || 
-                   address.village || 
-                   address.municipality || 
-                   address.county || 
-                   address.city_district || 
-                   address.suburb ||
-                   '';
-      
-      // For state, check ALL possible fields that might contain it
-      // Nominatim can return state in various fields depending on the location
-      let state = '';
-      
-      // Direct state fields (most common)
-      state = address.state || 
-              address.region || 
-              address.province ||
-              address.administrative ||
-              address.administrative_area ||
-              '';
-      
-      // If still not found, check for state code
-      if (!state && address.state_code) {
-        state = address.state_code;
-      }
-      
-      // Check ISO3166-2 which contains state code (e.g., "US-CA" or "US-CA-075")
-      if (!state && address['ISO3166-2']) {
-        const isoParts = address['ISO3166-2'].split('-');
-        if (isoParts.length >= 2) {
-          state = isoParts[1]; // Get the state code part (e.g., "CA")
-          console.log('📍 Found state code from ISO3166-2:', state);
-        }
-      }
-      
-      // Check state_district (sometimes used for US states)
-      if (!state && address.state_district) {
-        state = address.state_district;
-      }
-      
-      // Last resort: check all keys in address object for any state-related field
-      if (!state) {
-        const addressKeys = Object.keys(address);
-        for (const key of addressKeys) {
-          const value = address[key];
-          const keyLower = key.toLowerCase();
-          
-          // Check if key name suggests it might be a state
-          if ((keyLower.includes('state') || 
-               keyLower.includes('region') || 
-               keyLower.includes('province') ||
-               keyLower.includes('administrative')) && 
-              typeof value === 'string' && 
-              value.length > 0 && 
-              value.length < 50 && // Reasonable state name length
-              value !== city) { // Make sure it's not the city
-            state = value;
-            console.log(`📍 Found state in field "${key}":`, state);
-            break;
-          }
-        }
-      }
-      
-      const country = address.country || address.country_code || '';
-      
-      console.log('📍 Extracted (first pass):', { city, state, country });
-
-      // If we still don't have state but have city and country is US/Canada, parse display_name
-      if ((country === 'United States' || country === 'Canada') && city && !state) {
-        const displayName = data.display_name || '';
-        console.log('📍 Parsing display_name for state:', displayName);
-        
-        // Nominatim display_name format is usually: "City, State, Country" or "City, County, State, Country"
-        // Try multiple patterns
-        const patterns = [
-          // Pattern: "City, State, Country"
-          new RegExp(`${city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')},\\s*([^,]+),\\s*(?:United States|Canada|USA)`, 'i'),
-          // Pattern: "City, County, State, Country" 
-          new RegExp(`${city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')},\\s*[^,]+,\\s*([^,]+),\\s*(?:United States|Canada|USA)`, 'i'),
-          // Pattern: any comma-separated value before "United States" or "Canada"
-          /([^,]+),\s*(?:United States|Canada|USA)$/i,
-          // Pattern: second-to-last item before country
-          /([^,]+),\s*[^,]+,\s*(?:United States|Canada|USA)$/i,
-        ];
-        
-        for (const pattern of patterns) {
-          const match = displayName.match(pattern);
-          if (match && match[1]) {
-            const potentialState = match[1].trim();
-            // Make sure it's not the city itself and not a number (like zip code)
-            if (potentialState !== city && !/^\d+$/.test(potentialState)) {
-              state = potentialState;
-              console.log('📍 Extracted state from display_name:', state);
-              break;
-            }
-          }
-        }
-      }
-      
-      console.log('📍 Final extracted:', { city, state, country });
-      console.log('📍 Full response data:', JSON.stringify(data, null, 2));
-
-      // If we still don't have state, try parsing display_name more aggressively
-      if ((country === 'United States' || country === 'Canada') && city && !state) {
-        const displayName = data.display_name || '';
-        console.log('📍 Attempting aggressive parsing of display_name:', displayName);
-        
-        // Split by comma and analyze parts
-        const parts = displayName.split(',').map(p => p.trim());
-        console.log('📍 Display name parts:', parts);
-        
-        // For US/Canada, the state is usually the second-to-last or third-to-last part
-        // Format is often: "City, County, State, Country" or "City, State, Country"
-        if (parts.length >= 3) {
-          // Try to find the state - it's usually before "United States" or "Canada"
-          const countryIndex = parts.findIndex(p => 
-            p.toLowerCase().includes('united states') || 
-            p.toLowerCase().includes('usa') || 
-            p.toLowerCase() === 'canada'
-          );
-          
-          if (countryIndex > 1) {
-            // State should be at countryIndex - 1
-            const potentialState = parts[countryIndex - 1];
-            // Make sure it's not the city and not a zip code
-            if (potentialState && potentialState !== city && !/^\d{5}(-\d{4})?$/.test(potentialState)) {
-              state = potentialState;
-              console.log('📍 Found state via aggressive parsing:', state);
-            }
-          } else if (parts.length >= 2) {
-            // Try the second part if it's not a number
-            const secondPart = parts[1];
-            if (secondPart && secondPart !== city && !/^\d+$/.test(secondPart)) {
-              state = secondPart;
-              console.log('📍 Using second part as state:', state);
-            }
-          }
-        }
-        
-        // Last resort: try to extract from display_name using regex
-        if (!state && displayName) {
-          // Pattern: "City, State" or "City, County, State" before country
-          const stateMatch = displayName.match(/,\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s*,\s*(?:United States|USA|Canada)/);
-          if (stateMatch && stateMatch[1] && stateMatch[1] !== city) {
-            state = stateMatch[1];
-            console.log('📍 Extracted state via regex:', state);
-          }
-        }
-      }
-      
-      console.log('📍 Final result after all parsing:', { city, state, country });
-
-      // Set the location - always try to include state for US/Canada
-      if (country === 'United States' || country === 'Canada' || country === 'USA' || country === 'US') {
-        if (city && state) {
-          const locationString = `${city}, ${state}`;
-          console.log('✅ Setting location with state:', locationString);
-          setLocation(locationString);
-        } else if (city) {
-          // If we have city but no state, parse from display_name as last resort
-          const displayName = data.display_name || '';
-          console.warn('⚠️ City found but no state in address object. Parsing display_name:', displayName);
-          
-          // Try to extract state from display_name: "San Francisco, California, United States"
-          const parts = displayName.split(',').map(p => p.trim());
-          const countryIndex = parts.findIndex(p => 
-            p.toLowerCase().includes('united states') || 
-            p.toLowerCase().includes('usa') || 
-            p.toLowerCase() === 'canada'
-          );
-          
-          if (countryIndex > 0 && parts[countryIndex - 1] && parts[countryIndex - 1] !== city) {
-            const extractedState = parts[countryIndex - 1];
-            const locationString = `${city}, ${extractedState}`;
-            console.log('✅ Extracted state from display_name, setting location:', locationString);
-            setLocation(locationString);
-            locationInputRef.current?.blur();
-          } else {
-            // Show debug alert if we still can't find state
-            console.error('❌ Could not extract state. Showing debug info.');
-            Alert.alert(
-              'Location Debug',
-              `City: ${city}\nState: ${state || 'NOT FOUND'}\nCountry: ${country}\n\nDisplay Name: ${data.display_name || 'N/A'}\n\nAddress keys: ${Object.keys(address).join(', ')}\n\nAddress values: ${JSON.stringify(address)}`,
-              [{ text: 'OK' }]
-            );
-            setLocation(city);
-            locationInputRef.current?.blur();
-          }
-        } else {
-          setLocation('');
-        }
-      } else if (city && country) {
-        setLocation(`${city}, ${country}`);
-      } else if (city) {
-        setLocation(city);
-      } else {
-        setLocation('');
-      }
-    } catch (error: any) {
-      console.log('Could not detect location:', error.message);
+      const detected = await detectUserLocation();
+      setLocation(compactCityState(detected));
+      locationInputRef.current?.blur();
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Could not detect location.';
+      Alert.alert('Location Error', message);
     } finally {
       setDetectingLocation(false);
     }
@@ -1673,13 +1456,35 @@ export default function CreateProfileScreen() {
           <Text style={[styles.focusedEmoji, { fontSize: rs.emojiSize, marginBottom: 20 }]}>⚧️</Text>
           <Text style={[styles.focusedTitle, { fontSize: rs.titleSize, marginBottom: rs.titleMargin }]}>What's your gender?</Text>
           <Text style={[styles.focusedSubtitle, { fontSize: rs.subtitleSize, marginBottom: rs.subtitleMargin }]}>This is how you show up on your profile</Text>
-          <View style={styles.focusedPickerWrapper}>
-            <Picker selectedValue={gender || ''} onValueChange={(v) => v && setGender(v)} style={styles.focusedPicker} itemStyle={Platform.OS === 'ios' ? styles.focusedPickerItem : undefined} mode={Platform.OS === 'android' ? 'dropdown' : 'dialog'}>
-              <Picker.Item label="Select gender" value="" />
-              {GENDER_OPTIONS.map(g => <Picker.Item key={g} label={g} value={g} />)}
-            </Picker>
+          <View style={styles.preferencesGenderGrid}>
+            {GENDER_OPTIONS.map((g) => {
+              const isSelected = gender === g;
+              const meta = GENDER_OPTION_META[g];
+              return (
+                <TouchableOpacity key={g} style={styles.preferencesGenderCard} onPress={() => setGender(g)} activeOpacity={0.7}>
+                  {isSelected ? (
+                    <LinearGradient colors={['#f5576c', '#f093fb', '#667eea']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.preferencesGenderCardSelected}>
+                      <Text style={styles.preferencesGenderEmoji}>{meta.emoji}</Text>
+                      <Text style={styles.preferencesGenderTextSelected}>{meta.label}</Text>
+                      <View style={styles.preferencesCheckmark}><Text style={styles.preferencesCheckmarkText}>✓</Text></View>
+                    </LinearGradient>
+                  ) : (
+                    <View style={styles.preferencesGenderCardUnselected}>
+                      <Text style={styles.preferencesGenderEmoji}>{meta.emoji}</Text>
+                      <Text style={styles.preferencesGenderText}>{meta.label}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
           </View>
-          {gender ? <Animated.View style={[styles.successIndicator, { opacity: genderOpacity }]}><Text style={styles.successText}>✓ Selected: {gender}</Text></Animated.View> : null}
+          {gender ? (
+            <Animated.View style={[styles.successIndicator, { opacity: genderOpacity }]}>
+              <Text style={styles.successText}>
+                ✓ Selected: {GENDER_OPTION_META[gender as (typeof GENDER_OPTIONS)[number]]?.emoji ?? ''} {gender}
+              </Text>
+            </Animated.View>
+          ) : null}
         </LinearGradient>
       </Animated.View>
     </View>
@@ -1693,7 +1498,27 @@ export default function CreateProfileScreen() {
           <Text style={[styles.focusedTitle, keyboardVisible && styles.focusedTitleSmall, { fontSize: rs.titleSizeSmall, marginBottom: keyboardVisible ? 6 : rs.titleMargin }]}>Where are you located?</Text>
           <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleSmall, { fontSize: rs.subtitleSizeSmall, marginBottom: keyboardVisible ? 16 : rs.subtitleMargin }]}>We use this to show you people nearby</Text>
           <Animated.View style={[styles.focusedInputWrapper, { shadowOpacity: locationGlow.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.6] }), shadowRadius: locationGlow.interpolate({ inputRange: [0, 1], outputRange: [8, 20] }) }]}>
-            <TextInput ref={locationInputRef} style={styles.focusedLocationInput} value={location} onChangeText={(t) => handleLocationChange(t, setLocation)} placeholder="City, State" placeholderTextColor="rgba(255, 255, 255, 0.6)" editable={!detectingLocation} returnKeyType="next" />
+            <TextInput
+              ref={locationInputRef}
+              style={[
+                styles.focusedLocationInput,
+                location.length > 28 && styles.focusedLocationInputLong,
+              ]}
+              value={location}
+              onChangeText={(t) => handleLocationChange(t, setLocation)}
+              onBlur={() => setLocation((prev) => compactCityState(prev))}
+              placeholder="City, State"
+              placeholderTextColor="#4a5568"
+              editable={!detectingLocation}
+              returnKeyType="next"
+              multiline
+              numberOfLines={2}
+              textAlign="center"
+              textAlignVertical="center"
+              {...(Platform.OS === 'ios'
+                ? { adjustsFontSizeToFit: true, minimumFontScale: 0.72 }
+                : {})}
+            />
           </Animated.View>
           <TouchableOpacity style={styles.focusedLocationButton} onPress={detectLocation} disabled={detectingLocation}>
             {detectingLocation ? <ActivityIndicator color="#fff" /> : <Text style={styles.focusedLocationButtonText}>📍 Use My Location</Text>}
@@ -2164,11 +1989,13 @@ export default function CreateProfileScreen() {
                 <TouchableOpacity key={pref} style={styles.preferencesGenderCard} onPress={() => togglePreferredGender(pref)} activeOpacity={0.7}>
                   {isSelected ? (
                     <LinearGradient colors={['#f5576c', '#f093fb', '#667eea']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.preferencesGenderCardSelected}>
+                      <Text style={styles.preferencesGenderEmoji}>{PREFERRED_GENDER_META[pref].emoji}</Text>
                       <Text style={styles.preferencesGenderTextSelected}>{preferredGenderDisplayLabel(pref)}</Text>
                       <View style={styles.preferencesCheckmark}><Text style={styles.preferencesCheckmarkText}>✓</Text></View>
                     </LinearGradient>
                   ) : (
                     <View style={styles.preferencesGenderCardUnselected}>
+                      <Text style={styles.preferencesGenderEmoji}>{PREFERRED_GENDER_META[pref].emoji}</Text>
                       <Text style={styles.preferencesGenderText}>{preferredGenderDisplayLabel(pref)}</Text>
                     </View>
                   )}
@@ -2408,13 +2235,13 @@ export default function CreateProfileScreen() {
         ) : (
           <View style={styles.exitSaveRow}>
             <TouchableOpacity
-              style={styles.exitButton}
+              style={styles.emailSupportHeaderLink}
               onPress={openCreateProfileSupportEmail}
-              activeOpacity={0.8}
+              activeOpacity={0.7}
               accessibilityRole="link"
               accessibilityLabel="Email support"
             >
-              <Text style={styles.logOutLinkText}>Email support</Text>
+              <Text style={styles.emailSupportHeaderLinkText}>Email support</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.exitButton}
@@ -2497,9 +2324,7 @@ export default function CreateProfileScreen() {
                 <Text style={styles.modernBackButtonText}>← Back</Text>
               </LinearGradient>
             </TouchableOpacity>
-          ) : (
-            <View style={styles.modernBackButton} />
-          )}
+          ) : null}
           
           {step < TOTAL_STEPS ? (
             <TouchableOpacity
@@ -2610,15 +2435,24 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
-  emailSupportLink: {
-    marginTop: 6,
+  emailSupportHeaderLink: {
     paddingVertical: 4,
+    paddingHorizontal: 6,
+  },
+  emailSupportHeaderLinkText: {
+    color: 'rgba(255, 255, 255, 0.62)',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  emailSupportLink: {
+    marginTop: 4,
+    paddingVertical: 2,
     alignSelf: 'center',
   },
   emailSupportLinkText: {
-    color: 'rgba(255, 255, 255, 0.92)',
-    fontSize: 14,
-    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.58)',
+    fontSize: 12,
+    fontWeight: '500',
     textDecorationLine: 'underline',
   },
   title: {
@@ -2905,12 +2739,20 @@ const styles = StyleSheet.create({
     width: '100%',
     borderWidth: 0,
     borderRadius: 20,
-    padding: 24,
-    fontSize: 20,
+    paddingVertical: 16,
+    paddingHorizontal: 14,
+    fontSize: 18,
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
     color: '#2d3748',
     fontWeight: '600',
     textAlign: 'center',
+    minHeight: 56,
+    maxHeight: 72,
+  },
+  focusedLocationInputLong: {
+    fontSize: 15,
+    paddingHorizontal: 10,
+    lineHeight: 20,
   },
   focusedLocationButton: {
     marginTop: 16,
@@ -4017,24 +3859,31 @@ const styles = StyleSheet.create({
   },
   preferencesGenderCardSelected: {
     backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 10,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.5)',
     position: 'relative',
-    minHeight: 50,
+    minHeight: 72,
+    borderRadius: 12,
   },
   preferencesGenderCardUnselected: {
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingHorizontal: 10,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.3)',
-    minHeight: 50,
+    minHeight: 72,
+    borderRadius: 12,
+  },
+  preferencesGenderEmoji: {
+    fontSize: 26,
+    lineHeight: 30,
+    marginBottom: 4,
   },
   preferencesGenderText: {
     fontSize: 13,
@@ -4215,17 +4064,13 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 10,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
   },
   modernBackButtonGradient: {
-    paddingVertical: 8,
+    paddingVertical: 12,
     paddingHorizontal: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: 48,
     borderWidth: 1.5,
     borderColor: 'rgba(102, 126, 234, 0.2)',
     borderRadius: 10,

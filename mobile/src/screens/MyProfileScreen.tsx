@@ -23,17 +23,18 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, useRoute, useFocusEffect, useIsFocused, CommonActions } from '@react-navigation/native';
 import { navigationRef } from '../navigation/navigationRef';
 import * as ImagePicker from 'expo-image-picker';
-import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GestureHandlerRootView, PanGestureHandler, State } from 'react-native-gesture-handler';
 import { api } from '../utils/api';
 import { uploadPhotoUris } from '../utils/batchPhotoUpload';
-import { handleLocationChange, hasCityAndState } from '../utils/locationUtils';
+import { compactCityState, handleLocationChange, hasCityAndState } from '../utils/locationUtils';
+import { detectUserLocation } from '../utils/detectUserLocation';
 import { getPhotoUrl } from '../utils/photoUrl';
 import OptimizedImage from '../components/OptimizedImage';
 import { useAuth } from '../context/AuthContext';
 import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
 import LegalFooter from '../components/LegalFooter';
+import ProfileEditableCardBorder from '../components/ProfileEditableCardBorder';
 import ConnectionQualityScore from '../components/ConnectionQualityScore';
 import { androidShellBackdropColors } from '../utils/androidConnectShellChrome';
 import {
@@ -754,28 +755,11 @@ export default function MyProfileScreen() {
   const detectLocation = async () => {
     setDetectingLocation(true);
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Location permission is required to detect your location.');
-        setDetectingLocation(false);
-        return;
-      }
-      const locationData = await Location.getCurrentPositionAsync({});
-      const { latitude, longitude } = locationData.coords;
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&addressdetails=1`,
-        { headers: { 'User-Agent': 'Mulligan-Dating-App/1.0' } }
-      );
-      if (!response.ok) throw new Error('Failed to reverse geocode');
-      const geo = await response.json();
-      const address = geo.address || {};
-      const city = address.city || address.town || address.village || address.municipality || address.county || '';
-      const state = address.state || address.region || address.province || address['ISO3166-2']?.split('-')[1] || '';
-      if (city && state) setEditLocation(`${city}, ${state}`);
-      else if (city) setEditLocation(city);
-      else setEditLocation(geo.display_name || '');
-    } catch (e: any) {
-      Alert.alert('Location Error', e?.message || 'Could not detect location.');
+      const detected = await detectUserLocation();
+      setEditLocation(compactCityState(detected));
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Could not detect location.';
+      Alert.alert('Location Error', message);
     } finally {
       setDetectingLocation(false);
     }
@@ -783,7 +767,7 @@ export default function MyProfileScreen() {
 
   const saveLocation = async () => {
     if (!data?.profile) return;
-    const loc = editLocation.trim() || null;
+    const loc = editLocation.trim() ? compactCityState(editLocation.trim()) : null;
     if (loc && !hasCityAndState(loc)) {
       Alert.alert('Location required', 'Please enter both city and state (e.g. Medford, Oregon).');
       return;
@@ -1775,23 +1759,30 @@ export default function MyProfileScreen() {
                       },
                     ]}
                   >
-                    <LinearGradient
-                      colors={['#667eea', '#764ba2']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.statCard}
+                    <ProfileEditableCardBorder
+                      delay={0}
+                      borderRadius={24}
+                      traceColors={['rgba(255,255,255,0.95)', '#667eea', '#764ba2', 'rgba(255,255,255,0.95)']}
+                      style={{ flex: 1, marginBottom: 0 }}
                     >
-                      <Text style={styles.statEmojiSmall}>🎉</Text>
-                      <Text style={styles.statLabel}>Member Since</Text>
-                      <Text style={styles.statValue} numberOfLines={1}>
-                        {settings.createdAt
-                          ? new Date(settings.createdAt).toLocaleDateString('en-US', {
-                              month: 'short',
-                              year: 'numeric',
-                            })
-                          : 'N/A'}
-                      </Text>
-                    </LinearGradient>
+                      <LinearGradient
+                        colors={['#667eea', '#764ba2']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.statCardInBorder}
+                      >
+                        <Text style={styles.statEmojiSmall}>🎉</Text>
+                        <Text style={styles.statLabel}>Member Since</Text>
+                        <Text style={styles.statValue} numberOfLines={1}>
+                          {settings.createdAt
+                            ? new Date(settings.createdAt).toLocaleDateString('en-US', {
+                                month: 'short',
+                                year: 'numeric',
+                              })
+                            : 'N/A'}
+                        </Text>
+                      </LinearGradient>
+                    </ProfileEditableCardBorder>
                   </Animated.View>
 
                   <Animated.View
@@ -1803,191 +1794,239 @@ export default function MyProfileScreen() {
                       },
                     ]}
                   >
-                    <TouchableOpacity
-                      activeOpacity={0.9}
-                      onPress={toggleActiveStatus}
-                      disabled={updatingActiveStatus}
-                      style={styles.statCardTouchable}
+                    <ProfileEditableCardBorder
+                      delay={180}
+                      borderRadius={24}
+                      traceColors={['rgba(255,255,255,0.95)', '#f093fb', '#f5576c', 'rgba(255,255,255,0.95)']}
+                      style={{ flex: 1, marginBottom: 0 }}
                     >
-                      <LinearGradient
-                        colors={['#f093fb', '#f5576c']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={[styles.statCard, styles.statCardLastActive]}
+                      <TouchableOpacity
+                        activeOpacity={0.9}
+                        onPress={toggleActiveStatus}
+                        disabled={updatingActiveStatus}
+                        style={styles.statCardTouchable}
                       >
-                        <Text style={styles.statEmojiSmall}>🟢</Text>
-                        <Text style={styles.statLabel}>Last Active</Text>
-                        <Text style={styles.statValue} numberOfLines={1}>
-                          {settings.lastActiveAt
-                            ? new Date(settings.lastActiveAt).toLocaleDateString('en-US', {
-                                month: 'short',
-                                day: 'numeric',
-                              })
-                            : 'Just now'}
-                        </Text>
-                        <Text style={styles.statSubtext} numberOfLines={1}>
-                          {settings.showActiveStatus !== false ? 'Visible: On' : 'Visible: Off'}
-                        </Text>
-                      </LinearGradient>
-                    </TouchableOpacity>
+                        <LinearGradient
+                          colors={['#f093fb', '#f5576c']}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                          style={[styles.statCardInBorder, styles.statCardLastActive]}
+                        >
+                          <Text style={styles.statEmojiSmall}>🟢</Text>
+                          <Text style={styles.statLabel}>Last Active</Text>
+                          <Text style={styles.statValue} numberOfLines={1}>
+                            {settings.lastActiveAt
+                              ? new Date(settings.lastActiveAt).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                })
+                              : 'Just now'}
+                          </Text>
+                          <Text style={styles.statSubtext} numberOfLines={1}>
+                            {settings.showActiveStatus !== false ? 'Visible: On' : 'Visible: Off'}
+                          </Text>
+                        </LinearGradient>
+                      </TouchableOpacity>
+                    </ProfileEditableCardBorder>
                   </Animated.View>
                 </View>
               )}
               
               {/* Modern Info Cards Grid */}
               <View style={styles.infoGrid}>
-                <LinearGradient
-                  colors={['#667eea', '#764ba2']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.infoCardGradient}
+                <ProfileEditableCardBorder
+                  delay={360}
+                  borderRadius={28}
+                  traceColors={['rgba(255,255,255,0.95)', '#667eea', '#764ba2', 'rgba(255,255,255,0.95)']}
+                  style={{ flex: 1, marginBottom: 0 }}
                 >
-                  <Text style={styles.infoCardEmoji}>🎂</Text>
-                  <Text style={styles.infoCardLabel}>Age</Text>
-                  <Text style={styles.infoCardValue}>{profile.age}</Text>
-                </LinearGradient>
-                
-                <LinearGradient
-                  colors={['#f093fb', '#f5576c']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.infoCardGradient}
+                  <LinearGradient
+                    colors={['#667eea', '#764ba2']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.infoCardInBorder}
+                  >
+                    <Text style={styles.infoCardEmoji}>🎂</Text>
+                    <Text style={styles.infoCardLabel}>Age</Text>
+                    <Text style={styles.infoCardValue}>{profile.age}</Text>
+                  </LinearGradient>
+                </ProfileEditableCardBorder>
+
+                <ProfileEditableCardBorder
+                  delay={520}
+                  borderRadius={28}
+                  traceColors={['rgba(255,255,255,0.95)', '#f093fb', '#f5576c', 'rgba(255,255,255,0.95)']}
+                  style={{ flex: 1, marginBottom: 0 }}
                 >
-                  <Text style={styles.infoCardEmoji}>⚧️</Text>
-                  <Text style={styles.infoCardLabel}>Gender</Text>
-                  <Text style={styles.infoCardValue}>{profile.gender}</Text>
-                </LinearGradient>
+                  <LinearGradient
+                    colors={['#f093fb', '#f5576c']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.infoCardInBorder}
+                  >
+                    <Text style={styles.infoCardEmoji}>⚧️</Text>
+                    <Text style={styles.infoCardLabel}>Gender</Text>
+                    <Text style={styles.infoCardValue}>{profile.gender}</Text>
+                  </LinearGradient>
+                </ProfileEditableCardBorder>
               </View>
 
               {/* Location - tappable to update */}
-              <TouchableOpacity
-                activeOpacity={0.9}
-                onPress={() => {
-                  setEditLocation(profile.location || '');
-                  setShowLocationModal(true);
-                  if (Platform.OS === 'ios') Vibration.vibrate(50);
-                  else Vibration.vibrate(50);
-                }}
-                style={styles.infoCardFullTouchable}
+              <ProfileEditableCardBorder
+                delay={0}
+                traceColors={['rgba(255,255,255,0.95)', '#4facfe', '#00f2fe', 'rgba(255,255,255,0.95)']}
               >
-                <LinearGradient
-                  colors={['#4facfe', '#00f2fe']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.infoCardFull}
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  onPress={() => {
+                    setEditLocation(profile.location || '');
+                    setShowLocationModal(true);
+                    Vibration.vibrate(50);
+                  }}
                 >
-                  <Text style={styles.infoCardEmoji}>📍</Text>
-                  <Text style={styles.infoCardLabel}>Location</Text>
-                  <Text style={styles.infoCardValueFull}>{profile.location || 'Tap to add'}</Text>
-                </LinearGradient>
-              </TouchableOpacity>
+                  <LinearGradient
+                    colors={['#4facfe', '#00f2fe']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.infoCardFull}
+                  >
+                    <Text style={styles.infoCardEmoji}>📍</Text>
+                    <Text style={styles.infoCardLabel}>Location</Text>
+                    <Text
+                    style={[
+                      styles.infoCardValueFull,
+                      (profile.location?.length ?? 0) > 28 && styles.infoCardValueFullLong,
+                    ]}
+                    numberOfLines={2}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.72}
+                  >
+                    {profile.location ? compactCityState(profile.location) : 'Tap to add'}
+                  </Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </ProfileEditableCardBorder>
 
               {/* Max distance - tappable to update (used by matching) */}
-              <TouchableOpacity
-                activeOpacity={0.9}
-                onPress={() => {
-                  setEditMaxDistance(data?.preferences?.max_distance ?? 50);
-                  setShowDistanceModal(true);
-                  if (Platform.OS === 'ios') Vibration.vibrate(50);
-                  else Vibration.vibrate(50);
-                }}
-                style={styles.infoCardFullTouchable}
+              <ProfileEditableCardBorder
+                delay={200}
+                traceColors={['rgba(255,255,255,0.95)', '#43e97b', '#38f9d7', 'rgba(255,255,255,0.95)']}
               >
-                <LinearGradient
-                  colors={['#43e97b', '#38f9d7']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.infoCardFull}
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  onPress={() => {
+                    setEditMaxDistance(data?.preferences?.max_distance ?? 50);
+                    setShowDistanceModal(true);
+                    Vibration.vibrate(50);
+                  }}
                 >
-                  <Text style={styles.infoCardEmoji}>📏</Text>
-                  <Text style={styles.infoCardLabel}>Max distance</Text>
-                  <Text style={styles.infoCardValueFull}>
-                    {data?.preferences?.max_distance == null
-                      ? 'Any distance'
-                      : `${data.preferences.max_distance} mi`}
-                  </Text>
-                </LinearGradient>
-              </TouchableOpacity>
+                  <LinearGradient
+                    colors={['#43e97b', '#38f9d7']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.infoCardFull}
+                  >
+                    <Text style={styles.infoCardEmoji}>📏</Text>
+                    <Text style={styles.infoCardLabel}>Max distance</Text>
+                    <Text style={styles.infoCardValueFull}>
+                      {data?.preferences?.max_distance == null
+                        ? 'Any distance'
+                        : `${data.preferences.max_distance} mi`}
+                    </Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </ProfileEditableCardBorder>
 
               {/* Preferred connections - tappable to update */}
-              <TouchableOpacity
-                activeOpacity={0.9}
-                onPress={() => {
-                  let initial: string[] = [];
-                  if (data?.preferences?.preferred_genders) {
-                    try {
-                      const raw = JSON.parse(data.preferences.preferred_genders) as string[];
-                      initial = raw.filter((g) => g === 'Man' || g === 'Woman' || g === 'Everyone');
-                      const hadLegacyOther = raw.includes('Other');
-                      const hadLegacyAllThree =
-                        raw.length === 3 &&
-                        ['Man', 'Woman', 'Other'].every((g) => raw.includes(g));
-                      if (hadLegacyAllThree || (hadLegacyOther && initial.length === 0)) {
-                        initial = ['Everyone'];
-                      }
-                    } catch { initial = []; }
-                  }
-                  if (initial.length === 0) initial = ['Everyone'];
-                  setEditPreferredGenders(initial);
-                  setShowPreferredGendersModal(true);
-                  if (Platform.OS === 'ios') Vibration.vibrate(50);
-                  else Vibration.vibrate(50);
-                }}
-                style={styles.infoCardFullTouchable}
+              <ProfileEditableCardBorder
+                delay={400}
+                traceColors={['rgba(255,255,255,0.95)', '#a78bfa', '#e879f9', 'rgba(255,255,255,0.95)']}
               >
-                <LinearGradient
-                  colors={['#a78bfa', '#c084fc', '#e879f9']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.infoCardFull}
-                >
-                  <Text style={styles.infoCardEmoji}>💕</Text>
-                  <Text style={styles.infoCardLabel}>Preferred connections</Text>
-                  <Text style={styles.infoCardValueFull}>
-                    {(() => {
-                      const pg = data?.preferences?.preferred_genders;
-                      if (!pg) return 'Everyone';
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  onPress={() => {
+                    let initial: string[] = [];
+                    if (data?.preferences?.preferred_genders) {
                       try {
-                        const arr = (JSON.parse(pg) as string[]).filter(
-                          (g) => g === 'Man' || g === 'Woman' || g === 'Everyone'
-                        );
-                        if (!arr.length || arr.includes('Everyone')) return 'Everyone';
-                        return arr.map(preferredGenderLabel).join(', ');
-                      } catch { return 'Everyone'; }
-                    })()}
-                  </Text>
-                </LinearGradient>
-              </TouchableOpacity>
+                        const raw = JSON.parse(data.preferences.preferred_genders) as string[];
+                        initial = raw.filter((g) => g === 'Man' || g === 'Woman' || g === 'Everyone');
+                        const hadLegacyOther = raw.includes('Other');
+                        const hadLegacyAllThree =
+                          raw.length === 3 &&
+                          ['Man', 'Woman', 'Other'].every((g) => raw.includes(g));
+                        if (hadLegacyAllThree || (hadLegacyOther && initial.length === 0)) {
+                          initial = ['Everyone'];
+                        }
+                      } catch { initial = []; }
+                    }
+                    if (initial.length === 0) initial = ['Everyone'];
+                    setEditPreferredGenders(initial);
+                    setShowPreferredGendersModal(true);
+                    Vibration.vibrate(50);
+                  }}
+                >
+                  <LinearGradient
+                    colors={['#a78bfa', '#c084fc', '#e879f9']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.infoCardFull}
+                  >
+                    <Text style={styles.infoCardEmoji}>💕</Text>
+                    <Text style={styles.infoCardLabel}>Preferred connections</Text>
+                    <Text style={styles.infoCardValueFull}>
+                      {(() => {
+                        const pg = data?.preferences?.preferred_genders;
+                        if (!pg) return 'Everyone';
+                        try {
+                          const arr = (JSON.parse(pg) as string[]).filter(
+                            (g) => g === 'Man' || g === 'Woman' || g === 'Everyone'
+                          );
+                          if (!arr.length || arr.includes('Everyone')) return 'Everyone';
+                          return arr.map(preferredGenderLabel).join(', ');
+                        } catch { return 'Everyone'; }
+                      })()}
+                    </Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </ProfileEditableCardBorder>
 
               {/* Relationship goal — same options as web "Looking for" */}
-              <TouchableOpacity
-                activeOpacity={0.9}
-                onPress={() => {
-                  setEditLookingFor(profile.looking_for?.trim() ?? '');
-                  setShowLookingForModal(true);
-                  if (Platform.OS === 'ios') Vibration.vibrate(50);
-                  else Vibration.vibrate(50);
-                }}
-                style={styles.infoCardFullTouchable}
+              <ProfileEditableCardBorder
+                delay={600}
+                traceColors={['rgba(255,255,255,0.95)', '#fda4af', '#f472b6', 'rgba(255,255,255,0.95)']}
               >
-                <LinearGradient
-                  colors={['#fda4af', '#fb7185', '#f472b6']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.infoCardFull}
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  onPress={() => {
+                    setEditLookingFor(profile.looking_for?.trim() ?? '');
+                    setShowLookingForModal(true);
+                    Vibration.vibrate(50);
+                  }}
                 >
-                  <Text style={styles.infoCardEmoji}>💕</Text>
-                  <Text style={styles.infoCardLabel}>Looking for</Text>
-                  <Text style={styles.infoCardValueFull}>
-                    {profile.looking_for?.trim()
-                      ? profile.looking_for
-                      : 'Tap to choose (relationship, casual, etc.)'}
-                  </Text>
-                </LinearGradient>
-              </TouchableOpacity>
+                  <LinearGradient
+                    colors={['#fda4af', '#fb7185', '#f472b6']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.infoCardFull}
+                  >
+                    <Text style={styles.infoCardEmoji}>💞</Text>
+                    <Text style={styles.infoCardLabel}>Looking for</Text>
+                    <Text style={styles.infoCardValueFull}>
+                      {profile.looking_for?.trim()
+                        ? profile.looking_for
+                        : 'Tap to choose (relationship, casual, etc.)'}
+                    </Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </ProfileEditableCardBorder>
 
               {/* About Me - tappable to open edit modal (keyboard won't cover Save/Cancel) */}
-              <View style={styles.bioContainer}>
+              <ProfileEditableCardBorder
+                delay={800}
+                borderRadius={24}
+                traceColors={['#667eea', '#f093fb', '#c084fc', 'rgba(255,255,255,0.95)']}
+                style={styles.bioBorderWrap}
+              >
                 <LinearGradient
                   colors={['rgba(102, 126, 234, 0.08)', 'rgba(240, 147, 251, 0.06)', 'rgba(102, 126, 234, 0.06)']}
                   start={{ x: 0, y: 0 }}
@@ -2006,8 +2045,7 @@ export default function MyProfileScreen() {
                     onPress={() => {
                       setEditBio(profile.bio || '');
                       setShowBioModal(true);
-                      if (Platform.OS === 'ios') Vibration.vibrate(50);
-                      else Vibration.vibrate(50);
+                      Vibration.vibrate(50);
                     }}
                   >
                     <Text style={[styles.bio, !profile.bio && styles.bioPlaceholder]}>
@@ -2015,7 +2053,7 @@ export default function MyProfileScreen() {
                     </Text>
                   </TouchableOpacity>
                 </LinearGradient>
-              </View>
+              </ProfileEditableCardBorder>
             </View>
           </View>
         </LinearGradient>
@@ -2302,7 +2340,7 @@ export default function MyProfileScreen() {
       <Animated.View 
         onLayout={(e) => { photosSectionYRef.current = e.nativeEvent.layout.y; }}
         style={[
-          styles.section,
+          styles.sectionShell,
           {
             opacity: sectionAnims[0] ?? sectionFallbackAnim,
             transform: [
@@ -2322,6 +2360,13 @@ export default function MyProfileScreen() {
           },
         ]}
       >
+        <ProfileEditableCardBorder
+          delay={700}
+          borderRadius={30}
+          traceColors={['rgba(255,255,255,0.95)', '#667eea', '#764ba2', '#f093fb']}
+          style={{ marginBottom: 0 }}
+        >
+        <View style={styles.section}>
         <View style={styles.sectionTitleContainer}>
           <AnimatedEmoji emoji="📸" delay={0} />
           <Text style={styles.sectionTitle}> My Photos</Text>
@@ -2457,12 +2502,14 @@ export default function MyProfileScreen() {
           {photos.length < 6 && ' · tap + to add (select multiple)'}
           {photos.length > 1 && ' · long-press a photo to drag and reorder'}
         </Text>
+        </View>
+        </ProfileEditableCardBorder>
       </Animated.View>
 
       {/* Interests */}
       <Animated.View
         style={[
-          styles.section,
+          styles.sectionShell,
           {
             opacity: sectionAnims[1] ?? sectionFallbackAnim,
             transform: [
@@ -2482,6 +2529,13 @@ export default function MyProfileScreen() {
           },
         ]}
       >
+        <ProfileEditableCardBorder
+          delay={900}
+          borderRadius={30}
+          traceColors={['rgba(255,255,255,0.95)', '#f5576c', '#f093fb', '#667eea']}
+          style={{ marginBottom: 0 }}
+        >
+        <View style={styles.section}>
         <View style={styles.sectionTitleContainer}>
           <AnimatedEmoji emoji="🎯" delay={200} />
           <Text style={styles.sectionTitle}> My Interests</Text>
@@ -2506,12 +2560,14 @@ export default function MyProfileScreen() {
         ) : (
           <Text style={styles.sectionEmptyHint}>No interests yet — tap Edit to add (pick at least 3).</Text>
         )}
+        </View>
+        </ProfileEditableCardBorder>
       </Animated.View>
 
       {/* My Dealbreakers */}
       <Animated.View
         style={[
-          styles.section,
+          styles.sectionShell,
           {
             opacity: sectionAnims[2] ?? sectionFallbackAnim,
             transform: [
@@ -2531,6 +2587,13 @@ export default function MyProfileScreen() {
           },
         ]}
       >
+        <ProfileEditableCardBorder
+          delay={1100}
+          borderRadius={30}
+          traceColors={['rgba(255,255,255,0.95)', '#ef4444', '#f5576c', '#a78bfa']}
+          style={{ marginBottom: 0 }}
+        >
+        <View style={styles.section}>
         <View style={styles.sectionTitleContainer}>
           <AnimatedEmoji emoji="🚫" delay={280} />
           <Text style={styles.sectionTitle}> My Dealbreakers</Text>
@@ -2560,12 +2623,14 @@ export default function MyProfileScreen() {
         ) : (
           <Text style={styles.sectionEmptyHint}>No dealbreakers yet — tap Edit to add.</Text>
         )}
+        </View>
+        </ProfileEditableCardBorder>
       </Animated.View>
 
       {/* What I'm looking for (partner qualities) */}
       <Animated.View
         style={[
-          styles.section,
+          styles.sectionShell,
           {
             opacity: sectionAnims[3] ?? sectionFallbackAnim,
             transform: [
@@ -2585,6 +2650,13 @@ export default function MyProfileScreen() {
           },
         ]}
       >
+        <ProfileEditableCardBorder
+          delay={1300}
+          borderRadius={30}
+          traceColors={['rgba(255,255,255,0.95)', '#f093fb', '#e879f9', '#667eea']}
+          style={{ marginBottom: 0 }}
+        >
+        <View style={styles.section}>
         <View style={styles.sectionTitleContainer}>
           <AnimatedEmoji emoji="💕" delay={360} />
           <Text style={styles.sectionTitle}> What I'm Looking For</Text>
@@ -2614,12 +2686,14 @@ export default function MyProfileScreen() {
             No qualities listed yet — tap Edit to choose what matters to you.
           </Text>
         )}
+        </View>
+        </ProfileEditableCardBorder>
       </Animated.View>
 
       {/* Lifestyle */}
       <Animated.View
         style={[
-          styles.section,
+          styles.sectionShell,
           {
             opacity: sectionAnims[4] ?? sectionFallbackAnim,
             transform: [
@@ -2639,6 +2713,13 @@ export default function MyProfileScreen() {
           },
         ]}
       >
+        <ProfileEditableCardBorder
+          delay={1500}
+          borderRadius={30}
+          traceColors={['rgba(255,255,255,0.95)', '#43e97b', '#38f9d7', '#667eea']}
+          style={{ marginBottom: 0 }}
+        >
+        <View style={styles.section}>
         <View style={styles.sectionTitleContainer}>
           <AnimatedEmoji emoji="🌱" delay={440} />
           <Text style={styles.sectionTitle}> Lifestyle</Text>
@@ -2712,6 +2793,8 @@ export default function MyProfileScreen() {
         ) : (
           <Text style={styles.sectionEmptyHint}>Lifestyle not set — tap Edit to add preferences.</Text>
         )}
+        </View>
+        </ProfileEditableCardBorder>
       </Animated.View>
 
       {/* Edit Profile Button */}
@@ -3455,6 +3538,19 @@ const styles = StyleSheet.create({
     borderWidth: 2.5,
     borderColor: 'rgba(255, 255, 255, 0.4)',
   },
+  statCardInBorder: {
+    flex: 1,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 110,
+    borderWidth: 0,
+    ...(Platform.OS === 'android'
+      ? { elevation: 0, shadowOpacity: 0 }
+      : { shadowOpacity: 0, elevation: 0 }),
+  },
   statCardLastActive: {
     minHeight: 110,
   },
@@ -3514,22 +3610,42 @@ const styles = StyleSheet.create({
     borderWidth: 2.5,
     borderColor: 'rgba(255, 255, 255, 0.4)',
   },
+  infoCardInBorder: {
+    flex: 1,
+    paddingVertical: 24,
+    paddingHorizontal: 18,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 130,
+    borderWidth: 0,
+    ...(Platform.OS === 'android'
+      ? { elevation: 0, shadowOpacity: 0 }
+      : { shadowOpacity: 0, elevation: 0 }),
+  },
   infoCardFull: {
     width: '100%',
     paddingVertical: 26,
     paddingHorizontal: 22,
-    borderRadius: 28,
+    borderRadius: 26,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 18,
+    marginBottom: 0,
     minHeight: 110,
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.4,
-    shadowRadius: 24,
-    elevation: 14,
     borderWidth: 2.5,
     borderColor: 'rgba(255, 255, 255, 0.4)',
+    ...(Platform.OS === 'android'
+      ? { elevation: 0, shadowOpacity: 0 }
+      : {
+          shadowColor: '#667eea',
+          shadowOffset: { width: 0, height: 6 },
+          shadowOpacity: 0.25,
+          shadowRadius: 12,
+          elevation: 4,
+        }),
+  },
+  bioBorderWrap: {
+    marginTop: 24,
   },
   infoCardEmoji: {
     fontSize: 36,
@@ -3553,34 +3669,33 @@ const styles = StyleSheet.create({
     textShadowRadius: 6,
   },
   infoCardValueFull: {
-    fontSize: 20,
+    fontSize: 18,
     color: '#fff',
     fontWeight: '800',
     textAlign: 'center',
     marginTop: 4,
+    lineHeight: 22,
     textShadowColor: 'rgba(0, 0, 0, 0.2)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
-    paddingHorizontal: 8,
-  },
-  bioContainer: {
-    marginTop: 24,
+    paddingHorizontal: 10,
     width: '100%',
+  },
+  infoCardValueFullLong: {
+    fontSize: 15,
+    lineHeight: 19,
+    paddingHorizontal: 6,
   },
   bioGradient: {
     paddingHorizontal: 24,
     paddingVertical: 24,
     paddingTop: 22,
-    borderRadius: 24,
+    borderRadius: 22,
     borderWidth: 1,
     borderColor: 'rgba(102, 126, 234, 0.18)',
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    elevation: 6,
     backgroundColor: 'rgba(255, 255, 255, 0.85)',
     overflow: 'hidden',
+    ...(Platform.OS === 'android' ? { elevation: 0, shadowOpacity: 0 } : {}),
   },
   bioHeader: {
     marginBottom: 18,
@@ -3663,21 +3778,22 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#fff',
   },
+  sectionShell: {
+    marginTop: 24,
+    marginHorizontal: 16,
+  },
   section: {
     backgroundColor: 'rgba(255, 255, 255, 0.98)',
     padding: 32,
-    marginTop: 24,
-    marginHorizontal: 16,
-    borderRadius: 32,
+    marginTop: 0,
+    marginHorizontal: 0,
+    borderRadius: 28,
     borderTopWidth: 0,
     borderBottomWidth: 0,
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 24,
-    elevation: 10,
-    borderWidth: 2.5,
-    borderColor: '#fff',
+    borderWidth: 0,
+    ...(Platform.OS === 'android'
+      ? { elevation: 0, shadowOpacity: 0 }
+      : { shadowOpacity: 0, elevation: 0 }),
   },
   sectionTitleContainer: {
     flexDirection: 'row',
