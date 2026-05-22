@@ -43,9 +43,11 @@ interface AuthContextType {
   signup: (email: string, password: string, acceptTerms?: boolean, acceptPrivacy?: boolean) => Promise<void>
   phoneLogin: (phoneNumber: string, code: string) => Promise<{ connectSetupComplete: boolean }>
   logout: () => void
-  refreshProfile: () => Promise<void>
+  refreshProfile: (options?: { silent?: boolean }) => Promise<{ connectSetupComplete: boolean }>
   /** Re-fetch /auth/me (e.g. after saving Web Push subscription). */
-  refreshSession: () => Promise<void>
+  refreshSession: () => Promise<{ connectSetupComplete: boolean }>
+  /** After create-profile wizard finishes — keeps /browse gate open before /auth/me catches up. */
+  markConnectSetupComplete: () => void
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
@@ -88,9 +90,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.clearTimeout(t)
   }, [user?.id, user?.webPushConfigured])
 
-  const fetchUser = async (): Promise<{ connectSetupComplete: boolean }> => {
-    setLoading(true)
-    setConnectSetupComplete(false)
+  const fetchUser = async (options?: {
+    silent?: boolean
+  }): Promise<{ connectSetupComplete: boolean }> => {
+    if (!options?.silent) {
+      setLoading(true)
+      setConnectSetupComplete(false)
+    }
     try {
       // Cancel any pending requests
       if (abortControllerRef.current) {
@@ -170,8 +176,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Re-throw so login can handle it
       throw error
     } finally {
-      setLoading(false)
+      if (!options?.silent) {
+        setLoading(false)
+      }
     }
+  }
+
+  const markConnectSetupComplete = () => {
+    clearWebCreateProfileDraft()
+    setConnectSetupComplete(true)
   }
 
   // Legacy email/password login (kept for backward compatibility)
@@ -318,12 +331,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(false)
   }
 
-  const refreshProfile = async () => {
-    await fetchUser()
+  const refreshProfile = async (options?: { silent?: boolean }) => {
+    return fetchUser(options)
   }
 
-  const refreshSession = async () => {
-    await fetchUser()
+  const refreshSession = async (options?: { silent?: boolean }) => {
+    return fetchUser(options)
   }
 
   const isAdmin = useMemo(
@@ -345,6 +358,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       refreshProfile,
       refreshSession,
+      markConnectSetupComplete,
     }}>
       {children}
     </AuthContext.Provider>

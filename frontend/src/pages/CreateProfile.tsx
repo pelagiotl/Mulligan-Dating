@@ -244,7 +244,7 @@ async function uploadOnePhoto(file: File): Promise<SlotPhoto> {
 
 export default function CreateProfile() {
   const navigate = useNavigate();
-  const { refreshProfile, logout } = useAuth();
+  const { refreshProfile, logout, markConnectSetupComplete } = useAuth();
 
   const handleChangePhoneNumber = () => {
     if (
@@ -976,8 +976,9 @@ export default function CreateProfile() {
       profileSaveSnapshotRef.current = buildProfileSaveSnapshot();
 
       clearWebCreateProfileDraft();
-      await refreshProfile();
-      setShowProfileReadySplash(true);
+      markConnectSetupComplete();
+      await refreshProfile({ silent: true });
+      navigate("/browse", { replace: true });
     } catch (err) {
       const msg = apiErrorMessage(err, "Failed to create profile");
       const low = msg.toLowerCase();
