@@ -29,7 +29,7 @@ type LayerRefs = {
 };
 
 /**
- * Left→right perimeter sweep: left grows top→bottom, horizontals extend right, right draws down.
+ * Left perimeter (corners + edge) stays connected; top/bottom sweep right, then right edge down.
  */
 export default function ConnectButtonShimmerEffect({
   active = true,
@@ -104,7 +104,8 @@ export default function ConnectButtonShimmerEffect({
         L.bottom.style.transform = sweep;
       }
       if (L.leftRail) {
-        L.leftRail.style.transform = `scaleY(${frame.leftReveal})`;
+        L.leftRail.style.opacity = String(frame.leftRailOpacity);
+        L.leftRail.style.transform = '';
       }
       if (L.rightStack) L.rightStack.style.opacity = String(frame.rightOpacity);
       if (L.rightFill) {

@@ -19,17 +19,18 @@ export function computeSweepMetrics(
 }
 
 export type SweepFrame = {
+  /** Top/bottom grow left→right (linear). */
   scaleX: number;
-  /** Whole left rail (TL + vertical + BL) scales together so corners stay joined. */
-  leftReveal: number;
+  /** Left rail (TL + edge + BL) visible whenever trace is on. */
+  leftRailOpacity: number;
   rightTranslateY: number;
   rightOpacity: number;
   traceOpacity: number;
 };
 
 /**
- * One linear progress drives the whole sweep: left + horizontals move together,
- * then the right edge continues without a hold or separate left phase.
+ * Left perimeter is fixed and connected from the first frame; only top/bottom
+ * extend right, then the right edge draws down.
  */
 export function sweepFrameAt(progress: number, metrics: SweepMetrics): SweepFrame {
   const { sideSegmentH, hEnd } = metrics;
@@ -38,7 +39,7 @@ export function sweepFrameAt(progress: number, metrics: SweepMetrics): SweepFram
   if (p <= 0) {
     return {
       scaleX: 0.001,
-      leftReveal: 0,
+      leftRailOpacity: 0,
       rightTranslateY: -sideSegmentH,
       rightOpacity: 0,
       traceOpacity: 0,
@@ -46,16 +47,14 @@ export function sweepFrameAt(progress: number, metrics: SweepMetrics): SweepFram
   }
 
   const traceOpacity = 1;
-
-  // Single lead 0→1 for horizontal phase — left rail and top/bottom stay in sync
+  const leftRailOpacity = 1;
   const lead = Math.min(1, p / hEnd);
   const scaleX = Math.max(0.001, lead);
-  const leftReveal = lead;
 
   if (p < hEnd) {
     return {
       scaleX,
-      leftReveal,
+      leftRailOpacity,
       rightTranslateY: -sideSegmentH,
       rightOpacity: 0,
       traceOpacity,
@@ -66,7 +65,7 @@ export function sweepFrameAt(progress: number, metrics: SweepMetrics): SweepFram
 
   return {
     scaleX: 1,
-    leftReveal: 1,
+    leftRailOpacity: 1,
     rightTranslateY: -sideSegmentH * (1 - rProg),
     rightOpacity: 1,
     traceOpacity,

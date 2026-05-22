@@ -61,7 +61,7 @@
   border-left: 2.5px solid rgba(103, 232, 249, 0.95);
 }
 
-/* TL + vertical + BL scale as one unit so left corners never separate */
+/* TL + vertical + BL — static connected left cap (no vertical scale) */
 .connect-shimmer__left-rail {
   position: absolute;
   left: 0;
@@ -69,9 +69,7 @@
   right: auto;
   bottom: 0;
   width: calc(var(--connect-shimmer-radius, 22px) + 2.5px);
-  transform-origin: top left;
   pointer-events: none;
-  will-change: transform;
 }
 
 .connect-shimmer__left-rail .connect-shimmer__corner--tl {
@@ -83,6 +81,7 @@
 .connect-shimmer__left-rail .connect-shimmer__edge-left {
   position: absolute;
   left: 0;
+  top: var(--connect-shimmer-radius, 22px);
 }
 
 .connect-shimmer__left-rail .connect-shimmer__corner--bl {
