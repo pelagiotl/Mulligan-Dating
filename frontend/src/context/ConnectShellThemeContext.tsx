@@ -8,7 +8,9 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useAuth } from "./AuthContext";
 import {
+  DEFAULT_CONNECT_SHELL_MODE,
   nextConnectShellMode,
   persistConnectShellMode,
   readConnectShellMode,
@@ -24,23 +26,31 @@ type ConnectShellThemeContextValue = {
 const ConnectShellThemeContext = createContext<ConnectShellThemeContextValue | null>(null);
 
 export function ConnectShellThemeProvider({ children }: { children: ReactNode }) {
-  const [mode, setModeState] = useState<ConnectShellMode>(() => readConnectShellMode());
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
+  const [mode, setModeState] = useState<ConnectShellMode>(DEFAULT_CONNECT_SHELL_MODE);
   const modeRef = useRef(mode);
   modeRef.current = mode;
 
-  /** Keeps <html data-connect-shell> + localStorage in sync without side effects inside state updaters (Strict Mode safe). */
   useEffect(() => {
-    persistConnectShellMode(mode);
-  }, [mode]);
+    const next = readConnectShellMode(userId);
+    setModeState(next);
+    persistConnectShellMode(next, userId);
+  }, [userId]);
 
-  const setMode = useCallback((m: ConnectShellMode) => {
-    setModeState(m);
-  }, []);
+  const setMode = useCallback(
+    (m: ConnectShellMode) => {
+      setModeState(m);
+      persistConnectShellMode(m, userId);
+    },
+    [userId]
+  );
 
   const toggleMode = useCallback(() => {
     const next = nextConnectShellMode(modeRef.current);
     setModeState(next);
-  }, []);
+    persistConnectShellMode(next, userId);
+  }, [userId]);
 
   const value = useMemo(
     () => ({ mode, setMode, toggleMode }),

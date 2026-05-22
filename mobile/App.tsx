@@ -220,14 +220,14 @@ export default function App() {
   return (
     <View style={{ flex: 1, backgroundColor: '#f8f9ff' }}>
       <SafeAreaProvider>
-        <ConnectShellThemeProvider>
-          <ErrorBoundary>
-            <AuthProvider>
+        <ErrorBoundary>
+          <AuthProvider>
+            <ConnectShellThemeProvider>
               {__DEV__ ? <MatchCelebrationDemoLinkHandler /> : null}
               <AppNavigator />
-            </AuthProvider>
-          </ErrorBoundary>
-        </ConnectShellThemeProvider>
+            </ConnectShellThemeProvider>
+          </AuthProvider>
+        </ErrorBoundary>
       </SafeAreaProvider>
     </View>
   );

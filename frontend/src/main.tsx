@@ -11,10 +11,10 @@ import './styles/native-ui-parity.css'
 import './styles/connect-shell-theme.css'
 import './styles/connect-button-effects.css'
 import './styles/legal-document.css'
-import { applyConnectShellMode, readConnectShellMode } from './lib/connectShellTheme'
+import { applyConnectShellMode, DEFAULT_CONNECT_SHELL_MODE } from './lib/connectShellTheme'
 
 if (typeof document !== 'undefined') {
-  applyConnectShellMode(readConnectShellMode())
+  applyConnectShellMode(DEFAULT_CONNECT_SHELL_MODE)
 }
 
 // iOS Safari: notification clicks may focus a window without navigating, or deep links can 404 on cold start.

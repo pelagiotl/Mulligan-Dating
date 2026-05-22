@@ -4,6 +4,7 @@ import { browserSupportsWebPush, getVapidPublicKey, registerWebPush } from '../l
 import { computeAppConnectReady } from '../utils/connectProfileEligibility'
 import { clearWebCreateProfileDraft, hasWebCreateProfileDraft } from '../utils/createProfileProgress'
 import { clearAgeGateAccepted } from '../lib/ageGate'
+import { resetConnectShellModeForNewUser } from '../lib/connectShellTheme'
 
 /** Same as mobile `MainTabs`: owner line always sees admin UI (API `requireAdmin` already matches this number). */
 function isOwnerAdminPhone(phone: string | null | undefined): boolean {
@@ -292,6 +293,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
     localStorage.setItem('token', data.token)
     setUser({ id: data.userId, email })
+    resetConnectShellModeForNewUser(data.userId)
   }
 
   const phoneLogin = async (phoneNumber: string, code: string): Promise<{ connectSetupComplete: boolean }> => {
@@ -308,8 +310,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // New phone signup must not reuse wizard draft/photos from a deleted prior account on this device.
     if (data.isNewUser) {
       clearWebCreateProfileDraft()
+      const newUserId = data.userId ?? data.user?.id
+      if (newUserId) {
+        resetConnectShellModeForNewUser(newUserId)
+      }
     }
-    
+
     const { connectSetupComplete: ready } = await fetchUser()
     return { connectSetupComplete: ready }
   }

@@ -11,6 +11,14 @@ export const DEFAULT_CONNECT_SHELL_MODE: ConnectShellMode = 'midnight';
 
 const CONNECT_SHELL_CYCLE: ConnectShellMode[] = ['midnight', 'sunny', 'soft'];
 
+function isConnectShellMode(v: string | null): v is ConnectShellMode {
+  return v === 'midnight' || v === 'sunny' || v === 'soft';
+}
+
+export function connectShellStorageKey(userId?: string | null): string {
+  return userId ? `${CONNECT_SHELL_STORAGE_KEY}:${userId}` : CONNECT_SHELL_STORAGE_KEY;
+}
+
 export function nextConnectShellMode(current: ConnectShellMode): ConnectShellMode {
   const i = CONNECT_SHELL_CYCLE.indexOf(current);
   const idx = i >= 0 ? i : 0;
@@ -28,20 +36,30 @@ export function connectShellDisplayLabel(mode: ConnectShellMode): string {
   }
 }
 
-export async function loadConnectShellMode(): Promise<ConnectShellMode> {
+export async function loadConnectShellMode(userId?: string | null): Promise<ConnectShellMode> {
   try {
-    const v = await AsyncStorage.getItem(CONNECT_SHELL_STORAGE_KEY);
-    if (v === 'midnight' || v === 'sunny' || v === 'soft') return v;
+    if (userId) {
+      const v = await AsyncStorage.getItem(connectShellStorageKey(userId));
+      if (isConnectShellMode(v)) return v;
+      return DEFAULT_CONNECT_SHELL_MODE;
+    }
   } catch {
     /* ignore */
   }
   return DEFAULT_CONNECT_SHELL_MODE;
 }
 
-export async function saveConnectShellMode(mode: ConnectShellMode): Promise<void> {
+export async function saveConnectShellMode(
+  mode: ConnectShellMode,
+  userId?: string | null
+): Promise<void> {
   try {
-    await AsyncStorage.setItem(CONNECT_SHELL_STORAGE_KEY, mode);
+    await AsyncStorage.setItem(connectShellStorageKey(userId), mode);
   } catch {
     /* ignore */
   }
+}
+
+export async function resetConnectShellModeForNewUser(userId: string): Promise<void> {
+  await saveConnectShellMode(DEFAULT_CONNECT_SHELL_MODE, userId);
 }

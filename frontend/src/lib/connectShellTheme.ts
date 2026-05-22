@@ -8,6 +8,15 @@ export const DEFAULT_CONNECT_SHELL_MODE: ConnectShellMode = "midnight";
 
 const CONNECT_SHELL_CYCLE: ConnectShellMode[] = ["midnight", "sunny", "soft"];
 
+function isConnectShellMode(v: string | null): v is ConnectShellMode {
+  return v === "midnight" || v === "sunny" || v === "soft";
+}
+
+/** Per-user key so a new account on the same browser does not inherit another user's theme. */
+export function connectShellStorageKey(userId?: string | null): string {
+  return userId ? `${CONNECT_SHELL_STORAGE_KEY}:${userId}` : CONNECT_SHELL_STORAGE_KEY;
+}
+
 export function nextConnectShellMode(current: ConnectShellMode): ConnectShellMode {
   const i = CONNECT_SHELL_CYCLE.indexOf(current);
   const idx = i >= 0 ? i : 0;
@@ -25,11 +34,19 @@ export function connectShellDisplayLabel(mode: ConnectShellMode): string {
   }
 }
 
-export function readConnectShellMode(): ConnectShellMode {
+/**
+ * Read Connect shell theme. Authenticated users only use their per-user key (default midnight).
+ * Without a user id, returns midnight — React must not read the legacy global key (avoids leaking
+ * a prior session's sunny/soft onto a new account before /auth/me returns).
+ */
+export function readConnectShellMode(userId?: string | null): ConnectShellMode {
   if (typeof window === "undefined") return DEFAULT_CONNECT_SHELL_MODE;
   try {
-    const v = localStorage.getItem(CONNECT_SHELL_STORAGE_KEY);
-    if (v === "midnight" || v === "sunny" || v === "soft") return v;
+    if (userId) {
+      const v = localStorage.getItem(connectShellStorageKey(userId));
+      if (isConnectShellMode(v)) return v;
+      return DEFAULT_CONNECT_SHELL_MODE;
+    }
   } catch {
     /* ignore */
   }
@@ -41,11 +58,16 @@ export function applyConnectShellMode(mode: ConnectShellMode): void {
   document.documentElement.setAttribute("data-connect-shell", mode);
 }
 
-export function persistConnectShellMode(mode: ConnectShellMode): void {
+export function persistConnectShellMode(mode: ConnectShellMode, userId?: string | null): void {
   try {
-    localStorage.setItem(CONNECT_SHELL_STORAGE_KEY, mode);
+    localStorage.setItem(connectShellStorageKey(userId), mode);
   } catch {
     /* ignore */
   }
   applyConnectShellMode(mode);
+}
+
+/** Force midnight for a new account (signup / phone verify isNewUser). */
+export function resetConnectShellModeForNewUser(userId: string): void {
+  persistConnectShellMode(DEFAULT_CONNECT_SHELL_MODE, userId);
 }

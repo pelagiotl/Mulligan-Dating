@@ -4,30 +4,34 @@
  */
 
 :root {
-  --native-ink: #1a1a2e;
-  --native-text-muted: #666;
-  --native-text-soft: #555;
-  --native-interest-border: #e0e7ff;
-  /* Expo LinearGradient parity: start (0,0) → end (1,1) ≈ 135deg; same stops as BrowseScreen / Settings / MyProfile */
+  --native-ink: #f1f5f9;
+  --native-text-muted: #94a3b8;
+  --native-text-soft: #cbd5e1;
+  --native-interest-border: rgba(167, 139, 250, 0.28);
+  /* Midnight defaults until connect-shell-theme sets sunny/soft on <html> */
   --native-gradient-screen: linear-gradient(
-    135deg,
-    #667eea 0%,
-    #764ba2 25%,
-    #f093fb 50%,
-    #f5576c 75%,
-    #4facfe 100%
+    145deg,
+    #15102a 0%,
+    #221a32 35%,
+    #1a1528 70%,
+    #0f172a 100%
   );
   --native-gradient-connect: var(--native-gradient-screen);
-  --native-gradient-header-3: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
-  /* MatchesScreen — list header, chat header, empty CTA rail (4 stops) */
-  --native-gradient-matches-header: linear-gradient(135deg, #667eea 0%, #764ba2 33%, #f093fb 66%, #f5576c 100%);
+  --native-gradient-header-3: linear-gradient(135deg, #5b21b6 0%, #7c3aed 50%, #db2777 100%);
+  --native-gradient-matches-header: linear-gradient(
+    135deg,
+    #4c1d95 0%,
+    #6b21a8 38%,
+    #7c3aed 72%,
+    #db2777 100%
+  );
 }
 
 /* ─── Browse (Connect) — profile card matches BrowseScreen ─── */
 .browse-page-native {
   position: relative;
   min-height: 60vh;
-  background: var(--native-screen-bg, #f8f9ff);
+  background: var(--native-screen-bg, #0c0a12);
 }
 
 .browse-page-native.connect-landing-page {

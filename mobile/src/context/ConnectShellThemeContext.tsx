@@ -7,6 +7,7 @@ import React, {
   useState,
   type ReactNode,
 } from 'react';
+import { useAuth } from './AuthContext';
 import {
   DEFAULT_CONNECT_SHELL_MODE,
   loadConnectShellMode,
@@ -24,24 +25,29 @@ type ConnectShellThemeContextValue = {
 const ConnectShellThemeContext = createContext<ConnectShellThemeContextValue | null>(null);
 
 export function ConnectShellThemeProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
   const [mode, setModeState] = useState<ConnectShellMode>(DEFAULT_CONNECT_SHELL_MODE);
 
   useEffect(() => {
-    void loadConnectShellMode().then(setModeState);
-  }, []);
+    void loadConnectShellMode(userId).then(setModeState);
+  }, [userId]);
 
-  const setMode = useCallback((m: ConnectShellMode) => {
-    setModeState(m);
-    void saveConnectShellMode(m);
-  }, []);
+  const setMode = useCallback(
+    (m: ConnectShellMode) => {
+      setModeState(m);
+      void saveConnectShellMode(m, userId);
+    },
+    [userId]
+  );
 
   const toggleMode = useCallback(() => {
     setModeState((prev) => {
       const next = nextConnectShellMode(prev);
-      void saveConnectShellMode(next);
+      void saveConnectShellMode(next, userId);
       return next;
     });
-  }, []);
+  }, [userId]);
 
   const value = useMemo(() => ({ mode, setMode, toggleMode }), [mode, setMode, toggleMode]);
 

@@ -4,20 +4,19 @@
  */
 
 :root {
-  --native-primary: #8b1538;
-  --native-screen-bg: #f8f9ff;
-  --native-tab-bar-bg: #fafafa;
-  --native-tab-inactive: #94a3b8;
+  /* Midnight defaults — match connect-shell-theme.css when data-connect-shell is not set yet */
+  --native-primary: #f472b6;
+  --native-screen-bg: #0c0a12;
+  --native-tab-bar-bg: #12101c;
+  --native-tab-inactive: #8b93a8;
   --native-tab-height: 52px;
   --native-tab-safe-bottom: max(env(safe-area-inset-bottom, 0px), 10px);
-  /* Mirrored in native-ui-parity.css — duplicated here so shell rules work regardless of import order */
   --native-gradient-screen: linear-gradient(
-    135deg,
-    #667eea 0%,
-    #764ba2 25%,
-    #f093fb 50%,
-    #f5576c 75%,
-    #4facfe 100%
+    145deg,
+    #15102a 0%,
+    #221a32 35%,
+    #1a1528 70%,
+    #0f172a 100%
   );
 }
 

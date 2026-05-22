@@ -965,7 +965,7 @@ img {
   min-height: 100vh;
   position: relative;
   overflow: hidden;
-  background: var(--native-gradient-screen, linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #f5576c 75%, #4facfe 100%));
+  background: var(--native-gradient-screen, linear-gradient(145deg, #15102a 0%, #221a32 35%, #1a1528 70%, #0f172a 100%));
   background-size: 400% 400%;
   animation: gradientShift 15s ease infinite;
 }
@@ -1581,7 +1581,7 @@ img {
   padding: var(--space-8);
   position: relative;
   overflow: hidden;
-  background: var(--native-gradient-screen, linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #f5576c 75%, #4facfe 100%));
+  background: var(--native-gradient-screen, linear-gradient(145deg, #15102a 0%, #221a32 35%, #1a1528 70%, #0f172a 100%));
   background-size: 400% 400%;
   animation: gradientShift 15s ease infinite;
 }

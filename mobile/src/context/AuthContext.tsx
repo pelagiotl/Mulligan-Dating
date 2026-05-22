@@ -899,6 +899,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setTokenCache(data.token);
       // Wizard draft is device-local, not per user — always clear on login.
       await clearMobileCreateProfileDraft();
+      if (data.isNewUser && data.userId) {
+        const { resetConnectShellModeForNewUser } = await import('../lib/connectShellTheme');
+        await resetConnectShellModeForNewUser(data.userId);
+      }
       await fetchUser(false);
       
       // Register for push notifications after login

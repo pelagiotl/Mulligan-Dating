@@ -4,12 +4,12 @@
     <script>
       (function () {
         try {
+          var mode = "midnight";
           var v = localStorage.getItem("mulligan-connect-shell");
-          if (v === "midnight" || v === "sunny" || v === "soft") {
-            document.documentElement.setAttribute("data-connect-shell", v);
-          }
+          if (v === "midnight" || v === "sunny" || v === "soft") mode = v;
+          document.documentElement.setAttribute("data-connect-shell", mode);
         } catch (e) {
-          /* keep midnight default on <html> */
+          document.documentElement.setAttribute("data-connect-shell", "midnight");
         }
       })();
     </script>
