@@ -15,6 +15,7 @@ import {
   readWebCreateProfileDraft,
   writeWebCreateProfileDraft,
 } from "../utils/createProfileProgress";
+import { getCreateProfileSupportMailtoUrl } from "../constants/support";
 
 const GENDER_OPTIONS = ["Man", "Woman", "Other"] as const;
 const PREFERRED_GENDER_OPTIONS = ["Man", "Woman", "Everyone"] as const;
@@ -1041,7 +1042,12 @@ export default function CreateProfile() {
     <div className="create-profile-wizard native-app-screen">
       <header className="create-profile-hero">
         <div className="create-profile-hero-top">
-          <span aria-hidden />
+          <a
+            href={getCreateProfileSupportMailtoUrl()}
+            className="create-profile-email-support"
+          >
+            Email support
+          </a>
           <button
             type="button"
             className="create-profile-change-phone"

@@ -90,14 +90,35 @@
   bottom: 0;
 }
 
-.connect-shimmer__corner--tr {
+/* TR + vertical + BR — static connected right cap */
+.connect-shimmer__right-rail {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: calc(var(--connect-shimmer-radius, 22px) + 2.5px);
+  pointer-events: none;
+}
+
+.connect-shimmer__right-rail .connect-shimmer__corner--tr {
+  position: absolute;
   right: 0;
   top: 0;
   border-top: 2.5px solid rgba(103, 232, 249, 0.95);
   border-right: 2.5px solid rgba(103, 232, 249, 0.95);
 }
 
-.connect-shimmer__corner--br {
+.connect-shimmer__right-rail .connect-shimmer__edge-right {
+  position: absolute;
+  right: 0;
+  top: var(--connect-shimmer-radius, 22px);
+  width: 2.5px;
+  background: rgba(103, 232, 249, 0.95);
+  box-shadow: 0 0 6px rgba(34, 211, 238, 0.85);
+}
+
+.connect-shimmer__right-rail .connect-shimmer__corner--br {
+  position: absolute;
   right: 0;
   bottom: 0;
   border-bottom: 2.5px solid rgba(103, 232, 249, 0.95);
@@ -112,7 +133,6 @@
 
 .connect-shimmer__edge-h {
   position: absolute;
-  left: 0;
   top: 0;
   height: 2.5px;
   background: rgba(103, 232, 249, 0.95);
@@ -120,32 +140,17 @@
   will-change: transform;
 }
 
+.connect-shimmer__edge-h--left {
+  left: 0;
+}
+
+.connect-shimmer__edge-h--right {
+  right: 0;
+}
+
 .connect-shimmer__edge-h--bottom {
   top: auto;
   bottom: 0;
-}
-
-.connect-shimmer__right {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-
-.connect-shimmer__edge-right-clip {
-  position: absolute;
-  right: 0;
-  width: 2.5px;
-  overflow: hidden;
-}
-
-.connect-shimmer__edge-right-fill {
-  position: absolute;
-  right: 0;
-  top: 0;
-  width: 2.5px;
-  background: rgba(103, 232, 249, 0.95);
-  box-shadow: 0 0 6px rgba(34, 211, 238, 0.85);
-  will-change: transform;
 }
 
 /* ─── Heart / emoji particles ─── */

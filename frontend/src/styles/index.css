@@ -2682,6 +2682,7 @@ img {
   background: rgba(255, 255, 255, 0.3);
 }
 
+.create-profile-email-support,
 .create-profile-change-phone {
   background: transparent;
   border: none;
@@ -2696,10 +2697,12 @@ img {
   font-family: inherit;
 }
 
+.create-profile-email-support:hover,
 .create-profile-change-phone:hover {
   color: #fff;
 }
 
+.create-profile-email-support:focus-visible,
 .create-profile-change-phone:focus-visible {
   outline: 2px solid rgba(255, 255, 255, 0.85);
   outline-offset: 2px;

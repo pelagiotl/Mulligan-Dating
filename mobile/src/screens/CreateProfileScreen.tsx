@@ -59,6 +59,7 @@ import {
   type LifestyleFieldKey,
   type LifestyleForm,
 } from '../constants/profileMySections';
+import { openCreateProfileSupportEmail } from '../constants/support';
 
 const LIFESTYLE_FIELD_GRADIENTS: Record<LifestyleFieldKey, readonly [string, string, string]> = {
   smoking: ['#6ee7b7', '#34d399', '#10b981'],
@@ -2399,7 +2400,15 @@ export default function CreateProfileScreen() {
           </View>
         ) : (
           <View style={styles.exitSaveRow}>
-            <View style={styles.exitButton} />
+            <TouchableOpacity
+              style={styles.exitButton}
+              onPress={openCreateProfileSupportEmail}
+              activeOpacity={0.8}
+              accessibilityRole="link"
+              accessibilityLabel="Email support"
+            >
+              <Text style={styles.logOutLinkText}>Email support</Text>
+            </TouchableOpacity>
             <TouchableOpacity
               style={styles.exitButton}
               onPress={async () => {
@@ -2414,6 +2423,17 @@ export default function CreateProfileScreen() {
         )}
         <Text style={styles.title}>Set up your profile</Text>
         <Text style={styles.subtitle}>Step {step} of {TOTAL_STEPS}</Text>
+        {connectSetupComplete && existingProfile && !startFromBeginning ? (
+          <TouchableOpacity
+            style={styles.emailSupportLink}
+            onPress={openCreateProfileSupportEmail}
+            activeOpacity={0.8}
+            accessibilityRole="link"
+            accessibilityLabel="Email support"
+          >
+            <Text style={styles.emailSupportLinkText}>Email support</Text>
+          </TouchableOpacity>
+        ) : null}
       </LinearGradient>
 
       {renderStepIndicator()}
@@ -2582,6 +2602,17 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.9)',
     fontSize: 15,
     fontWeight: '600',
+  },
+  emailSupportLink: {
+    marginTop: 6,
+    paddingVertical: 4,
+    alignSelf: 'center',
+  },
+  emailSupportLinkText: {
+    color: 'rgba(255, 255, 255, 0.92)',
+    fontSize: 14,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
   title: {
     fontSize: 32,
