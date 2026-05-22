@@ -700,16 +700,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const fetchUser = async (useCache: boolean = true) => {
+  const fetchUser = async (useCache: boolean = true, options?: { silent?: boolean }) => {
+    const silent = options?.silent === true;
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) {
         setUser(null);
         setProfile(null);
         setConnectSetupComplete(false);
-        setLoading(false);
+        if (!silent) setLoading(false);
         return;
       }
+
+      if (!silent) setLoading(true);
 
       let data: any;
       try {
@@ -726,7 +729,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(null);
           setProfile(null);
           setConnectSetupComplete(false);
-          setLoading(false);
+          if (!silent) setLoading(false);
           return;
         }
         // For auth errors (401, 403), clear token
@@ -735,7 +738,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(null);
           setProfile(null);
           setConnectSetupComplete(false);
-          setLoading(false);
+          if (!silent) setLoading(false);
           return;
         }
         // JWT decodes but user row is gone (DB reset, deleted account, stale deploy)
@@ -745,7 +748,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(null);
           setProfile(null);
           setConnectSetupComplete(false);
-          setLoading(false);
+          if (!silent) setLoading(false);
           return;
         }
         throw apiError; // Re-throw other errors
@@ -755,7 +758,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error('Invalid response from server');
       }
 
-      setUser({
+      const nextUser: User = {
         id: data.user.id,
         email: data.user.email,
         phoneNumber: data.user.phoneNumber,
@@ -764,8 +767,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         matchmakingEnabled: data.matchmakingEnabled !== false,
         matchmakingDisabledMessage:
           typeof data.matchmakingDisabledMessage === 'string' ? data.matchmakingDisabledMessage : null,
-      });
-      setProfile(data.profile || null);
+      };
+      const nextProfile: Profile | null = data.profile || null;
 
       let photoCount =
         typeof data.photoCount === 'number' && Number.isFinite(data.photoCount)
@@ -801,30 +804,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Trust client when /photos/me shows a complete profile even if server flag lags (e.g. filtered photo list).
       const connectReady = serverSaysComplete || clientConnectReady;
 
+      let nextConnectSetupComplete: boolean;
       if (connectReady) {
         await clearMobileCreateProfileDraft();
-        setConnectSetupComplete(true);
+        nextConnectSetupComplete = true;
       } else {
         const wizardDraftActive = await hasMobileCreateProfileDraft();
-        setConnectSetupComplete(
-          computeAppConnectReady(data.profile || null, photoCount ?? 0, wizardDraftActive)
+        nextConnectSetupComplete = computeAppConnectReady(
+          nextProfile,
+          photoCount ?? 0,
+          wizardDraftActive
         );
         if (__DEV__) {
           const missing =
             Array.isArray(data.connectSetupMissing) && data.connectSetupMissing.length > 0
               ? data.connectSetupMissing
-              : getConnectSetupMissing(data.profile || null, photoCount ?? 0);
+              : getConnectSetupMissing(nextProfile, photoCount ?? 0);
           console.warn('[Auth] Connect setup incomplete', {
             missing,
             photoCount,
             serverSaysComplete,
             clientConnectReady,
             wizardDraftActive,
-            displayName: data.profile?.display_name ?? data.profile?.displayName,
-            location: data.profile?.location,
+            displayName: nextProfile?.display_name ?? nextProfile?.displayName,
+            location: nextProfile?.location,
           });
         }
       }
+
+      // Apply session atomically so post-login navigation never flashes CreateProfile for ready accounts.
+      setUser(nextUser);
+      setProfile(nextProfile);
+      setConnectSetupComplete(nextConnectSetupComplete);
 
       const uid = data.user.id;
       const now = Date.now();
@@ -875,7 +886,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setProfile(null);
       setConnectSetupComplete(false);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -971,7 +982,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshProfile = useCallback(async () => {
     api.clearCache('/auth/me');
-    await fetchUserRef.current(false);
+    await fetchUserRef.current(false, { silent: true });
   }, []);
 
   const registerTokensBalanceRefresh = useCallback((callback: (() => Promise<void>) | null) => {
