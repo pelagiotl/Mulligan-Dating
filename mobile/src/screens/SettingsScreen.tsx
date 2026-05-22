@@ -34,7 +34,6 @@ import { purchaseTokensWithGooglePay } from '../utils/googlePay';
 import { navigationRef } from '../navigation/navigationRef';
 import LegalFooter from '../components/LegalFooter';
 import { androidShellBackdropColors } from '../utils/androidConnectShellChrome';
-import { requestMatchCelebrationDemo } from '../utils/matchCelebrationDemo';
 
 interface SettingsData {
   email: string | null;
@@ -971,16 +970,6 @@ export default function SettingsScreen() {
       {/* Legal Footer */}
       <LegalFooter />
 
-      {__DEV__ ? (
-        <TouchableOpacity
-          style={styles.devCelebrationButton}
-          activeOpacity={0.85}
-          onPress={() => requestMatchCelebrationDemo()}
-        >
-          <Text style={styles.devCelebrationButtonText}>🎉 Preview match celebration</Text>
-        </TouchableOpacity>
-      ) : null}
-
       {/* App version — tap 7× to toggle Sentry debug logging (see DEBUGGING.md) */}
       <TouchableOpacity
         activeOpacity={1}
@@ -1611,23 +1600,6 @@ const styles = StyleSheet.create({
   },
   logoutButtonText: {
     color: '#fff',
-  },
-  devCelebrationButton: {
-    marginTop: 8,
-    marginBottom: 4,
-    marginHorizontal: 20,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 14,
-    backgroundColor: 'rgba(236, 72, 153, 0.22)',
-    borderWidth: 1,
-    borderColor: 'rgba(244, 114, 182, 0.45)',
-  },
-  devCelebrationButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#fce7f3',
-    textAlign: 'center',
   },
   versionText: {
     fontSize: 13,

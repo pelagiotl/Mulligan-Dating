@@ -5,31 +5,11 @@ import { connectShellDisplayLabel } from "../lib/connectShellTheme";
 import { api } from "../utils/api";
 import { Link, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import WebTokenPurchase from "../components/WebTokenPurchase";
-import MatchCelebration, {
-  type CelebrationPartnerProfile,
-} from "../components/MatchCelebration";
 import {
   browserSupportsWebPush,
   getVapidPublicKey,
   registerWebPush,
 } from "../lib/webPush";
-import { isMatchCelebrationPreviewEnabled } from "../utils/devTools";
-
-const MATCH_CELEBRATION_DEMO_PHOTO =
-  "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=600&q=80";
-
-const MATCH_CELEBRATION_DEMO_PARTNER: CelebrationPartnerProfile = {
-  age: 28,
-  gender: "Woman",
-  location: "Portland, OR",
-  bio: "Preview match for celebration QA.",
-  lookingFor: "Relationship",
-  interests: ["Hiking", "Coffee", "Live music"],
-  values: ["Honesty", "Adventure"],
-  partnerQualities: [{ quality: "Sense of humor", importance: 3 }],
-  dealbreakers: ["Dishonesty"],
-  preferredGenders: ["Man"],
-};
 
 interface SettingsData {
   email: string;
@@ -62,7 +42,6 @@ export default function Settings() {
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [webPushBusy, setWebPushBusy] = useState(false);
-  const [showCelebrationPreview, setShowCelebrationPreview] = useState(false);
 
   const fetchSettings = async () => {
     try {
@@ -436,25 +415,6 @@ export default function Settings() {
           <WebTokenPurchase variant="settings" customerEmail={settings?.email} />
         </div>
 
-        {isMatchCelebrationPreviewEnabled() ? (
-          <div className="settings-section settings-dev-section">
-            <h2 className="settings-section-title">
-              <span>🛠️</span> Developer
-            </h2>
-            <p className="settings-hint">
-              Preview the full-screen match celebration overlay (same UI as Connect after a real match).
-              Skips the 7-second loading beat so you can review layout quickly.
-            </p>
-            <button
-              type="button"
-              className="settings-dev-celebration-btn"
-              onClick={() => setShowCelebrationPreview(true)}
-            >
-              🎉 Preview match celebration
-            </button>
-          </div>
-        ) : null}
-
         <div className="settings-section settings-session-section">
           <h2 className="settings-section-title">
             <span>🚪</span> Session
@@ -530,25 +490,6 @@ export default function Settings() {
           )}
         </div>
       </div>
-
-      {isMatchCelebrationPreviewEnabled() && showCelebrationPreview ? (
-        <MatchCelebration
-          profileName="Alex"
-          photoUrl={MATCH_CELEBRATION_DEMO_PHOTO}
-          photoGalleryUrls={[MATCH_CELEBRATION_DEMO_PHOTO]}
-          partnerProfileDetail={MATCH_CELEBRATION_DEMO_PARTNER}
-          explanation={{
-            reasons: [
-              "Shared interests in outdoors and music",
-              "Similar relationship goals",
-            ],
-          }}
-          skipLoadingReveal
-          onKeepBrowsing={() => setShowCelebrationPreview(false)}
-          onOpenChat={() => setShowCelebrationPreview(false)}
-          onClose={() => setShowCelebrationPreview(false)}
-        />
-      ) : null}
 
     </div>
   );
