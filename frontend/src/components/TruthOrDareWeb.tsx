@@ -492,6 +492,10 @@ export default function TruthOrDareWeb({
   };
 
   const handleHeaderClick = async () => {
+    if (!truthOrDareEligible) {
+      setMessageGateOpen(true);
+      return;
+    }
     if (isUnlocked) {
       openModal();
       return;

@@ -180,6 +180,7 @@ export default function NeverHaveIEver({
       threshold={MATCH_CHAT_DEPTH_MIN_EACH}
       emoji="🙊"
       kicker="NEVER HAVE I EVER"
+      title="Warm up the chat first"
       subtitle={`Send at least ${MATCH_CHAT_DEPTH_MIN_EACH} messages each — then Never Have I Ever unlocks for this match.`}
       hintText="Real back-and-forth keeps things fun — we'll nudge you until you've both chimed in enough."
     />
@@ -581,6 +582,10 @@ export default function NeverHaveIEver({
   }, [openForAccept]);
 
   const handleOpen = () => {
+    if (!nhieEligible) {
+      setMessageGateModalVisible(true);
+      return;
+    }
     if (Platform.OS === 'ios' || Platform.OS === 'android') {
       Vibration.vibrate(50);
     }
@@ -1026,12 +1031,27 @@ export default function NeverHaveIEver({
     }
   };
 
+  const handleMonkeyPress = () => {
+    if (!nhieEligible) {
+      setMessageGateModalVisible(true);
+      return;
+    }
+    if (isUnlocked) {
+      handleOpen();
+      return;
+    }
+    void handleLockedPress();
+  };
+
   const headerButton = (
     <Animated.View style={{ transform: [{ scale: headerPulseAnim }] }}>
       <TouchableOpacity
-        onPress={isUnlocked ? handleOpen : handleLockedPress}
+        onPress={handleMonkeyPress}
         activeOpacity={0.8}
-        style={[styles.headerIconButton, !isUnlocked && styles.headerIconButtonLocked]}
+        style={[
+          styles.headerIconButton,
+          (!nhieEligible || !isUnlocked) && styles.headerIconButtonLocked,
+        ]}
       >
         <Text style={styles.headerIconEmoji}>🙊</Text>
       </TouchableOpacity>
@@ -1333,7 +1353,7 @@ export default function NeverHaveIEver({
       <View style={[styles.container, compact && styles.containerCompact, square && styles.containerSquare]}>
         <Animated.View style={[styles.buttonWrapper, square && styles.buttonSquare, { transform: [{ scale: pulseAnim }] }]}>
           <View style={styles.buttonGlowLayer} />
-          <TouchableOpacity onPress={handleOpen} activeOpacity={0.9} style={[styles.button, square && styles.buttonSquare]}>
+          <TouchableOpacity onPress={handleMonkeyPress} activeOpacity={0.9} style={[styles.button, square && styles.buttonSquare]}>
             <LinearGradient
               colors={['#00b894', '#00cec9', '#55efc4', '#81ecec', '#00cec9']}
               locations={[0, 0.25, 0.5, 0.75, 1]}

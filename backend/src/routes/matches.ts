@@ -453,8 +453,7 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
       const dealbreakers = otherProfileId ? (dealbreakersMap.get(otherProfileId) || []) : [];
       const preferredGenders = otherProfileId ? (preferredGendersMap.get(otherProfileId) ?? null) : null;
       const unreadMessageCount = unreadCountsMap.get(m.id) || 0;
-      const storedGameUnlocks = gameUnlocksMap.get(m.id) || { truth_or_dare: false, never_have_i_ever: false };
-      const gameUnlocks = { ...storedGameUnlocks, never_have_i_ever: true };
+      const gameUnlocks = gameUnlocksMap.get(m.id) || { truth_or_dare: false, never_have_i_ever: false };
       const compatibilityScore = compatibilityScoresMap.get(m.id) ?? null;
 
       // Profile-based compatibility for match card (shared interests, preferences, etc.) — separate from pulse

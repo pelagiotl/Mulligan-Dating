@@ -712,6 +712,10 @@ export default function NeverHaveIEverWeb({
   };
 
   const handleHeaderClick = async () => {
+    if (!nhieEligible) {
+      setMessageGateOpen(true);
+      return;
+    }
     if (isUnlocked) {
       openModal();
       return;
