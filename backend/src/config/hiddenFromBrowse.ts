@@ -1,4 +1,5 @@
 import { db } from '../database.js';
+import { usNational10Digits } from '../utils/phoneDigits.js';
 
 /**
  * US national 10-digit form of (541) 316-3939 — never shown as a dating candidate to anyone.
@@ -11,17 +12,7 @@ export const HIDDEN_FROM_BROWSE_US_NATIONAL_10 = '5413163939';
  */
 const DEFAULT_HIDDEN_PHONES_E164 = ['+15413163939'];
 
-function digitsOnly(phone: string | null | undefined): string {
-  return String(phone ?? '').replace(/\D/g, '');
-}
-
-/** US national 10 digits (strips leading country code 1 when present). */
-export function usNational10Digits(phone: string | null | undefined): string | null {
-  const d = digitsOnly(phone);
-  if (d.length >= 11 && d.startsWith('1')) return d.slice(-10);
-  if (d.length >= 10) return d.slice(-10);
-  return null;
-}
+export { usNational10Digits } from '../utils/phoneDigits.js';
 
 function collectHiddenNational10(): Set<string> {
   const set = new Set<string>();

@@ -27,6 +27,7 @@ export async function deleteUserAccountData(userId: string): Promise<void> {
   await run('DELETE FROM messages WHERE sender_id = ?', [userId]);
 
   await run('DELETE FROM blocks WHERE blocker_id = ? OR blocked_id = ?', [userId, userId]);
+  await run('DELETE FROM blocked_phone_numbers WHERE blocker_id = ?', [userId]);
   await run('DELETE FROM reports WHERE reporter_id = ? OR reported_user_id = ?', [userId, userId]);
   await run('DELETE FROM mulligan_tokens WHERE user_id = ?', [userId]);
   await run('DELETE FROM referrals WHERE referrer_id = ? OR referred_id = ?', [userId, userId]);

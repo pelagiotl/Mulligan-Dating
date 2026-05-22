@@ -596,6 +596,11 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
       return res.status(400).json({ error: "Target user profile not found" });
     }
 
+    const { isPairBlocked } = await import("../services/blockedMatching.js");
+    if (await isPairBlocked(userId, targetUserId)) {
+      return res.status(404).json({ error: "Profile not available" });
+    }
+
     const userPrefsResult = db.prepare("SELECT preferred_genders FROM preferences WHERE profile_id = ?").get([userProfile.id]);
     const userPrefsRow = (userPrefsResult instanceof Promise ? await userPrefsResult : userPrefsResult) as { preferred_genders: string | null } | undefined;
     const targetPrefsResult = db.prepare("SELECT preferred_genders FROM preferences WHERE profile_id = ?").get([targetProfile.id]);

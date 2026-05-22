@@ -543,6 +543,18 @@ export async function initDatabase() {
     )
   `);
 
+  // Block list by phone (10-digit US national) — works before the other person signs up
+  await execSQL(`
+    CREATE TABLE IF NOT EXISTS blocked_phone_numbers (
+      id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} PRIMARY KEY,
+      blocker_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      phone_national_10 ${usePostgres ? 'VARCHAR(10)' : 'TEXT'} NOT NULL,
+      created_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (blocker_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE(blocker_id, phone_national_10)
+    )
+  `);
+
   // Reports table - user A reports user B (for moderation)
   await execSQL(`
     CREATE TABLE IF NOT EXISTS reports (
@@ -686,6 +698,8 @@ export async function initDatabase() {
     // Blocks indexes
     await execSQL(`CREATE INDEX IF NOT EXISTS idx_blocks_blocker_id ON blocks(blocker_id)`);
     await execSQL(`CREATE INDEX IF NOT EXISTS idx_blocks_blocked_id ON blocks(blocked_id)`);
+    await execSQL(`CREATE INDEX IF NOT EXISTS idx_blocked_phone_blocker ON blocked_phone_numbers(blocker_id)`);
+    await execSQL(`CREATE INDEX IF NOT EXISTS idx_blocked_phone_national ON blocked_phone_numbers(phone_national_10)`);
 
     // Reports indexes
     await execSQL(`CREATE INDEX IF NOT EXISTS idx_reports_reporter_id ON reports(reporter_id)`);

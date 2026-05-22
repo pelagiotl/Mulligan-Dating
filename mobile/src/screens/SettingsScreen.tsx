@@ -710,7 +710,7 @@ export default function SettingsScreen() {
             activeOpacity={0.8}
           >
             <Text style={styles.pushNotificationsRowIcon}>🚫</Text>
-            <Text style={styles.pushNotificationsRowText}>Blocked users</Text>
+            <Text style={styles.pushNotificationsRowText}>Block list</Text>
             <Text style={styles.pushNotificationsRowChevron}>›</Text>
           </TouchableOpacity>
         </View>

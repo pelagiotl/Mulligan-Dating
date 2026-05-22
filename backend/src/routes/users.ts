@@ -156,16 +156,8 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
     
     const matchedUserIds = existingMatches.map(m => m.matched_user_id);
 
-    // Get list of blocked user IDs (both directions)
-    const blockedUsers = await (db
-      .prepare(
-        `SELECT blocked_id as user_id FROM blocks WHERE blocker_id = ?
-         UNION
-         SELECT blocker_id as user_id FROM blocks WHERE blocked_id = ?`
-      )
-      .all([req.userId, req.userId]) as Promise<{ user_id: string }[]>);
-    
-    const blockedUserIds = blockedUsers.map(b => b.user_id);
+    const { getAllExcludedUserIdsForBrowse } = await import('../services/blockedMatching.js');
+    const blockedUserIds = await getAllExcludedUserIdsForBrowse(req.userId!);
 
     const hiddenFromBrowseIds = await getHiddenFromBrowseUserIds();
 
@@ -609,12 +601,8 @@ usersRouter.get('/diagnose/:targetUserId', authenticateToken, async (req: AuthRe
     ).get([userId, targetUserId, targetUserId, userId]) as Promise<{ id: string } | undefined>);
     const isAlreadyMatched = !!existingMatch;
 
-    // Check if blocked
-    const blockedCheck = await (db.prepare(
-      `SELECT id FROM blocks 
-       WHERE (blocker_id = ? AND blocked_id = ?) OR (blocker_id = ? AND blocked_id = ?)`
-    ).get([userId, targetUserId, targetUserId, userId]) as Promise<{ id: string } | undefined>);
-    const isBlocked = !!blockedCheck;
+    const { isPairBlocked } = await import('../services/blockedMatching.js');
+    const isBlocked = await isPairBlocked(userId, targetUserId);
 
     // Check age filter
     let ageFilterPass = true;

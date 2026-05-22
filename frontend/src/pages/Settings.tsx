@@ -18,6 +18,22 @@ interface SettingsData {
   showActiveStatus?: boolean;
 }
 
+interface BlockedUser {
+  id: string;
+  displayName: string | null;
+  email: string;
+  phoneDisplay: string | null;
+  phoneNational10: string | null;
+  blockedAt: string;
+}
+
+interface BlockedPhone {
+  id: string;
+  phoneNational10: string;
+  phoneDisplay: string;
+  blockedAt: string;
+}
+
 export default function Settings() {
   const { logout, profile, refreshProfile, user, refreshSession } = useAuth();
   const { mode: connectShellMode, toggleMode: toggleConnectShellMode } = useConnectShellTheme();
@@ -43,6 +59,28 @@ export default function Settings() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [webPushBusy, setWebPushBusy] = useState(false);
 
+  const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
+  const [blockedPhoneNumbers, setBlockedPhoneNumbers] = useState<BlockedPhone[]>([]);
+  const [blocksLoading, setBlocksLoading] = useState(true);
+  const [blockPhoneInput, setBlockPhoneInput] = useState("");
+  const [blockingPhone, setBlockingPhone] = useState(false);
+  const [unblockingKey, setUnblockingKey] = useState<string | null>(null);
+
+  const fetchBlockList = async () => {
+    try {
+      const data = await api.get<{
+        blockedUsers: BlockedUser[];
+        blockedPhoneNumbers: BlockedPhone[];
+      }>("/blocks");
+      setBlockedUsers(data?.blockedUsers ?? []);
+      setBlockedPhoneNumbers(data?.blockedPhoneNumbers ?? []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load block list");
+    } finally {
+      setBlocksLoading(false);
+    }
+  };
+
   const fetchSettings = async () => {
     try {
       const data = await api.get<SettingsData>("/settings");
@@ -65,6 +103,7 @@ export default function Settings() {
 
   useEffect(() => {
     fetchSettings();
+    void fetchBlockList();
     const paymentStatus = searchParams.get("payment");
     if (paymentStatus === "success") {
       setSuccess("Payment successful! Your tokens have been added.");
@@ -119,6 +158,71 @@ export default function Settings() {
       setError(err instanceof Error ? err.message : "Failed to update");
     } finally {
       setActiveStatusSaving(false);
+    }
+  };
+
+  const handleBlockPhone = async (e: FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+    const trimmed = blockPhoneInput.trim();
+    if (!trimmed) {
+      setError("Enter a phone number to block.");
+      return;
+    }
+    setBlockingPhone(true);
+    try {
+      const result = await api.post<{ message: string }>("/blocks/by-phone", {
+        phoneNumber: trimmed,
+      });
+      setSuccess(result.message || "Number blocked.");
+      setBlockPhoneInput("");
+      await fetchBlockList();
+      setTimeout(() => setSuccess(""), 5000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to block phone number");
+    } finally {
+      setBlockingPhone(false);
+    }
+  };
+
+  const handleUnblockUser = async (user: BlockedUser) => {
+    const label = user.displayName || user.phoneDisplay || user.email || "this person";
+    if (!window.confirm(`Unblock ${label}? They may appear in browse again.`)) return;
+    setUnblockingKey(user.id);
+    setError("");
+    try {
+      if (user.phoneNational10) {
+        await api.delete(`/blocks/by-phone/${encodeURIComponent(user.phoneNational10)}`);
+      } else {
+        await api.delete(`/blocks/${user.id}`);
+      }
+      setBlockedUsers((prev) => prev.filter((u) => u.id !== user.id));
+      setBlockedPhoneNumbers((prev) =>
+        prev.filter((p) => p.phoneNational10 !== user.phoneNational10)
+      );
+      setSuccess("Unblocked.");
+      setTimeout(() => setSuccess(""), 4000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to unblock");
+    } finally {
+      setUnblockingKey(null);
+    }
+  };
+
+  const handleUnblockPhone = async (entry: BlockedPhone) => {
+    if (!window.confirm(`Remove ${entry.phoneDisplay} from your block list?`)) return;
+    setUnblockingKey(entry.id);
+    setError("");
+    try {
+      await api.delete(`/blocks/by-phone/${encodeURIComponent(entry.phoneNational10)}`);
+      setBlockedPhoneNumbers((prev) => prev.filter((p) => p.id !== entry.id));
+      setSuccess("Unblocked.");
+      setTimeout(() => setSuccess(""), 4000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to unblock");
+    } finally {
+      setUnblockingKey(null);
     }
   };
 
@@ -405,6 +509,83 @@ export default function Settings() {
               <span>📷</span> Photos (need 3 to Connect)
             </Link>
           </div>
+        </div>
+
+        <div className="settings-section">
+          <h2 className="settings-section-title">
+            <span>🚫</span> Block list
+          </h2>
+          <p className="settings-hint">
+            Add phone numbers of people you do not want to match with. They will not appear in browse and
+            you cannot Connect with them. Works even if they have not signed up yet.
+          </p>
+          <form onSubmit={(e) => void handleBlockPhone(e)} className="settings-form">
+            <div className="form-group">
+              <label htmlFor="blockPhone">Phone number</label>
+              <input
+                id="blockPhone"
+                type="tel"
+                className="form-input"
+                value={blockPhoneInput}
+                onChange={(e) => setBlockPhoneInput(e.target.value)}
+                placeholder="e.g. 541-555-1234"
+                autoComplete="tel"
+              />
+            </div>
+            <button type="submit" className="btn btn-primary" disabled={blockingPhone}>
+              {blockingPhone ? "Blocking…" : "Block number"}
+            </button>
+          </form>
+          {blocksLoading ? (
+            <p className="settings-hint" style={{ marginTop: "var(--space-3)" }}>
+              Loading block list…
+            </p>
+          ) : blockedUsers.length === 0 && blockedPhoneNumbers.length === 0 ? (
+            <p className="settings-hint" style={{ marginTop: "var(--space-3)" }}>
+              No blocked numbers yet.
+            </p>
+          ) : (
+            <ul className="settings-block-list" style={{ marginTop: "var(--space-4)" }}>
+              {blockedUsers.map((user) => (
+                <li key={`user-${user.id}`} className="settings-block-list-item">
+                  <div>
+                    <strong>{user.displayName || user.phoneDisplay || user.email}</strong>
+                    {user.phoneDisplay && user.displayName ? (
+                      <span className="settings-hint" style={{ display: "block" }}>
+                        {user.phoneDisplay}
+                      </span>
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    disabled={unblockingKey === user.id}
+                    onClick={() => void handleUnblockUser(user)}
+                  >
+                    {unblockingKey === user.id ? "…" : "Unblock"}
+                  </button>
+                </li>
+              ))}
+              {blockedPhoneNumbers.map((entry) => (
+                <li key={`phone-${entry.id}`} className="settings-block-list-item">
+                  <div>
+                    <strong>{entry.phoneDisplay}</strong>
+                    <span className="settings-hint" style={{ display: "block" }}>
+                      Not on Mulligan yet
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    disabled={unblockingKey === entry.id}
+                    onClick={() => void handleUnblockPhone(entry)}
+                  >
+                    {unblockingKey === entry.id ? "…" : "Unblock"}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         {/* Tokens — shared with landing page (WebTokenPurchase) */}

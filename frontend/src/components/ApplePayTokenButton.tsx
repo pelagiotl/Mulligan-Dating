@@ -68,6 +68,8 @@ type ApplePayTokenButtonProps = {
   onSuccess: (message: string) => void;
   onError: (message: string) => void;
   onFinally?: () => void;
+  /** Fired synchronously on tap before Apple Pay session opens (e.g. snapshot token balance). */
+  onBeforePay?: () => void;
 };
 
 /**
@@ -90,6 +92,7 @@ export default function ApplePayTokenButton({
   onSuccess,
   onError,
   onFinally,
+  onBeforePay,
 }: ApplePayTokenButtonProps) {
   const [preparing, setPreparing] = useState(false);
   const [sessionOpen, setSessionOpen] = useState(false);
@@ -107,6 +110,7 @@ export default function ApplePayTokenButton({
   const sessionOpenRef = useRef(false);
   const onSuccessRef = useRef(onSuccess);
   const onErrorRef = useRef(onError);
+  const onBeforePayRef = useRef(onBeforePay);
   const onFinallyRef = useRef(onFinally);
 
   packageIdRef.current = packageId;
@@ -114,6 +118,7 @@ export default function ApplePayTokenButton({
   disabledRef.current = disabled;
   onSuccessRef.current = onSuccess;
   onErrorRef.current = onError;
+  onBeforePayRef.current = onBeforePay;
   onFinallyRef.current = onFinally;
 
   const clearPrepRefsOnly = useCallback(() => {
@@ -249,6 +254,7 @@ export default function ApplePayTokenButton({
     const onNativeClick = (ev: MouseEvent) => {
       if (ev.button !== 0) return;
       if (disabledRef.current || sessionOpenRef.current) return;
+      onBeforePayRef.current?.();
 
       const S = getApplePaySession();
       const mid = merchantIdRef.current;

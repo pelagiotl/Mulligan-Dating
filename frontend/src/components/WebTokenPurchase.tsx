@@ -13,6 +13,7 @@ import {
   matchRcPackage,
 } from "../lib/revenuecatWeb";
 import { emitTokenBalanceUpdated } from "../lib/tokenBalanceEvents";
+import { syncTokenBalanceAfterPurchase } from "../utils/syncTokenBalanceAfterPurchase";
 
 export type WebTokenPurchaseVariant = "settings" | "landing";
 
@@ -70,6 +71,8 @@ export default function WebTokenPurchase({ variant, customerEmail }: WebTokenPur
   const [tokenError, setTokenError] = useState("");
   const [tokenSuccess, setTokenSuccess] = useState("");
   const [expanded, setExpanded] = useState(variant === "settings");
+
+  const balanceBeforePurchaseRef = useRef<number | null>(null);
 
   const fetchPackages = useCallback(async () => {
     if (!user?.id) return;
@@ -164,14 +167,21 @@ export default function WebTokenPurchase({ variant, customerEmail }: WebTokenPur
       }
 
       setPurchasing(pkg.id);
+      balanceBeforePurchaseRef.current = availableTokens;
       try {
         const purchases = await getRevenueCatPurchases(user.id);
         await purchases.purchase({
           rcPackage: rcPkg,
           customerEmail: customerEmail ?? undefined,
         });
+        const synced = await syncTokenBalanceAfterPurchase(
+          balanceBeforePurchaseRef.current ?? undefined
+        );
+        if (synced != null) setAvailableTokens(synced);
         setTokenSuccess(
-          `${pkg.tokens} token(s) added! If your balance does not update within a minute, refresh or reopen this page.`
+          synced != null
+            ? `${pkg.tokens} token(s) added! You now have ${synced} token(s).`
+            : `${pkg.tokens} token(s) purchased — balance updating shortly.`
         );
         setTimeout(() => setTokenSuccess(""), 8000);
         await fetchPackages();
@@ -188,6 +198,7 @@ export default function WebTokenPurchase({ variant, customerEmail }: WebTokenPur
 
     if (authorizeNetCheckoutEnabled) {
       setPurchasing(pkg.id);
+      balanceBeforePurchaseRef.current = availableTokens;
       try {
         const res = await api.post<{ token: string; hostedPaymentUrl: string }>("/payments/create-checkout", {
           packageId: pkg.id,
@@ -255,9 +266,15 @@ export default function WebTokenPurchase({ variant, customerEmail }: WebTokenPur
               setAnetHostedUrl(null);
               anetFormSubmittedRef.current = false;
               const n = result.tokens_granted ?? 0;
+              const synced = await syncTokenBalanceAfterPurchase(
+                balanceBeforePurchaseRef.current ?? undefined
+              );
+              if (synced != null) setAvailableTokens(synced);
               setTokenSuccess(
                 n > 0
-                  ? `${n} token(s) added to your account.`
+                  ? synced != null
+                    ? `${n} token(s) added! You now have ${synced} token(s).`
+                    : `${n} token(s) added to your account.`
                   : "Payment recorded. You may already be at the token cap."
               );
               setTimeout(() => setTokenSuccess(""), 8000);
@@ -503,11 +520,20 @@ export default function WebTokenPurchase({ variant, customerEmail }: WebTokenPur
                       merchantId={applePayMerchantId}
                       compact={variant === "landing"}
                       disabled={purchasing === pkg.id}
+                      onBeforePay={() => {
+                        balanceBeforePurchaseRef.current = availableTokens;
+                      }}
                       onSuccess={(msg) => {
-                        setTokenSuccess(msg);
-                        setTimeout(() => setTokenSuccess(""), 8000);
-                        void fetchPackages();
-                        void refreshProfile();
+                        void (async () => {
+                          const synced = await syncTokenBalanceAfterPurchase(
+                            balanceBeforePurchaseRef.current ?? undefined
+                          );
+                          if (synced != null) setAvailableTokens(synced);
+                          setTokenSuccess(msg);
+                          setTimeout(() => setTokenSuccess(""), 8000);
+                          await fetchPackages();
+                          await refreshProfile();
+                        })();
                       }}
                       onError={(msg) => setTokenError(msg)}
                       onFinally={() => {

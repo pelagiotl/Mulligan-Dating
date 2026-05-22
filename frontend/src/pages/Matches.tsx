@@ -217,42 +217,18 @@ function MatchOtherProfileSections({
 }
 
 
-/** Compact profile hints above the composer (full details live in Profile photos drawer). */
-function MatchComposerProfileHints({ otherUser }: { otherUser: Match["otherUser"] }) {
-  const hasLooking = !!otherUser.lookingFor?.trim();
-  const hasPref = otherUser.preferredGenders !== undefined;
-  if (!hasLooking && !hasPref) return null;
-
-  return (
-    <div className="chat-composer-profile-hints">
-      {hasLooking ? (
-        <div className="chat-composer-hint-item">
-          <span className="chat-composer-hint-label">Looking for</span>
-          <p className="chat-composer-hint-value">{otherUser.lookingFor}</p>
-        </div>
-      ) : null}
-      {hasPref ? (
-        <div className="chat-composer-hint-item">
-          <span className="chat-composer-hint-label">Wants to connect with</span>
-          <p className="chat-composer-hint-value">
-            {formatPreferredMatchesFromGenders(otherUser.preferredGenders)}
-          </p>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 /** Slim photo-unlock reminder in the composer footer (replaces the large scroll-top card). */
 function Stage1PhotoUnlockCompact({
-  messageCounts,
+  myCount,
+  theirCount,
   onOpenExplainer,
 }: {
-  messageCounts: { user: number; other: number } | null;
+  myCount: number;
+  theirCount: number;
   onOpenExplainer: () => void;
 }) {
-  const userCount = messageCounts?.user ?? 0;
-  const otherCount = messageCounts?.other ?? 0;
+  const userCount = myCount;
+  const otherCount = theirCount;
   const bothDone = userCount >= 3 && otherCount >= 3;
 
   return (
@@ -311,29 +287,6 @@ interface Message {
   audioUrl?: string | null;
 }
 
-/** Alternating reply counts toward 3+3 media unlock (must match fetchMessages / server expectations). */
-function computeAlternatingMessageCounts(messages: Message[], currentUserId: string): { user: number; other: number } {
-  const sortedMessages = [...messages].sort(
-    (a, b) => new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime()
-  );
-  let userValidCount = 0;
-  let otherValidCount = 0;
-  for (let i = 0; i < sortedMessages.length; i++) {
-    const currentMessage = sortedMessages[i];
-    const isUser = currentMessage.senderId === currentUserId;
-    if (i === 0) {
-      if (isUser) userValidCount++;
-      else otherValidCount++;
-    } else {
-      const previousMessage = sortedMessages[i - 1];
-      const previousWasUser = previousMessage.senderId === currentUserId;
-      if (isUser && !previousWasUser) userValidCount++;
-      else if (!isUser && previousWasUser) otherValidCount++;
-    }
-  }
-  return { user: userValidCount, other: otherValidCount };
-}
-
 const CHAT_MEDIA_LOCKED_HINT =
   "Photos, video, and voice unlock after you and your match have each sent at least 3 messages in this chat.";
 /** Aligns with mobile photo-guidelines modal + explicit tone for locked media taps */
@@ -359,7 +312,6 @@ export default function Matches() {
   const [sendingMessage, setSendingMessage] = useState(false);
   const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
   const [isTyping, setIsTyping] = useState(false);
-  const [messageCounts, setMessageCounts] = useState<{ user: number; other: number } | null>(null);
   const [notification, setNotification] = useState<{
     message: string;
     type: "success" | "info" | "warning" | "error";
@@ -691,11 +643,6 @@ export default function Matches() {
         }
         const updated = [...prev, { ...message, isOwn: message.senderId === user.id }];
 
-        // Use ref, not selectedMatch: socket effect deps are [user] only — selectedMatch is stale here.
-        if (openId && user) {
-          setMessageCounts(computeAlternatingMessageCounts(updated, user.id));
-        }
-
         return updated;
       });
     });
@@ -959,9 +906,6 @@ export default function Matches() {
       // Join match room
       socketRef.current.emit('join_match', selectedMatch.id);
       
-      // Reset message counts
-      setMessageCounts(null);
-      
       // Fetch initial messages
       fetchMessages(selectedMatch.id);
       
@@ -1070,10 +1014,6 @@ export default function Matches() {
       if (selectedMatchIdRef.current !== matchId) return;
 
       setMessages(data.messages);
-
-      if (user) {
-        setMessageCounts(computeAlternatingMessageCounts(data.messages, user.id));
-      }
     } catch (err) {
       console.error("Failed to fetch messages:", err);
     }
@@ -2758,9 +2698,9 @@ export default function Matches() {
                 <div key={`composer-${selectedMatch.id}`} className="message-input-container">
                   {selectedMatch.stage === "stage1" ? (
                     <div className="chat-composer-meta">
-                      <MatchComposerProfileHints otherUser={selectedMatch.otherUser} />
                       <Stage1PhotoUnlockCompact
-                        messageCounts={messageCounts}
+                        myCount={chatMediaMessageCounts.my}
+                        theirCount={chatMediaMessageCounts.their}
                         onOpenExplainer={() => setPhotoUnlockExplainerOpen(true)}
                       />
                     </div>
