@@ -36,10 +36,14 @@
   pointer-events: none;
 }
 
+.connect-shimmer__trace {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
 .connect-shimmer__corner {
   position: absolute;
-  width: calc(var(--connect-shimmer-radius, 22px) + 2.5px);
-  height: calc(var(--connect-shimmer-radius, 22px) + 2.5px);
   box-sizing: border-box;
   background: transparent;
   pointer-events: none;
@@ -77,8 +81,10 @@
   position: absolute;
   left: 0;
   width: 2.5px;
+  transform-origin: top center;
   background: rgba(103, 232, 249, 0.95);
   box-shadow: 0 0 5px rgba(34, 211, 238, 0.6);
+  will-change: transform;
 }
 
 .connect-shimmer__edge-h {
@@ -86,9 +92,9 @@
   left: 0;
   top: 0;
   height: 2.5px;
-  transform-origin: left center;
   background: rgba(103, 232, 249, 0.95);
   box-shadow: 0 0 6px rgba(34, 211, 238, 0.7);
+  will-change: transform;
 }
 
 .connect-shimmer__edge-h--bottom {
@@ -116,6 +122,7 @@
   width: 2.5px;
   background: rgba(103, 232, 249, 0.95);
   box-shadow: 0 0 6px rgba(34, 211, 238, 0.85);
+  will-change: transform;
 }
 
 /* ─── Heart / emoji particles ─── */

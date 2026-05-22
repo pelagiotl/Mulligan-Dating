@@ -1,90 +1,93 @@
-export type TraceMetrics = {
+import { CONNECT_TRACE_EDGE_PX } from '../constants/connectButtonEffects';
+
+export type SweepMetrics = {
   traceW: number;
   sideSegmentH: number;
   hEnd: number;
-  cornerStart: number;
-  cornerEnd: number;
 };
 
-export function interpolatePiecewise(
-  t: number,
-  input: number[],
-  output: number[]
-): number {
-  if (t <= input[0]) return output[0];
-  const last = input.length - 1;
-  if (t >= input[last]) return output[last];
-  for (let i = 0; i < last; i++) {
-    if (t >= input[i] && t <= input[i + 1]) {
-      const span = input[i + 1] - input[i];
-      if (span <= 0) return output[i + 1];
-      const u = (t - input[i]) / span;
-      return output[i] + u * (output[i + 1] - output[i]);
-    }
-  }
-  return output[last];
-}
-
-export function computeTraceMetrics(
+export function computeSweepMetrics(
   width: number,
   height: number,
   borderRadius: number
-): TraceMetrics {
+): SweepMetrics {
   const traceW = width;
   const sideSegmentH = Math.max(1, height - borderRadius * 2);
   const perimeter = traceW + sideSegmentH;
   const hEnd = perimeter > 0 ? traceW / perimeter : 0.75;
-  const blend = Math.min(0.045, (1 - hEnd) * 0.45);
-  const cornerStart = Math.max(0, hEnd - blend);
-  const cornerEnd = Math.min(1, hEnd + blend * 0.35);
-  return { traceW, sideSegmentH, hEnd, cornerStart, cornerEnd };
+  return { traceW, sideSegmentH, hEnd };
 }
 
-export type ShimmerFrame = {
+export type SweepFrame = {
+  /** Top/bottom horizontal extent (0.001–1), linear with progress. */
   scaleX: number;
+  /** Left vertical 0→1 top to bottom while sweep begins at left. */
+  leftReveal: number;
+  tlOpacity: number;
+  blOpacity: number;
   rightTranslateY: number;
+  rightOpacity: number;
   traceOpacity: number;
-  leftCornerOpacity: number;
-  leftEdgeOpacity: number;
-  rightPhaseOpacity: number;
 };
 
-export function shimmerFrameAt(p: number, metrics: TraceMetrics): ShimmerFrame {
-  const { traceW, sideSegmentH, hEnd, cornerStart, cornerEnd } = metrics;
-  const keys = [0, cornerStart, cornerEnd, 1];
+/**
+ * Left→right sweep: left edge grows top→bottom, top/bottom extend right, right edge draws down.
+ * Progress 0 = nothing drawn; 1 = full perimeter before loop reset.
+ */
+export function sweepFrameAt(progress: number, metrics: SweepMetrics): SweepFrame {
+  const { traceW, sideSegmentH, hEnd } = metrics;
+  const p = Math.max(0, Math.min(1, progress));
+
+  if (p <= 0) {
+    return {
+      scaleX: 0.001,
+      leftReveal: 0,
+      tlOpacity: 0,
+      blOpacity: 0,
+      rightTranslateY: -sideSegmentH,
+      rightOpacity: 0,
+      traceOpacity: 0,
+    };
+  }
+
+  const traceOpacity = p <= 0.03 ? 0.5 + (p / 0.03) * 0.5 : 1;
+
+  // Left edge + corners: connect top→bottom during early left→right phase
+  const leftPhaseEnd = Math.min(0.14, hEnd * 0.18);
+  const leftReveal = Math.min(1, p / leftPhaseEnd);
+  const tlOpacity = Math.min(1, leftReveal * 1.4);
+  const blOpacity = leftReveal < 0.72 ? 0 : Math.min(1, (leftReveal - 0.72) / 0.28);
+
+  // Top/bottom: constant horizontal speed (linear in progress until hEnd)
+  const hProgress = Math.min(1, p / hEnd);
+  const scaleX = Math.max(0.001, hProgress);
+
+  // Right edge: only after horizontal sweep reaches the right side
+  const blend = Math.min(0.04, (1 - hEnd) * 0.4);
+  const cornerStart = Math.max(hEnd * 0.92, hEnd - blend);
+  let rightOpacity = 0;
+  let rightTranslateY = -sideSegmentH;
+  if (p > cornerStart) {
+    const rProg = Math.min(1, (p - cornerStart) / (1 - cornerStart));
+    rightOpacity = 1;
+    rightTranslateY = -sideSegmentH * (1 - rProg);
+  }
 
   return {
-    scaleX: interpolatePiecewise(p, keys, [0.001, 0.97, 1, 1]),
-    rightTranslateY: interpolatePiecewise(p, keys, [
-      -sideSegmentH,
-      -sideSegmentH,
-      -sideSegmentH * 0.35,
-      0,
-    ]),
-    traceOpacity: interpolatePiecewise(p, [0, 0.03, 1], [0.5, 1, 1]),
-    leftCornerOpacity: interpolatePiecewise(
-      p,
-      [0, Math.min(0.05, hEnd * 0.12)],
-      [0, 1]
-    ),
-    leftEdgeOpacity: interpolatePiecewise(
-      p,
-      [0, Math.min(0.06, hEnd * 0.14)],
-      [0, 1]
-    ),
-    rightPhaseOpacity: interpolatePiecewise(
-      p,
-      [cornerStart - 0.002, cornerStart],
-      [0, 1]
-    ),
+    scaleX,
+    leftReveal,
+    tlOpacity,
+    blOpacity,
+    rightTranslateY,
+    rightOpacity,
+    traceOpacity,
   };
 }
 
-/** Left-anchored scaleX transform for a bar of width traceW. */
-export function horizontalSweepTransform(
-  traceW: number,
-  scaleX: number
-): string {
+/** Left-anchored scaleX (RN translate-scale-translate). */
+export function horizontalSweepTransform(traceW: number, scaleX: number): string {
   const halfW = traceW / 2;
   return `translateX(${-halfW}px) scaleX(${scaleX}) translateX(${halfW}px)`;
 }
+
+export const CONNECT_TRACE_EDGE = CONNECT_TRACE_EDGE_PX;

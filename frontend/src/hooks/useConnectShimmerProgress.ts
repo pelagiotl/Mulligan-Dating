@@ -1,31 +1,19 @@
-import { useEffect, useState } from 'react';
-import { CONNECT_SHIMMER_DURATION_MS } from '../constants/connectButtonEffects';
+import {
+  CONNECT_SHIMMER_DURATION_MS,
+  CONNECT_SHIMMER_LOOP_GAP_MS,
+} from '../constants/connectButtonEffects';
 
-/** Linear 0→1 loop for perimeter shimmer (matches RN connectButtonShimmer timing). */
-export function useConnectShimmerProgress(
-  active: boolean,
-  durationMs = CONNECT_SHIMMER_DURATION_MS
+/**
+ * Linear 0→1 with end-of-loop hold — matches RN Animated.sequence
+ * (timing 0→1, delay 50ms, snap to 0).
+ */
+export function connectShimmerProgressAt(
+  now: number,
+  startMs: number,
+  durationMs = CONNECT_SHIMMER_DURATION_MS,
+  loopGapMs = CONNECT_SHIMMER_LOOP_GAP_MS
 ): number {
-  const [progress, setProgress] = useState(0);
-
-  useEffect(() => {
-    if (!active) {
-      setProgress(0);
-      return;
-    }
-
-    let start = performance.now();
-    let raf = 0;
-
-    const tick = (now: number) => {
-      const elapsed = (now - start) % durationMs;
-      setProgress(elapsed / durationMs);
-      raf = requestAnimationFrame(tick);
-    };
-
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [active, durationMs]);
-
-  return progress;
+  const cycleMs = durationMs + loopGapMs;
+  const elapsed = (now - startMs) % cycleMs;
+  return elapsed < durationMs ? elapsed / durationMs : 1;
 }

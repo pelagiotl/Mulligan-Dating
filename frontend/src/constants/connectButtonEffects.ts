@@ -1,5 +1,7 @@
 /** Shared with mobile ConnectButtonShimmerEffect / ConnectButtonHeartFireworks. */
 export const CONNECT_SHIMMER_DURATION_MS = 3400;
+/** Hold at progress=1 before loop reset (mobile Animated.delay(50)). */
+export const CONNECT_SHIMMER_LOOP_GAP_MS = 50;
 
 export const CONNECT_TRACE_COLOR = 'rgba(103, 232, 249, 0.95)';
 export const CONNECT_TRACE_EDGE_PX = 2.5;
