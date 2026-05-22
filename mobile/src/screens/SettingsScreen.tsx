@@ -74,10 +74,12 @@ export default function SettingsScreen() {
 
   // Delete account
   const [deleting, setDeleting] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const logoutModalScale = useRef(new Animated.Value(0.9)).current;
   const logoutModalOpacity = useRef(new Animated.Value(0)).current;
+  const deleteModalScale = useRef(new Animated.Value(0.9)).current;
+  const deleteModalOpacity = useRef(new Animated.Value(0)).current;
 
   // Token purchase (backend packages + RevenueCat price/package for purchase)
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
@@ -398,35 +400,42 @@ export default function SettingsScreen() {
     }
   }, [packages, refreshProfile, refreshTokensBalance]);
 
-  const handleDeleteAccount = useCallback(async () => {
+  const handleConfirmDeleteAccount = useCallback(async () => {
     setError('');
-
-    Alert.alert(
-      'Delete Account',
-      'Are you absolutely sure? This will permanently delete your account, profile, matches, and messages. This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            setDeleting(true);
-            try {
-              await api.post('/settings/delete-account', {});
-              logout();
-              navigation.reset({
-                index: 0,
-                routes: [{ name: 'PhoneLogin' as never }],
-              });
-            } catch (err: any) {
-              setError(err?.message || 'Failed to delete account');
-              setDeleting(false);
-            }
-          },
-        },
-      ]
-    );
+    setDeleting(true);
+    try {
+      await api.post('/settings/delete-account', {});
+      setShowDeleteAccountModal(false);
+      logout();
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'PhoneLogin' as never }],
+      });
+    } catch (err: any) {
+      setError(err?.message || 'Failed to delete account');
+      setDeleting(false);
+    }
   }, [logout, navigation]);
+
+  useEffect(() => {
+    if (showDeleteAccountModal) {
+      deleteModalScale.setValue(0.9);
+      deleteModalOpacity.setValue(0);
+      Animated.parallel([
+        Animated.spring(deleteModalScale, {
+          toValue: 1,
+          friction: 7,
+          tension: 80,
+          useNativeDriver: true,
+        }),
+        Animated.timing(deleteModalOpacity, {
+          toValue: 1,
+          duration: 220,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [showDeleteAccountModal, deleteModalScale, deleteModalOpacity]);
 
   useEffect(() => {
     if (showLogoutModal) {
@@ -890,46 +899,16 @@ export default function SettingsScreen() {
           <Text style={styles.sectionEmoji}>⚠️</Text>
           <Text style={styles.sectionTitle}>Danger Zone</Text>
         </View>
-        {!showDeleteConfirm ? (
-          <View>
-            <Text style={styles.dangerText}>
-              Deleting your account will permanently remove all your data, matches, and messages. This cannot be undone.
-            </Text>
-            <TouchableOpacity
-              style={[styles.button, styles.dangerButton]}
-              onPress={() => setShowDeleteConfirm(true)}
-            >
-              <Text style={[styles.buttonText, styles.dangerButtonText]}>Delete Account</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View>
-            <Text style={styles.dangerText}>
-              This action cannot be undone. All your data will be permanently deleted.
-            </Text>
-            <View style={styles.deleteActions}>
-              <TouchableOpacity
-                style={[styles.button, styles.secondaryButton]}
-                onPress={() => {
-                  setShowDeleteConfirm(false);
-                }}
-              >
-                <Text style={[styles.buttonText, styles.secondaryButtonText]}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.button, styles.dangerButton, deleting && styles.buttonDisabled]}
-                onPress={handleDeleteAccount}
-                disabled={deleting}
-              >
-                {deleting ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={[styles.buttonText, styles.dangerButtonText]}>Yes, Delete My Account</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
+        <Text style={styles.dangerText}>
+          Deleting your account permanently removes your profile, matches, messages, and tokens. This cannot be undone.
+        </Text>
+        <TouchableOpacity
+          style={[styles.button, styles.dangerButton]}
+          onPress={() => setShowDeleteAccountModal(true)}
+          activeOpacity={0.85}
+        >
+          <Text style={[styles.buttonText, styles.dangerButtonText]}>Delete Account</Text>
+        </TouchableOpacity>
       </Animated.View>
 
       {/* Help & Support */}
@@ -1021,6 +1000,76 @@ export default function SettingsScreen() {
       </TouchableOpacity>
 
       </ScrollView>
+
+      {/* Delete account confirmation */}
+      <Modal
+        visible={showDeleteAccountModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => !deleting && setShowDeleteAccountModal(false)}
+      >
+        <View style={styles.logoutModalOverlay}>
+          <TouchableOpacity
+            style={styles.logoutModalBackdrop}
+            activeOpacity={1}
+            onPress={() => !deleting && setShowDeleteAccountModal(false)}
+            disabled={deleting}
+          />
+          <Animated.View
+            style={[
+              styles.logoutModalCardWrap,
+              {
+                opacity: deleteModalOpacity,
+                transform: [{ scale: deleteModalScale }],
+              },
+            ]}
+          >
+            <View style={[styles.logoutModalCard, styles.deleteModalCard]}>
+              <LinearGradient
+                colors={['#7f1d1d', '#dc2626', '#f97316']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.logoutModalGradient}
+              >
+                <Text style={styles.logoutModalEmoji}>⚠️</Text>
+                <Text style={styles.logoutModalTitle}>Delete your account?</Text>
+                <Text style={styles.logoutModalSubtitle}>
+                  This permanently deletes your profile, photos, matches, and messages. You cannot undo this.
+                </Text>
+                <View style={styles.logoutModalActions}>
+                  <TouchableOpacity
+                    style={styles.logoutModalStayButton}
+                    onPress={() => setShowDeleteAccountModal(false)}
+                    activeOpacity={0.85}
+                    disabled={deleting}
+                  >
+                    <Text style={styles.logoutModalStayText}>Keep my account</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.logoutModalConfirmWrap}
+                    onPress={() => void handleConfirmDeleteAccount()}
+                    activeOpacity={0.9}
+                    disabled={deleting}
+                  >
+                    <LinearGradient
+                      colors={['rgba(0,0,0,0.35)', 'rgba(0,0,0,0.55)']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.logoutModalConfirmButton}
+                    >
+                      {deleting ? (
+                        <ActivityIndicator color="#fff" />
+                      ) : (
+                        <Text style={styles.logoutModalConfirmText}>Delete forever</Text>
+                      )}
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
+              </LinearGradient>
+            </View>
+          </Animated.View>
+        </View>
+      </Modal>
 
       {/* Logout confirmation */}
       <Modal
@@ -1748,6 +1797,18 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.35)',
+  },
+  deleteModalCard: {
+    borderColor: 'rgba(254, 202, 202, 0.55)',
+    ...Platform.select({
+      android: { elevation: 0 },
+      ios: {
+        shadowColor: '#7f1d1d',
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.45,
+        shadowRadius: 24,
+      },
+    }),
   },
   logoutModalGradient: {
     paddingVertical: 32,

@@ -91,6 +91,19 @@ const PREFERRED_GENDER_META: Record<(typeof PREFERRED_GENDER_OPTIONS)[number], {
 function preferredGenderDisplayLabel(value: string) { return PREFERRED_GENDER_LABELS[value] ?? value; }
 
 /** API: null = everyone; otherwise only Man/Woman (no legacy Other). */
+/** Server stub row from ensureStubProfile — not a user gender choice. */
+function isStubProfileGender(
+  gender: string | null | undefined,
+  profile: { display_name?: string | null; location?: string | null }
+): boolean {
+  const g = (gender ?? '').trim();
+  if (!g) return true;
+  if (g !== 'Other') return false;
+  const hasName = (profile.display_name ?? '').trim().length >= 2;
+  const hasLocation = !!(profile.location ?? '').trim();
+  return !hasName && !hasLocation;
+}
+
 function preferredGendersPayload(g: string[]): string[] | null {
   if (g.includes('Everyone') || g.length === 0) return null;
   const only = g.filter((x) => x === 'Man' || x === 'Woman');
@@ -576,7 +589,13 @@ export default function CreateProfileScreen() {
         const stubName = !(data.profile.display_name ?? '').trim();
         if (!stubName) dn = data.profile.display_name ?? '';
         if (data.profile.age) ageStr = String(data.profile.age);
-        if (data.profile.gender) genderVal = data.profile.gender ?? genderVal;
+        if (draft?.gender?.trim()) {
+          genderVal = draft.gender.trim();
+        } else if (data.profile.gender && !isStubProfileGender(data.profile.gender, data.profile)) {
+          genderVal = data.profile.gender;
+        } else {
+          genderVal = '';
+        }
         if (data.profile.location) loc = data.profile.location ?? '';
         if (data.profile.bio) bioVal = data.profile.bio ?? '';
 
@@ -1455,7 +1474,9 @@ export default function CreateProfileScreen() {
         <LinearGradient colors={['#764ba2', '#f093fb', '#f5576c']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.focusedFieldCard, { padding: rs.cardPadding }]}>
           <Text style={[styles.focusedEmoji, { fontSize: rs.emojiSize, marginBottom: 20 }]}>⚧️</Text>
           <Text style={[styles.focusedTitle, { fontSize: rs.titleSize, marginBottom: rs.titleMargin }]}>What's your gender?</Text>
-          <Text style={[styles.focusedSubtitle, { fontSize: rs.subtitleSize, marginBottom: rs.subtitleMargin }]}>This is how you show up on your profile</Text>
+          <Text style={[styles.focusedSubtitle, { fontSize: rs.subtitleSize, marginBottom: rs.subtitleMargin }]}>
+            {gender ? 'This is how you show up on your profile' : 'Tap an option below — nothing is selected until you choose'}
+          </Text>
           <View style={styles.preferencesGenderGrid}>
             {GENDER_OPTIONS.map((g) => {
               const isSelected = gender === g;
