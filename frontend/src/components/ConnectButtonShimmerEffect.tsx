@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   CONNECT_SHIMMER_DURATION_MS,
-  CONNECT_SHIMMER_LOOP_GAP_MS,
   CONNECT_TRACE_EDGE_PX,
 } from '../constants/connectButtonEffects';
 import { connectShimmerProgressAt } from '../hooks/useConnectShimmerProgress';
@@ -92,8 +91,7 @@ export default function ConnectButtonShimmerEffect({
       const p = connectShimmerProgressAt(
         now,
         animStartRef.current,
-        CONNECT_SHIMMER_DURATION_MS,
-        CONNECT_SHIMMER_LOOP_GAP_MS
+        CONNECT_SHIMMER_DURATION_MS
       );
       const frame = sweepFrameAt(p, metricsRef.current);
       const { traceW } = metricsRef.current;

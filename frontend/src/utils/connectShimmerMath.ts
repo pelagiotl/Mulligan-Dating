@@ -19,9 +19,7 @@ export function computeSweepMetrics(
 }
 
 export type SweepFrame = {
-  /** Top/bottom horizontal extent (0.001–1), linear with progress. */
   scaleX: number;
-  /** Left vertical 0→1 top to bottom while sweep begins at left. */
   leftReveal: number;
   tlOpacity: number;
   blOpacity: number;
@@ -31,11 +29,11 @@ export type SweepFrame = {
 };
 
 /**
- * Left→right sweep: left edge grows top→bottom, top/bottom extend right, right edge draws down.
- * Progress 0 = nothing drawn; 1 = full perimeter before loop reset.
+ * One linear progress drives the whole sweep: left + horizontals move together,
+ * then the right edge continues without a hold or separate left phase.
  */
 export function sweepFrameAt(progress: number, metrics: SweepMetrics): SweepFrame {
-  const { traceW, sideSegmentH, hEnd } = metrics;
+  const { sideSegmentH, hEnd } = metrics;
   const p = Math.max(0, Math.min(1, progress));
 
   if (p <= 0) {
@@ -50,36 +48,36 @@ export function sweepFrameAt(progress: number, metrics: SweepMetrics): SweepFram
     };
   }
 
-  const traceOpacity = p <= 0.03 ? 0.5 + (p / 0.03) * 0.5 : 1;
+  const traceOpacity = 1;
 
-  // Left edge + corners: connect top→bottom during early left→right phase
-  const leftPhaseEnd = Math.min(0.14, hEnd * 0.18);
-  const leftReveal = Math.min(1, p / leftPhaseEnd);
-  const tlOpacity = Math.min(1, leftReveal * 1.4);
-  const blOpacity = leftReveal < 0.72 ? 0 : Math.min(1, (leftReveal - 0.72) / 0.28);
+  // Single lead 0→1 for horizontal phase — left edge and top/bottom stay in sync
+  const lead = Math.min(1, p / hEnd);
+  const scaleX = Math.max(0.001, lead);
+  const leftReveal = lead;
+  const tlOpacity = Math.min(1, lead * 2.5);
+  const blOpacity = lead < 0.88 ? 0 : Math.min(1, (lead - 0.88) / 0.12);
 
-  // Top/bottom: constant horizontal speed (linear in progress until hEnd)
-  const hProgress = Math.min(1, p / hEnd);
-  const scaleX = Math.max(0.001, hProgress);
-
-  // Right edge: only after horizontal sweep reaches the right side
-  const blend = Math.min(0.04, (1 - hEnd) * 0.4);
-  const cornerStart = Math.max(hEnd * 0.92, hEnd - blend);
-  let rightOpacity = 0;
-  let rightTranslateY = -sideSegmentH;
-  if (p > cornerStart) {
-    const rProg = Math.min(1, (p - cornerStart) / (1 - cornerStart));
-    rightOpacity = 1;
-    rightTranslateY = -sideSegmentH * (1 - rProg);
+  if (p < hEnd) {
+    return {
+      scaleX,
+      leftReveal,
+      tlOpacity,
+      blOpacity,
+      rightTranslateY: -sideSegmentH,
+      rightOpacity: 0,
+      traceOpacity,
+    };
   }
 
+  const rProg = Math.min(1, (p - hEnd) / (1 - hEnd));
+
   return {
-    scaleX,
-    leftReveal,
-    tlOpacity,
-    blOpacity,
-    rightTranslateY,
-    rightOpacity,
+    scaleX: 1,
+    leftReveal: 1,
+    tlOpacity: 1,
+    blOpacity: 1,
+    rightTranslateY: -sideSegmentH * (1 - rProg),
+    rightOpacity: 1,
     traceOpacity,
   };
 }
