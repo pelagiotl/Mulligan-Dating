@@ -133,7 +133,7 @@ export default function MulliganMoments({ matchId, socket, onStarterGenerated, d
                 </View>
                 <Text style={styles.starterEmoji}>✨</Text>
               </View>
-              <Text style={styles.starterLabel}>Your fresh opener</Text>
+              <Text style={styles.starterLabel}>Suggested opener</Text>
               <Text style={styles.starterText}>{starter}</Text>
               {explanation ? (
                 <Text style={styles.explanationText}>{explanation}</Text>

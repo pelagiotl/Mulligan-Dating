@@ -71,7 +71,7 @@ export async function isConversationDead(matchId: string): Promise<boolean> {
 }
 
 const DEFAULT_EXPLANATION =
-  'Fresh starter based on your profiles and what you have in common. Send it when it feels right.';
+  'Opener based on your profiles — tweak it so it sounds like you, then send.';
 
 /**
  * Records a conversation reset and returns an AI (or fallback) starter for the match.
@@ -102,7 +102,7 @@ export async function resetConversation(
       const interestsLine =
         shared.length > 0
           ? `Shared interests (background only — do NOT make them the main hook): ${shared.slice(0, 8).join(', ')}.`
-          : 'No shared interests on profiles — write a bold, mature opener for two adults who matched and the chat went quiet.';
+          : 'No shared interests on profiles — write a cool, direct opener for two adults who matched; do not mention a stale or dead chat.';
 
       const completion = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
@@ -122,7 +122,7 @@ export async function resetConversation(
       if (sanitized) {
         starter = sanitized;
         explanation =
-          'AI-generated opener using your match context. Edit it so it sounds like you, then send.';
+          'Generated from your match context. Make it yours, then send.';
       }
     } catch (e) {
       console.warn('[mulliganMoments] OpenAI starter failed:', e);

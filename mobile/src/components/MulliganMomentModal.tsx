@@ -22,9 +22,9 @@ export interface MulliganMomentModalProps {
 }
 
 const FEATURES = [
-  'Fresh AI opener tuned to your shared interests',
-  'Great when the chat went quiet or stale',
-  'Paste it into chat and kick things off again',
+  'New opener tailored to what you have in common',
+  'For when the thread needs a reset',
+  'Drop it in chat — edit first if you want',
 ];
 
 export default function MulliganMomentModal({
@@ -69,7 +69,7 @@ export default function MulliganMomentModal({
             <Text style={styles.kicker}>MULLIGAN MOMENT</Text>
             <Text style={styles.title}>Need a fresh start?</Text>
             <Text style={styles.subtitle}>
-              We{"'"}ll cook up a bold new opener based on your vibes and what you have in common.
+              Get a new first message based on your profiles and shared interests — mature, direct, ready to send.
             </Text>
 
             <View style={styles.featuresPill}>
