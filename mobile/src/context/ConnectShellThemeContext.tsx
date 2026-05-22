@@ -8,6 +8,7 @@ import React, {
   type ReactNode,
 } from 'react';
 import {
+  DEFAULT_CONNECT_SHELL_MODE,
   loadConnectShellMode,
   nextConnectShellMode,
   saveConnectShellMode,
@@ -23,7 +24,7 @@ type ConnectShellThemeContextValue = {
 const ConnectShellThemeContext = createContext<ConnectShellThemeContextValue | null>(null);
 
 export function ConnectShellThemeProvider({ children }: { children: ReactNode }) {
-  const [mode, setModeState] = useState<ConnectShellMode>('midnight');
+  const [mode, setModeState] = useState<ConnectShellMode>(DEFAULT_CONNECT_SHELL_MODE);
 
   useEffect(() => {
     void loadConnectShellMode().then(setModeState);

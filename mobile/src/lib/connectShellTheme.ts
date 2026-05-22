@@ -6,6 +6,9 @@ export const CONNECT_SHELL_STORAGE_KEY = 'mulligan-connect-shell';
 /** Midnight = graphite hero + dark chrome; sunny = warm sunrise; soft = pastel purple pill + cool gradient chrome. */
 export type ConnectShellMode = 'midnight' | 'sunny' | 'soft';
 
+/** Default for new installs when nothing is stored yet. */
+export const DEFAULT_CONNECT_SHELL_MODE: ConnectShellMode = 'midnight';
+
 const CONNECT_SHELL_CYCLE: ConnectShellMode[] = ['midnight', 'sunny', 'soft'];
 
 export function nextConnectShellMode(current: ConnectShellMode): ConnectShellMode {
@@ -32,7 +35,7 @@ export async function loadConnectShellMode(): Promise<ConnectShellMode> {
   } catch {
     /* ignore */
   }
-  return 'midnight';
+  return DEFAULT_CONNECT_SHELL_MODE;
 }
 
 export async function saveConnectShellMode(mode: ConnectShellMode): Promise<void> {

@@ -3,6 +3,9 @@ export const CONNECT_SHELL_STORAGE_KEY = "mulligan-connect-shell";
 /** Midnight = graphite hero + dark chrome; sunny = warm sunrise; soft = pastel purple “pill” + cool gradient chrome. */
 export type ConnectShellMode = "midnight" | "sunny" | "soft";
 
+/** Default for new visitors / installs when nothing is stored yet. */
+export const DEFAULT_CONNECT_SHELL_MODE: ConnectShellMode = "midnight";
+
 const CONNECT_SHELL_CYCLE: ConnectShellMode[] = ["midnight", "sunny", "soft"];
 
 export function nextConnectShellMode(current: ConnectShellMode): ConnectShellMode {
@@ -23,14 +26,14 @@ export function connectShellDisplayLabel(mode: ConnectShellMode): string {
 }
 
 export function readConnectShellMode(): ConnectShellMode {
-  if (typeof window === "undefined") return "midnight";
+  if (typeof window === "undefined") return DEFAULT_CONNECT_SHELL_MODE;
   try {
     const v = localStorage.getItem(CONNECT_SHELL_STORAGE_KEY);
     if (v === "midnight" || v === "sunny" || v === "soft") return v;
   } catch {
     /* ignore */
   }
-  return "midnight";
+  return DEFAULT_CONNECT_SHELL_MODE;
 }
 
 export function applyConnectShellMode(mode: ConnectShellMode): void {

@@ -1,6 +1,18 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-connect-shell="midnight">
   <head>
+    <script>
+      (function () {
+        try {
+          var v = localStorage.getItem("mulligan-connect-shell");
+          if (v === "midnight" || v === "sunny" || v === "soft") {
+            document.documentElement.setAttribute("data-connect-shell", v);
+          }
+        } catch (e) {
+          /* keep midnight default on <html> */
+        }
+      })();
+    </script>
     <meta charset="UTF-8" />
     <!-- Google Search Console: paste the verification meta tag here when you have it -->
     <!-- Bump ?v= when replacing public/favicon.png or app-icon.png (browsers cache favicons hard). -->
