@@ -418,12 +418,18 @@ export default function WebTokenPurchase({ variant, customerEmail }: WebTokenPur
               </div>
             )}
           {packages.map((pkg) => (
-            <div key={pkg.id} style={cardStyle(pkg)}>
+            <div
+              key={pkg.id}
+              className={variant === "settings" ? "web-token-purchase__card" : undefined}
+              style={cardStyle(pkg)}
+            >
               <div
+                className={variant === "settings" ? "web-token-purchase__quantity" : undefined}
                 style={{
                   fontSize: variant === "landing" ? "1.05rem" : "1.5rem",
                   fontWeight: "bold",
                   marginBottom: variant === "landing" ? "0.25rem" : "var(--space-2)",
+                  ...(variant === "settings" ? { color: "#000" } : {}),
                 }}
               >
                 {pkg.tokens} {pkg.tokens === 1 ? "Token" : "Tokens"}
@@ -439,9 +445,10 @@ export default function WebTokenPurchase({ variant, customerEmail }: WebTokenPur
                 {pkg.priceFormatted}
               </div>
               <div
+                className={variant === "settings" ? "web-token-purchase__per-token" : undefined}
                 style={{
                   fontSize: variant === "landing" ? "0.72rem" : "0.85rem",
-                  color: "var(--text-secondary)",
+                  color: variant === "settings" ? "#000" : "var(--text-secondary)",
                   marginBottom: variant === "landing" ? "0.45rem" : "var(--space-3)",
                 }}
               >
@@ -632,7 +639,7 @@ export default function WebTokenPurchase({ variant, customerEmail }: WebTokenPur
 
   return (
     <>
-      {inner}
+      <div className="web-token-purchase web-token-purchase--settings">{inner}</div>
 
       {anetModalOpen && (
         <div

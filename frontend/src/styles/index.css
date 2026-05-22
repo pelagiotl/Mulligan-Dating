@@ -11002,6 +11002,20 @@ button.chat-avatar-btn .chat-avatar img {
   transition: all var(--transition-base);
 }
 
+/* Light cards on gradient shell: override native-app-screen light ink */
+.settings-page.native-app-screen .settings-section {
+  color: var(--color-wine-900);
+}
+
+.settings-page .web-token-purchase--settings .web-token-purchase__quantity,
+.settings-page .web-token-purchase--settings .web-token-purchase__per-token {
+  color: #000;
+}
+
+.settings-page .web-token-purchase--settings .settings-description {
+  color: var(--color-wine-900);
+}
+
 .settings-section:hover {
   box-shadow: var(--shadow-lg);
   border-color: var(--border-medium);
