@@ -35,7 +35,7 @@ import TokenDisplay from '../components/TokenDisplay';
 import LaunchCountdownBubble from '../components/LaunchCountdownBubble';
 import MatchmakingPausedModal from '../components/MatchmakingPausedModal';
 import ConnectLandingValueProps, { ConnectFeatureLabel } from '../components/ConnectLandingValueProps';
-import { CONNECT_LANDING_TAGLINE } from '../constants/connectLanding';
+import ConnectLandingTagline from '../components/ConnectLandingTagline';
 import ConnectLandingMark from '../components/ConnectLandingMark';
 import ConnectButtonShimmerEffect, {
   CONNECT_SHIMMER_DURATION_MS,
@@ -1753,7 +1753,7 @@ export default function BrowseScreen() {
               >
                 Discover People
               </Animated.Text>
-              <Text style={styles.midnightSubtitle}>{CONNECT_LANDING_TAGLINE}</Text>
+              <ConnectLandingTagline style={styles.midnightSubtitle} />
 
               {isAuthenticated ? <ConnectLandingValueProps variant="midnightFeatures" /> : null}
 
@@ -1883,7 +1883,7 @@ export default function BrowseScreen() {
                     >
                       Discover People
                     </Animated.Text>
-                    <Text style={styles.sunnySubtitle}>{CONNECT_LANDING_TAGLINE}</Text>
+                    <ConnectLandingTagline style={styles.sunnySubtitle} />
 
                     {isAuthenticated ? (
                       <View style={styles.sunnyFeaturesRow} accessibilityRole="summary">
@@ -2023,7 +2023,7 @@ export default function BrowseScreen() {
                     >
                       Discover People
                     </Animated.Text>
-                    <Text style={styles.softSubtitle}>{CONNECT_LANDING_TAGLINE}</Text>
+                    <ConnectLandingTagline style={styles.softSubtitle} />
 
                     {isAuthenticated ? (
                       <View style={styles.softFeaturesRow} accessibilityRole="summary">
@@ -3138,13 +3138,13 @@ const styles = StyleSheet.create({
   },
   midnightSubtitle: {
     fontSize: 16,
-    lineHeight: 25,
+    lineHeight: 22,
     color: '#a8a29e',
     fontWeight: '600',
     textAlign: 'center',
     marginBottom: 22,
-    paddingHorizontal: 10,
-    letterSpacing: 0.5,
+    paddingHorizontal: 4,
+    letterSpacing: 0.35,
   },
   midnightConnectGradient: {
     borderWidth: 2,
@@ -3219,12 +3219,12 @@ const styles = StyleSheet.create({
   },
   sunnySubtitle: {
     fontSize: 16,
-    lineHeight: 24,
+    lineHeight: 22,
     color: '#57534e',
     fontWeight: '500',
     textAlign: 'center',
     marginBottom: 18,
-    paddingHorizontal: 8,
+    paddingHorizontal: 4,
   },
   sunnyFeaturesRow: {
     flexDirection: 'row',
@@ -3336,12 +3336,12 @@ const styles = StyleSheet.create({
   },
   softSubtitle: {
     fontSize: 16,
-    lineHeight: 24,
+    lineHeight: 22,
     color: '#555',
     fontWeight: '500',
     textAlign: 'center',
     marginBottom: 18,
-    paddingHorizontal: 8,
+    paddingHorizontal: 4,
   },
   softFeaturesRow: {
     flexDirection: 'row',

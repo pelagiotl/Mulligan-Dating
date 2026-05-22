@@ -4,7 +4,7 @@ import ConnectButtonEffects from "../components/ConnectButtonEffects";
 import ConnectLandingMark from "../components/ConnectLandingMark";
 import LaunchCountdown from "../components/LaunchCountdown";
 import WebTokenPurchase from "../components/WebTokenPurchase";
-import { CONNECT_LANDING_TAGLINE } from "../constants/connectLanding";
+import ConnectLandingTagline from "../components/ConnectLandingTagline";
 
 /**
  * Public home — same Connect landing card as iOS BrowseScreen (Connect tab).
@@ -39,7 +39,7 @@ export default function Landing() {
             </div>
 
             <h1 className="connect-landing__title">Discover People</h1>
-            <p className="connect-landing__subtitle">{CONNECT_LANDING_TAGLINE}</p>
+            <ConnectLandingTagline />
 
             <div className="connect-landing__features">
               <div className="connect-landing__feature">

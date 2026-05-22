@@ -11,7 +11,7 @@ import ConnectLandingMark from "../components/ConnectLandingMark";
 import LaunchCountdown from "../components/LaunchCountdown";
 import { io, Socket } from "socket.io-client";
 import { emitTokenBalanceUpdated } from "../lib/tokenBalanceEvents";
-import { CONNECT_LANDING_TAGLINE } from "../constants/connectLanding";
+import ConnectLandingTagline from "../components/ConnectLandingTagline";
 
 interface Photo {
   id: string;
@@ -95,7 +95,7 @@ function BrowseConnectLandingChrome({
           </div>
 
           <h1 className="connect-landing__title">Discover People</h1>
-          <p className="connect-landing__subtitle">{CONNECT_LANDING_TAGLINE}</p>
+          <ConnectLandingTagline />
 
           <div className="connect-landing__features">
             <div className="connect-landing__feature">
@@ -824,7 +824,7 @@ export default function Browse() {
           <div className="browse-native-scroll">
             <header className="browse-native-header">
               <h1>Discover People</h1>
-              <p>{CONNECT_LANDING_TAGLINE}</p>
+              <ConnectLandingTagline className="browse-native-header-tagline" />
             </header>
             {error && (
               <div className="browse-native-error" role="alert">

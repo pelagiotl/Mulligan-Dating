@@ -196,10 +196,16 @@
   text-shadow: 0 2px 6px rgba(102, 126, 234, 0.12);
 }
 
-.browse-native-header p {
-  font-size: 0.95rem;
+.browse-native-header p,
+.browse-native-header-tagline {
+  font-size: clamp(0.78rem, 2.2vw, 0.95rem);
   color: var(--native-text-muted);
   font-weight: 500;
+  margin: 0;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .browse-native-error {
@@ -575,8 +581,12 @@
 
   .app-layout--native-mobile-shell .connect-landing__subtitle {
     margin-bottom: 1rem;
-    font-size: 1rem;
+    font-size: clamp(0.78rem, 2.2vw, 1rem);
     line-height: 1.45;
+    white-space: nowrap;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .app-layout--native-mobile-shell .connect-landing__features {
@@ -752,13 +762,18 @@
 }
 
 .connect-landing__subtitle {
-  font-size: 1.05rem;
+  font-size: clamp(0.8rem, 2.35vw, 1.05rem);
   line-height: 1.55;
   color: #a8a29e;
   font-weight: 600;
   margin: 0 0 2rem;
-  padding: 0 0.5rem;
-  letter-spacing: 0.03em;
+  padding: 0 0.35rem;
+  letter-spacing: 0.02em;
+  max-width: 100%;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* June 6 launch — floating bubble (portaled to body; Connect + public home) */

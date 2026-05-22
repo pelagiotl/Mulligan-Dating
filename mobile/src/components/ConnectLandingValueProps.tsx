@@ -1,7 +1,7 @@
 import React, { memo } from 'react';
 import { View, Text, StyleSheet, Platform, type TextStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { CONNECT_LANDING_TAGLINE } from '../constants/connectLanding';
+import ConnectLandingTagline from './ConnectLandingTagline';
 
 const INK = '#1a1a2e';
 const BURGUNDY = '#8B1538';
@@ -107,7 +107,7 @@ const ConnectLandingValueProps = memo(function ConnectLandingValueProps({
         {!featuresOnly ? (
           <>
             <Text style={styles.title}>Discover People</Text>
-            <Text style={styles.subtitle}>{CONNECT_LANDING_TAGLINE}</Text>
+            <ConnectLandingTagline style={styles.subtitle} />
           </>
         ) : null}
         <View style={[styles.row, featuresOnly && styles.rowFeaturesOnly]}>
