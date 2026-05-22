@@ -57,10 +57,38 @@
 }
 
 .connect-shimmer__corner--bl {
-  left: 0;
-  bottom: 0;
   border-bottom: 2.5px solid rgba(103, 232, 249, 0.95);
   border-left: 2.5px solid rgba(103, 232, 249, 0.95);
+}
+
+/* TL + vertical + BL scale as one unit so left corners never separate */
+.connect-shimmer__left-rail {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: auto;
+  bottom: 0;
+  width: calc(var(--connect-shimmer-radius, 22px) + 2.5px);
+  transform-origin: top left;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.connect-shimmer__left-rail .connect-shimmer__corner--tl {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+.connect-shimmer__left-rail .connect-shimmer__edge-left {
+  position: absolute;
+  left: 0;
+}
+
+.connect-shimmer__left-rail .connect-shimmer__corner--bl {
+  position: absolute;
+  left: 0;
+  bottom: 0;
 }
 
 .connect-shimmer__corner--tr {
@@ -78,13 +106,9 @@
 }
 
 .connect-shimmer__edge-left {
-  position: absolute;
-  left: 0;
   width: 2.5px;
-  transform-origin: top center;
   background: rgba(103, 232, 249, 0.95);
   box-shadow: 0 0 5px rgba(34, 211, 238, 0.6);
-  will-change: transform;
 }
 
 .connect-shimmer__edge-h {

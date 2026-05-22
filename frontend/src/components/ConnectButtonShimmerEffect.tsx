@@ -21,11 +21,9 @@ type ConnectButtonShimmerEffectProps = {
 
 type LayerRefs = {
   trace: HTMLDivElement | null;
+  leftRail: HTMLDivElement | null;
   top: HTMLDivElement | null;
   bottom: HTMLDivElement | null;
-  left: HTMLDivElement | null;
-  tl: HTMLDivElement | null;
-  bl: HTMLDivElement | null;
   rightStack: HTMLDivElement | null;
   rightFill: HTMLDivElement | null;
 };
@@ -41,11 +39,9 @@ export default function ConnectButtonShimmerEffect({
   const hostRef = useRef<HTMLDivElement>(null);
   const layersRef = useRef<LayerRefs>({
     trace: null,
+    leftRail: null,
     top: null,
     bottom: null,
-    left: null,
-    tl: null,
-    bl: null,
     rightStack: null,
     rightFill: null,
   });
@@ -107,11 +103,9 @@ export default function ConnectButtonShimmerEffect({
         L.bottom.style.width = `${traceW}px`;
         L.bottom.style.transform = sweep;
       }
-      if (L.left) {
-        L.left.style.transform = `scaleY(${frame.leftReveal})`;
+      if (L.leftRail) {
+        L.leftRail.style.transform = `scaleY(${frame.leftReveal})`;
       }
-      if (L.tl) L.tl.style.opacity = String(frame.tlOpacity);
-      if (L.bl) L.bl.style.opacity = String(frame.blOpacity);
       if (L.rightStack) L.rightStack.style.opacity = String(frame.rightOpacity);
       if (L.rightFill) {
         L.rightFill.style.transform = `translateY(${frame.rightTranslateY}px)`;
@@ -147,37 +141,38 @@ export default function ConnectButtonShimmerEffect({
       >
         <div
           ref={(el) => {
-            layersRef.current.tl = el;
+            layersRef.current.leftRail = el;
           }}
-          className="connect-shimmer__corner connect-shimmer__corner--tl"
+          className="connect-shimmer__left-rail"
           style={{
-            width: cornerArm,
-            height: cornerArm,
-            borderRadius: `${borderRadius}px 0 0 0`,
+            height,
+            ['--connect-shimmer-radius' as string]: `${borderRadius}px`,
           }}
-        />
-        <div
-          ref={(el) => {
-            layersRef.current.bl = el;
-          }}
-          className="connect-shimmer__corner connect-shimmer__corner--bl"
-          style={{
-            width: cornerArm,
-            height: cornerArm,
-            borderRadius: `0 0 0 ${borderRadius}px`,
-          }}
-        />
-
-        <div
-          ref={(el) => {
-            layersRef.current.left = el;
-          }}
-          className="connect-shimmer__edge-left"
-          style={{
-            top: borderRadius,
-            height: sideSegmentH,
-          }}
-        />
+        >
+          <div
+            className="connect-shimmer__corner connect-shimmer__corner--tl"
+            style={{
+              width: cornerArm,
+              height: cornerArm,
+              borderRadius: `${borderRadius}px 0 0 0`,
+            }}
+          />
+          <div
+            className="connect-shimmer__edge-left"
+            style={{
+              top: borderRadius,
+              height: sideSegmentH,
+            }}
+          />
+          <div
+            className="connect-shimmer__corner connect-shimmer__corner--bl"
+            style={{
+              width: cornerArm,
+              height: cornerArm,
+              borderRadius: `0 0 0 ${borderRadius}px`,
+            }}
+          />
+        </div>
 
         <div
           ref={(el) => {

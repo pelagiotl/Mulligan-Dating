@@ -20,9 +20,8 @@ export function computeSweepMetrics(
 
 export type SweepFrame = {
   scaleX: number;
+  /** Whole left rail (TL + vertical + BL) scales together so corners stay joined. */
   leftReveal: number;
-  tlOpacity: number;
-  blOpacity: number;
   rightTranslateY: number;
   rightOpacity: number;
   traceOpacity: number;
@@ -40,8 +39,6 @@ export function sweepFrameAt(progress: number, metrics: SweepMetrics): SweepFram
     return {
       scaleX: 0.001,
       leftReveal: 0,
-      tlOpacity: 0,
-      blOpacity: 0,
       rightTranslateY: -sideSegmentH,
       rightOpacity: 0,
       traceOpacity: 0,
@@ -50,19 +47,15 @@ export function sweepFrameAt(progress: number, metrics: SweepMetrics): SweepFram
 
   const traceOpacity = 1;
 
-  // Single lead 0→1 for horizontal phase — left edge and top/bottom stay in sync
+  // Single lead 0→1 for horizontal phase — left rail and top/bottom stay in sync
   const lead = Math.min(1, p / hEnd);
   const scaleX = Math.max(0.001, lead);
   const leftReveal = lead;
-  const tlOpacity = Math.min(1, lead * 2.5);
-  const blOpacity = lead < 0.88 ? 0 : Math.min(1, (lead - 0.88) / 0.12);
 
   if (p < hEnd) {
     return {
       scaleX,
       leftReveal,
-      tlOpacity,
-      blOpacity,
       rightTranslateY: -sideSegmentH,
       rightOpacity: 0,
       traceOpacity,
@@ -74,8 +67,6 @@ export function sweepFrameAt(progress: number, metrics: SweepMetrics): SweepFram
   return {
     scaleX: 1,
     leftReveal: 1,
-    tlOpacity: 1,
-    blOpacity: 1,
     rightTranslateY: -sideSegmentH * (1 - rProg),
     rightOpacity: 1,
     traceOpacity,
