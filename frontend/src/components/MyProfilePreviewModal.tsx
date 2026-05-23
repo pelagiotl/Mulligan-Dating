@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { getPhotoUrl } from "../utils/photoUrl";
 import { formatPreferredMatchesFromGenders } from "../utils/preferredMatchesLabel";
 
@@ -143,7 +144,7 @@ export default function MyProfilePreviewModal({
   const distanceLabel =
     data.maxDistance == null ? "Any distance" : `Within ${data.maxDistance} mi`;
 
-  return (
+  const overlay = (
     <>
       <div className="chat-partner-drawer-root chat-partner-drawer-root--my-preview" role="presentation">
         <button
@@ -464,4 +465,6 @@ export default function MyProfilePreviewModal({
       ) : null}
     </>
   );
+
+  return typeof document !== "undefined" ? createPortal(overlay, document.body) : null;
 }

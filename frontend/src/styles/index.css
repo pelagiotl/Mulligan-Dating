@@ -4956,15 +4956,22 @@ button.my-profile-avatar:focus-visible {
   max-width: min(540px, 100vw);
   border-radius: 1.35rem 1.35rem 0 0;
   overflow: hidden;
+  box-sizing: border-box;
+  padding-top: max(env(safe-area-inset-top, 0px), 0.75rem);
   box-shadow:
     0 -8px 40px rgba(102, 126, 234, 0.22),
     0 0 0 1px rgba(255, 255, 255, 0.65) inset;
 }
 
+/* Header gradient replaces the default 3px top accent bar */
+.chat-partner-drawer-root--my-preview .chat-partner-drawer-panel::after {
+  display: none;
+}
+
 .chat-partner-drawer-root--my-preview .chat-partner-drawer-header {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 42%, #a855f7 100%);
   border-bottom: none;
-  padding-bottom: 1.1rem;
+  padding: max(var(--space-4), 0.85rem) var(--space-5) 1.1rem;
 }
 
 .chat-partner-drawer-root--my-preview .chat-partner-drawer-close {
@@ -8818,12 +8825,31 @@ button.chat-avatar-btn .chat-avatar img {
   .chat-partner-drawer-root--my-preview .chat-partner-drawer-panel {
     width: 100%;
     max-width: 100%;
-    height: min(92dvh, 100dvh);
-    max-height: min(92dvh, 100dvh);
+    margin-top: max(env(safe-area-inset-top, 0px), 10px);
+    padding-top: 0;
+    height: min(90dvh, calc(100dvh - env(safe-area-inset-top, 0px) - 10px));
+    max-height: min(90dvh, calc(100dvh - env(safe-area-inset-top, 0px) - 10px));
   }
 
   .chat-partner-drawer-panel::after {
     border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+  }
+}
+
+@media (min-width: 901px) {
+  .chat-partner-drawer-root--my-preview {
+    align-items: stretch;
+    justify-content: flex-end;
+  }
+
+  .chat-partner-drawer-root--my-preview .chat-partner-drawer-panel {
+    width: min(540px, 100vw - 40px);
+    height: 100%;
+    max-height: 100dvh;
+    margin-top: 0;
+    padding-top: max(env(safe-area-inset-top, 0px), 0.5rem);
+    border-radius: var(--radius-2xl) 0 0 var(--radius-2xl);
+    animation-name: chatPartnerDrawerSlide;
   }
 }
 
