@@ -16,12 +16,40 @@ import {
   Platform,
   ScrollView,
   Animated,
+  useWindowDimensions,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { G, Path, Circle, Defs, LinearGradient as SvgLinearGradient, Stop, ClipPath } from 'react-native-svg';
+import Svg, { G, Path, Circle, Defs, LinearGradient as SvgLinearGradient, Stop, ClipPath, Rect } from 'react-native-svg';
 import { useNavigation } from '@react-navigation/native';
 import { api } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
+
+const LOGIN_BG_GRADIENT_ID = 'loginScreenBgGradient';
+
+/** SVG gradient avoids expo-linear-gradient native mismatch after SDK 53 until dev client is rebuilt. */
+function LoginScreenGradient() {
+  const { width, height } = useWindowDimensions();
+  return (
+    <Svg
+      width={width}
+      height={height}
+      style={StyleSheet.absoluteFill}
+      pointerEvents="none"
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
+      <Defs>
+        <SvgLinearGradient id={LOGIN_BG_GRADIENT_ID} x1="0%" y1="0%" x2="100%" y2="100%">
+          <Stop offset="0%" stopColor="#667eea" />
+          <Stop offset="25%" stopColor="#764ba2" />
+          <Stop offset="50%" stopColor="#f093fb" />
+          <Stop offset="75%" stopColor="#f5576c" />
+          <Stop offset="100%" stopColor="#4facfe" />
+        </SvgLinearGradient>
+      </Defs>
+      <Rect x={0} y={0} width={width} height={height} fill={`url(#${LOGIN_BG_GRADIENT_ID})`} />
+    </Svg>
+  );
+}
 
 // Animated Heart Logo Component (matching frontend exactly)
 // Memoized to prevent parent re-renders when this component updates
@@ -756,19 +784,7 @@ export default function PhoneLoginScreen() {
   if (step === 'phone') {
     return (
       <View style={styles.container}>
-        {/* Beautiful gradient background */}
-        <LinearGradient
-          colors={[
-            '#667eea', // Purple
-            '#764ba2', // Purple-pink
-            '#f093fb', // Pink
-            '#f5576c', // Coral
-            '#4facfe', // Blue
-          ]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
+        <LoginScreenGradient />
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.keyboardView}
@@ -795,19 +811,7 @@ export default function PhoneLoginScreen() {
   // Verification step
   return (
     <View style={styles.container}>
-      {/* Beautiful gradient background */}
-      <LinearGradient
-        colors={[
-          '#667eea', // Purple
-          '#764ba2', // Purple-pink
-          '#f093fb', // Pink
-          '#f5576c', // Coral
-          '#4facfe', // Blue
-        ]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={StyleSheet.absoluteFill}
-      />
+      <LoginScreenGradient />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
