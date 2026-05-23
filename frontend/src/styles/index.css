@@ -5251,10 +5251,17 @@ button.my-profile-avatar:focus-visible {
 .profile-perimeter-border--section {
   margin-bottom: var(--space-6);
   border-radius: var(--radius-2xl);
+  overflow: visible;
+}
+
+.profile-perimeter-border--section .profile-card-interests {
+  overflow: visible;
+  padding-bottom: var(--space-1);
 }
 
 .profile-perimeter-border--section .profile-perimeter-border__inner {
   border-radius: calc(var(--radius-2xl) - 2px);
+  overflow: visible;
 }
 
 .profile-perimeter-border .my-profile-full-card,
@@ -8152,7 +8159,7 @@ button.chat-avatar-btn .chat-avatar img {
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  padding: var(--space-5) var(--space-5) var(--space-8);
+  padding: var(--space-5) var(--space-5) calc(var(--space-8) + env(safe-area-inset-bottom, 0px));
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
@@ -8231,6 +8238,8 @@ button.chat-avatar-btn .chat-avatar img {
   width: 100%;
   flex-basis: 100%;
   padding-top: 0.15rem;
+  padding-bottom: 0.25rem;
+  overflow: visible;
 }
 
 .chat-partner-drawer-common-chip {
@@ -8447,6 +8456,7 @@ button.chat-avatar-btn .chat-avatar img {
   background: #fff;
   border: 1px solid #e2e8f0;
   box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+  overflow: visible;
 }
 
 .chat-partner-drawer-profile--styled .stage2-profile-block::before {
@@ -8478,12 +8488,18 @@ button.chat-avatar-btn .chat-avatar img {
   overflow-wrap: anywhere;
 }
 
+.chat-partner-drawer-profile--styled .profile-card-interests {
+  overflow: visible;
+  padding-bottom: var(--space-2);
+}
+
 .chat-partner-drawer-profile--styled .profile-card-interests .interest-tag,
 .chat-partner-drawer-profile--styled .profile-card-interests .value-tag {
   background: #eef2ff;
   border: 1px solid rgba(99, 102, 241, 0.22);
   color: #3730a3;
   font-weight: 600;
+  line-height: 1.35;
 }
 
 .chat-partner-drawer-profile--styled .profile-card-interests .value-tag {

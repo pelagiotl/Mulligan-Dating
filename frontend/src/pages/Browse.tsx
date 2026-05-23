@@ -836,6 +836,7 @@ export default function Browse() {
             )}
             <div className="browse-native-card-shell">
               <article className="browse-native-card">
+                <div className="browse-native-card-photo-wrap">
                 <div
                   ref={photoRailRef}
                   className="browse-native-photo-rail"
@@ -880,6 +881,7 @@ export default function Browse() {
                     ))}
                   </div>
                 )}
+                </div>
                 <div className="browse-native-info">
                   <div className="browse-native-name-row">
                     <span className="browse-native-name">

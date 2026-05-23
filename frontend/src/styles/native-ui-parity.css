@@ -233,10 +233,16 @@
   max-width: min(560px, calc(100vw - 40px));
   background: #fff;
   border-radius: 32px;
-  overflow: hidden;
+  /* Keep photo rail clipped to card radius; do not clip interests/tags below the rail */
+  overflow: visible;
   box-shadow:
     0 12px 40px rgba(102, 126, 234, 0.18),
     0 0 0 1px rgba(255, 255, 255, 0.8);
+}
+
+.browse-native-card-photo-wrap {
+  overflow: hidden;
+  border-radius: 32px 32px 0 0;
 }
 
 .browse-native-photo-rail {
@@ -306,7 +312,9 @@
 
 .browse-native-info {
   padding: 24px;
+  padding-bottom: calc(24px + 6rem);
   background: #fff;
+  border-radius: 0 0 32px 32px;
 }
 
 .browse-native-name-row {
@@ -380,6 +388,8 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  overflow: visible;
+  padding-bottom: 4px;
 }
 
 .browse-native-interest-tag {
@@ -389,6 +399,7 @@
   border: 2px solid var(--native-interest-border);
   font-size: 0.875rem;
   font-weight: 600;
+  line-height: 1.35;
   color: #667eea;
   box-shadow: 0 3px 6px rgba(102, 126, 234, 0.12);
 }
