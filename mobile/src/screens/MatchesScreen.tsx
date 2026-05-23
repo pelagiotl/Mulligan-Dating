@@ -137,6 +137,17 @@ interface Message {
   readAt?: string | null;
   isOwn: boolean;
   likedBy?: string | null;
+  laughedBy?: string | null;
+  heartEyesBy?: string | null;
+}
+
+type MessageReaction = 'like' | 'laugh' | 'heart-eyes';
+
+function theirReactionEmoji(msg: Message): string | null {
+  if (msg.likedBy) return '❤️';
+  if (msg.laughedBy) return '😂';
+  if (msg.heartEyesBy) return '😍';
+  return null;
 }
 
 // Voice message play button + playback (uri must be a full URL for remote audio)
@@ -216,7 +227,7 @@ const MessageBubble = React.memo(function MessageBubble({
   onImagePress,
   matchId,
   currentUserId,
-  onLikePress,
+  onReactionPress,
 }: {
   item: Message;
   animValue: Animated.Value | null;
@@ -224,16 +235,18 @@ const MessageBubble = React.memo(function MessageBubble({
   onImagePress?: (url: string) => void;
   matchId?: string | null;
   currentUserId?: string | null;
-  onLikePress?: (messageId: string, currentlyLiked: boolean) => void;
+  onReactionPress?: (messageId: string, reaction: MessageReaction, currentlyActive: boolean) => void;
 }) {
   const formattedTime = useMemo(
     () => new Date(item.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     [item.sentAt]
   );
 
-  const isLikedByThem = item.isOwn && !!item.likedBy;
+  const theirReaction = item.isOwn ? theirReactionEmoji(item) : null;
   const isLikedByMe = !item.isOwn && item.likedBy === currentUserId;
-  const canLike = !item.isOwn && matchId && currentUserId && onLikePress;
+  const isLaughedByMe = !item.isOwn && item.laughedBy === currentUserId;
+  const isHeartEyesByMe = !item.isOwn && item.heartEyesBy === currentUserId;
+  const canReact = !item.isOwn && matchId && currentUserId && onReactionPress;
 
   const renderBubbleContent = (isOwn: boolean) => (
     <>
@@ -277,21 +290,41 @@ const MessageBubble = React.memo(function MessageBubble({
         <View style={s.messageFooterOwn}>
           <Text style={s.messageTimeOwn}>{formattedTime}</Text>
           {item.readAt ? <Text style={s.messageStatusRead}>✓✓</Text> : <Text style={s.messageStatusSent}>✓</Text>}
-          {isLikedByThem ? <Text style={s.messageHeartOwn}> ❤️</Text> : null}
+          {theirReaction ? <Text style={s.messageHeartOwn}> {theirReaction}</Text> : null}
         </View>
       ) : (
         <View style={s.messageFooterOther}>
           <Text style={s.messageTimeOther}>{formattedTime}</Text>
-          {canLike ? (
-            <TouchableOpacity
-              onPress={() => onLikePress!(item.id, !!item.likedBy)}
-              hitSlop={12}
-              style={s.messageHeartTouch}
-            >
-              <Text style={s.messageHeartOther}>{isLikedByMe ? '❤️' : '🤍'}</Text>
-            </TouchableOpacity>
-          ) : isLikedByMe ? (
-            <Text style={s.messageHeartOther}>❤️</Text>
+          {canReact ? (
+            <View style={s.messageReactionRow}>
+              <TouchableOpacity
+                onPress={() => onReactionPress!(item.id, 'like', isLikedByMe)}
+                hitSlop={8}
+                style={s.messageReactionTouch}
+              >
+                <Text style={[s.messageReactionEmoji, isLikedByMe && s.messageReactionEmojiActive]}>
+                  {isLikedByMe ? '❤️' : '🤍'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => onReactionPress!(item.id, 'laugh', isLaughedByMe)}
+                hitSlop={8}
+                style={s.messageReactionTouch}
+              >
+                <Text style={[s.messageReactionEmoji, isLaughedByMe && s.messageReactionEmojiActive]}>
+                  😂
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => onReactionPress!(item.id, 'heart-eyes', isHeartEyesByMe)}
+                hitSlop={8}
+                style={s.messageReactionTouch}
+              >
+                <Text style={[s.messageReactionEmoji, isHeartEyesByMe && s.messageReactionEmojiActive]}>
+                  😍
+                </Text>
+              </TouchableOpacity>
+            </View>
           ) : null}
         </View>
       )}
@@ -1944,7 +1977,7 @@ export default function MatchesScreen() {
   const [compatibilityDetails, setCompatibilityDetails] = useState<{ reasons: string[]; sharedInterests: string[] } | null>(null);
   const [showAgeCardModal, setShowAgeCardModal] = useState(false);
   const [showCompatibilityCardModal, setShowCompatibilityCardModal] = useState(false);
-  const [messageLikedToast, setMessageLikedToast] = useState<{ likerName: string } | null>(null);
+  const [messageReactionToast, setMessageReactionToast] = useState<string | null>(null);
   /** Mulligan-styled explainer (replaces system Alert on photo-unlock banner tap). */
   const [photoUnlockExplainerVisible, setPhotoUnlockExplainerVisible] = useState(false);
   /** Momentary “photos unlocked” celebration when stage1 → stage2 (each user sent 3+ messages). */
@@ -1964,10 +1997,10 @@ export default function MatchesScreen() {
   }, []);
 
   useEffect(() => {
-    if (!messageLikedToast) return;
-    const t = setTimeout(() => setMessageLikedToast(null), 3000);
+    if (!messageReactionToast) return;
+    const t = setTimeout(() => setMessageReactionToast(null), 3000);
     return () => clearTimeout(t);
-  }, [messageLikedToast]);
+  }, [messageReactionToast]);
 
   useEffect(() => {
     setGalleryUnlockCelebration(false);
@@ -2353,17 +2386,30 @@ export default function MatchesScreen() {
     setFullScreenImageUrl(url);
   }, []);
 
-  const handleLikePress = useCallback(
-    async (messageId: string, currentlyLiked: boolean) => {
+  const handleReactionPress = useCallback(
+    async (messageId: string, reaction: MessageReaction, currentlyActive: boolean) => {
       if (!selectedMatch?.id || !user?.id) return;
+      const path =
+        reaction === 'like' ? 'like' : reaction === 'laugh' ? 'laugh' : 'heart-eyes';
+      const base = `/matches/${selectedMatch.id}/messages/${messageId}/${path}`;
+      const cleared = { likedBy: null as string | null, laughedBy: null as string | null, heartEyesBy: null as string | null };
       try {
-        const base = `/matches/${selectedMatch.id}/messages/${messageId}/like`;
-        if (currentlyLiked) {
+        if (currentlyActive) {
           await api.delete(base);
-          setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, likedBy: null } : m)));
+          setMessages((prev) =>
+            prev.map((m) => (m.id === messageId ? { ...m, ...cleared } : m))
+          );
         } else {
           await api.post(base, {});
-          setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, likedBy: user.id } : m)));
+          const patch =
+            reaction === 'like'
+              ? { likedBy: user.id, laughedBy: null, heartEyesBy: null }
+              : reaction === 'laugh'
+                ? { laughedBy: user.id, likedBy: null, heartEyesBy: null }
+                : { heartEyesBy: user.id, likedBy: null, laughedBy: null };
+          setMessages((prev) =>
+            prev.map((m) => (m.id === messageId ? { ...m, ...patch } : m))
+          );
         }
       } catch (_) {
         // Optionally show error toast
@@ -2400,11 +2446,11 @@ export default function MatchesScreen() {
           onImagePress={onImagePress}
           matchId={selectedMatch?.id}
           currentUserId={user?.id}
-          onLikePress={handleLikePress}
+          onReactionPress={handleReactionPress}
         />
       );
     },
-    [messages.length, onImagePress, selectedMatch?.id, user?.id, handleLikePress]
+    [messages.length, onImagePress, selectedMatch?.id, user?.id, handleReactionPress]
   );
 
   // Prune old message animations when list changes (prevents memory leak)
@@ -2569,9 +2615,15 @@ export default function MatchesScreen() {
       socket.on('message_liked', (data: { matchId: string; messageId: string; likedBy: string; likerName?: string; senderId?: string }) => {
         const currentMatchId = selectedMatchRef.current?.id;
         if (currentMatchId !== data.matchId) return;
-        setMessages((prev) => prev.map((m) => (m.id === data.messageId ? { ...m, likedBy: data.likedBy } : m)));
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === data.messageId
+              ? { ...m, likedBy: data.likedBy, laughedBy: null, heartEyesBy: null }
+              : m
+          )
+        );
         if (data.senderId === user?.id && data.likerName) {
-          setMessageLikedToast({ likerName: data.likerName });
+          setMessageReactionToast(`❤️ ${data.likerName} loved your message`);
         }
       });
 
@@ -2579,6 +2631,48 @@ export default function MatchesScreen() {
         const currentMatchId = selectedMatchRef.current?.id;
         if (currentMatchId !== data.matchId) return;
         setMessages((prev) => prev.map((m) => (m.id === data.messageId ? { ...m, likedBy: null } : m)));
+      });
+
+      socket.on('message_laughed', (data: { matchId: string; messageId: string; laughedBy: string; laugherName?: string; senderId?: string }) => {
+        const currentMatchId = selectedMatchRef.current?.id;
+        if (currentMatchId !== data.matchId) return;
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === data.messageId
+              ? { ...m, laughedBy: data.laughedBy, likedBy: null, heartEyesBy: null }
+              : m
+          )
+        );
+        if (data.senderId === user?.id && data.laugherName) {
+          setMessageReactionToast(`😂 ${data.laugherName} laughed at your message`);
+        }
+      });
+
+      socket.on('message_unlaughed', (data: { matchId: string; messageId: string }) => {
+        const currentMatchId = selectedMatchRef.current?.id;
+        if (currentMatchId !== data.matchId) return;
+        setMessages((prev) => prev.map((m) => (m.id === data.messageId ? { ...m, laughedBy: null } : m)));
+      });
+
+      socket.on('message_heart_eyes', (data: { matchId: string; messageId: string; heartEyesBy: string; reactorName?: string; senderId?: string }) => {
+        const currentMatchId = selectedMatchRef.current?.id;
+        if (currentMatchId !== data.matchId) return;
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === data.messageId
+              ? { ...m, heartEyesBy: data.heartEyesBy, likedBy: null, laughedBy: null }
+              : m
+          )
+        );
+        if (data.senderId === user?.id && data.reactorName) {
+          setMessageReactionToast(`😍 ${data.reactorName} reacted to your message`);
+        }
+      });
+
+      socket.on('message_unheart_eyes', (data: { matchId: string; messageId: string }) => {
+        const currentMatchId = selectedMatchRef.current?.id;
+        if (currentMatchId !== data.matchId) return;
+        setMessages((prev) => prev.map((m) => (m.id === data.messageId ? { ...m, heartEyesBy: null } : m)));
       });
 
       // Match notification: refresh list (match sound played by AuthContext for both users)
@@ -2655,6 +2749,10 @@ export default function MatchesScreen() {
           socketRef.current.off('new_message');
           socketRef.current.off('message_liked');
           socketRef.current.off('message_unliked');
+          socketRef.current.off('message_laughed');
+          socketRef.current.off('message_unlaughed');
+          socketRef.current.off('message_heart_eyes');
+          socketRef.current.off('message_unheart_eyes');
           socketRef.current.off('new_match');
           socketRef.current.off('stage_advanced');
           socketRef.current.off('game_request_received');
@@ -4420,9 +4518,9 @@ export default function MatchesScreen() {
         />
       </Animated.View>
 
-      {messageLikedToast ? (
+      {messageReactionToast ? (
         <View style={styles.messageLikedToast} pointerEvents="none">
-          <Text style={styles.messageLikedToastText}>❤️ {messageLikedToast.likerName} loved your message</Text>
+          <Text style={styles.messageLikedToastText}>{messageReactionToast}</Text>
         </View>
       ) : null}
 
@@ -5756,11 +5854,21 @@ const styles = StyleSheet.create({
   messageHeartOwn: {
     fontSize: 12,
   },
-  messageHeartTouch: {
+  messageReactionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    marginLeft: 4,
+  },
+  messageReactionTouch: {
     padding: 4,
   },
-  messageHeartOther: {
+  messageReactionEmoji: {
     fontSize: 14,
+    opacity: 0.45,
+  },
+  messageReactionEmojiActive: {
+    opacity: 1,
   },
   messageLikedToast: {
     position: 'absolute',

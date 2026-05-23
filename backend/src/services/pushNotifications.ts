@@ -314,4 +314,27 @@ export async function sendMessageLaughedPushNotification(
   );
 }
 
+/**
+ * Send push when someone heart-eyes reacted to your message
+ */
+export async function sendMessageHeartEyesPushNotification(
+  pushToken: string,
+  reactorName: string,
+  matchId: string,
+  messageId?: string
+): Promise<PushResult> {
+  return sendPushNotification(
+    pushToken,
+    '😍 Message reaction',
+    `${reactorName} reacted to your message`,
+    {
+      type: 'message_heart_eyes',
+      matchId,
+      reactorName,
+      ...(messageId ? { messageId } : {}),
+    },
+    'default'
+  );
+}
+
 

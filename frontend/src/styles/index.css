@@ -9060,6 +9060,38 @@ button.chat-avatar-btn .chat-avatar img {
   filter: none;
 }
 
+.message-heart-eyes-btn {
+  font-size: 1rem;
+  line-height: 1;
+  padding: 4px 6px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: var(--radius-full);
+  opacity: 0.85;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.message-heart-eyes-btn:hover:not(:disabled) {
+  opacity: 1;
+  transform: scale(1.08);
+}
+
+.message-heart-eyes-btn:disabled {
+  opacity: 0.45;
+  cursor: wait;
+}
+
+.message-heart-eyes-btn:not(.message-heart-eyes-btn--active) {
+  filter: grayscale(0.85);
+  opacity: 0.55;
+}
+
+.message-heart-eyes-btn--active {
+  opacity: 1;
+  filter: none;
+}
+
 .read-receipt,
 .message-sent-receipt {
   margin-left: 0.35rem;

@@ -284,6 +284,8 @@ interface Message {
   likedBy?: string | null;
   /** User id who laugh-reacted */
   laughedBy?: string | null;
+  /** User id who heart-eyes reacted */
+  heartEyesBy?: string | null;
   imageUrl?: string | null;
   videoUrl?: string | null;
   audioUrl?: string | null;
@@ -725,7 +727,9 @@ export default function Matches() {
         if (data.matchId !== selectedMatchIdRef.current) return;
         setMessages((prev) =>
           prev.map((m) =>
-            m.id === data.messageId ? { ...m, likedBy: data.likedBy, laughedBy: null } : m
+            m.id === data.messageId
+              ? { ...m, likedBy: data.likedBy, laughedBy: null, heartEyesBy: null }
+              : m
           )
         );
         if (data.senderId === userIdRef.current && data.likerName) {
@@ -756,7 +760,9 @@ export default function Matches() {
         if (data.matchId !== selectedMatchIdRef.current) return;
         setMessages((prev) =>
           prev.map((m) =>
-            m.id === data.messageId ? { ...m, laughedBy: data.laughedBy, likedBy: null } : m
+            m.id === data.messageId
+              ? { ...m, laughedBy: data.laughedBy, likedBy: null, heartEyesBy: null }
+              : m
           )
         );
         if (data.senderId === userIdRef.current && data.laugherName) {
@@ -772,6 +778,39 @@ export default function Matches() {
       if (data.matchId !== selectedMatchIdRef.current) return;
       setMessages((prev) =>
         prev.map((m) => (m.id === data.messageId ? { ...m, laughedBy: null } : m))
+      );
+    });
+
+    socket.on(
+      "message_heart_eyes",
+      (data: {
+        matchId: string;
+        messageId: string;
+        heartEyesBy: string;
+        reactorName?: string;
+        senderId?: string;
+      }) => {
+        if (data.matchId !== selectedMatchIdRef.current) return;
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === data.messageId
+              ? { ...m, heartEyesBy: data.heartEyesBy, likedBy: null, laughedBy: null }
+              : m
+          )
+        );
+        if (data.senderId === userIdRef.current && data.reactorName) {
+          setNotification({
+            message: `😍 ${data.reactorName} reacted to your message`,
+            type: "info",
+          });
+        }
+      }
+    );
+
+    socket.on("message_unheart_eyes", (data: { matchId: string; messageId: string }) => {
+      if (data.matchId !== selectedMatchIdRef.current) return;
+      setMessages((prev) =>
+        prev.map((m) => (m.id === data.messageId ? { ...m, heartEyesBy: null } : m))
       );
     });
 
@@ -1144,7 +1183,7 @@ export default function Matches() {
         await api.post(`/matches/${matchId}/messages/${messageId}/like`, {});
         setMessages((prev) =>
           prev.map((m) =>
-            m.id === messageId ? { ...m, likedBy: uid, laughedBy: null } : m
+            m.id === messageId ? { ...m, likedBy: uid, laughedBy: null, heartEyesBy: null } : m
           )
         );
       }
@@ -1172,12 +1211,40 @@ export default function Matches() {
         await api.post(`/matches/${matchId}/messages/${messageId}/laugh`, {});
         setMessages((prev) =>
           prev.map((m) =>
-            m.id === messageId ? { ...m, laughedBy: uid, likedBy: null } : m
+            m.id === messageId ? { ...m, laughedBy: uid, likedBy: null, heartEyesBy: null } : m
           )
         );
       }
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : "Could not update laugh reaction";
+      setNotification({ message: msg, type: "error" });
+      await fetchMessages(matchId);
+    } finally {
+      setReactionBusyMessageId(null);
+    }
+  };
+
+  const toggleMessageHeartEyes = async (messageId: string, currentlyHeartEyes: boolean) => {
+    const matchId = selectedMatchIdRef.current;
+    const uid = userIdRef.current;
+    if (!matchId || !uid) return;
+    setReactionBusyMessageId(messageId);
+    try {
+      if (currentlyHeartEyes) {
+        await api.delete(`/matches/${matchId}/messages/${messageId}/heart-eyes`);
+        setMessages((prev) =>
+          prev.map((m) => (m.id === messageId ? { ...m, heartEyesBy: null } : m))
+        );
+      } else {
+        await api.post(`/matches/${matchId}/messages/${messageId}/heart-eyes`, {});
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === messageId ? { ...m, heartEyesBy: uid, likedBy: null, laughedBy: null } : m
+          )
+        );
+      }
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : "Could not update heart-eyes reaction";
       setNotification({ message: msg, type: "error" });
       await fetchMessages(matchId);
     } finally {
@@ -2783,12 +2850,34 @@ export default function Matches() {
                                     >
                                       {msg.laughedBy === user.id ? "😂" : "😂"}
                                     </button>
+                                    <button
+                                      type="button"
+                                      className={`message-heart-eyes-btn${msg.heartEyesBy === user.id ? " message-heart-eyes-btn--active" : ""}`}
+                                      disabled={reactionBusyMessageId === msg.id}
+                                      aria-label={
+                                        msg.heartEyesBy === user.id
+                                          ? "Remove heart eyes"
+                                          : "React with heart eyes"
+                                      }
+                                      title={
+                                        msg.heartEyesBy === user.id
+                                          ? "Tap to remove heart eyes"
+                                          : "Heart eyes"
+                                      }
+                                      onClick={() =>
+                                        void toggleMessageHeartEyes(
+                                          msg.id,
+                                          msg.heartEyesBy === user.id
+                                        )
+                                      }
+                                    >
+                                      {msg.heartEyesBy === user.id ? "😍" : "😍"}
+                                    </button>
                                   </div>
                                 ) : null}
-                                {msg.isOwn && (msg.likedBy || msg.laughedBy) ? (
+                                {msg.isOwn && (msg.likedBy || msg.laughedBy || msg.heartEyesBy) ? (
                                   <span className="message-reacted-by-them" title="Their reaction">
-                                    {msg.likedBy ? "❤️" : null}
-                                    {msg.laughedBy ? "😂" : null}
+                                    {msg.likedBy ? "❤️" : msg.laughedBy ? "😂" : msg.heartEyesBy ? "😍" : null}
                                   </span>
                                 ) : null}
                               </div>

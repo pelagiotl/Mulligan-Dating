@@ -1143,6 +1143,7 @@ matchesRouter.get("/:matchId/messages", authenticateToken, async (req: AuthReque
         isOwn: m.sender_id === userId,
         likedBy: m.liked_by_id || null,
         laughedBy: m.laughed_by_id || null,
+        heartEyesBy: m.heart_eyes_by_id || null,
       })),
     });
   } catch (error) {
@@ -1175,7 +1176,7 @@ matchesRouter.post("/:matchId/messages/:messageId/like", authenticateToken, rate
 
     const runResult = db
       .prepare(
-        `UPDATE messages SET liked_by_id = ?, laughed_by_id = NULL WHERE id = ? AND match_id = ?`
+        `UPDATE messages SET liked_by_id = ?, laughed_by_id = NULL, heart_eyes_by_id = NULL WHERE id = ? AND match_id = ?`
       )
       .run([userId, messageId, matchId]);
     if (runResult instanceof Promise) await runResult;
@@ -1282,7 +1283,7 @@ matchesRouter.post("/:matchId/messages/:messageId/laugh", authenticateToken, rat
 
     const runResult = db
       .prepare(
-        `UPDATE messages SET laughed_by_id = ?, liked_by_id = NULL WHERE id = ? AND match_id = ?`
+        `UPDATE messages SET laughed_by_id = ?, liked_by_id = NULL, heart_eyes_by_id = NULL WHERE id = ? AND match_id = ?`
       )
       .run([userId, messageId, matchId]);
     if (runResult instanceof Promise) await runResult;
@@ -1376,6 +1377,131 @@ matchesRouter.delete("/:matchId/messages/:messageId/laugh", authenticateToken, r
     const errMsg = error instanceof Error ? error.message : String(error);
     console.error("Unlaugh message error:", error);
     res.status(500).json({ error: `Failed to remove laugh reaction: ${errMsg}` });
+  }
+});
+
+// Heart-eyes react a message (only the other user in the match can react; one reaction per message)
+matchesRouter.post("/:matchId/messages/:messageId/heart-eyes", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { matchId, messageId } = req.params;
+
+    const matchResult = db.prepare(
+      `SELECT user1_id, user2_id FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?) AND stage IN ('stage1', 'stage2')`
+    ).get([matchId, userId, userId]);
+    const match = (matchResult instanceof Promise ? await matchResult : matchResult) as
+      | { user1_id: string; user2_id: string }
+      | undefined;
+    if (!match) return res.status(404).json({ error: "Match not found or not mutual" });
+
+    const msgResult = db.prepare(
+      `SELECT id, sender_id, heart_eyes_by_id FROM messages WHERE id = ? AND match_id = ?`
+    ).get([messageId, matchId]);
+    const msg = (msgResult instanceof Promise ? await msgResult : msgResult) as
+      | { id: string; sender_id: string; heart_eyes_by_id: string | null }
+      | undefined;
+    if (!msg) return res.status(404).json({ error: "Message not found" });
+
+    if (msg.sender_id === userId) {
+      return res.status(400).json({ error: "You cannot react to your own message" });
+    }
+
+    const runResult = db
+      .prepare(
+        `UPDATE messages SET heart_eyes_by_id = ?, liked_by_id = NULL, laughed_by_id = NULL WHERE id = ? AND match_id = ?`
+      )
+      .run([userId, messageId, matchId]);
+    if (runResult instanceof Promise) await runResult;
+
+    const reactorProfileResult = db.prepare(`SELECT display_name FROM profiles WHERE user_id = ?`).get([userId]);
+    const reactorProfile = (reactorProfileResult instanceof Promise
+      ? await reactorProfileResult
+      : reactorProfileResult) as { display_name: string } | undefined;
+    const reactorName = reactorProfile?.display_name || "Someone";
+
+    const { getIO } = await import("../socket.js");
+    const io = getIO();
+    if (io) {
+      const payload = { matchId, messageId, heartEyesBy: userId, reactorName, senderId: msg.sender_id };
+      io.to(`match:${matchId}`).emit("message_heart_eyes", payload);
+    }
+
+    try {
+      const { sendMessageHeartEyesPushNotification, isPushNotificationConfigured, isExpoPushToken } =
+        await import("../services/pushNotifications.js");
+      const { sendWebPushToUser, isWebPushConfigured } = await import("../services/webPushDelivery.js");
+      const rowResult = db.prepare("SELECT push_token, push_notify_messages FROM users WHERE id = ?").get([msg.sender_id]);
+      const row = (rowResult instanceof Promise ? await rowResult : rowResult) as
+        | { push_token: string | null; push_notify_messages: number | null }
+        | undefined;
+      const wantsPush =
+        row?.push_notify_messages === undefined ||
+        row?.push_notify_messages === null ||
+        row.push_notify_messages !== 0;
+      if (row?.push_token && isExpoPushToken(row.push_token) && wantsPush && isPushNotificationConfigured()) {
+        await sendMessageHeartEyesPushNotification(row.push_token, reactorName, matchId, messageId);
+      }
+      if (wantsPush && isWebPushConfigured()) {
+        await sendWebPushToUser(msg.sender_id, {
+          title: "😍 Message reaction",
+          body: `${reactorName} reacted to your message`,
+          tag: `heart-eyes-${messageId}`,
+          url: "/matches",
+          data: { type: "message_heart_eyes", matchId, messageId, reactorName },
+        });
+      }
+    } catch (pushErr) {
+      console.warn("Push (message heart eyes) failed:", pushErr);
+    }
+
+    res.json({ heartEyes: true, messageId, heartEyesBy: userId });
+  } catch (error) {
+    const errMsg = error instanceof Error ? error.message : String(error);
+    console.error("Heart-eyes message error:", error);
+    res.status(500).json({ error: `Failed to react to message: ${errMsg}` });
+  }
+});
+
+// Remove heart-eyes reaction
+matchesRouter.delete("/:matchId/messages/:messageId/heart-eyes", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { matchId, messageId } = req.params;
+
+    const matchResult = db.prepare(
+      `SELECT user1_id, user2_id FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?) AND stage IN ('stage1', 'stage2')`
+    ).get([matchId, userId, userId]);
+    const match = (matchResult instanceof Promise ? await matchResult : matchResult) as
+      | { user1_id: string; user2_id: string }
+      | undefined;
+    if (!match) return res.status(404).json({ error: "Match not found or not mutual" });
+
+    const msgResult = db.prepare(`SELECT id, heart_eyes_by_id FROM messages WHERE id = ? AND match_id = ?`).get([
+      messageId,
+      matchId,
+    ]);
+    const msg = (msgResult instanceof Promise ? await msgResult : msgResult) as
+      | { id: string; heart_eyes_by_id: string | null }
+      | undefined;
+    if (!msg) return res.status(404).json({ error: "Message not found" });
+    if (msg.heart_eyes_by_id !== userId) {
+      return res.status(400).json({ error: "You have not reacted with heart eyes to this message" });
+    }
+
+    const runResult = db
+      .prepare(`UPDATE messages SET heart_eyes_by_id = NULL WHERE id = ? AND match_id = ?`)
+      .run([messageId, matchId]);
+    if (runResult instanceof Promise) await runResult;
+
+    const { getIO } = await import("../socket.js");
+    const io = getIO();
+    if (io) io.to(`match:${matchId}`).emit("message_unheart_eyes", { matchId, messageId });
+
+    res.json({ heartEyes: false, messageId });
+  } catch (error) {
+    const errMsg = error instanceof Error ? error.message : String(error);
+    console.error("Unheart-eyes message error:", error);
+    res.status(500).json({ error: `Failed to remove heart-eyes reaction: ${errMsg}` });
   }
 });
 
