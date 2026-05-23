@@ -8918,6 +8918,32 @@ button.chat-avatar-btn .chat-avatar img {
   margin-top: 0;
 }
 
+.message-content--media {
+  padding: var(--space-2);
+}
+
+.message-content--media .message-media-link {
+  margin-bottom: var(--space-1);
+}
+
+.message-content--media .message-video,
+.message-content--media .message-audio {
+  margin-bottom: var(--space-1);
+}
+
+.message-content .message-meta {
+  margin-top: var(--space-2);
+  padding-top: var(--space-1);
+}
+
+.message.own .message-content--media .message-meta {
+  border-top: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+.message.other .message-content--media .message-meta {
+  border-top: 1px solid rgba(244, 63, 94, 0.12);
+}
+
 .message-meta {
   display: flex;
   flex-direction: row;
@@ -8961,13 +8987,72 @@ button.chat-avatar-btn .chat-avatar img {
   opacity: 1;
 }
 
-.message-loved-by-them {
+.message-loved-by-them,
+.message-reacted-by-them {
   font-size: 0.95rem;
   line-height: 1;
   user-select: none;
+  display: inline-flex;
+  gap: 0.2rem;
 }
 
-.message.own .message-time {
+.message-reaction-btns {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.message-laugh-btn {
+  font-size: 1rem;
+  line-height: 1;
+  padding: 4px 6px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: var(--radius-full);
+  opacity: 0.85;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.message-laugh-btn:hover:not(:disabled) {
+  opacity: 1;
+  transform: scale(1.08);
+}
+
+.message-laugh-btn:disabled {
+  opacity: 0.45;
+  cursor: wait;
+}
+
+.message-laugh-btn:not(.message-laugh-btn--active) {
+  filter: grayscale(0.85);
+  opacity: 0.55;
+}
+
+.message-laugh-btn--active {
+  opacity: 1;
+  filter: none;
+}
+
+.read-receipt,
+.message-sent-receipt {
+  margin-left: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.message-sent-receipt {
+  opacity: 0.75;
+}
+
+.message.own .message-content .read-receipt,
+.message.own .message-content .message-sent-receipt {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.message.own .message-content .message-time {
+  color: rgba(255, 255, 255, 0.88);
   text-align: right;
 }
 

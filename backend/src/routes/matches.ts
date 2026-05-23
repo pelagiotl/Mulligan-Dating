@@ -1101,8 +1101,32 @@ matchesRouter.get("/:matchId/messages", authenticateToken, async (req: AuthReque
       `UPDATE messages SET read_at = CURRENT_TIMESTAMP 
        WHERE match_id = ? AND sender_id != ? AND read_at IS NULL`
     ).run([matchId, userId]);
-    if (updateReadResult instanceof Promise) {
-      await updateReadResult;
+    const updateReadResolved =
+      updateReadResult instanceof Promise ? await updateReadResult : updateReadResult;
+    const markedReadCount =
+      typeof (updateReadResolved as { changes?: number })?.changes === "number"
+        ? (updateReadResolved as { changes: number }).changes
+        : 0;
+    if (markedReadCount > 0) {
+      try {
+        const { getIO } = await import("../socket.js");
+        const io = getIO();
+        if (io) {
+          const matchRowResult = db
+            .prepare(`SELECT user1_id, user2_id FROM matches WHERE id = ?`)
+            .get([matchId]);
+          const matchRow = (matchRowResult instanceof Promise
+            ? await matchRowResult
+            : matchRowResult) as { user1_id: string; user2_id: string } | undefined;
+          if (matchRow) {
+            const otherUserId =
+              matchRow.user1_id === userId ? matchRow.user2_id : matchRow.user1_id;
+            io.to(`user:${otherUserId}`).emit("messages_read", { matchId });
+          }
+        }
+      } catch (socketErr) {
+        console.warn("Socket (messages_read after fetch) failed:", socketErr);
+      }
     }
 
     res.json({
@@ -1118,6 +1142,7 @@ matchesRouter.get("/:matchId/messages", authenticateToken, async (req: AuthReque
         readAt: m.read_at || null,
         isOwn: m.sender_id === userId,
         likedBy: m.liked_by_id || null,
+        laughedBy: m.laughed_by_id || null,
       })),
     });
   } catch (error) {
@@ -1148,7 +1173,11 @@ matchesRouter.post("/:matchId/messages/:messageId/like", authenticateToken, rate
     const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
     if (msg.sender_id === userId) return res.status(400).json({ error: "You cannot like your own message" });
 
-    const runResult = db.prepare(`UPDATE messages SET liked_by_id = ? WHERE id = ? AND match_id = ?`).run([userId, messageId, matchId]);
+    const runResult = db
+      .prepare(
+        `UPDATE messages SET liked_by_id = ?, laughed_by_id = NULL WHERE id = ? AND match_id = ?`
+      )
+      .run([userId, messageId, matchId]);
     if (runResult instanceof Promise) await runResult;
 
     const likerProfileResult = db.prepare(`SELECT display_name FROM profiles WHERE user_id = ?`).get([userId]);
@@ -1222,6 +1251,131 @@ matchesRouter.delete("/:matchId/messages/:messageId/like", authenticateToken, ra
     const errMsg = error instanceof Error ? error.message : String(error);
     console.error("Unlike message error:", error);
     res.status(500).json({ error: `Failed to unlike message: ${errMsg}` });
+  }
+});
+
+// Laugh-react a message (only the other user in the match can react; one reaction per message)
+matchesRouter.post("/:matchId/messages/:messageId/laugh", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { matchId, messageId } = req.params;
+
+    const matchResult = db.prepare(
+      `SELECT user1_id, user2_id FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?) AND stage IN ('stage1', 'stage2')`
+    ).get([matchId, userId, userId]);
+    const match = (matchResult instanceof Promise ? await matchResult : matchResult) as
+      | { user1_id: string; user2_id: string }
+      | undefined;
+    if (!match) return res.status(404).json({ error: "Match not found or not mutual" });
+
+    const msgResult = db.prepare(
+      `SELECT id, sender_id, laughed_by_id FROM messages WHERE id = ? AND match_id = ?`
+    ).get([messageId, matchId]);
+    const msg = (msgResult instanceof Promise ? await msgResult : msgResult) as
+      | { id: string; sender_id: string; laughed_by_id: string | null }
+      | undefined;
+    if (!msg) return res.status(404).json({ error: "Message not found" });
+
+    if (msg.sender_id === userId) {
+      return res.status(400).json({ error: "You cannot react to your own message" });
+    }
+
+    const runResult = db
+      .prepare(
+        `UPDATE messages SET laughed_by_id = ?, liked_by_id = NULL WHERE id = ? AND match_id = ?`
+      )
+      .run([userId, messageId, matchId]);
+    if (runResult instanceof Promise) await runResult;
+
+    const laugherProfileResult = db.prepare(`SELECT display_name FROM profiles WHERE user_id = ?`).get([userId]);
+    const laugherProfile = (laugherProfileResult instanceof Promise
+      ? await laugherProfileResult
+      : laugherProfileResult) as { display_name: string } | undefined;
+    const laugherName = laugherProfile?.display_name || "Someone";
+
+    const { getIO } = await import("../socket.js");
+    const io = getIO();
+    if (io) {
+      const payload = { matchId, messageId, laughedBy: userId, laugherName, senderId: msg.sender_id };
+      io.to(`match:${matchId}`).emit("message_laughed", payload);
+    }
+
+    try {
+      const { sendMessageLaughedPushNotification, isPushNotificationConfigured, isExpoPushToken } =
+        await import("../services/pushNotifications.js");
+      const { sendWebPushToUser, isWebPushConfigured } = await import("../services/webPushDelivery.js");
+      const rowResult = db.prepare("SELECT push_token, push_notify_messages FROM users WHERE id = ?").get([msg.sender_id]);
+      const row = (rowResult instanceof Promise ? await rowResult : rowResult) as
+        | { push_token: string | null; push_notify_messages: number | null }
+        | undefined;
+      const wantsPush =
+        row?.push_notify_messages === undefined ||
+        row?.push_notify_messages === null ||
+        row.push_notify_messages !== 0;
+      if (row?.push_token && isExpoPushToken(row.push_token) && wantsPush && isPushNotificationConfigured()) {
+        await sendMessageLaughedPushNotification(row.push_token, laugherName, matchId, messageId);
+      }
+      if (wantsPush && isWebPushConfigured()) {
+        await sendWebPushToUser(msg.sender_id, {
+          title: "😂 Message reaction",
+          body: `${laugherName} laughed at your message`,
+          tag: `laughed-${messageId}`,
+          url: "/matches",
+          data: { type: "message_laughed", matchId, messageId, laugherName },
+        });
+      }
+    } catch (pushErr) {
+      console.warn("Push (message laughed) failed:", pushErr);
+    }
+
+    res.json({ laughed: true, messageId, laughedBy: userId });
+  } catch (error) {
+    const errMsg = error instanceof Error ? error.message : String(error);
+    console.error("Laugh message error:", error);
+    res.status(500).json({ error: `Failed to laugh at message: ${errMsg}` });
+  }
+});
+
+// Remove laugh reaction
+matchesRouter.delete("/:matchId/messages/:messageId/laugh", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { matchId, messageId } = req.params;
+
+    const matchResult = db.prepare(
+      `SELECT user1_id, user2_id FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?) AND stage IN ('stage1', 'stage2')`
+    ).get([matchId, userId, userId]);
+    const match = (matchResult instanceof Promise ? await matchResult : matchResult) as
+      | { user1_id: string; user2_id: string }
+      | undefined;
+    if (!match) return res.status(404).json({ error: "Match not found or not mutual" });
+
+    const msgResult = db.prepare(`SELECT id, laughed_by_id FROM messages WHERE id = ? AND match_id = ?`).get([
+      messageId,
+      matchId,
+    ]);
+    const msg = (msgResult instanceof Promise ? await msgResult : msgResult) as
+      | { id: string; laughed_by_id: string | null }
+      | undefined;
+    if (!msg) return res.status(404).json({ error: "Message not found" });
+    if (msg.laughed_by_id !== userId) {
+      return res.status(400).json({ error: "You have not laughed at this message" });
+    }
+
+    const runResult = db
+      .prepare(`UPDATE messages SET laughed_by_id = NULL WHERE id = ? AND match_id = ?`)
+      .run([messageId, matchId]);
+    if (runResult instanceof Promise) await runResult;
+
+    const { getIO } = await import("../socket.js");
+    const io = getIO();
+    if (io) io.to(`match:${matchId}`).emit("message_unlaughed", { matchId, messageId });
+
+    res.json({ laughed: false, messageId });
+  } catch (error) {
+    const errMsg = error instanceof Error ? error.message : String(error);
+    console.error("Unlaugh message error:", error);
+    res.status(500).json({ error: `Failed to remove laugh reaction: ${errMsg}` });
   }
 });
 

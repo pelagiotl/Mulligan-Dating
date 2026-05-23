@@ -282,6 +282,8 @@ interface Message {
   isOwn: boolean;
   /** User id who heart-reacted (only the other participant can love a message). */
   likedBy?: string | null;
+  /** User id who laugh-reacted */
+  laughedBy?: string | null;
   imageUrl?: string | null;
   videoUrl?: string | null;
   audioUrl?: string | null;
@@ -349,7 +351,7 @@ export default function Matches() {
     matchId: string;
     gameType: "truth_or_dare" | "never_have_i_ever";
   } | null>(null);
-  const [loveBusyMessageId, setLoveBusyMessageId] = useState<string | null>(null);
+  const [reactionBusyMessageId, setReactionBusyMessageId] = useState<string | null>(null);
   /** Photo / video / voice: locked (not enough messages) or guidelines acknowledgement before capture */
   const [chatMediaModal, setChatMediaModal] = useState<
     { variant: "guidelines" | "locked"; kind: ChatMediaKind } | null
@@ -736,7 +738,9 @@ export default function Matches() {
       }) => {
         if (data.matchId !== selectedMatchIdRef.current) return;
         setMessages((prev) =>
-          prev.map((m) => (m.id === data.messageId ? { ...m, likedBy: data.likedBy } : m))
+          prev.map((m) =>
+            m.id === data.messageId ? { ...m, likedBy: data.likedBy, laughedBy: null } : m
+          )
         );
         if (data.senderId === userIdRef.current && data.likerName) {
           setNotification({
@@ -751,6 +755,37 @@ export default function Matches() {
       if (data.matchId !== selectedMatchIdRef.current) return;
       setMessages((prev) =>
         prev.map((m) => (m.id === data.messageId ? { ...m, likedBy: null } : m))
+      );
+    });
+
+    socket.on(
+      "message_laughed",
+      (data: {
+        matchId: string;
+        messageId: string;
+        laughedBy: string;
+        laugherName?: string;
+        senderId?: string;
+      }) => {
+        if (data.matchId !== selectedMatchIdRef.current) return;
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === data.messageId ? { ...m, laughedBy: data.laughedBy, likedBy: null } : m
+          )
+        );
+        if (data.senderId === userIdRef.current && data.laugherName) {
+          setNotification({
+            message: `😂 ${data.laugherName} laughed at your message`,
+            type: "info",
+          });
+        }
+      }
+    );
+
+    socket.on("message_unlaughed", (data: { matchId: string; messageId: string }) => {
+      if (data.matchId !== selectedMatchIdRef.current) return;
+      setMessages((prev) =>
+        prev.map((m) => (m.id === data.messageId ? { ...m, laughedBy: null } : m))
       );
     });
 
@@ -1112,7 +1147,7 @@ export default function Matches() {
     const matchId = selectedMatchIdRef.current;
     const uid = userIdRef.current;
     if (!matchId || !uid) return;
-    setLoveBusyMessageId(messageId);
+    setReactionBusyMessageId(messageId);
     try {
       if (currentlyLiked) {
         await api.delete(`/matches/${matchId}/messages/${messageId}/like`);
@@ -1122,7 +1157,9 @@ export default function Matches() {
       } else {
         await api.post(`/matches/${matchId}/messages/${messageId}/like`, {});
         setMessages((prev) =>
-          prev.map((m) => (m.id === messageId ? { ...m, likedBy: uid } : m))
+          prev.map((m) =>
+            m.id === messageId ? { ...m, likedBy: uid, laughedBy: null } : m
+          )
         );
       }
     } catch (e) {
@@ -1130,7 +1167,35 @@ export default function Matches() {
       setNotification({ message: msg, type: "error" });
       await fetchMessages(matchId);
     } finally {
-      setLoveBusyMessageId(null);
+      setReactionBusyMessageId(null);
+    }
+  };
+
+  const toggleMessageLaugh = async (messageId: string, currentlyLaughed: boolean) => {
+    const matchId = selectedMatchIdRef.current;
+    const uid = userIdRef.current;
+    if (!matchId || !uid) return;
+    setReactionBusyMessageId(messageId);
+    try {
+      if (currentlyLaughed) {
+        await api.delete(`/matches/${matchId}/messages/${messageId}/laugh`);
+        setMessages((prev) =>
+          prev.map((m) => (m.id === messageId ? { ...m, laughedBy: null } : m))
+        );
+      } else {
+        await api.post(`/matches/${matchId}/messages/${messageId}/laugh`, {});
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === messageId ? { ...m, laughedBy: uid, likedBy: null } : m
+          )
+        );
+      }
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : "Could not update laugh reaction";
+      setNotification({ message: msg, type: "error" });
+      await fetchMessages(matchId);
+    } finally {
+      setReactionBusyMessageId(null);
     }
   };
 
@@ -2625,85 +2690,122 @@ export default function Matches() {
                     </div>
                   ) : (
                     <div className="messages-list">
-                      {messages.map((msg) => (
-                        <div
-                          key={msg.id}
-                          className={`message ${msg.isOwn ? "own" : "other"}`}
-                        >
-                          <div className="message-content">
-                            {msg.imageUrl ? (
-                              <a
-                                href={getPhotoUrl(msg.imageUrl) || msg.imageUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="message-media-link"
-                              >
-                                <img
-                                  src={getPhotoUrl(msg.imageUrl) || msg.imageUrl}
-                                  alt=""
-                                  className="message-image"
-                                />
-                              </a>
-                            ) : null}
-                            {msg.videoUrl ? (
-                              <video
-                                className="message-video"
-                                src={getPhotoUrl(msg.videoUrl) || msg.videoUrl}
-                                controls
-                                playsInline
-                                preload="metadata"
-                              />
-                            ) : null}
-                            {msg.audioUrl ? (
-                              <audio
-                                className="message-audio"
-                                controls
-                                preload="metadata"
-                                src={getPhotoUrl(msg.audioUrl) || msg.audioUrl || undefined}
-                              />
-                            ) : null}
-                            {msg.content?.trim() ? (
-                              <div className="message-text">{msg.content}</div>
-                            ) : null}
-                          </div>
+                      {messages.map((msg) => {
+                        const hasMedia = !!(msg.imageUrl || msg.videoUrl || msg.audioUrl);
+                        return (
                           <div
-                            className={`message-meta ${msg.isOwn ? "message-meta-own" : "message-meta-other"}`}
+                            key={msg.id}
+                            className={`message ${msg.isOwn ? "own" : "other"}`}
                           >
-                            <div className="message-time">
-                              {new Date(msg.sentAt).toLocaleTimeString([], {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                              {msg.isOwn && msg.readAt && (
-                                <span className="read-receipt">✓ Read</span>
-                              )}
-                            </div>
-                            {!msg.isOwn && user?.id ? (
-                              <button
-                                type="button"
-                                className={`message-love-btn${msg.likedBy === user.id ? " message-love-btn--active" : ""}`}
-                                disabled={loveBusyMessageId === msg.id}
-                                aria-label={
-                                  msg.likedBy === user.id ? "Remove heart" : "Love this message"
-                                }
-                                title={
-                                  msg.likedBy === user.id ? "Tap to remove heart" : "Love"
-                                }
-                                onClick={() =>
-                                  void toggleMessageLove(msg.id, msg.likedBy === user.id)
-                                }
+                            <div
+                              className={`message-content${hasMedia ? " message-content--media" : ""}`}
+                            >
+                              {msg.imageUrl ? (
+                                <a
+                                  href={getPhotoUrl(msg.imageUrl) || msg.imageUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="message-media-link"
+                                >
+                                  <img
+                                    src={getPhotoUrl(msg.imageUrl) || msg.imageUrl}
+                                    alt=""
+                                    className="message-image"
+                                  />
+                                </a>
+                              ) : null}
+                              {msg.videoUrl ? (
+                                <video
+                                  className="message-video"
+                                  src={getPhotoUrl(msg.videoUrl) || msg.videoUrl}
+                                  controls
+                                  playsInline
+                                  preload="metadata"
+                                />
+                              ) : null}
+                              {msg.audioUrl ? (
+                                <audio
+                                  className="message-audio"
+                                  controls
+                                  preload="metadata"
+                                  src={getPhotoUrl(msg.audioUrl) || msg.audioUrl || undefined}
+                                />
+                              ) : null}
+                              {msg.content?.trim() ? (
+                                <div className="message-text">{msg.content}</div>
+                              ) : null}
+                              <div
+                                className={`message-meta ${msg.isOwn ? "message-meta-own" : "message-meta-other"}`}
                               >
-                                {msg.likedBy === user.id ? "❤️" : "🤍"}
-                              </button>
-                            ) : null}
-                            {msg.isOwn && msg.likedBy ? (
-                              <span className="message-loved-by-them" title="They loved this">
-                                ❤️
-                              </span>
-                            ) : null}
+                                <div className="message-time">
+                                  {new Date(msg.sentAt).toLocaleTimeString([], {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
+                                  {msg.isOwn ? (
+                                    <span
+                                      className={
+                                        msg.readAt ? "read-receipt" : "message-sent-receipt"
+                                      }
+                                    >
+                                      {msg.readAt ? "✓ Read" : "✓"}
+                                    </span>
+                                  ) : null}
+                                </div>
+                                {!msg.isOwn && user?.id ? (
+                                  <div className="message-reaction-btns">
+                                    <button
+                                      type="button"
+                                      className={`message-love-btn${msg.likedBy === user.id ? " message-love-btn--active" : ""}`}
+                                      disabled={reactionBusyMessageId === msg.id}
+                                      aria-label={
+                                        msg.likedBy === user.id
+                                          ? "Remove heart"
+                                          : "Love this message"
+                                      }
+                                      title={
+                                        msg.likedBy === user.id ? "Tap to remove heart" : "Love"
+                                      }
+                                      onClick={() =>
+                                        void toggleMessageLove(msg.id, msg.likedBy === user.id)
+                                      }
+                                    >
+                                      {msg.likedBy === user.id ? "❤️" : "🤍"}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className={`message-laugh-btn${msg.laughedBy === user.id ? " message-laugh-btn--active" : ""}`}
+                                      disabled={reactionBusyMessageId === msg.id}
+                                      aria-label={
+                                        msg.laughedBy === user.id
+                                          ? "Remove laugh"
+                                          : "Laugh at this message"
+                                      }
+                                      title={
+                                        msg.laughedBy === user.id ? "Tap to remove laugh" : "Laugh"
+                                      }
+                                      onClick={() =>
+                                        void toggleMessageLaugh(
+                                          msg.id,
+                                          msg.laughedBy === user.id
+                                        )
+                                      }
+                                    >
+                                      {msg.laughedBy === user.id ? "😂" : "😂"}
+                                    </button>
+                                  </div>
+                                ) : null}
+                                {msg.isOwn && (msg.likedBy || msg.laughedBy) ? (
+                                  <span className="message-reacted-by-them" title="Their reaction">
+                                    {msg.likedBy ? "❤️" : null}
+                                    {msg.laughedBy ? "😂" : null}
+                                  </span>
+                                ) : null}
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                       <div ref={messagesEndRef} />
                     </div>
                   )}

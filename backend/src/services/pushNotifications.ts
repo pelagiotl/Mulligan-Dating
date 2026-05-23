@@ -291,4 +291,27 @@ export async function sendMessageLikedPushNotification(
   );
 }
 
+/**
+ * Send push when someone laughed at your message
+ */
+export async function sendMessageLaughedPushNotification(
+  pushToken: string,
+  laugherName: string,
+  matchId: string,
+  messageId?: string
+): Promise<PushResult> {
+  return sendPushNotification(
+    pushToken,
+    '😂 Message reaction',
+    `${laugherName} laughed at your message`,
+    {
+      type: 'message_laughed',
+      matchId,
+      laugherName,
+      ...(messageId ? { messageId } : {}),
+    },
+    'default'
+  );
+}
+
 
