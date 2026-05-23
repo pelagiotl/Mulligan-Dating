@@ -76,6 +76,28 @@ for (const check of staleUiChecks) {
 }
 console.log("eas-preflight: mobile UI copy checks passed");
 
+const mipmapRoot = path.join(mobileRoot, "android", "app", "src", "main", "res");
+const launcherBases = ["ic_launcher", "ic_launcher_round", "ic_launcher_foreground"];
+for (const entry of fs.readdirSync(mipmapRoot, { withFileTypes: true })) {
+  if (!entry.isDirectory() || !entry.name.startsWith("mipmap-") || entry.name.includes("anydpi")) {
+    continue;
+  }
+  const folder = path.join(mipmapRoot, entry.name);
+  for (const base of launcherBases) {
+    const hasPng = fs.existsSync(path.join(folder, `${base}.png`));
+    const hasWebp = fs.existsSync(path.join(folder, `${base}.webp`));
+    if (hasPng && hasWebp) {
+      console.error(
+        "eas-preflight: duplicate launcher assets in %s (%s.png and .webp). Remove .webp or run: node scripts/sync-android-launcher-icons-from-assets.js",
+        path.join("android", "app", "src", "main", "res", entry.name),
+        base
+      );
+      process.exit(1);
+    }
+  }
+}
+console.log("eas-preflight: Android launcher mipmap checks passed");
+
 const nestedCopy = path.join(repoRoot, "Mulligan-Dating");
 if (fs.existsSync(nestedCopy)) {
   console.warn(
