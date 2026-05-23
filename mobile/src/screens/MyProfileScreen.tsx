@@ -36,6 +36,12 @@ import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
 import LegalFooter from '../components/LegalFooter';
 import ProfileEditableCardBorder from '../components/ProfileEditableCardBorder';
 import ConnectionQualityScore from '../components/ConnectionQualityScore';
+import MyProfilePreviewModal, {
+  formatMaxDistanceLabel,
+  formatPreferredGendersLabel,
+  parseProfileValues,
+  type MyProfilePreviewData,
+} from '../components/MyProfilePreviewModal';
 import { androidShellBackdropColors } from '../utils/androidConnectShellChrome';
 import {
   LOOKING_FOR_OPTIONS,
@@ -126,6 +132,7 @@ interface ProfileData {
     preferred_genders: string | null;
     max_distance: number | null;
     relationship_type: string | null;
+    values?: string | null;
   } | null;
   dealbreakers: Array<{ description: string; category: string | null }>;
   partnerQualities: Array<{ quality: string; importance: number }>;
@@ -180,6 +187,7 @@ export default function MyProfileScreen() {
   const [uploadingSlotIndices, setUploadingSlotIndices] = useState<number[]>([]);
   const uploadingPhotos = uploadingSlotIndices.length > 0;
   const [showPhotoGallery, setShowPhotoGallery] = useState(false);
+  const [showProfilePreview, setShowProfilePreview] = useState(false);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const photoGalleryScrollRef = useRef<FlatList<Photo>>(null);
   const photoGalleryProgrammaticScrollRef = useRef(false);
@@ -1210,6 +1218,28 @@ export default function MyProfileScreen() {
 
   const { profile, interests, dealbreakers, partnerQualities, lifestyle } = data!;
 
+  const profilePreviewData = useMemo((): MyProfilePreviewData => {
+    const prefs = data!.preferences;
+    return {
+      displayName: profile.display_name,
+      age: profile.age,
+      gender: profile.gender,
+      location: profile.location,
+      bio: profile.bio,
+      lookingFor: profile.looking_for,
+      interests: interests.map((i) => i.name),
+      dealbreakers: dealbreakers.map((d) => d.description),
+      partnerQualities: partnerQualities.map((q) => ({
+        quality: q.quality,
+        importance: q.importance,
+      })),
+      preferredGendersLabel: formatPreferredGendersLabel(prefs?.preferred_genders),
+      maxDistanceLabel: formatMaxDistanceLabel(prefs?.max_distance),
+      values: parseProfileValues(prefs?.values),
+      lifestyle,
+    };
+  }, [data, profile, interests, dealbreakers, partnerQualities, lifestyle]);
+
   // Get primary photo or first photo - only use photos from the photos array
   // Don't fall back to profile.photo_url since that may be stale after deletion
   const primaryPhoto = photos.find(p => p.isPrimary) || photos[0];
@@ -1746,7 +1776,22 @@ export default function MyProfileScreen() {
             )}
             <View style={styles.info}>
               <Text style={styles.name}>{profile.display_name}</Text>
-              
+              <TouchableOpacity
+                style={styles.viewProfilePreviewButton}
+                onPress={() => setShowProfilePreview(true)}
+                activeOpacity={0.85}
+              >
+                <LinearGradient
+                  colors={['#667eea', '#764ba2']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.viewProfilePreviewGradient}
+                >
+                  <Text style={styles.viewProfilePreviewIcon}>👁️</Text>
+                  <Text style={styles.viewProfilePreviewText}>View my profile</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+
               {/* Animated Profile Stats Cards */}
               {settings && (
                 <View style={styles.statsRow}>
@@ -2858,6 +2903,13 @@ export default function MyProfileScreen() {
         <LegalFooter />
       </View>
       </ScrollView>
+
+      <MyProfilePreviewModal
+        visible={showProfilePreview}
+        onClose={() => setShowProfilePreview(false)}
+        data={profilePreviewData}
+        photos={photos}
+      />
 
       {/* Photo Gallery Modal */}
       <Modal
@@ -4210,6 +4262,35 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     overflow: 'hidden',
+  },
+  viewProfilePreviewButton: {
+    marginTop: 12,
+    marginBottom: 4,
+    alignSelf: 'stretch',
+    maxWidth: 240,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  viewProfilePreviewGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  viewProfilePreviewIcon: {
+    fontSize: 16,
+    marginRight: 8,
+  },
+  viewProfilePreviewText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
   },
   viewPhotosButton: {
     marginTop: 16,

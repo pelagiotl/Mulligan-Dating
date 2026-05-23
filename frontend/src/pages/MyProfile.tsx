@@ -1,8 +1,13 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../utils/api";
 import PhotoUpload from "../components/PhotoUpload";
 import ProfilePerimeterBorder from "../components/ProfilePerimeterBorder";
+import MyProfilePreviewModal, {
+  parsePreferredGendersJson,
+  parseProfileValues,
+  type MyProfilePreviewData,
+} from "../components/MyProfilePreviewModal";
 import { getPhotoUrl } from "../utils/photoUrl";
 import { hasCityAndState } from "../utils/locationUtils";
 import { useAuth } from "../context/AuthContext";
@@ -66,6 +71,7 @@ interface ProfileData {
     preferred_genders: string | null;
     max_distance: number | null;
     relationship_type: string | null;
+    values?: string | null;
   } | null;
   dealbreakers: Array<{ description: string; category: string | null }>;
   partnerQualities: Array<{ quality: string; importance: number }>;
@@ -394,6 +400,7 @@ export default function MyProfile() {
   const [showLifestyleModal, setShowLifestyleModal] = useState(false);
   const [editLifestyle, setEditLifestyle] = useState<LifestyleForm>(() => lifestyleFormFromApi(null));
   const [showAvatarLightbox, setShowAvatarLightbox] = useState(false);
+  const [showProfilePreview, setShowProfilePreview] = useState(false);
 
   useEffect(() => {
     if (!showAvatarLightbox) return;
@@ -815,6 +822,28 @@ export default function MyProfile() {
 
   const preferredMatchesChoice = preferredChoiceFromSelection(editPreferredGenders);
 
+  const profilePreviewData = useMemo((): MyProfilePreviewData => {
+    const prefs = data.preferences;
+    return {
+      displayName: profile.display_name,
+      age: profile.age,
+      gender: profile.gender,
+      location: profile.location,
+      bio: profile.bio,
+      lookingFor: profile.looking_for,
+      interests: interests.map((i) => i.name),
+      dealbreakers: dealbreakers.map((d) => d.description),
+      partnerQualities: partnerQualities.map((q) => ({
+        quality: q.quality,
+        importance: q.importance,
+      })),
+      preferredGenders: parsePreferredGendersJson(prefs?.preferred_genders),
+      maxDistance: prefs?.max_distance ?? null,
+      values: parseProfileValues(prefs?.values),
+      lifestyle,
+    };
+  }, [profile, interests, dealbreakers, partnerQualities, lifestyle, data.preferences]);
+
   return (
     <div className="my-profile native-app-screen">
       {error && (
@@ -843,6 +872,13 @@ export default function MyProfile() {
         )}
         <div className="my-profile-info">
           <h1 className="my-profile-name">{profile.display_name}</h1>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm my-profile-preview-btn"
+            onClick={() => setShowProfilePreview(true)}
+          >
+            View my profile
+          </button>
 
           {settings && (
             <div className="my-profile-stats-row">
@@ -1438,6 +1474,13 @@ export default function MyProfile() {
           </div>
         </div>
       )}
+
+      <MyProfilePreviewModal
+        open={showProfilePreview}
+        onClose={() => setShowProfilePreview(false)}
+        data={profilePreviewData}
+        photos={photos}
+      />
 
       {showAvatarLightbox && profilePhotoUrl ? (
         <div

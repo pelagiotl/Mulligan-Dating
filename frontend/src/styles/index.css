@@ -4821,6 +4821,32 @@ button.my-profile-avatar:focus-visible {
   outline-offset: 2px;
 }
 
+.my-profile-photo-lightbox-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  pointer-events: auto;
+}
+
+.my-profile-photo-lightbox-counter {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #fff;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+
+.my-profile-preview-btn {
+  margin-top: var(--space-3);
+  width: 100%;
+  max-width: 220px;
+}
+
+.chat-partner-drawer-root--my-preview .chat-partner-drawer-panel {
+  max-width: min(520px, 100vw);
+}
+
 .my-profile-avatar img {
   width: 100%;
   height: 100%;
