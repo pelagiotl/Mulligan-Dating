@@ -7240,7 +7240,7 @@ button.my-profile-avatar:focus-visible {
 .match-item-name {
   font-size: 1.02rem;
   font-weight: 700;
-  color: var(--color-wine-900);
+  color: var(--match-item-name-color, var(--color-wine-900));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -7263,7 +7263,7 @@ button.my-profile-avatar:focus-visible {
 
 .match-item--unread .match-item-name {
   font-weight: 850;
-  color: #7f1d1d;
+  color: var(--match-item-unread-name-color, #7f1d1d);
 }
 
 .match-unread-dot {

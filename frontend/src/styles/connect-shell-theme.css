@@ -83,9 +83,9 @@ html[data-connect-shell="sunny"],
   --matches-sidebar-border-right: rgba(251, 191, 36, 0.28);
   --match-item-bg: linear-gradient(
     165deg,
-    rgba(255, 255, 254, 0.98) 0%,
-    rgba(255, 247, 237, 0.96) 55%,
-    rgba(254, 243, 199, 0.2) 100%
+    rgba(255, 253, 245, 0.99) 0%,
+    rgba(255, 247, 237, 0.97) 50%,
+    rgba(254, 243, 199, 0.35) 100%
   );
   --match-item-border: rgba(251, 191, 36, 0.34);
   --match-item-border-hover: rgba(249, 115, 22, 0.45);
@@ -139,11 +139,11 @@ html[data-connect-shell="soft"],
   --matches-sidebar-border-right: rgba(102, 126, 234, 0.1);
   --match-item-bg: linear-gradient(
     165deg,
-    rgba(255, 255, 255, 0.98) 0%,
-    rgba(255, 245, 250, 0.94) 55%,
-    rgba(244, 247, 255, 0.9) 100%
+    rgba(255, 255, 255, 0.99) 0%,
+    rgba(255, 245, 250, 0.96) 50%,
+    rgba(237, 242, 255, 0.92) 100%
   );
-  --match-item-border: rgba(102, 126, 234, 0.14);
+  --match-item-border: rgba(102, 126, 234, 0.18);
   --match-item-border-hover: rgba(102, 126, 234, 0.28);
   --match-item-shadow:
     0 4px 14px rgba(102, 126, 234, 0.11),

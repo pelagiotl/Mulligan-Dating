@@ -837,10 +837,18 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
           </View>
           <View style={styles.matchInfo}>
             <View style={styles.matchHeader}>
-              <Text style={[styles.matchName, item.unreadCount && item.unreadCount > 0 && styles.matchNameUnread]}>
+              <Text
+                style={[
+                  styles.matchName,
+                  { color: cardColors.name },
+                  item.unreadCount && item.unreadCount > 0 ? { color: cardColors.nameUnread, fontWeight: '900' as const } : null,
+                ]}
+              >
                 {item.otherUser.displayName ?? ''}
               </Text>
-              <Text style={styles.matchAge}>, {item.otherUser.age != null ? String(item.otherUser.age) : ''}</Text>
+              <Text style={[styles.matchAge, { color: cardColors.age }]}>
+                , {item.otherUser.age != null ? String(item.otherUser.age) : ''}
+              </Text>
               {item.unreadCount != null && item.unreadCount > 0 ? (
                 <View style={styles.unreadDot} />
               ) : null}
@@ -848,17 +856,27 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
                 <Text style={styles.unreadLabel} numberOfLines={1}>New</Text>
               ) : null}
             </View>
-            {renderMatchLocation(item.otherUser.location)}
+            {renderMatchLocation(item.otherUser.location, cardColors.location)}
             {formatLastActive(item.otherUser.lastActiveAt) ? (
-              <Text style={styles.activeStatusText} numberOfLines={1}>
+              <Text style={[styles.activeStatusText, { color: cardColors.activeStatus }]} numberOfLines={1}>
                 🟢 {formatLastActive(item.otherUser.lastActiveAt)}
               </Text>
             ) : null}
             <View style={styles.badgesRow}>
               {item.profileCompatibility != null && item.stage !== 'pending' && (
-                <View style={styles.matchCardCompatibilityBadge}>
+                <View
+                  style={[
+                    styles.matchCardCompatibilityBadge,
+                    {
+                      backgroundColor: cardColors.compatBg,
+                      borderColor: cardColors.compatBorder,
+                    },
+                  ]}
+                >
                   <Text style={styles.matchCardCompatibilityIcon}>🎯</Text>
-                  <Text style={styles.matchCardCompatibilityText}>{item.profileCompatibility}%</Text>
+                  <Text style={[styles.matchCardCompatibilityText, { color: cardColors.compatText }]}>
+                    {item.profileCompatibility}%
+                  </Text>
                 </View>
               )}
               {item.stage === 'pending' ? (
@@ -875,14 +893,17 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
                 </View>
               ) : null}
               {item.expiresAt && getTimeRemaining(item.expiresAt) ? (
-                <Text style={styles.timerInline}>
+                <Text style={[styles.timerInline, { color: cardColors.timer }]}>
                   ⏳ {getTimeRemaining(item.expiresAt)}
                 </Text>
               ) : null}
             </View>
           </View>
           <TouchableOpacity
-            style={styles.unmatchButton}
+            style={[
+              styles.unmatchButton,
+              { backgroundColor: cardColors.unmatchBg, borderColor: cardColors.unmatchBorder },
+            ]}
             onPress={(e) => {
               e.stopPropagation();
               onUnmatch(item.id);
@@ -1811,24 +1832,24 @@ function MatchProfileModal({
 }
 
 // Helper function to render location with proper formatting
-function renderMatchLocation(location: string | null | undefined) {
+function renderMatchLocation(location: string | null | undefined, locationColor: string) {
   if (!location) return null;
-  
-  const locationParts = location.split(',').map(s => s.trim());
+
+  const locationParts = location.split(',').map((s) => s.trim());
   const city = locationParts[0] || '';
   const state = locationParts.slice(1).join(', ') || '';
-  
+
   if (!state) {
-    return <Text style={styles.matchLocation}>📍 {location}</Text>;
+    return <Text style={[styles.matchLocation, { color: locationColor }]}>📍 {location}</Text>;
   }
-  
+
   return (
     <View style={styles.matchLocationContainer}>
       <Text style={styles.matchLocationEmoji}>📍</Text>
       <View style={styles.matchLocationTextContainer}>
-        <Text style={styles.matchLocationCity}>{city}</Text>
-        <Text style={styles.matchLocationComma}>, </Text>
-        <Text style={styles.matchLocationState}>{state}</Text>
+        <Text style={[styles.matchLocationCity, { color: locationColor }]}>{city}</Text>
+        <Text style={[styles.matchLocationComma, { color: locationColor }]}>, </Text>
+        <Text style={[styles.matchLocationState, { color: locationColor }]}>{state}</Text>
       </View>
     </View>
   );

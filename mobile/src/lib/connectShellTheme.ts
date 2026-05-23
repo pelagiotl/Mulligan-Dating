@@ -50,6 +50,17 @@ export type MatchListCardColors = {
   shadowColor: string;
   shadowOpacity: number;
   shimmer: string;
+  name: string;
+  nameUnread: string;
+  age: string;
+  location: string;
+  activeStatus: string;
+  timer: string;
+  compatText: string;
+  compatBg: string;
+  compatBorder: string;
+  unmatchBg: string;
+  unmatchBorder: string;
 };
 
 export function matchListCardColors(mode: ConnectShellMode): MatchListCardColors {
@@ -61,22 +72,55 @@ export function matchListCardColors(mode: ConnectShellMode): MatchListCardColors
         shadowColor: '#000',
         shadowOpacity: 0.35,
         shimmer: 'rgba(255, 255, 255, 0.12)',
+        name: '#f1f5f9',
+        nameUnread: '#fda4af',
+        age: '#cbd5e1',
+        location: '#94a3b8',
+        activeStatus: '#4ade80',
+        timer: '#fcd34d',
+        compatText: '#fecdd3',
+        compatBg: 'rgba(244, 114, 182, 0.14)',
+        compatBorder: 'rgba(244, 114, 182, 0.32)',
+        unmatchBg: 'rgba(38, 32, 52, 0.95)',
+        unmatchBorder: 'rgba(248, 113, 113, 0.35)',
       };
     case 'sunny':
       return {
-        background: '#fffaf3',
-        border: 'rgba(251, 191, 36, 0.34)',
+        background: '#fff7ed',
+        border: 'rgba(251, 191, 36, 0.38)',
         shadowColor: '#fb923c',
-        shadowOpacity: 0.14,
-        shimmer: 'rgba(255, 255, 255, 0.45)',
+        shadowOpacity: 0.16,
+        shimmer: 'rgba(255, 255, 255, 0.5)',
+        name: '#431407',
+        nameUnread: '#be123c',
+        age: '#78716c',
+        location: '#92400e',
+        activeStatus: '#15803d',
+        timer: '#b45309',
+        compatText: '#9a3412',
+        compatBg: 'rgba(254, 215, 170, 0.55)',
+        compatBorder: 'rgba(234, 88, 12, 0.28)',
+        unmatchBg: '#fffbeb',
+        unmatchBorder: '#fecaca',
       };
     case 'soft':
       return {
-        background: '#fffafb',
-        border: 'rgba(102, 126, 234, 0.14)',
+        background: '#fff5f8',
+        border: 'rgba(102, 126, 234, 0.18)',
         shadowColor: '#667eea',
-        shadowOpacity: 0.12,
-        shimmer: 'rgba(255, 255, 255, 0.4)',
+        shadowOpacity: 0.14,
+        shimmer: 'rgba(255, 255, 255, 0.45)',
+        name: '#4c1d95',
+        nameUnread: '#7f1d1d',
+        age: '#64748b',
+        location: '#475569',
+        activeStatus: '#15803d',
+        timer: '#b45309',
+        compatText: '#6b21a8',
+        compatBg: 'rgba(237, 233, 254, 0.85)',
+        compatBorder: 'rgba(102, 126, 234, 0.28)',
+        unmatchBg: '#ffffff',
+        unmatchBorder: '#fecdd3',
       };
   }
 }
