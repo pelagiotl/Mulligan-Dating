@@ -327,12 +327,6 @@ export default function Matches() {
   const [isNarrow, setIsNarrow] = useState(
     () => typeof window !== "undefined" && window.innerWidth <= 900
   );
-  /** iPhone SE and other short phones — tighter chat chrome for message visibility */
-  const [isCompactChat, setIsCompactChat] = useState(
-    () =>
-      typeof window !== "undefined" &&
-      window.matchMedia("(max-width: 430px) and (max-height: 740px)").matches
-  );
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -572,14 +566,6 @@ export default function Matches() {
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 900px)");
     const apply = () => setIsNarrow(mq.matches);
-    apply();
-    mq.addEventListener("change", apply);
-    return () => mq.removeEventListener("change", apply);
-  }, []);
-
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 430px) and (max-height: 740px)");
-    const apply = () => setIsCompactChat(mq.matches);
     apply();
     mq.addEventListener("change", apply);
     return () => mq.removeEventListener("change", apply);
@@ -1788,11 +1774,15 @@ export default function Matches() {
     );
   }
 
+  const inMobileConversation = Boolean(
+    isNarrow && selectedMatch && !mobileShowMatchList
+  );
+
   return (
     <div
       className={`matches-page native-app-screen${
-        isNarrow && selectedMatch && !mobileShowMatchList ? " matches-page--mobile-conversation" : ""
-      }${isCompactChat && isNarrow && selectedMatch && !mobileShowMatchList ? " matches-page--compact-chat" : ""}`}
+        inMobileConversation ? " matches-page--mobile-conversation matches-page--compact-chat" : ""
+      }`}
     >
       {notification && (
         <Notification
@@ -2450,7 +2440,7 @@ export default function Matches() {
                             className="chat-partner-sheet-trigger btn btn-secondary btn-sm"
                             onClick={() => setPartnerDrawerOpen(true)}
                           >
-                            {isCompactChat ? "Profile" : "Profile · photos"}
+                            {inMobileConversation ? "Profile" : "Profile · photos"}
                           </button>
                           <button
                             type="button"
@@ -2498,7 +2488,7 @@ export default function Matches() {
                                   {pulseScore ??
                                     Math.round(selectedMatch.compatibilityScore as number)}
                                 </span>
-                                {pulseEngagement && !isCompactChat ? (
+                                {pulseEngagement && !inMobileConversation ? (
                                   <span className="compatibility-pulse-pill-tier">
                                     {" "}
                                     · {PULSE_ENGAGEMENT_LABEL[pulseEngagement]}
