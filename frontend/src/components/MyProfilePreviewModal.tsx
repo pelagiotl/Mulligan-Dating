@@ -170,12 +170,22 @@ export default function MyProfilePreviewModal({
                   }}
                   aria-label={`View photo — ${data.displayName}`}
                 >
-                  <img src={primaryPhotoUrl} alt="" draggable={false} />
+                  <span className="chat-partner-drawer-avatar-ring">
+                    <img
+                      src={primaryPhotoUrl}
+                      alt=""
+                      className="chat-partner-drawer-avatar-img"
+                      draggable={false}
+                    />
+                  </span>
                 </button>
               ) : (
-                <div className="chat-partner-drawer-avatar-placeholder" aria-hidden>
-                  👤
-                </div>
+                <span
+                  className="chat-partner-drawer-avatar-ring chat-partner-drawer-avatar-ring--placeholder"
+                  aria-hidden
+                >
+                  <span className="chat-partner-drawer-avatar-initial">👤</span>
+                </span>
               )}
               <div className="chat-partner-drawer-headline">
                 <h2 id="my-profile-preview-title" className="chat-partner-drawer-name">

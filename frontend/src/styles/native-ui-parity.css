@@ -125,6 +125,19 @@
   line-height: 1.32;
 }
 
+/* Connect landing inherits `--native-ink` (light) from `.native-app-screen`; force readable body copy */
+.browse-connect-landing-token .token-display-body {
+  color: #334155;
+}
+
+.browse-connect-landing-token .token-cannot-claim {
+  color: #4c1d95;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.38;
+  text-align: center;
+}
+
 @media (max-width: 480px) {
   .browse-connect-landing-token {
     margin-bottom: 10px;

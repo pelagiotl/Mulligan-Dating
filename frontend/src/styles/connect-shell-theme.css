@@ -195,15 +195,6 @@ html[data-connect-shell="soft"],
   .app-layout--native-mobile-shell.connect-shell--soft .main-content[data-native-shell-bg="browse"] {
     background: #eef2ff;
   }
-
-  /* Connect landing: let `.connect-landing-page::before` paint the shell gradient (soft pink/purple, etc.) */
-  .app-layout--native-mobile-shell .main-content[data-native-shell-bg="browse"]:has(.connect-landing-page) {
-    background: transparent;
-  }
-
-  body:has(.app-layout--native-mobile-shell .main-content[data-native-shell-bg="browse"]:has(.connect-landing-page)) {
-    background: transparent;
-  }
 }
 
 /* Midnight: token strip on Connect landing */
@@ -335,6 +326,31 @@ html[data-connect-shell="soft"] .browse-connect-landing-token .token-display.tok
   box-shadow:
     0 10px 28px rgba(102, 126, 234, 0.2),
     0 0 0 1px rgba(129, 140, 248, 0.12);
+}
+
+html[data-connect-shell="soft"] .browse-connect-landing-token .token-display-body,
+.app-layout.connect-shell--soft .browse-connect-landing-token .token-display-body {
+  background: linear-gradient(180deg, #f8f9ff 0%, #ffffff 100%);
+  color: #334155;
+}
+
+html[data-connect-shell="soft"] .browse-connect-landing-token .token-cannot-claim,
+.app-layout.connect-shell--soft .browse-connect-landing-token .token-cannot-claim {
+  color: #4c1d95;
+  font-weight: 600;
+}
+
+/* Sunny: token body copy readable on warm landing */
+html[data-connect-shell="sunny"] .browse-connect-landing-token .token-display-body,
+.app-layout.connect-shell--sunny .browse-connect-landing-token .token-display-body {
+  background: linear-gradient(180deg, #fffbeb 0%, #ffffff 100%);
+  color: #431407;
+}
+
+html[data-connect-shell="sunny"] .browse-connect-landing-token .token-cannot-claim,
+.app-layout.connect-shell--sunny .browse-connect-landing-token .token-cannot-claim {
+  color: #9a3412;
+  font-weight: 600;
 }
 
 /* ─── Sunny: Connect hero card (warm sunrise pill) ─── */
