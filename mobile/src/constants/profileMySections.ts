@@ -309,7 +309,7 @@ export function lifestylePickerDropdownLabel(field: LifestyleFieldKey, value: st
 
 /** Chip / summary labels with emoji for selected lifestyle answers. */
 export function lifestylePickerItemLabel(field: LifestyleFieldKey, value: string): string {
-  const emoji = LIFESTYLE_VALUE_EMOJI[field][value] ?? LIFESTYLE_FIELD_EMOJI[field];
+  const emoji = LIFESTYLE_VALUE_EMOJI[field]?.[value] ?? LIFESTYLE_FIELD_EMOJI[field];
   if (!value) return `${emoji} Skip for now`;
   const byField: Record<LifestyleFieldKey, Record<string, string>> = {
     smoking: {
@@ -381,7 +381,7 @@ export function lifestyleOptionParts(
   const isSkip = !value;
   return {
     isSkip,
-    emoji: isSkip ? '⏭️' : (LIFESTYLE_VALUE_EMOJI[field][value] ?? LIFESTYLE_FIELD_EMOJI[field]),
+    emoji: isSkip ? '⏭️' : (LIFESTYLE_VALUE_EMOJI[field]?.[value] ?? LIFESTYLE_FIELD_EMOJI[field]),
     text: lifestylePickerDropdownLabel(field, value),
   };
 }

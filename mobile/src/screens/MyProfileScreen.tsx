@@ -1114,6 +1114,30 @@ export default function MyProfileScreen() {
     }
   };
 
+  const profilePreviewData = useMemo((): MyProfilePreviewData | null => {
+    if (!data?.profile) return null;
+    const { profile, interests, dealbreakers, partnerQualities, lifestyle } = data;
+    const prefs = data.preferences;
+    return {
+      displayName: profile.display_name,
+      age: profile.age,
+      gender: profile.gender,
+      location: profile.location,
+      bio: profile.bio,
+      lookingFor: profile.looking_for,
+      interests: interests.map((i) => i.name),
+      dealbreakers: dealbreakers.map((d) => d.description),
+      partnerQualities: partnerQualities.map((q) => ({
+        quality: q.quality,
+        importance: q.importance,
+      })),
+      preferredGendersLabel: formatPreferredGendersLabel(prefs?.preferred_genders),
+      maxDistanceLabel: formatMaxDistanceLabel(prefs?.max_distance),
+      values: parseProfileValues(prefs?.values),
+      lifestyle,
+    };
+  }, [data]);
+
   // When tab is not focused, render minimal view so leaving Profile tab is instant
   if (!isFocused) {
     return <View style={{ flex: 1 }} />;
@@ -1217,28 +1241,6 @@ export default function MyProfileScreen() {
   }
 
   const { profile, interests, dealbreakers, partnerQualities, lifestyle } = data!;
-
-  const profilePreviewData = useMemo((): MyProfilePreviewData => {
-    const prefs = data!.preferences;
-    return {
-      displayName: profile.display_name,
-      age: profile.age,
-      gender: profile.gender,
-      location: profile.location,
-      bio: profile.bio,
-      lookingFor: profile.looking_for,
-      interests: interests.map((i) => i.name),
-      dealbreakers: dealbreakers.map((d) => d.description),
-      partnerQualities: partnerQualities.map((q) => ({
-        quality: q.quality,
-        importance: q.importance,
-      })),
-      preferredGendersLabel: formatPreferredGendersLabel(prefs?.preferred_genders),
-      maxDistanceLabel: formatMaxDistanceLabel(prefs?.max_distance),
-      values: parseProfileValues(prefs?.values),
-      lifestyle,
-    };
-  }, [data, profile, interests, dealbreakers, partnerQualities, lifestyle]);
 
   // Get primary photo or first photo - only use photos from the photos array
   // Don't fall back to profile.photo_url since that may be stale after deletion
@@ -1776,21 +1778,6 @@ export default function MyProfileScreen() {
             )}
             <View style={styles.info}>
               <Text style={styles.name}>{profile.display_name}</Text>
-              <TouchableOpacity
-                style={styles.viewProfilePreviewButton}
-                onPress={() => setShowProfilePreview(true)}
-                activeOpacity={0.85}
-              >
-                <LinearGradient
-                  colors={['#667eea', '#764ba2']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.viewProfilePreviewGradient}
-                >
-                  <Text style={styles.viewProfilePreviewIcon}>👁️</Text>
-                  <Text style={styles.viewProfilePreviewText}>View my profile</Text>
-                </LinearGradient>
-              </TouchableOpacity>
 
               {/* Animated Profile Stats Cards */}
               {settings && (
@@ -1876,6 +1863,30 @@ export default function MyProfileScreen() {
                   </Animated.View>
                 </View>
               )}
+
+              <TouchableOpacity
+                style={styles.viewProfilePreviewButton}
+                onPress={() => setShowProfilePreview(true)}
+                activeOpacity={0.88}
+                accessibilityRole="button"
+                accessibilityLabel="View how your profile appears to others"
+              >
+                <LinearGradient
+                  colors={['#667eea', '#764ba2', '#a855f7']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.viewProfilePreviewGradient}
+                >
+                  <View style={styles.viewProfilePreviewIconWrap}>
+                    <Text style={styles.viewProfilePreviewIcon}>👁</Text>
+                  </View>
+                  <View style={styles.viewProfilePreviewCopy}>
+                    <Text style={styles.viewProfilePreviewText}>View my profile</Text>
+                    <Text style={styles.viewProfilePreviewSubtext}>Preview as matches see you</Text>
+                  </View>
+                  <Text style={styles.viewProfilePreviewChevron}>›</Text>
+                </LinearGradient>
+              </TouchableOpacity>
               
               {/* Modern Info Cards Grid */}
               <View style={styles.infoGrid}>
@@ -2904,12 +2915,14 @@ export default function MyProfileScreen() {
       </View>
       </ScrollView>
 
-      <MyProfilePreviewModal
-        visible={showProfilePreview}
-        onClose={() => setShowProfilePreview(false)}
-        data={profilePreviewData}
-        photos={photos}
-      />
+      {profilePreviewData ? (
+        <MyProfilePreviewModal
+          visible={showProfilePreview}
+          onClose={() => setShowProfilePreview(false)}
+          data={profilePreviewData}
+          photos={photos}
+        />
+      ) : null}
 
       {/* Photo Gallery Modal */}
       <Modal
@@ -4264,33 +4277,57 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   viewProfilePreviewButton: {
-    marginTop: 12,
-    marginBottom: 4,
-    alignSelf: 'stretch',
-    maxWidth: 240,
-    borderRadius: 16,
+    marginTop: 4,
+    marginBottom: 22,
+    alignSelf: 'center',
+    width: '100%',
+    maxWidth: 340,
+    borderRadius: 20,
     overflow: 'hidden',
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowColor: '#5b21b6',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
+    elevation: 6,
   },
   viewProfilePreviewGradient: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    gap: 12,
+  },
+  viewProfilePreviewIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+    alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
   },
   viewProfilePreviewIcon: {
-    fontSize: 16,
-    marginRight: 8,
+    fontSize: 20,
+  },
+  viewProfilePreviewCopy: {
+    flex: 1,
   },
   viewProfilePreviewText: {
     color: '#fff',
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  viewProfilePreviewSubtext: {
+    marginTop: 2,
+    color: 'rgba(255, 255, 255, 0.88)',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  viewProfilePreviewChevron: {
+    color: 'rgba(255, 255, 255, 0.92)',
+    fontSize: 26,
+    fontWeight: '300',
+    marginTop: -2,
   },
   viewPhotosButton: {
     marginTop: 16,

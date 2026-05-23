@@ -31,6 +31,7 @@ import { api, prefetchToken, ensureTokenPrefetched, clearTokenCache } from '../u
 import { getPhotoUrl } from '../utils/photoUrl';
 import { useAuth } from '../context/AuthContext';
 import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
+import { connectShellGradientStops } from '../lib/connectShellTheme';
 import TokenDisplay from '../components/TokenDisplay';
 import LaunchCountdownBubble from '../components/LaunchCountdownBubble';
 import MatchmakingPausedModal from '../components/MatchmakingPausedModal';
@@ -159,11 +160,10 @@ export default function BrowseScreen() {
   const isFocused = useIsFocused();
   const { profile: userProfile, user, isAuthenticated, refreshProfile } = useAuth();
   const { mode: connectShellMode } = useConnectShellTheme();
-  const shellBackdropColor = useMemo(() => {
-    if (connectShellMode === 'midnight') return '#15102a';
-    if (connectShellMode === 'sunny') return '#38bdf8';
-    return '#667eea';
-  }, [connectShellMode]);
+  const landingGradientColors = useMemo(
+    () => [...connectShellGradientStops(connectShellMode)] as [string, string, ...string[]],
+    [connectShellMode]
+  );
   const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
   
   // Profile card animations
@@ -1615,27 +1615,15 @@ export default function BrowseScreen() {
   );
 
   return (
-    <View
-      style={[
-        styles.container,
-        showLandingPage && { backgroundColor: shellBackdropColor },
-      ]}
-    >
-      {/* Beautiful gradient background (matching web version) - full screen behind everything */}
-      {showLandingPage && (
+    <View style={[styles.container, showLandingPage && styles.containerLanding]}>
+      {showLandingPage ? (
         <LinearGradient
-          colors={
-            connectShellMode === 'midnight'
-              ? ['#15102a', '#221a32', '#1a1528', '#0f172a']
-              : connectShellMode === 'sunny'
-                ? ['#38bdf8', '#fcd34d', '#fb923c', '#fda4af', '#fef08a']
-                : ['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe']
-          }
+          colors={landingGradientColors}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={[StyleSheet.absoluteFill, { zIndex: 0 }]}
         />
-      )}
+      ) : null}
 
       {/* Token strip: fixed overlay when browsing; inside white card on Connect landing */}
       {!showLandingPage && (
@@ -1644,8 +1632,8 @@ export default function BrowseScreen() {
         </View>
       )}
 
-      <ScrollView 
-        style={[styles.scrollView, showLandingPage && { backgroundColor: shellBackdropColor }]} 
+      <ScrollView
+        style={[styles.scrollView, showLandingPage && styles.scrollViewLanding]}
         contentContainerStyle={[
           styles.contentContainer,
           showLandingPage && {
@@ -2764,8 +2752,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
+  containerLanding: {
+    backgroundColor: 'transparent',
+  },
   scrollView: {
     flex: 1,
+  },
+  scrollViewLanding: {
+    backgroundColor: 'transparent',
   },
   contentContainer: {
     paddingBottom: 40,

@@ -195,6 +195,15 @@ html[data-connect-shell="soft"],
   .app-layout--native-mobile-shell.connect-shell--soft .main-content[data-native-shell-bg="browse"] {
     background: #eef2ff;
   }
+
+  /* Connect landing: let `.connect-landing-page::before` paint the shell gradient (soft pink/purple, etc.) */
+  .app-layout--native-mobile-shell .main-content[data-native-shell-bg="browse"]:has(.connect-landing-page) {
+    background: transparent;
+  }
+
+  body:has(.app-layout--native-mobile-shell .main-content[data-native-shell-bg="browse"]:has(.connect-landing-page)) {
+    background: transparent;
+  }
 }
 
 /* Midnight: token strip on Connect landing */

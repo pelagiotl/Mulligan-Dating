@@ -790,6 +790,30 @@ export default function MyProfile() {
     setEditQualities((prev) => (prev.includes(q) ? prev.filter((x) => x !== q) : [...prev, q]));
   };
 
+  const profilePreviewData = useMemo((): MyProfilePreviewData | null => {
+    if (!data?.profile) return null;
+    const { profile, interests, dealbreakers, partnerQualities, lifestyle } = data;
+    const prefs = data.preferences;
+    return {
+      displayName: profile.display_name,
+      age: profile.age,
+      gender: profile.gender,
+      location: profile.location,
+      bio: profile.bio,
+      lookingFor: profile.looking_for,
+      interests: interests.map((i) => i.name),
+      dealbreakers: dealbreakers.map((d) => d.description),
+      partnerQualities: partnerQualities.map((q) => ({
+        quality: q.quality,
+        importance: q.importance,
+      })),
+      preferredGenders: parsePreferredGendersJson(prefs?.preferred_genders),
+      maxDistance: prefs?.max_distance ?? null,
+      values: parseProfileValues(prefs?.values),
+      lifestyle,
+    };
+  }, [data]);
+
   if (loading) {
     return <div className="loading-screen">Loading your profile...</div>;
   }
@@ -822,28 +846,6 @@ export default function MyProfile() {
 
   const preferredMatchesChoice = preferredChoiceFromSelection(editPreferredGenders);
 
-  const profilePreviewData = useMemo((): MyProfilePreviewData => {
-    const prefs = data.preferences;
-    return {
-      displayName: profile.display_name,
-      age: profile.age,
-      gender: profile.gender,
-      location: profile.location,
-      bio: profile.bio,
-      lookingFor: profile.looking_for,
-      interests: interests.map((i) => i.name),
-      dealbreakers: dealbreakers.map((d) => d.description),
-      partnerQualities: partnerQualities.map((q) => ({
-        quality: q.quality,
-        importance: q.importance,
-      })),
-      preferredGenders: parsePreferredGendersJson(prefs?.preferred_genders),
-      maxDistance: prefs?.max_distance ?? null,
-      values: parseProfileValues(prefs?.values),
-      lifestyle,
-    };
-  }, [profile, interests, dealbreakers, partnerQualities, lifestyle, data.preferences]);
-
   return (
     <div className="my-profile native-app-screen">
       {error && (
@@ -872,13 +874,6 @@ export default function MyProfile() {
         )}
         <div className="my-profile-info">
           <h1 className="my-profile-name">{profile.display_name}</h1>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm my-profile-preview-btn"
-            onClick={() => setShowProfilePreview(true)}
-          >
-            View my profile
-          </button>
 
           {settings && (
             <div className="my-profile-stats-row">
@@ -921,6 +916,24 @@ export default function MyProfile() {
               </ProfilePerimeterBorder>
             </div>
           )}
+
+          <button
+            type="button"
+            className="my-profile-preview-btn"
+            onClick={() => setShowProfilePreview(true)}
+            aria-label="View how your profile appears to others"
+          >
+            <span className="my-profile-preview-btn__icon" aria-hidden>
+              👁
+            </span>
+            <span className="my-profile-preview-btn__copy">
+              <span className="my-profile-preview-btn__title">View my profile</span>
+              <span className="my-profile-preview-btn__sub">Preview as matches see you</span>
+            </span>
+            <span className="my-profile-preview-btn__chevron" aria-hidden>
+              ›
+            </span>
+          </button>
 
           <div className="my-profile-info-grid">
             <ProfilePerimeterBorder delay={360} className="profile-perimeter-border--mini">
@@ -1475,12 +1488,14 @@ export default function MyProfile() {
         </div>
       )}
 
-      <MyProfilePreviewModal
-        open={showProfilePreview}
-        onClose={() => setShowProfilePreview(false)}
-        data={profilePreviewData}
-        photos={photos}
-      />
+      {profilePreviewData ? (
+        <MyProfilePreviewModal
+          open={showProfilePreview}
+          onClose={() => setShowProfilePreview(false)}
+          data={profilePreviewData}
+          photos={photos}
+        />
+      ) : null}
 
       {showAvatarLightbox && profilePhotoUrl ? (
         <div

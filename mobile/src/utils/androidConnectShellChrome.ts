@@ -1,17 +1,24 @@
 import { Platform } from 'react-native';
-import type { ConnectShellMode } from '../lib/connectShellTheme';
+import {
+  connectShellGradientStops,
+  CONNECT_SHELL_MIDNIGHT_GRADIENT,
+  CONNECT_SHELL_SOFT_GRADIENT,
+  CONNECT_SHELL_SUNNY_GRADIENT,
+  type ConnectShellMode,
+} from '../lib/connectShellTheme';
 
-/** Legacy pastel multi-stop — kept for non-Android surfaces that still reference it. */
-export const ANDROID_SHELL_SOFT_BACKDROP = ['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe'] as const;
+/** Pastel multi-stop — matches web soft `--native-gradient-screen`. */
+export const ANDROID_SHELL_SOFT_BACKDROP = CONNECT_SHELL_SOFT_GRADIENT;
 
 /** Warm sunrise / sky — Android sunny Connect shell. */
-export const ANDROID_SHELL_SUNNY_BACKDROP = ['#38bdf8', '#fcd34d', '#fb923c', '#fda4af', '#fef08a'] as const;
+export const ANDROID_SHELL_SUNNY_BACKDROP = CONNECT_SHELL_SUNNY_GRADIENT;
 
 /** Matches Browse midnight backdrop (`BrowseScreen`). */
-export const ANDROID_SHELL_MIDNIGHT_BACKDROP = ['#15102a', '#221a32', '#1a1528', '#0f172a'] as const;
+export const ANDROID_SHELL_MIDNIGHT_BACKDROP = CONNECT_SHELL_MIDNIGHT_GRADIENT;
 
 export function androidShellBackdropColors(mode: ConnectShellMode): readonly [string, string, ...string[]] {
-  if (Platform.OS !== 'android') return ANDROID_SHELL_SOFT_BACKDROP;
+  const stops = connectShellGradientStops(mode);
+  if (Platform.OS !== 'android') return stops as readonly [string, string, ...string[]];
   if (mode === 'midnight') return ANDROID_SHELL_MIDNIGHT_BACKDROP;
   if (mode === 'sunny') return ANDROID_SHELL_SUNNY_BACKDROP;
   return ANDROID_SHELL_SOFT_BACKDROP;

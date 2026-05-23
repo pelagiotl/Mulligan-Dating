@@ -10,6 +10,7 @@ import {
   Platform,
   Dimensions,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getPhotoUrl } from '../utils/photoUrl';
 import {
@@ -70,8 +71,8 @@ const LIFESTYLE_KEYS: Array<{ key: LifestyleFieldKey; field: keyof NonNullable<M
   { key: 'pets', field: 'pets' },
   { key: 'religion', field: 'religion' },
   { key: 'political', field: 'political' },
-  { key: 'work_life_balance', field: 'work_life_balance' },
-  { key: 'works_out', field: 'works_out' },
+  { key: 'workLifeBalance', field: 'work_life_balance' },
+  { key: 'worksOut', field: 'works_out' },
 ];
 
 export function parseProfileValues(raw: string | null | undefined): string[] {
@@ -129,37 +130,64 @@ export default function MyProfilePreviewModal({ visible, onClose, data, photos }
 
   const sheetTop = Platform.OS === 'android' ? Math.max(insets.top, 8) + 8 : Math.max(insets.top, 14) + 12;
 
+  const renderSection = (title: string, body: React.ReactNode) => (
+    <View style={styles.block}>
+      <Text style={styles.blockTitle}>{title}</Text>
+      {body}
+    </View>
+  );
+
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.overlay}>
         <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
         <View style={[styles.sheet, { marginTop: sheetTop, paddingBottom: Math.max(insets.bottom, 16) }]}>
-          <View style={styles.header}>
-            <View style={styles.headerMain}>
-              {primaryPhotoUrl ? (
-                <Image source={{ uri: primaryPhotoUrl }} style={styles.avatar} />
-              ) : (
-                <View style={[styles.avatar, styles.avatarPlaceholder]}>
-                  <Text style={styles.avatarPlaceholderText}>👤</Text>
-                </View>
-              )}
-              <View style={styles.headerText}>
-                <Text style={styles.name}>
-                  {data.displayName}
-                  {data.age ? `, ${data.age}` : ''}
-                </Text>
-                <Text style={styles.meta}>
-                  {[data.gender, data.location, data.maxDistanceLabel].filter(Boolean).join(' · ')}
-                </Text>
-                <Text style={styles.tagline}>
-                  How your profile looks to others on Mulligan
-                </Text>
+          <LinearGradient
+            colors={['#667eea', '#764ba2', '#a855f7']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.headerGradient}
+          >
+            <View style={styles.header}>
+              <View style={styles.previewBadge}>
+                <Text style={styles.previewBadgeText}>Preview mode</Text>
               </View>
+              <View style={styles.headerMain}>
+                {primaryPhotoUrl ? (
+                  <Image source={{ uri: primaryPhotoUrl }} style={styles.avatar} />
+                ) : (
+                  <View style={[styles.avatar, styles.avatarPlaceholder]}>
+                    <Text style={styles.avatarPlaceholderText}>👤</Text>
+                  </View>
+                )}
+                <View style={styles.headerText}>
+                  <Text style={styles.name}>
+                    {data.displayName}
+                    {data.age ? `, ${data.age}` : ''}
+                  </Text>
+                  <View style={styles.metaChips}>
+                    {data.gender ? (
+                      <View style={styles.metaChip}>
+                        <Text style={styles.metaChipText}>{data.gender}</Text>
+                      </View>
+                    ) : null}
+                    {data.location ? (
+                      <View style={styles.metaChip}>
+                        <Text style={styles.metaChipText}>📍 {data.location}</Text>
+                      </View>
+                    ) : null}
+                    <View style={styles.metaChip}>
+                      <Text style={styles.metaChipText}>{data.maxDistanceLabel}</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.tagline}>How your profile looks to others on Mulligan</Text>
+                </View>
+              </View>
+              <TouchableOpacity style={styles.closeBtn} onPress={onClose} accessibilityLabel="Close">
+                <Text style={styles.closeBtnText}>✕</Text>
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity style={styles.closeBtn} onPress={onClose} accessibilityLabel="Close">
-              <Text style={styles.closeBtnText}>✕</Text>
-            </TouchableOpacity>
-          </View>
+          </LinearGradient>
 
           <ScrollView
             style={styles.scroll}
@@ -167,7 +195,7 @@ export default function MyProfilePreviewModal({ visible, onClose, data, photos }
             showsVerticalScrollIndicator={false}
           >
             {sortedPhotos.length > 0 ? (
-              <View style={styles.section}>
+              <View style={styles.surface}>
                 <Text style={styles.sectionEyebrow}>Gallery</Text>
                 <Text style={styles.sectionTitle}>Photos</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoRail}>
@@ -186,91 +214,91 @@ export default function MyProfilePreviewModal({ visible, onClose, data, photos }
               <Text style={styles.emptyHint}>No photos yet — add some from your profile.</Text>
             )}
 
-            {data.lookingFor ? (
-              <View style={styles.block}>
-                <Text style={styles.blockTitle}>Looking for</Text>
-                <Text style={styles.blockBody}>{data.lookingFor}</Text>
-              </View>
-            ) : null}
+            {data.lookingFor
+              ? renderSection('Looking for', <Text style={styles.blockBody}>{data.lookingFor}</Text>)
+              : null}
 
-            <View style={styles.block}>
-              <Text style={styles.blockTitle}>Wants to connect with</Text>
+            {renderSection(
+              'Wants to connect with',
               <Text style={styles.blockBody}>{data.preferredGendersLabel}</Text>
-            </View>
+            )}
 
-            {data.bio ? (
-              <View style={styles.block}>
-                <Text style={styles.blockTitle}>About</Text>
-                <Text style={styles.blockBody}>{data.bio}</Text>
-              </View>
-            ) : null}
+            {data.bio
+              ? renderSection('About', <Text style={styles.blockBody}>{data.bio}</Text>)
+              : null}
 
-            {data.partnerQualities.length > 0 ? (
-              <View style={styles.block}>
-                <Text style={styles.blockTitle}>What you&apos;re looking for</Text>
-                {data.partnerQualities.map((q, idx) => (
-                  <View key={idx} style={styles.qualityRow}>
-                    <Text style={styles.qualityName}>{q.quality}</Text>
-                    <Text style={styles.qualityStars}>{'⭐'.repeat(Math.min(q.importance, 5))}</Text>
+            {data.partnerQualities.length > 0
+              ? renderSection(
+                  "What you're looking for",
+                  <>
+                    {data.partnerQualities.map((q, idx) => (
+                      <View key={idx} style={styles.qualityRow}>
+                        <Text style={styles.qualityName}>{q.quality}</Text>
+                        <Text style={styles.qualityStars}>{'⭐'.repeat(Math.min(q.importance, 5))}</Text>
+                      </View>
+                    ))}
+                  </>
+                )
+              : null}
+
+            {data.interests.length > 0
+              ? renderSection(
+                  'Interests',
+                  <View style={styles.tags}>
+                    {data.interests.map((name) => (
+                      <View key={name} style={styles.tag}>
+                        <Text style={styles.tagText}>{name}</Text>
+                      </View>
+                    ))}
                   </View>
-                ))}
-              </View>
-            ) : null}
+                )
+              : null}
 
-            {data.interests.length > 0 ? (
-              <View style={styles.block}>
-                <Text style={styles.blockTitle}>Interests</Text>
-                <View style={styles.tags}>
-                  {data.interests.map((name) => (
-                    <View key={name} style={styles.tag}>
-                      <Text style={styles.tagText}>{name}</Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            ) : null}
+            {data.values.length > 0
+              ? renderSection(
+                  'Values',
+                  <View style={styles.tags}>
+                    {data.values.map((v) => (
+                      <View key={v} style={[styles.tag, styles.valueTag]}>
+                        <Text style={styles.tagText}>{v}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )
+              : null}
 
-            {data.values.length > 0 ? (
-              <View style={styles.block}>
-                <Text style={styles.blockTitle}>Values</Text>
-                <View style={styles.tags}>
-                  {data.values.map((v) => (
-                    <View key={v} style={[styles.tag, styles.valueTag]}>
-                      <Text style={styles.tagText}>{v}</Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            ) : null}
-
-            {data.dealbreakers.length > 0 ? (
-              <View style={styles.block}>
-                <Text style={styles.blockTitle}>Dealbreakers</Text>
-                {data.dealbreakers.map((d, i) => (
-                  <Text key={i} style={styles.listItem}>
-                    • {d}
-                  </Text>
-                ))}
-              </View>
-            ) : null}
-
-            {hasLifestyle(data.lifestyle) && data.lifestyle ? (
-              <View style={styles.block}>
-                <Text style={styles.blockTitle}>Lifestyle</Text>
-                {LIFESTYLE_KEYS.map(({ key, field }) => {
-                  const raw = data.lifestyle![field];
-                  if (!raw || typeof raw !== 'string') return null;
-                  return (
-                    <View key={key} style={styles.lifestyleRow}>
-                      <Text style={styles.lifestyleLabel}>{LIFESTYLE_FIELD_LABEL[key]}</Text>
-                      <Text style={styles.lifestyleValue}>
-                        {lifestylePickerItemLabel(key, raw)}
+            {data.dealbreakers.length > 0
+              ? renderSection(
+                  'Dealbreakers',
+                  <>
+                    {data.dealbreakers.map((d, i) => (
+                      <Text key={i} style={styles.listItem}>
+                        • {d}
                       </Text>
-                    </View>
-                  );
-                })}
-              </View>
-            ) : null}
+                    ))}
+                  </>
+                )
+              : null}
+
+            {hasLifestyle(data.lifestyle) && data.lifestyle
+              ? renderSection(
+                  'Lifestyle',
+                  <View style={styles.lifestyleGrid}>
+                    {LIFESTYLE_KEYS.map(({ key, field }) => {
+                      const raw = data.lifestyle![field];
+                      if (!raw || typeof raw !== 'string') return null;
+                      return (
+                        <View key={key} style={styles.lifestyleCard}>
+                          <Text style={styles.lifestyleLabel}>{LIFESTYLE_FIELD_LABEL[key]}</Text>
+                          <Text style={styles.lifestyleValue}>
+                            {lifestylePickerItemLabel(key, raw)}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                )
+              : null}
           </ScrollView>
         </View>
       </View>
@@ -306,41 +334,63 @@ const thumbSize = Math.min(120, Dimensions.get('window').width * 0.32);
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(76, 29, 46, 0.88)',
+    backgroundColor: 'rgba(46, 16, 101, 0.72)',
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
   },
   sheet: {
     flex: 1,
-    marginHorizontal: 12,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    backgroundColor: '#fffafb',
+    marginHorizontal: 10,
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    backgroundColor: '#faf8ff',
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.65)',
+  },
+  headerGradient: {
+    borderBottomWidth: 0,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(225, 29, 72, 0.12)',
-    backgroundColor: 'rgba(255, 253, 253, 0.98)',
+    paddingTop: 14,
+  },
+  previewBadge: {
+    position: 'absolute',
+    top: 12,
+    left: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.35)',
+  },
+  previewBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    color: '#fff',
   },
   headerMain: {
     flex: 1,
     flexDirection: 'row',
     gap: 12,
+    marginTop: 22,
   },
   avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    borderWidth: 2,
-    borderColor: '#fff',
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.95)',
   },
   avatarPlaceholder: {
-    backgroundColor: '#fce7f3',
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -351,58 +401,85 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   name: {
-    fontSize: 20,
+    fontSize: 21,
     fontWeight: '800',
-    color: '#1a1523',
+    color: '#fff',
+    letterSpacing: -0.3,
   },
-  meta: {
-    marginTop: 4,
-    fontSize: 13,
-    color: '#64748b',
-    lineHeight: 18,
+  metaChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 8,
+  },
+  metaChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.28)',
+  },
+  metaChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#fff',
   },
   tagline: {
-    marginTop: 6,
+    marginTop: 8,
     fontSize: 12,
-    color: '#94a3b8',
+    color: 'rgba(255, 255, 255, 0.88)',
     lineHeight: 16,
   },
   closeBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.95)',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255,255,255,0.96)',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(225, 29, 72, 0.16)',
+    marginTop: 20,
   },
   closeBtnText: {
     fontSize: 18,
-    color: '#57534e',
+    color: '#5b21b6',
+    fontWeight: '600',
   },
   scroll: {
     flex: 1,
+    backgroundColor: '#faf8ff',
   },
   scrollContent: {
-    padding: 16,
+    padding: 14,
     paddingBottom: 32,
+    gap: 10,
   },
-  section: {
-    marginBottom: 20,
+  surface: {
+    marginBottom: 4,
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+    borderWidth: 1,
+    borderColor: 'rgba(102, 126, 234, 0.14)',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
   },
   sectionEyebrow: {
     fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.8,
+    fontWeight: '800',
+    letterSpacing: 0.7,
     textTransform: 'uppercase',
-    color: '#be185d',
+    color: '#7c3aed',
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '800',
-    color: '#1a1523',
+    color: '#1e1b4b',
     marginBottom: 12,
+    marginTop: 2,
   },
   photoRail: {
     flexDirection: 'row',
@@ -410,30 +487,37 @@ const styles = StyleSheet.create({
   thumb: {
     width: thumbSize,
     height: thumbSize * 1.25,
-    borderRadius: 14,
+    borderRadius: 16,
     marginRight: 10,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: '#ede9fe',
+    borderWidth: 1,
+    borderColor: 'rgba(102, 126, 234, 0.15)',
   },
   emptyHint: {
     color: '#64748b',
     marginBottom: 16,
     fontSize: 14,
+    textAlign: 'center',
   },
   block: {
-    marginBottom: 18,
     padding: 14,
     borderRadius: 16,
-    backgroundColor: '#fff',
+    backgroundColor: 'rgba(255, 255, 255, 0.96)',
     borderWidth: 1,
-    borderColor: 'rgba(225, 29, 72, 0.1)',
+    borderColor: 'rgba(102, 126, 234, 0.12)',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
   blockTitle: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '800',
-    color: '#881337',
+    color: '#6d28d9',
     marginBottom: 8,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
   },
   blockBody: {
     fontSize: 15,
@@ -444,12 +528,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 8,
+    paddingBottom: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(102, 126, 234, 0.12)',
   },
   qualityName: {
     flex: 1,
     fontSize: 15,
     color: '#334155',
+    fontWeight: '500',
   },
   qualityStars: {
     fontSize: 12,
@@ -461,39 +549,49 @@ const styles = StyleSheet.create({
   },
   tag: {
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 7,
     borderRadius: 20,
-    backgroundColor: 'rgba(254, 205, 211, 0.5)',
+    backgroundColor: 'rgba(237, 233, 254, 0.95)',
     borderWidth: 1,
-    borderColor: 'rgba(190, 24, 93, 0.2)',
+    borderColor: 'rgba(102, 126, 234, 0.22)',
   },
   valueTag: {
-    backgroundColor: 'rgba(254, 243, 199, 0.6)',
-    borderColor: 'rgba(217, 119, 6, 0.25)',
+    backgroundColor: 'rgba(252, 231, 243, 0.9)',
+    borderColor: 'rgba(236, 72, 153, 0.22)',
   },
   tagText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#881337',
+    color: '#5b21b6',
   },
   listItem: {
     fontSize: 14,
-    color: '#334155',
-    marginBottom: 4,
+    color: '#475569',
+    marginBottom: 6,
     lineHeight: 20,
   },
-  lifestyleRow: {
-    marginBottom: 8,
+  lifestyleGrid: {
+    gap: 8,
+  },
+  lifestyleCard: {
+    padding: 10,
+    borderRadius: 12,
+    backgroundColor: 'rgba(237, 242, 255, 0.75)',
+    borderWidth: 1,
+    borderColor: 'rgba(102, 126, 234, 0.1)',
   },
   lifestyleLabel: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 10,
+    fontWeight: '800',
     color: '#64748b',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   lifestyleValue: {
-    fontSize: 15,
+    fontSize: 14,
     color: '#334155',
-    marginTop: 2,
+    marginTop: 4,
+    fontWeight: '500',
   },
   fullscreenOverlay: {
     flex: 1,

@@ -125,6 +125,41 @@ export function matchListCardColors(mode: ConnectShellMode): MatchListCardColors
   }
 }
 
+/** Full-screen chrome gradient — aligned with web `--native-gradient-screen` (soft). */
+export const CONNECT_SHELL_SOFT_GRADIENT = [
+  '#667eea',
+  '#764ba2',
+  '#a855f7',
+  '#ec4899',
+  '#38bdf8',
+] as const;
+
+export const CONNECT_SHELL_MIDNIGHT_GRADIENT = [
+  '#15102a',
+  '#221a32',
+  '#1a1528',
+  '#0f172a',
+] as const;
+
+export const CONNECT_SHELL_SUNNY_GRADIENT = [
+  '#38bdf8',
+  '#fcd34d',
+  '#fb923c',
+  '#fda4af',
+  '#fef08a',
+] as const;
+
+export function connectShellGradientStops(mode: ConnectShellMode): readonly string[] {
+  switch (mode) {
+    case 'midnight':
+      return CONNECT_SHELL_MIDNIGHT_GRADIENT;
+    case 'sunny':
+      return CONNECT_SHELL_SUNNY_GRADIENT;
+    case 'soft':
+      return CONNECT_SHELL_SOFT_GRADIENT;
+  }
+}
+
 export function connectButtonShimmerColors(mode: ConnectShellMode): ConnectButtonShimmerColors {
   switch (mode) {
     case 'midnight':
