@@ -31,6 +31,7 @@ import { api, getToken } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
 import type { ConnectShellMode } from '../lib/connectShellTheme';
+import { matchListCardColors, type MatchListCardColors } from '../lib/connectShellTheme';
 import { androidShellBackdropColors, androidShellTabBodyBg } from '../utils/androidConnectShellChrome';
 import { getPhotoUrl } from '../utils/photoUrl';
 import {
@@ -660,6 +661,7 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
   getStageEmoji,
   onPress, 
   onUnmatch,
+  cardColors,
 }: {
   item: Match;
   index: number;
@@ -670,6 +672,7 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
   getStageEmoji: (stage: string) => string;
   onPress: () => void;
   onUnmatch: (id: string) => void;
+  cardColors: MatchListCardColors;
 }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.92)).current;
@@ -750,7 +753,15 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
       ]}
     >
       <TouchableOpacity
-        style={styles.matchCard}
+        style={[
+          styles.matchCard,
+          {
+            backgroundColor: cardColors.background,
+            borderColor: cardColors.border,
+            shadowColor: cardColors.shadowColor,
+            shadowOpacity: cardColors.shadowOpacity,
+          },
+        ]}
         onPress={onPress}
         activeOpacity={0.85}
       >
@@ -759,6 +770,7 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
           style={[
             styles.shimmerOverlay,
             {
+              backgroundColor: cardColors.shimmer,
               opacity: shimmerAnim.interpolate({
                 inputRange: [0, 0.5, 1],
                 outputRange: [0, 0.15, 0],
@@ -768,7 +780,7 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
           ]}
           pointerEvents="none"
         />
-        <View style={styles.matchCardContent}>
+        <View style={[styles.matchCardContent, { backgroundColor: cardColors.background }]}>
           <View style={styles.photoWrapper}>
             {photoUrl ? (
               <Animated.View style={{ transform: [{ scale: photoScaleAnim }] }}>
@@ -1921,6 +1933,10 @@ export default function MatchesScreen() {
     [connectShellMode]
   );
   const tabBodyBg = useMemo(() => androidShellTabBodyBg(connectShellMode), [connectShellMode]);
+  const matchCardColors = useMemo(
+    () => matchListCardColors(connectShellMode),
+    [connectShellMode]
+  );
   const [matches, setMatches] = useState<Match[]>([]);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -3818,6 +3834,7 @@ export default function MatchesScreen() {
                   item={item} 
                   index={index} 
                   photoUrl={photoUrl} 
+                  cardColors={matchCardColors}
                   getTimeRemaining={getTimeRemaining}
                   formatLastActive={formatLastActive}
                   getStageBadgeStyle={getStageBadgeStyle}
@@ -5014,21 +5031,16 @@ const styles = StyleSheet.create({
   },
   matchCard: {
     borderRadius: 20,
-    backgroundColor: '#fff',
-    shadowColor: '#667eea',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
     shadowRadius: 12,
     elevation: 8,
     overflow: 'hidden',
     borderWidth: 1.5,
-    borderColor: 'rgba(102, 126, 234, 0.1)',
   },
   matchCardContent: {
     flexDirection: 'row',
     padding: 14,
     alignItems: 'center',
-    backgroundColor: '#fff',
     position: 'relative',
   },
   photoWrapper: {
@@ -5084,7 +5096,6 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     width: '200%',
-    backgroundColor: 'rgba(255, 255, 255, 0.4)',
     transform: [{ rotate: '15deg' }],
   },
   unreadBadge: {

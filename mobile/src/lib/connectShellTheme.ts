@@ -43,6 +43,44 @@ export type ConnectButtonShimmerColors = {
   glow: string;
 };
 
+/** Matches list row — warm blush cards (soft/sunny) or dark glass (midnight). */
+export type MatchListCardColors = {
+  background: string;
+  border: string;
+  shadowColor: string;
+  shadowOpacity: number;
+  shimmer: string;
+};
+
+export function matchListCardColors(mode: ConnectShellMode): MatchListCardColors {
+  switch (mode) {
+    case 'midnight':
+      return {
+        background: 'rgba(28, 24, 38, 0.98)',
+        border: 'rgba(244, 114, 182, 0.22)',
+        shadowColor: '#000',
+        shadowOpacity: 0.35,
+        shimmer: 'rgba(255, 255, 255, 0.12)',
+      };
+    case 'sunny':
+      return {
+        background: '#fffaf3',
+        border: 'rgba(251, 191, 36, 0.34)',
+        shadowColor: '#fb923c',
+        shadowOpacity: 0.14,
+        shimmer: 'rgba(255, 255, 255, 0.45)',
+      };
+    case 'soft':
+      return {
+        background: '#fffafb',
+        border: 'rgba(102, 126, 234, 0.14)',
+        shadowColor: '#667eea',
+        shadowOpacity: 0.12,
+        shimmer: 'rgba(255, 255, 255, 0.4)',
+      };
+  }
+}
+
 export function connectButtonShimmerColors(mode: ConnectShellMode): ConnectButtonShimmerColors {
   switch (mode) {
     case 'midnight':
