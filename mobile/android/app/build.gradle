@@ -41,12 +41,12 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace "app.mulligandating"
+    namespace 'app.mulligandating'
     defaultConfig {
-        applicationId "app.mulligandating"
+        applicationId 'app.mulligandating'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 67
+        versionCode 70
         versionName "1.0.0"
     }
     signingConfigs {

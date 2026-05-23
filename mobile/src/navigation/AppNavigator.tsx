@@ -5,6 +5,7 @@
 
 import React from 'react';
 import {
+  DefaultTheme,
   NavigationContainer,
   useNavigation,
   useRoute,
@@ -595,8 +596,10 @@ export default function AppNavigator() {
           ref={navigationRef}
           onReady={handleNavigationReady}
           theme={{
+            ...DefaultTheme,
             dark: false,
             colors: {
+              ...DefaultTheme.colors,
               primary: '#8B1538',
               background: '#f8f9ff',
               card: '#ffffff',
@@ -610,7 +613,7 @@ export default function AppNavigator() {
             initialRouteName="PhoneLogin"
             screenOptions={{
               headerShown: false,
-              contentStyle: { backgroundColor: '#f8f9ff' },
+              cardStyle: { backgroundColor: '#f8f9ff' },
             }}
           >
             <Stack.Screen name="PhoneLogin" component={PhoneLoginScreen} />

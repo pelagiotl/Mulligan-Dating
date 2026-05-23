@@ -20,7 +20,7 @@
         "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       },
       "android": {
-        "image": "sdk-52",
+        "image": "sdk-53",
         "ndk": "28.0.12674087"
       },
       "ios": {

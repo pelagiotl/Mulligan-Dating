@@ -24,7 +24,7 @@ npx eas-cli build --platform android --profile production
 - Build takes about **15–25 minutes**.
 - You get an `.aab` (Android App Bundle) when it finishes.
 
-**16 KB page size (Google Play):** Production builds use AGP 8.8.2, NDK 28, `useLegacyPackaging: false`, and `extractNativeLibs="false"`. Commit and push before building so EAS picks up `mobile/android/`. If Play still flags alignment after a fresh build, see [Expo’s 16 KB guide](https://github.com/expo/fyi/blob/main/android-16kb-page-sizes.md) (SDK 53+ may be required for some prebuilt native libs).
+**16 KB page size (Google Play):** The app targets **Expo SDK 53** (React Native 0.79) with 16 KB–aligned native libraries. Production builds use EAS image `sdk-53`, AGP 8.8.2, NDK 28, `useLegacyPackaging: false`, and `extractNativeLibs="false"`. Commit and push before building so EAS picks up `mobile/android/` and `package-lock.json`. If Play still flags a specific `.so`, check the bundle explorer and update that dependency; see [Expo’s 16 KB guide](https://github.com/expo/fyi/blob/main/android-16kb-page-sizes.md).
 
 ### Step 3: Submit to Google Play
 
