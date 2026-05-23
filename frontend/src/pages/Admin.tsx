@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { api } from '../utils/api';
+import { getAdminDisplayPhotos } from '../utils/adminDisplayPhotos';
 import { useAuth } from '../context/AuthContext';
 import './Admin.css';
 
@@ -57,13 +58,42 @@ interface Message {
   isFromTargetUser: boolean;
 }
 
+interface AdminUserPhoto {
+  id: string;
+  url: string;
+  displayOrder: number;
+  isPrimary: boolean;
+}
+
 interface UserDetails extends User {
-  profile?: any;
+  profile?: {
+    display_name?: string;
+    age?: number;
+    gender?: string;
+    location?: string;
+    bio?: string;
+    looking_for?: string;
+    photo_url?: string | null;
+    [key: string]: unknown;
+  } | null;
+  photos?: AdminUserPhoto[];
+  interests?: string[];
+  lifestyle?: Record<string, string | null> | null;
   tokens: any[];
   matches: number;
   blocks: number;
   messages?: Message[];
 }
+
+const LIFESTYLE_FIELD_LABELS: Record<string, string> = {
+  smoking: 'Smoking',
+  drinking: 'Drinking',
+  children: 'Children',
+  pets: 'Pets',
+  religion: 'Religion',
+  workLifeBalance: 'Work/life balance',
+  worksOut: 'Works out',
+};
 
 interface Stats {
   totalUsers: number;
@@ -263,7 +293,7 @@ export default function Admin() {
 
   const fetchUserDetails = async (userId: string) => {
     try {
-      const data = await api.get<UserDetails>(`/admin/users/${userId}`);
+      const data = await api.get<UserDetails>(`/admin/users/${userId}?_=${Date.now()}`);
       setSelectedUser(data);
       setSelectedConversation(null);
       setUserMessages([]);
@@ -814,11 +844,74 @@ export default function Admin() {
                 <div className="detail-section">
                   <h3>Profile</h3>
                   <p><strong>Name:</strong> {selectedUser.profile.display_name}</p>
-                  <p><strong>Age:</strong> {selectedUser.profile.age}</p>
-                  <p><strong>Gender:</strong> {selectedUser.profile.gender}</p>
+                  <p><strong>Age:</strong> {selectedUser.profile.age ?? '—'}</p>
+                  <p><strong>Gender:</strong> {selectedUser.profile.gender || '—'}</p>
                   <p><strong>Location:</strong> {selectedUser.profile.location || '—'}</p>
+                  {selectedUser.profile.bio ? (
+                    <p className="admin-profile-bio"><strong>Bio:</strong> {selectedUser.profile.bio}</p>
+                  ) : null}
+                  {selectedUser.profile.looking_for ? (
+                    <p><strong>Looking for:</strong> {selectedUser.profile.looking_for}</p>
+                  ) : null}
+                  {selectedUser.interests && selectedUser.interests.length > 0 ? (
+                    <p><strong>Interests:</strong> {selectedUser.interests.join(', ')}</p>
+                  ) : null}
+                  {selectedUser.lifestyle &&
+                    Object.entries(selectedUser.lifestyle).some(([, v]) => v) ? (
+                      <div className="admin-profile-lifestyle">
+                        <strong>Lifestyle</strong>
+                        <ul>
+                          {Object.entries(selectedUser.lifestyle)
+                            .filter(([, v]) => v)
+                            .map(([key, value]) => (
+                              <li key={key}>
+                                {LIFESTYLE_FIELD_LABELS[key] || key}: {value}
+                              </li>
+                            ))}
+                        </ul>
+                      </div>
+                    ) : null}
                 </div>
               )}
+
+              {(() => {
+                const displayPhotos = getAdminDisplayPhotos(selectedUser.photos, selectedUser.profile);
+                if (displayPhotos.length > 0) {
+                  return (
+                <div className="detail-section">
+                  <h3>Photos ({displayPhotos.length})</h3>
+                  <div className="admin-profile-photos">
+                    {displayPhotos.map((photo) => {
+                      const src = resolveAdminMediaUrl(photo.url);
+                      if (!src) return null;
+                      return (
+                        <a
+                          key={photo.id}
+                          href={src}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="admin-profile-photo-card"
+                          title={photo.isPrimary ? 'Primary photo — open full size' : 'Open full size'}
+                        >
+                          <img src={src} alt="" className="admin-profile-photo-img" />
+                          {photo.isPrimary ? <span className="admin-profile-photo-badge">Primary</span> : null}
+                        </a>
+                      );
+                    })}
+                  </div>
+                </div>
+                  );
+                }
+                if (selectedUser.profile) {
+                  return (
+                <div className="detail-section">
+                  <h3>Photos</h3>
+                  <p className="admin-moderation-muted">No photos uploaded.</p>
+                </div>
+                  );
+                }
+                return null;
+              })()}
 
               <div className="detail-section">
                 <h3>Stats</h3>

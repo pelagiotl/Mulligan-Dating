@@ -107,6 +107,7 @@ export default function SettingsScreen() {
   const sectionFallbackAnim = useRef(new Animated.Value(1)).current;
   const statCardFallbackAnim = useRef(new Animated.Value(1)).current;
   const gradientPos = useRef(new Animated.Value(0)).current;
+  const settingsFetchGen = useRef(0);
 
   useEffect(() => {
     if (user) {
@@ -195,19 +196,22 @@ export default function SettingsScreen() {
     setDisplayNameDraft((p.display_name ?? p.displayName ?? '').trim());
   }, [profile]);
 
-  const fetchSettings = async () => {
+  const fetchSettings = async (opts?: { silent?: boolean }) => {
+    const gen = ++settingsFetchGen.current;
     try {
-      setLoading(true);
+      if (!opts?.silent) setLoading(true);
       // Don't use GET cache — stale /settings would clear the email field after save
       const data = await api.get<SettingsData>('/settings', false);
+      if (gen !== settingsFetchGen.current) return;
       setSettings(data);
       setEmailDraft((data.email || '').trim());
       setEmailNeedsPassword(false);
       setEmailPassword('');
     } catch (err: any) {
+      if (gen !== settingsFetchGen.current) return;
       setError(err?.message || 'Failed to load settings');
     } finally {
-      setLoading(false);
+      if (!opts?.silent && gen === settingsFetchGen.current) setLoading(false);
     }
   };
 
@@ -241,16 +245,23 @@ export default function SettingsScreen() {
       return;
     }
     setEmailSaving(true);
+    const normalizedEmail = email.toLowerCase();
     try {
-      await api.put('/settings/email', {
-        email,
+      const res = await api.put<{ message?: string; email?: string }>('/settings/email', {
+        email: normalizedEmail,
         ...(emailNeedsPassword && emailPassword.trim() ? { password: emailPassword } : {}),
       });
+      const savedEmail = (res?.email ?? normalizedEmail).trim();
+      setSettings((prev) =>
+        prev
+          ? { ...prev, email: savedEmail }
+          : { email: savedEmail, createdAt: '', lastActiveAt: null, showActiveStatus: true },
+      );
       setSuccess('Email updated.');
       setEmailNeedsPassword(false);
       setEmailPassword('');
-      setEmailDraft(email.toLowerCase());
-      await fetchSettings();
+      setEmailDraft(savedEmail);
+      void fetchSettings({ silent: true });
     } catch (err: any) {
       const msg = err?.message || 'Failed to update email';
       // If the server requires password, reveal the password field and keep user on this section
@@ -763,7 +774,7 @@ export default function SettingsScreen() {
             </LinearGradient>
           </TouchableOpacity>
           <Text style={styles.emailCardHint}>
-            Current: {settings?.email ? settings.email : 'none'}
+            Current: {settings?.email?.trim() || 'none'}
           </Text>
         </View>
 

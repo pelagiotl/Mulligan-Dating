@@ -129,10 +129,12 @@ settingsRouter.put("/email", authenticateToken, async (req: AuthRequest, res) =>
       return res.status(400).json({ error: "Email already in use" });
     }
 
-    // Update email
-    await (db.prepare("UPDATE users SET email = ? WHERE id = ?").run([email.toLowerCase().trim(), userId]) as Promise<any>);
+    const normalizedEmail = email.toLowerCase().trim();
 
-    res.json({ message: "Email updated successfully" });
+    // Update email
+    await (db.prepare("UPDATE users SET email = ? WHERE id = ?").run([normalizedEmail, userId]) as Promise<any>);
+
+    res.json({ message: "Email updated successfully", email: normalizedEmail });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors[0].message });

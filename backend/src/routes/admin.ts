@@ -47,6 +47,49 @@ function sqlExcludeProtectedDisplay(ownerView: boolean): string {
   return ` AND (COALESCE(LOWER(TRIM(p.display_name)), '') != '${PROTECTED_REVIEW_DISPLAY}')`;
 }
 
+export type AdminUserPhoto = {
+  id: string;
+  url: string;
+  displayOrder: number;
+  isPrimary: boolean;
+};
+
+/** Gallery rows for admin moderation; falls back to profiles.photo_url when the gallery table is empty. */
+async function loadAdminProfilePhotos(
+  profileId: string,
+  legacyPhotoUrl?: string | null,
+): Promise<AdminUserPhoto[]> {
+  const raw = await db
+    .prepare(
+      `SELECT id, url, display_order, is_primary FROM photos WHERE profile_id = ? ORDER BY display_order ASC, id ASC`,
+    )
+    .all([profileId]);
+
+  const rows = Array.isArray(raw) ? raw : [];
+  const photos: AdminUserPhoto[] = rows
+    .filter((p) => typeof p.url === 'string' && p.url.trim().length > 0)
+    .map((p) => ({
+      id: p.id,
+      url: p.url.trim(),
+      displayOrder: Number(p.display_order) || 0,
+      isPrimary: p.is_primary === 1 || p.is_primary === true,
+    }));
+
+  if (photos.length > 0) return photos;
+
+  const legacy = typeof legacyPhotoUrl === 'string' ? legacyPhotoUrl.trim() : '';
+  if (!legacy) return [];
+
+  return [
+    {
+      id: `legacy-${profileId}`,
+      url: legacy,
+      displayOrder: 0,
+      isPrimary: true,
+    },
+  ];
+}
+
 // Create test users endpoint (admin only, or no auth in development)
 adminRouter.post('/create-test-users', async (req: AuthRequest, res) => {
   // In development, allow without auth. In production, require admin.
@@ -775,6 +818,39 @@ adminRouter.get('/users/:id', authenticateToken, requireAdmin, async (req: AuthR
     // Get profile
     const profileResult = await (db.prepare('SELECT * FROM profiles WHERE user_id = ?').get([userId]) as Promise<any>);
 
+    let photos: AdminUserPhoto[] = [];
+    let interests: string[] = [];
+    let lifestyle: Record<string, string | null> | null = null;
+
+    if (profileResult?.id) {
+      const profileId = profileResult.id as string;
+
+      photos = await loadAdminProfilePhotos(profileId, profileResult.photo_url);
+
+      const interestsResult = await (db
+        .prepare('SELECT name FROM interests WHERE profile_id = ? ORDER BY name ASC')
+        .all([profileId]) as Promise<{ name: string }[]>);
+      interests = interestsResult.map((r) => r.name).filter(Boolean);
+
+      const lifestyleRow = (await db
+        .prepare(
+          `SELECT smoking, drinking, children, pets, religion, work_life_balance, works_out FROM lifestyle WHERE profile_id = ?`,
+        )
+        .get([profileId])) as Record<string, string | null> | undefined;
+
+      if (lifestyleRow) {
+        lifestyle = {
+          smoking: lifestyleRow.smoking ?? null,
+          drinking: lifestyleRow.drinking ?? null,
+          children: lifestyleRow.children ?? null,
+          pets: lifestyleRow.pets ?? null,
+          religion: lifestyleRow.religion ?? null,
+          workLifeBalance: lifestyleRow.work_life_balance ?? null,
+          worksOut: lifestyleRow.works_out ?? null,
+        };
+      }
+    }
+
     // Get token count
     const tokensResult = await (db.prepare(`
       SELECT * FROM mulligan_tokens 
@@ -800,6 +876,9 @@ adminRouter.get('/users/:id', authenticateToken, requireAdmin, async (req: AuthR
       created_at: userResult.created_at,
       last_active_at: userResult.last_active_at,
       profile: profileResult || null,
+      photos,
+      interests,
+      lifestyle,
       tokenCount,
       tokens: tokensResult,
       matches,

@@ -18,6 +18,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Video, ResizeMode } from 'expo-av';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { api, API_URL } from '../utils/api';
+import { getAdminDisplayPhotos } from '../utils/adminDisplayPhotos';
 import { useAuth } from '../context/AuthContext';
 import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
 import { AdminModerationAudio } from '../components/AdminModerationAudio';
@@ -46,11 +47,48 @@ interface User {
   tokenCount: number;
 }
 
+interface AdminUserPhoto {
+  id: string;
+  url: string;
+  displayOrder: number;
+  isPrimary: boolean;
+}
+
 interface UserDetails extends User {
-  profile?: any;
+  profile?: {
+    display_name?: string;
+    age?: number;
+    gender?: string;
+    location?: string;
+    bio?: string;
+    looking_for?: string;
+    photo_url?: string | null;
+    [key: string]: unknown;
+  } | null;
+  photos?: AdminUserPhoto[];
+  interests?: string[];
+  lifestyle?: Record<string, string | null> | null;
   tokens: any[];
   matches: number;
   blocks: number;
+}
+
+const LIFESTYLE_FIELD_LABELS: Record<string, string> = {
+  smoking: 'Smoking',
+  drinking: 'Drinking',
+  children: 'Children',
+  pets: 'Pets',
+  religion: 'Religion',
+  workLifeBalance: 'Work/life balance',
+  worksOut: 'Works out',
+};
+
+function resolveAdminMediaUrl(url: string | null | undefined): string | null {
+  if (!url?.trim()) return null;
+  const u = url.trim();
+  if (u.startsWith('http://') || u.startsWith('https://')) return u;
+  const base = API_URL.replace(/\/$/, '');
+  return `${base}${u.startsWith('/') ? '' : '/'}${u}`;
 }
 
 interface MatchPair {
@@ -164,7 +202,7 @@ export default function AdminScreen() {
 
   const fetchUserDetails = async (userId: string) => {
     try {
-      const data = await api.get<UserDetails>(`/admin/users/${userId}`);
+      const data = await api.get<UserDetails>(`/admin/users/${userId}`, false);
       setSelectedUser(data);
       setShowUserModal(true);
     } catch (error: any) {
@@ -834,11 +872,74 @@ export default function AdminScreen() {
                     <View style={styles.detailSection}>
                       <Text style={styles.detailTitle}>Profile</Text>
                       <Text style={styles.detailItem}>Name: {selectedUser.profile.display_name}</Text>
-                      <Text style={styles.detailItem}>Age: {selectedUser.profile.age}</Text>
-                      <Text style={styles.detailItem}>Gender: {selectedUser.profile.gender}</Text>
+                      <Text style={styles.detailItem}>Age: {selectedUser.profile.age ?? '—'}</Text>
+                      <Text style={styles.detailItem}>Gender: {selectedUser.profile.gender || '—'}</Text>
                       <Text style={styles.detailItem}>Location: {selectedUser.profile.location || '—'}</Text>
+                      {selectedUser.profile.bio ? (
+                        <Text style={styles.detailItemBio}>Bio: {selectedUser.profile.bio}</Text>
+                      ) : null}
+                      {selectedUser.profile.looking_for ? (
+                        <Text style={styles.detailItem}>Looking for: {selectedUser.profile.looking_for}</Text>
+                      ) : null}
+                      {selectedUser.interests && selectedUser.interests.length > 0 ? (
+                        <Text style={styles.detailItem}>Interests: {selectedUser.interests.join(', ')}</Text>
+                      ) : null}
+                      {selectedUser.lifestyle &&
+                        Object.entries(selectedUser.lifestyle).some(([, v]) => v) ? (
+                          <View style={styles.lifestyleBlock}>
+                            <Text style={styles.detailItem}>Lifestyle</Text>
+                            {Object.entries(selectedUser.lifestyle)
+                              .filter(([, v]) => v)
+                              .map(([key, value]) => (
+                                <Text key={key} style={styles.lifestyleItem}>
+                                  {LIFESTYLE_FIELD_LABELS[key] || key}: {value}
+                                </Text>
+                              ))}
+                          </View>
+                        ) : null}
                     </View>
                   )}
+
+                  {(() => {
+                    const displayPhotos = getAdminDisplayPhotos(selectedUser.photos, selectedUser.profile);
+                    if (displayPhotos.length > 0) {
+                      return (
+                    <View style={styles.detailSection}>
+                      <Text style={styles.detailTitle}>Photos ({displayPhotos.length})</Text>
+                      <View style={styles.profilePhotosGrid}>
+                        {displayPhotos.map((photo) => {
+                          const uri = resolveAdminMediaUrl(photo.url);
+                          if (!uri) return null;
+                          return (
+                            <TouchableOpacity
+                              key={photo.id}
+                              activeOpacity={0.85}
+                              onPress={() => Linking.openURL(uri)}
+                              style={styles.profilePhotoCard}
+                            >
+                              <Image source={{ uri }} style={styles.profilePhotoImg} resizeMode="cover" />
+                              {photo.isPrimary ? (
+                                <View style={styles.profilePhotoBadge}>
+                                  <Text style={styles.profilePhotoBadgeText}>Primary</Text>
+                                </View>
+                              ) : null}
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </View>
+                      );
+                    }
+                    if (selectedUser.profile) {
+                      return (
+                    <View style={styles.detailSection}>
+                      <Text style={styles.detailTitle}>Photos</Text>
+                      <Text style={styles.detailMuted}>No photos uploaded.</Text>
+                    </View>
+                      );
+                    }
+                    return null;
+                  })()}
 
                   <View style={styles.detailSection}>
                     <Text style={styles.detailTitle}>Stats</Text>
@@ -1822,6 +1923,59 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     fontWeight: '500',
     letterSpacing: 0.1,
+  },
+  detailItemBio: {
+    fontSize: 15,
+    color: '#666',
+    marginBottom: 12,
+    lineHeight: 22,
+    fontWeight: '500',
+    letterSpacing: 0.1,
+  },
+  detailMuted: {
+    fontSize: 14,
+    color: '#9ca3af',
+    fontStyle: 'italic',
+  },
+  lifestyleBlock: {
+    marginTop: 4,
+  },
+  lifestyleItem: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginLeft: 8,
+    marginBottom: 6,
+  },
+  profilePhotosGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 4,
+  },
+  profilePhotoCard: {
+    width: 96,
+    height: 128,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#f3f4f6',
+  },
+  profilePhotoImg: {
+    width: '100%',
+    height: '100%',
+  },
+  profilePhotoBadge: {
+    position: 'absolute',
+    left: 6,
+    bottom: 6,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  profilePhotoBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '700',
   },
   actionButton: {
     paddingVertical: 16,
