@@ -7,7 +7,7 @@ import { authenticateToken, AuthRequest } from '../middleware/auth.js';
 import { sanitizeText } from '../middleware/security.js';
 import { rateLimitAPI } from '../middleware/security.js';
 import { notifyPartnersProfileChanged } from '../services/partnerProfileBroadcast.js';
-import { isUniqueViolation } from '../utils/ensureStubProfile.js';
+import { ensureStubProfile, isUniqueViolation } from '../utils/ensureStubProfile.js';
 import { activateUserAccount } from '../utils/accountStatus.js';
 
 export const profileRouter = Router();
@@ -239,9 +239,13 @@ profileRouter.put('/basics', authenticateToken, rateLimitAPI, async (req: AuthRe
     const userId = req.userId!;
 
     const profileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
-    const row = await (profileStmt.get([userId]) as Promise<{ id: string } | undefined>);
+    let row = await (profileStmt.get([userId]) as Promise<{ id: string } | undefined>);
     if (!row) {
-      return res.status(404).json({ error: 'Profile not found' });
+      await ensureStubProfile(userId);
+      row = await (profileStmt.get([userId]) as Promise<{ id: string } | undefined>);
+      if (!row) {
+        return res.status(500).json({ error: 'Failed to create profile' });
+      }
     }
 
     const updates: string[] = [];
