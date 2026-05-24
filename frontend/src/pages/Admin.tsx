@@ -164,6 +164,19 @@ export default function Admin() {
     setStatDrillMatches([]);
   }, []);
 
+  const closeUserDetails = useCallback(() => {
+    setUserDetailsOpen(false);
+    setUserDetailsLoading(false);
+    setSelectedUser(null);
+    setSelectedConversation(null);
+    setUserMessages([]);
+    setMessagesError(null);
+    setMatchesError(null);
+    setUserMatches([]);
+    setMessagesTotal(0);
+    setMessagesHasMore(false);
+  }, []);
+
   useEffect(() => {
     fetchStats();
     fetchUsers();
@@ -308,19 +321,6 @@ export default function Admin() {
       setLoading(false);
     }
   };
-
-  const closeUserDetails = useCallback(() => {
-    setUserDetailsOpen(false);
-    setUserDetailsLoading(false);
-    setSelectedUser(null);
-    setSelectedConversation(null);
-    setUserMessages([]);
-    setMessagesError(null);
-    setMatchesError(null);
-    setUserMatches([]);
-    setMessagesTotal(0);
-    setMessagesHasMore(false);
-  }, []);
 
   const fetchUserDetails = async (userId: string) => {
     setUserDetailsOpen(true);
