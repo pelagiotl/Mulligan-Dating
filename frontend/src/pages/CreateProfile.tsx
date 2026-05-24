@@ -19,6 +19,7 @@ import {
 import {
   clearWebCreateProfileDraft,
   computeWebCreateProfileResumeStep,
+  ensureWebOnboardingDraft,
   readWebCreateProfileDraft,
   writeWebCreateProfileDraft,
 } from "../utils/createProfileProgress";
@@ -635,6 +636,7 @@ export default function CreateProfile() {
 
   useEffect(() => {
     const load = async () => {
+      ensureWebOnboardingDraft();
       const draft = readWebCreateProfileDraft();
       let dn = draft?.displayName ?? "";
       let ageStr = draft?.age ?? "";
@@ -947,6 +949,8 @@ export default function CreateProfile() {
       if (!serverReady) {
         throw new Error(formatConnectSetupGapMessage(gaps));
       }
+
+      await api.post('/profile/activate');
 
       setProfileReadyForPhotos(true);
       profileSaveSnapshotRef.current = buildProfileSaveSnapshot();

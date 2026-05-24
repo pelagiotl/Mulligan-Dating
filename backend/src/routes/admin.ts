@@ -3,6 +3,7 @@ import { db } from '../database.js';
 import { authenticateToken, requireAdmin, AuthRequest, isOwnerAdmin } from '../middleware/auth.js';
 import { deleteUserAccountData } from '../services/deleteUserAccount.js';
 import { forceMatchByPhone } from '../services/forceMatchByPhone.js';
+import { sqlOnlyActiveAccounts } from '../utils/accountStatus.js';
 import { v4 as uuidv4 } from 'uuid';
 
 export const adminRouter = Router();
@@ -367,26 +368,37 @@ adminRouter.post('/create-unique-test-users', authenticateToken, requireAdmin, a
 adminRouter.get('/stats', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
   try {
     // Total users
-    const totalUsersResult = await (db.prepare('SELECT COUNT(*) as count FROM users').get([]) as Promise<{ count: number }>);
+    const activeOnly = sqlOnlyActiveAccounts('u');
+    const totalUsersResult = await (db
+      .prepare(`SELECT COUNT(*) as count FROM users u WHERE 1=1${activeOnly}`)
+      .get([]) as Promise<{ count: number }>);
     const totalUsers = totalUsersResult?.count || 0;
 
-    // Total profiles
-    const totalProfilesResult = await (db.prepare('SELECT COUNT(*) as count FROM profiles').get([]) as Promise<{ count: number }>);
+    // Profiles for fully registered (active) accounts only
+    const totalProfilesResult = await (db
+      .prepare(
+        `SELECT COUNT(*) as count FROM profiles p INNER JOIN users u ON u.id = p.user_id WHERE 1=1${activeOnly}`,
+      )
+      .get([]) as Promise<{ count: number }>);
     const totalProfiles = totalProfilesResult?.count || 0;
 
     // Total matches
     const totalMatchesResult = await (db.prepare('SELECT COUNT(*) as count FROM matches WHERE stage != ?').get(['expired']) as Promise<{ count: number }>);
     const totalMatches = totalMatchesResult?.count || 0;
 
-    // Restricted users
-    const restrictedUsersResult = await (db.prepare('SELECT COUNT(*) as count FROM users WHERE COALESCE(is_restricted, 0) = 1 AND COALESCE(is_admin, 0) = 0').get([]) as Promise<{ count: number }>);
+    // Restricted users (fully registered accounts only)
+    const restrictedUsersResult = await (db
+      .prepare(
+        `SELECT COUNT(*) as count FROM users u WHERE COALESCE(u.is_restricted, 0) = 1 AND COALESCE(u.is_admin, 0) = 0${activeOnly}`,
+      )
+      .get([]) as Promise<{ count: number }>);
     const restrictedUsers = restrictedUsersResult?.count || 0;
 
     // Active users (last 7 days) — same query as /users?filter=active so stats and drill-down match
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     const activeUsersResult = await (db.prepare(
-      'SELECT COUNT(DISTINCT u.id) as count FROM users u INNER JOIN mulligan_tokens t ON t.user_id = u.id AND t.granted_at >= ?'
+      `SELECT COUNT(DISTINCT u.id) as count FROM users u INNER JOIN mulligan_tokens t ON t.user_id = u.id AND t.granted_at >= ? WHERE 1=1${activeOnly}`,
     ).get([sevenDaysAgo.toISOString()]) as Promise<{ count: number }>);
     const activeUsers = activeUsersResult?.count || 0;
 
@@ -407,24 +419,35 @@ adminRouter.get('/stats', authenticateToken, requireAdmin, async (req: AuthReque
 adminRouter.get('/export/report', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit as string) || 500, 1000);
+    const activeOnly = sqlOnlyActiveAccounts('u');
 
     // Stats (same logic as /stats)
-    const totalUsersResult = await (db.prepare('SELECT COUNT(*) as count FROM users').get([]) as Promise<{ count: number }>);
+    const totalUsersResult = await (db
+      .prepare(`SELECT COUNT(*) as count FROM users u WHERE 1=1${activeOnly}`)
+      .get([]) as Promise<{ count: number }>);
     const totalUsers = totalUsersResult?.count || 0;
 
-    const totalProfilesResult = await (db.prepare('SELECT COUNT(*) as count FROM profiles').get([]) as Promise<{ count: number }>);
+    const totalProfilesResult = await (db
+      .prepare(
+        `SELECT COUNT(*) as count FROM profiles p INNER JOIN users u ON u.id = p.user_id WHERE 1=1${activeOnly}`,
+      )
+      .get([]) as Promise<{ count: number }>);
     const totalProfiles = totalProfilesResult?.count || 0;
 
     const totalMatchesResult = await (db.prepare('SELECT COUNT(*) as count FROM matches WHERE stage != ?').get(['expired']) as Promise<{ count: number }>);
     const totalMatches = totalMatchesResult?.count || 0;
 
-    const restrictedUsersResult = await (db.prepare('SELECT COUNT(*) as count FROM users WHERE COALESCE(is_restricted, 0) = 1 AND COALESCE(is_admin, 0) = 0').get([]) as Promise<{ count: number }>);
+    const restrictedUsersResult = await (db
+      .prepare(
+        `SELECT COUNT(*) as count FROM users u WHERE COALESCE(u.is_restricted, 0) = 1 AND COALESCE(u.is_admin, 0) = 0${activeOnly}`,
+      )
+      .get([]) as Promise<{ count: number }>);
     const restrictedUsers = restrictedUsersResult?.count || 0;
 
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     const activeUsersResult = await (db.prepare(
-      'SELECT COUNT(DISTINCT u.id) as count FROM users u INNER JOIN mulligan_tokens t ON t.user_id = u.id AND t.granted_at >= ?'
+      `SELECT COUNT(DISTINCT u.id) as count FROM users u INNER JOIN mulligan_tokens t ON t.user_id = u.id AND t.granted_at >= ? WHERE 1=1${activeOnly}`,
     ).get([sevenDaysAgo.toISOString()]) as Promise<{ count: number }>);
     const activeUsers = activeUsersResult?.count || 0;
 
@@ -436,6 +459,7 @@ adminRouter.get('/export/report', authenticateToken, requireAdmin, async (req: A
         p.display_name, p.age, p.gender, p.location
       FROM users u
       LEFT JOIN profiles p ON p.user_id = u.id
+      WHERE 1=1${activeOnly}
       ORDER BY u.created_at DESC
       LIMIT ?
     `).all([limit]) as Promise<any[]>);
@@ -559,6 +583,7 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
     const requesterPhoneVal = await requesterPhone(req.userId!);
     const ownerView = isOwnerAdmin(req.userId!, requesterPhoneVal);
     const tayaHide = sqlExcludeProtectedDisplay(ownerView);
+    const activeOnly = sqlOnlyActiveAccounts('u');
 
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 50;
@@ -569,7 +594,7 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
     // Restricted: use a dedicated query - ONLY users explicitly marked restricted (is_restricted = 1)
     // COALESCE handles NULL; exclude admins from this list per product intent
     if (filter === 'restricted') {
-      const baseWhere = 'COALESCE(u.is_restricted, 0) = 1 AND COALESCE(u.is_admin, 0) = 0';
+      const baseWhere = `COALESCE(u.is_restricted, 0) = 1 AND COALESCE(u.is_admin, 0) = 0${activeOnly}`;
       const searchWhere = search
         ? ` AND (u.email LIKE ? OR p.display_name LIKE ? OR u.phone_number LIKE ? OR u.id LIKE ?)`
         : '';
@@ -638,7 +663,7 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
           p.display_name, p.age, p.gender, p.location
         FROM users u
         INNER JOIN profiles p ON p.user_id = u.id
-        WHERE 1=1${tayaHide}${searchWhere}
+        WHERE 1=1${activeOnly}${tayaHide}${searchWhere}
         ORDER BY u.created_at DESC
         LIMIT ? OFFSET ?
       `;
@@ -648,7 +673,7 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
       const countQuery = `
         SELECT COUNT(DISTINCT u.id) as count FROM users u
         INNER JOIN profiles p ON p.user_id = u.id
-        WHERE 1=1${tayaHide}${searchWhere}
+        WHERE 1=1${activeOnly}${tayaHide}${searchWhere}
       `;
       const countParams = search ? [searchTerm, searchTerm, searchTerm, searchTerm] : [];
       const totalResult = await (db.prepare(countQuery).get(countParams) as Promise<{ count: number }>);
@@ -697,7 +722,7 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
     `;
 
     const params: any[] = [];
-    const conditions: string[] = [];
+    const conditions: string[] = [`COALESCE(u.account_status, 'active') = 'active'`];
 
     if (filter === 'active') {
       const sevenDaysAgo = new Date();
@@ -754,6 +779,8 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
       countQuery += countQuery.includes('WHERE') ? ' AND ' : ' WHERE ';
       countQuery += `(COALESCE(LOWER(TRIM(p.display_name)), '') != '${PROTECTED_REVIEW_DISPLAY}')`;
     }
+    countQuery += countQuery.includes('WHERE') ? ' AND ' : ' WHERE ';
+    countQuery += `COALESCE(u.account_status, 'active') = 'active'`;
     const totalResult = await (db.prepare(countQuery).get(countParams) as Promise<{ count: number }>);
     const total = totalResult?.count || 0;
 

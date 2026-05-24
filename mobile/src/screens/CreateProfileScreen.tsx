@@ -38,6 +38,7 @@ import { detectUserLocation } from '../utils/detectUserLocation';
 import {
   clearMobileCreateProfileDraft,
   computeMobileCreateProfileResumeStep,
+  ensureMobileOnboardingDraft,
   readMobileCreateProfileDraft,
   writeMobileCreateProfileDraft,
 } from '../utils/createProfileProgress';
@@ -583,6 +584,7 @@ export default function CreateProfileScreen() {
 
   // Load existing profile into form (used when editing; skip when startFromBeginning = new account/delete)
   const loadProfileForForm = useCallback(async () => {
+    await ensureMobileOnboardingDraft();
     const draft = await readMobileCreateProfileDraft();
     let dn = draft?.displayName ?? '';
     let ageStr = draft?.age ?? '';
@@ -1310,6 +1312,8 @@ export default function CreateProfileScreen() {
       });
 
       // Photos are already uploaded on the photos step
+      await api.post('/profile/activate');
+
       await clearMobileCreateProfileDraft();
 
       // Show celebration first — refreshProfile() after the user taps "Start Connecting".

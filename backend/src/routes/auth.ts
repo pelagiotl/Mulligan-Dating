@@ -64,12 +64,11 @@ authRouter.post('/signup', rateLimitSignup, async (req, res) => {
     const userId = uuidv4();
     const now = new Date().toISOString();
     
-    const insertStmt = db.prepare('INSERT INTO users (id, email, password, tos_accepted_at, privacy_accepted_at) VALUES (?, ?, ?, ?, ?)');
-    await (insertStmt.run([userId, email, hashedPassword, now, now]) as Promise<any>);
-
-    // Grant initial 7 tokens to new user
-    const { grantInitialTokens } = await import('./tokens.js');
-    await grantInitialTokens(userId);
+    const { ACCOUNT_STATUS_ONBOARDING } = await import('../utils/accountStatus.js');
+    const insertStmt = db.prepare(
+      'INSERT INTO users (id, email, password, tos_accepted_at, privacy_accepted_at, account_status) VALUES (?, ?, ?, ?, ?, ?)',
+    );
+    await (insertStmt.run([userId, email, hashedPassword, now, now, ACCOUNT_STATUS_ONBOARDING]) as Promise<any>);
 
     const token = generateToken(userId);
     res.status(201).json({ 
@@ -180,8 +179,18 @@ authRouter.post('/login', rateLimitAuth, async (req, res) => {
 // Get current user
 authRouter.get('/me', authenticateToken, async (req: AuthRequest, res) => {
   try {
-    const stmt = db.prepare('SELECT id, email, phone_number, is_admin, created_at, push_token FROM users WHERE id = ?');
-    const user = await (stmt.get(req.userId) as Promise<{ id: string; email: string | null; phone_number: string | null; is_admin: number; created_at: string; push_token: string | null } | null>);
+    const stmt = db.prepare(
+      'SELECT id, email, phone_number, is_admin, created_at, push_token, account_status FROM users WHERE id = ?',
+    );
+    const user = await (stmt.get(req.userId) as Promise<{
+      id: string;
+      email: string | null;
+      phone_number: string | null;
+      is_admin: number;
+      created_at: string;
+      push_token: string | null;
+      account_status: string | null;
+    } | null>);
     
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
@@ -194,18 +203,6 @@ authRouter.get('/me', authenticateToken, async (req: AuthRequest, res) => {
     } catch (profileError) {
       console.error('Profile query error in /auth/me:', profileError);
       profile = null;
-    }
-
-    if (!profile) {
-      try {
-        const { ensureStubProfile } = await import('../utils/ensureStubProfile.js');
-        await ensureStubProfile(req.userId!);
-        const profileStmt = db.prepare('SELECT * FROM profiles WHERE user_id = ?');
-        profile = await (profileStmt.get(req.userId) as Promise<any>);
-      } catch (stubErr) {
-        console.error('ensureStubProfile in /auth/me:', stubErr);
-        profile = null;
-      }
     }
 
     const hasPushToken = !!(user.push_token && typeof user.push_token === 'string' && user.push_token.trim().length > 0);
@@ -234,7 +231,9 @@ authRouter.get('/me', authenticateToken, async (req: AuthRequest, res) => {
     }
 
     const connectSetupMissing = await getConnectSetupViolationsForUser(user.id);
-    const connectSetupComplete = connectSetupMissing.length === 0;
+    const { isActiveAccountStatus } = await import('../utils/accountStatus.js');
+    const accountActive = isActiveAccountStatus(user.account_status);
+    const connectSetupComplete = connectSetupMissing.length === 0 && accountActive;
 
     const matchmakingOff = isMatchmakingGloballyDisabled();
     const isAdmin = userHasAdminAccess(user.id, user.is_admin, user.phone_number);
@@ -245,6 +244,8 @@ authRouter.get('/me', authenticateToken, async (req: AuthRequest, res) => {
         phoneNumber: user.phone_number,
         isAdmin,
         createdAt: user.created_at,
+        accountStatus: user.account_status ?? 'active',
+        accountActive,
         hasPushToken, // so app can show "Push registered" and debug message notifications
         webPushConfigured: isWebPushConfigured(),
         webPushSubscriptionCount,

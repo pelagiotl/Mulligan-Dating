@@ -91,3 +91,9 @@ export function clearWebCreateProfileDraft(): void {
     /* ignore */
   }
 }
+
+/** Restore wizard marker if onboarding was interrupted (e.g. draft cleared while photos saved on server). */
+export function ensureWebOnboardingDraft(): void {
+  if (readWebCreateProfileDraft()) return;
+  writeWebCreateProfileDraft({ step: WEB_CREATE_PROFILE_STEPS });
+}

@@ -66,3 +66,27 @@ export function computeAppConnectReady(
 ): boolean {
   return computeConnectSetupComplete(profile, photoCount) && !wizardDraftActive;
 }
+
+export function isAccountActiveFromAuthUser(
+  user: { accountActive?: boolean; accountStatus?: string } | null | undefined
+): boolean {
+  if (!user) return false;
+  if (user.accountActive === false) return false;
+  if (user.accountStatus === 'onboarding') return false;
+  return true;
+}
+
+export function deriveAppRegistrationComplete(params: {
+  accountActive: boolean;
+  profile: ConnectProfileLike;
+  photoCount: number;
+  wizardDraftActive: boolean;
+  serverConnectFlag?: boolean | null;
+}): boolean {
+  if (!params.accountActive) return false;
+  const profileReady =
+    params.serverConnectFlag === true ||
+    (params.serverConnectFlag !== false &&
+      computeConnectSetupComplete(params.profile, params.photoCount));
+  return profileReady && !params.wizardDraftActive;
+}

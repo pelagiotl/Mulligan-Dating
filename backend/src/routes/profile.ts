@@ -8,6 +8,7 @@ import { sanitizeText } from '../middleware/security.js';
 import { rateLimitAPI } from '../middleware/security.js';
 import { notifyPartnersProfileChanged } from '../services/partnerProfileBroadcast.js';
 import { isUniqueViolation } from '../utils/ensureStubProfile.js';
+import { activateUserAccount } from '../utils/accountStatus.js';
 
 export const profileRouter = Router();
 
@@ -733,6 +734,33 @@ profileRouter.delete('/', authenticateToken, rateLimitAPI, async (req: AuthReque
   } catch (error) {
     console.error('Delete profile error:', error);
     res.status(500).json({ error: 'Failed to delete profile' });
+  }
+});
+
+/** Finalize signup after Create Profile wizard — marks account active and grants initial tokens. */
+profileRouter.post('/activate', authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const result = await activateUserAccount(req.userId!);
+    res.json({
+      message: result.alreadyActive
+        ? 'Account already active'
+        : 'Account created successfully',
+      ...result,
+    });
+  } catch (error: unknown) {
+    const err = error as { status?: number; code?: string; missing?: string[]; message?: string };
+    if (err.status === 400) {
+      return res.status(400).json({
+        error: err.message || 'Complete your profile first',
+        code: err.code || 'PROFILE_INCOMPLETE',
+        missing: err.missing,
+      });
+    }
+    if (err.status === 404) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    console.error('Activate account error:', error);
+    res.status(500).json({ error: 'Failed to activate account' });
   }
 });
 

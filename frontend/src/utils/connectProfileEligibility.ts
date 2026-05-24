@@ -71,3 +71,31 @@ export function computeAppConnectReady(
 ): boolean {
   return computeConnectSetupComplete(profileRow, photoCount) && !wizardDraftActive;
 }
+
+export function isAccountActiveFromAuthUser(
+  user: { accountActive?: boolean; accountStatus?: string } | null | undefined
+): boolean {
+  if (!user) return false;
+  if (user.accountActive === false) return false;
+  if (user.accountStatus === "onboarding") return false;
+  return true;
+}
+
+/**
+ * User may use Connect/browse: account activated + profile requirements + wizard finished.
+ * Never treat mid-wizard server saves (photos uploaded) as "done" while account is still onboarding.
+ */
+export function deriveAppRegistrationComplete(params: {
+  accountActive: boolean;
+  profileRow: unknown;
+  photoCount: number;
+  wizardDraftActive: boolean;
+  serverConnectFlag?: boolean | null;
+}): boolean {
+  if (!params.accountActive) return false;
+  const profileReady =
+    params.serverConnectFlag === true ||
+    (params.serverConnectFlag !== false &&
+      computeConnectSetupComplete(params.profileRow, params.photoCount));
+  return profileReady && !params.wizardDraftActive;
+}

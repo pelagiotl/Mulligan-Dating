@@ -95,3 +95,9 @@ export async function clearMobileCreateProfileDraft(): Promise<void> {
     /* ignore */
   }
 }
+
+/** Restore wizard marker if onboarding was interrupted (e.g. draft cleared while photos saved on server). */
+export async function ensureMobileOnboardingDraft(): Promise<void> {
+  if (await readMobileCreateProfileDraft()) return;
+  await writeMobileCreateProfileDraft({ step: MOBILE_CREATE_PROFILE_STEPS });
+}

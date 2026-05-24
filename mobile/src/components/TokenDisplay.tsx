@@ -35,6 +35,7 @@ import {
 import { purchaseTokensWithGooglePay } from '../utils/googlePay';
 import { formatPackagePerTokenLine, normalizePackageFormattedPrice } from '../utils/formatPackagePrice';
 import BrowseConnectLandingTokenStrip from './BrowseConnectLandingTokenStrip';
+import WeeklyTokenClaimCelebration from './WeeklyTokenClaimCelebration';
 import type { ConnectShellMode } from '../lib/connectShellTheme';
 
 interface TokenData {
@@ -735,6 +736,7 @@ export default function TokenDisplay({
   const [purchasing, setPurchasing] = useState(false);
   const [reupCelebration, setReupCelebration] = useState<{ message: string; onSuccess?: () => void } | null>(null);
   const [purchaseSuccess, setPurchaseSuccess] = useState<{ tokensGranted: number } | null>(null);
+  const [weeklyClaimCelebration, setWeeklyClaimCelebration] = useState<number | null>(null);
 
   const balanceRef = useRef(0);
   useEffect(() => {
@@ -987,7 +989,11 @@ export default function TokenDisplay({
 
     try {
       const result = await api.post<{ message: string; tokensGranted: number }>('/tokens/claim', {});
-      setSuccess(result.message || `${result.tokensGranted} token(s) claimed successfully!`);
+      const granted = result.tokensGranted ?? 0;
+      setSuccess(result.message || `${granted} token(s) claimed successfully!`);
+      if (granted > 0) {
+        setWeeklyClaimCelebration(granted);
+      }
       setTimeout(() => setSuccess(''), 3000);
       await fetchTokens();
     } catch (err: any) {
@@ -1351,6 +1357,11 @@ export default function TokenDisplay({
               </View>
             </View>
           </Modal>
+      <WeeklyTokenClaimCelebration
+        visible={weeklyClaimCelebration != null}
+        tokensGranted={weeklyClaimCelebration ?? 0}
+        onDismiss={() => setWeeklyClaimCelebration(null)}
+      />
     </>
   );
 

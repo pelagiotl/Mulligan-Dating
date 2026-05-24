@@ -1,8 +1,15 @@
 import { createContext, useContext, useState, useEffect, useRef, ReactNode, useMemo } from 'react'
 import { api } from '../utils/api'
 import { browserSupportsWebPush, getVapidPublicKey, registerWebPush } from '../lib/webPush'
-import { computeAppConnectReady } from '../utils/connectProfileEligibility'
-import { clearWebCreateProfileDraft, hasWebCreateProfileDraft } from '../utils/createProfileProgress'
+import {
+  deriveAppRegistrationComplete,
+  isAccountActiveFromAuthUser,
+} from '../utils/connectProfileEligibility'
+import {
+  clearWebCreateProfileDraft,
+  ensureWebOnboardingDraft,
+  hasWebCreateProfileDraft,
+} from '../utils/createProfileProgress'
 import { clearAgeGateAccepted } from '../lib/ageGate'
 import { resetConnectShellModeForNewUser } from '../lib/connectShellTheme'
 
@@ -153,11 +160,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      const serverSaysComplete = data.connectSetupComplete === true
-      const serverSaysIncomplete = data.connectSetupComplete === false
-      const clientReady = computeAppConnectReady(rawProfile, photoCount, hasWebCreateProfileDraft())
-      const complete =
-        serverSaysComplete || (!serverSaysIncomplete && clientReady)
+      const accountActive = isAccountActiveFromAuthUser({
+        accountActive: u.accountActive,
+        accountStatus: u.accountStatus,
+      })
+      if (!accountActive) {
+        ensureWebOnboardingDraft()
+      }
+      const wizardDraftActive = hasWebCreateProfileDraft()
+      const complete = deriveAppRegistrationComplete({
+        accountActive,
+        profileRow: rawProfile,
+        photoCount,
+        wizardDraftActive,
+        serverConnectFlag: data.connectSetupComplete,
+      })
       if (complete) {
         clearWebCreateProfileDraft()
       }

@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { api } from "../utils/api";
 import { TOKEN_MAX } from "../constants/tokens";
 import { emitTokenBalanceUpdated } from "../lib/tokenBalanceEvents";
+import WeeklyTokenClaimCelebration from "./WeeklyTokenClaimCelebration";
 
 interface TokenData {
   availableTokens: number;
@@ -45,6 +46,8 @@ export default function TokenDisplay({ variant = "default" }: TokenDisplayProps)
   const [claiming, setClaiming] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [claimCelebration, setClaimCelebration] = useState<{ tokensGranted: number } | null>(null);
+  const dismissClaimCelebration = useCallback(() => setClaimCelebration(null), []);
 
   useEffect(() => {
     fetchTokens();
@@ -90,7 +93,11 @@ export default function TokenDisplay({ variant = "default" }: TokenDisplayProps)
       const result = await api.post<{ message: string; tokensGranted: number }>("/tokens/claim", {});
       console.log("✅ Claim successful:", result);
 
-      setSuccess(result.message || `${result.tokensGranted} token(s) claimed successfully!`);
+      const granted = result.tokensGranted ?? 0;
+      setSuccess(result.message || `${granted} token(s) claimed successfully!`);
+      if (granted > 0) {
+        setClaimCelebration({ tokensGranted: granted });
+      }
 
       setTimeout(() => setSuccess(""), 3000);
 
@@ -195,6 +202,13 @@ export default function TokenDisplay({ variant = "default" }: TokenDisplayProps)
             ✅ {success}
           </div>
         )}
+
+        {claimCelebration ? (
+          <WeeklyTokenClaimCelebration
+            tokensGranted={claimCelebration.tokensGranted}
+            onDismiss={dismissClaimCelebration}
+          />
+        ) : null}
 
         {data.canClaimWeeklyToken ? (
           <button

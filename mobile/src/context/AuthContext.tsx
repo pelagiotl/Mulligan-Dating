@@ -16,12 +16,13 @@ import { getStoredPushToken, hydrateStoredPushToken, shouldSendTokenToServer } f
 import * as Notifications from 'expo-notifications';
 import { navigationRef } from '../navigation/navigationRef';
 import {
-  computeAppConnectReady,
-  computeConnectSetupComplete,
+  deriveAppRegistrationComplete,
   getConnectSetupMissing,
+  isAccountActiveFromAuthUser,
 } from '../utils/connectSetup';
 import {
   clearMobileCreateProfileDraft,
+  ensureMobileOnboardingDraft,
   hasMobileCreateProfileDraft,
 } from '../utils/createProfileProgress';
 import { playMessageSound, playMatchSound } from '../utils/sounds';
@@ -795,38 +796,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           /* keep auth/me DB count */
         }
       }
-      // Prefer server connect gate (same rules as Connect API); fall back to client if older backend.
-      const serverSaysComplete = data.connectSetupComplete === true;
-      const clientConnectReady = computeConnectSetupComplete(data.profile || null, photoCount);
-      // Trust client when /photos/me shows a complete profile even if server flag lags (e.g. filtered photo list).
-      const connectReady = serverSaysComplete || clientConnectReady;
-
-      let nextConnectSetupComplete: boolean;
-      if (connectReady) {
+      const accountActive = isAccountActiveFromAuthUser({
+        accountActive: data.user?.accountActive,
+        accountStatus: data.user?.accountStatus,
+      });
+      if (!accountActive) {
+        await ensureMobileOnboardingDraft();
+      }
+      const wizardDraftActive = await hasMobileCreateProfileDraft();
+      const nextConnectSetupComplete = deriveAppRegistrationComplete({
+        accountActive,
+        profile: nextProfile,
+        photoCount: photoCount ?? 0,
+        wizardDraftActive,
+        serverConnectFlag: data.connectSetupComplete,
+      });
+      if (nextConnectSetupComplete) {
         await clearMobileCreateProfileDraft();
-        nextConnectSetupComplete = true;
-      } else {
-        const wizardDraftActive = await hasMobileCreateProfileDraft();
-        nextConnectSetupComplete = computeAppConnectReady(
-          nextProfile,
-          photoCount ?? 0,
-          wizardDraftActive
-        );
-        if (__DEV__) {
-          const missing =
-            Array.isArray(data.connectSetupMissing) && data.connectSetupMissing.length > 0
-              ? data.connectSetupMissing
-              : getConnectSetupMissing(nextProfile, photoCount ?? 0);
-          console.warn('[Auth] Connect setup incomplete', {
-            missing,
-            photoCount,
-            serverSaysComplete,
-            clientConnectReady,
-            wizardDraftActive,
-            displayName: nextProfile?.display_name ?? nextProfile?.displayName,
-            location: nextProfile?.location,
-          });
-        }
+      } else if (__DEV__) {
+        const missing =
+          Array.isArray(data.connectSetupMissing) && data.connectSetupMissing.length > 0
+            ? data.connectSetupMissing
+            : getConnectSetupMissing(nextProfile, photoCount ?? 0);
+        console.warn('[Auth] Registration incomplete', {
+          missing,
+          photoCount,
+          accountActive,
+          wizardDraftActive,
+          serverConnectFlag: data.connectSetupComplete,
+          displayName: nextProfile?.display_name ?? nextProfile?.displayName,
+          location: nextProfile?.location,
+        });
       }
 
       // Apply session atomically so post-login navigation never flashes CreateProfile for ready accounts.

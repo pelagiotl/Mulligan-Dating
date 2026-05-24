@@ -245,6 +245,13 @@ export async function initDatabase() {
     // Column already exists, ignore
   }
   try {
+    await execSQL(
+      `ALTER TABLE users ADD COLUMN account_status ${usePostgres ? 'VARCHAR(32)' : 'TEXT'} DEFAULT '${'active'}'`,
+    );
+  } catch (e) {
+    // Column already exists, ignore
+  }
+  try {
     await execSQL(`ALTER TABLE users ADD COLUMN push_token ${usePostgres ? 'VARCHAR(500)' : 'TEXT'}`);
   } catch (e) {
     // Column already exists, ignore
@@ -1122,6 +1129,14 @@ export async function initDatabase() {
     await alterToText('date_plans', 'venue_name');
     await alterToText('date_plans', 'venue_address');
     await alterToText('date_plans', 'conversation_topics');
+  }
+
+  try {
+    const { syncAccountStatusFromProfileReadiness } = await import('./utils/accountStatus.js');
+    await syncAccountStatusFromProfileReadiness();
+    console.log('✅ User account_status synced from profile readiness');
+  } catch (e) {
+    console.warn('⚠️  account_status sync skipped:', e);
   }
 
   console.log("✅ Database initialized");

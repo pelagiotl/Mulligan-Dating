@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { sendVerificationCode, formatPhoneNumber, isValidPhoneNumber, isTwilioVerifyConfigured, sendVerificationCodeViaVerify, verifyCodeViaVerify } from '../services/sms.js';
 import { sendVerificationCodeSNS, formatPhoneNumber as formatPhoneNumberSNS, isValidPhoneNumber as isValidPhoneNumberSNS, isSNSConfigured } from '../services/aws-sns.js';
 import { rateLimitAuth } from '../middleware/security.js';
-import { ensureStubProfile } from '../utils/ensureStubProfile.js';
+import { ACCOUNT_STATUS_ONBOARDING } from '../utils/accountStatus.js';
 
 export const smsRouter = Router();
 
@@ -147,17 +147,22 @@ async function completePhoneLogin(
     isNewUser = true;
     const now = new Date().toISOString();
     const insertUserStmt = db.prepare(
-      'INSERT INTO users (id, email, phone_number, phone_verified, tos_accepted_at, privacy_accepted_at, password) VALUES (?, ?, ?, 1, ?, ?, ?)'
+      'INSERT INTO users (id, email, phone_number, phone_verified, tos_accepted_at, privacy_accepted_at, password, account_status) VALUES (?, ?, ?, 1, ?, ?, ?, ?)'
     );
-    const insertResult = insertUserStmt.run([userId, null, formattedPhone, now, now, '']);
+    const insertResult = insertUserStmt.run([
+      userId,
+      null,
+      formattedPhone,
+      now,
+      now,
+      '',
+      ACCOUNT_STATUS_ONBOARDING,
+    ]);
     if (insertResult instanceof Promise) await insertResult;
-    const { grantInitialTokens } = await import('./tokens.js');
-    await grantInitialTokens(userId);
   }
 
   const { generateToken } = await import('../middleware/auth.js');
   const token = generateToken(userId);
-  await ensureStubProfile(userId);
   const profileStmtAfter = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
   const profileAfterResult = profileStmtAfter.get(userId);
   const profileAfter = (profileAfterResult instanceof Promise
@@ -167,7 +172,9 @@ async function completePhoneLogin(
   await ensureTestAutoMatchesForPhone(formattedPhone);
 
   return {
-    message: existingUser ? 'Login successful' : 'Account created successfully',
+    message: existingUser
+      ? 'Login successful'
+      : 'Phone verified. Complete your profile to finish creating your account.',
     token,
     userId,
     hasProfile: !!profileAfter,
@@ -415,21 +422,28 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
         isNewUser = true;
         const now = new Date().toISOString();
         const insertUserStmt = db.prepare(
-          'INSERT INTO users (id, email, phone_number, phone_verified, tos_accepted_at, privacy_accepted_at, password) VALUES (?, ?, ?, 1, ?, ?, ?)'
+          'INSERT INTO users (id, email, phone_number, phone_verified, tos_accepted_at, privacy_accepted_at, password, account_status) VALUES (?, ?, ?, 1, ?, ?, ?, ?)'
         );
-        await (insertUserStmt.run([userId, null, formattedPhone, now, now, '']) as Promise<any>);
-        const { grantInitialTokens } = await import('./tokens.js');
-        await grantInitialTokens(userId);
+        await (insertUserStmt.run([
+          userId,
+          null,
+          formattedPhone,
+          now,
+          now,
+          '',
+          ACCOUNT_STATUS_ONBOARDING,
+        ]) as Promise<any>);
       }
       const { generateToken } = await import('../middleware/auth.js');
       const token = generateToken(userId);
-      await ensureStubProfile(userId);
       const profileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
       const profile = await (profileStmt.get(userId) as Promise<{ id: string } | null>);
       const hasProfile = !!profile;
       await ensureTestAutoMatchesForPhone(formattedPhone);
       return res.json({
-        message: existingUser ? 'Login successful' : 'Account created successfully',
+        message: existingUser
+          ? 'Login successful'
+          : 'Phone verified. Complete your profile to finish creating your account.',
         token,
         userId,
         hasProfile,
@@ -485,10 +499,17 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
         const now = new Date().toISOString();
         
         const insertUserStmt = db.prepare(
-          'INSERT INTO users (id, email, phone_number, phone_verified, tos_accepted_at, privacy_accepted_at, password) VALUES (?, ?, ?, 1, ?, ?, ?)'
+          'INSERT INTO users (id, email, phone_number, phone_verified, tos_accepted_at, privacy_accepted_at, password, account_status) VALUES (?, ?, ?, 1, ?, ?, ?, ?)'
         );
-        // Use null for email since this is phone-only authentication
-        await (insertUserStmt.run([userId, null, formattedPhone, now, now, '']) as Promise<any>);
+        await (insertUserStmt.run([
+          userId,
+          null,
+          formattedPhone,
+          now,
+          now,
+          '',
+          ACCOUNT_STATUS_ONBOARDING,
+        ]) as Promise<any>);
         
         console.log('✅ New user created via phone (Verify):', {
           userId,
@@ -503,14 +524,15 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
       const { generateToken } = await import('../middleware/auth.js');
       const token = generateToken(userId);
 
-      await ensureStubProfile(userId);
       const profileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
       const profile = await (profileStmt.get(userId) as Promise<{ id: string } | null>);
       const hasProfile = !!profile;
       await ensureTestAutoMatchesForPhone(formattedPhone);
       
       res.json({
-        message: isNewUser ? 'Account created successfully' : 'Login successful',
+        message: isNewUser
+          ? 'Phone verified. Complete your profile to finish creating your account.'
+          : 'Login successful',
         token,
         userId,
         hasProfile,
@@ -576,19 +598,22 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
       
       // Create user with phone number only
       const insertUserStmt = db.prepare(
-        'INSERT INTO users (id, email, phone_number, phone_verified, tos_accepted_at, privacy_accepted_at, password) VALUES (?, ?, ?, 1, ?, ?, ?)'
+        'INSERT INTO users (id, email, phone_number, phone_verified, tos_accepted_at, privacy_accepted_at, password, account_status) VALUES (?, ?, ?, 1, ?, ?, ?, ?)'
       );
-      // Use null for email since this is phone-only authentication
-      await (insertUserStmt.run([userId, null, formattedPhone, now, now, '']) as Promise<any>); // Empty password since we use SMS auth
+      await (insertUserStmt.run([
+        userId,
+        null,
+        formattedPhone,
+        now,
+        now,
+        '',
+        ACCOUNT_STATUS_ONBOARDING,
+      ]) as Promise<any>);
       
       console.log('✅ New user created via phone:', {
         userId,
         phoneNumber: formattedPhone
       });
-
-      // Grant initial 7 tokens to new user
-      const { grantInitialTokens } = await import('./tokens.js');
-      await grantInitialTokens(userId);
     }
 
     // Clean up verification code
@@ -598,14 +623,15 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
     const { generateToken } = await import('../middleware/auth.js');
     const token = generateToken(userId);
 
-    await ensureStubProfile(userId);
     const profileStmt = db.prepare('SELECT id FROM profiles WHERE user_id = ?');
     const profile = await (profileStmt.get(userId) as Promise<{ id: string } | null>);
     const hasProfile = !!profile;
     await ensureTestAutoMatchesForPhone(formattedPhone);
     
     res.json({
-      message: isNewUser ? 'Account created successfully' : 'Login successful',
+      message: isNewUser
+        ? 'Phone verified. Complete your profile to finish creating your account.'
+        : 'Login successful',
       token,
       userId,
       hasProfile,
