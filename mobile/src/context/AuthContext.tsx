@@ -762,6 +762,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         phoneNumber: data.user.phoneNumber,
         isAdmin: data.user.isAdmin || false,
         hasPushToken: data.user.hasPushToken ?? false,
+        accountActive: data.user.accountActive,
+        accountStatus: data.user.accountStatus,
         matchmakingEnabled: data.matchmakingEnabled !== false,
         matchmakingDisabledMessage:
           typeof data.matchmakingDisabledMessage === 'string' ? data.matchmakingDisabledMessage : null,
@@ -905,8 +907,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       await AsyncStorage.setItem('token', data.token);
       setTokenCache(data.token);
-      // Wizard draft is device-local, not per user — always clear on login.
-      await clearMobileCreateProfileDraft();
+      // New signup only: clear wizard draft so a deleted prior account on this device cannot leak in.
+      if (data.isNewUser) {
+        await clearMobileCreateProfileDraft();
+      }
       if (data.isNewUser && data.userId) {
         const { resetConnectShellModeForNewUser } = await import('../lib/connectShellTheme');
         await resetConnectShellModeForNewUser(data.userId);

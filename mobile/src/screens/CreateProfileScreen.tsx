@@ -39,11 +39,17 @@ import {
   clearMobileCreateProfileDraft,
   computeMobileCreateProfileResumeStep,
   ensureMobileOnboardingDraft,
+  hasMobileCreateProfileDraft,
   readMobileCreateProfileDraft,
   writeMobileCreateProfileDraft,
 } from '../utils/createProfileProgress';
 import { computeConnectSetupComplete } from '../utils/connectSetup';
 import ProfileCompleteCelebration from '../components/ProfileCompleteCelebration';
+import {
+  deriveAppRegistrationComplete,
+  isAccountActiveFromAuthUser,
+} from '../utils/connectProfileEligibility';
+import { setProfileCompletionCelebrationVisible } from '../utils/profileCompletionCelebration';
 import { useAuth } from '../context/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import OptimizedImage from '../components/OptimizedImage';
@@ -212,13 +218,18 @@ export default function CreateProfileScreen() {
   const startFromBeginning = routeParams?.startFromBeginning === true;
   const fromPostAuthLogin = routeParams?.fromPostAuthLogin === true;
   const initialStep = routeParams?.initialStep;
-  const { refreshProfile, profile: existingProfile, connectSetupComplete, logout } = useAuth();
+  const { refreshProfile, profile: existingProfile, connectSetupComplete, user, logout } = useAuth();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [savingInCreateProfile, setSavingInCreateProfile] = useState(false);
   const [savingProgress, setSavingProgress] = useState(false);
   const [error, setError] = useState('');
   const [showCelebration, setShowCelebration] = useState(false);
+
+  useEffect(() => {
+    setProfileCompletionCelebrationVisible(showCelebration);
+    return () => setProfileCompletionCelebrationVisible(false);
+  }, [showCelebration]);
   const step1ScrollViewRef = useRef<ScrollView>(null);
   const step5ScrollViewRef = useRef<ScrollView>(null);
   
@@ -692,10 +703,17 @@ export default function CreateProfileScreen() {
     setMaxDistance(maxDist);
 
     const profileForConnect = { display_name: dn, displayName: dn, location: loc };
-    const connectReadyOnDevice = computeConnectSetupComplete(profileForConnect, photoCount);
+    const wizardDraftActive = await hasMobileCreateProfileDraft();
+    const accountActive = isAccountActiveFromAuthUser(user);
+    const registrationComplete = deriveAppRegistrationComplete({
+      accountActive,
+      profileRow: profileForConnect,
+      photoCount,
+      wizardDraftActive,
+    });
 
-    // Post-login only: profile already complete on device → Connect tab (same path as tapping Exit).
-    if (fromPostAuthLogin && connectReadyOnDevice && initialStep == null) {
+    // Post-login only: account activated + wizard finished → Connect (never skip mid-wizard).
+    if (fromPostAuthLogin && registrationComplete && initialStep == null) {
       await clearMobileCreateProfileDraft();
       await refreshProfile();
       if (navigationRef.current?.isReady()) {
@@ -727,7 +745,7 @@ export default function CreateProfileScreen() {
     const targetStep =
       initialStep != null && initialStep >= 1 && initialStep <= TOTAL_STEPS ? initialStep : resumeStep;
     setStep(targetStep);
-  }, [initialStep, fromPostAuthLogin, navigation, refreshProfile]);
+  }, [initialStep, fromPostAuthLogin, navigation, refreshProfile, user]);
 
   // Load profile on mount and when edit params change (not when startFromBeginning = new account/delete)
   useEffect(() => {

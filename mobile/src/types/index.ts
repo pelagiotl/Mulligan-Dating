@@ -13,6 +13,9 @@ export interface User {
   /** From GET /auth/me — false when server has MATCHMAKING_DISABLED (soft launch). */
   matchmakingEnabled?: boolean;
   matchmakingDisabledMessage?: string | null;
+  /** From GET /auth/me — false until user taps Complete Profile and POST /profile/activate. */
+  accountActive?: boolean;
+  accountStatus?: string;
 }
 
 export interface Profile {

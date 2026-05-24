@@ -959,7 +959,7 @@ export default function CreateProfile() {
       markConnectSetupComplete();
       markWebPushPromptAfterProfile();
       await refreshProfile({ silent: true });
-      navigate("/browse", { replace: true });
+      setShowProfileReadySplash(true);
     } catch (err) {
       const msg = apiErrorMessage(err, "Failed to create profile");
       const low = msg.toLowerCase();

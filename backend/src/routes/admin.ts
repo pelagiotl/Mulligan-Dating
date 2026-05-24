@@ -3,7 +3,7 @@ import { db } from '../database.js';
 import { authenticateToken, requireAdmin, AuthRequest, isOwnerAdmin } from '../middleware/auth.js';
 import { deleteUserAccountData } from '../services/deleteUserAccount.js';
 import { forceMatchByPhone } from '../services/forceMatchByPhone.js';
-import { sqlOnlyActiveAccounts } from '../utils/accountStatus.js';
+import { sqlOnlyActiveAccounts, sqlOnlyOnboardingAccounts } from '../utils/accountStatus.js';
 import { v4 as uuidv4 } from 'uuid';
 
 export const adminRouter = Router();
@@ -402,12 +402,19 @@ adminRouter.get('/stats', authenticateToken, requireAdmin, async (req: AuthReque
     ).get([sevenDaysAgo.toISOString()]) as Promise<{ count: number }>);
     const activeUsers = activeUsersResult?.count || 0;
 
+    const onboardingOnly = sqlOnlyOnboardingAccounts('u');
+    const onboardingUsersResult = await (db
+      .prepare(`SELECT COUNT(*) as count FROM users u WHERE 1=1${onboardingOnly}`)
+      .get([]) as Promise<{ count: number }>);
+    const onboardingUsers = onboardingUsersResult?.count || 0;
+
     res.json({
       totalUsers,
       totalProfiles,
       totalMatches,
       restrictedUsers,
-      activeUsers
+      activeUsers,
+      onboardingUsers,
     });
   } catch (error: any) {
     console.error('Error fetching admin stats:', error);
@@ -703,6 +710,65 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
         location: u.location,
         is_admin: u.is_admin === 1,
         is_restricted: u.is_restricted === 1,
+        created_at: u.created_at,
+        last_active_at: u.last_active_at,
+        tokenCount: tokenCounts[u.id] || 0,
+      }));
+
+      return res.json({ users, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
+    }
+
+    if (filter === 'onboarding') {
+      const onboardingOnly = sqlOnlyOnboardingAccounts('u');
+      const searchWhere = search
+        ? ` AND (u.email LIKE ? OR p.display_name LIKE ? OR u.phone_number LIKE ? OR u.id LIKE ?)`
+        : '';
+      const searchTerm = `%${search}%`;
+      const query = `
+        SELECT DISTINCT u.id, u.email, u.phone_number, u.is_admin, u.is_restricted,
+          u.created_at, u.last_active_at, u.account_status,
+          p.display_name, p.age, p.gender, p.location
+        FROM users u
+        LEFT JOIN profiles p ON p.user_id = u.id
+        WHERE 1=1${onboardingOnly}${tayaHide}${searchWhere}
+        ORDER BY u.created_at DESC
+        LIMIT ? OFFSET ?
+      `;
+      const params = search ? [searchTerm, searchTerm, searchTerm, searchTerm, limit, offset] : [limit, offset];
+      const usersResult = await (db.prepare(query).all(params) as Promise<any[]>);
+
+      const countQuery = `
+        SELECT COUNT(DISTINCT u.id) as count FROM users u
+        LEFT JOIN profiles p ON p.user_id = u.id
+        WHERE 1=1${onboardingOnly}${tayaHide}${searchWhere}
+      `;
+      const countParams = search ? [searchTerm, searchTerm, searchTerm, searchTerm] : [];
+      const totalResult = await (db.prepare(countQuery).get(countParams) as Promise<{ count: number }>);
+      const total = totalResult?.count || 0;
+
+      const userIds = usersResult.map((u: any) => u.id);
+      let tokenCounts: Record<string, number> = {};
+      if (userIds.length > 0) {
+        const placeholders = userIds.map(() => '?').join(',');
+        const tokensResult = await (db.prepare(`
+          SELECT user_id, COUNT(*) as count FROM mulligan_tokens
+          WHERE user_id IN (${placeholders}) AND used_at IS NULL AND returned_at IS NULL
+          GROUP BY user_id
+        `).all(userIds) as Promise<{ user_id: string; count: number }[]>);
+        tokensResult.forEach((row: any) => { tokenCounts[row.user_id] = parseInt(row.count) || 0; });
+      }
+
+      const users = usersResult.map((u: any) => ({
+        id: u.id,
+        email: u.email || u.phone_number || 'N/A',
+        phoneNumber: u.phone_number,
+        display_name: u.display_name,
+        age: u.age,
+        gender: u.gender,
+        location: u.location,
+        is_admin: u.is_admin === 1,
+        is_restricted: u.is_restricted === 1,
+        account_status: u.account_status ?? 'onboarding',
         created_at: u.created_at,
         last_active_at: u.last_active_at,
         tokenCount: tokenCounts[u.id] || 0,

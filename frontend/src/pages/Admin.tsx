@@ -101,10 +101,11 @@ interface Stats {
   totalMatches: number;
   restrictedUsers: number;
   activeUsers: number;
+  onboardingUsers?: number;
 }
 
 /** Drill-down from dashboard stat cards */
-type StatDrillKey = 'totalUsers' | 'profiles' | 'matches' | 'restricted' | 'active7d';
+type StatDrillKey = 'totalUsers' | 'profiles' | 'matches' | 'restricted' | 'active7d' | 'onboarding';
 
 interface AdminPairMatchRow {
   id: string;
@@ -121,6 +122,8 @@ export default function Admin() {
   const { user } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserDetails | null>(null);
+  const [userDetailsOpen, setUserDetailsOpen] = useState(false);
+  const [userDetailsLoading, setUserDetailsLoading] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -194,6 +197,7 @@ export default function Admin() {
           if (statDrill === 'profiles') params.set('filter', 'with_profile');
           else if (statDrill === 'restricted') params.set('filter', 'restricted');
           else if (statDrill === 'active7d') params.set('filter', 'active');
+          else if (statDrill === 'onboarding') params.set('filter', 'onboarding');
           const data = await api.get<{ users: User[]; pagination: { total: number; totalPages: number } }>(
             `/admin/users?${params}`
           );
@@ -250,6 +254,11 @@ export default function Admin() {
         title: 'Active (7 days)',
         subtitle: 'Users who received a Mulligan token in the last 7 days — same definition as the dashboard stat.',
       },
+      onboarding: {
+        title: 'Onboarding',
+        subtitle:
+          'Accounts still setting up — signed up but have not tapped Complete Profile. Includes in-progress create-profile flows.',
+      },
     };
     return map[key];
   };
@@ -262,6 +271,15 @@ export default function Admin() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [statDrill, closeStatDrill]);
+
+  useEffect(() => {
+    if (!userDetailsOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeUserDetails();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [userDetailsOpen, closeUserDetails]);
 
   const fetchStats = async () => {
     try {
@@ -291,21 +309,40 @@ export default function Admin() {
     }
   };
 
+  const closeUserDetails = useCallback(() => {
+    setUserDetailsOpen(false);
+    setUserDetailsLoading(false);
+    setSelectedUser(null);
+    setSelectedConversation(null);
+    setUserMessages([]);
+    setMessagesError(null);
+    setMatchesError(null);
+    setUserMatches([]);
+    setMessagesTotal(0);
+    setMessagesHasMore(false);
+  }, []);
+
   const fetchUserDetails = async (userId: string) => {
+    setUserDetailsOpen(true);
+    setUserDetailsLoading(true);
+    setSelectedUser(null);
+    setSelectedConversation(null);
+    setUserMessages([]);
+    setMessagesError(null);
+    setMatchesError(null);
+    setUserMatches([]);
+    setMessagesTotal(0);
+    setMessagesHasMore(false);
     try {
       const data = await api.get<UserDetails>(`/admin/users/${userId}?_=${Date.now()}`);
       setSelectedUser(data);
-      setSelectedConversation(null);
-      setUserMessages([]);
-      setMessagesError(null);
-      setMatchesError(null);
-      setUserMatches([]);
-      setMessagesTotal(0);
-      setMessagesHasMore(false);
       void fetchUserMatches(userId);
     } catch (error) {
       console.error('Failed to fetch user details:', error);
       setMessage({ type: 'error', text: 'Failed to load user details' });
+      setUserDetailsOpen(false);
+    } finally {
+      setUserDetailsLoading(false);
     }
   };
 
@@ -571,6 +608,17 @@ export default function Admin() {
             <div className="stat-label">Active (7d)</div>
             <span className="stat-card-hint">View list</span>
           </button>
+          <button
+            type="button"
+            className={`stat-card stat-card--interactive${statDrill === 'onboarding' ? ' stat-card--active' : ''}`}
+            onClick={() => openStatDrill('onboarding')}
+            aria-haspopup="dialog"
+          >
+            <div className="stat-icon" aria-hidden>📝</div>
+            <div className="stat-value">{stats.onboardingUsers ?? 0}</div>
+            <div className="stat-label">Onboarding</div>
+            <span className="stat-card-hint">View list</span>
+          </button>
         </div>
       )}
 
@@ -723,8 +771,16 @@ export default function Admin() {
                     {users.map((user) => (
                       <tr
                         key={user.id}
-                        className={selectedUser?.id === user.id ? 'selected' : ''}
-                        onClick={() => fetchUserDetails(user.id)}
+                        role="button"
+                        tabIndex={0}
+                        className={`users-table-row-selectable${selectedUser?.id === user.id ? ' selected' : ''}`}
+                        onClick={() => void fetchUserDetails(user.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            void fetchUserDetails(user.id);
+                          }
+                        }}
                       >
                         <td className="users-table-cell-email">
                           <span className="users-table-email" title={user.email}>
@@ -757,6 +813,14 @@ export default function Admin() {
                         </td>
                         <td onClick={(e) => e.stopPropagation()}>
                           <div className="action-buttons action-buttons--compact">
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-secondary admin-action-view"
+                              onClick={() => void fetchUserDetails(user.id)}
+                              title="View profile and photos"
+                            >
+                              View
+                            </button>
                             <button
                               type="button"
                               className="btn btn-sm btn-primary admin-action-tokens"
@@ -824,13 +888,36 @@ export default function Admin() {
           )}
         </div>
 
-        {selectedUser && (
-          <div className="admin-user-details">
+      </div>
+
+      {userDetailsOpen ? (
+        <div className="admin-user-details-overlay" role="presentation">
+          <div
+            className="admin-user-details-backdrop"
+            aria-hidden="true"
+            onClick={() => closeUserDetails()}
+          />
+          <div
+            className="admin-user-details-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="admin-user-details-title"
+          >
             <div className="user-details-header">
-              <h2>User Details</h2>
-              <button onClick={() => setSelectedUser(null)}>×</button>
+              <h2 id="admin-user-details-title">User Details</h2>
+              <button type="button" onClick={() => closeUserDetails()} aria-label="Close">
+                ×
+              </button>
             </div>
 
+            {userDetailsLoading ? (
+              <div className="admin-user-details-loading" aria-busy="true">
+                <span className="admin-um-loading-dot" />
+                <span className="admin-um-loading-dot" />
+                <span className="admin-um-loading-dot" />
+                <span>Loading profile…</span>
+              </div>
+            ) : selectedUser ? (
             <div className="user-details-content">
               <div className="detail-section">
                 <h3>Account Info</h3>
@@ -1156,9 +1243,12 @@ export default function Admin() {
                 </div>
               </div>
             </div>
+            ) : (
+              <p className="admin-moderation-muted">Could not load user details.</p>
+            )}
           </div>
-        )}
-      </div>
+        </div>
+      ) : null}
 
       {statDrill ? (
         <div className="admin-stat-drill-overlay" role="presentation">

@@ -31,6 +31,7 @@ import PrivacyScreen from '../screens/PrivacyScreen';
 import PushNotificationSettingsScreen from '../screens/PushNotificationSettingsScreen';
 import BlockedUsersScreen from '../screens/BlockedUsersScreen';
 import { useAuth } from '../context/AuthContext';
+import { isProfileCompletionCelebrationVisible } from '../utils/profileCompletionCelebration';
 import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
 // Import navigation ref from separate file to avoid circular dependencies
 import { navigationRef, RootStackParamList } from './navigationRef';
@@ -562,6 +563,7 @@ export default function AppNavigator() {
         gateStatusLoaded &&
         ageGatePassed === true &&
         connectSetupComplete &&
+        !isProfileCompletionCelebrationVisible() &&
         (currentRoute?.name === 'CreateProfile'
           ? !!(currentRoute.params as { fromPostAuthLogin?: boolean } | undefined)?.fromPostAuthLogin
           : !isInsideMainTabsFlow(currentRoute?.name))

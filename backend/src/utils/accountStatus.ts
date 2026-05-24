@@ -15,6 +15,10 @@ export function sqlOnlyActiveAccounts(userAlias = 'u'): string {
   return ` AND COALESCE(${userAlias}.account_status, '${ACCOUNT_STATUS_ACTIVE}') = '${ACCOUNT_STATUS_ACTIVE}'`;
 }
 
+export function sqlOnlyOnboardingAccounts(userAlias = 'u'): string {
+  return ` AND COALESCE(${userAlias}.account_status, '${ACCOUNT_STATUS_ACTIVE}') = '${ACCOUNT_STATUS_ONBOARDING}'`;
+}
+
 export async function activateUserAccount(userId: string): Promise<{
   accountStatus: typeof ACCOUNT_STATUS_ACTIVE;
   tokensGranted: number;
@@ -40,8 +44,16 @@ export async function activateUserAccount(userId: string): Promise<{
 
   if (!alreadyActive) {
     await (db
-      .prepare(`UPDATE users SET account_status = ? WHERE id = ?`)
+      .prepare(
+        `UPDATE users SET account_status = ?, profile_activated_at = COALESCE(profile_activated_at, CURRENT_TIMESTAMP) WHERE id = ?`,
+      )
       .run([ACCOUNT_STATUS_ACTIVE, userId]) as Promise<unknown>);
+  } else {
+    await (db
+      .prepare(
+        `UPDATE users SET profile_activated_at = COALESCE(profile_activated_at, CURRENT_TIMESTAMP) WHERE id = ?`,
+      )
+      .run([userId]) as Promise<unknown>);
   }
 
   let tokensGranted = 0;
@@ -63,16 +75,35 @@ export async function activateUserAccount(userId: string): Promise<{
   };
 }
 
-/** One-time style sync: incomplete profiles → onboarding; connect-ready → active. */
+/**
+ * Startup sync: demote incomplete profiles to onboarding only.
+ * Account activation (active + tokens) happens exclusively via POST /profile/activate.
+ */
 export async function syncAccountStatusFromProfileReadiness(): Promise<void> {
-  const usersResult = await db.prepare('SELECT id FROM users').all([]);
+  const usersResult = await db.prepare(
+    'SELECT id, account_status, profile_activated_at FROM users',
+  ).all([]);
   const users = Array.isArray(usersResult) ? usersResult : [];
-  for (const row of users as { id: string }[]) {
+  for (const row of users as {
+    id: string;
+    account_status: string | null;
+    profile_activated_at: string | null;
+  }[]) {
     const violations = await getConnectSetupViolationsForUser(row.id);
-    const next =
-      violations.length === 0 ? ACCOUNT_STATUS_ACTIVE : ACCOUNT_STATUS_ONBOARDING;
-    await (db
-      .prepare('UPDATE users SET account_status = ? WHERE id = ?')
-      .run([next, row.id]) as Promise<unknown>);
+    if (violations.length > 0) {
+      await (db
+        .prepare('UPDATE users SET account_status = ? WHERE id = ?')
+        .run([ACCOUNT_STATUS_ONBOARDING, row.id]) as Promise<unknown>);
+      continue;
+    }
+    // Legacy rows auto-promoted to active without tapping Complete Profile
+    if (
+      row.account_status === ACCOUNT_STATUS_ACTIVE &&
+      (row.profile_activated_at == null || row.profile_activated_at === '')
+    ) {
+      await (db
+        .prepare('UPDATE users SET account_status = ? WHERE id = ?')
+        .run([ACCOUNT_STATUS_ONBOARDING, row.id]) as Promise<unknown>);
+    }
   }
 }

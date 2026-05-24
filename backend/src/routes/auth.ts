@@ -180,7 +180,7 @@ authRouter.post('/login', rateLimitAuth, async (req, res) => {
 authRouter.get('/me', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const stmt = db.prepare(
-      'SELECT id, email, phone_number, is_admin, created_at, push_token, account_status FROM users WHERE id = ?',
+      'SELECT id, email, phone_number, is_admin, created_at, push_token, account_status, profile_activated_at FROM users WHERE id = ?',
     );
     const user = await (stmt.get(req.userId) as Promise<{
       id: string;
@@ -190,6 +190,7 @@ authRouter.get('/me', authenticateToken, async (req: AuthRequest, res) => {
       created_at: string;
       push_token: string | null;
       account_status: string | null;
+      profile_activated_at: string | null;
     } | null>);
     
     if (!user) {
@@ -233,7 +234,9 @@ authRouter.get('/me', authenticateToken, async (req: AuthRequest, res) => {
     const connectSetupMissing = await getConnectSetupViolationsForUser(user.id);
     const { isActiveAccountStatus } = await import('../utils/accountStatus.js');
     const accountActive = isActiveAccountStatus(user.account_status);
-    const connectSetupComplete = connectSetupMissing.length === 0 && accountActive;
+    const profileActivated = !!(user.profile_activated_at && String(user.profile_activated_at).trim());
+    const connectSetupComplete =
+      connectSetupMissing.length === 0 && accountActive && profileActivated;
 
     const matchmakingOff = isMatchmakingGloballyDisabled();
     const isAdmin = userHasAdminAccess(user.id, user.is_admin, user.phone_number);

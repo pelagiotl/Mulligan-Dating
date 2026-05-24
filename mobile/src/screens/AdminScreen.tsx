@@ -30,6 +30,7 @@ interface Stats {
   totalMatches: number;
   restrictedUsers: number;
   activeUsers: number;
+  onboardingUsers?: number;
 }
 
 interface User {
@@ -124,7 +125,7 @@ interface AdminUserMatch {
   stage1At: string;
 }
 
-type StatDrillDownType = 'users' | 'matches' | 'restricted' | 'active';
+type StatDrillDownType = 'users' | 'matches' | 'restricted' | 'active' | 'onboarding';
 
 export default function AdminScreen() {
   const navigation = useNavigation();
@@ -615,6 +616,12 @@ export default function AdminScreen() {
               <LinearGradient colors={['#30cfd0', '#330867']} style={styles.statCardGradient}>
                 <Text style={styles.statValue}>{stats.activeUsers}</Text>
                 <Text style={styles.statLabel} numberOfLines={1}>Active (7d)</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.statCardTouchable} onPress={() => openStatDrillDown('onboarding')} activeOpacity={0.9}>
+              <LinearGradient colors={['#f093fb', '#f5576c']} style={styles.statCardGradient}>
+                <Text style={styles.statValue}>{stats.onboardingUsers ?? 0}</Text>
+                <Text style={styles.statLabel} numberOfLines={1}>Onboarding</Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>
