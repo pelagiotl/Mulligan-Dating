@@ -218,7 +218,7 @@ export default function CreateProfileScreen() {
   const startFromBeginning = routeParams?.startFromBeginning === true;
   const fromPostAuthLogin = routeParams?.fromPostAuthLogin === true;
   const initialStep = routeParams?.initialStep;
-  const { refreshProfile, profile: existingProfile, connectSetupComplete, user, logout } = useAuth();
+  const { refreshProfile, markConnectSetupComplete, profile: existingProfile, connectSetupComplete, user, logout } = useAuth();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [savingInCreateProfile, setSavingInCreateProfile] = useState(false);
@@ -1333,10 +1333,9 @@ export default function CreateProfileScreen() {
       await api.post('/profile/activate');
 
       await clearMobileCreateProfileDraft();
+      markConnectSetupComplete();
 
-      // Show celebration first — refreshProfile() after the user taps "Start Connecting".
-      // Eager refresh flips connectSetupComplete and AppNavigator auto-resets to MainTabs
-      // (fromPostAuthLogin), which dismisses this modal in ~500ms.
+      // Celebration first; refresh after dismiss so AppNavigator does not bounce back to the wizard.
       setShowCelebration(true);
     } catch (err: any) {
       setError(err?.message || 'Failed to create profile');
@@ -2422,7 +2421,7 @@ export default function CreateProfileScreen() {
         visible={showCelebration}
         onClose={async () => {
           setShowCelebration(false);
-          // Refresh after dismiss so AppNavigator does not steal the screen mid-celebration.
+          markConnectSetupComplete();
           await refreshProfile();
           if (navigationRef.current?.isReady()) {
             navigationRef.current.reset({

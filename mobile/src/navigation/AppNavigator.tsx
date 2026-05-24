@@ -548,7 +548,8 @@ export default function AppNavigator() {
         gateStatusLoaded &&
         ageGatePassed === true &&
         !connectSetupComplete &&
-        currentRoute?.name !== 'CreateProfile'
+        currentRoute?.name !== 'CreateProfile' &&
+        !isInsideMainTabsFlow(currentRoute?.name)
       ) {
         try {
           navigationRef.current.reset({

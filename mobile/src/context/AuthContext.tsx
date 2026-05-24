@@ -58,6 +58,8 @@ interface AuthContextType {
   phoneLogin: (phoneNumber: string, code: string) => Promise<{ hasProfile: boolean }>;
   logout: () => void;
   refreshProfile: () => Promise<void>;
+  /** After Complete Profile — keep Connect until logout even if a stale /auth/me arrives. */
+  markConnectSetupComplete: () => void;
   /** TokenDisplay registers; call after IAP (e.g. Settings) so Browse header balance updates. */
   registerTokensBalanceRefresh: (callback: (() => Promise<void>) | null) => void;
   refreshTokensBalance: () => Promise<void>;
@@ -72,6 +74,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [connectSetupComplete, setConnectSetupComplete] = useState(false);
+  /** Session latch: set when user taps Complete Profile; prevents wizard regression from stale fetch. */
+  const connectSetupCompleteLatchRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [messageNotifications, setMessageNotifications] = useState<MessageNotificationItem[]>([]);
   const messageNotificationTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
@@ -803,17 +807,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         accountStatus: data.user?.accountStatus,
       });
       if (!accountActive) {
-        await ensureMobileOnboardingDraft();
+        const missingForDraft = getConnectSetupMissing(nextProfile, photoCount ?? 0);
+        if (missingForDraft.length > 0) {
+          await ensureMobileOnboardingDraft();
+        }
       }
       const wizardDraftActive = await hasMobileCreateProfileDraft();
-      const nextConnectSetupComplete = deriveAppRegistrationComplete({
+      let nextConnectSetupComplete = deriveAppRegistrationComplete({
         accountActive,
         profile: nextProfile,
         photoCount: photoCount ?? 0,
         wizardDraftActive,
         serverConnectFlag: data.connectSetupComplete,
       });
+      if (connectSetupCompleteLatchRef.current && !nextConnectSetupComplete) {
+        const missing = getConnectSetupMissing(nextProfile, photoCount ?? 0);
+        if (missing.length === 0 && accountActive) {
+          nextConnectSetupComplete = true;
+        }
+      }
       if (nextConnectSetupComplete) {
+        connectSetupCompleteLatchRef.current = true;
         await clearMobileCreateProfileDraft();
       } else if (__DEV__) {
         const missing =
@@ -907,6 +921,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       await AsyncStorage.setItem('token', data.token);
       setTokenCache(data.token);
+      connectSetupCompleteLatchRef.current = false;
       // New signup only: clear wizard draft so a deleted prior account on this device cannot leak in.
       if (data.isNewUser) {
         await clearMobileCreateProfileDraft();
@@ -959,6 +974,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       })();
     }
+    connectSetupCompleteLatchRef.current = false;
     clearTokenCache();
     api.clearCache(); // Prevent next account from seeing previous user's cached profile/data
     await clearMobileCreateProfileDraft();
@@ -979,6 +995,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logoutRef.current?.();
     });
     return () => setOnSessionExpired(null);
+  }, []);
+
+  const markConnectSetupComplete = useCallback(() => {
+    connectSetupCompleteLatchRef.current = true;
+    void clearMobileCreateProfileDraft();
+    setConnectSetupComplete(true);
   }, []);
 
   const refreshProfile = useCallback(async () => {
@@ -1028,6 +1050,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         phoneLogin,
         logout,
         refreshProfile,
+        markConnectSetupComplete,
         registerTokensBalanceRefresh,
         refreshTokensBalance,
       }}
