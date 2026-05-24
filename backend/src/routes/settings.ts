@@ -14,7 +14,7 @@ settingsRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
 
     const user = await (db
       .prepare("SELECT id, email, created_at, last_active_at, show_active_status FROM users WHERE id = ?")
-      .get(userId) as Promise<{ id: string; email: string; created_at: string; last_active_at: string | null; show_active_status: number | boolean | null } | undefined>);
+      .get([userId]) as Promise<{ id: string; email: string; created_at: string; last_active_at: string | null; show_active_status: number | boolean | null } | undefined>);
 
     if (!user) {
       return res.status(404).json({ error: "User not found" });
@@ -41,16 +41,10 @@ settingsRouter.post("/delete-account", authenticateToken, async (req: AuthReques
   const userId = req.userId!;
 
   try {
-    const row = await (db
-      .prepare("SELECT id FROM users WHERE id = ?")
-      .get(userId) as Promise<{ id: string } | undefined>);
-
-    if (!row) {
-      return res.status(404).json({ error: "User not found" });
+    const deleted = await deleteUserAccountData(userId);
+    if (!deleted) {
+      console.warn(`Delete account: user ${userId} already removed (treating as success)`);
     }
-
-    await deleteUserAccountData(userId);
-
     res.json({ message: "Account deleted successfully" });
   } catch (error) {
     console.error("Delete account error:", error);
@@ -101,7 +95,7 @@ settingsRouter.put("/email", authenticateToken, async (req: AuthRequest, res) =>
     // Get user to check if they have a password (phone auth users may not have one)
     const user = await (db
       .prepare("SELECT password FROM users WHERE id = ?")
-      .get(userId) as Promise<{ password: string | null } | undefined>);
+      .get([userId]) as Promise<{ password: string | null } | undefined>);
 
     if (!user) {
       return res.status(404).json({ error: "User not found" });
@@ -176,7 +170,7 @@ settingsRouter.get("/notification-preferences", authenticateToken, async (req: A
     const userId = req.userId!;
     const row = await (db
       .prepare("SELECT push_notify_matches, push_notify_messages FROM users WHERE id = ?")
-      .get(userId) as Promise<{ push_notify_matches: number | null; push_notify_messages: number | null } | undefined>);
+      .get([userId]) as Promise<{ push_notify_matches: number | null; push_notify_messages: number | null } | undefined>);
     if (!row) {
       return res.status(404).json({ error: "User not found" });
     }

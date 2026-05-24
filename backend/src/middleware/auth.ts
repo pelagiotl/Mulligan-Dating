@@ -49,47 +49,52 @@ export async function authenticateToken(req: AuthRequest, res: Response, next: N
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
-    req.userId = decoded.userId;
-    
-    // Check if user is restricted
-    if (req.userId) {
-      const { db } = require('../database.js');
-      const userStmt = db.prepare('SELECT is_restricted FROM users WHERE id = ?');
-      const user = await (userStmt.get(req.userId) as Promise<{ is_restricted: number } | null>);
-      
-      if (user && user.is_restricted === 1) {
-        return res.status(403).json({ error: 'Your account has been restricted. Please contact support at Mulligandating@gmail.com' });
-      }
-      
-      // Update last active timestamp
-      const updateStmt = db.prepare('UPDATE users SET last_active_at = CURRENT_TIMESTAMP WHERE id = ?');
-      await (updateStmt.run([req.userId]) as Promise<any>);
+    const decoded = jwt.verify(token, JWT_SECRET) as { userId?: string; id?: string };
+    const userId = (decoded.userId ?? decoded.id)?.trim();
+    if (!userId) {
+      return res.status(403).json({ error: 'Invalid or expired token' });
+    }
+    req.userId = userId;
 
-      // Save push token from header if present (fallback when POST /auth/push-token never runs or fails)
-      const rawPushToken = req.headers['x-push-token'];
-      if (rawPushToken && typeof rawPushToken === 'string' && rawPushToken.trim().length > 0) {
-        const pushToken = rawPushToken.trim();
-        if (pushToken.startsWith('ExponentPushToken[') && pushToken.length > 30) {
-          try {
-            const existingResult = db.prepare('SELECT push_token FROM users WHERE id = ?').get(req.userId);
-            const existing = (existingResult instanceof Promise ? await existingResult : existingResult) as { push_token: string | null } | undefined;
-            const hadToken = !!(existing?.push_token && existing.push_token.trim().length > 0);
-            const runResult = db.prepare('UPDATE users SET push_token = ?, push_token_fail_count = 0 WHERE id = ?').run([pushToken, req.userId]);
-            if (runResult instanceof Promise) await runResult;
-            const verifyResult = db.prepare('SELECT push_token FROM users WHERE id = ?').get(req.userId);
-            const verify = (verifyResult instanceof Promise ? await verifyResult : verifyResult) as { push_token: string | null } | undefined;
-            const persisted = !!(verify?.push_token && verify.push_token.length > 0);
-            if (!hadToken) {
-              console.log(`📲 Push token saved from request header for user ${req.userId} (was missing). Persisted: ${persisted}`);
-            }
-          } catch (e) {
-            // non-critical
+    const { db } = require('../database.js');
+    const userStmt = db.prepare('SELECT id, is_restricted FROM users WHERE id = ?');
+    const user = await (userStmt.get([userId]) as Promise<{ id: string; is_restricted: number } | null>);
+
+    if (!user) {
+      return res.status(401).json({ error: 'Session expired. Please sign in again.' });
+    }
+
+    if (user.is_restricted === 1) {
+      return res.status(403).json({ error: 'Your account has been restricted. Please contact support at Mulligandating@gmail.com' });
+    }
+
+    // Update last active timestamp
+    const updateStmt = db.prepare('UPDATE users SET last_active_at = CURRENT_TIMESTAMP WHERE id = ?');
+    await (updateStmt.run([userId]) as Promise<any>);
+
+    // Save push token from header if present (fallback when POST /auth/push-token never runs or fails)
+    const rawPushToken = req.headers['x-push-token'];
+    if (rawPushToken && typeof rawPushToken === 'string' && rawPushToken.trim().length > 0) {
+      const pushToken = rawPushToken.trim();
+      if (pushToken.startsWith('ExponentPushToken[') && pushToken.length > 30) {
+        try {
+          const existingResult = db.prepare('SELECT push_token FROM users WHERE id = ?').get([userId]);
+          const existing = (existingResult instanceof Promise ? await existingResult : existingResult) as { push_token: string | null } | undefined;
+          const hadToken = !!(existing?.push_token && existing.push_token.trim().length > 0);
+          const runResult = db.prepare('UPDATE users SET push_token = ?, push_token_fail_count = 0 WHERE id = ?').run([pushToken, userId]);
+          if (runResult instanceof Promise) await runResult;
+          const verifyResult = db.prepare('SELECT push_token FROM users WHERE id = ?').get([userId]);
+          const verify = (verifyResult instanceof Promise ? await verifyResult : verifyResult) as { push_token: string | null } | undefined;
+          const persisted = !!(verify?.push_token && verify.push_token.length > 0);
+          if (!hadToken) {
+            console.log(`📲 Push token saved from request header for user ${userId} (was missing). Persisted: ${persisted}`);
           }
+        } catch (e) {
+          // non-critical
         }
       }
     }
-    
+
     next();
   } catch (error) {
     return res.status(403).json({ error: 'Invalid or expired token' });

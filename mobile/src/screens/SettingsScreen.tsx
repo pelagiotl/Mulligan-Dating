@@ -411,22 +411,35 @@ export default function SettingsScreen() {
     }
   }, [packages, refreshProfile, refreshTokensBalance]);
 
+  const finishDeleteAccount = useCallback(() => {
+    setShowDeleteAccountModal(false);
+    setDeleting(false);
+    api.clearCache();
+    logout();
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'PhoneLogin' as never }],
+    });
+  }, [logout, navigation]);
+
   const handleConfirmDeleteAccount = useCallback(async () => {
     setError('');
     setDeleting(true);
     try {
       await api.post('/settings/delete-account', {});
-      setShowDeleteAccountModal(false);
-      logout();
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'PhoneLogin' as never }],
-      });
+      finishDeleteAccount();
     } catch (err: any) {
-      setError(err?.message || 'Failed to delete account');
+      const msg = err?.message || 'Failed to delete account';
+      const alreadyGone =
+        err?.status === 404 || String(msg).toLowerCase().includes('user not found');
+      if (alreadyGone) {
+        finishDeleteAccount();
+        return;
+      }
+      setError(msg);
       setDeleting(false);
     }
-  }, [logout, navigation]);
+  }, [finishDeleteAccount]);
 
   useEffect(() => {
     if (showDeleteAccountModal) {
