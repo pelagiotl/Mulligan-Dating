@@ -48,7 +48,7 @@ import ProfileCompleteCelebration from '../components/ProfileCompleteCelebration
 import {
   deriveAppRegistrationComplete,
   isAccountActiveFromAuthUser,
-} from '../utils/connectProfileEligibility';
+} from '../utils/connectSetup';
 import { setProfileCompletionCelebrationVisible } from '../utils/profileCompletionCelebration';
 import { useAuth } from '../context/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -707,7 +707,7 @@ export default function CreateProfileScreen() {
     const accountActive = isAccountActiveFromAuthUser(user);
     const registrationComplete = deriveAppRegistrationComplete({
       accountActive,
-      profileRow: profileForConnect,
+      profile: profileForConnect,
       photoCount,
       wizardDraftActive,
     });
