@@ -6,6 +6,7 @@ import { sendVerificationCode, formatPhoneNumber, isValidPhoneNumber, isTwilioVe
 import { sendVerificationCodeSNS, formatPhoneNumber as formatPhoneNumberSNS, isValidPhoneNumber as isValidPhoneNumberSNS, isSNSConfigured } from '../services/aws-sns.js';
 import { rateLimitAuth } from '../middleware/security.js';
 import { ACCOUNT_STATUS_ONBOARDING } from '../utils/accountStatus.js';
+import { hiddenFromBrowseFlagForNewUser } from '../config/hiddenFromBrowse.js';
 
 export const smsRouter = Router();
 
@@ -147,7 +148,7 @@ async function completePhoneLogin(
     isNewUser = true;
     const now = new Date().toISOString();
     const insertUserStmt = db.prepare(
-      'INSERT INTO users (id, email, phone_number, phone_verified, tos_accepted_at, privacy_accepted_at, password, account_status) VALUES (?, ?, ?, 1, ?, ?, ?, ?)'
+      'INSERT INTO users (id, email, phone_number, phone_verified, tos_accepted_at, privacy_accepted_at, password, account_status, hidden_from_browse) VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)'
     );
     const insertResult = insertUserStmt.run([
       userId,
@@ -157,6 +158,7 @@ async function completePhoneLogin(
       now,
       '',
       ACCOUNT_STATUS_ONBOARDING,
+      hiddenFromBrowseFlagForNewUser(formattedPhone),
     ]);
     if (insertResult instanceof Promise) await insertResult;
   }
@@ -422,7 +424,7 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
         isNewUser = true;
         const now = new Date().toISOString();
         const insertUserStmt = db.prepare(
-          'INSERT INTO users (id, email, phone_number, phone_verified, tos_accepted_at, privacy_accepted_at, password, account_status) VALUES (?, ?, ?, 1, ?, ?, ?, ?)'
+          'INSERT INTO users (id, email, phone_number, phone_verified, tos_accepted_at, privacy_accepted_at, password, account_status, hidden_from_browse) VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)'
         );
         await (insertUserStmt.run([
           userId,
@@ -432,6 +434,7 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
           now,
           '',
           ACCOUNT_STATUS_ONBOARDING,
+          hiddenFromBrowseFlagForNewUser(formattedPhone),
         ]) as Promise<any>);
       }
       const { generateToken } = await import('../middleware/auth.js');
@@ -499,7 +502,7 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
         const now = new Date().toISOString();
         
         const insertUserStmt = db.prepare(
-          'INSERT INTO users (id, email, phone_number, phone_verified, tos_accepted_at, privacy_accepted_at, password, account_status) VALUES (?, ?, ?, 1, ?, ?, ?, ?)'
+          'INSERT INTO users (id, email, phone_number, phone_verified, tos_accepted_at, privacy_accepted_at, password, account_status, hidden_from_browse) VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)'
         );
         await (insertUserStmt.run([
           userId,
@@ -509,6 +512,7 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
           now,
           '',
           ACCOUNT_STATUS_ONBOARDING,
+          hiddenFromBrowseFlagForNewUser(formattedPhone),
         ]) as Promise<any>);
         
         console.log('✅ New user created via phone (Verify):', {
@@ -598,7 +602,7 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
       
       // Create user with phone number only
       const insertUserStmt = db.prepare(
-        'INSERT INTO users (id, email, phone_number, phone_verified, tos_accepted_at, privacy_accepted_at, password, account_status) VALUES (?, ?, ?, 1, ?, ?, ?, ?)'
+        'INSERT INTO users (id, email, phone_number, phone_verified, tos_accepted_at, privacy_accepted_at, password, account_status, hidden_from_browse) VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)'
       );
       await (insertUserStmt.run([
         userId,
@@ -608,6 +612,7 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
         now,
         '',
         ACCOUNT_STATUS_ONBOARDING,
+        hiddenFromBrowseFlagForNewUser(formattedPhone),
       ]) as Promise<any>);
       
       console.log('✅ New user created via phone:', {

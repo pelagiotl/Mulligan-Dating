@@ -30,6 +30,7 @@ interface User {
   location?: string;
   is_admin: boolean;
   is_restricted: boolean;
+  hiddenFromBrowse?: boolean;
   created_at: string;
   last_active_at?: string;
   tokenCount: number;
@@ -447,6 +448,33 @@ export default function Admin() {
     }
   };
 
+  const setBrowseHidden = async (userId: string, hidden: boolean) => {
+    setActionLoading(userId);
+    try {
+      const response = await api.post<{ message: string; userId: string; hiddenFromBrowse: boolean }>(
+        `/admin/users/${userId}/set-browse-hidden`,
+        { hidden },
+      );
+      setMessage({
+        type: 'success',
+        text:
+          response.message ||
+          (hidden ? 'User hidden from Connect / browse' : 'User visible in Connect / browse'),
+      });
+      fetchUsers();
+      if (selectedUser?.id === userId) {
+        fetchUserDetails(userId);
+      }
+    } catch (error: any) {
+      console.error('Set browse hidden error:', error);
+      const errorMessage =
+        error.message || error.response?.data?.error || 'Failed to update Connect visibility';
+      setMessage({ type: 'error', text: errorMessage });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const grantTokens = async (userId: string, count: number) => {
     setActionLoading(userId);
     try {
@@ -858,9 +886,13 @@ export default function Admin() {
                           {(() => {
                             const isAdmin = Boolean(user.is_admin);
                             const isRestricted = Boolean(user.is_restricted);
+                            const isHiddenFromBrowse = Boolean(user.hiddenFromBrowse);
 
                             if (isAdmin) {
                               return <span className="badge badge-admin">Admin</span>;
+                            }
+                            if (isHiddenFromBrowse) {
+                              return <span className="badge badge-hidden-browse">Hidden</span>;
                             }
                             if (isRestricted) {
                               return <span className="badge badge-restricted">Restricted</span>;
@@ -886,6 +918,22 @@ export default function Admin() {
                               title="Grant 1 Mulligan token"
                             >
                               +1
+                            </button>
+                            <button
+                              type="button"
+                              className={`btn btn-sm admin-action-browse-hidden ${Boolean(user.hiddenFromBrowse) ? 'btn-success' : 'btn-secondary'}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setBrowseHidden(user.id, !Boolean(user.hiddenFromBrowse));
+                              }}
+                              disabled={actionLoading === user.id}
+                              title={
+                                Boolean(user.hiddenFromBrowse)
+                                  ? 'Show in Connect / browse for other users'
+                                  : 'Hide from Connect / browse for other users'
+                              }
+                            >
+                              {Boolean(user.hiddenFromBrowse) ? 'Show' : 'Hide'}
                             </button>
                             <button
                               type="button"
@@ -1272,6 +1320,17 @@ export default function Admin() {
                     disabled={actionLoading === selectedUser.id}
                   >
                     Grant 3 Tokens
+                  </button>
+                  <button
+                    className={`btn ${Boolean(selectedUser.hiddenFromBrowse) ? 'btn-success' : 'btn-secondary'}`}
+                    onClick={() =>
+                      setBrowseHidden(selectedUser.id, !Boolean(selectedUser.hiddenFromBrowse))
+                    }
+                    disabled={actionLoading === selectedUser.id}
+                  >
+                    {Boolean(selectedUser.hiddenFromBrowse)
+                      ? 'Show in Connect / Browse'
+                      : 'Hide from Connect / Browse'}
                   </button>
                   <button
                     className={`btn ${Boolean(selectedUser.is_restricted) ? 'btn-success' : 'btn-warning'}`}

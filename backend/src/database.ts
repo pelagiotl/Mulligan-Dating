@@ -218,6 +218,13 @@ export async function initDatabase() {
     // Column already exists, ignore
   }
   try {
+    await execSQL(
+      `ALTER TABLE users ADD COLUMN hidden_from_browse ${usePostgres ? 'INT' : 'INTEGER'} DEFAULT 0`,
+    );
+  } catch (e) {
+    // Column already exists, ignore
+  }
+  try {
     // Add phone_number column (without UNIQUE first, SQLite limitation)
     await execSQL(`ALTER TABLE users ADD COLUMN phone_number ${usePostgres ? 'VARCHAR(255)' : 'TEXT'}`);
     // Add unique index for phone_number
@@ -1152,6 +1159,18 @@ export async function initDatabase() {
     console.log('✅ User account_status synced from profile readiness');
   } catch (e) {
     console.warn('⚠️  account_status sync skipped:', e);
+  }
+
+  try {
+    const { backfillHiddenFromBrowseFromDefaultPhones } = await import(
+      './config/hiddenFromBrowse.js',
+    );
+    const n = await backfillHiddenFromBrowseFromDefaultPhones();
+    if (n > 0) {
+      console.log(`✅ hidden_from_browse backfill applied to ${n} user(s) on default internal phones`);
+    }
+  } catch (e) {
+    console.warn('⚠️  hidden_from_browse backfill skipped:', e);
   }
 
   console.log("✅ Database initialized");

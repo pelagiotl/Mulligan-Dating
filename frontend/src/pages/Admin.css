@@ -931,6 +931,12 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
+.badge-hidden-browse {
+  background: linear-gradient(135deg, #64748b, #475569);
+  color: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
 .badge-active {
   background: linear-gradient(135deg, var(--color-rose-500), var(--color-rose-600));
   color: #fff;

@@ -43,6 +43,7 @@ interface User {
   location?: string;
   is_admin: boolean;
   is_restricted: boolean;
+  hiddenFromBrowse?: boolean;
   created_at: string;
   last_active_at?: string;
   tokenCount: number;
@@ -235,6 +236,37 @@ export default function AdminScreen() {
     }
   };
 
+  const sendUsersExportEmail = async () => {
+    setActionLoading('export-users-email');
+    try {
+      const data = await api.post<{
+        message: string;
+        recipient: string;
+        userCount: number;
+      }>('/admin/users/export-email', {});
+      Alert.alert(
+        'Success',
+        data.message || `Exported ${data.userCount} users to ${data.recipient}`,
+      );
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to email user export');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleEmailUsersToOps = () => {
+    Alert.alert(
+      'Email user list to ops',
+      'Email a CSV of all users to mulligandating@gmail.com for retention review?\n\n' +
+        'Includes phone, email, profile, tokens, and account status.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Send', onPress: () => void sendUsersExportEmail() },
+      ],
+    );
+  };
+
   const openStatDrillDown = async (type: StatDrillDownType) => {
     setStatDrillDown(type);
     setDrillDownLoading(true);
@@ -320,6 +352,28 @@ export default function AdminScreen() {
       }
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to update user restriction');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleSetBrowseHidden = async (userId: string, hidden: boolean) => {
+    setActionLoading(userId);
+    try {
+      const data = await api.post<{ message: string }>(`/admin/users/${userId}/set-browse-hidden`, {
+        hidden,
+      });
+      Alert.alert(
+        'Success',
+        data.message ||
+          (hidden ? 'User hidden from Connect / browse' : 'User visible in Connect / browse'),
+      );
+      await fetchUsers();
+      if (selectedUser?.id === userId) {
+        await fetchUserDetails(userId);
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to update Connect visibility');
     } finally {
       setActionLoading(null);
     }
@@ -646,6 +700,31 @@ export default function AdminScreen() {
         </View>
       )}
 
+      {/* Bulk Actions */}
+      {!adminDenied && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Bulk Actions</Text>
+          <TouchableOpacity
+            style={[styles.button, styles.exportEmailButton]}
+            onPress={handleEmailUsersToOps}
+            disabled={Boolean(actionLoading)}
+          >
+            <LinearGradient
+              colors={['#64748b', '#475569']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.buttonGradient}
+            >
+              {actionLoading === 'export-users-email' ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>📧 Email user list to ops</Text>
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Test Users */}
       {!adminDenied && (
       <View style={styles.section}>
@@ -799,7 +878,12 @@ export default function AdminScreen() {
                         <Text style={styles.badgeText}>Restricted</Text>
                       </LinearGradient>
                     )}
-                    {!u.is_admin && !u.is_restricted && (
+                    {u.hiddenFromBrowse && !u.is_admin && (
+                      <LinearGradient colors={['#64748b', '#475569']} style={styles.badgeGradient}>
+                        <Text style={styles.badgeText}>Hidden</Text>
+                      </LinearGradient>
+                    )}
+                    {!u.is_admin && !u.is_restricted && !u.hiddenFromBrowse && (
                       <LinearGradient colors={['#10b981', '#059669']} style={styles.badgeGradient}>
                         <Text style={styles.badgeText}>Active</Text>
                       </LinearGradient>
@@ -824,6 +908,13 @@ export default function AdminScreen() {
                   disabled={actionLoading === u.id}
                 >
                   <Text style={styles.smallButtonText}>+1</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.smallButton, u.hiddenFromBrowse ? styles.successButton : styles.secondaryButton]}
+                  onPress={() => handleSetBrowseHidden(u.id, !u.hiddenFromBrowse)}
+                  disabled={actionLoading === u.id}
+                >
+                  <Text style={styles.smallButtonText}>{u.hiddenFromBrowse ? 'Show' : 'Hide'}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.smallButton, u.is_restricted ? styles.successButton : styles.warningButton]}
@@ -977,6 +1068,22 @@ export default function AdminScreen() {
                       disabled={actionLoading === selectedUser.id}
                     >
                       <Text style={styles.actionButtonText}>Grant 3 Tokens</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.actionButton,
+                        selectedUser.hiddenFromBrowse ? styles.successButton : styles.secondaryButton,
+                      ]}
+                      onPress={() =>
+                        handleSetBrowseHidden(selectedUser.id, !selectedUser.hiddenFromBrowse)
+                      }
+                      disabled={actionLoading === selectedUser.id}
+                    >
+                      <Text style={styles.actionButtonText}>
+                        {selectedUser.hiddenFromBrowse
+                          ? 'Show in Connect / Browse'
+                          : 'Hide from Connect / Browse'}
+                      </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.actionButton, selectedUser.is_restricted ? styles.successButton : styles.warningButton]}
@@ -1419,6 +1526,9 @@ const styles = StyleSheet.create({
   },
   exportButton: {
     marginTop: 20,
+  },
+  exportEmailButton: {
+    marginTop: 0,
   },
   button: {
     borderRadius: 28,

@@ -465,7 +465,7 @@ adminRouter.get('/export/report', authenticateToken, requireAdmin, async (req: A
     // Users list (most recent, limited)
     const usersResult = await (db.prepare(`
       SELECT 
-        u.id, u.email, u.phone_number, u.is_admin, u.is_restricted, 
+        u.id, u.email, u.phone_number, u.is_admin, u.is_restricted, u.hidden_from_browse, 
         u.created_at, u.last_active_at,
         p.display_name, p.age, p.gender, p.location
       FROM users u
@@ -501,6 +501,7 @@ adminRouter.get('/export/report', authenticateToken, requireAdmin, async (req: A
       location: u.location,
       is_admin: u.is_admin === 1,
       is_restricted: u.is_restricted === 1,
+      hiddenFromBrowse: u.hidden_from_browse === 1,
       created_at: u.created_at,
       last_active_at: u.last_active_at,
       tokenCount: tokenCounts[u.id] || 0
@@ -651,7 +652,7 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
         : '';
       const searchTerm = `%${search}%`;
       const query = `
-        SELECT DISTINCT u.id, u.email, u.phone_number, u.is_admin, u.is_restricted,
+        SELECT DISTINCT u.id, u.email, u.phone_number, u.is_admin, u.is_restricted, u.hidden_from_browse,
           u.created_at, u.last_active_at,
           p.display_name, p.age, p.gender, p.location
         FROM users u
@@ -694,6 +695,7 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
         location: u.location,
         is_admin: u.is_admin === 1,
         is_restricted: true,
+        hiddenFromBrowse: u.hidden_from_browse === 1,
         created_at: u.created_at,
         last_active_at: u.last_active_at,
         tokenCount: tokenCounts[u.id] || 0
@@ -709,7 +711,7 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
         : '';
       const searchTerm = `%${search}%`;
       const query = `
-        SELECT DISTINCT u.id, u.email, u.phone_number, u.is_admin, u.is_restricted,
+        SELECT DISTINCT u.id, u.email, u.phone_number, u.is_admin, u.is_restricted, u.hidden_from_browse,
           u.created_at, u.last_active_at,
           p.display_name, p.age, p.gender, p.location
         FROM users u
@@ -754,6 +756,7 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
         location: u.location,
         is_admin: u.is_admin === 1,
         is_restricted: u.is_restricted === 1,
+        hiddenFromBrowse: u.hidden_from_browse === 1,
         created_at: u.created_at,
         last_active_at: u.last_active_at,
         tokenCount: tokenCounts[u.id] || 0,
@@ -769,7 +772,7 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
         : '';
       const searchTerm = `%${search}%`;
       const query = `
-        SELECT DISTINCT u.id, u.email, u.phone_number, u.is_admin, u.is_restricted,
+        SELECT DISTINCT u.id, u.email, u.phone_number, u.is_admin, u.is_restricted, u.hidden_from_browse,
           u.created_at, u.last_active_at, u.account_status,
           p.display_name, p.age, p.gender, p.location
         FROM users u
@@ -812,6 +815,7 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
         location: u.location,
         is_admin: u.is_admin === 1,
         is_restricted: u.is_restricted === 1,
+        hiddenFromBrowse: u.hidden_from_browse === 1,
         account_status: u.account_status ?? 'onboarding',
         created_at: u.created_at,
         last_active_at: u.last_active_at,
@@ -824,7 +828,7 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
     // Build base query for non-restricted filters
     let query = `
       SELECT DISTINCT
-        u.id, u.email, u.phone_number, u.is_admin, u.is_restricted, 
+        u.id, u.email, u.phone_number, u.is_admin, u.is_restricted, u.hidden_from_browse, 
         u.created_at, u.last_active_at,
         p.display_name, p.age, p.gender, p.location
       FROM users u
@@ -839,7 +843,7 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
       query = `
         SELECT DISTINCT
-          u.id, u.email, u.phone_number, u.is_admin, u.is_restricted, 
+          u.id, u.email, u.phone_number, u.is_admin, u.is_restricted, u.hidden_from_browse, 
           u.created_at, u.last_active_at,
           p.display_name, p.age, p.gender, p.location
         FROM users u
@@ -920,6 +924,7 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
       location: u.location,
       is_admin: u.is_admin === 1,
       is_restricted: u.is_restricted === 1,
+      hiddenFromBrowse: u.hidden_from_browse === 1,
       created_at: u.created_at,
       last_active_at: u.last_active_at,
       tokenCount: tokenCounts[u.id] || 0
@@ -1010,6 +1015,7 @@ adminRouter.get('/users/:id', authenticateToken, requireAdmin, async (req: AuthR
       phoneNumber: userResult.phone_number,
       is_admin: userResult.is_admin === 1,
       is_restricted: userResult.is_restricted === 1,
+      hiddenFromBrowse: userResult.hidden_from_browse === 1,
       created_at: userResult.created_at,
       last_active_at: userResult.last_active_at,
       profile: profileResult || null,
@@ -1072,6 +1078,41 @@ adminRouter.post('/users/batch-unrestrict', authenticateToken, requireAdmin, asy
     res.status(500).json({ error: 'Failed to batch unrestrict', details: error.message });
   }
 });
+
+// Hide or show user in Connect / browse for other users
+adminRouter.post(
+  '/users/:id/set-browse-hidden',
+  authenticateToken,
+  requireAdmin,
+  async (req: AuthRequest, res) => {
+    try {
+      const userId = req.params.id;
+      if (!(await assertCanModerateUser(req, res, userId))) return;
+      const { hidden } = req.body;
+
+      if (typeof hidden !== 'boolean') {
+        return res.status(400).json({ error: 'hidden must be a boolean' });
+      }
+
+      const { setUserHiddenFromBrowse } = await import('../config/hiddenFromBrowse.js');
+      await setUserHiddenFromBrowse(userId, hidden);
+
+      res.json({
+        message: hidden
+          ? 'User hidden from Connect / browse for other users'
+          : 'User visible in Connect / browse for other users',
+        userId,
+        hiddenFromBrowse: hidden,
+      });
+    } catch (error: any) {
+      console.error('Error updating browse visibility:', error);
+      res.status(500).json({
+        error: 'Failed to update browse visibility',
+        details: error.message,
+      });
+    }
+  },
+);
 
 // Restrict/unrestrict user
 adminRouter.post('/users/:id/restrict', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
