@@ -55,9 +55,9 @@ export default function Settings() {
   const [emailPassword, setEmailPassword] = useState("");
   const [emailNeedsPassword, setEmailNeedsPassword] = useState(false);
   const [changingEmail, setChangingEmail] = useState(false);
+  /** Shown in the read-only Email row above Change email — not cleared by background refetches. */
+  const [accountEmail, setAccountEmail] = useState("");
   const settingsFetchGen = useRef(0);
-
-  const displayEmail = settings?.email?.trim() || user?.email?.trim() || "";
 
   // Delete account
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
@@ -93,15 +93,17 @@ export default function Settings() {
       if (!opts?.silent) setLoading(true);
       const data = await api.get<SettingsData>(`/settings?_=${Date.now()}`);
       if (gen !== settingsFetchGen.current) return;
+      const loadedEmail = data.email?.trim() || "";
       setSettings((prev) => ({
         ...data,
-        email: data.email?.trim() || prev?.email?.trim() || null,
+        email: loadedEmail || prev?.email?.trim() || null,
       }));
+      if (loadedEmail) {
+        setAccountEmail(loadedEmail);
+        setNewEmail(loadedEmail);
+      }
       if (data.requiresPasswordForEmailChange) {
         setEmailNeedsPassword(true);
-      }
-      if (data.email?.trim()) {
-        setNewEmail(data.email.trim());
       }
     } catch (err) {
       if (gen !== settingsFetchGen.current) return;
@@ -267,6 +269,7 @@ export default function Settings() {
         ...(mustSendPassword && emailPassword.trim() ? { password: emailPassword } : {}),
       });
       const savedEmail = (res?.email ?? normalizedEmail).trim();
+      setAccountEmail(savedEmail);
       updateUserEmail(savedEmail);
       setSettings((prev) =>
         prev
@@ -277,8 +280,7 @@ export default function Settings() {
       setNewEmail(savedEmail);
       setEmailNeedsPassword(false);
       setEmailPassword("");
-      void refreshSession();
-      void fetchSettings({ silent: true });
+      setTimeout(() => setSuccess(""), 5000);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to change email";
       if (msg.toLowerCase().includes("password required")) {
@@ -492,7 +494,7 @@ export default function Settings() {
           <div className="settings-info" style={{ marginTop: "var(--space-4)" }}>
             <div className="info-item">
               <label data-emoji="📧">📧 Email</label>
-              <span>{displayEmail || "—"}</span>
+              <span id="settings-account-email">{accountEmail || "—"}</span>
             </div>
           </div>
 
@@ -654,7 +656,7 @@ export default function Settings() {
           <h2 className="settings-section-title">
             <span>💳</span> Tokens
           </h2>
-          <WebTokenPurchase variant="settings" customerEmail={displayEmail || undefined} />
+          <WebTokenPurchase variant="settings" customerEmail={accountEmail || undefined} />
         </div>
 
         <div className="settings-section settings-session-section">

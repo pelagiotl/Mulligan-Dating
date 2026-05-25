@@ -240,10 +240,13 @@ authRouter.get('/me', authenticateToken, async (req: AuthRequest, res) => {
 
     const matchmakingOff = isMatchmakingGloballyDisabled();
     const isAdmin = userHasAdminAccess(user.id, user.is_admin, user.phone_number);
+    const email =
+      user.email != null && String(user.email).trim() ? String(user.email).trim() : null;
+
     res.json({
       user: {
         id: user.id,
-        email: user.email,
+        email,
         phoneNumber: user.phone_number,
         isAdmin,
         createdAt: user.created_at,
