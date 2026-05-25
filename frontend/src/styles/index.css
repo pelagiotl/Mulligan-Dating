@@ -3208,25 +3208,41 @@ img {
   top: 6px;
   right: 6px;
   z-index: 4;
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 1.65rem;
   height: 1.65rem;
   min-width: 1.65rem;
+  max-width: 1.65rem;
   padding: 0;
   margin: 0;
   border: none;
   border-radius: var(--radius-full);
   background: rgba(15, 23, 42, 0.72);
   color: #fff;
-  font-size: 1.1rem;
-  font-weight: 700;
-  line-height: 1;
+  font-size: 0;
+  line-height: 0;
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
-  -webkit-text-fill-color: #fff;
+  -webkit-text-fill-color: currentColor;
+  appearance: none;
+  -webkit-appearance: none;
   transition: background 0.15s ease, transform 0.12s ease;
+}
+
+.create-profile-photo-remove-icon {
+  display: block;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+.create-profile-photo-remove-busy {
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
+  -webkit-text-fill-color: #fff;
 }
 
 .create-profile-photo-remove-btn:hover:not(:disabled) {

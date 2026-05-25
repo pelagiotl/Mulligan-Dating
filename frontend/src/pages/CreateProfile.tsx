@@ -165,6 +165,49 @@ const MAX_PHOTO_SLOTS = 6;
 
 type SlotPhoto = { id: string; url: string };
 
+function PhotoSlotRemoveButton({
+  busy,
+  onClick,
+  disabled,
+}: {
+  busy: boolean;
+  onClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
+  disabled: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      className="create-profile-photo-remove-btn"
+      disabled={disabled}
+      onClick={onClick}
+      aria-label="Remove photo"
+      title="Remove photo"
+    >
+      {busy ? (
+        <span className="create-profile-photo-remove-busy" aria-hidden>
+          …
+        </span>
+      ) : (
+        <svg
+          className="create-profile-photo-remove-icon"
+          viewBox="0 0 12 12"
+          width="12"
+          height="12"
+          aria-hidden="true"
+          focusable="false"
+        >
+          <path
+            d="M2 2l8 8M10 2L2 10"
+            stroke="currentColor"
+            strokeWidth="1.85"
+            strokeLinecap="round"
+          />
+        </svg>
+      )}
+    </button>
+  );
+}
+
 function emptyPhotoSlots(): (SlotPhoto | null)[] {
   return Array.from({ length: MAX_PHOTO_SLOTS }, () => null);
 }
@@ -1381,18 +1424,16 @@ export default function CreateProfile() {
                         ) : null}
                         <img src={getPhotoUrl(ph.url)} alt="" className="create-profile-photo-img" draggable={false} />
                         {slotIndex === 0 ? <span className="create-profile-photo-primary">Primary</span> : null}
-                        <button
-                          type="button"
-                          className="create-profile-photo-remove-btn"
-                          disabled={removingPhotoId === ph.id || uploadingPhotos || reorderingPhotos}
+                        <PhotoSlotRemoveButton
+                          busy={removingPhotoId === ph.id}
+                          disabled={
+                            removingPhotoId === ph.id || uploadingPhotos || reorderingPhotos
+                          }
                           onClick={(e) => {
                             e.stopPropagation();
                             void removePhotoAt(slotIndex);
                           }}
-                          aria-label="Remove photo"
-                        >
-                          {removingPhotoId === ph.id ? "…" : "×"}
-                        </button>
+                        />
                       </div>
                     ) : (
                       <button
