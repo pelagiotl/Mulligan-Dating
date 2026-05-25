@@ -56,21 +56,10 @@ export async function activateUserAccount(userId: string): Promise<{
       .run([userId]) as Promise<unknown>);
   }
 
-  let tokensGranted = 0;
-  const tokenCountRow = (await db
-    .prepare('SELECT COUNT(*) as c FROM mulligan_tokens WHERE user_id = ?')
-    .get([userId])) as { c: number | string } | undefined;
-  const existingTokens = Math.floor(Number(tokenCountRow?.c ?? 0));
-
-  if (existingTokens === 0) {
-    const { grantInitialTokens } = await import('../routes/tokens.js');
-    await grantInitialTokens(userId);
-    tokensGranted = 7;
-  }
-
+  // Tokens are not granted on activate — users claim their first weekly refill on Connect.
   return {
     accountStatus: ACCOUNT_STATUS_ACTIVE,
-    tokensGranted,
+    tokensGranted: 0,
     alreadyActive,
   };
 }

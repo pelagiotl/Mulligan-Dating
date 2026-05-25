@@ -17,8 +17,8 @@ interface TokenRow {
 }
 
 /**
- * Grant initial tokens to a new user (7 tokens)
- * This should be called when a user first signs up
+ * Grant initial tokens to a new user (7 tokens).
+ * Legacy helper — new accounts claim via POST /tokens/claim instead of auto-grant on activate.
  */
 export async function grantInitialTokens(userId: string): Promise<string[]> {
   const grantedTokenIds: string[] = [];

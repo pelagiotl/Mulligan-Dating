@@ -741,7 +741,7 @@ profileRouter.delete('/', authenticateToken, rateLimitAPI, async (req: AuthReque
   }
 });
 
-/** Finalize signup after Create Profile wizard — marks account active and grants initial tokens. */
+/** Finalize signup after Create Profile wizard — marks account active (tokens claimed separately on Connect). */
 profileRouter.post('/activate', authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
   try {
     const result = await activateUserAccount(req.userId!);

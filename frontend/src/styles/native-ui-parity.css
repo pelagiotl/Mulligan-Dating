@@ -131,7 +131,7 @@
 }
 
 .browse-connect-landing-token .token-cannot-claim {
-  color: #4c1d95;
+  color: var(--token-cannot-claim-text, #4c1d95);
   font-size: 0.78rem;
   font-weight: 600;
   line-height: 1.38;

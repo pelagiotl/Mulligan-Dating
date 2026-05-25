@@ -58,6 +58,7 @@ html[data-connect-shell="midnight"],
   --create-profile-tips-text: #cbd5e1;
   --create-profile-tips-bg: rgba(22, 18, 34, 0.9);
   --create-profile-tips-border: rgba(167, 139, 250, 0.28);
+  --token-cannot-claim-text: #e2e8f0;
 }
 
 html[data-connect-shell="sunny"],
@@ -121,6 +122,7 @@ html[data-connect-shell="sunny"],
   --create-profile-tips-text: #78350f;
   --create-profile-tips-bg: rgba(255, 253, 245, 0.94);
   --create-profile-tips-border: rgba(251, 146, 60, 0.32);
+  --token-cannot-claim-text: #9a3412;
 }
 
 html[data-connect-shell="soft"],
@@ -184,6 +186,7 @@ html[data-connect-shell="soft"],
   --create-profile-tips-text: #475569;
   --create-profile-tips-bg: rgba(255, 255, 255, 0.9);
   --create-profile-tips-border: rgba(102, 126, 234, 0.22);
+  --token-cannot-claim-text: #4c1d95;
 }
 
 @media (max-width: 900px) {
@@ -241,6 +244,12 @@ html[data-connect-shell="midnight"] .browse-connect-landing-token .token-display
 html[data-connect-shell="midnight"] .browse-connect-landing-token .token-display-footer-hint,
 .app-layout.connect-shell--midnight .browse-connect-landing-token .token-display-footer-hint {
   color: #94a3b8;
+}
+
+html[data-connect-shell="midnight"] .browse-connect-landing-token .token-cannot-claim,
+.app-layout.connect-shell--midnight .browse-connect-landing-token .token-cannot-claim {
+  color: #e2e8f0;
+  font-weight: 600;
 }
 
 /* Navbar token badge — subtle shift with shell */
