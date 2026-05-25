@@ -51,6 +51,13 @@ html[data-connect-shell="midnight"],
   --match-item-unread-name-color: #fda4af;
   --matches-empty-text: #e2e8f0;
   --matches-empty-hint: #94a3b8;
+  --create-profile-hint-text: #e2e8f0;
+  --create-profile-hint-strong: #f9a8d4;
+  --create-profile-hint-bg: rgba(30, 27, 46, 0.88);
+  --create-profile-hint-border: rgba(167, 139, 250, 0.38);
+  --create-profile-tips-text: #cbd5e1;
+  --create-profile-tips-bg: rgba(22, 18, 34, 0.9);
+  --create-profile-tips-border: rgba(167, 139, 250, 0.28);
 }
 
 html[data-connect-shell="sunny"],
@@ -107,6 +114,13 @@ html[data-connect-shell="sunny"],
   --match-item-unread-name-color: #be123c;
   --matches-empty-text: #7c2d12;
   --matches-empty-hint: #9a3412;
+  --create-profile-hint-text: #431407;
+  --create-profile-hint-strong: #c2410c;
+  --create-profile-hint-bg: rgba(255, 251, 235, 0.94);
+  --create-profile-hint-border: rgba(234, 88, 12, 0.38);
+  --create-profile-tips-text: #78350f;
+  --create-profile-tips-bg: rgba(255, 253, 245, 0.94);
+  --create-profile-tips-border: rgba(251, 146, 60, 0.32);
 }
 
 html[data-connect-shell="soft"],
@@ -163,6 +177,13 @@ html[data-connect-shell="soft"],
   --match-item-unread-name-color: #7f1d1d;
   --matches-empty-text: #475569;
   --matches-empty-hint: #64748b;
+  --create-profile-hint-text: #312e81;
+  --create-profile-hint-strong: #6d28d9;
+  --create-profile-hint-bg: rgba(255, 255, 255, 0.92);
+  --create-profile-hint-border: rgba(102, 126, 234, 0.32);
+  --create-profile-tips-text: #475569;
+  --create-profile-tips-bg: rgba(255, 255, 255, 0.9);
+  --create-profile-tips-border: rgba(102, 126, 234, 0.22);
 }
 
 @media (max-width: 900px) {

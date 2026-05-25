@@ -43,6 +43,19 @@
   
   --border-light: rgba(253, 164, 175, 0.3);
   --border-medium: var(--color-rose-200);
+
+  /* Create profile hints (overridden per connect shell on <html>) */
+  --create-profile-hint-text: #4a1c2a;
+  --create-profile-hint-strong: #be123c;
+  --create-profile-hint-bg: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.92),
+    rgba(255, 245, 250, 0.88)
+  );
+  --create-profile-hint-border: rgba(244, 63, 94, 0.22);
+  --create-profile-tips-text: #5c2438;
+  --create-profile-tips-bg: rgba(255, 255, 255, 0.92);
+  --create-profile-tips-border: rgba(244, 63, 94, 0.16);
   
   /* Shadows */
   --shadow-sm: 0 1px 2px rgba(45, 17, 24, 0.05);
@@ -3109,7 +3122,7 @@ img {
 .create-profile-interests-scroll-hint {
   text-align: center;
   font-size: 0.8rem;
-  color: var(--text-secondary);
+  color: var(--create-profile-hint-text, var(--text-secondary));
   margin: var(--space-4) 0 var(--space-2);
 }
 
@@ -3144,10 +3157,20 @@ img {
   padding: var(--space-3) var(--space-4);
   font-size: 0.8125rem;
   line-height: 1.45;
-  color: var(--color-wine-800);
-  background: linear-gradient(135deg, rgba(244, 63, 94, 0.08), rgba(118, 75, 162, 0.06));
-  border: 1px solid rgba(244, 63, 94, 0.16);
+  font-weight: 500;
+  color: var(--create-profile-hint-text, var(--color-wine-800));
+  background: var(
+    --create-profile-hint-bg,
+    linear-gradient(135deg, rgba(244, 63, 94, 0.08), rgba(118, 75, 162, 0.06))
+  );
+  border: 1px solid var(--create-profile-hint-border, rgba(244, 63, 94, 0.16));
   border-radius: var(--radius-lg);
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.08);
+}
+
+.create-profile-photos-reorder-hint strong {
+  color: var(--create-profile-hint-strong, var(--color-rose-600));
+  font-weight: 800;
 }
 
 .create-profile-file-input {
@@ -3323,11 +3346,15 @@ img {
 .create-profile-photo-tips {
   margin-top: var(--space-5);
   padding: var(--space-4);
-  background: var(--bg-secondary);
+  background: var(--create-profile-tips-bg, var(--bg-secondary));
   border-radius: var(--radius-lg);
-  border: 1px solid var(--border-light);
+  border: 1px solid var(--create-profile-tips-border, var(--border-light));
   font-size: 0.875rem;
-  color: var(--text-secondary);
+  color: var(--create-profile-tips-text, var(--text-secondary));
+}
+
+.create-profile-photo-tips strong {
+  color: var(--create-profile-hint-strong, var(--color-rose-600));
 }
 
 .create-profile-photo-tips ul {
