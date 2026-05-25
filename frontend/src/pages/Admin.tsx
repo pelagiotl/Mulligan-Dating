@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '../utils/api';
 import { getAdminDisplayPhotos } from '../utils/adminDisplayPhotos';
+import { adminEmailLabel, adminPhoneLabel } from '../utils/adminContact';
 import { useAuth } from '../context/AuthContext';
 import './Admin.css';
 
@@ -22,6 +23,7 @@ function resolveAdminMediaUrl(url: string | null | undefined): string | null {
 interface User {
   id: string;
   email: string;
+  phoneNumber?: string | null;
   display_name?: string;
   age?: number;
   gender?: string;
@@ -625,6 +627,46 @@ export default function Admin() {
 
       <div className="admin-actions-section">
         <h2>Bulk Actions</h2>
+        <div className="admin-actions-row">
+        <button
+          type="button"
+          className="btn btn-secondary admin-export-email-btn"
+          onClick={async () => {
+            const confirmed = window.confirm(
+              'Email a CSV of all users to mulligandating@gmail.com for retention review?\n\n' +
+                'Includes phone, email, profile, tokens, and account status.',
+            );
+            if (!confirmed) return;
+
+            setActionLoading('export-users-email');
+            try {
+              const data = await api.post<{
+                message: string;
+                recipient: string;
+                userCount: number;
+              }>('/admin/users/export-email', {});
+              setMessage({
+                type: 'success',
+                text:
+                  data.message ||
+                  `Exported ${data.userCount} users to ${data.recipient}`,
+              });
+            } catch (error: unknown) {
+              const err = error as { message?: string };
+              setMessage({
+                type: 'error',
+                text: err?.message || 'Failed to email user export',
+              });
+            } finally {
+              setActionLoading(null);
+            }
+          }}
+          disabled={Boolean(actionLoading)}
+        >
+          {actionLoading === 'export-users-email'
+            ? 'Sending export…'
+            : '📧 Email user list to ops'}
+        </button>
         <button
           className="btn btn-danger"
           onClick={async () => {
@@ -678,8 +720,10 @@ export default function Admin() {
         >
           {actionLoading === 'delete-test-users' ? 'Deleting...' : '🗑️ Delete All Test Users'}
         </button>
+        </div>
         <p className="admin-actions-note">
-          This will delete all users with test email patterns (test@, newtest@, testing@, etc.) and all their associated data.
+          Export sends a CSV to mulligandating@gmail.com (requires RESEND_API_KEY on the backend).
+          Delete removes test email patterns (test@, newtest@, testing@, etc.) and all associated data.
         </p>
       </div>
 
@@ -695,14 +739,14 @@ export default function Admin() {
             </div>
             <div className="admin-um-search-wrap" role="search">
               <label htmlFor="admin-user-search" className="sr-only">
-                Search users by email or display name
+                Search users by phone, email, or display name
               </label>
               <div className="admin-search admin-search--prominent">
                 <input
                   id="admin-user-search"
                   type="search"
                   autoComplete="off"
-                  placeholder="Search email or name…"
+                  placeholder="Search phone, email, or name…"
                   value={search}
                   onChange={(e) => {
                     setSearch(e.target.value);
@@ -751,6 +795,7 @@ export default function Admin() {
                 <table>
                   <thead>
                     <tr>
+                      <th scope="col">Phone</th>
                       <th scope="col">Email</th>
                       <th scope="col">Name</th>
                       <th scope="col" className="users-table-col-narrow">
@@ -783,9 +828,20 @@ export default function Admin() {
                           }
                         }}
                       >
+                        <td className="users-table-cell-phone">
+                          <span
+                            className="users-table-phone"
+                            title={adminPhoneLabel(user.phoneNumber)}
+                          >
+                            {adminPhoneLabel(user.phoneNumber)}
+                          </span>
+                        </td>
                         <td className="users-table-cell-email">
-                          <span className="users-table-email" title={user.email}>
-                            {user.email}
+                          <span
+                            className="users-table-email"
+                            title={adminEmailLabel(user.email, user.phoneNumber)}
+                          >
+                            {adminEmailLabel(user.email, user.phoneNumber)}
                           </span>
                         </td>
                         <td className="users-table-cell-name">{user.display_name || '—'}</td>
@@ -928,7 +984,11 @@ export default function Admin() {
             <div className="user-details-content">
               <div className="detail-section">
                 <h3>Account Info</h3>
-                <p><strong>Email:</strong> {selectedUser.email}</p>
+                <p><strong>Phone:</strong> {adminPhoneLabel(selectedUser.phoneNumber)}</p>
+                <p>
+                  <strong>Email:</strong>{' '}
+                  {adminEmailLabel(selectedUser.email, selectedUser.phoneNumber)}
+                </p>
                 <p><strong>User ID:</strong> {selectedUser.id}</p>
                 <p><strong>Created:</strong> {new Date(selectedUser.created_at).toLocaleDateString()}</p>
                 <p><strong>Last Active:</strong> {selectedUser.last_active_at ? new Date(selectedUser.last_active_at).toLocaleDateString() : 'Never'}</p>
@@ -1325,7 +1385,7 @@ export default function Admin() {
                     <tbody>
                       {statDrillMatches.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="admin-stat-drill-empty">
+                          <td colSpan={6} className="admin-stat-drill-empty">
                             No matches returned.
                           </td>
                         </tr>
@@ -1403,6 +1463,7 @@ export default function Admin() {
                   <table className="admin-stat-drill-table">
                     <thead>
                       <tr>
+                        <th scope="col">Phone</th>
                         <th scope="col">Email</th>
                         <th scope="col">Name</th>
                         <th scope="col">Status</th>
@@ -1413,15 +1474,18 @@ export default function Admin() {
                     <tbody>
                       {statDrillUsers.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="admin-stat-drill-empty">
+                          <td colSpan={6} className="admin-stat-drill-empty">
                             No users on this page.
                           </td>
                         </tr>
                       ) : (
                         statDrillUsers.map((u) => (
                           <tr key={u.id} className="admin-stat-drill-row-click" onClick={() => pickUserFromDrill(u.id)}>
-                            <td className="admin-stat-drill-email" title={u.email}>
-                              {u.email}
+                            <td className="admin-stat-drill-phone" title={adminPhoneLabel(u.phoneNumber)}>
+                              {adminPhoneLabel(u.phoneNumber)}
+                            </td>
+                            <td className="admin-stat-drill-email" title={adminEmailLabel(u.email, u.phoneNumber)}>
+                              {adminEmailLabel(u.email, u.phoneNumber)}
                             </td>
                             <td>{u.display_name || '—'}</td>
                             <td>

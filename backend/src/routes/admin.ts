@@ -3,6 +3,10 @@ import { db } from '../database.js';
 import { authenticateToken, requireAdmin, AuthRequest, isOwnerAdmin } from '../middleware/auth.js';
 import { deleteUserAccountData } from '../services/deleteUserAccount.js';
 import { forceMatchByPhone } from '../services/forceMatchByPhone.js';
+import {
+  fetchAllUsersForAdminExport,
+  sendAdminUsersExportEmail,
+} from '../services/adminUsersExportEmail.js';
 import { sqlOnlyActiveAccounts, sqlOnlyOnboardingAccounts } from '../utils/accountStatus.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -520,6 +524,46 @@ adminRouter.get('/export/report', authenticateToken, requireAdmin, async (req: A
   } catch (error: any) {
     console.error('Error exporting report:', error);
     res.status(500).json({ error: 'Failed to export report', details: error.message });
+  }
+});
+
+// Email full user directory CSV to ops (retention / headcount review)
+adminRouter.post('/users/export-email', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const requesterPhoneVal = await requesterPhone(req.userId!);
+    const ownerView = isOwnerAdmin(req.userId!, requesterPhoneVal);
+    const tayaHide = sqlExcludeProtectedDisplay(ownerView);
+
+    const { rows, stats } = await fetchAllUsersForAdminExport(tayaHide);
+
+    const requesterRow = (await db
+      .prepare('SELECT email, phone_number FROM users WHERE id = ?')
+      .get([req.userId!])) as { email: string | null; phone_number: string | null } | undefined;
+    const requestedBy =
+      requesterRow?.email?.trim() ||
+      requesterRow?.phone_number?.trim() ||
+      req.userId!;
+
+    const emailResult = await sendAdminUsersExportEmail({ rows, stats, requestedBy });
+
+    if (!emailResult.sent) {
+      return res.status(503).json({
+        error: emailResult.error || 'Failed to send export email',
+        stats,
+        userCount: rows.length,
+      });
+    }
+
+    res.json({
+      message: `User export emailed to ${emailResult.recipient}`,
+      recipient: emailResult.recipient,
+      userCount: rows.length,
+      stats,
+    });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('Error emailing user export:', error);
+    res.status(500).json({ error: 'Failed to export users by email', details: message });
   }
 });
 

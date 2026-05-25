@@ -358,8 +358,9 @@
   border-bottom: 1px solid rgba(251, 113, 133, 0.08);
 }
 
+.admin-stat-drill-phone,
 .admin-stat-drill-email {
-  max-width: 200px;
+  max-width: 160px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -480,11 +481,22 @@
   letter-spacing: 0.06em;
 }
 
+.admin-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.admin-export-email-btn {
+  font-weight: 600;
+}
+
 .admin-actions-section .admin-actions-note {
   margin-top: var(--space-2);
   font-size: 0.8rem;
   color: var(--text-secondary);
-  max-width: 480px;
+  max-width: 36rem;
 }
 
 /* ----- Main content grid ----- */
@@ -791,8 +803,21 @@
   padding-right: var(--space-5);
 }
 
+.users-table-cell-phone {
+  max-width: 180px;
+}
+
+.users-table-phone {
+  display: block;
+  font-weight: 600;
+  color: var(--color-wine-900);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .users-table-cell-email {
-  max-width: 220px;
+  max-width: 200px;
 }
 
 .users-table-email {
