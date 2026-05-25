@@ -1,4 +1,4 @@
-import { useState, useEffect, FormEvent } from "react";
+import { useState, useEffect, useRef, FormEvent } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useConnectShellTheme } from "../context/ConnectShellThemeContext";
 import { connectShellDisplayLabel } from "../lib/connectShellTheme";
@@ -16,6 +16,7 @@ interface SettingsData {
   createdAt: string;
   lastActiveAt: string | null;
   showActiveStatus?: boolean;
+  requiresPasswordForEmailChange?: boolean;
 }
 
 interface BlockedUser {
@@ -35,7 +36,7 @@ interface BlockedPhone {
 }
 
 export default function Settings() {
-  const { logout, profile, refreshProfile, user, refreshSession } = useAuth();
+  const { logout, profile, refreshProfile, user, refreshSession, updateUserEmail } = useAuth();
   const { mode: connectShellMode, toggleMode: toggleConnectShellMode } = useConnectShellTheme();
   const navigate = useNavigate();
   const location = useLocation();
@@ -54,6 +55,9 @@ export default function Settings() {
   const [emailPassword, setEmailPassword] = useState("");
   const [emailNeedsPassword, setEmailNeedsPassword] = useState(false);
   const [changingEmail, setChangingEmail] = useState(false);
+  const settingsFetchGen = useRef(0);
+
+  const displayEmail = settings?.email?.trim() || user?.email?.trim() || "";
 
   // Delete account
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
@@ -83,14 +87,29 @@ export default function Settings() {
     }
   };
 
-  const fetchSettings = async () => {
+  const fetchSettings = async (opts?: { silent?: boolean }) => {
+    const gen = ++settingsFetchGen.current;
     try {
-      const data = await api.get<SettingsData>("/settings");
-      setSettings(data);
+      if (!opts?.silent) setLoading(true);
+      const data = await api.get<SettingsData>(`/settings?_=${Date.now()}`);
+      if (gen !== settingsFetchGen.current) return;
+      setSettings((prev) => ({
+        ...data,
+        email: data.email?.trim() || prev?.email?.trim() || null,
+      }));
+      if (data.requiresPasswordForEmailChange) {
+        setEmailNeedsPassword(true);
+      }
+      if (data.email?.trim()) {
+        setNewEmail(data.email.trim());
+      }
     } catch (err) {
+      if (gen !== settingsFetchGen.current) return;
       setError(err instanceof Error ? err.message : "Failed to load settings");
     } finally {
-      setLoading(false);
+      if (!opts?.silent && gen === settingsFetchGen.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -123,12 +142,6 @@ export default function Settings() {
     }
     setDisplayNameDraft((profile.displayName ?? "").trim());
   }, [profile]);
-
-  useEffect(() => {
-    if (settings?.email?.trim()) {
-      setNewEmail(settings.email.trim());
-    }
-  }, [settings?.email]);
 
   const saveDisplayName = async () => {
     setError("");
@@ -247,11 +260,14 @@ export default function Settings() {
 
     setChangingEmail(true);
     try {
+      const mustSendPassword =
+        settings?.requiresPasswordForEmailChange || emailNeedsPassword;
       const res = await api.put<{ message?: string; email?: string }>("/settings/email", {
         email: normalizedEmail,
-        ...(emailNeedsPassword && emailPassword.trim() ? { password: emailPassword } : {}),
+        ...(mustSendPassword && emailPassword.trim() ? { password: emailPassword } : {}),
       });
       const savedEmail = (res?.email ?? normalizedEmail).trim();
+      updateUserEmail(savedEmail);
       setSettings((prev) =>
         prev
           ? { ...prev, email: savedEmail }
@@ -261,8 +277,8 @@ export default function Settings() {
       setNewEmail(savedEmail);
       setEmailNeedsPassword(false);
       setEmailPassword("");
-      await refreshSession();
-      await fetchSettings();
+      void refreshSession();
+      void fetchSettings({ silent: true });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to change email";
       if (msg.toLowerCase().includes("password required")) {
@@ -476,7 +492,7 @@ export default function Settings() {
           <div className="settings-info" style={{ marginTop: "var(--space-4)" }}>
             <div className="info-item">
               <label data-emoji="📧">📧 Email</label>
-              <span>{settings?.email?.trim() || "—"}</span>
+              <span>{displayEmail || "—"}</span>
             </div>
           </div>
 
@@ -638,7 +654,7 @@ export default function Settings() {
           <h2 className="settings-section-title">
             <span>💳</span> Tokens
           </h2>
-          <WebTokenPurchase variant="settings" customerEmail={settings?.email} />
+          <WebTokenPurchase variant="settings" customerEmail={displayEmail || undefined} />
         </div>
 
         <div className="settings-section settings-session-section">

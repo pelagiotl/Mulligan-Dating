@@ -13,14 +13,33 @@ function userHasPasswordHash(password: string | null | undefined): boolean {
   return p.length > 0 && /^\$2[aby]\$/.test(p);
 }
 
+function readUserEmail(row: Record<string, unknown> | null | undefined): string | null {
+  if (!row) return null;
+  const raw = row.email ?? row.Email;
+  if (raw == null) return null;
+  const s = String(raw).trim();
+  return s || null;
+}
+
 // Get user settings/info
 settingsRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
 
     const user = await (db
-      .prepare("SELECT id, email, created_at, last_active_at, show_active_status FROM users WHERE id = ?")
-      .get([userId]) as Promise<{ id: string; email: string; created_at: string; last_active_at: string | null; show_active_status: number | boolean | null } | undefined>);
+      .prepare(
+        "SELECT id, email, password, created_at, last_active_at, show_active_status FROM users WHERE id = ?",
+      )
+      .get([userId]) as Promise<
+        {
+          id: string;
+          email: string | null;
+          password: string | null;
+          created_at: string;
+          last_active_at: string | null;
+          show_active_status: number | boolean | null;
+        } | undefined
+      >);
 
     if (!user) {
       return res.status(404).json({ error: "User not found" });
@@ -31,10 +50,11 @@ settingsRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
       : !!user.show_active_status;
 
     res.json({
-      email: user.email?.trim() || null,
+      email: readUserEmail(user as Record<string, unknown>),
       createdAt: user.created_at,
       lastActiveAt: user.last_active_at,
       showActiveStatus,
+      requiresPasswordForEmailChange: userHasPasswordHash(user.password),
     });
   } catch (error) {
     console.error("Get settings error:", error);
@@ -131,10 +151,25 @@ settingsRouter.put("/email", authenticateToken, async (req: AuthRequest, res) =>
       return res.status(400).json({ error: "Email already in use" });
     }
 
-    // Update email
-    await (db.prepare("UPDATE users SET email = ? WHERE id = ?").run([normalizedEmail, userId]) as Promise<any>);
+    const updateResult = (await db
+      .prepare("UPDATE users SET email = ? WHERE id = ?")
+      .run([normalizedEmail, userId])) as { changes?: number };
+    const changes = updateResult?.changes ?? 0;
+    if (changes === 0) {
+      console.error(`❌ Email update affected 0 rows for user ${userId}`);
+      return res.status(500).json({ error: "Email was not saved. Please try again." });
+    }
 
-    res.json({ message: "Email updated successfully", email: normalizedEmail });
+    const savedRow = (await db
+      .prepare("SELECT email FROM users WHERE id = ?")
+      .get([userId])) as Record<string, unknown> | null;
+    const confirmedEmail = readUserEmail(savedRow);
+    if (!confirmedEmail) {
+      console.error(`❌ Email update read-back empty for user ${userId}`);
+      return res.status(500).json({ error: "Email was not saved. Please try again." });
+    }
+
+    res.json({ message: "Email updated successfully", email: confirmedEmail });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors[0].message });

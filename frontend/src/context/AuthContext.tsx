@@ -56,6 +56,8 @@ interface AuthContextType {
   refreshSession: () => Promise<{ connectSetupComplete: boolean }>
   /** After create-profile wizard finishes — keeps /browse gate open before /auth/me catches up. */
   markConnectSetupComplete: () => void
+  /** Immediately reflect a saved settings email in session (before /auth/me round-trip). */
+  updateUserEmail: (email: string) => void
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
@@ -203,6 +205,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const markConnectSetupComplete = () => {
     clearWebCreateProfileDraft()
     setConnectSetupComplete(true)
+  }
+
+  const updateUserEmail = (email: string) => {
+    const trimmed = email.trim()
+    if (!trimmed) return
+    setUser((prev) => (prev ? { ...prev, email: trimmed } : prev))
   }
 
   // Legacy email/password login (kept for backward compatibility)
@@ -382,6 +390,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshProfile,
       refreshSession,
       markConnectSetupComplete,
+      updateUserEmail,
     }}>
       {children}
     </AuthContext.Provider>

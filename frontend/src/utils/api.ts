@@ -33,7 +33,8 @@ async function request<T = any>(endpoint: string, options: RequestInit = {}): Pr
     const response = await fetch(url, {
       ...options,
       headers,
-      signal: controller.signal
+      signal: controller.signal,
+      cache: 'no-store',
     })
     clearTimeout(timeoutId)
 
