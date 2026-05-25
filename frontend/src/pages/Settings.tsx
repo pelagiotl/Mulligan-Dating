@@ -12,7 +12,7 @@ import {
 } from "../lib/webPush";
 
 interface SettingsData {
-  email: string;
+  email: string | null;
   createdAt: string;
   lastActiveAt: string | null;
   showActiveStatus?: boolean;
@@ -51,6 +51,8 @@ export default function Settings() {
 
   // Email change
   const [newEmail, setNewEmail] = useState("");
+  const [emailPassword, setEmailPassword] = useState("");
+  const [emailNeedsPassword, setEmailNeedsPassword] = useState(false);
   const [changingEmail, setChangingEmail] = useState(false);
 
   // Delete account
@@ -121,6 +123,12 @@ export default function Settings() {
     }
     setDisplayNameDraft((profile.displayName ?? "").trim());
   }, [profile]);
+
+  useEffect(() => {
+    if (settings?.email?.trim()) {
+      setNewEmail(settings.email.trim());
+    }
+  }, [settings?.email]);
 
   const saveDisplayName = async () => {
     setError("");
@@ -231,16 +239,38 @@ export default function Settings() {
     setError("");
     setSuccess("");
 
+    const normalizedEmail = newEmail.trim().toLowerCase();
+    if (!normalizedEmail) {
+      setError("Email is required");
+      return;
+    }
+
     setChangingEmail(true);
     try {
-      await api.put("/settings/email", {
-        email: newEmail,
+      const res = await api.put<{ message?: string; email?: string }>("/settings/email", {
+        email: normalizedEmail,
+        ...(emailNeedsPassword && emailPassword.trim() ? { password: emailPassword } : {}),
       });
+      const savedEmail = (res?.email ?? normalizedEmail).trim();
+      setSettings((prev) =>
+        prev
+          ? { ...prev, email: savedEmail }
+          : { email: savedEmail, createdAt: "", lastActiveAt: null, showActiveStatus: true },
+      );
       setSuccess("Email changed successfully!");
-      setNewEmail("");
-      await fetchSettings(); // Refresh settings
+      setNewEmail(savedEmail);
+      setEmailNeedsPassword(false);
+      setEmailPassword("");
+      await refreshSession();
+      await fetchSettings();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to change email");
+      const msg = err instanceof Error ? err.message : "Failed to change email";
+      if (msg.toLowerCase().includes("password required")) {
+        setEmailNeedsPassword(true);
+        setError("Enter your account password below to change your email.");
+      } else {
+        setError(msg);
+      }
     } finally {
       setChangingEmail(false);
     }
@@ -446,7 +476,7 @@ export default function Settings() {
           <div className="settings-info" style={{ marginTop: "var(--space-4)" }}>
             <div className="info-item">
               <label data-emoji="📧">📧 Email</label>
-              <span>{settings?.email || "—"}</span>
+              <span>{settings?.email?.trim() || "—"}</span>
             </div>
           </div>
 
@@ -468,6 +498,21 @@ export default function Settings() {
                   autoComplete="email"
                 />
               </div>
+              {emailNeedsPassword && (
+                <div className="form-group">
+                  <label htmlFor="emailPassword">Password</label>
+                  <input
+                    type="password"
+                    id="emailPassword"
+                    className="form-input"
+                    value={emailPassword}
+                    onChange={(e) => setEmailPassword(e.target.value)}
+                    placeholder="Your account password"
+                    required
+                    autoComplete="current-password"
+                  />
+                </div>
+              )}
               <button type="submit" className="btn btn-primary" disabled={changingEmail}>
                 {changingEmail ? "Changing…" : "Change email"}
               </button>

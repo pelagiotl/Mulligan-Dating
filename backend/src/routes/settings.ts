@@ -7,6 +7,12 @@ import { deleteUserAccountData } from "../services/deleteUserAccount.js";
 
 export const settingsRouter = Router();
 
+/** Phone-only accounts use an empty password; email/password signups store a bcrypt hash. */
+function userHasPasswordHash(password: string | null | undefined): boolean {
+  const p = (password ?? "").trim();
+  return p.length > 0 && /^\$2[aby]\$/.test(p);
+}
+
 // Get user settings/info
 settingsRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
   try {
@@ -25,7 +31,7 @@ settingsRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
       : !!user.show_active_status;
 
     res.json({
-      email: user.email,
+      email: user.email?.trim() || null,
       createdAt: user.created_at,
       lastActiveAt: user.last_active_at,
       showActiveStatus,
@@ -101,29 +107,28 @@ settingsRouter.put("/email", authenticateToken, async (req: AuthRequest, res) =>
       return res.status(404).json({ error: "User not found" });
     }
 
-    // If user has a password and one was provided, verify it
-    // If user doesn't have a password (phone auth), allow update without password
-    if (user.password && password) {
+    const normalizedEmail = email.toLowerCase().trim();
+    const hasPassword = userHasPasswordHash(user.password);
+
+    // Email/password accounts must confirm password; phone-only accounts may skip
+    if (hasPassword) {
+      if (!password?.trim()) {
+        return res.status(401).json({ error: "Password required to update email" });
+      }
       const validPassword = await bcrypt.compare(password, user.password);
       if (!validPassword) {
         return res.status(401).json({ error: "Password is incorrect" });
       }
-    } else if (user.password && !password) {
-      // User has password but didn't provide one
-      return res.status(401).json({ error: "Password required to update email" });
     }
-    // If user has no password (phone auth), proceed without password verification
 
     // Check if email already exists
     const existingUser = await (db
       .prepare("SELECT id FROM users WHERE email = ? AND id != ?")
-      .get([email, userId]) as Promise<{ id: string } | undefined>);
+      .get([normalizedEmail, userId]) as Promise<{ id: string } | undefined>);
 
     if (existingUser) {
       return res.status(400).json({ error: "Email already in use" });
     }
-
-    const normalizedEmail = email.toLowerCase().trim();
 
     // Update email
     await (db.prepare("UPDATE users SET email = ? WHERE id = ?").run([normalizedEmail, userId]) as Promise<any>);
