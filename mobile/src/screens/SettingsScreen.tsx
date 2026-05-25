@@ -32,6 +32,7 @@ import {
 import { formatPackagePerTokenLine, normalizePackageFormattedPrice } from '../utils/formatPackagePrice';
 import { purchaseTokensWithGooglePay } from '../utils/googlePay';
 import { navigationRef } from '../navigation/navigationRef';
+import { clearPushToken } from '../utils/pushNotifications';
 import LegalFooter from '../components/LegalFooter';
 
 /** Android elevation renders as a harsh grey box behind rounded cards — disable it there. */
@@ -411,11 +412,11 @@ export default function SettingsScreen() {
     }
   }, [packages, refreshProfile, refreshTokensBalance]);
 
-  const finishDeleteAccount = useCallback(() => {
+  const finishDeleteAccount = useCallback(async () => {
     setShowDeleteAccountModal(false);
     setDeleting(false);
     api.clearCache();
-    logout();
+    await logout();
     navigation.reset({
       index: 0,
       routes: [{ name: 'PhoneLogin' as never }],
@@ -426,14 +427,15 @@ export default function SettingsScreen() {
     setError('');
     setDeleting(true);
     try {
+      await clearPushToken();
       await api.post('/settings/delete-account', {});
-      finishDeleteAccount();
+      await finishDeleteAccount();
     } catch (err: any) {
       const msg = err?.message || 'Failed to delete account';
       const alreadyGone =
         err?.status === 404 || String(msg).toLowerCase().includes('user not found');
       if (alreadyGone) {
-        finishDeleteAccount();
+        await finishDeleteAccount();
         return;
       }
       setError(msg);

@@ -65,7 +65,7 @@ export async function getToken(): Promise<string | null> {
 
 console.log('🔧 API Client initialized:', { API_URL, BASE_URL });
 
-class ApiError extends Error {
+export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
     this.name = 'ApiError';

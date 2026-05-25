@@ -6,7 +6,7 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
-import { api } from './api';
+import { api, ApiError } from './api';
 import { safeNativeModuleCall } from './nativeModuleGuard';
 import { setStoredPushToken } from './pushTokenStore';
 import { initiatorMatchIdRef, connectInitiatorAtRef } from './currentMatchView';
@@ -253,9 +253,17 @@ export async function clearPushToken(): Promise<void> {
   setStoredPushToken(null);
   try {
     await api.post('/auth/push-token', { pushToken: null });
-    console.log('✅ Push token cleared from backend');
+    if (__DEV__) console.log('✅ Push token cleared from backend');
   } catch (error) {
-    console.error('❌ Failed to clear push token from backend:', error);
+    const status = error instanceof ApiError ? error.status : 0;
+    // Expected after account delete or when session already ended during logout
+    if (status === 401 || status === 403) {
+      if (__DEV__) {
+        console.warn('⚠️ Push token clear skipped (session already ended)');
+      }
+      return;
+    }
+    console.warn('⚠️ Failed to clear push token from backend (non-critical):', error);
   }
 }
 

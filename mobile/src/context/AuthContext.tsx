@@ -29,6 +29,7 @@ import { playMessageSound, playMatchSound } from '../utils/sounds';
 import { setPendingGameRequest } from '../utils/pendingGameRequest';
 import { currentMatchIdRef } from '../utils/currentMatchView';
 import Purchases from 'react-native-purchases';
+import { ensurePurchasesConfigured } from '../utils/purchasesReady';
 
 export type MessageNotificationItem = {
   id: string;
@@ -92,6 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   /** Avoid push + RevenueCat storms when fetchUser/refreshProfile runs in a tight loop. */
   const lastFetchUserPushRegisterRef = useRef<{ userId: string; at: number } | null>(null);
   const revenueCatLoggedInUserIdRef = useRef<string | null>(null);
+  const isLoggingOutRef = useRef(false);
   const fetchUserRef = useRef<(useCache?: boolean) => Promise<void>>(async () => {});
 
   const registerMatchListRefresh = useCallback((callback: (() => void) | null) => {
@@ -956,6 +958,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
+    if (isLoggingOutRef.current) return;
+    isLoggingOutRef.current = true;
     clearMessageNotification();
     try {
       await clearPushToken();
@@ -965,10 +969,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (Platform.OS === 'ios' || Platform.OS === 'android') {
       void (async () => {
         try {
-          await Purchases.logOut();
+          if (await ensurePurchasesConfigured()) {
+            await Purchases.logOut();
+          }
         } catch (err: unknown) {
           const m = err instanceof Error ? err.message : String(err);
-          if (!/native is disabled/i.test(m) && __DEV__) {
+          if (
+            !/native is disabled/i.test(m) &&
+            !/no singleton instance/i.test(m) &&
+            __DEV__
+          ) {
             console.warn('RevenueCat logOut failed:', err);
           }
         }
@@ -985,6 +995,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setConnectSetupComplete(false);
     revenueCatLoggedInUserIdRef.current = null;
     lastFetchUserPushRegisterRef.current = null;
+    isLoggingOutRef.current = false;
   };
 
   logoutRef.current = logout;
@@ -992,6 +1003,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // When API client clears token (401/403 invalid or expired), logout and show login so we don't spam requests
   useEffect(() => {
     setOnSessionExpired(() => {
+      if (isLoggingOutRef.current) return;
       logoutRef.current?.();
     });
     return () => setOnSessionExpired(null);
