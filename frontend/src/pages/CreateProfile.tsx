@@ -10,7 +10,7 @@ import {
 } from "../utils/locationUtils";
 import { getPhotoUrl } from "../utils/photoUrl";
 import { usePhotoDragReorder } from "../hooks/usePhotoDragReorder";
-import { uploadPhotoFiles } from "../utils/photoBatchUpload";
+import { compressImageFiles, uploadCompressedFiles } from "../utils/photoBatchUpload";
 import {
   formatConnectSetupGapMessage,
   getConnectSetupGaps,
@@ -871,11 +871,22 @@ export default function CreateProfile() {
     setError("");
     setUploadingSlotIndices(emptyIndices);
     try {
-      await ensureProfileReadyForPhotos();
-      await uploadPhotoFiles(files);
+      const [compressed] = await Promise.all([
+        compressImageFiles(files),
+        ensureProfileReadyForPhotos(),
+      ]);
+      const uploaded = await uploadCompressedFiles(compressed);
       photoSlotsTouchedRef.current = true;
-      await syncPhotosFromServer({ force: true });
-      persistLocalDraft(step);
+      const nextSlots = [...photoSlots];
+      uploaded.forEach((p, i) => {
+        const slot = emptyIndices[i];
+        if (slot !== undefined) {
+          nextSlots[slot] = { id: p.id, url: p.url };
+        }
+      });
+      setPhotoSlots(nextSlots);
+      persistLocalDraft(step, nextSlots);
+      void syncPhotosFromServer({ force: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
@@ -1338,7 +1349,7 @@ export default function CreateProfile() {
                 {filledPhotos.length > 1
                   ? "Drag photos to reorder. The first photo is your profile thumbnail."
                   : "The first photo is your profile thumbnail."}{" "}
-                Use <strong>Remove</strong> on any photo to delete it.
+                Tap the <strong>×</strong> on a photo to delete it.
               </p>
             ) : null}
             {uploadingPhotos ? (
@@ -1370,20 +1381,18 @@ export default function CreateProfile() {
                         ) : null}
                         <img src={getPhotoUrl(ph.url)} alt="" className="create-profile-photo-img" draggable={false} />
                         {slotIndex === 0 ? <span className="create-profile-photo-primary">Primary</span> : null}
-                        <div className="create-profile-photo-actions">
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-danger create-profile-photo-remove-btn"
-                            disabled={removingPhotoId === ph.id || uploadingPhotos || reorderingPhotos}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              void removePhotoAt(slotIndex);
-                            }}
-                            aria-label="Remove photo"
-                          >
-                            {removingPhotoId === ph.id ? "…" : "Remove"}
-                          </button>
-                        </div>
+                        <button
+                          type="button"
+                          className="create-profile-photo-remove-btn"
+                          disabled={removingPhotoId === ph.id || uploadingPhotos || reorderingPhotos}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void removePhotoAt(slotIndex);
+                          }}
+                          aria-label="Remove photo"
+                        >
+                          {removingPhotoId === ph.id ? "…" : "×"}
+                        </button>
                       </div>
                     ) : (
                       <button
@@ -1410,7 +1419,7 @@ export default function CreateProfile() {
               <strong>💡 Photo Tips</strong>
               <ul>
                 <li>Select multiple photos at once from your gallery</li>
-                <li>Tap <strong>Remove</strong> on a photo to delete it and upload a different one</li>
+                <li>Tap <strong>×</strong> on a photo to delete it and upload a different one</li>
                 <li>Use clear, recent photos</li>
                 <li>Include a mix of close-ups and full-body shots</li>
                 <li>Show your personality and interests</li>

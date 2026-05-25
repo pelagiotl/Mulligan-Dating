@@ -10,37 +10,27 @@ function getApiBase(): string {
 
 export type UploadedPhoto = { id: string; url: string };
 
+/** Resize images in parallel before upload. */
 export async function compressImageFiles(files: File[]): Promise<File[]> {
-  const out: File[] = [];
-  for (const file of files) {
-    try {
-      out.push(await compressImage(file));
-    } catch {
-      out.push(file);
-    }
-  }
-  return out;
+  return Promise.all(
+    files.map(async (file) => {
+      try {
+        return await compressImage(file);
+      } catch {
+        return file;
+      }
+    })
+  );
 }
 
-/** Upload one or more photos in a single multipart request. */
-export async function uploadPhotoFiles(
-  files: File[],
+/** Upload already-compressed image files in one multipart request. */
+export async function uploadCompressedFiles(
+  compressed: File[],
   options?: {
-    onCompressProgress?: (index: number, total: number) => void;
     onUploadProgress?: (percent: number) => void;
   }
 ): Promise<UploadedPhoto[]> {
-  if (files.length === 0) return [];
-
-  const compressed: File[] = [];
-  for (let i = 0; i < files.length; i++) {
-    options?.onCompressProgress?.(i, files.length);
-    try {
-      compressed.push(await compressImage(files[i]));
-    } catch {
-      compressed.push(files[i]);
-    }
-  }
+  if (compressed.length === 0) return [];
 
   const formData = new FormData();
   compressed.forEach((file) => formData.append("photos", file));
@@ -96,4 +86,27 @@ export async function uploadPhotoFiles(
     throw new Error(data.error || "Invalid response from server");
   }
   return data.photos;
+}
+
+/** Compress (in parallel) then upload one or more photos in a single request. */
+export async function uploadPhotoFiles(
+  files: File[],
+  options?: {
+    onCompressProgress?: (index: number, total: number) => void;
+    onUploadProgress?: (percent: number) => void;
+    /** When set, skip compression (e.g. already compressed while saving profile). */
+    precompressed?: File[];
+  }
+): Promise<UploadedPhoto[]> {
+  if (files.length === 0 && !options?.precompressed?.length) return [];
+
+  const compressed = options?.precompressed ?? (await compressImageFiles(files));
+
+  if (options?.onCompressProgress && !options.precompressed) {
+    options.onCompressProgress(compressed.length, compressed.length);
+  }
+
+  return uploadCompressedFiles(compressed, {
+    onUploadProgress: options?.onUploadProgress,
+  });
 }
