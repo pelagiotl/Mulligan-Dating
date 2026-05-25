@@ -115,7 +115,8 @@ settingsRouter.put("/email", authenticateToken, async (req: AuthRequest, res) =>
       if (!password?.trim()) {
         return res.status(401).json({ error: "Password required to update email" });
       }
-      const validPassword = await bcrypt.compare(password, user.password);
+      const passwordHash = (user.password ?? "").trim();
+      const validPassword = await bcrypt.compare(password, passwordHash);
       if (!validPassword) {
         return res.status(401).json({ error: "Password is incorrect" });
       }
