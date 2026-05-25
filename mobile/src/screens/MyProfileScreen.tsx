@@ -22,7 +22,10 @@ import { Picker } from '@react-native-picker/picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, useRoute, useFocusEffect, useIsFocused, CommonActions } from '@react-navigation/native';
 import { navigationRef } from '../navigation/navigationRef';
-import * as ImagePicker from 'expo-image-picker';
+import {
+  MediaLibraryPermissionDenied,
+  pickImagesFromLibrary,
+} from '../utils/pickImagesFromLibrary';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GestureHandlerRootView, PanGestureHandler, State } from 'react-native-gesture-handler';
 import { api } from '../utils/api';
@@ -921,27 +924,16 @@ export default function MyProfileScreen() {
 
   const handlePickImage = async (slotIndex?: number) => {
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert(
-          'Permission needed',
-          'Please grant photo library access to upload photos. You can enable this in Settings > Privacy & Security > Photos.'
-        );
-        return;
-      }
-
       if (photos.length >= 6) {
         Alert.alert('Limit reached', 'You can only upload up to 6 photos');
         return;
       }
 
       const remaining = 6 - photos.length;
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: false,
-        quality: 0.85,
+      const result = await pickImagesFromLibrary({
         allowsMultipleSelection: true,
         selectionLimit: remaining,
+        quality: 0.85,
       });
 
       if (!result.canceled && result.assets.length > 0) {
@@ -951,6 +943,13 @@ export default function MyProfileScreen() {
         return;
       }
     } catch (err: any) {
+      if (err instanceof MediaLibraryPermissionDenied) {
+        Alert.alert(
+          'Permission needed',
+          'Please grant photo library access to upload photos. You can enable this in Settings > Privacy & Security > Photos.'
+        );
+        return;
+      }
       console.error('Error picking image:', err);
       const errorMessage = err?.message || 'Failed to pick image';
       Alert.alert(

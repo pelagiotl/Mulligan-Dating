@@ -29,10 +29,14 @@ import { Picker } from '@react-native-picker/picker';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { navigationRef } from '../navigation/navigationRef';
-import * as ImagePicker from 'expo-image-picker';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { api, getToken, ensureTokenPrefetched } from '../utils/api';
 import { uploadPhotoUris } from '../utils/batchPhotoUpload';
+import {
+  MediaLibraryPermissionDenied,
+  pickImagesFromLibrary,
+  prefetchMediaLibraryPermission,
+} from '../utils/pickImagesFromLibrary';
 import { compactCityState, handleLocationChange, hasCityAndState } from '../utils/locationUtils';
 import { detectUserLocation } from '../utils/detectUserLocation';
 import {
@@ -758,6 +762,12 @@ export default function CreateProfileScreen() {
     ensureTokenPrefetched();
   }, []);
 
+  useEffect(() => {
+    if (step === 14) {
+      prefetchMediaLibraryPermission();
+    }
+  }, [step]);
+
   // Save profile data and load existing photos when entering final (photos) step
   useEffect(() => {
     const saveProfileAndLoadPhotos = async () => {
@@ -1157,22 +1167,11 @@ export default function CreateProfileScreen() {
         return;
       }
 
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert(
-          'Permission Denied',
-          'Please grant photo library access to upload photos. You can enable this in Settings > Privacy & Security > Photos.'
-        );
-        return;
-      }
-
       const remaining = PHOTO_SLOT_COUNT - uploadedPhotoCount;
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: false,
-        quality: 0.85,
+      const result = await pickImagesFromLibrary({
         allowsMultipleSelection: true,
         selectionLimit: remaining,
+        quality: 0.85,
       });
 
       if (!result.canceled && result.assets.length > 0) {
@@ -1191,8 +1190,18 @@ export default function CreateProfileScreen() {
         await uploadPhotosBatch(uris);
       }
     } catch (error: unknown) {
+      if (error instanceof MediaLibraryPermissionDenied) {
+        Alert.alert(
+          'Permission Denied',
+          'Please grant photo library access to upload photos. You can enable this in Settings > Privacy & Security > Photos.'
+        );
+        return;
+      }
       console.error('Error picking photo:', error);
-      Alert.alert('Error', 'Failed to pick photos. Please try again.');
+      Alert.alert(
+        'Error',
+        'Failed to open your photo library. Please try again in a moment.'
+      );
     }
   };
 
