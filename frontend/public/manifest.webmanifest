@@ -4,7 +4,7 @@
   "description": "Mulligan — Connect, Matches, and real connections on the web",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#12101c",
+  "background_color": "#15102a",
   "theme_color": "#8b1538",
   "icons": [
     {

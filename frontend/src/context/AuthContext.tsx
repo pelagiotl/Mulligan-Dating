@@ -12,6 +12,7 @@ import {
 } from '../utils/createProfileProgress'
 import { clearAgeGateAccepted } from '../lib/ageGate'
 import { resetConnectShellModeForNewUser } from '../lib/connectShellTheme'
+import { hasStoredAuthToken } from '../lib/authToken'
 
 /** Same as mobile `MainTabs`: owner line always sees admin UI (API `requireAdmin` already matches this number). */
 function isOwnerAdminPhone(phone: string | null | undefined): boolean {
@@ -66,7 +67,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [connectSetupComplete, setConnectSetupComplete] = useState(false)
-  const [loading, setLoading] = useState(true)
+  /** Only block the UI when we need to validate an existing session. */
+  const [loading, setLoading] = useState(hasStoredAuthToken)
   const abortControllerRef = useRef<AbortController | null>(null)
 
   useEffect(() => {

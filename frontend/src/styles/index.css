@@ -1588,6 +1588,16 @@ img {
   animation: gradientShift 15s ease infinite;
 }
 
+.app-boot-screen .auth-container-enhanced {
+  position: relative;
+  z-index: 2;
+}
+
+.app-boot-screen-subtitle {
+  margin-top: var(--space-4);
+  text-align: center;
+}
+
 @keyframes gradientShift {
   0% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }

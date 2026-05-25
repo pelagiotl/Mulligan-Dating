@@ -19,6 +19,7 @@ import Terms from './pages/Terms'
 import Privacy from './pages/Privacy'
 import Layout from './components/Layout'
 import BrandMark from './components/BrandMark'
+import { hasStoredAuthToken } from './lib/authToken'
 
 const PWA_OPEN_PARAM = 'pwaOpen'
 
@@ -150,54 +151,20 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, loading } = useAuth()
-  
-  if (loading) {
-    return (
-      <div className="loading-screen-immersive">
-        <div className="loading-bg-gradient"></div>
-        <div className="loading-particles">
-          {Array.from({ length: 30 }).map((_, i) => (
-            <div
-              key={i}
-              className="loading-particle"
-              style={{
-                left: `${Math.random() * 100}%`,
-                top: `${Math.random() * 100}%`,
-                animationDelay: `${Math.random() * 3}s`,
-                animationDuration: `${10 + Math.random() * 10}s`
-              }}
-            />
-          ))}
-        </div>
-        <div className="loading-orbs">
-          <div className="loading-orb loading-orb-1"></div>
-          <div className="loading-orb loading-orb-2"></div>
-          <div className="loading-orb loading-orb-3"></div>
-        </div>
-        <div className="loading-content">
-          <div className="loading-logo-container">
-            <BrandMark size={80} className="loading-logo" alt="" />
-          </div>
-          <h1 className="loading-title">Mulligan</h1>
-          <div className="loading-dots">
-            <span className="loading-dot"></span>
-            <span className="loading-dot"></span>
-            <span className="loading-dot"></span>
-          </div>
-        </div>
-      </div>
-    )
+  const { loading } = useAuth()
+
+  if (loading && hasStoredAuthToken()) {
+    return <SessionBootstrapScreen />
   }
-  
+
   return <>{children}</>
 }
 
 function AuthRedirectRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading, connectSetupComplete } = useAuth()
   
-  if (loading) {
-    return <div>Loading...</div>
+  if (loading && hasStoredAuthToken()) {
+    return <SessionBootstrapScreen />
   }
   
   if (isAuthenticated) {
@@ -214,8 +181,8 @@ function AuthRedirectRoute({ children }: { children: React.ReactNode }) {
 function AgeGateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading, connectSetupComplete } = useAuth()
 
-  if (loading) {
-    return <div className="loading-screen-immersive">Loading...</div>
+  if (loading && hasStoredAuthToken()) {
+    return <SessionBootstrapScreen title="Welcome back" />
   }
 
   if (!isAuthenticated) {
