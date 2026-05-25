@@ -252,6 +252,23 @@ html[data-connect-shell="midnight"] .browse-connect-landing-token .token-cannot-
   font-weight: 600;
 }
 
+html[data-connect-shell="midnight"] .browse-connect-landing-token .weekly-token-celebration,
+.app-layout.connect-shell--midnight .browse-connect-landing-token .weekly-token-celebration {
+  background: rgba(30, 27, 46, 0.92);
+  border-color: rgba(167, 139, 250, 0.38);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+}
+
+html[data-connect-shell="midnight"] .browse-connect-landing-token .weekly-token-celebration-title,
+.app-layout.connect-shell--midnight .browse-connect-landing-token .weekly-token-celebration-title {
+  color: #f1f5f9;
+}
+
+html[data-connect-shell="midnight"] .browse-connect-landing-token .weekly-token-celebration-sub,
+.app-layout.connect-shell--midnight .browse-connect-landing-token .weekly-token-celebration-sub {
+  color: #cbd5e1;
+}
+
 /* Navbar token badge — subtle shift with shell */
 html[data-connect-shell="midnight"] .navbar-token-badge,
 .app-layout.connect-shell--midnight .navbar-token-badge {
