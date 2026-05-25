@@ -19,6 +19,7 @@ import Terms from './pages/Terms'
 import Privacy from './pages/Privacy'
 import Layout from './components/Layout'
 import BrandMark from './components/BrandMark'
+import SessionBootstrapScreen from './components/SessionBootstrapScreen'
 import { hasStoredAuthToken } from './lib/authToken'
 
 const PWA_OPEN_PARAM = 'pwaOpen'
