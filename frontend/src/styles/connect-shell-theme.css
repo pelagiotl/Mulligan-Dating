@@ -1012,6 +1012,61 @@ html[data-connect-shell="midnight"] .matches-page.native-app-screen .match-meta,
   color: #cbd5e1;
 }
 
+html[data-connect-shell="midnight"] .matches-page.native-app-screen .match-card-action-btn--muted,
+.app-layout.connect-shell--midnight .matches-page.native-app-screen .match-card-action-btn--muted {
+  color: #f1f5f9;
+  background: rgba(51, 45, 72, 0.95);
+  border-color: rgba(167, 139, 250, 0.45);
+  -webkit-text-fill-color: currentColor;
+}
+
+html[data-connect-shell="midnight"] .matches-page.native-app-screen .match-card-action-btn--muted:hover,
+.app-layout.connect-shell--midnight .matches-page.native-app-screen .match-card-action-btn--muted:hover {
+  color: #fff;
+  background: rgba(67, 56, 96, 1);
+  border-color: rgba(196, 181, 253, 0.55);
+}
+
+html[data-connect-shell="midnight"] .matches-page.native-app-screen .match-card-action-btn--danger,
+.app-layout.connect-shell--midnight .matches-page.native-app-screen .match-card-action-btn--danger {
+  color: #fecdd3;
+  background: rgba(127, 29, 29, 0.45);
+  border-color: rgba(251, 113, 133, 0.45);
+  -webkit-text-fill-color: currentColor;
+}
+
+html[data-connect-shell="sunny"] .matches-page.native-app-screen .match-card-action-btn--muted,
+.app-layout.connect-shell--sunny .matches-page.native-app-screen .match-card-action-btn--muted {
+  color: #7c2d12;
+  background: rgba(255, 251, 235, 0.98);
+  border-color: rgba(234, 88, 12, 0.35);
+  -webkit-text-fill-color: currentColor;
+}
+
+html[data-connect-shell="sunny"] .matches-page.native-app-screen .match-card-action-btn--danger,
+.app-layout.connect-shell--sunny .matches-page.native-app-screen .match-card-action-btn--danger {
+  color: #9f1239;
+  background: rgba(254, 215, 170, 0.65);
+  border-color: rgba(234, 88, 12, 0.4);
+  -webkit-text-fill-color: currentColor;
+}
+
+html[data-connect-shell="soft"] .matches-page.native-app-screen .match-card-action-btn--muted,
+.app-layout.connect-shell--soft .matches-page.native-app-screen .match-card-action-btn--muted {
+  color: #4c1d95;
+  background: rgba(255, 255, 255, 0.96);
+  border-color: rgba(102, 126, 234, 0.35);
+  -webkit-text-fill-color: currentColor;
+}
+
+html[data-connect-shell="soft"] .matches-page.native-app-screen .match-card-action-btn--danger,
+.app-layout.connect-shell--soft .matches-page.native-app-screen .match-card-action-btn--danger {
+  color: #9f1239;
+  background: rgba(254, 226, 226, 0.92);
+  border-color: rgba(102, 126, 234, 0.28);
+  -webkit-text-fill-color: currentColor;
+}
+
 /* Sunny — warm cream / amber (hero sunny card) */
 html[data-connect-shell="sunny"] .launch-countdown-bubble.launch-countdown-bubble--collapsed {
   background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 35%, #fde68a 65%, #fff7ed 100%);

@@ -1979,7 +1979,8 @@ button.connect-landing__cta:disabled::before {
   box-shadow: 0 8px 24px rgba(244, 63, 94, 0.12);
 }
 
-.matches-page.native-app-screen .match-item::before {
+.matches-page.native-app-screen .match-item::before,
+.matches-page.native-app-screen .match-item::after {
   display: none;
 }
 
@@ -1997,7 +1998,8 @@ button.connect-landing__cta:disabled::before {
   box-shadow: var(--match-item-shadow-hover, 0 8px 24px rgba(102, 126, 234, 0.16));
 }
 
-.matches-page.native-app-screen .match-item:hover::before {
+.matches-page.native-app-screen .match-item:hover::before,
+.matches-page.native-app-screen .match-item:hover::after {
   display: none;
 }
 
@@ -2009,8 +2011,24 @@ button.connect-landing__cta:disabled::before {
   border-color: var(--match-item-active-border, rgba(102, 126, 234, 0.22));
 }
 
-.matches-page.native-app-screen .match-item.active::before {
+.matches-page.native-app-screen .match-item.active::before,
+.matches-page.native-app-screen .match-item.active::after {
   display: none;
+}
+
+/* Match card Report / Remove — readable on shell-themed cards */
+.matches-page.native-app-screen .match-card-action-btn--muted {
+  color: var(--color-wine-800);
+  background: rgba(255, 255, 255, 0.94);
+  border-color: rgba(92, 36, 56, 0.22);
+  -webkit-text-fill-color: currentColor;
+}
+
+.matches-page.native-app-screen .match-card-action-btn--danger {
+  color: #9f1239;
+  background: rgba(254, 226, 226, 0.92);
+  border-color: rgba(225, 29, 72, 0.35);
+  -webkit-text-fill-color: currentColor;
 }
 
 .matches-page.native-app-screen .match-avatar {

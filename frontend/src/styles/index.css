@@ -19,6 +19,8 @@
   --color-rose-600: #e11d48;
   --color-rose-700: #be123c;
   
+  --color-wine-600: #6b3548;
+  --color-wine-700: #5c2438;
   --color-wine-800: #4a1c2a;
   --color-wine-900: #2d1118;
   
@@ -7606,6 +7608,8 @@ button.my-profile-avatar:focus-visible {
   margin-top: var(--space-3);
   padding-top: var(--space-3);
   border-top: 1px solid rgba(244, 63, 94, 0.1);
+  position: relative;
+  z-index: 2;
 }
 
 .match-card-action-btn {
