@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from '../utils/api';
 import { getAdminDisplayPhotos } from '../utils/adminDisplayPhotos';
 import { useAuth } from '../context/AuthContext';
@@ -890,7 +891,8 @@ export default function Admin() {
 
       </div>
 
-      {userDetailsOpen ? (
+      {userDetailsOpen && typeof document !== 'undefined'
+        ? createPortal(
         <div className="admin-user-details-overlay" role="presentation">
           <div
             className="admin-user-details-backdrop"
@@ -905,7 +907,12 @@ export default function Admin() {
           >
             <div className="user-details-header">
               <h2 id="admin-user-details-title">User Details</h2>
-              <button type="button" onClick={() => closeUserDetails()} aria-label="Close">
+              <button
+                type="button"
+                className="admin-user-details-close"
+                onClick={() => closeUserDetails()}
+                aria-label="Close"
+              >
                 ×
               </button>
             </div>
@@ -1247,8 +1254,10 @@ export default function Admin() {
               <p className="admin-moderation-muted">Could not load user details.</p>
             )}
           </div>
-        </div>
-      ) : null}
+        </div>,
+        document.body,
+      )
+        : null}
 
       {statDrill ? (
         <div className="admin-stat-drill-overlay" role="presentation">
