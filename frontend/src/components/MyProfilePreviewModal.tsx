@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { getPhotoUrl } from "../utils/photoUrl";
 import { formatPreferredMatchesFromGenders } from "../utils/preferredMatchesLabel";
@@ -95,6 +95,7 @@ export default function MyProfilePreviewModal({
   photos: MyProfilePreviewPhoto[];
 }) {
   const [photoLightbox, setPhotoLightbox] = useState<PhotoLightboxState | null>(null);
+  const lightboxTouchX = useRef<number | null>(null);
 
   const sortedPhotos = useMemo(
     () =>
@@ -113,6 +114,14 @@ export default function MyProfilePreviewModal({
 
   const closeLightbox = useCallback(() => setPhotoLightbox(null), []);
 
+  const stepLightbox = useCallback((delta: number) => {
+    setPhotoLightbox((prev) => {
+      if (!prev || prev.urls.length === 0) return prev;
+      const n = prev.urls.length;
+      return { ...prev, index: (prev.index + delta + n) % n };
+    });
+  }, []);
+
   const openPhotoLightbox = useCallback(
     (startPhoto: MyProfilePreviewPhoto) => {
       const urls = sortedPhotos.map((p) => getPhotoUrl(p.url));
@@ -128,7 +137,15 @@ export default function MyProfilePreviewModal({
       return;
     }
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        if (photoLightbox) closeLightbox();
+        else onClose();
+        return;
+      }
+      if (photoLightbox) {
+        if (e.key === "ArrowLeft") stepLightbox(-1);
+        if (e.key === "ArrowRight") stepLightbox(1);
+      }
     };
     document.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
@@ -137,7 +154,7 @@ export default function MyProfilePreviewModal({
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = prev;
     };
-  }, [open, onClose]);
+  }, [open, onClose, photoLightbox, closeLightbox, stepLightbox]);
 
   if (!open) return null;
 
@@ -238,20 +255,25 @@ export default function MyProfilePreviewModal({
                         className="chat-partner-drawer-photo-thumb"
                         onClick={() => openPhotoLightbox(ph)}
                         role="listitem"
+                        aria-label={`View photo ${i + 1} of ${sortedPhotos.length}`}
                       >
                         <img
                           src={getPhotoUrl(ph.url)}
-                          alt={`${data.displayName} — photo ${i + 1}`}
+                          alt=""
                           draggable={false}
                           onError={(e) => {
                             (e.target as HTMLImageElement).style.display = "none";
                           }}
                         />
+                        <span className="chat-partner-drawer-photo-view-overlay" aria-hidden>
+                          <span className="chat-partner-drawer-photo-view-icon">🧤</span>
+                          <span className="chat-partner-drawer-photo-view-label">View</span>
+                        </span>
                       </button>
                     ))}
                   </div>
                   <p className="chat-partner-drawer-hint">
-                    Scroll the row, then tap for full size
+                    Tap a photo to open · swipe or use ‹ › to browse all photos
                   </p>
                 </div>
               </div>
@@ -395,72 +417,98 @@ export default function MyProfilePreviewModal({
         </aside>
       </div>
 
-      {photoLightbox ? (
+      {photoLightbox && photoLightbox.urls.length > 0 ? (
         <div
           className="my-profile-photo-lightbox-overlay"
           role="dialog"
           aria-modal="true"
-          aria-label="Photo gallery"
+          aria-label={`Photo ${photoLightbox.index + 1} of ${photoLightbox.urls.length}`}
+          onClick={closeLightbox}
         >
           <button
             type="button"
-            className="my-profile-photo-lightbox-backdrop"
+            className="my-profile-photo-lightbox-close"
             aria-label="Close enlarged photo"
-            onClick={closeLightbox}
-          />
-          <div className="my-profile-photo-lightbox-content">
+            onClick={(e) => {
+              e.stopPropagation();
+              closeLightbox();
+            }}
+          >
+            ×
+          </button>
+          {photoLightbox.urls.length > 1 ? (
+            <button
+              type="button"
+              className="my-profile-photo-lightbox-side-nav my-profile-photo-lightbox-side-nav--prev"
+              aria-label="Previous photo"
+              onClick={(e) => {
+                e.stopPropagation();
+                stepLightbox(-1);
+              }}
+            >
+              ‹
+            </button>
+          ) : null}
+          {photoLightbox.urls.length > 1 ? (
+            <button
+              type="button"
+              className="my-profile-photo-lightbox-side-nav my-profile-photo-lightbox-side-nav--next"
+              aria-label="Next photo"
+              onClick={(e) => {
+                e.stopPropagation();
+                stepLightbox(1);
+              }}
+            >
+              ›
+            </button>
+          ) : null}
+          <div
+            className="my-profile-photo-lightbox-stage"
+            onClick={(e) => e.stopPropagation()}
+            onTouchStart={(e) => {
+              lightboxTouchX.current = e.changedTouches[0].clientX;
+            }}
+            onTouchEnd={(e) => {
+              const start = lightboxTouchX.current;
+              lightboxTouchX.current = null;
+              if (start == null || photoLightbox.urls.length < 2) return;
+              const dx = e.changedTouches[0].clientX - start;
+              if (dx > 56) stepLightbox(-1);
+              else if (dx < -56) stepLightbox(1);
+            }}
+          >
+            {photoLightbox.urls.length > 1 ? (
+              <button
+                type="button"
+                className="my-profile-photo-lightbox-tap-zone my-profile-photo-lightbox-tap-zone--prev"
+                aria-label="Previous photo"
+                onClick={() => stepLightbox(-1)}
+              />
+            ) : null}
             <img
               src={photoLightbox.urls[photoLightbox.index]}
               alt={`${data.displayName} — photo ${photoLightbox.index + 1}`}
               className="my-profile-photo-lightbox-img"
             />
             {photoLightbox.urls.length > 1 ? (
-              <div className="my-profile-photo-lightbox-nav">
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={() =>
-                    setPhotoLightbox((prev) =>
-                      prev
-                        ? {
-                            ...prev,
-                            index: (prev.index - 1 + prev.urls.length) % prev.urls.length,
-                          }
-                        : null
-                    )
-                  }
-                  aria-label="Previous photo"
-                >
-                  ‹
-                </button>
-                <span className="my-profile-photo-lightbox-counter">
+              <button
+                type="button"
+                className="my-profile-photo-lightbox-tap-zone my-profile-photo-lightbox-tap-zone--next"
+                aria-label="Next photo"
+                onClick={() => stepLightbox(1)}
+              />
+            ) : null}
+            {photoLightbox.urls.length > 1 ? (
+              <>
+                <div className="my-profile-photo-lightbox-counter">
                   {photoLightbox.index + 1} / {photoLightbox.urls.length}
-                </span>
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={() =>
-                    setPhotoLightbox((prev) =>
-                      prev
-                        ? { ...prev, index: (prev.index + 1) % prev.urls.length }
-                        : null
-                    )
-                  }
-                  aria-label="Next photo"
-                >
-                  ›
-                </button>
-              </div>
+                </div>
+                <p className="my-profile-photo-lightbox-hint">
+                  Swipe, tap the sides, or use arrow keys to browse
+                </p>
+              </>
             ) : null}
           </div>
-          <button
-            type="button"
-            className="my-profile-photo-lightbox-close"
-            aria-label="Close enlarged photo"
-            onClick={closeLightbox}
-          >
-            ×
-          </button>
         </div>
       ) : null}
     </>

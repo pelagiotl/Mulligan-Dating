@@ -353,6 +353,7 @@ export default function CreateProfileScreen() {
   const [photos, setPhotos] = useState<(ProfilePhoto | null)[]>(() => emptyPhotoSlots());
   const [uploadingSlotIndices, setUploadingSlotIndices] = useState<number[]>([]);
   const [openingPhotoPicker, setOpeningPhotoPicker] = useState(false);
+  const [photoPickerTargetSlot, setPhotoPickerTargetSlot] = useState<number | null>(null);
   const uploadingPhotos = uploadingSlotIndices.length > 0 || openingPhotoPicker;
   const [draggingPhotoId, setDraggingPhotoId] = useState<string | null>(null);
   const [draggingSlotIndex, setDraggingSlotIndex] = useState<number | null>(null);
@@ -624,9 +625,12 @@ export default function CreateProfileScreen() {
   }, [photos]);
 
   const waitForProfileSaveOnPhotosStep = useCallback(async () => {
-    if (profileSavePromiseRef.current) {
-      await profileSavePromiseRef.current.catch(() => {});
-    }
+    const pending = profileSavePromiseRef.current;
+    if (!pending) return;
+    await Promise.race([
+      pending.catch(() => {}),
+      new Promise<void>((resolve) => setTimeout(resolve, 20_000)),
+    ]);
   }, []);
 
   const ensureProfileSavedForPhotos = useCallback(async () => {
@@ -1228,9 +1232,9 @@ export default function CreateProfileScreen() {
     }
 
     pickingPhotosRef.current = true;
+    setPhotoPickerTargetSlot(targetSlot);
     setOpeningPhotoPicker(true);
     try {
-      await waitForProfileSaveOnPhotosStep();
       await waitForAndroidActivityReady();
 
       const remaining = PHOTO_SLOT_COUNT - uploadedPhotoCount;
@@ -1257,6 +1261,11 @@ export default function CreateProfileScreen() {
       }
     } catch (error: unknown) {
       if (error instanceof ImagePickerBusyError) {
+        Alert.alert(
+          'Photo library busy',
+          'Please wait a moment and try again.',
+          [{ text: 'OK' }],
+        );
         return;
       }
       if (error instanceof MediaLibraryPermissionDenied) {
@@ -1274,6 +1283,7 @@ export default function CreateProfileScreen() {
     } finally {
       pickingPhotosRef.current = false;
       setOpeningPhotoPicker(false);
+      setPhotoPickerTargetSlot(null);
     }
   };
 
@@ -2192,7 +2202,7 @@ export default function CreateProfileScreen() {
               Long-press a photo, then drag to reorder. The first photo is your profile thumbnail.
             </Text>
           ) : null}
-          {uploadingPhotos ? (
+          {uploadingSlotIndices.length > 0 ? (
             <Text style={styles.photosUploadingHint}>Uploading photos…</Text>
           ) : null}
           <View style={styles.photosGrid}>
@@ -2289,7 +2299,8 @@ export default function CreateProfileScreen() {
                         end={{ x: 1, y: 1 }}
                         style={styles.addPhotoButtonGradient}
                       >
-                        {uploadingSlotIndices.includes(slotIndex) || openingPhotoPicker ? (
+                        {uploadingSlotIndices.includes(slotIndex) ||
+                        (openingPhotoPicker && photoPickerTargetSlot === slotIndex) ? (
                           <ActivityIndicator color="#fff" size="small" />
                         ) : (
                           <>

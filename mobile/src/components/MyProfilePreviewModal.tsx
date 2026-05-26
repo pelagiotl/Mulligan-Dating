@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Modal,
   View,
@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Platform,
   Dimensions,
+  FlatList,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -112,6 +113,9 @@ type Props = {
 export default function MyProfilePreviewModal({ visible, onClose, data, photos }: Props) {
   const insets = useSafeAreaInsets();
   const [fullscreenIndex, setFullscreenIndex] = useState<number | null>(null);
+  const fullscreenListRef = useRef<FlatList<MyProfilePreviewPhoto>>(null);
+  const fullscreenProgrammaticScrollRef = useRef(false);
+  const fullscreenWasOpenRef = useRef(false);
 
   const sortedPhotos = useMemo(
     () =>
@@ -122,6 +126,35 @@ export default function MyProfilePreviewModal({ visible, onClose, data, photos }
       }),
     [photos]
   );
+
+  useEffect(() => {
+    if (!visible) {
+      setFullscreenIndex(null);
+    }
+  }, [visible]);
+
+  useEffect(() => {
+    if (fullscreenIndex === null || sortedPhotos.length === 0) {
+      fullscreenWasOpenRef.current = false;
+      return;
+    }
+    if (fullscreenWasOpenRef.current) return;
+    fullscreenWasOpenRef.current = true;
+
+    const index = Math.min(fullscreenIndex, sortedPhotos.length - 1);
+    const scrollToIndex = () => {
+      try {
+        fullscreenListRef.current?.scrollToIndex({ index, animated: false });
+      } catch {
+        fullscreenListRef.current?.scrollToOffset({
+          offset: SCREEN_WIDTH * index,
+          animated: false,
+        });
+      }
+    };
+    const t = setTimeout(scrollToIndex, 50);
+    return () => clearTimeout(t);
+  }, [fullscreenIndex, sortedPhotos.length]);
 
   const primaryPhotoUrl = useMemo(() => {
     const primary = sortedPhotos.find((p) => p.isPrimary) || sortedPhotos[0];
@@ -311,17 +344,98 @@ export default function MyProfilePreviewModal({ visible, onClose, data, photos }
       >
         <View style={styles.fullscreenOverlay}>
           <TouchableOpacity
-            style={styles.fullscreenClose}
+            style={[styles.fullscreenClose, { top: Math.max(insets.top, 12) + 8 }]}
             onPress={() => setFullscreenIndex(null)}
+            accessibilityLabel="Close photo viewer"
           >
             <Text style={styles.fullscreenCloseText}>✕</Text>
           </TouchableOpacity>
-          {fullscreenIndex !== null && sortedPhotos[fullscreenIndex] ? (
-            <Image
-              source={{ uri: getPhotoUrl(sortedPhotos[fullscreenIndex].url) }}
-              style={styles.fullscreenImage}
-              resizeMode="contain"
-            />
+
+          {fullscreenIndex !== null && sortedPhotos.length > 0 ? (
+            <View style={styles.fullscreenContent}>
+              <FlatList
+                ref={fullscreenListRef}
+                data={sortedPhotos}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                keyExtractor={(item) => item.id}
+                initialScrollIndex={Math.min(fullscreenIndex, sortedPhotos.length - 1)}
+                getItemLayout={(_, index) => ({
+                  length: SCREEN_WIDTH,
+                  offset: SCREEN_WIDTH * index,
+                  index,
+                })}
+                onScrollToIndexFailed={(info) => {
+                  setTimeout(() => {
+                    fullscreenListRef.current?.scrollToOffset({
+                      offset: info.averageItemLength * info.index,
+                      animated: false,
+                    });
+                  }, 100);
+                }}
+                onMomentumScrollEnd={(event) => {
+                  if (fullscreenProgrammaticScrollRef.current) {
+                    fullscreenProgrammaticScrollRef.current = false;
+                    return;
+                  }
+                  const index = Math.round(event.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+                  if (index >= 0 && index < sortedPhotos.length) {
+                    setFullscreenIndex(index);
+                  }
+                }}
+                renderItem={({ item }) => (
+                  <View style={styles.fullscreenSlide}>
+                    <Image
+                      source={{ uri: getPhotoUrl(item.url) }}
+                      style={styles.fullscreenImage}
+                      resizeMode="contain"
+                    />
+                  </View>
+                )}
+              />
+
+              {sortedPhotos.length > 1 ? (
+                <>
+                  <View style={styles.fullscreenTapOverlay} pointerEvents="box-none">
+                    <TouchableOpacity
+                      style={styles.fullscreenTapLeft}
+                      activeOpacity={1}
+                      onPress={() => {
+                        if (fullscreenIndex > 0) {
+                          const prev = fullscreenIndex - 1;
+                          fullscreenProgrammaticScrollRef.current = true;
+                          setFullscreenIndex(prev);
+                          fullscreenListRef.current?.scrollToIndex({ index: prev, animated: true });
+                        }
+                      }}
+                    />
+                    <TouchableOpacity
+                      style={styles.fullscreenTapRight}
+                      activeOpacity={1}
+                      onPress={() => {
+                        if (fullscreenIndex < sortedPhotos.length - 1) {
+                          const next = fullscreenIndex + 1;
+                          fullscreenProgrammaticScrollRef.current = true;
+                          setFullscreenIndex(next);
+                          fullscreenListRef.current?.scrollToIndex({ index: next, animated: true });
+                        }
+                      }}
+                    />
+                  </View>
+                  <View
+                    style={[
+                      styles.fullscreenCounterWrap,
+                      { bottom: Math.max(insets.bottom, 16) + 12 },
+                    ]}
+                  >
+                    <Text style={styles.fullscreenCounter}>
+                      {fullscreenIndex + 1} / {sortedPhotos.length}
+                    </Text>
+                  </View>
+                </>
+              ) : null}
+            </View>
           ) : null}
         </View>
       </Modal>
@@ -329,7 +443,8 @@ export default function MyProfilePreviewModal({ visible, onClose, data, photos }
   );
 }
 
-const thumbSize = Math.min(120, Dimensions.get('window').width * 0.32);
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const thumbSize = Math.min(120, SCREEN_WIDTH * 0.32);
 
 const styles = StyleSheet.create({
   overlay: {
@@ -596,18 +711,54 @@ const styles = StyleSheet.create({
   fullscreenOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.92)',
+  },
+  fullscreenContent: {
+    flex: 1,
+    width: '100%',
+    position: 'relative',
+  },
+  fullscreenSlide: {
+    width: SCREEN_WIDTH,
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
   fullscreenImage: {
-    width: '100%',
-    height: '80%',
+    width: SCREEN_WIDTH,
+    height: '100%',
+  },
+  fullscreenTapOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    flexDirection: 'row',
+    zIndex: 10,
+  },
+  fullscreenTapLeft: {
+    flex: 1,
+  },
+  fullscreenTapRight: {
+    flex: 1,
+  },
+  fullscreenCounterWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 11,
+  },
+  fullscreenCounter: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 16,
+    overflow: 'hidden',
   },
   fullscreenClose: {
     position: 'absolute',
-    top: 48,
     right: 20,
-    zIndex: 10,
+    zIndex: 20,
     width: 44,
     height: 44,
     borderRadius: 22,

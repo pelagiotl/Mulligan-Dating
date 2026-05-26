@@ -71,13 +71,9 @@ export async function ensureMediaLibraryPermission(): Promise<boolean> {
   return requested.granted || requested.status === 'granted';
 }
 
-/** Warm permissions while on the photos step so the picker launch is not delayed by the dialog. */
+/** Warm permission cache on the photos step; do not request here (avoids racing the picker on Android). */
 export function prefetchMediaLibraryPermission(): void {
-  void ImagePicker.getMediaLibraryPermissionsAsync().then((current) => {
-    if (!current.granted && current.canAskAgain) {
-      void ImagePicker.requestMediaLibraryPermissionsAsync();
-    }
-  });
+  void ImagePicker.getMediaLibraryPermissionsAsync();
 }
 
 export type PickImagesFromLibraryOptions = {
@@ -140,6 +136,23 @@ export async function pickImagesFromLibrary(
   if (!granted) {
     throw new MediaLibraryPermissionDenied();
   }
-  await waitForAndroidActivityReady();
-  return launchImageLibrarySafe(options);
+
+  const maxBusyRetries = 3;
+  let lastBusy: ImagePickerBusyError | undefined;
+  for (let attempt = 0; attempt < maxBusyRetries; attempt++) {
+    try {
+      await waitForAndroidActivityReady();
+      return await launchImageLibrarySafe(options);
+    } catch (err) {
+      if (err instanceof ImagePickerBusyError) {
+        lastBusy = err;
+        if (attempt < maxBusyRetries - 1) {
+          await delay(220 * (attempt + 1));
+          continue;
+        }
+      }
+      throw err;
+    }
+  }
+  throw lastBusy ?? new ImagePickerBusyError();
 }
