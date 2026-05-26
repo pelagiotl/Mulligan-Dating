@@ -7648,6 +7648,12 @@ button.my-profile-avatar:focus-visible {
   .matches-page {
     grid-template-columns: 1fr;
   }
+
+  .app-layout--native-mobile-shell:has(.matches-page--mobile-conversation) {
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
+  }
 }
 
 .matches-sidebar {
@@ -12446,7 +12452,7 @@ button.chat-avatar-btn .chat-avatar img {
     flex: 1 1 auto;
     min-height: 0;
     height: 100%;
-    max-height: none;
+    max-height: 100%;
     overflow: hidden;
     gap: var(--space-2);
   }
@@ -12458,7 +12464,7 @@ button.chat-avatar-btn .chat-avatar img {
   .matches-page--mobile-conversation .matches-main {
     flex: 1 1 0;
     min-height: 0;
-    max-height: none;
+    max-height: 100%;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -12469,13 +12475,20 @@ button.chat-avatar-btn .chat-avatar img {
     overflow: visible;
   }
 
-  .matches-page--mobile-conversation .matches-mobile-back-btn {
-    flex-shrink: 0;
-  }
-
   .matches-page--mobile-conversation .matches-chat-column {
     flex: 1 1 0;
     min-height: 0;
+    overflow: hidden;
+  }
+
+  .matches-page--mobile-conversation .message-input-container {
+    flex-shrink: 0;
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), var(--space-2));
+  }
+
+  .matches-page--mobile-conversation .message-input,
+  .matches-page--compact-chat.matches-page--mobile-conversation .message-input {
+    font-size: 16px;
   }
 
   .matches-page--mobile-conversation .messages-container {
@@ -12839,7 +12852,7 @@ button.chat-avatar-btn .chat-avatar img {
 
   .matches-page--compact-chat.matches-page--mobile-conversation .message-input {
     padding: var(--space-2) var(--space-3);
-    font-size: 0.92rem;
+    font-size: 16px;
     min-height: 36px;
   }
 
@@ -12906,7 +12919,9 @@ button.chat-avatar-btn .chat-avatar img {
   .app-layout--native-mobile-shell .main-content:has(.matches-page--mobile-conversation) {
     display: flex;
     flex-direction: column;
+    flex: 1 1 0;
     min-height: 0;
+    max-height: none;
     overflow: hidden;
   }
 
@@ -12914,6 +12929,7 @@ button.chat-avatar-btn .chat-avatar img {
     flex: 1 1 0;
     min-height: 0;
     width: 100%;
+    overflow: hidden;
   }
 }
 

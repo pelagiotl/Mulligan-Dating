@@ -12,6 +12,16 @@ export function matchSoundPublicUrl(): string {
 
 let preloadedAudio: HTMLAudioElement | null = null;
 let audioContext: AudioContext | null = null;
+let suppressMatchSoundUntil = 0;
+
+/** Skip match audio briefly after login / session restore (not live Connect celebrations). */
+export function suppressMatchSoundFor(ms: number): void {
+  suppressMatchSoundUntil = Date.now() + ms;
+}
+
+function isMatchSoundSuppressed(): boolean {
+  return Date.now() < suppressMatchSoundUntil;
+}
 
 function ensureAudioContext(): AudioContext {
   if (!audioContext) {
@@ -33,43 +43,35 @@ function getPreloadedAudio(): HTMLAudioElement {
 export function unlockMatchAudio(): void {
   if (typeof window === "undefined") return;
 
+  clearMatchSoundSuppression();
+
   void ensureAudioContext().resume().catch(() => {});
 
   const audio = getPreloadedAudio();
   const previousVolume = audio.volume;
-  audio.volume = 0.001;
+  const wasMuted = audio.muted;
+  audio.muted = true;
+  audio.volume = 0;
   void audio
     .play()
     .then(() => {
       audio.pause();
       audio.currentTime = 0;
+      audio.muted = wasMuted;
       audio.volume = previousVolume > 0 ? previousVolume : 0.55;
     })
     .catch(() => {
+      audio.muted = wasMuted;
       audio.volume = previousVolume > 0 ? previousVolume : 0.55;
     });
 }
 
-/** One-time unlock on first interaction after login (helps socket toast for User B). */
-export function installMatchAudioUnlockOnFirstGesture(): () => void {
-  if (typeof document === "undefined") return () => {};
-
-  const onGesture = () => {
-    unlockMatchAudio();
-    document.removeEventListener("pointerdown", onGesture, true);
-    document.removeEventListener("keydown", onGesture, true);
-  };
-
-  document.addEventListener("pointerdown", onGesture, { capture: true });
-  document.addEventListener("keydown", onGesture, { capture: true });
-
-  return () => {
-    document.removeEventListener("pointerdown", onGesture, true);
-    document.removeEventListener("keydown", onGesture, true);
-  };
+function clearMatchSoundSuppression(): void {
+  suppressMatchSoundUntil = 0;
 }
 
 function playSyntheticMatchSound(): void {
+  if (isMatchSoundSuppressed()) return;
   try {
     const ctx = ensureAudioContext();
     void ctx.resume().catch(() => {});
@@ -110,6 +112,7 @@ function playSyntheticMatchSound(): void {
 
 export function playMatchSound(volume = 0.45): void {
   if (typeof window === "undefined") return;
+  if (isMatchSoundSuppressed()) return;
 
   const audio = getPreloadedAudio();
   audio.volume = volume;
@@ -126,5 +129,6 @@ export function playMatchSound(volume = 0.45): void {
 
 /** Same asset as mobile `match-sound.wav`; used when celebration card is revealed. */
 export function playMatchCelebrationSound(): void {
+  clearMatchSoundSuppression();
   playMatchSound(0.55);
 }

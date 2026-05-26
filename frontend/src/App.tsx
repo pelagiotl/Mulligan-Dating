@@ -21,7 +21,7 @@ import Layout from './components/Layout'
 import BrandMark from './components/BrandMark'
 import SessionBootstrapScreen from './components/SessionBootstrapScreen'
 import { hasStoredAuthToken } from './lib/authToken'
-import { installMatchAudioUnlockOnFirstGesture, playMatchSound } from './utils/matchSound'
+import { playMatchSound } from './utils/matchSound'
 
 const PWA_OPEN_PARAM = 'pwaOpen'
 
@@ -226,8 +226,6 @@ function NewMatchesNotification() {
   useEffect(() => {
     if (!isAuthenticated || !user) return
 
-    const removeAudioUnlock = installMatchAudioUnlockOnFirstGesture()
-
     // Set up global socket connection for match notifications
     const token = localStorage.getItem('token')
     if (!token) return
@@ -316,7 +314,6 @@ function NewMatchesNotification() {
         socketRef.current.disconnect()
         socketRef.current = null
       }
-      removeAudioUnlock()
     }
   }, [isAuthenticated, user, playRealtimeMatchSound]) // Re-run when authentication state changes
 

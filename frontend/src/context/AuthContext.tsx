@@ -13,6 +13,7 @@ import {
 import { clearAgeGateAccepted } from '../lib/ageGate'
 import { resetConnectShellModeForNewUser } from '../lib/connectShellTheme'
 import { hasStoredAuthToken } from '../lib/authToken'
+import { suppressMatchSoundFor } from '../utils/matchSound'
 
 /** Same as mobile `MainTabs`: owner line always sees admin UI (API `requireAdmin` already matches this number). */
 function isOwnerAdminPhone(phone: string | null | undefined): boolean {
@@ -185,6 +186,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clearWebCreateProfileDraft()
       }
       setConnectSetupComplete(complete)
+      if (!options?.silent) {
+        suppressMatchSoundFor(6000)
+      }
       return { connectSetupComplete: complete }
     } catch (error: any) {
       // Ignore aborted requests

@@ -332,6 +332,7 @@ export default function Matches() {
   );
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messageInputRef = useRef<HTMLInputElement>(null);
   const socketRef = useRef<Socket | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const selectedMatchIdRef = useRef<string | null>(null);
@@ -1026,17 +1027,51 @@ export default function Matches() {
     container.scrollTo({ top: container.scrollHeight, behavior });
   }, []);
 
+  const resetMobileChatViewport = useCallback(() => {
+    if (typeof window === "undefined" || window.innerWidth > 900) return;
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    document.querySelector(".main-content")?.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  }, []);
+
+  const stabilizeMobileChatLayout = useCallback(() => {
+    if (typeof window === "undefined" || window.innerWidth > 900) return;
+    resetMobileChatViewport();
+    requestAnimationFrame(() => {
+      scrollMessagesToEnd("auto");
+    });
+  }, [resetMobileChatViewport, scrollMessagesToEnd]);
+
   useEffect(() => {
     if (!selectedMatch || selectedMatch.stage === "pending") return;
     scrollMessagesToEnd(messages.length > 0 ? "smooth" : "auto");
   }, [messages, selectedMatch?.id, selectedMatch?.stage, scrollMessagesToEnd]);
 
+  useLayoutEffect(() => {
+    if (!selectedMatch || mobileShowMatchList) return;
+    if (typeof window === "undefined" || window.innerWidth > 900) return;
+    stabilizeMobileChatLayout();
+  }, [selectedMatch?.id, mobileShowMatchList, stabilizeMobileChatLayout]);
+
   useEffect(() => {
     if (!selectedMatch || mobileShowMatchList) return;
     if (typeof window === "undefined" || window.innerWidth > 900) return;
-    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-    document.querySelector(".main-content")?.scrollTo({ top: 0, left: 0, behavior: "instant" });
-  }, [selectedMatch?.id, mobileShowMatchList]);
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const onViewportChange = () => {
+      if (document.activeElement === messageInputRef.current) return;
+      if (vv.height >= window.innerHeight * 0.92) {
+        resetMobileChatViewport();
+      }
+    };
+    vv.addEventListener("resize", onViewportChange);
+    vv.addEventListener("scroll", onViewportChange);
+    return () => {
+      vv.removeEventListener("resize", onViewportChange);
+      vv.removeEventListener("scroll", onViewportChange);
+    };
+  }, [selectedMatch?.id, mobileShowMatchList, resetMobileChatViewport]);
 
   useEffect(() => {
     if (!photoLightbox && !partnerDrawerOpen) return;
@@ -1306,6 +1341,11 @@ export default function Matches() {
       }
       const matchForPhotos = { ...snap, id: matchId, stage: "stage2" as const };
       fetchMatchPhotos(matchForPhotos);
+    }
+    if (typeof window !== "undefined" && window.innerWidth <= 900) {
+      messageInputRef.current?.blur();
+      resetMobileChatViewport();
+      requestAnimationFrame(() => scrollMessagesToEnd("auto"));
     }
   };
 
@@ -3064,6 +3104,7 @@ export default function Matches() {
                     </div>
                     <input
                       key={`chat-message-${selectedMatch.id}`}
+                      ref={messageInputRef}
                       type="text"
                       className="message-input"
                       value={newMessage}
