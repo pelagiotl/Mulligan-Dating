@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { io, Socket } from "socket.io-client";
 import { api, ApiError } from "../utils/api";
@@ -2054,7 +2055,11 @@ export default function Matches() {
           </div>
         </div>
       )}
-      {partnerDrawerOpen && selectedMatch && selectedMatch.stage !== "pending" && (
+      {partnerDrawerOpen &&
+        selectedMatch &&
+        selectedMatch.stage !== "pending" &&
+        typeof document !== "undefined" &&
+        createPortal(
         <div className="chat-partner-drawer-root">
           <button
             type="button"
@@ -2246,8 +2251,9 @@ export default function Matches() {
               </div>
             </div>
           </aside>
-        </div>
-      )}
+        </div>,
+        document.body,
+        )}
       <div className="matches-sidebar">
         <h2 className="matches-title">Your Matches</h2>
 
