@@ -12456,6 +12456,7 @@ button.chat-avatar-btn .chat-avatar img {
 
   .matches-page--mobile-conversation .matches-chat-chrome {
     flex-shrink: 0;
+    overflow: visible;
   }
 
   .matches-page--mobile-conversation .matches-mobile-back-btn {
@@ -12540,10 +12541,13 @@ button.chat-avatar-btn .chat-avatar img {
   }
 
   .matches-page--mobile-conversation .chat-header-games {
-    padding: 0.15rem 0 0.25rem;
+    display: flex;
+    align-items: center;
+    padding: 4px 0 6px;
     gap: 0.35rem;
     flex-wrap: nowrap;
     overflow-x: auto;
+    overflow-y: visible;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
   }
@@ -12659,10 +12663,11 @@ button.chat-avatar-btn .chat-avatar img {
   .matches-page--compact-chat.matches-page--mobile-conversation .chat-header {
     display: grid;
     grid-template-columns: 34px minmax(0, 1fr);
-    grid-template-rows: auto auto auto;
+    grid-template-rows: auto auto minmax(40px, auto);
     gap: 2px 8px;
-    padding: 6px 10px;
+    padding: 6px 10px 8px;
     align-items: start;
+    overflow: visible;
   }
 
   .matches-page--compact-chat.matches-page--mobile-conversation .chat-header-primary {
@@ -12752,15 +12757,19 @@ button.chat-avatar-btn .chat-avatar img {
     grid-row: 3;
     width: 100%;
     margin: 0;
-    padding: 2px 0 0;
-    gap: 0.3rem;
-    max-height: 34px;
+    padding: 4px 0 6px;
+    gap: 0.35rem;
+    min-height: 40px;
+    overflow-x: auto;
+    overflow-y: visible;
+    align-items: center;
   }
 
   .matches-page--compact-chat.matches-page--mobile-conversation .tod-web-header-btn {
-    width: 34px;
-    height: 34px;
+    width: 36px;
+    height: 36px;
     border-radius: 10px;
+    flex-shrink: 0;
   }
 
   .matches-page--compact-chat.matches-page--mobile-conversation .tod-web-header-emoji {
@@ -12856,7 +12865,13 @@ button.chat-avatar-btn .chat-avatar img {
   }
 
   .matches-page--compact-chat.matches-page--mobile-conversation .chat-header {
-    padding: 6px 10px;
+    padding: 6px 10px 8px;
+    grid-template-rows: auto auto minmax(36px, auto);
+  }
+
+  .matches-page--compact-chat.matches-page--mobile-conversation .chat-header-games {
+    min-height: 36px;
+    padding: 3px 0 5px;
   }
 
   .matches-page--compact-chat.matches-page--mobile-conversation .tod-web-header-btn {

@@ -2345,6 +2345,9 @@ button.connect-landing__cta:disabled::before {
   align-items: center;
   gap: 0.5rem;
   padding: 0.35rem 0 0.5rem;
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
 }
 
 .tod-web-wrap {
@@ -2380,6 +2383,15 @@ button.connect-landing__cta:disabled::before {
   background: linear-gradient(135deg, #ff0080, #ff3399, #cc0066);
   border-color: rgba(255, 255, 255, 0.35);
   animation: tod-header-pulse 2.2s ease-in-out infinite;
+}
+
+@media (max-width: 900px) {
+  /* Pulse scale must not clip inside horizontally scrollable game row on phones */
+  .matches-page--mobile-conversation .tod-web-header-btn--live,
+  .matches-page--compact-chat.matches-page--mobile-conversation .tod-web-header-btn--live {
+    animation: none;
+    transform: none;
+  }
 }
 
 @keyframes tod-header-pulse {
