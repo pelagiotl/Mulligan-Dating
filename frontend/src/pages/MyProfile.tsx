@@ -1082,9 +1082,11 @@ export default function MyProfile() {
           <span>📸</span> My Photos
         </h2>
         <PhotoUpload
-          onPhotosUpdated={() => {
-            void fetchProfile();
+          onPhotosUpdated={(kind) => {
             void fetchPhotos();
+            if (kind !== "reorder") {
+              void fetchProfile();
+            }
           }}
         />
       </div>

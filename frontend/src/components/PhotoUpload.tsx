@@ -12,9 +12,12 @@ interface Photo {
   createdAt: string;
 }
 
+export type PhotoUploadUpdateKind = "reorder" | "mutate";
+
 interface PhotoUploadProps {
   profileId?: string;
-  onPhotosUpdated?: () => void;
+  /** reorder = photos only; mutate = also refresh profile header / preview data */
+  onPhotosUpdated?: (kind?: PhotoUploadUpdateKind) => void;
   maxPhotos?: number;
 }
 
@@ -28,7 +31,6 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const [reordering, setReordering] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -79,37 +81,50 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
     });
   }, [photos]);
 
-  const fetchPhotos = async () => {
+  const fetchPhotos = async (options?: { silent?: boolean }) => {
     if (!profileId) return;
+    const silent = options?.silent ?? false;
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const data = await api.get<{ photos: Photo[] }>(`/photos/profile/${profileId}`);
       setPhotos(data.photos);
     } catch (err) {
       console.error("Failed to fetch photos:", err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
-  const fetchMyPhotos = async () => {
+  const fetchMyPhotos = async (options?: { silent?: boolean }) => {
+    const silent = options?.silent ?? false;
     try {
-      setLoading(true);
-      console.log('🔄 PhotoUpload: Fetching photos...');
-      const data = await api.get<{ photos: Photo[] }>("/photos/me");
-      console.log('✅ PhotoUpload: Photos fetched:', data.photos);
+      if (!silent) setLoading(true);
+      const data = await api.get<{ photos: Photo[] }>(`/photos/me?_=${Date.now()}`);
       setPhotos(data.photos || []);
-      if (!data.photos || data.photos.length === 0) {
-        console.log('⚠️ PhotoUpload: No photos found');
-      }
     } catch (err) {
-      console.error('❌ PhotoUpload: Failed to fetch photos:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load photos');
-      setPhotos([]);
+      console.error("Failed to fetch photos:", err);
+      if (!silent) {
+        setError(err instanceof Error ? err.message : "Failed to load photos");
+        setPhotos([]);
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
+
+  const refreshPhotos = useCallback(async () => {
+    try {
+      if (profileId) {
+        const data = await api.get<{ photos: Photo[] }>(`/photos/profile/${profileId}`);
+        setPhotos(data.photos);
+        return;
+      }
+      const data = await api.get<{ photos: Photo[] }>(`/photos/me?_=${Date.now()}`, false);
+      setPhotos(data.photos || []);
+    } catch (err) {
+      console.error("Failed to refresh photos:", err);
+    }
+  }, [profileId]);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -155,14 +170,8 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
       setUploadingIndex(null);
       setUploadProgress(100);
       
-      // Refresh photos
-      if (profileId) {
-        await fetchPhotos();
-      } else {
-        await fetchMyPhotos();
-      }
-
-      onPhotosUpdated?.();
+      await refreshPhotos();
+      onPhotosUpdated?.("mutate");
       
       // Reset file input and progress
       if (fileInputRef.current) {
@@ -188,14 +197,8 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
     try {
       await api.delete(`/photos/${photoId}`);
       
-      // Refresh photos
-      if (profileId) {
-        await fetchPhotos();
-      } else {
-        await fetchMyPhotos();
-      }
-
-      onPhotosUpdated?.();
+      await refreshPhotos();
+      onPhotosUpdated?.("mutate");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete photo");
     }
@@ -205,14 +208,8 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
     try {
       await api.put(`/photos/${photoId}/primary`, {});
       
-      // Refresh photos
-      if (profileId) {
-        await fetchPhotos();
-      } else {
-        await fetchMyPhotos();
-      }
-
-      onPhotosUpdated?.();
+      await refreshPhotos();
+      onPhotosUpdated?.("mutate");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to set primary photo");
     }
@@ -220,7 +217,7 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
 
   const applyPhotoReorder = useCallback(
     async (photoIds: string[]) => {
-      if (profileId || reordering) return;
+      if (profileId) return;
       const order = [...photos].sort((a, b) => a.displayOrder - b.displayOrder);
       const byId = new Map(order.map((p) => [p.id, p]));
       const optimistic = photoIds
@@ -230,39 +227,30 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
         })
         .filter((p): p is Photo => p != null);
 
-      setReordering(true);
+      const previous = photos;
       setError("");
       setPhotos(optimistic);
       try {
         await api.put("/photos/reorder", { photoIds });
-        if (profileId) {
-          await fetchPhotos();
-        } else {
-          await fetchMyPhotos();
-        }
-        onPhotosUpdated?.();
+        await refreshPhotos();
+        onPhotosUpdated?.("reorder");
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to reorder photos");
-        if (profileId) {
-          await fetchPhotos();
-        } else {
-          await fetchMyPhotos();
-        }
-      } finally {
-        setReordering(false);
+        setPhotos(previous);
+        await refreshPhotos();
       }
     },
-    [profileId, reordering, photos, onPhotosUpdated]
+    [profileId, photos, onPhotosUpdated, refreshPhotos]
   );
 
   const sortedForDrag = [...photos].sort((a, b) => a.displayOrder - b.displayOrder);
   const dragReorder = usePhotoDragReorder({
     items: sortedForDrag,
     onReorder: applyPhotoReorder,
-    disabled: !!profileId || reordering,
+    disabled: !!profileId,
   });
 
-  if (loading) {
+  if (loading && photos.length === 0) {
     return <div className="photo-upload-loading">Loading photos...</div>;
   }
 
