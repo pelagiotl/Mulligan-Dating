@@ -17,7 +17,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Video, ResizeMode } from 'expo-av';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
-import { api, API_URL } from '../utils/api';
+import { api, API_URL, ApiError } from '../utils/api';
 import { getAdminDisplayPhotos } from '../utils/adminDisplayPhotos';
 import { useAuth } from '../context/AuthContext';
 import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
@@ -360,9 +360,20 @@ export default function AdminScreen() {
   const handleSetBrowseHidden = async (userId: string, hidden: boolean) => {
     setActionLoading(userId);
     try {
-      const data = await api.post<{ message: string }>(`/admin/users/${userId}/set-browse-hidden`, {
-        hidden,
-      });
+      const postBrowseHidden = async () => {
+        try {
+          return await api.post<{ message: string }>(`/admin/users/${userId}/set-browse-hidden`, {
+            hidden,
+          });
+        } catch (error: unknown) {
+          if (!(error instanceof ApiError) || error.status !== 404) throw error;
+          return api.post<{ message: string }>(`/admin/users/${userId}/restrict`, {
+            hiddenFromBrowse: hidden,
+          });
+        }
+      };
+
+      const data = await postBrowseHidden();
       Alert.alert(
         'Success',
         data.message ||

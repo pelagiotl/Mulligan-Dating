@@ -1114,23 +1114,46 @@ adminRouter.post(
   },
 );
 
-// Restrict/unrestrict user
+// Restrict/unrestrict user; optional hiddenFromBrowse toggles Connect/browse visibility
 adminRouter.post('/users/:id/restrict', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const userId = req.params.id;
     if (!(await assertCanModerateUser(req, res, userId))) return;
-    const { restricted } = req.body;
+    const { restricted, hiddenFromBrowse } = req.body;
 
-    if (typeof restricted !== 'boolean') {
-      return res.status(400).json({ error: 'restricted must be a boolean' });
+    const willRestrict = typeof restricted === 'boolean';
+    const willSetBrowseHidden = typeof hiddenFromBrowse === 'boolean';
+
+    if (!willRestrict && !willSetBrowseHidden) {
+      return res.status(400).json({
+        error: 'Provide restricted and/or hiddenFromBrowse as a boolean',
+      });
     }
 
-    await (db.prepare('UPDATE users SET is_restricted = ? WHERE id = ?').run([restricted ? 1 : 0, userId]) as Promise<any>);
+    const messageParts: string[] = [];
+
+    if (willRestrict) {
+      await (db
+        .prepare('UPDATE users SET is_restricted = ? WHERE id = ?')
+        .run([restricted ? 1 : 0, userId]) as Promise<any>);
+      messageParts.push(restricted ? 'restricted' : 'unrestricted');
+    }
+
+    if (willSetBrowseHidden) {
+      const { setUserHiddenFromBrowse } = await import('../config/hiddenFromBrowse.js');
+      await setUserHiddenFromBrowse(userId, hiddenFromBrowse);
+      messageParts.push(
+        hiddenFromBrowse
+          ? 'hidden from Connect / browse for other users'
+          : 'visible in Connect / browse for other users',
+      );
+    }
 
     res.json({
-      message: `User ${restricted ? 'restricted' : 'unrestricted'} successfully`,
+      message: `User ${messageParts.join('; ')} successfully`,
       userId,
-      restricted
+      ...(willRestrict ? { restricted } : {}),
+      ...(willSetBrowseHidden ? { hiddenFromBrowse } : {}),
     });
   } catch (error: any) {
     console.error('Error restricting user:', error);

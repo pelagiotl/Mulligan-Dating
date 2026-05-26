@@ -451,10 +451,23 @@ export default function Admin() {
   const setBrowseHidden = async (userId: string, hidden: boolean) => {
     setActionLoading(userId);
     try {
-      const response = await api.post<{ message: string; userId: string; hiddenFromBrowse: boolean }>(
-        `/admin/users/${userId}/set-browse-hidden`,
-        { hidden },
-      );
+      const postBrowseHidden = async () => {
+        try {
+          return await api.post<{ message: string; userId: string; hiddenFromBrowse: boolean }>(
+            `/admin/users/${userId}/set-browse-hidden`,
+            { hidden },
+          );
+        } catch (error: unknown) {
+          const status = (error as { status?: number })?.status;
+          if (status !== 404) throw error;
+          return api.post<{ message: string; userId: string; hiddenFromBrowse: boolean }>(
+            `/admin/users/${userId}/restrict`,
+            { hiddenFromBrowse: hidden },
+          );
+        }
+      };
+
+      const response = await postBrowseHidden();
       setMessage({
         type: 'success',
         text:
