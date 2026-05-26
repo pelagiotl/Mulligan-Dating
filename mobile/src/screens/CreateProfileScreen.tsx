@@ -36,6 +36,8 @@ import {
   MediaLibraryPermissionDenied,
   pickImagesFromLibrary,
   prefetchMediaLibraryPermission,
+  ImagePickerBusyError,
+  waitForAndroidActivityReady,
 } from '../utils/pickImagesFromLibrary';
 import { compactCityState, handleLocationChange, hasCityAndState } from '../utils/locationUtils';
 import { detectUserLocation } from '../utils/detectUserLocation';
@@ -198,7 +200,7 @@ function photoSlotsFromApi(
   list: Array<{ id: string; url: string; displayOrder?: number }>
 ): (ProfilePhoto | null)[] {
   const slots = emptyPhotoSlots();
-  list.forEach((photo, i) => {
+  list.forEach((photo) => {
     const byOrder =
       typeof photo.displayOrder === 'number' &&
       photo.displayOrder >= 0 &&
@@ -210,6 +212,32 @@ function photoSlotsFromApi(
     }
   });
   return slots;
+}
+
+function buildDisplayOrdersFromSlots(slots: (ProfilePhoto | null)[]): Record<string, number> {
+  const displayOrders: Record<string, number> = {};
+  slots.forEach((p, slotIndex) => {
+    if (p?.id) displayOrders[p.id] = slotIndex;
+  });
+  return displayOrders;
+}
+
+function insertPhotosAtTarget(
+  slots: (ProfilePhoto | null)[],
+  targetIndex: number,
+  incoming: ProfilePhoto[]
+): (ProfilePhoto | null)[] {
+  const next = [...slots];
+  let cursor = Math.max(0, Math.min(targetIndex, PHOTO_SLOT_COUNT - 1));
+  for (const photo of incoming) {
+    while (cursor < PHOTO_SLOT_COUNT && next[cursor] !== null) {
+      cursor += 1;
+    }
+    if (cursor >= PHOTO_SLOT_COUNT) break;
+    next[cursor] = photo;
+    cursor += 1;
+  }
+  return next;
 }
 
 export default function CreateProfileScreen() {
@@ -324,7 +352,8 @@ export default function CreateProfileScreen() {
   // Photos (final step) — fixed slots so grid index matches upload slot
   const [photos, setPhotos] = useState<(ProfilePhoto | null)[]>(() => emptyPhotoSlots());
   const [uploadingSlotIndices, setUploadingSlotIndices] = useState<number[]>([]);
-  const uploadingPhotos = uploadingSlotIndices.length > 0;
+  const [openingPhotoPicker, setOpeningPhotoPicker] = useState(false);
+  const uploadingPhotos = uploadingSlotIndices.length > 0 || openingPhotoPicker;
   const [draggingPhotoId, setDraggingPhotoId] = useState<string | null>(null);
   const [draggingSlotIndex, setDraggingSlotIndex] = useState<number | null>(null);
   const [reorderingPhotos, setReorderingPhotos] = useState(false);
@@ -332,6 +361,9 @@ export default function CreateProfileScreen() {
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Prevents async /photos/me fetch from wiping in-progress uploads on step 14 */
   const photoSlotsTouchedRef = useRef(false);
+  const pickingPhotosRef = useRef(false);
+  const profileSavePromiseRef = useRef<Promise<void> | null>(null);
+  const profileSaveStartedRef = useRef(false);
   const profileSavedRef = useRef(false);
   const uploadedPhotoCount = countUploadedPhotos(photos);
 
@@ -591,11 +623,24 @@ export default function CreateProfileScreen() {
     }
   }, [photos]);
 
+  const waitForProfileSaveOnPhotosStep = useCallback(async () => {
+    if (profileSavePromiseRef.current) {
+      await profileSavePromiseRef.current.catch(() => {});
+    }
+  }, []);
+
   const ensureProfileSavedForPhotos = useCallback(async () => {
+    await waitForProfileSaveOnPhotosStep();
     if (profileSavedRef.current) return;
     await saveAllProfileProgress();
     profileSavedRef.current = true;
-  }, [saveAllProfileProgress]);
+  }, [saveAllProfileProgress, waitForProfileSaveOnPhotosStep]);
+
+  const persistPhotoSlotLayout = useCallback(async (slots: (ProfilePhoto | null)[]) => {
+    const displayOrders = buildDisplayOrdersFromSlots(slots);
+    if (Object.keys(displayOrders).length === 0) return;
+    await api.put('/photos/reorder', { displayOrders });
+  }, []);
 
   // Load existing profile into form (used when editing; skip when startFromBeginning = new account/delete)
   const loadProfileForForm = useCallback(async () => {
@@ -770,15 +815,12 @@ export default function CreateProfileScreen() {
 
   // Save profile data and load existing photos when entering final (photos) step
   useEffect(() => {
+    if (step !== 14 || profileSaveStartedRef.current) return;
+    profileSaveStartedRef.current = true;
+
     const saveProfileAndLoadPhotos = async () => {
-      if (step === 14 && !profileSavedRef.current) {
-        // Mark as saving to prevent duplicate calls
-        profileSavedRef.current = true;
-        
-        // Run all saves sequentially to ensure profile exists before other operations
-        setTimeout(async () => {
-          try {
-            console.log('💾 Saving profile data before photo upload...');
+      try {
+        console.log('💾 Saving profile data before photo upload...');
             
             // Ensure auth token is loaded (handles cache timing / AsyncStorage race)
             await ensureTokenPrefetched();
@@ -789,6 +831,7 @@ export default function CreateProfileScreen() {
             }
             if (!token || typeof token !== 'string' || !token.trim()) {
               profileSavedRef.current = false;
+              profileSaveStartedRef.current = false;
               setError('Session expired. Please log in again.');
               return;
             }
@@ -817,7 +860,8 @@ export default function CreateProfileScreen() {
               } else {
                 setError(`Failed to save profile: ${err?.message || 'Please try again'}`);
               }
-              profileSavedRef.current = false; // Allow retry
+              profileSavedRef.current = false;
+              profileSaveStartedRef.current = false;
               return;
             }
 
@@ -884,30 +928,33 @@ export default function CreateProfileScreen() {
               // Continue - non-critical
             }
 
-            console.log('✅ All profile data saved successfully');
+        console.log('✅ All profile data saved successfully');
+        profileSavedRef.current = true;
 
-            // Load existing photos (do not overwrite slots user is filling on this step)
-            if (!photoSlotsTouchedRef.current && countUploadedPhotos(photos) === 0) {
-              api.clearCache('/photos/me');
-              api.get<{ photos: Array<{ id: string; url: string; displayOrder?: number }> }>('/photos/me').then((data) => {
-                if (photoSlotsTouchedRef.current) return;
-                if (data.photos && Array.isArray(data.photos) && data.photos.length > 0) {
-                  setPhotos(photoSlotsFromApi(data.photos));
-                }
-              }).catch(() => {
-                console.log('No existing photos found');
-              });
+        // Load existing photos (do not overwrite slots user is filling on this step)
+        if (!photoSlotsTouchedRef.current && countUploadedPhotos(photos) === 0) {
+          api.clearCache('/photos/me');
+          api.get<{ photos: Array<{ id: string; url: string; displayOrder?: number }> }>('/photos/me').then((data) => {
+            if (photoSlotsTouchedRef.current) return;
+            if (data.photos && Array.isArray(data.photos) && data.photos.length > 0) {
+              setPhotos(photoSlotsFromApi(data.photos));
             }
-          } catch (err: any) {
-            console.error('❌ Error saving profile data:', err);
-            // Reset flag so user can try again
-            profileSavedRef.current = false;
-            setError(`Failed to save profile: ${err?.message || 'Please try again'}`);
-          }
-        }, 0); // Run asynchronously
+          }).catch(() => {
+            console.log('No existing photos found');
+          });
+        }
+      } catch (err: any) {
+        console.error('❌ Error saving profile data:', err);
+        profileSaveStartedRef.current = false;
+        profileSavedRef.current = false;
+        setError(`Failed to save profile: ${err?.message || 'Please try again'}`);
       }
     };
-    saveProfileAndLoadPhotos();
+
+    profileSavePromiseRef.current = saveProfileAndLoadPhotos();
+    void profileSavePromiseRef.current.finally(() => {
+      profileSavePromiseRef.current = null;
+    });
   }, [step]);
 
   const detectLocation = async () => {
@@ -1019,14 +1066,22 @@ export default function CreateProfileScreen() {
     if (step > 1) setStep(step - 1);
   };
 
-  const uploadPhotosBatch = async (uris: string[]) => {
+  const uploadPhotosBatch = async (uris: string[], targetSlot: number) => {
     if (uris.length === 0) return;
-    const emptyIndices = photos
-      .map((p, i) => (p ? -1 : i))
-      .filter((i) => i >= 0)
-      .slice(0, uris.length);
+
+    const slotsToFill: number[] = [];
+    let cursor = Math.max(0, Math.min(targetSlot, PHOTO_SLOT_COUNT - 1));
+    for (let i = 0; i < uris.length; i++) {
+      while (cursor < PHOTO_SLOT_COUNT && photos[cursor] !== null) {
+        cursor += 1;
+      }
+      if (cursor >= PHOTO_SLOT_COUNT) break;
+      slotsToFill.push(cursor);
+      cursor += 1;
+    }
+
     try {
-      setUploadingSlotIndices(emptyIndices);
+      setUploadingSlotIndices(slotsToFill);
       setError('');
 
       await ensureProfileSavedForPhotos();
@@ -1036,10 +1091,13 @@ export default function CreateProfileScreen() {
       let lastError: unknown = null;
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-          await uploadPhotoUris(uris);
+          const uploaded = await uploadPhotoUris(uris);
           photoSlotsTouchedRef.current = true;
-          await syncPhotosFromServer({ force: true });
-          await persistLocalDraft(step);
+          const incoming: ProfilePhoto[] = uploaded.map((p) => ({ id: p.id, url: p.url }));
+          const nextSlots = insertPhotosAtTarget(photos, targetSlot, incoming);
+          setPhotos(nextSlots);
+          await persistPhotoSlotLayout(nextSlots);
+          await persistLocalDraft(step, nextSlots);
           api.clearCache('/photos/me');
           return;
         } catch (fetchError: unknown) {
@@ -1160,12 +1218,20 @@ export default function CreateProfileScreen() {
     dragAnimatedValue.setValue({ x: 0, y: 0 });
   };
 
-  const handlePickPhoto = async () => {
+  const handlePickPhoto = async (targetSlot: number) => {
+    if (pickingPhotosRef.current || openingPhotoPicker || uploadingPhotos || reorderingPhotos) {
+      return;
+    }
+    if (uploadedPhotoCount >= PHOTO_SLOT_COUNT) {
+      Alert.alert('Limit reached', 'You can only upload up to 6 photos');
+      return;
+    }
+
+    pickingPhotosRef.current = true;
+    setOpeningPhotoPicker(true);
     try {
-      if (uploadedPhotoCount >= PHOTO_SLOT_COUNT) {
-        Alert.alert('Limit reached', 'You can only upload up to 6 photos');
-        return;
-      }
+      await waitForProfileSaveOnPhotosStep();
+      await waitForAndroidActivityReady();
 
       const remaining = PHOTO_SLOT_COUNT - uploadedPhotoCount;
       const result = await pickImagesFromLibrary({
@@ -1187,9 +1253,12 @@ export default function CreateProfileScreen() {
           }
         }
         const uris = result.assets.map((a) => a.uri).filter(Boolean) as string[];
-        await uploadPhotosBatch(uris);
+        await uploadPhotosBatch(uris, targetSlot);
       }
     } catch (error: unknown) {
+      if (error instanceof ImagePickerBusyError) {
+        return;
+      }
       if (error instanceof MediaLibraryPermissionDenied) {
         Alert.alert(
           'Permission Denied',
@@ -1202,6 +1271,9 @@ export default function CreateProfileScreen() {
         'Error',
         'Failed to open your photo library. Please try again in a moment.'
       );
+    } finally {
+      pickingPhotosRef.current = false;
+      setOpeningPhotoPicker(false);
     }
   };
 
@@ -2204,8 +2276,8 @@ export default function CreateProfileScreen() {
                         styles.addPhotoButton,
                         isRequired && !photosReady && styles.addPhotoButtonRequired
                       ]}
-                      onPress={canAddMore ? () => void handlePickPhoto() : undefined}
-                      disabled={!canAddMore || uploadingPhotos || reorderingPhotos}
+                      onPress={canAddMore ? () => void handlePickPhoto(slotIndex) : undefined}
+                      disabled={!canAddMore || uploadingPhotos || reorderingPhotos || openingPhotoPicker}
                     >
                       <LinearGradient
                         colors={
@@ -2217,7 +2289,7 @@ export default function CreateProfileScreen() {
                         end={{ x: 1, y: 1 }}
                         style={styles.addPhotoButtonGradient}
                       >
-                        {uploadingSlotIndices.includes(slotIndex) ? (
+                        {uploadingSlotIndices.includes(slotIndex) || openingPhotoPicker ? (
                           <ActivityIndicator color="#fff" size="small" />
                         ) : (
                           <>
