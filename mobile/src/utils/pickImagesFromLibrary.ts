@@ -24,20 +24,38 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** Let the Android activity finish any transitions before launching a native picker. */
+const ANDROID_ACTIVITY_READY_TIMEOUT_MS = 450;
+
+/** Let the Android activity finish transitions before launching a native picker. */
 export function waitForAndroidActivityReady(): Promise<void> {
   if (Platform.OS !== 'android') return Promise.resolve();
+
   return new Promise((resolve) => {
-    InteractionManager.runAfterInteractions(() => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
       requestAnimationFrame(() => {
         requestAnimationFrame(() => resolve());
       });
+    };
+
+    const timeoutId = setTimeout(finish, ANDROID_ACTIVITY_READY_TIMEOUT_MS);
+    InteractionManager.runAfterInteractions(() => {
+      clearTimeout(timeoutId);
+      finish();
     });
   });
 }
 
 let libraryPickerOpen = false;
 let libraryLaunchQueue: Promise<void> = Promise.resolve();
+
+/** Recover from a stuck mutex after a failed or abandoned picker launch (Android). */
+export function resetLibraryPickerMutex(): void {
+  libraryPickerOpen = false;
+  libraryLaunchQueue = Promise.resolve();
+}
 
 async function runExclusiveLibraryLaunch<T>(fn: () => Promise<T>): Promise<T> {
   const waitForPrior = libraryLaunchQueue;
@@ -141,11 +159,11 @@ export async function pickImagesFromLibrary(
   let lastBusy: ImagePickerBusyError | undefined;
   for (let attempt = 0; attempt < maxBusyRetries; attempt++) {
     try {
-      await waitForAndroidActivityReady();
       return await launchImageLibrarySafe(options);
     } catch (err) {
       if (err instanceof ImagePickerBusyError) {
         lastBusy = err;
+        resetLibraryPickerMutex();
         if (attempt < maxBusyRetries - 1) {
           await delay(220 * (attempt + 1));
           continue;
@@ -154,5 +172,6 @@ export async function pickImagesFromLibrary(
       throw err;
     }
   }
+  resetLibraryPickerMutex();
   throw lastBusy ?? new ImagePickerBusyError();
 }

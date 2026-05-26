@@ -24,7 +24,10 @@ import { useNavigation, useRoute, useFocusEffect, useIsFocused, CommonActions } 
 import { navigationRef } from '../navigation/navigationRef';
 import {
   MediaLibraryPermissionDenied,
+  ImagePickerBusyError,
   pickImagesFromLibrary,
+  prefetchMediaLibraryPermission,
+  resetLibraryPickerMutex,
 } from '../utils/pickImagesFromLibrary';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GestureHandlerRootView, PanGestureHandler, State } from 'react-native-gesture-handler';
@@ -188,7 +191,10 @@ export default function MyProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [uploadingSlotIndices, setUploadingSlotIndices] = useState<number[]>([]);
-  const uploadingPhotos = uploadingSlotIndices.length > 0;
+  const [openingPhotoPicker, setOpeningPhotoPicker] = useState(false);
+  const [photoPickerTargetSlot, setPhotoPickerTargetSlot] = useState<number | null>(null);
+  const pickingPhotosRef = useRef(false);
+  const uploadingPhotos = uploadingSlotIndices.length > 0 || openingPhotoPicker;
   const [showPhotoGallery, setShowPhotoGallery] = useState(false);
   const [showProfilePreview, setShowProfilePreview] = useState(false);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
@@ -575,6 +581,7 @@ export default function MyProfileScreen() {
   // Refetch when Profile tab is focused — defer so tab switch paints immediately, then refetch in background
   useFocusEffect(
     React.useCallback(() => {
+      prefetchMediaLibraryPermission();
       const task = InteractionManager.runAfterInteractions(() => {
         if (user) {
           fetchProfile();
@@ -923,39 +930,84 @@ export default function MyProfileScreen() {
   };
 
   const handlePickImage = async (slotIndex?: number) => {
-    try {
-      if (photos.length >= 6) {
-        Alert.alert('Limit reached', 'You can only upload up to 6 photos');
-        return;
-      }
+    if (pickingPhotosRef.current || openingPhotoPicker || uploadingSlotIndices.length > 0) {
+      return;
+    }
+    if (photos.length >= 6) {
+      Alert.alert('Limit reached', 'You can only upload up to 6 photos');
+      return;
+    }
 
+    let pickerSlot = 0;
+    if (
+      slotIndex !== undefined &&
+      slotIndex >= 0 &&
+      slotIndex < 6 &&
+      !photos[slotIndex]
+    ) {
+      pickerSlot = slotIndex;
+    } else {
+      for (let i = 0; i < 6; i++) {
+        if (!photos[i]) {
+          pickerSlot = i;
+          break;
+        }
+      }
+    }
+
+    pickingPhotosRef.current = true;
+    setPhotoPickerTargetSlot(pickerSlot);
+    setOpeningPhotoPicker(true);
+    try {
       const remaining = 6 - photos.length;
       const result = await pickImagesFromLibrary({
-        allowsMultipleSelection: true,
+        allowsMultipleSelection: remaining > 1,
         selectionLimit: remaining,
         quality: 0.85,
       });
 
       if (!result.canceled && result.assets.length > 0) {
+        for (const asset of result.assets) {
+          if (asset.fileSize && asset.fileSize > 50 * 1024 * 1024) {
+            const sizeMB = (asset.fileSize / (1024 * 1024)).toFixed(2);
+            Alert.alert(
+              'Image Too Large',
+              `One selected image is ${sizeMB} MB. Maximum size is 50 MB per photo.`,
+              [{ text: 'OK' }],
+            );
+            return;
+          }
+        }
         const uris = result.assets.map((a) => a.uri).filter(Boolean) as string[];
-        await uploadPhotos(uris, slotIndex ?? -1);
-      } else if (result.canceled) {
+        await uploadPhotos(uris, pickerSlot);
+      }
+    } catch (err: unknown) {
+      if (err instanceof ImagePickerBusyError) {
+        resetLibraryPickerMutex();
+        Alert.alert(
+          'Photo library busy',
+          'Please wait a moment and try again.',
+          [{ text: 'OK' }],
+        );
         return;
       }
-    } catch (err: any) {
       if (err instanceof MediaLibraryPermissionDenied) {
         Alert.alert(
           'Permission needed',
-          'Please grant photo library access to upload photos. You can enable this in Settings > Privacy & Security > Photos.'
+          'Please grant photo library access to upload photos. You can enable this in Settings > Privacy & Security > Photos.',
         );
         return;
       }
       console.error('Error picking image:', err);
-      const errorMessage = err?.message || 'Failed to pick image';
+      const errorMessage = err instanceof Error ? err.message : 'Failed to pick image';
       Alert.alert(
-        'Error', 
-        errorMessage + '\n\nNote: If testing on a simulator, you need to add photos to the simulator\'s photo library first by dragging images into the simulator window.'
+        'Error',
+        `${errorMessage}\n\nIf the gallery did not open, try again in a moment.`,
       );
+    } finally {
+      pickingPhotosRef.current = false;
+      setOpeningPhotoPicker(false);
+      setPhotoPickerTargetSlot(null);
     }
   };
 
@@ -2543,7 +2595,8 @@ export default function MyProfileScreen() {
                 onPress={() => handlePickImage(index)}
                 disabled={uploadingPhotos}
               >
-                {uploadingSlotIndices.includes(index) ? (
+                {uploadingSlotIndices.includes(index) ||
+                (openingPhotoPicker && photoPickerTargetSlot === index) ? (
                   <ActivityIndicator color="#667eea" />
                 ) : (
                   <Text style={styles.addPhotoText}>+</Text>
