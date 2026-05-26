@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { api } from "../utils/api";
 import { getPhotoUrl } from "../utils/photoUrl";
 import MatchCelebration from "./MatchCelebration";
+import { unlockMatchAudio } from "../utils/matchSound";
 
 interface Photo {
   id: string;
@@ -72,6 +73,7 @@ export default function ProfileModal({ profile, onClose, onConnect }: ProfileMod
   };
 
   const handleConnect = async (expandSlot?: boolean) => {
+    unlockMatchAudio();
     setLoading(true);
     setError("");
     setSuccess("");

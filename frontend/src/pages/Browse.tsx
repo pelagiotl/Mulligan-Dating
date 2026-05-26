@@ -12,6 +12,7 @@ import LaunchCountdown from "../components/LaunchCountdown";
 import { io, Socket } from "socket.io-client";
 import { emitTokenBalanceUpdated } from "../lib/tokenBalanceEvents";
 import ConnectLandingTagline from "../components/ConnectLandingTagline";
+import { unlockMatchAudio } from "../utils/matchSound";
 import WebPushOnboardingPrompt from "../components/WebPushOnboardingPrompt";
 import { shouldShowWebPushPromptAfterProfile } from "../constants/webPushPrompt";
 
@@ -517,6 +518,8 @@ export default function Browse() {
   const handleConnect = useCallback(
     async (profile: Profile, expandSlot?: boolean) => {
       if (connecting) return;
+
+      unlockMatchAudio();
 
       const hadBrowseSession = browseSessionActiveRef.current;
 

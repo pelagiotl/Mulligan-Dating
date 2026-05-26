@@ -21,6 +21,7 @@ import Layout from './components/Layout'
 import BrandMark from './components/BrandMark'
 import SessionBootstrapScreen from './components/SessionBootstrapScreen'
 import { hasStoredAuthToken } from './lib/authToken'
+import { installMatchAudioUnlockOnFirstGesture, playMatchSound } from './utils/matchSound'
 
 const PWA_OPEN_PARAM = 'pwaOpen'
 
@@ -206,70 +207,6 @@ function RequireConnectSetup({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-/** URL for `frontend/public/match-sound.wav` (same asset as mobile). */
-function matchSoundPublicUrl(): string {
-  const base = import.meta.env.BASE_URL.endsWith("/")
-    ? import.meta.env.BASE_URL
-    : `${import.meta.env.BASE_URL}/`;
-  return `${base}match-sound.wav`;
-}
-
-/** Web Audio fallback when WAV load/play fails (autoplay, etc.). */
-function playSyntheticMatchNotificationSound(audioContextRef: React.MutableRefObject<AudioContext | null>): void {
-  try {
-    if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-    }
-    const audioContext = audioContextRef.current;
-    const duration = 0.6;
-    const sampleRate = audioContext.sampleRate;
-    const frameCount = sampleRate * duration;
-    const buffer = audioContext.createBuffer(1, frameCount, sampleRate);
-    const data = buffer.getChannelData(0);
-    const frequencies = [523.25, 659.25, 783.99];
-    for (let freq = 0; freq < frequencies.length; freq++) {
-      const frequency = frequencies[freq];
-      for (let i = 0; i < frameCount; i++) {
-        const t = i / sampleRate;
-        const delay = freq * 0.1;
-        const envelope = Math.exp(-t * 2) * (1 - Math.min(t / 0.3, 1));
-        const phase = 2 * Math.PI * frequency * Math.max(0, t - delay);
-        const wave =
-          Math.sin(phase) * 0.5 + Math.sin(phase * 2) * 0.3 + Math.sin(phase * 3) * 0.2;
-        if (t >= delay) {
-          data[i] += wave * envelope * 0.15;
-        }
-      }
-    }
-    const source = audioContext.createBufferSource();
-    const gainNode = audioContext.createGain();
-    source.buffer = buffer;
-    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
-    source.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-    source.start();
-    source.stop(audioContext.currentTime + duration);
-  } catch (error) {
-    console.debug("Match notification sound not available");
-  }
-}
-
-function playNewMatchNotificationSound(audioContextRef: React.MutableRefObject<AudioContext | null>): void {
-  const audio = new Audio(matchSoundPublicUrl());
-  audio.volume = 0.45;
-  let fellBack = false;
-  const fallback = () => {
-    if (fellBack) return;
-    fellBack = true;
-    playSyntheticMatchNotificationSound(audioContextRef);
-  };
-  audio.addEventListener("error", fallback, { once: true });
-  void audio.play().catch(() => {
-    fallback();
-  });
-}
-
 /** Same layer as `.notification` (13000): above celebrations / browse UI, above navbar token modal (12000). */
 const GLOBAL_TOAST_Z = 13000;
 
@@ -280,14 +217,15 @@ function NewMatchesNotification() {
   const location = useLocation()
   const { isAuthenticated, user } = useAuth()
   const socketRef = useRef<Socket | null>(null)
-  const audioContextRef = useRef<AudioContext | null>(null)
 
-  const playMatchSound = useCallback(() => {
-    playNewMatchNotificationSound(audioContextRef);
+  const playMatchNotificationSound = useCallback(() => {
+    playMatchSound(0.45);
   }, []);
 
   useEffect(() => {
     if (!isAuthenticated || !user) return
+
+    const removeAudioUnlock = installMatchAudioUnlockOnFirstGesture()
 
     // Set up global socket connection for match notifications
     const token = localStorage.getItem('token')
@@ -313,7 +251,7 @@ function NewMatchesNotification() {
     socket.on('new_match', (data: { matchId: string; otherUserId: string; otherUserName: string; message: string; stage: string }) => {
       console.log('✅ NewMatchesNotification: Received new_match event via socket:', data)
       setNotification(data.message)
-      playMatchSound()
+      playMatchNotificationSound()
     })
 
     // Check for new matches notification stored during login
@@ -326,7 +264,7 @@ function NewMatchesNotification() {
         localStorage.removeItem('newMatchesNotification')
         localStorage.removeItem('newMatchesCount')
         // Play sound when notification appears
-        playMatchSound()
+        playMatchNotificationSound()
         return true
       } else {
         console.log('ℹ️ NewMatchesNotification: No notification found in localStorage')
@@ -344,7 +282,7 @@ function NewMatchesNotification() {
       localStorage.removeItem('newMatchesNotification')
       localStorage.removeItem('newMatchesCount')
       // Play sound when notification appears
-      playMatchSound()
+      playMatchNotificationSound()
     }
 
     // Listen for storage events (for same-window updates)
@@ -355,7 +293,7 @@ function NewMatchesNotification() {
         localStorage.removeItem('newMatchesNotification')
         localStorage.removeItem('newMatchesCount')
         // Play sound when notification appears
-        playMatchSound()
+        playMatchNotificationSound()
       }
     }
 
@@ -383,12 +321,9 @@ function NewMatchesNotification() {
         socketRef.current.disconnect()
         socketRef.current = null
       }
-      if (audioContextRef.current) {
-        audioContextRef.current.close()
-        audioContextRef.current = null
-      }
+      removeAudioUnlock()
     }
-  }, [isAuthenticated, user, playMatchSound]) // Re-run when authentication state changes
+  }, [isAuthenticated, user, playMatchNotificationSound]) // Re-run when authentication state changes
 
   if (!notification) return null
 

@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useMemo, useCallback, type CSSProperties, 
 import { useNavigate } from "react-router-dom";
 import { getPhotoUrl } from "../utils/photoUrl";
 import { formatPreferredMatchesFromGenders } from "../utils/preferredMatchesLabel";
+import { playMatchCelebrationSound } from "../utils/matchSound";
 
 const REVEAL_DELAY_MS = 7000;
 
@@ -169,82 +170,6 @@ function MatchCelebrationPartnerSections({
       </div>
     </div>
   );
-}
-
-
-/**
- * Match celebration: play bundled `match-sound.wav` (same asset as mobile, copied to `frontend/public`).
- * Falls back to synthesized fireworks if the file fails to load or autoplay is blocked.
- */
-function playMatchCelebrationSound(): void {
-  const base = import.meta.env.BASE_URL.endsWith("/")
-    ? import.meta.env.BASE_URL
-    : `${import.meta.env.BASE_URL}/`;
-  const audio = new Audio(`${base}match-sound.wav`);
-  audio.volume = 0.55;
-  let fellBack = false;
-  const fallback = () => {
-    if (fellBack) return;
-    fellBack = true;
-    playFireworkSound();
-  };
-  audio.addEventListener("error", fallback, { once: true });
-  void audio.play().catch(() => {
-    fallback();
-  });
-}
-
-/**
- * Generate a firework sound effect using Web Audio API
- */
-function playFireworkSound() {
-  try {
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-
-    for (let i = 0; i < 3; i++) {
-      setTimeout(() => {
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-
-        oscillator.type = "sine";
-        oscillator.frequency.setValueAtTime(200 + i * 50, audioContext.currentTime);
-        oscillator.frequency.exponentialRampToValueAtTime(800 + i * 100, audioContext.currentTime + 0.1);
-        oscillator.frequency.exponentialRampToValueAtTime(100, audioContext.currentTime + 0.3);
-
-        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-        gainNode.gain.linearRampToValueAtTime(0.3, audioContext.currentTime + 0.05);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
-
-        oscillator.start(audioContext.currentTime);
-        oscillator.stop(audioContext.currentTime + 0.5);
-
-        for (let j = 0; j < 5; j++) {
-          setTimeout(() => {
-            const popOsc = audioContext.createOscillator();
-            const popGain = audioContext.createGain();
-
-            popOsc.connect(popGain);
-            popGain.connect(audioContext.destination);
-
-            popOsc.type = "square";
-            popOsc.frequency.setValueAtTime(300 + Math.random() * 200, audioContext.currentTime);
-
-            popGain.gain.setValueAtTime(0, audioContext.currentTime);
-            popGain.gain.linearRampToValueAtTime(0.15, audioContext.currentTime + 0.01);
-            popGain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
-
-            popOsc.start(audioContext.currentTime);
-            popOsc.stop(audioContext.currentTime + 0.1);
-          }, j * 50);
-        }
-      }, i * 150);
-    }
-  } catch (error) {
-    console.warn("Could not play firework sound:", error);
-  }
 }
 
 type PhotoLightboxState = { urls: string[]; index: number };
