@@ -368,6 +368,10 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
                       }}
                       draggable={false}
                     />
+                    <span className="photo-upload-view-overlay" aria-hidden>
+                      <span className="photo-upload-view-icon">🧤</span>
+                      <span className="photo-upload-view-label">View</span>
+                    </span>
                   </button>
                   {slot.photo.isPrimary && <div className="photo-primary-badge">⭐ Primary</div>}
                   {!profileId && (

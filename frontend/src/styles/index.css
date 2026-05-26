@@ -11139,7 +11139,7 @@ button.chat-avatar-btn .chat-avatar img {
   padding: 0;
   border: none;
   background: transparent;
-  cursor: zoom-in;
+  cursor: pointer;
   border-radius: inherit;
 }
 
@@ -11154,6 +11154,41 @@ button.chat-avatar-btn .chat-avatar img {
   object-fit: cover;
   display: block;
   pointer-events: none;
+}
+
+.photo-upload-view-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  background: rgba(15, 23, 42, 0.42);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+}
+
+.photo-upload-thumb:hover .photo-upload-view-overlay,
+.photo-upload-thumb:focus-visible .photo-upload-view-overlay {
+  opacity: 1;
+}
+
+.photo-upload-view-icon {
+  font-size: 1.65rem;
+  line-height: 1;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
+}
+
+.photo-upload-view-label {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fff;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
 }
 
 .photo-primary-badge {
