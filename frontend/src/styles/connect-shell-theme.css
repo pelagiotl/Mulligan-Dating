@@ -1049,9 +1049,9 @@ html[data-connect-shell="midnight"] .matches-page.native-app-screen .match-compa
 
 html[data-connect-shell="midnight"] .matches-page.native-app-screen .match-timer.match-timer--card,
 .app-layout.connect-shell--midnight .matches-page.native-app-screen .match-timer.match-timer--card {
-  background: rgba(251, 191, 36, 0.18);
-  border-color: rgba(251, 191, 36, 0.42);
-  color: #fde68a;
+  background: transparent;
+  border: none;
+  color: rgba(253, 230, 138, 0.92);
 }
 
 html[data-connect-shell="midnight"] .matches-page.native-app-screen .match-meta,
