@@ -218,7 +218,8 @@ function NewMatchesNotification() {
   const { isAuthenticated, user } = useAuth()
   const socketRef = useRef<Socket | null>(null)
 
-  const playMatchNotificationSound = useCallback(() => {
+  /** Real-time match only — not login digest / stale localStorage toasts. */
+  const playRealtimeMatchSound = useCallback(() => {
     playMatchSound(0.45);
   }, []);
 
@@ -251,10 +252,10 @@ function NewMatchesNotification() {
     socket.on('new_match', (data: { matchId: string; otherUserId: string; otherUserName: string; message: string; stage: string }) => {
       console.log('✅ NewMatchesNotification: Received new_match event via socket:', data)
       setNotification(data.message)
-      playMatchNotificationSound()
+      playRealtimeMatchSound()
     })
 
-    // Check for new matches notification stored during login
+    // Check for new matches notification stored during login (toast only — no sound)
     const checkNotification = () => {
       const newMatchesMessage = localStorage.getItem('newMatchesNotification')
       if (newMatchesMessage) {
@@ -263,8 +264,6 @@ function NewMatchesNotification() {
         // Clear it from storage (but keep showing until user clicks)
         localStorage.removeItem('newMatchesNotification')
         localStorage.removeItem('newMatchesCount')
-        // Play sound when notification appears
-        playMatchNotificationSound()
         return true
       } else {
         console.log('ℹ️ NewMatchesNotification: No notification found in localStorage')
@@ -281,8 +280,6 @@ function NewMatchesNotification() {
       setNotification(event.detail.message)
       localStorage.removeItem('newMatchesNotification')
       localStorage.removeItem('newMatchesCount')
-      // Play sound when notification appears
-      playMatchNotificationSound()
     }
 
     // Listen for storage events (for same-window updates)
@@ -292,8 +289,6 @@ function NewMatchesNotification() {
         setNotification(e.newValue)
         localStorage.removeItem('newMatchesNotification')
         localStorage.removeItem('newMatchesCount')
-        // Play sound when notification appears
-        playMatchNotificationSound()
       }
     }
 
@@ -323,7 +318,7 @@ function NewMatchesNotification() {
       }
       removeAudioUnlock()
     }
-  }, [isAuthenticated, user, playMatchNotificationSound]) // Re-run when authentication state changes
+  }, [isAuthenticated, user, playRealtimeMatchSound]) // Re-run when authentication state changes
 
   if (!notification) return null
 
