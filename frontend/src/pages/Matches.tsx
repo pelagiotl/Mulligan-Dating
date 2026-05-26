@@ -329,6 +329,7 @@ export default function Matches() {
   const [isNarrow, setIsNarrow] = useState(
     () => typeof window !== "undefined" && window.innerWidth <= 900
   );
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -1018,9 +1019,23 @@ export default function Matches() {
     }
   };
 
+  const scrollMessagesToEnd = useCallback((behavior: ScrollBehavior = "smooth") => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    container.scrollTo({ top: container.scrollHeight, behavior });
+  }, []);
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    if (!selectedMatch || selectedMatch.stage === "pending") return;
+    scrollMessagesToEnd(messages.length > 0 ? "smooth" : "auto");
+  }, [messages, selectedMatch?.id, selectedMatch?.stage, scrollMessagesToEnd]);
+
+  useEffect(() => {
+    if (!selectedMatch || mobileShowMatchList) return;
+    if (typeof window === "undefined" || window.innerWidth > 900) return;
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    document.querySelector(".main-content")?.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  }, [selectedMatch?.id, mobileShowMatchList]);
 
   useEffect(() => {
     if (!photoLightbox && !partnerDrawerOpen) return;
@@ -2413,6 +2428,7 @@ export default function Matches() {
       <div className="matches-main">
         {selectedMatch ? (
           <>
+            <div className="matches-chat-chrome">
             {isNarrow && !mobileShowMatchList && (
               <button
                 type="button"
@@ -2709,6 +2725,7 @@ export default function Matches() {
                 )}
               </div>
             </div>
+            </div>
 
             {selectedMatch.stage === "pending" ? (
               <div className="pending-state">
@@ -2740,7 +2757,7 @@ export default function Matches() {
               </div>
             ) : (
               <div className="matches-chat-column">
-                <div className="messages-container">
+                <div className="messages-container" ref={messagesContainerRef}>
                   {messages.length === 0 ? (
                     <div className="no-messages">
                       <p>No messages yet. Say hi! 👋</p>

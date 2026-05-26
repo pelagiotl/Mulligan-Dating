@@ -8292,6 +8292,12 @@ button.my-profile-avatar:focus-visible {
   animation: fadeInRight 0.6s ease-out;
 }
 
+/* Back button + partner header — never clipped by message scroll */
+.matches-chat-chrome {
+  flex-shrink: 0;
+  min-width: 0;
+}
+
 /* Messages + composer share remaining height below chat header */
 .matches-chat-column {
   display: flex;
@@ -12429,6 +12435,9 @@ button.chat-avatar-btn .chat-avatar img {
     grid-template-columns: 1fr;
     flex: 1 1 auto;
     min-height: 0;
+    height: 100%;
+    max-height: none;
+    overflow: hidden;
     gap: var(--space-2);
   }
 
@@ -12440,6 +12449,17 @@ button.chat-avatar-btn .chat-avatar img {
     flex: 1 1 0;
     min-height: 0;
     max-height: none;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .matches-page--mobile-conversation .matches-chat-chrome {
+    flex-shrink: 0;
+  }
+
+  .matches-page--mobile-conversation .matches-mobile-back-btn {
+    flex-shrink: 0;
   }
 
   .matches-page--mobile-conversation .matches-chat-column {
@@ -12603,15 +12623,29 @@ button.chat-avatar-btn .chat-avatar img {
 
   .app-layout--native-mobile-shell
     .main-content:has(.matches-page--compact-chat.matches-page--mobile-conversation) {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
     padding-top: var(--space-2);
     padding-left: var(--space-2);
     padding-right: var(--space-2);
     padding-bottom: calc(var(--native-tab-height) + var(--native-tab-safe-bottom) + var(--space-2));
   }
 
+  .app-layout--native-mobile-shell
+    .main-content:has(.matches-page--compact-chat.matches-page--mobile-conversation)
+    > .matches-page--compact-chat.matches-page--mobile-conversation {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
   .matches-page--compact-chat.matches-page--mobile-conversation .matches-main {
     border-radius: var(--radius-xl);
     min-height: 0;
+    flex: 1 1 0;
+    overflow: hidden;
   }
 
   .matches-page--compact-chat.matches-page--mobile-conversation .matches-mobile-back-btn {
