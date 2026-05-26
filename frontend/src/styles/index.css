@@ -3191,6 +3191,13 @@ img {
   aspect-ratio: 3 / 4;
   border-radius: var(--radius-lg);
   overflow: hidden;
+  transition: outline-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.create-profile-photo-slot.is-drag-over {
+  outline: 2px dashed #764ba2;
+  outline-offset: 3px;
+  box-shadow: 0 0 0 4px rgba(118, 75, 162, 0.18);
 }
 
 .create-profile-photo-filled {
@@ -3224,6 +3231,126 @@ img {
   top: 6px;
   left: 6px;
   right: auto;
+  cursor: grab;
+  touch-action: none;
+}
+
+.create-profile-photo-filled .create-profile-photo-drag-handle:active {
+  cursor: grabbing;
+}
+
+.create-profile-photo-remove-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(var(--space-4), env(safe-area-inset-top, 0px))
+    max(var(--space-4), env(safe-area-inset-right, 0px))
+    max(var(--space-4), env(safe-area-inset-bottom, 0px))
+    max(var(--space-4), env(safe-area-inset-left, 0px));
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: readySplashIn 0.2s ease-out;
+}
+
+.create-profile-photo-remove-card {
+  width: min(100%, 22rem);
+  padding: var(--space-6) var(--space-5);
+  border-radius: var(--radius-2xl);
+  background: linear-gradient(165deg, #ffffff 0%, #fdf2f8 48%, #faf5ff 100%);
+  border: 1px solid rgba(244, 63, 94, 0.14);
+  box-shadow:
+    0 24px 48px rgba(15, 23, 42, 0.22),
+    0 0 0 1px rgba(255, 255, 255, 0.65) inset;
+  text-align: center;
+  animation: readyCardIn 0.28s cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+.create-profile-photo-remove-card-icon {
+  font-size: 2rem;
+  line-height: 1;
+  margin-bottom: var(--space-2);
+}
+
+.create-profile-photo-remove-card-title {
+  margin: 0 0 var(--space-2);
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--color-wine-900);
+  letter-spacing: -0.02em;
+}
+
+.create-profile-photo-remove-card-body {
+  margin: 0 0 var(--space-4);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.create-profile-photo-remove-card-preview {
+  margin: 0 auto var(--space-5);
+  width: 7.5rem;
+  aspect-ratio: 3 / 4;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: 0 10px 28px rgba(102, 126, 234, 0.22);
+  border: 2px solid rgba(255, 255, 255, 0.9);
+}
+
+.create-profile-photo-remove-card-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.create-profile-photo-remove-card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.create-profile-photo-remove-card-cancel,
+.create-profile-photo-remove-card-confirm {
+  width: 100%;
+  border: none;
+  border-radius: var(--radius-lg);
+  padding: 0.85rem 1rem;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.create-profile-photo-remove-card-cancel {
+  background: rgba(255, 255, 255, 0.92);
+  color: #475569;
+  border: 1px solid var(--border-light);
+  box-shadow: var(--shadow-sm);
+}
+
+.create-profile-photo-remove-card-cancel:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.create-profile-photo-remove-card-confirm {
+  background: linear-gradient(135deg, #f43f5e 0%, #e11d48 100%);
+  color: #fff;
+  box-shadow: 0 8px 22px rgba(225, 29, 72, 0.32);
+}
+
+.create-profile-photo-remove-card-confirm:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.create-profile-photo-remove-card-cancel:disabled,
+.create-profile-photo-remove-card-confirm:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .create-profile-photo-remove-btn {

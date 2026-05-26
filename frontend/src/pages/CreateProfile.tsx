@@ -9,7 +9,6 @@ import {
   normalizeLocationInput,
 } from "../utils/locationUtils";
 import { getPhotoUrl } from "../utils/photoUrl";
-import { usePhotoDragReorder } from "../hooks/usePhotoDragReorder";
 import { compressImageFiles, uploadCompressedFiles } from "../utils/photoBatchUpload";
 import {
   formatConnectSetupGapMessage,
@@ -221,7 +220,7 @@ function photoSlotsFromApi(
 ): (SlotPhoto | null)[] {
   const next = emptyPhotoSlots();
   const sorted = [...list].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
-  sorted.forEach((ph, i) => {
+  sorted.forEach((ph) => {
     const byOrder =
       typeof ph.displayOrder === "number" &&
       ph.displayOrder >= 0 &&
@@ -232,6 +231,47 @@ function photoSlotsFromApi(
       next[byOrder] = { id: ph.id, url: ph.url };
     }
   });
+  return next;
+}
+
+function buildDisplayOrdersFromSlots(slots: (SlotPhoto | null)[]): Record<string, number> {
+  const displayOrders: Record<string, number> = {};
+  slots.forEach((p, slotIndex) => {
+    if (p) displayOrders[p.id] = slotIndex;
+  });
+  return displayOrders;
+}
+
+function insertPhotosAtTarget(
+  slots: (SlotPhoto | null)[],
+  targetIndex: number,
+  incoming: SlotPhoto[]
+): (SlotPhoto | null)[] {
+  const next = [...slots];
+  let cursor = Math.max(0, Math.min(targetIndex, MAX_PHOTO_SLOTS - 1));
+  for (const photo of incoming) {
+    while (cursor < MAX_PHOTO_SLOTS && next[cursor] !== null) {
+      cursor += 1;
+    }
+    if (cursor >= MAX_PHOTO_SLOTS) break;
+    next[cursor] = photo;
+    cursor += 1;
+  }
+  return next;
+}
+
+function movePhotoBetweenSlots(
+  slots: (SlotPhoto | null)[],
+  sourceSlot: number,
+  targetSlot: number
+): (SlotPhoto | null)[] {
+  if (sourceSlot === targetSlot || sourceSlot < 0 || targetSlot < 0) return slots;
+  const next = [...slots];
+  const moving = next[sourceSlot];
+  if (!moving) return slots;
+  const displaced = next[targetSlot];
+  next[sourceSlot] = displaced ?? null;
+  next[targetSlot] = moving;
   return next;
 }
 
@@ -261,10 +301,14 @@ export default function CreateProfile() {
   const profileSaveSnapshotRef = useRef<string | null>(null);
   const photoSlotsTouchedRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const photoPickerTargetSlotRef = useRef<number | null>(null);
   const [uploadingSlotIndices, setUploadingSlotIndices] = useState<number[]>([]);
   const uploadingPhotos = uploadingSlotIndices.length > 0;
   const [reorderingPhotos, setReorderingPhotos] = useState(false);
   const [removingPhotoId, setRemovingPhotoId] = useState<string | null>(null);
+  const [removeConfirmSlot, setRemoveConfirmSlot] = useState<number | null>(null);
+  const [draggingPhotoId, setDraggingPhotoId] = useState<string | null>(null);
+  const [dragOverSlot, setDragOverSlot] = useState<number | null>(null);
   const [showProfileReadySplash, setShowProfileReadySplash] = useState(false);
 
   const [displayName, setDisplayName] = useState("");
@@ -435,15 +479,18 @@ export default function CreateProfile() {
     [photoSlots]
   );
 
-  const applyPhotoReorder = useCallback(
-    async (photoIds: string[]) => {
+  const persistSlotLayout = useCallback(
+    async (slots: (SlotPhoto | null)[]) => {
+      const displayOrders = buildDisplayOrdersFromSlots(slots);
+      const ids = Object.keys(displayOrders);
+      if (ids.length === 0) return;
+
       setReorderingPhotos(true);
       setError("");
       try {
-        await api.put("/photos/reorder", { photoIds });
+        await api.put("/photos/reorder", { displayOrders });
         photoSlotsTouchedRef.current = true;
-        await syncPhotosFromServer({ force: true });
-        persistLocalDraft(step);
+        persistLocalDraft(step, slots);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to reorder photos");
         await syncPhotosFromServer({ force: true });
@@ -453,12 +500,6 @@ export default function CreateProfile() {
     },
     [step, syncPhotosFromServer, persistLocalDraft]
   );
-
-  const photoDragReorder = usePhotoDragReorder({
-    items: filledPhotos,
-    onReorder: applyPhotoReorder,
-    disabled: reorderingPhotos || uploadingPhotos,
-  });
 
   const saveProfileProgress = useCallback(
     async (options: { requireLocation: boolean; includePreferences?: boolean }) => {
@@ -884,8 +925,9 @@ export default function CreateProfile() {
     setStep((s) => Math.max(1, s - 1));
   };
 
-  const openPhotoPicker = () => {
+  const openPhotoPicker = (slotIndex: number) => {
     if (photoCount >= MAX_PHOTO_SLOTS) return;
+    photoPickerTargetSlotRef.current = slotIndex;
     fileInputRef.current?.click();
   };
 
@@ -907,12 +949,26 @@ export default function CreateProfile() {
       }
     }
 
-    const emptyIndices = photoSlots
-      .map((p, i) => (p ? -1 : i))
-      .filter((i) => i >= 0)
-      .slice(0, files.length);
+    const targetSlot =
+      photoPickerTargetSlotRef.current ?? photoSlots.findIndex((p) => p == null);
+    if (targetSlot < 0) {
+      setError("All photo slots are full.");
+      return;
+    }
+
+    const slotsToFill: number[] = [];
+    let cursor = targetSlot;
+    for (let i = 0; i < files.length && slotsToFill.length < files.length; i++) {
+      while (cursor < MAX_PHOTO_SLOTS && photoSlots[cursor] !== null) {
+        cursor += 1;
+      }
+      if (cursor >= MAX_PHOTO_SLOTS) break;
+      slotsToFill.push(cursor);
+      cursor += 1;
+    }
+
     setError("");
-    setUploadingSlotIndices(emptyIndices);
+    setUploadingSlotIndices(slotsToFill);
     try {
       const [compressed] = await Promise.all([
         compressImageFiles(files),
@@ -920,40 +976,75 @@ export default function CreateProfile() {
       ]);
       const uploaded = await uploadCompressedFiles(compressed);
       photoSlotsTouchedRef.current = true;
-      const nextSlots = [...photoSlots];
-      uploaded.forEach((p, i) => {
-        const slot = emptyIndices[i];
-        if (slot !== undefined) {
-          nextSlots[slot] = { id: p.id, url: p.url };
-        }
-      });
+      const incoming = uploaded.map((p) => ({ id: p.id, url: p.url }));
+      const nextSlots = insertPhotosAtTarget(photoSlots, targetSlot, incoming);
       setPhotoSlots(nextSlots);
-      persistLocalDraft(step, nextSlots);
-      void syncPhotosFromServer({ force: true });
+      await persistSlotLayout(nextSlots);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");
+      await syncPhotosFromServer({ force: true });
     } finally {
       setUploadingSlotIndices([]);
+      photoPickerTargetSlotRef.current = null;
     }
   };
 
-  const removePhotoAt = async (slotIndex: number) => {
+  const confirmRemovePhoto = async () => {
+    if (removeConfirmSlot == null) return;
+    const slotIndex = removeConfirmSlot;
     const ph = photoSlots[slotIndex];
     if (!ph || removingPhotoId) return;
-    if (!window.confirm("Remove this photo from your profile?")) return;
+
+    setRemoveConfirmSlot(null);
     setRemovingPhotoId(ph.id);
     setError("");
     try {
       await api.delete(`/photos/${ph.id}`);
       photoSlotsTouchedRef.current = true;
-      await syncPhotosFromServer({ force: true });
-      persistLocalDraft(step);
+      const nextSlots = [...photoSlots];
+      nextSlots[slotIndex] = null;
+      setPhotoSlots(nextSlots);
+      await persistSlotLayout(nextSlots);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to remove photo");
       await syncPhotosFromServer({ force: true });
     } finally {
       setRemovingPhotoId(null);
     }
+  };
+
+  const handlePhotoDragStart = (e: React.DragEvent, photoId: string) => {
+    if (reorderingPhotos || uploadingPhotos || filledPhotos.length <= 1) return;
+    setDraggingPhotoId(photoId);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", photoId);
+  };
+
+  const handlePhotoDragEnd = () => {
+    setDraggingPhotoId(null);
+    setDragOverSlot(null);
+  };
+
+  const handlePhotoSlotDragOver = (e: React.DragEvent, slotIndex: number) => {
+    if (!draggingPhotoId || reorderingPhotos || uploadingPhotos) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDragOverSlot(slotIndex);
+  };
+
+  const handlePhotoSlotDrop = (e: React.DragEvent, targetSlot: number) => {
+    e.preventDefault();
+    const sourceId = e.dataTransfer.getData("text/plain") || draggingPhotoId;
+    setDraggingPhotoId(null);
+    setDragOverSlot(null);
+    if (!sourceId) return;
+
+    const sourceSlot = photoSlots.findIndex((p) => p?.id === sourceId);
+    if (sourceSlot < 0 || sourceSlot === targetSlot) return;
+
+    const nextSlots = movePhotoBetweenSlots(photoSlots, sourceSlot, targetSlot);
+    setPhotoSlots(nextSlots);
+    void persistSlotLayout(nextSlots);
   };
 
   const handleCompleteProfile = async () => {
@@ -1402,23 +1493,37 @@ export default function CreateProfile() {
               {photoSlots.map((ph, slotIndex) => {
                 const isRequired = slotIndex < MIN_PHOTOS_REQUIRED;
                 const canDrag = !!ph && filledPhotos.length > 1;
+                const slotClass = [
+                  "create-profile-photo-slot",
+                  dragOverSlot === slotIndex && draggingPhotoId ? "is-drag-over" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ");
                 return (
-                  <div key={slotIndex} className="create-profile-photo-slot">
+                  <div
+                    key={slotIndex}
+                    className={slotClass}
+                    onDragOver={(e) => handlePhotoSlotDragOver(e, slotIndex)}
+                    onDragLeave={() => setDragOverSlot((s) => (s === slotIndex ? null : s))}
+                    onDrop={(e) => handlePhotoSlotDrop(e, slotIndex)}
+                  >
                     {ph ? (
                       <div
-                        className={photoDragReorder.getDragItemClassName(
-                          ph.id,
-                          "create-profile-photo-filled"
-                        )}
-                        draggable={canDrag}
-                        onDragStart={(e) => photoDragReorder.handleDragStart(e, ph.id)}
-                        onDragEnd={photoDragReorder.handleDragEnd}
-                        onDragOver={(e) => photoDragReorder.handleDragOver(e, ph.id)}
-                        onDragLeave={photoDragReorder.handleDragLeave}
-                        onDrop={(e) => void photoDragReorder.handleDrop(e, ph.id)}
+                        className={[
+                          "create-profile-photo-filled",
+                          draggingPhotoId === ph.id ? "is-dragging" : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" ")}
                       >
                         {canDrag ? (
-                          <span className="photo-drag-handle create-profile-photo-drag-handle" aria-hidden>
+                          <span
+                            className="photo-drag-handle create-profile-photo-drag-handle"
+                            draggable
+                            onDragStart={(e) => handlePhotoDragStart(e, ph.id)}
+                            onDragEnd={handlePhotoDragEnd}
+                            aria-hidden
+                          >
                             ⋮⋮
                           </span>
                         ) : null}
@@ -1431,7 +1536,7 @@ export default function CreateProfile() {
                           }
                           onClick={(e) => {
                             e.stopPropagation();
-                            void removePhotoAt(slotIndex);
+                            setRemoveConfirmSlot(slotIndex);
                           }}
                         />
                       </div>
@@ -1439,7 +1544,7 @@ export default function CreateProfile() {
                       <button
                         type="button"
                         className={`create-profile-photo-add ${isRequired && photoCount < MIN_PHOTOS_REQUIRED ? "is-required" : ""}`}
-                        onClick={openPhotoPicker}
+                        onClick={() => openPhotoPicker(slotIndex)}
                         disabled={uploadingPhotos || reorderingPhotos || photoCount >= MAX_PHOTO_SLOTS}
                       >
                         {uploadingSlotIndices.includes(slotIndex) ? (
@@ -1510,6 +1615,56 @@ export default function CreateProfile() {
           </button>
         )}
       </div>
+
+      {removeConfirmSlot != null && photoSlots[removeConfirmSlot] ? (
+        <div
+          className="create-profile-photo-remove-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="create-profile-remove-photo-title"
+          onClick={() => setRemoveConfirmSlot(null)}
+        >
+          <div
+            className="create-profile-photo-remove-card"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="create-profile-photo-remove-card-icon" aria-hidden>
+              🗑️
+            </div>
+            <h3 id="create-profile-remove-photo-title" className="create-profile-photo-remove-card-title">
+              Remove this photo?
+            </h3>
+            <p className="create-profile-photo-remove-card-body">
+              It will be deleted from your profile. You can upload a new one in this slot anytime.
+            </p>
+            <div className="create-profile-photo-remove-card-preview">
+              <img
+                src={getPhotoUrl(photoSlots[removeConfirmSlot]!.url)}
+                alt=""
+                className="create-profile-photo-remove-card-img"
+              />
+            </div>
+            <div className="create-profile-photo-remove-card-actions">
+              <button
+                type="button"
+                className="create-profile-photo-remove-card-cancel"
+                onClick={() => setRemoveConfirmSlot(null)}
+                disabled={Boolean(removingPhotoId)}
+              >
+                Keep photo
+              </button>
+              <button
+                type="button"
+                className="create-profile-photo-remove-card-confirm"
+                onClick={() => void confirmRemovePhoto()}
+                disabled={Boolean(removingPhotoId)}
+              >
+                {removingPhotoId ? "Removing…" : "Remove photo"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {showProfileReadySplash ? (
         <div

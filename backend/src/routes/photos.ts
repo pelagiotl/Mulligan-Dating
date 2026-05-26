@@ -693,11 +693,10 @@ photosRouter.delete("/:photoId", authenticateToken, async (req: AuthRequest, res
 photosRouter.put("/reorder", authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
-    const { photoIds } = req.body; // Array of photo IDs in desired order
-
-    if (!Array.isArray(photoIds)) {
-      return res.status(400).json({ error: "photoIds must be an array" });
-    }
+    const { photoIds, displayOrders } = req.body as {
+      photoIds?: string[];
+      displayOrders?: Record<string, number>;
+    };
 
     // Get profile
     const profile = await (db
@@ -708,18 +707,52 @@ photosRouter.put("/reorder", authenticateToken, async (req: AuthRequest, res) =>
       return res.status(404).json({ error: "Profile not found" });
     }
 
-    // Update display order and set first photo as primary
     const stmt = db.prepare("UPDATE photos SET display_order = ? WHERE id = ? AND profile_id = ?");
-    for (let i = 0; i < photoIds.length; i++) {
-      await (stmt.run([i, photoIds[i], profile.id]) as Promise<any>);
+    let primaryPhotoId: string | null = null;
+    let primarySlot = Number.POSITIVE_INFINITY;
+
+    if (displayOrders && typeof displayOrders === "object" && !Array.isArray(displayOrders)) {
+      const entries = Object.entries(displayOrders);
+      if (entries.length === 0) {
+        return res.status(400).json({ error: "displayOrders must include at least one photo" });
+      }
+
+      for (const [photoId, rawSlot] of entries) {
+        const slot = Number(rawSlot);
+        if (!Number.isInteger(slot) || slot < 0 || slot > 5) {
+          return res.status(400).json({ error: "displayOrders slot indices must be integers from 0 to 5" });
+        }
+        await (stmt.run([slot, photoId, profile.id]) as Promise<any>);
+        if (slot < primarySlot) {
+          primarySlot = slot;
+          primaryPhotoId = photoId;
+        }
+      }
+    } else if (Array.isArray(photoIds)) {
+      if (photoIds.length === 0) {
+        return res.status(400).json({ error: "photoIds must be a non-empty array" });
+      }
+      for (let i = 0; i < photoIds.length; i++) {
+        await (stmt.run([i, photoIds[i], profile.id]) as Promise<any>);
+      }
+      primaryPhotoId = photoIds[0] ?? null;
+    } else {
+      return res.status(400).json({ error: "Provide photoIds or displayOrders" });
     }
-    // First photo in new order becomes primary
-    if (photoIds.length > 0) {
+
+    if (primaryPhotoId) {
       await (db.prepare("UPDATE photos SET is_primary = 0 WHERE profile_id = ?").run([profile.id]) as Promise<any>);
-      await (db.prepare("UPDATE photos SET is_primary = 1 WHERE id = ? AND profile_id = ?").run([photoIds[0], profile.id]) as Promise<any>);
-      const primaryRow = await (db.prepare("SELECT url FROM photos WHERE id = ? AND profile_id = ?").get([photoIds[0], profile.id]) as Promise<{ url: string } | undefined>);
+      await (db.prepare("UPDATE photos SET is_primary = 1 WHERE id = ? AND profile_id = ?").run([
+        primaryPhotoId,
+        profile.id,
+      ]) as Promise<any>);
+      const primaryRow = await (db
+        .prepare("SELECT url FROM photos WHERE id = ? AND profile_id = ?")
+        .get([primaryPhotoId, profile.id]) as Promise<{ url: string } | undefined>);
       if (primaryRow) {
-        await (db.prepare("UPDATE profiles SET photo_url = ? WHERE id = ?").run([primaryRow.url, profile.id]) as Promise<any>);
+        await (db
+          .prepare("UPDATE profiles SET photo_url = ? WHERE id = ?")
+          .run([primaryRow.url, profile.id]) as Promise<any>);
       }
     }
 
