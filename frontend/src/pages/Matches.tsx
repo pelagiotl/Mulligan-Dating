@@ -1040,6 +1040,7 @@ export default function Matches() {
     if (typeof window === "undefined" || window.innerWidth > 900) return;
     resetMobileChatViewport();
     const pinComposer = () => {
+      messageInputRef.current?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
       messageComposerRef.current?.scrollIntoView({ block: "end", inline: "nearest", behavior: "instant" });
       scrollMessagesToEnd("auto");
     };
