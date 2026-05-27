@@ -244,6 +244,14 @@ a.connect-landing__cta--effects::before {
 .browse-native-connect-btn--effects {
   overflow: hidden;
   isolation: isolate;
+  animation: none !important;
+  transition: none !important;
+  transform: none !important;
+}
+
+.connect-landing__cta--effects:hover,
+.browse-native-connect-btn--effects:hover:not(:disabled) {
+  transform: none !important;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,17 +1,15 @@
 import type { ReactNode } from 'react';
-import ConnectButtonHeartFireworks from './ConnectButtonHeartFireworks';
-import ConnectButtonShimmerEffect from './ConnectButtonShimmerEffect';
 
 type ConnectButtonEffectsProps = {
   children: ReactNode;
-  /** When false, shimmer and particles are hidden (e.g. loading/disabled). */
+  /** Kept for API compatibility with existing call sites. */
   active?: boolean;
   borderRadius?: number;
   className?: string;
 };
 
 /**
- * Wraps Connect CTA content with mobile-parity perimeter shimmer + sparkle particles.
+ * Web CTA wrapper: intentionally static (no shimmer/particle animation).
  */
 export default function ConnectButtonEffects({
   children,
@@ -19,10 +17,10 @@ export default function ConnectButtonEffects({
   borderRadius = 22,
   className = '',
 }: ConnectButtonEffectsProps) {
+  void active;
+  void borderRadius;
   return (
     <span className={`connect-btn-effects ${className}`.trim()}>
-      <ConnectButtonShimmerEffect active={active} borderRadius={borderRadius} />
-      <ConnectButtonHeartFireworks active={active} />
       <span className="connect-btn-effects__label">{children}</span>
     </span>
   );
