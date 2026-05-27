@@ -25,21 +25,36 @@ export function browserSupportsWebPush(): boolean {
   );
 }
 
+async function waitForServiceWorkerRegistration(): Promise<ServiceWorkerRegistration> {
+  const existing = await navigator.serviceWorker.getRegistration("/");
+  if (existing?.active) return existing;
+  const reg = await navigator.serviceWorker.register("/sw.js?v=notification-nav-4", { scope: "/" });
+  await navigator.serviceWorker.ready;
+  await reg.update();
+  return reg;
+}
+
 /**
  * Subscribe this browser and POST the subscription to the API.
- * Call only after Notification.permission === 'granted' (iOS requires a user gesture to request permission first).
+ * Re-uses an existing PushSubscription when present (iOS often keeps one after permission grant).
+ * Call after Notification.permission === 'granted'.
  */
 export async function registerWebPush(): Promise<boolean> {
   const vapid = getVapidPublicKey();
   if (!vapid || !browserSupportsWebPush()) return false;
+  if (typeof Notification !== "undefined" && Notification.permission !== "granted") {
+    return false;
+  }
 
-  const reg = await navigator.serviceWorker.register("/sw.js?v=notification-nav-3", { scope: "/" });
-  await reg.update();
+  const reg = await waitForServiceWorkerRegistration();
 
-  const sub = await reg.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(vapid),
-  });
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) {
+    sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(vapid),
+    });
+  }
 
   const json = sub.toJSON();
   if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) {
@@ -52,4 +67,14 @@ export async function registerWebPush(): Promise<boolean> {
     expirationTime: json.expirationTime ?? null,
   });
   return true;
+}
+
+/** Re-sync push subscription with backend (iOS PWA subscriptions can go stale). */
+export async function syncWebPushSubscription(): Promise<boolean> {
+  try {
+    return await registerWebPush();
+  } catch (e) {
+    console.warn("[WebPush] sync failed:", e);
+    return false;
+  }
 }

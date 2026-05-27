@@ -22,6 +22,7 @@ import BrandMark from './components/BrandMark'
 import SessionBootstrapScreen from './components/SessionBootstrapScreen'
 import { hasStoredAuthToken } from './lib/authToken'
 import { playMatchSound } from './utils/matchSound'
+import WebMessageNotifications from './components/WebMessageNotifications'
 
 const PWA_OPEN_PARAM = 'pwaOpen'
 
@@ -425,6 +426,7 @@ export default function App() {
     <>
       <PwaPushLaunchRedirect />
       <NewMatchesNotification />
+      <WebMessageNotifications />
       <Routes>
         <Route path="/" element={<PublicRoute><Landing /></PublicRoute>} />
         <Route path="/login" element={<AuthRedirectRoute><PhoneLogin /></AuthRedirectRoute>} />

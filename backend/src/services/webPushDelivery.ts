@@ -98,3 +98,36 @@ export async function sendWebPushToUser(userId: string, payload: WebPushOsPayloa
   }
   return ok;
 }
+
+/** Whether the user wants message-related push (default on). */
+export async function userWantsMessagePush(userId: string): Promise<boolean> {
+  let rowResult = db.prepare("SELECT push_notify_messages FROM users WHERE id = ?").get([userId]);
+  const row = (rowResult instanceof Promise ? await rowResult : rowResult) as {
+    push_notify_messages: number | null;
+  } | undefined;
+  return (
+    row?.push_notify_messages === undefined ||
+    row?.push_notify_messages === null ||
+    row.push_notify_messages !== 0
+  );
+}
+
+/**
+ * Send message Web Push if VAPID is configured and user prefs allow.
+ * Runs independently of Expo native push.
+ */
+export async function sendMessageWebPush(
+  recipientUserId: string,
+  payload: WebPushOsPayload
+): Promise<number> {
+  if (!webPushReady) return 0;
+  const wants = await userWantsMessagePush(recipientUserId);
+  if (!wants) return 0;
+  const n = await sendWebPushToUser(recipientUserId, payload);
+  if (n === 0) {
+    console.warn(
+      `📲 Web Push (message): no delivery for user ${recipientUserId} — no active browser subscription (re-enable in Settings on that device)`
+    );
+  }
+  return n;
+}

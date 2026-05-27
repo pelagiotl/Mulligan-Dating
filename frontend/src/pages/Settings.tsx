@@ -9,6 +9,7 @@ import {
   browserSupportsWebPush,
   getVapidPublicKey,
   registerWebPush,
+  syncWebPushSubscription,
 } from "../lib/webPush";
 
 interface SettingsData {
@@ -144,6 +145,16 @@ export default function Settings() {
     }
     setDisplayNameDraft((profile.displayName ?? "").trim());
   }, [profile]);
+
+  useEffect(() => {
+    if (!user?.webPushConfigured || !getVapidPublicKey() || !browserSupportsWebPush()) return;
+    if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+    if ((user.webPushSubscriptionCount ?? 0) > 0) return;
+    void syncWebPushSubscription().then((ok) => {
+      if (ok) void refreshSession({ silent: true });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.webPushConfigured, user?.webPushSubscriptionCount]);
 
   const saveDisplayName = async () => {
     setError("");

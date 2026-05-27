@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useRef, ReactNode, useMemo } from 'react'
 import { api } from '../utils/api'
-import { browserSupportsWebPush, getVapidPublicKey, registerWebPush } from '../lib/webPush'
+import { browserSupportsWebPush, getVapidPublicKey, syncWebPushSubscription } from '../lib/webPush'
 import {
   deriveAppRegistrationComplete,
   isAccountActiveFromAuthUser,
@@ -92,16 +92,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  useEffect(() => {
-    if (!user?.id || !user.webPushConfigured || !getVapidPublicKey()) return
-    if (!browserSupportsWebPush()) return
-    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
-    const t = window.setTimeout(() => {
-      registerWebPush().catch((e) => console.warn('[WebPush] background register:', e))
-    }, 2800)
-    return () => window.clearTimeout(t)
-  }, [user?.id, user?.webPushConfigured])
 
   const fetchUser = async (options?: {
     silent?: boolean
@@ -377,6 +367,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshSession = async (options?: { silent?: boolean }) => {
     return fetchUser(options)
   }
+
+  useEffect(() => {
+    if (!user?.id || !user.webPushConfigured || !getVapidPublicKey()) return
+    if (!browserSupportsWebPush()) return
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
+
+    let debounce: ReturnType<typeof setTimeout> | null = null
+    const sync = () => {
+      if (debounce) clearTimeout(debounce)
+      debounce = setTimeout(() => {
+        syncWebPushSubscription()
+          .then((ok) => {
+            if (ok) void refreshSession({ silent: true })
+          })
+          .catch((e) => console.warn('[WebPush] background sync:', e))
+      }, 800)
+    }
+
+    const t = window.setTimeout(sync, 1200)
+
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') sync()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', sync)
+
+    return () => {
+      window.clearTimeout(t)
+      if (debounce) clearTimeout(debounce)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', sync)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refreshSession is stable enough; avoid re-subscribe loops
+  }, [user?.id, user?.webPushConfigured])
 
   const isAdmin = useMemo(
     () => !!(user?.isAdmin || isOwnerAdminPhone(user?.phoneNumber)),

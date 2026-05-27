@@ -1781,7 +1781,7 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
       // Send push notification to the other user (OS shows when app is backgrounded/closed)
       try {
       const { sendMessagePushNotification, isPushNotificationConfigured, isExpoPushToken, getMessagePushThrottleDelayMs, recordMessagePushSent } = await import('../services/pushNotifications.js');
-      const { sendWebPushToUser, isWebPushConfigured } = await import('../services/webPushDelivery.js');
+      const { sendMessageWebPush } = await import('../services/webPushDelivery.js');
       const hasExpoToken = !!process.env.EXPO_ACCESS_TOKEN;
       let otherUserRowResult = db.prepare("SELECT push_token, push_notify_messages, push_token_fail_count FROM users WHERE id = ?").get([otherUserId]);
       if (otherUserRowResult instanceof Promise) otherUserRowResult = await otherUserRowResult;
@@ -1819,6 +1819,17 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
         messagePreview = 'Voice message';
       } else {
         messagePreview = 'New message';
+      }
+
+      if (wantsMessagePush) {
+        const webN = await sendMessageWebPush(otherUserId, {
+          title: senderName,
+          body: messagePreview,
+          tag: messageId ? `msg-${matchId}-${messageId}` : `msg-${matchId}`,
+          url: "/matches",
+          data: { type: "new_message", matchId, senderId: userId, ...(messageId ? { messageId } : {}) },
+        });
+        if (webN > 0) console.log(`✅ Web Push (message REST) → ${otherUserId} (${webN} sub(s))`);
       }
 
       // Clear token on first DeviceNotRegistered (Expo/APNs: token is permanently invalid; e.g. rotated on iPhone 15 Pro Max after first push).
@@ -1903,16 +1914,6 @@ matchesRouter.post("/:matchId/messages", authenticateToken, rateLimitAPI, async 
               }, delayMs);
             });
           }
-        }
-        if (isWebPushConfigured()) {
-          const n = await sendWebPushToUser(otherUserId, {
-            title: senderName,
-            body: messagePreview,
-            tag: messageId ? `msg-${matchId}-${messageId}` : `msg-${matchId}`,
-            url: "/matches",
-            data: { type: "new_message", matchId, senderId: userId, ...(messageId ? { messageId } : {}) },
-          });
-          if (n > 0) console.log(`✅ Web Push (message REST) → ${otherUserId} (${n} sub(s))`);
         }
       }
     } catch (pushError) {

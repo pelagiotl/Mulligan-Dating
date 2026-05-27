@@ -228,7 +228,7 @@ export function initializeSocket(server: HTTPServer) {
       try {
         const { isPushNotificationConfigured, isExpoPushToken, sendMessagePushNotification, getMessagePushThrottleDelayMs, recordMessagePushSent } =
           await import('./services/pushNotifications.js');
-        const { sendWebPushToUser, isWebPushConfigured } = await import('./services/webPushDelivery.js');
+        const { sendMessageWebPush } = await import('./services/webPushDelivery.js');
         const hasExpoToken = !!process.env.EXPO_ACCESS_TOKEN;
         let otherUserRowResult = db.prepare("SELECT push_token, push_notify_messages, push_token_fail_count FROM users WHERE id = ?").get(otherUserId);
         if (otherUserRowResult instanceof Promise) otherUserRowResult = await otherUserRowResult;
@@ -275,16 +275,14 @@ export function initializeSocket(server: HTTPServer) {
           } else {
             console.warn(`📲 PUSH_SKIP recipient=${otherUserId} reason=INVALID_EXPO_TOKEN_FORMAT`);
           }
-          if (isWebPushConfigured()) {
-            const n = await sendWebPushToUser(otherUserId, {
-              title: profile.display_name,
-              body: messagePreview,
-              tag: `msg-${matchId}`,
-              url: "/matches",
-              data: { type: "new_message", matchId, senderId: userId },
-            });
-            if (n > 0) console.log(`✅ Web Push (message) → ${otherUserId} (${n} subscription(s))`);
-          }
+          const n = await sendMessageWebPush(otherUserId, {
+            title: profile.display_name,
+            body: messagePreview,
+            tag: `msg-${matchId}`,
+            url: "/matches",
+            data: { type: "new_message", matchId, senderId: userId },
+          });
+          if (n > 0) console.log(`✅ Web Push (message) → ${otherUserId} (${n} subscription(s))`);
         }
       } catch (pushError: any) {
         console.warn('⚠️  Push (message) exception:', pushError?.message || pushError);

@@ -2,6 +2,7 @@ import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } fr
 import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { io, Socket } from "socket.io-client";
+import { openMatchIdRef } from "../lib/currentMatchView";
 import { api, ApiError } from "../utils/api";
 import { useAuth } from "../context/AuthContext";
 import { getPhotoUrl } from "../utils/photoUrl";
@@ -555,6 +556,7 @@ export default function Matches() {
 
   useEffect(() => {
     selectedMatchIdRef.current = selectedMatch?.id ?? null;
+    openMatchIdRef.current = selectedMatch?.id ?? null;
   }, [selectedMatch?.id]);
 
   useEffect(() => {
