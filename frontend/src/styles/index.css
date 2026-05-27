@@ -12155,6 +12155,72 @@ button.chat-avatar-btn .chat-avatar img {
   justify-content: flex-end;
 }
 
+/* In-app new message toast (all tabs) — above mobile tab bar on iPhone PWA */
+.web-message-toast {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 13000;
+  width: min(92vw, 400px);
+  margin: 0;
+  padding: 12px 18px;
+  border: 2px solid rgba(255, 255, 255, 0.22);
+  border-radius: 16px;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
+  color: #fff;
+  box-shadow: 0 10px 32px rgba(99, 102, 241, 0.45);
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-body);
+  -webkit-tap-highlight-color: transparent;
+  top: max(72px, calc(env(safe-area-inset-top, 0px) + 56px));
+  animation: webMessageToastIn 0.35s ease-out;
+}
+
+@media (max-width: 900px) {
+  .web-message-toast {
+    top: auto;
+    bottom: calc(var(--native-tab-height, 48px) + var(--native-tab-safe-bottom, 10px) + 14px);
+    transform: translateX(-50%);
+  }
+}
+
+.web-message-toast__kicker {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.9;
+  margin-bottom: 2px;
+}
+
+.web-message-toast__sender {
+  display: block;
+  font-size: 0.98rem;
+  font-weight: 800;
+  line-height: 1.2;
+  margin-bottom: 4px;
+}
+
+.web-message-toast__preview {
+  display: block;
+  font-size: 0.88rem;
+  line-height: 1.35;
+  opacity: 0.95;
+}
+
+@keyframes webMessageToastIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
 .settings-section.danger-zone {
   background: linear-gradient(135deg, #fef2f2, #fee2e2);
   border: 2px solid #fca5a5;

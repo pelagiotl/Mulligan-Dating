@@ -2,7 +2,7 @@ import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } fr
 import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { io, Socket } from "socket.io-client";
-import { openMatchIdRef } from "../lib/currentMatchView";
+import { matchesRouteActiveRef, openMatchIdRef } from "../lib/currentMatchView";
 import { api, ApiError } from "../utils/api";
 import { useAuth } from "../context/AuthContext";
 import { getPhotoUrl } from "../utils/photoUrl";
@@ -552,6 +552,14 @@ export default function Matches() {
     const urls = sorted.map((p) => getPhotoUrl(p.url));
     const idx = sorted.findIndex((p) => p.id === startPhoto.id);
     setPhotoLightbox({ urls, index: idx >= 0 ? idx : 0 });
+  }, []);
+
+  useEffect(() => {
+    matchesRouteActiveRef.current = true;
+    return () => {
+      matchesRouteActiveRef.current = false;
+      openMatchIdRef.current = null;
+    };
   }, []);
 
   useEffect(() => {
