@@ -333,6 +333,7 @@ export default function Matches() {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageInputRef = useRef<HTMLInputElement>(null);
+  const messageComposerRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const selectedMatchIdRef = useRef<string | null>(null);
@@ -1038,10 +1039,27 @@ export default function Matches() {
   const stabilizeMobileChatLayout = useCallback(() => {
     if (typeof window === "undefined" || window.innerWidth > 900) return;
     resetMobileChatViewport();
-    requestAnimationFrame(() => {
+    const pinComposer = () => {
+      messageComposerRef.current?.scrollIntoView({ block: "end", inline: "nearest", behavior: "instant" });
       scrollMessagesToEnd("auto");
+    };
+    requestAnimationFrame(() => {
+      requestAnimationFrame(pinComposer);
     });
   }, [resetMobileChatViewport, scrollMessagesToEnd]);
+
+  const mobileChatOpen = isNarrow && !!selectedMatch && !mobileShowMatchList;
+
+  useEffect(() => {
+    if (!mobileChatOpen) {
+      document.body.classList.remove("matches-mobile-chat-open");
+      return;
+    }
+    document.body.classList.add("matches-mobile-chat-open");
+    return () => {
+      document.body.classList.remove("matches-mobile-chat-open");
+    };
+  }, [mobileChatOpen]);
 
   useEffect(() => {
     if (!selectedMatch || selectedMatch.stage === "pending") return;
@@ -1049,14 +1067,12 @@ export default function Matches() {
   }, [messages, selectedMatch?.id, selectedMatch?.stage, scrollMessagesToEnd]);
 
   useLayoutEffect(() => {
-    if (!selectedMatch || mobileShowMatchList) return;
-    if (typeof window === "undefined" || window.innerWidth > 900) return;
+    if (!mobileChatOpen) return;
     stabilizeMobileChatLayout();
-  }, [selectedMatch?.id, mobileShowMatchList, stabilizeMobileChatLayout]);
+  }, [mobileChatOpen, selectedMatch?.id, messages.length, stabilizeMobileChatLayout]);
 
   useEffect(() => {
-    if (!selectedMatch || mobileShowMatchList) return;
-    if (typeof window === "undefined" || window.innerWidth > 900) return;
+    if (!mobileChatOpen) return;
     const vv = window.visualViewport;
     if (!vv) return;
     const onViewportChange = () => {
@@ -1071,7 +1087,7 @@ export default function Matches() {
       vv.removeEventListener("resize", onViewportChange);
       vv.removeEventListener("scroll", onViewportChange);
     };
-  }, [selectedMatch?.id, mobileShowMatchList, resetMobileChatViewport]);
+  }, [mobileChatOpen, resetMobileChatViewport]);
 
   useEffect(() => {
     if (!photoLightbox && !partnerDrawerOpen) return;
@@ -1897,14 +1913,10 @@ export default function Matches() {
     );
   }
 
-  const inMobileConversation = Boolean(
-    isNarrow && selectedMatch && !mobileShowMatchList
-  );
-
   return (
     <div
       className={`matches-page native-app-screen${
-        inMobileConversation ? " matches-page--mobile-conversation matches-page--compact-chat" : ""
+        mobileChatOpen ? " matches-page--mobile-conversation matches-page--compact-chat" : ""
       }`}
     >
       {notification && (
@@ -2569,7 +2581,7 @@ export default function Matches() {
                             className="chat-partner-sheet-trigger btn btn-secondary btn-sm"
                             onClick={() => setPartnerDrawerOpen(true)}
                           >
-                            {inMobileConversation ? "Profile" : "Profile · photos"}
+                            {mobileChatOpen ? "Profile" : "Profile · photos"}
                           </button>
                           <button
                             type="button"
@@ -2617,7 +2629,7 @@ export default function Matches() {
                                   {pulseScore ??
                                     Math.round(selectedMatch.compatibilityScore as number)}
                                 </span>
-                                {pulseEngagement && !inMobileConversation ? (
+                                {pulseEngagement && !mobileChatOpen ? (
                                   <span className="compatibility-pulse-pill-tier">
                                     {" "}
                                     · {PULSE_ENGAGEMENT_LABEL[pulseEngagement]}
@@ -2953,7 +2965,11 @@ export default function Matches() {
                   )}
                 </div>
 
-                <div key={`composer-${selectedMatch.id}`} className="message-input-container">
+                <div
+                  key={`composer-${selectedMatch.id}`}
+                  ref={messageComposerRef}
+                  className="message-input-container"
+                >
                   {selectedMatch.stage === "stage1" ? (
                     <div className="chat-composer-meta">
                       <Stage1PhotoUnlockCompact

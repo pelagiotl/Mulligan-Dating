@@ -12933,6 +12933,101 @@ button.chat-avatar-btn .chat-avatar img {
   }
 }
 
+/* iPhone PWA: lock document scroll and grid-pin composer when a thread is open */
+@media (max-width: 900px) {
+  body.matches-mobile-chat-open {
+    overflow: hidden;
+    overscroll-behavior: none;
+    height: 100dvh;
+    max-height: 100dvh;
+    width: 100%;
+  }
+
+  body.matches-mobile-chat-open .app-layout--native-mobile-shell {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
+  }
+
+  body.matches-mobile-chat-open .app-layout--native-mobile-shell .navbar {
+    flex-shrink: 0;
+  }
+
+  body.matches-mobile-chat-open .app-layout--native-mobile-shell .main-content {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0;
+    min-height: 0 !important;
+    max-height: none !important;
+    height: auto !important;
+    overflow: hidden !important;
+    padding-top: var(--space-2);
+    padding-left: var(--space-2);
+    padding-right: var(--space-2);
+    padding-bottom: calc(var(--native-tab-height) + var(--native-tab-safe-bottom) + var(--space-1));
+  }
+
+  body.matches-mobile-chat-open .matches-page--mobile-conversation {
+    flex: 1 1 0;
+    min-height: 0 !important;
+    height: auto;
+    max-height: none;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  body.matches-mobile-chat-open .matches-page.matches-page--mobile-conversation {
+    min-height: 0 !important;
+  }
+
+  body.matches-mobile-chat-open .matches-page--mobile-conversation .matches-main {
+    flex: 1 1 0;
+    min-height: 0 !important;
+    max-height: none;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-columns: 1fr;
+    overflow: hidden;
+  }
+
+  body.matches-mobile-chat-open .matches-page--mobile-conversation .matches-chat-chrome {
+    grid-row: 1;
+    min-height: 0;
+  }
+
+  body.matches-mobile-chat-open .matches-page--mobile-conversation .matches-chat-column {
+    grid-row: 2;
+    min-height: 0;
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+    overflow: hidden;
+  }
+
+  body.matches-mobile-chat-open .matches-page--mobile-conversation .messages-container {
+    grid-row: 1;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  body.matches-mobile-chat-open .matches-page--mobile-conversation .message-input-container {
+    grid-row: 2;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 2;
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), var(--space-2));
+  }
+
+  body.matches-mobile-chat-open .matches-page--mobile-conversation .no-messages {
+    height: auto;
+    min-height: 0;
+    padding: var(--space-4) 0;
+  }
+}
+
 .matches-mobile-back-btn {
   display: flex;
   align-items: center;
