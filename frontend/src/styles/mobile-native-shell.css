@@ -9,7 +9,7 @@
   --native-screen-bg: #0c0a12;
   --native-tab-bar-bg: #12101c;
   --native-tab-inactive: #8b93a8;
-  --native-tab-height: 52px;
+  --native-tab-height: 48px;
   --native-tab-safe-bottom: max(env(safe-area-inset-bottom, 0px), 10px);
   --native-gradient-screen: linear-gradient(
     145deg,
@@ -128,7 +128,7 @@ body:has(.app-layout--native-mobile-shell):not(:has(.main-content[data-native-sh
     min-height: calc(var(--native-tab-height) + var(--native-tab-safe-bottom));
     height: calc(var(--native-tab-height) + var(--native-tab-safe-bottom));
     padding-bottom: var(--native-tab-safe-bottom);
-    padding-top: 4px;
+    padding-top: 2px;
     padding-left: max(4px, env(safe-area-inset-left, 0px));
     padding-right: max(4px, env(safe-area-inset-right, 0px));
     background: var(--native-tab-bar-bg);
@@ -144,7 +144,7 @@ body:has(.app-layout--native-mobile-shell):not(:has(.main-content[data-native-sh
   .app-bottom-tabs__item {
     flex: 1;
     min-width: 0;
-    min-height: 38px;
+    min-height: 36px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -177,7 +177,7 @@ body:has(.app-layout--native-mobile-shell):not(:has(.main-content[data-native-sh
     background: var(--native-primary);
     opacity: 0.14;
     pointer-events: none;
-    transform: translateY(-2px);
+    transform: translateY(-1px);
   }
 
   .app-bottom-tabs__emoji {
