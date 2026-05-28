@@ -13139,17 +13139,8 @@ button.chat-avatar-btn .chat-avatar img {
     position: relative;
     z-index: 12;
     padding-top: var(--space-2);
-    padding-bottom: max(
-      env(safe-area-inset-bottom, 0px),
-      var(
-        --chat-composer-bottom-inset,
-        calc(var(--native-tab-height, 48px) + var(--native-tab-safe-bottom, 10px) + 8px)
-      )
-    );
-    scroll-margin-bottom: var(
-      --chat-composer-bottom-inset,
-      calc(var(--native-tab-height) + var(--native-tab-safe-bottom) + var(--space-2))
-    );
+    padding-bottom: max(var(--space-2), env(safe-area-inset-bottom, 0px));
+    scroll-margin-bottom: calc(var(--native-tab-height) + var(--native-tab-safe-bottom) + var(--space-2));
     overflow: visible;
   }
 
@@ -13181,13 +13172,7 @@ button.chat-avatar-btn .chat-avatar img {
     padding-top: var(--space-2);
     padding-left: var(--space-2);
     padding-right: var(--space-2);
-    padding-bottom: max(
-      env(safe-area-inset-bottom, 0px),
-      var(
-        --chat-composer-bottom-inset,
-        calc(var(--native-tab-height, 48px) + var(--native-tab-safe-bottom, 10px) + 8px)
-      )
-    );
+    padding-bottom: max(var(--space-2), env(safe-area-inset-bottom, 0px));
   }
 
   body.matches-mobile-chat-open .matches-page--mobile-conversation .no-messages {

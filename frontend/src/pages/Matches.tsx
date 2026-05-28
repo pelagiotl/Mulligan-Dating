@@ -1055,37 +1055,10 @@ export default function Matches() {
     document.body.style.setProperty("--chat-keyboard-inset", `${inset}px`);
   }, []);
 
-  /** Measure fixed bottom tabs so composer padding clears the real overlay (varies by iPhone safe area). */
-  const syncComposerBottomInset = useCallback(() => {
-    if (typeof window === "undefined" || window.innerWidth > 900) {
-      document.documentElement.style.removeProperty("--chat-composer-bottom-inset");
-      return;
-    }
-    const tabs = document.querySelector<HTMLElement>(".app-bottom-tabs");
-    let insetPx = 0;
-    if (tabs) {
-      const rect = tabs.getBoundingClientRect();
-      insetPx = Math.max(0, window.innerHeight - rect.top + 6);
-    } else {
-      insetPx =
-        parseInt(
-          getComputedStyle(document.documentElement).getPropertyValue("--native-tab-height") || "48",
-          10
-        ) +
-        parseInt(
-          getComputedStyle(document.documentElement).getPropertyValue("--native-tab-safe-bottom") || "10",
-          10
-        ) +
-        8;
-    }
-    document.documentElement.style.setProperty("--chat-composer-bottom-inset", `${Math.ceil(insetPx)}px`);
-  }, []);
-
   /** Keep the message field + Send above the tab bar after iOS keyboard dismiss (Done/checkmark). */
   const ensureMobileComposerVisible = useCallback(() => {
     if (typeof window === "undefined" || window.innerWidth > 900) return;
     clearMobileChatKeyboardInset();
-    syncComposerBottomInset();
 
     const pinComposer = () => {
       const composer = messageComposerRef.current;
@@ -1096,22 +1069,16 @@ export default function Matches() {
       const target = messageInput ?? sendBtn ?? composer;
       const vv = window.visualViewport;
       const visibleBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
-      const measuredInset = parseInt(
-        getComputedStyle(document.documentElement).getPropertyValue("--chat-composer-bottom-inset") || "0",
-        10
-      );
       const tabReserve =
-        measuredInset > 0
-          ? measuredInset
-          : parseInt(
-              getComputedStyle(document.documentElement).getPropertyValue("--native-tab-height") || "48",
-              10
-            ) +
-            parseInt(
-              getComputedStyle(document.documentElement).getPropertyValue("--native-tab-safe-bottom") || "10",
-              10
-            ) +
-            8;
+        parseInt(
+          getComputedStyle(document.documentElement).getPropertyValue("--native-tab-height") || "48",
+          10
+        ) +
+        parseInt(
+          getComputedStyle(document.documentElement).getPropertyValue("--native-tab-safe-bottom") || "10",
+          10
+        ) +
+        8;
 
       const rect = target.getBoundingClientRect();
       const overflow = rect.bottom + tabReserve - visibleBottom;
@@ -1130,7 +1097,7 @@ export default function Matches() {
       setTimeout(pinComposer, 60);
       setTimeout(pinComposer, 180);
     });
-  }, [clearMobileChatKeyboardInset, syncComposerBottomInset]);
+  }, [clearMobileChatKeyboardInset]);
 
   const resetMobileChatViewport = useCallback(() => {
     if (typeof window === "undefined" || window.innerWidth > 900) return;
@@ -1158,22 +1125,13 @@ export default function Matches() {
   useEffect(() => {
     if (!mobileChatOpen) {
       document.body.classList.remove("matches-mobile-chat-open");
-      document.documentElement.style.removeProperty("--chat-composer-bottom-inset");
       return;
     }
     document.body.classList.add("matches-mobile-chat-open");
-    syncComposerBottomInset();
-    const onResize = () => syncComposerBottomInset();
-    window.addEventListener("resize", onResize);
-    const vv = window.visualViewport;
-    vv?.addEventListener("resize", onResize);
     return () => {
       document.body.classList.remove("matches-mobile-chat-open");
-      document.documentElement.style.removeProperty("--chat-composer-bottom-inset");
-      window.removeEventListener("resize", onResize);
-      vv?.removeEventListener("resize", onResize);
     };
-  }, [mobileChatOpen, syncComposerBottomInset]);
+  }, [mobileChatOpen]);
 
   useEffect(() => {
     if (!selectedMatch || selectedMatch.stage === "pending") return;
@@ -3259,7 +3217,6 @@ export default function Matches() {
                       name={`mulligan-chat-${selectedMatch.id}`}
                       onFocus={() => {
                         if (typeof window !== "undefined" && window.innerWidth <= 900) {
-                          syncComposerBottomInset();
                           syncMobileChatKeyboardInset();
                         }
                       }}
