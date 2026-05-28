@@ -164,6 +164,8 @@ export default function Admin() {
   const [statDrillUsers, setStatDrillUsers] = useState<User[]>([]);
   const [statDrillMatches, setStatDrillMatches] = useState<AdminPairMatchRow[]>([]);
   const [statDrillPagination, setStatDrillPagination] = useState({ total: 0, totalPages: 1 });
+  const [onboardingNudgeLoading, setOnboardingNudgeLoading] = useState(false);
+  const [onboardingNudgeMessage, setOnboardingNudgeMessage] = useState<string | null>(null);
 
   // Check if current user is the super admin
   const isSuperAdmin = user?.email === 'pelagiotl@gmail.com';
@@ -312,6 +314,40 @@ export default function Admin() {
       setStats(data);
     } catch (error) {
       console.error('Failed to fetch stats:', error);
+    }
+  };
+
+  const sendOnboardingPushNudge = async (dryRun: boolean) => {
+    setOnboardingNudgeLoading(true);
+    setOnboardingNudgeMessage(null);
+    try {
+      const data = await api.post<{ message: string }>('/admin/onboarding/complete-profile-nudge', {
+        dryRun,
+        limit: 500,
+      });
+      setOnboardingNudgeMessage(`Push: ${data.message}`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to send push nudges';
+      setOnboardingNudgeMessage(msg);
+    } finally {
+      setOnboardingNudgeLoading(false);
+    }
+  };
+
+  const sendOnboardingSmsNudge = async (dryRun: boolean) => {
+    setOnboardingNudgeLoading(true);
+    setOnboardingNudgeMessage(null);
+    try {
+      const data = await api.post<{ message: string; smsConfigured?: boolean }>(
+        '/admin/onboarding/complete-profile-sms-nudge',
+        { dryRun, limit: 500, minHoursSinceSignup: 24 },
+      );
+      setOnboardingNudgeMessage(`SMS: ${data.message}`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to send SMS nudges';
+      setOnboardingNudgeMessage(msg);
+    } finally {
+      setOnboardingNudgeLoading(false);
     }
   };
 
@@ -1432,6 +1468,71 @@ export default function Admin() {
                     ? ` · page ${statDrillPage} of ${statDrillPagination.totalPages}`
                     : ''}
                 </p>
+                {statDrill === 'onboarding' ? (
+                  <div className="admin-onboarding-nudge">
+                    <p className="admin-onboarding-nudge-hint">
+                      <strong>SMS (recommended)</strong> — reaches onboarding users by phone (Twilio Messages API +
+                      TWILIO_PHONE_NUMBER). Skips opt-outs and accounts nudged in the last 24h. One SMS per user by
+                      default. Configure Twilio inbound webhook: <code>POST /api/sms/webhook/inbound</code> for STOP.
+                    </p>
+                    <div className="admin-onboarding-nudge-actions">
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        disabled={onboardingNudgeLoading}
+                        onClick={() => void sendOnboardingSmsNudge(true)}
+                      >
+                        {onboardingNudgeLoading ? '…' : 'Preview SMS reach'}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm"
+                        disabled={onboardingNudgeLoading}
+                        onClick={() => {
+                          if (
+                            window.confirm(
+                              'Send profile reminder SMS to eligible onboarding users? Requires TWILIO_PHONE_NUMBER. One message per user unless already sent.',
+                            )
+                          ) {
+                            void sendOnboardingSmsNudge(false);
+                          }
+                        }}
+                      >
+                        {onboardingNudgeLoading ? 'Sending…' : 'Send SMS reminder'}
+                      </button>
+                    </div>
+                    <p className="admin-onboarding-nudge-hint admin-onboarding-nudge-hint--secondary">
+                      <strong>Push</strong> — Expo + Web Push only (users who allowed notifications).
+                    </p>
+                    <div className="admin-onboarding-nudge-actions">
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        disabled={onboardingNudgeLoading}
+                        onClick={() => void sendOnboardingPushNudge(true)}
+                      >
+                        Preview push reach
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        disabled={onboardingNudgeLoading}
+                        onClick={() => {
+                          if (window.confirm('Send push to onboarding users with a registered device?')) {
+                            void sendOnboardingPushNudge(false);
+                          }
+                        }}
+                      >
+                        Send push reminder
+                      </button>
+                    </div>
+                    {onboardingNudgeMessage ? (
+                      <p className="admin-onboarding-nudge-result" role="status">
+                        {onboardingNudgeMessage}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
               <button
                 type="button"

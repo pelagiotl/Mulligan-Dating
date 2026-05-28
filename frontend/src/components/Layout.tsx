@@ -7,6 +7,7 @@ import {
   type TokenBalanceDetail,
 } from '../lib/tokenBalanceEvents'
 import MaintenanceBanner from './MaintenanceBanner'
+import OnboardingProfileBanner from './OnboardingProfileBanner'
 import BrandMark from './BrandMark'
 import TokenDisplay from './TokenDisplay'
 import WebTokenPurchase from './WebTokenPurchase'
@@ -82,6 +83,7 @@ export default function Layout() {
       className={`app-layout connect-shell--${connectShellMode}${nativeMobileShell ? ' app-layout--native-mobile-shell' : ''}`}
     >
       <MaintenanceBanner />
+      <OnboardingProfileBanner />
       {!isCreateProfileWizard ? (
         <nav className="navbar">
           <div className="navbar-inner">

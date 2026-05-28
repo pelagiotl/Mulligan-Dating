@@ -1587,6 +1587,70 @@ adminRouter.delete('/delete-test-users', authenticateToken, requireAdmin, async 
   }
 });
 
+// One-shot push nudge for onboarding users (Expo + Web Push only)
+adminRouter.post('/onboarding/complete-profile-nudge', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const dryRun = req.body?.dryRun === true;
+    const limit =
+      typeof req.body?.limit === 'number' && Number.isFinite(req.body.limit)
+        ? req.body.limit
+        : undefined;
+    const title = typeof req.body?.title === 'string' ? req.body.title : undefined;
+    const body = typeof req.body?.body === 'string' ? req.body.body : undefined;
+
+    const { sendOnboardingCompleteProfilePushNudges, formatPushNudgeSummary } = await import(
+      '../services/onboardingNudge.js'
+    );
+    const result = await sendOnboardingCompleteProfilePushNudges({ dryRun, limit, title, body });
+
+    res.json({
+      ...result,
+      channel: 'push',
+      message: formatPushNudgeSummary(result),
+    });
+  } catch (error: any) {
+    console.error('Onboarding push nudge error:', error);
+    res.status(500).json({ error: 'Failed to send onboarding push nudges', details: error.message });
+  }
+});
+
+// SMS profile nudge for onboarding users (Twilio Messages API — phone on file, not opted out)
+adminRouter.post('/onboarding/complete-profile-sms-nudge', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const dryRun = req.body?.dryRun === true;
+    const allowResend = req.body?.allowResend === true;
+    const limit =
+      typeof req.body?.limit === 'number' && Number.isFinite(req.body.limit)
+        ? req.body.limit
+        : undefined;
+    const body = typeof req.body?.body === 'string' ? req.body.body : undefined;
+    const minHoursSinceSignup =
+      typeof req.body?.minHoursSinceSignup === 'number' && Number.isFinite(req.body.minHoursSinceSignup)
+        ? req.body.minHoursSinceSignup
+        : undefined;
+
+    const { sendOnboardingCompleteProfileSmsNudges, formatSmsNudgeSummary } = await import(
+      '../services/onboardingNudge.js'
+    );
+    const result = await sendOnboardingCompleteProfileSmsNudges({
+      dryRun,
+      limit,
+      body,
+      allowResend,
+      minHoursSinceSignup,
+    });
+
+    res.json({
+      ...result,
+      channel: 'sms',
+      message: formatSmsNudgeSummary(result),
+    });
+  } catch (error: any) {
+    console.error('Onboarding SMS nudge error:', error);
+    res.status(500).json({ error: 'Failed to send onboarding SMS nudges', details: error.message });
+  }
+});
+
 // Delete a single user
 adminRouter.delete('/users/:userId', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
   try {

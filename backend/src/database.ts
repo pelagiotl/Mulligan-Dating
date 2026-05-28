@@ -274,6 +274,20 @@ export async function initDatabase() {
   }
   try {
     await execSQL(
+      `ALTER TABLE users ADD COLUMN sms_opt_out ${usePostgres ? 'SMALLINT' : 'INTEGER'} DEFAULT 0`,
+    );
+  } catch (e) {
+    // Column already exists, ignore
+  }
+  try {
+    await execSQL(
+      `ALTER TABLE users ADD COLUMN onboarding_sms_nudge_sent_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'}`,
+    );
+  } catch (e) {
+    // Column already exists, ignore
+  }
+  try {
+    await execSQL(
       `UPDATE users SET profile_activated_at = COALESCE(profile_activated_at, tos_accepted_at, created_at)
        WHERE COALESCE(account_status, 'active') = 'active' AND profile_activated_at IS NULL`,
     );
@@ -858,6 +872,9 @@ export async function initDatabase() {
   } catch (e) { /* exists */ }
   try {
     await execSQL(`ALTER TABLE never_have_i_ever_games ADD COLUMN user2_last_active_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'}`);
+  } catch (e) { /* exists */ }
+  try {
+    await execSQL(`ALTER TABLE never_have_i_ever_games ADD COLUMN used_prompts ${usePostgres ? 'TEXT' : 'TEXT'}`);
   } catch (e) { /* exists */ }
 
   // Truth or Dare: Game state per match (lobby for spice level agreement)

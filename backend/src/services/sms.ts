@@ -370,3 +370,68 @@ export async function sendMatchNotification(phoneNumber: string, matchName: stri
   }
 }
 
+/** True when Twilio Messages API can send non-OTP texts (requires TWILIO_PHONE_NUMBER). */
+export function isTransactionalSmsConfigured(): boolean {
+  return !!twilioClient && !!process.env.TWILIO_PHONE_NUMBER?.trim();
+}
+
+/**
+ * Send a transactional SMS via Messages API (not Twilio Verify).
+ */
+export async function sendTransactionalSms(phoneNumber: string, body: string): Promise<boolean> {
+  if (!twilioClient) {
+    console.warn('⚠️  Twilio client not initialized. Skipping SMS.');
+    return false;
+  }
+
+  const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER?.trim();
+  if (!twilioPhoneNumber) {
+    console.warn('⚠️  TWILIO_PHONE_NUMBER not set. Skipping transactional SMS.');
+    return false;
+  }
+
+  const formattedPhone = formatPhoneNumber(phoneNumber);
+  if (!formattedPhone) {
+    console.error('❌ Invalid phone number for SMS:', phoneNumber);
+    return false;
+  }
+
+  const trimmedBody = body.trim();
+  if (!trimmedBody) {
+    console.error('❌ Empty SMS body');
+    return false;
+  }
+
+  try {
+    const message = await twilioClient.messages.create({
+      body: trimmedBody,
+      from: twilioPhoneNumber,
+      to: formattedPhone,
+    });
+    console.log(`✅ Transactional SMS sent to ${formattedPhone}. SID: ${message.sid}`);
+    return true;
+  } catch (error: any) {
+    console.error('❌ Failed to send transactional SMS:', error.message);
+    return false;
+  }
+}
+
+/** Keywords that opt a user out of account SMS nudges (TCPA). */
+export function isSmsOptOutKeyword(body: string | null | undefined): boolean {
+  const normalized = String(body || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z]/g, '');
+  return (
+    normalized === 'STOP' ||
+    normalized === 'STOPALL' ||
+    normalized === 'UNSUBSCRIBE' ||
+    normalized === 'CANCEL' ||
+    normalized === 'END' ||
+    normalized === 'QUIT'
+  );
+}
+
+export function phoneDigitsOnly(phone: string | null | undefined): string {
+  return String(phone || '').replace(/\D/g, '');
+}

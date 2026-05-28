@@ -2344,6 +2344,13 @@ export default function CreateProfileScreen() {
       enabled={true}
     >
       <View style={styles.createProfileBody}>
+      {!connectSetupComplete ? (
+        <View style={styles.onboardingReminderStrip}>
+          <Text style={styles.onboardingReminderText}>
+            Finish setup: name, city & state, 3+ photos — then tap Complete Profile below.
+          </Text>
+        </View>
+      ) : null}
       <LinearGradient
         colors={['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe']}
         start={{ x: 0, y: 0 }}
@@ -2540,6 +2547,20 @@ const styles = StyleSheet.create({
   createProfileBody: {
     flex: 1,
     minHeight: 0,
+  },
+  onboardingReminderStrip: {
+    backgroundColor: 'rgba(102, 126, 234, 0.12)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(102, 126, 234, 0.25)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  onboardingReminderText: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#4338ca',
+    fontWeight: '600',
+    textAlign: 'center',
   },
   header: {
     padding: 24,
