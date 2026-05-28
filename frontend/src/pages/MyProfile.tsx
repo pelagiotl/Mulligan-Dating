@@ -401,22 +401,40 @@ export default function MyProfile() {
   const [editLifestyle, setEditLifestyle] = useState<LifestyleForm>(() => lifestyleFormFromApi(null));
   const [showAvatarLightbox, setShowAvatarLightbox] = useState(false);
   const [showProfilePreview, setShowProfilePreview] = useState(false);
-  const pendingRestoreScrollYRef = useRef<number | null>(null);
+  const pendingRestoreScrollRef = useRef<{ windowY: number; mainContentTop: number | null } | null>(null);
+
+  const getNativeMainContentScrollHost = () =>
+    document.querySelector<HTMLElement>(".app-layout--native-mobile-shell .main-content");
 
   const captureScrollPositionForRestore = () => {
-    pendingRestoreScrollYRef.current = window.scrollY;
+    const mainContent = getNativeMainContentScrollHost();
+    pendingRestoreScrollRef.current = {
+      windowY: window.scrollY,
+      mainContentTop: mainContent ? mainContent.scrollTop : null,
+    };
   };
 
   const restoreCapturedScrollPosition = () => {
-    const y = pendingRestoreScrollYRef.current;
-    if (y == null) return;
-    // Wait for state updates + profile refresh repaint before restoring scroll.
+    const snapshot = pendingRestoreScrollRef.current;
+    if (!snapshot) return;
+    const { windowY, mainContentTop } = snapshot;
+
+    const applyRestore = () => {
+      window.scrollTo({ top: windowY, behavior: "auto" });
+      if (mainContentTop != null) {
+        const mainContent = getNativeMainContentScrollHost();
+        if (mainContent) mainContent.scrollTop = mainContentTop;
+      }
+    };
+
+    // Apply multiple times as modal close + async profile refresh can reflow after first paint.
     requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        window.scrollTo({ top: y, behavior: "auto" });
-      });
+      requestAnimationFrame(applyRestore);
+      setTimeout(applyRestore, 40);
+      setTimeout(applyRestore, 120);
     });
-    pendingRestoreScrollYRef.current = null;
+
+    pendingRestoreScrollRef.current = null;
   };
 
   useEffect(() => {
