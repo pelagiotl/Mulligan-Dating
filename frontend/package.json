@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:embedded": "VITE_API_URL= VITE_SOCKET_URL= vite build",
     "build:prod": "vite build --mode production",
     "preview": "vite preview",
     "start": "node server.mjs"

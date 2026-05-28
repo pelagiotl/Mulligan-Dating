@@ -12,6 +12,7 @@
     "dev:backend": "npm run dev --workspace=backend",
     "dev:frontend": "npm run dev --workspace=frontend",
     "build": "npm run build --workspaces",
+    "build:render": "npm run build:embedded --workspace=frontend && npm run build --workspace=backend",
     "start": "npm run start --workspace=backend",
     "create-match-by-phone": "npm run create-match-by-phone --workspace=backend --"
   },

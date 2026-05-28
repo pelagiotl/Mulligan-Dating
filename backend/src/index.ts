@@ -309,8 +309,23 @@ if (!fs.existsSync(uploadsPath)) {
 app.use('/uploads', express.static(uploadsPath));
 console.log('📁 Serving uploads from:', uploadsPath);
 
-// Validate security configuration
-validateJWTSecret();
+// Resolve built web app (when frontend is built alongside backend on Render)
+function resolveWebDist(): string | null {
+  const candidates = [
+    path.join(process.cwd(), '../frontend/dist'),
+    path.join(process.cwd(), 'frontend/dist'),
+  ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(path.join(candidate, 'index.html'))) return candidate;
+  }
+  return null;
+}
+
+const webDist = process.env.NODE_ENV === 'production' ? resolveWebDist() : null;
+if (webDist) {
+  console.log('🌐 Web app static files:', webDist);
+}
+
 
 // Global error handlers
 process.on('unhandledRejection', (reason, promise) => {
@@ -346,7 +361,13 @@ app.use((req, res, next) => {
 // Health check for Render / load balancers (no auth, no rate limit)
 // Use https://your-app.onrender.com/health for Render's health check path
 app.get("/health", (req, res) => res.status(200).json({ ok: true, service: "Mulligan API", timestamp: new Date().toISOString() }));
-app.get("/", (req, res) => res.status(200).json({ ok: true, service: "Mulligan API" }));
+app.get("/", (req, res) => {
+  if (webDist) {
+    res.sendFile(path.join(webDist, 'index.html'));
+    return;
+  }
+  res.status(200).json({ ok: true, service: "Mulligan API" });
+});
 app.head("/", (req, res) => res.status(200).end());
 
 // Routes with rate limiting (set up before server starts)
@@ -662,6 +683,25 @@ app.get("/api/child-safety", (_req, res) => {
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.send(childSafetyHtml());
 });
+
+// SPA fallback when frontend dist is bundled with the API (same-origin /api — no CORS issues)
+if (webDist) {
+  app.use(express.static(webDist, { index: false }));
+  app.get('*', (req, res, next) => {
+    if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+    if (
+      req.path.startsWith('/api') ||
+      req.path.startsWith('/uploads') ||
+      req.path === '/health' ||
+      req.path === '/privacy' ||
+      req.path === '/delete-account' ||
+      req.path === '/child-safety'
+    ) {
+      return next();
+    }
+    res.sendFile(path.join(webDist, 'index.html'));
+  });
+}
 
 // 404 handler - must be after all routes
 app.use((req: express.Request, res: express.Response) => {
