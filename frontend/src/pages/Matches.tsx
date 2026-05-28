@@ -1038,19 +1038,79 @@ export default function Matches() {
     container.scrollTo({ top: container.scrollHeight, behavior });
   }, []);
 
+  const clearMobileChatKeyboardInset = useCallback(() => {
+    document.body.classList.remove("matches-chat-keyboard-open");
+    document.body.style.removeProperty("--chat-keyboard-inset");
+  }, []);
+
+  const syncMobileChatKeyboardInset = useCallback(() => {
+    if (typeof window === "undefined" || window.innerWidth > 900) return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const keyboardOpen = vv.height < window.innerHeight * 0.85;
+    const inset = keyboardOpen
+      ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
+      : 0;
+    document.body.classList.toggle("matches-chat-keyboard-open", keyboardOpen);
+    document.body.style.setProperty("--chat-keyboard-inset", `${inset}px`);
+  }, []);
+
+  /** Keep the composer + Send button above the tab bar after iOS keyboard dismiss (Done/checkmark). */
+  const ensureMobileComposerVisible = useCallback(() => {
+    if (typeof window === "undefined" || window.innerWidth > 900) return;
+    clearMobileChatKeyboardInset();
+
+    const pinComposer = () => {
+      const composer = messageComposerRef.current;
+      if (!composer) return;
+
+      const sendBtn = composer.querySelector<HTMLElement>(".send-btn");
+      const target = sendBtn ?? composer;
+      const vv = window.visualViewport;
+      const visibleBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
+      const tabReserve =
+        parseInt(
+          getComputedStyle(document.documentElement).getPropertyValue("--native-tab-height") || "48",
+          10
+        ) +
+        parseInt(
+          getComputedStyle(document.documentElement).getPropertyValue("--native-tab-safe-bottom") || "10",
+          10
+        ) +
+        8;
+
+      const rect = target.getBoundingClientRect();
+      const overflow = rect.bottom + tabReserve - visibleBottom;
+      if (overflow > 1) {
+        window.scrollBy({ top: overflow, left: 0, behavior: "instant" });
+      }
+
+      const after = target.getBoundingClientRect();
+      if (after.bottom + tabReserve > visibleBottom) {
+        composer.scrollIntoView({ block: "end", inline: "nearest", behavior: "instant" });
+      }
+    };
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(pinComposer);
+      setTimeout(pinComposer, 60);
+      setTimeout(pinComposer, 180);
+    });
+  }, [clearMobileChatKeyboardInset]);
+
   const resetMobileChatViewport = useCallback(() => {
     if (typeof window === "undefined" || window.innerWidth > 900) return;
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
     document.querySelector(".main-content")?.scrollTo({ top: 0, left: 0, behavior: "instant" });
-  }, []);
+    clearMobileChatKeyboardInset();
+  }, [clearMobileChatKeyboardInset]);
 
   const stabilizeMobileChatLayout = useCallback(() => {
     if (typeof window === "undefined" || window.innerWidth > 900) return;
     resetMobileChatViewport();
     const pinComposer = () => {
-      messageInputRef.current?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
       messageComposerRef.current?.scrollIntoView({ block: "end", inline: "nearest", behavior: "instant" });
       scrollMessagesToEnd("auto");
     };
@@ -1087,18 +1147,26 @@ export default function Matches() {
     const vv = window.visualViewport;
     if (!vv) return;
     const onViewportChange = () => {
+      syncMobileChatKeyboardInset();
+      const keyboardLikelyClosed = vv.height >= window.innerHeight * 0.92;
+      if (!keyboardLikelyClosed) return;
       if (document.activeElement === messageInputRef.current) return;
-      if (vv.height >= window.innerHeight * 0.92) {
-        resetMobileChatViewport();
-      }
+      ensureMobileComposerVisible();
     };
+    syncMobileChatKeyboardInset();
     vv.addEventListener("resize", onViewportChange);
     vv.addEventListener("scroll", onViewportChange);
     return () => {
       vv.removeEventListener("resize", onViewportChange);
       vv.removeEventListener("scroll", onViewportChange);
+      clearMobileChatKeyboardInset();
     };
-  }, [mobileChatOpen, resetMobileChatViewport]);
+  }, [
+    mobileChatOpen,
+    syncMobileChatKeyboardInset,
+    ensureMobileComposerVisible,
+    clearMobileChatKeyboardInset,
+  ]);
 
   useEffect(() => {
     if (!photoLightbox && !partnerDrawerOpen) return;
@@ -1371,7 +1439,7 @@ export default function Matches() {
     }
     if (typeof window !== "undefined" && window.innerWidth <= 900) {
       messageInputRef.current?.blur();
-      resetMobileChatViewport();
+      ensureMobileComposerVisible();
       requestAnimationFrame(() => scrollMessagesToEnd("auto"));
     }
   };
@@ -3138,9 +3206,21 @@ export default function Matches() {
                       autoComplete="off"
                       autoCorrect="off"
                       spellCheck
+                      enterKeyHint="send"
                       data-lpignore="true"
                       data-form-type="other"
                       name={`mulligan-chat-${selectedMatch.id}`}
+                      onFocus={() => {
+                        if (typeof window !== "undefined" && window.innerWidth <= 900) {
+                          syncMobileChatKeyboardInset();
+                        }
+                      }}
+                      onBlur={() => {
+                        if (typeof window !== "undefined" && window.innerWidth <= 900) {
+                          setTimeout(() => ensureMobileComposerVisible(), 50);
+                          setTimeout(() => ensureMobileComposerVisible(), 200);
+                        }
+                      }}
                       onChange={(e) => {
                         const value = e.target.value;
                         composerTextRef.current = value;
