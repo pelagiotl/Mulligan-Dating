@@ -90,7 +90,8 @@ export default function WebPushOnboardingPrompt({ open, onClose }: Props) {
         </h2>
         <p className="web-push-prompt-body">
           Get alerts for new matches and messages when Mulligan isn&apos;t open. On iPhone, add Mulligan to your Home
-          Screen first, then tap Enable.
+          Screen first, then tap Enable. If you skip this now, you can always turn it on later in Settings under
+          Browser notifications.
         </p>
         {error ? <p className="auth-error web-push-prompt-error">{error}</p> : null}
         <div className="web-push-prompt-actions">

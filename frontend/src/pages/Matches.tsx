@@ -3267,7 +3267,6 @@ export default function Matches() {
           <div className="no-match-selected">
             <div className="no-match-icon">💌</div>
             <h3>Select a match</h3>
-            <p>Your conversations will appear here</p>
           </div>
         )}
       </div>
