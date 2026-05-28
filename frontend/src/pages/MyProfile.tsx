@@ -401,6 +401,23 @@ export default function MyProfile() {
   const [editLifestyle, setEditLifestyle] = useState<LifestyleForm>(() => lifestyleFormFromApi(null));
   const [showAvatarLightbox, setShowAvatarLightbox] = useState(false);
   const [showProfilePreview, setShowProfilePreview] = useState(false);
+  const pendingRestoreScrollYRef = useRef<number | null>(null);
+
+  const captureScrollPositionForRestore = () => {
+    pendingRestoreScrollYRef.current = window.scrollY;
+  };
+
+  const restoreCapturedScrollPosition = () => {
+    const y = pendingRestoreScrollYRef.current;
+    if (y == null) return;
+    // Wait for state updates + profile refresh repaint before restoring scroll.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: y, behavior: "auto" });
+      });
+    });
+    pendingRestoreScrollYRef.current = null;
+  };
 
   useEffect(() => {
     if (!showAvatarLightbox) return;
@@ -569,6 +586,7 @@ export default function MyProfile() {
       setData((prev) => (prev ? { ...prev, profile: { ...prev.profile, location: loc } } : null));
       setShowLocationModal(false);
       await refreshProfile();
+      restoreCapturedScrollPosition();
     } catch (e: unknown) {
       setError((e as Error)?.message || "Failed to update location.");
     } finally {
@@ -593,6 +611,7 @@ export default function MyProfile() {
       );
       setShowDistanceModal(false);
       await refreshProfile();
+      restoreCapturedScrollPosition();
     } catch (e: unknown) {
       setError((e as Error)?.message || "Failed to update max distance.");
     } finally {
@@ -630,6 +649,7 @@ export default function MyProfile() {
       );
       setShowPreferredModal(false);
       await refreshProfile();
+      restoreCapturedScrollPosition();
     } catch (e: unknown) {
       setError((e as Error)?.message || "Failed to update preferred matches.");
     } finally {
@@ -659,6 +679,7 @@ export default function MyProfile() {
       setData((prev) => (prev ? { ...prev, profile: { ...prev.profile, looking_for: lookingFor } } : null));
       setShowLookingForModal(false);
       await refreshProfile();
+      restoreCapturedScrollPosition();
     } catch (e: unknown) {
       setError((e as Error)?.message || "Failed to update looking for.");
     } finally {
@@ -709,6 +730,7 @@ export default function MyProfile() {
       await refreshProfileData();
       setShowInterestsModal(false);
       await refreshProfile();
+      restoreCapturedScrollPosition();
     } catch (e: unknown) {
       setError((e as Error)?.message || "Failed to update interests.");
     } finally {
@@ -726,6 +748,7 @@ export default function MyProfile() {
       await refreshProfileData();
       setShowDealbreakersModal(false);
       await refreshProfile();
+      restoreCapturedScrollPosition();
     } catch (e: unknown) {
       setError((e as Error)?.message || "Failed to update dealbreakers.");
     } finally {
@@ -743,6 +766,7 @@ export default function MyProfile() {
       await refreshProfileData();
       setShowQualitiesModal(false);
       await refreshProfile();
+      restoreCapturedScrollPosition();
     } catch (e: unknown) {
       setError((e as Error)?.message || "Failed to update what you're looking for.");
     } finally {
@@ -767,6 +791,7 @@ export default function MyProfile() {
       await refreshProfileData();
       setShowLifestyleModal(false);
       await refreshProfile();
+      restoreCapturedScrollPosition();
     } catch (e: unknown) {
       setError((e as Error)?.message || "Failed to update lifestyle.");
     } finally {
@@ -957,6 +982,7 @@ export default function MyProfile() {
               type="button"
               className="my-profile-full-card my-profile-full-card--location"
               onClick={() => {
+                captureScrollPositionForRestore();
                 setEditLocation(profile.location || "");
                 setShowLocationModal(true);
               }}
@@ -985,6 +1011,7 @@ export default function MyProfile() {
               type="button"
               className="my-profile-full-card my-profile-full-card--distance"
             onClick={() => {
+              captureScrollPositionForRestore();
               setEditMaxDistance(data.preferences?.max_distance ?? 50);
               setShowDistanceModal(true);
             }}
@@ -1004,6 +1031,7 @@ export default function MyProfile() {
               type="button"
               className="my-profile-full-card my-profile-full-card--preferred"
               onClick={() => {
+                captureScrollPositionForRestore();
                 setEditPreferredGenders(parsePreferredGendersInitial(data.preferences?.preferred_genders));
                 setShowPreferredModal(true);
               }}
@@ -1021,6 +1049,7 @@ export default function MyProfile() {
               type="button"
               className="my-profile-full-card my-profile-full-card--looking"
               onClick={() => {
+                captureScrollPositionForRestore();
                 const cur = profile.looking_for ?? "";
                 setEditLookingFor(isCanonicalLookingFor(cur) ? cur : "");
                 setShowLookingForModal(true);
@@ -1102,6 +1131,7 @@ export default function MyProfile() {
             type="button"
             className="btn btn-secondary btn-sm"
             onClick={() => {
+              captureScrollPositionForRestore();
               setEditInterests(interests.map((i) => i.name));
               setShowInterestsModal(true);
             }}
@@ -1133,6 +1163,7 @@ export default function MyProfile() {
             type="button"
             className="btn btn-secondary btn-sm"
             onClick={() => {
+              captureScrollPositionForRestore();
               const next = Array.from(
                 new Set(
                   dealbreakers
@@ -1176,6 +1207,7 @@ export default function MyProfile() {
             type="button"
             className="btn btn-secondary btn-sm"
             onClick={() => {
+              captureScrollPositionForRestore();
               setEditQualities(partnerQualities.map((q) => q.quality));
               setShowQualitiesModal(true);
             }}
@@ -1211,6 +1243,7 @@ export default function MyProfile() {
             type="button"
             className="btn btn-secondary btn-sm"
             onClick={() => {
+              captureScrollPositionForRestore();
               setEditLifestyle(lifestyleFormFromApi(lifestyle));
               setShowLifestyleModal(true);
             }}

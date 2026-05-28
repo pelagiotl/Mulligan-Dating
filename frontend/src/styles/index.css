@@ -5079,8 +5079,8 @@ button.my-profile-avatar:focus-visible {
 }
 
 .app-layout--native-mobile-shell .my-profile-photo-lightbox-close {
-  top: calc(max(14px, env(safe-area-inset-top, 0px)) + 54px);
-  right: max(12px, env(safe-area-inset-right, 0px));
+  top: calc(max(16px, env(safe-area-inset-top, 0px)) + 56px);
+  right: calc(max(12px, env(safe-area-inset-right, 0px)) + 4px);
 }
 
 .my-profile-photo-lightbox-counter {
