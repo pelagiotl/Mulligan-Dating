@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import { io, Socket } from 'socket.io-client'
+import { getSocketUrl } from './utils/socketUrl'
 import Landing from './pages/Landing'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
@@ -231,7 +232,7 @@ function NewMatchesNotification() {
     const token = localStorage.getItem('token')
     if (!token) return
 
-    const socketUrl: string = (import.meta.env as any).VITE_API_URL || (import.meta.env as any).VITE_NGROK_URL || 'http://localhost:3001'
+    const socketUrl = getSocketUrl()
     const socket = io(socketUrl, {
       auth: { token },
       transports: ['websocket', 'polling'],

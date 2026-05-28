@@ -10,6 +10,7 @@ import ConnectButtonEffects from "../components/ConnectButtonEffects";
 import ConnectLandingMark from "../components/ConnectLandingMark";
 import LaunchCountdown from "../components/LaunchCountdown";
 import { io, Socket } from "socket.io-client";
+import { getSocketUrl } from "../utils/socketUrl";
 import { emitTokenBalanceUpdated } from "../lib/tokenBalanceEvents";
 import ConnectLandingTagline from "../components/ConnectLandingTagline";
 import { unlockMatchAudio } from "../utils/matchSound";
@@ -407,7 +408,7 @@ export default function Browse() {
     if (!token || !userProfile) return;
 
     // Use API URL from environment variable (for production) or ngrok (for testing), otherwise localhost
-    const socketUrl: string = (import.meta.env as any).VITE_API_URL || (import.meta.env as any).VITE_NGROK_URL || 'http://localhost:3001';
+    const socketUrl = getSocketUrl();
     const socket = io(socketUrl, {
       auth: { token },
       transports: ['websocket', 'polling'],

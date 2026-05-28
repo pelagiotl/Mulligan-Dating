@@ -37,6 +37,7 @@ async function request<T = any>(endpoint: string, options: RequestInit = {}): Pr
       headers,
       signal: controller.signal,
       cache: 'no-store',
+      credentials: 'include',
     })
     clearTimeout(timeoutId)
 

@@ -2,6 +2,7 @@ import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } fr
 import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { io, Socket } from "socket.io-client";
+import { getSocketUrl } from "../utils/socketUrl";
 import { matchesRouteActiveRef, openMatchIdRef } from "../lib/currentMatchView";
 import { api, ApiError } from "../utils/api";
 import { useAuth } from "../context/AuthContext";
@@ -601,7 +602,7 @@ export default function Matches() {
     if (!token || !user) return;
 
     // Use API URL from environment variable (for production) or ngrok (for testing), otherwise localhost
-    const socketUrl: string = (import.meta.env as any).VITE_API_URL || (import.meta.env as any).VITE_NGROK_URL || 'http://localhost:3001';
+    const socketUrl = getSocketUrl();
     const socket = io(socketUrl, {
       auth: { token },
       transports: ['websocket', 'polling'],

@@ -49,45 +49,38 @@ export default function PhoneLogin() {
     e.preventDefault()
     setError('')
     setLoading(true)
+    // Show code entry immediately — SMS is often already on its way
+    setStep('verify')
 
     try {
       const response = await api.post<{ message: string; phoneNumber: string; code?: string; smsSent: boolean }>('/sms/send-code', {
         phoneNumber
       })
 
-      // Always show the code if it's returned (helps with debugging and if SMS fails)
       if (response.code) {
         console.log('🔐 Verification code:', response.code)
-        // Show it in an alert for easy access
         alert(`Your verification code is: ${response.code}\n\n(Enter this code to continue)`)
       }
 
-      // Check if SMS was actually sent
       if (response.smsSent === false) {
-        console.warn('⚠️ SMS was not sent, but code is available')
-        // Show a helpful message
         setError('SMS delivery may have failed. Check the alert above for your verification code.')
       }
 
-      setStep('verify')
-      setLoading(false) // Reset loading when switching to verify step
+      setLoading(false)
     } catch (err: any) {
       setShake(true)
       setTimeout(() => setShake(false), 600)
       const errorMsg = err?.response?.data?.error || err?.message || 'Failed to send verification code'
       const lower = String(errorMsg).toLowerCase()
-      const maybeSent =
-        lower.includes('cannot connect') ||
-        lower.includes('load failed') ||
-        lower.includes('connection failed') ||
-        lower.includes('timeout') ||
-        lower.includes('failed to fetch')
-      if (maybeSent) {
-        // Backend may have sent the SMS before the browser lost the response (CORS, cold start, etc.)
-        setStep('verify')
-        setError('We had trouble confirming delivery, but your code may already be in your texts. Enter it below.')
-      } else {
+      const hardFail =
+        lower.includes('invalid phone') ||
+        lower.includes('too many') ||
+        lower.includes('required')
+      if (hardFail) {
+        setStep('phone')
         setError(errorMsg)
+      } else {
+        setError('Check your texts for a 6-digit code. If nothing arrives in a minute, tap Change Phone Number and try again.')
       }
       setLoading(false)
       console.error('Send code error:', err)
