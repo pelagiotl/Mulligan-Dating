@@ -401,40 +401,46 @@ export default function MyProfile() {
   const [editLifestyle, setEditLifestyle] = useState<LifestyleForm>(() => lifestyleFormFromApi(null));
   const [showAvatarLightbox, setShowAvatarLightbox] = useState(false);
   const [showProfilePreview, setShowProfilePreview] = useState(false);
-  const pendingRestoreScrollRef = useRef<{ windowY: number; mainContentTop: number | null } | null>(null);
+  /** Restore scroll by re-aligning a profile section to its pre-edit viewport offset. */
+  const pendingRestoreScrollRef = useRef<{ anchorId: string; offsetTop: number } | null>(null);
 
-  const getNativeMainContentScrollHost = () =>
-    document.querySelector<HTMLElement>(".app-layout--native-mobile-shell .main-content");
-
-  const captureScrollPositionForRestore = () => {
-    const mainContent = getNativeMainContentScrollHost();
+  const captureProfileScrollAnchor = (anchorId: string) => {
+    const el = document.getElementById(anchorId);
     pendingRestoreScrollRef.current = {
-      windowY: window.scrollY,
-      mainContentTop: mainContent ? mainContent.scrollTop : null,
+      anchorId,
+      offsetTop: el ? el.getBoundingClientRect().top : 0,
     };
   };
 
   const restoreCapturedScrollPosition = () => {
     const snapshot = pendingRestoreScrollRef.current;
     if (!snapshot) return;
-    const { windowY, mainContentTop } = snapshot;
+    const { anchorId, offsetTop } = snapshot;
+    pendingRestoreScrollRef.current = null;
 
     const applyRestore = () => {
-      window.scrollTo({ top: windowY, behavior: "auto" });
-      if (mainContentTop != null) {
-        const mainContent = getNativeMainContentScrollHost();
-        if (mainContent) mainContent.scrollTop = mainContentTop;
+      const el = document.getElementById(anchorId);
+      if (!el) return;
+      const delta = el.getBoundingClientRect().top - offsetTop;
+      if (Math.abs(delta) < 2) return;
+
+      window.scrollBy({ top: delta, left: 0, behavior: "auto" });
+
+      const mainContent = document.querySelector<HTMLElement>(
+        ".app-layout--native-mobile-shell .main-content"
+      );
+      if (mainContent && mainContent.scrollHeight > mainContent.clientHeight + 1) {
+        mainContent.scrollTop += delta;
       }
     };
 
-    // Apply multiple times as modal close + async profile refresh can reflow after first paint.
+    // Re-apply after modal close + async profile refresh reflow.
     requestAnimationFrame(() => {
-      requestAnimationFrame(applyRestore);
-      setTimeout(applyRestore, 40);
-      setTimeout(applyRestore, 120);
+      requestAnimationFrame(() => {
+        applyRestore();
+        [50, 150, 320].forEach((ms) => setTimeout(applyRestore, ms));
+      });
     });
-
-    pendingRestoreScrollRef.current = null;
   };
 
   useEffect(() => {
@@ -998,9 +1004,10 @@ export default function MyProfile() {
           <ProfilePerimeterBorder delay={0}>
             <button
               type="button"
+              id="my-profile-location"
               className="my-profile-full-card my-profile-full-card--location"
               onClick={() => {
-                captureScrollPositionForRestore();
+                captureProfileScrollAnchor("my-profile-location");
                 setEditLocation(profile.location || "");
                 setShowLocationModal(true);
               }}
@@ -1027,9 +1034,10 @@ export default function MyProfile() {
           <ProfilePerimeterBorder delay={200}>
             <button
               type="button"
+              id="my-profile-max-distance"
               className="my-profile-full-card my-profile-full-card--distance"
             onClick={() => {
-              captureScrollPositionForRestore();
+              captureProfileScrollAnchor("my-profile-max-distance");
               setEditMaxDistance(data.preferences?.max_distance ?? 50);
               setShowDistanceModal(true);
             }}
@@ -1047,9 +1055,10 @@ export default function MyProfile() {
           <ProfilePerimeterBorder delay={400}>
             <button
               type="button"
+              id="my-profile-preferred-matches"
               className="my-profile-full-card my-profile-full-card--preferred"
               onClick={() => {
-                captureScrollPositionForRestore();
+                captureProfileScrollAnchor("my-profile-preferred-matches");
                 setEditPreferredGenders(parsePreferredGendersInitial(data.preferences?.preferred_genders));
                 setShowPreferredModal(true);
               }}
@@ -1065,9 +1074,10 @@ export default function MyProfile() {
           <ProfilePerimeterBorder delay={600}>
             <button
               type="button"
+              id="my-profile-looking-for"
               className="my-profile-full-card my-profile-full-card--looking"
               onClick={() => {
-                captureScrollPositionForRestore();
+                captureProfileScrollAnchor("my-profile-looking-for");
                 const cur = profile.looking_for ?? "";
                 setEditLookingFor(isCanonicalLookingFor(cur) ? cur : "");
                 setShowLookingForModal(true);
@@ -1140,7 +1150,7 @@ export default function MyProfile() {
       </ProfilePerimeterBorder>
 
       <ProfilePerimeterBorder delay={900} className="profile-perimeter-border--section">
-      <div className="profile-detail-section">
+      <div className="profile-detail-section" id="my-interests">
         <div className="profile-detail-title-row">
           <h2 className="profile-detail-title">
             <span>🎯</span> My Interests
@@ -1149,7 +1159,7 @@ export default function MyProfile() {
             type="button"
             className="btn btn-secondary btn-sm"
             onClick={() => {
-              captureScrollPositionForRestore();
+              captureProfileScrollAnchor("my-interests");
               setEditInterests(interests.map((i) => i.name));
               setShowInterestsModal(true);
             }}
@@ -1172,7 +1182,7 @@ export default function MyProfile() {
       </ProfilePerimeterBorder>
 
       <ProfilePerimeterBorder delay={1100} className="profile-perimeter-border--section">
-      <div className="profile-detail-section">
+      <div className="profile-detail-section" id="my-dealbreakers">
         <div className="profile-detail-title-row">
           <h2 className="profile-detail-title">
             <span>🚫</span> My Dealbreakers
@@ -1181,7 +1191,7 @@ export default function MyProfile() {
             type="button"
             className="btn btn-secondary btn-sm"
             onClick={() => {
-              captureScrollPositionForRestore();
+              captureProfileScrollAnchor("my-dealbreakers");
               const next = Array.from(
                 new Set(
                   dealbreakers
@@ -1216,7 +1226,7 @@ export default function MyProfile() {
       </ProfilePerimeterBorder>
 
       <ProfilePerimeterBorder delay={1300} className="profile-perimeter-border--section">
-      <div className="profile-detail-section">
+      <div className="profile-detail-section" id="my-partner-qualities">
         <div className="profile-detail-title-row">
           <h2 className="profile-detail-title">
             <span>💕</span> What I&apos;m Looking For
@@ -1225,7 +1235,7 @@ export default function MyProfile() {
             type="button"
             className="btn btn-secondary btn-sm"
             onClick={() => {
-              captureScrollPositionForRestore();
+              captureProfileScrollAnchor("my-partner-qualities");
               setEditQualities(partnerQualities.map((q) => q.quality));
               setShowQualitiesModal(true);
             }}
@@ -1252,7 +1262,7 @@ export default function MyProfile() {
       </ProfilePerimeterBorder>
 
       <ProfilePerimeterBorder delay={1500} className="profile-perimeter-border--section">
-      <div className="profile-detail-section">
+      <div className="profile-detail-section" id="my-lifestyle">
         <div className="profile-detail-title-row">
           <h2 className="profile-detail-title">
             <span>🌱</span> Lifestyle
@@ -1261,7 +1271,7 @@ export default function MyProfile() {
             type="button"
             className="btn btn-secondary btn-sm"
             onClick={() => {
-              captureScrollPositionForRestore();
+              captureProfileScrollAnchor("my-lifestyle");
               setEditLifestyle(lifestyleFormFromApi(lifestyle));
               setShowLifestyleModal(true);
             }}

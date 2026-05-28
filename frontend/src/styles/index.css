@@ -4768,6 +4768,11 @@ img {
   touch-action: pan-y;
 }
 
+/* Profile edit scroll-restore anchors (navbar + safe area) */
+.my-profile [id^="my-"] {
+  scroll-margin-top: calc(env(safe-area-inset-top, 0px) + 72px);
+}
+
 .my-profile-header {
   display: flex;
   gap: var(--space-8);
