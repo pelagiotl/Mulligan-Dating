@@ -2563,7 +2563,7 @@ export default function Matches() {
         )}
       </div>
 
-      {selectedMatch ? (
+      {selectedMatch && (!isNarrow || !mobileShowMatchList) ? (
         <div className="matches-main">
           <>
             <div className="matches-chat-chrome">
