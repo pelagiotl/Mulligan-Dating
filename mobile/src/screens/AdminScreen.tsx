@@ -47,6 +47,23 @@ interface User {
   created_at: string;
   last_active_at?: string;
   tokenCount: number;
+  clientPlatform?: 'web' | 'android' | 'ios' | 'unknown';
+  clientPlatformLabel?: string;
+}
+
+const CLIENT_PLATFORM_BADGE_COLORS: Record<string, readonly [string, string]> = {
+  web: ['#3b82f6', '#2563eb'],
+  android: ['#22c55e', '#16a34a'],
+  ios: ['#a855f7', '#7c3aed'],
+  unknown: ['#94a3b8', '#64748b'],
+};
+
+function clientPlatformBadgeLabel(user: Pick<User, 'clientPlatform' | 'clientPlatformLabel'>): string {
+  return user.clientPlatformLabel || 'Unknown';
+}
+
+function clientPlatformBadgeColors(user: Pick<User, 'clientPlatform'>): readonly [string, string] {
+  return CLIENT_PLATFORM_BADGE_COLORS[user.clientPlatform || 'unknown'] ?? CLIENT_PLATFORM_BADGE_COLORS.unknown;
 }
 
 interface AdminUserPhoto {
@@ -877,6 +894,9 @@ export default function AdminScreen() {
                     {u.age && u.gender && (
                       <Text style={styles.userDetails} numberOfLines={1}>{u.age} • {u.gender}{u.location ? ` • ${u.location}` : ''}</Text>
                     )}
+                    <LinearGradient colors={clientPlatformBadgeColors(u)} style={styles.platformBadge}>
+                      <Text style={styles.platformBadgeText}>{clientPlatformBadgeLabel(u)}</Text>
+                    </LinearGradient>
                   </View>
                   <View style={styles.userBadges}>
                     {u.is_admin && (
@@ -975,6 +995,12 @@ export default function AdminScreen() {
                     <Text style={styles.detailItem}>User ID: {selectedUser.id}</Text>
                     <Text style={styles.detailItem}>Created: {new Date(selectedUser.created_at).toLocaleDateString()}</Text>
                     <Text style={styles.detailItem}>Last Active: {selectedUser.last_active_at ? new Date(selectedUser.last_active_at).toLocaleDateString() : 'Never'}</Text>
+                    <View style={styles.platformDetailRow}>
+                      <Text style={styles.detailItem}>Platform: </Text>
+                      <LinearGradient colors={clientPlatformBadgeColors(selectedUser)} style={styles.platformBadge}>
+                        <Text style={styles.platformBadgeText}>{clientPlatformBadgeLabel(selectedUser)}</Text>
+                      </LinearGradient>
+                    </View>
                   </View>
 
                   {selectedUser.profile && (
@@ -1671,6 +1697,25 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 6,
     paddingTop: 2,
+  },
+  platformDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 4,
+  },
+  platformBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    marginTop: 4,
+  },
+  platformBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
   },
   tokenBadge: {
     flexDirection: 'row',

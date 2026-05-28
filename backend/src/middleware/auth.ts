@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { detectClientPlatformFromRequest } from '../utils/clientPlatform.js';
 
 // Validate JWT secret on module load
 function getJWTSecret(): string {
@@ -68,9 +69,16 @@ export async function authenticateToken(req: AuthRequest, res: Response, next: N
       return res.status(403).json({ error: 'Your account has been restricted. Please contact support at Mulligandating@gmail.com' });
     }
 
-    // Update last active timestamp
-    const updateStmt = db.prepare('UPDATE users SET last_active_at = CURRENT_TIMESTAMP WHERE id = ?');
-    await (updateStmt.run([userId]) as Promise<any>);
+    const clientPlatform = detectClientPlatformFromRequest(req);
+    if (clientPlatform) {
+      const platformStmt = db.prepare(
+        'UPDATE users SET last_active_at = CURRENT_TIMESTAMP, last_client_platform = ? WHERE id = ?',
+      );
+      await (platformStmt.run([clientPlatform, userId]) as Promise<any>);
+    } else {
+      const updateStmt = db.prepare('UPDATE users SET last_active_at = CURRENT_TIMESTAMP WHERE id = ?');
+      await (updateStmt.run([userId]) as Promise<any>);
+    }
 
     // Save push token from header if present (fallback when POST /auth/push-token never runs or fails)
     const rawPushToken = req.headers['x-push-token'];

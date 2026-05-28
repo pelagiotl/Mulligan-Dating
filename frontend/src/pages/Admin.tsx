@@ -34,6 +34,14 @@ interface User {
   created_at: string;
   last_active_at?: string;
   tokenCount: number;
+  clientPlatform?: 'web' | 'android' | 'ios' | 'unknown';
+  clientPlatformLabel?: string;
+}
+
+function adminClientPlatformPill(user: Pick<User, 'clientPlatform' | 'clientPlatformLabel'>) {
+  const platform = user.clientPlatform || 'unknown';
+  const label = user.clientPlatformLabel || 'Unknown';
+  return <span className={`admin-platform-pill admin-platform-pill--${platform}`}>{label}</span>;
 }
 
 interface AdminMatchRow {
@@ -274,7 +282,7 @@ export default function Admin() {
       onboarding: {
         title: 'Onboarding',
         subtitle:
-          'Accounts still setting up — signed up but have not tapped Complete Profile. Includes in-progress create-profile flows.',
+          'Accounts still setting up — signed up but have not finished account setup (Complete Profile). Often they saved part of the wizard but still need name, city/state, 3+ photos, then tap Complete Profile. Incomplete profiles can be moved back here automatically.',
       },
     };
     return map[key];
@@ -843,6 +851,9 @@ export default function Admin() {
                         Age
                       </th>
                       <th scope="col">Location</th>
+                      <th scope="col" className="users-table-col-platform">
+                        Platform
+                      </th>
                       <th scope="col" className="users-table-col-narrow">
                         Tokens
                       </th>
@@ -892,6 +903,7 @@ export default function Admin() {
                             {user.location || '—'}
                           </span>
                         </td>
+                        <td className="users-table-cell-platform">{adminClientPlatformPill(user)}</td>
                         <td>
                           <span className="admin-token-pill">{user.tokenCount}</span>
                         </td>
@@ -1053,6 +1065,9 @@ export default function Admin() {
                 <p><strong>User ID:</strong> {selectedUser.id}</p>
                 <p><strong>Created:</strong> {new Date(selectedUser.created_at).toLocaleDateString()}</p>
                 <p><strong>Last Active:</strong> {selectedUser.last_active_at ? new Date(selectedUser.last_active_at).toLocaleDateString() : 'Never'}</p>
+                <p>
+                  <strong>Platform:</strong> {adminClientPlatformPill(selectedUser)}
+                </p>
               </div>
 
               {selectedUser.profile && (

@@ -759,6 +759,40 @@
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset;
 }
 
+.users-table-col-platform {
+  width: 5.5rem;
+}
+
+.admin-platform-pill {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.admin-platform-pill--web {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.admin-platform-pill--android {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.admin-platform-pill--ios {
+  background: #f3e8ff;
+  color: #7e22ce;
+}
+
+.admin-platform-pill--unknown {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
 .users-table-col-narrow {
   width: 4rem;
 }

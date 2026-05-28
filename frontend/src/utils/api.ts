@@ -15,6 +15,8 @@ async function request<T = any>(endpoint: string, options: RequestInit = {}): Pr
   
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
+    'X-Mulligan-Client': 'web',
+    'User-Agent': 'Mulligan-Dating-Web/1.0',
     ...options.headers
   }
 

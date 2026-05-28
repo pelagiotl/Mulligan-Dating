@@ -8,6 +8,10 @@ import {
   sendAdminUsersExportEmail,
 } from '../services/adminUsersExportEmail.js';
 import { sqlOnlyActiveAccounts, sqlOnlyOnboardingAccounts } from '../utils/accountStatus.js';
+import {
+  clientPlatformLabel,
+  inferClientPlatformFromSignals,
+} from '../utils/clientPlatform.js';
 import { v4 as uuidv4 } from 'uuid';
 
 export const adminRouter = Router();
@@ -50,6 +54,91 @@ async function assertCanModerateUser(req: AuthRequest, res: Response, targetUser
 function sqlExcludeProtectedDisplay(ownerView: boolean): string {
   if (ownerView) return '';
   return ` AND (COALESCE(LOWER(TRIM(p.display_name)), '') != '${PROTECTED_REVIEW_DISPLAY}')`;
+}
+
+type ClientPlatformSignals = {
+  last_client_platform: string | null;
+  push_token: string | null;
+  has_web_push: boolean;
+};
+
+async function loadClientPlatformSignalsByUserId(
+  userIds: string[],
+): Promise<Record<string, ClientPlatformSignals>> {
+  if (userIds.length === 0) return {};
+  const placeholders = userIds.map(() => '?').join(',');
+  const userRows = (await db
+    .prepare(
+      `SELECT id, last_client_platform, push_token FROM users WHERE id IN (${placeholders})`,
+    )
+    .all(userIds)) as {
+    id: string;
+    last_client_platform: string | null;
+    push_token: string | null;
+  }[];
+  const webRows = (await db
+    .prepare(
+      `SELECT DISTINCT user_id FROM web_push_subscriptions WHERE user_id IN (${placeholders})`,
+    )
+    .all(userIds)) as { user_id: string }[];
+  const webSet = new Set(webRows.map((r) => r.user_id));
+  const out: Record<string, ClientPlatformSignals> = {};
+  for (const row of userRows) {
+    out[row.id] = {
+      last_client_platform: row.last_client_platform,
+      push_token: row.push_token,
+      has_web_push: webSet.has(row.id),
+    };
+  }
+  for (const id of userIds) {
+    if (!out[id]) {
+      out[id] = { last_client_platform: null, push_token: null, has_web_push: webSet.has(id) };
+    }
+  }
+  return out;
+}
+
+function mapAdminListUser(
+  u: {
+    id: string;
+    email?: string | null;
+    phone_number?: string | null;
+    display_name?: string | null;
+    age?: number | null;
+    gender?: string | null;
+    location?: string | null;
+    is_admin?: number | boolean;
+    is_restricted?: number | boolean;
+    hidden_from_browse?: number | boolean;
+    created_at: string;
+    last_active_at?: string | null;
+    account_status?: string | null;
+  },
+  tokenCounts: Record<string, number>,
+  platformSignals: Record<string, ClientPlatformSignals>,
+  overrides?: { is_restricted?: boolean; account_status?: string },
+) {
+  const signals = platformSignals[u.id];
+  const clientPlatform = inferClientPlatformFromSignals(signals || {});
+  return {
+    id: u.id,
+    email: u.email || u.phone_number || 'N/A',
+    phoneNumber: u.phone_number,
+    display_name: u.display_name,
+    age: u.age,
+    gender: u.gender,
+    location: u.location,
+    is_admin: u.is_admin === 1 || u.is_admin === true,
+    is_restricted:
+      overrides?.is_restricted ?? (u.is_restricted === 1 || u.is_restricted === true),
+    hiddenFromBrowse: u.hidden_from_browse === 1 || u.hidden_from_browse === true,
+    created_at: u.created_at,
+    last_active_at: u.last_active_at,
+    tokenCount: tokenCounts[u.id] || 0,
+    clientPlatform,
+    clientPlatformLabel: clientPlatformLabel(clientPlatform),
+    ...(overrides?.account_status != null ? { account_status: overrides.account_status } : {}),
+  };
 }
 
 export type AdminUserPhoto = {
@@ -491,21 +580,8 @@ adminRouter.get('/export/report', authenticateToken, requireAdmin, async (req: A
       });
     }
 
-    const users = usersResult.map((u: any) => ({
-      id: u.id,
-      email: u.email || u.phone_number || 'N/A',
-      phoneNumber: u.phone_number,
-      display_name: u.display_name,
-      age: u.age,
-      gender: u.gender,
-      location: u.location,
-      is_admin: u.is_admin === 1,
-      is_restricted: u.is_restricted === 1,
-      hiddenFromBrowse: u.hidden_from_browse === 1,
-      created_at: u.created_at,
-      last_active_at: u.last_active_at,
-      tokenCount: tokenCounts[u.id] || 0
-    }));
+    const platformSignals = await loadClientPlatformSignalsByUserId(userIds);
+    const users = usersResult.map((u: any) => mapAdminListUser(u, tokenCounts, platformSignals));
 
     const report = {
       exportedAt: new Date().toISOString(),
@@ -685,21 +761,10 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
         tokensResult.forEach((row: any) => { tokenCounts[row.user_id] = parseInt(row.count) || 0; });
       }
 
-      const users = usersResult.map((u: any) => ({
-        id: u.id,
-        email: u.email || u.phone_number || 'N/A',
-        phoneNumber: u.phone_number,
-        display_name: u.display_name,
-        age: u.age,
-        gender: u.gender,
-        location: u.location,
-        is_admin: u.is_admin === 1,
-        is_restricted: true,
-        hiddenFromBrowse: u.hidden_from_browse === 1,
-        created_at: u.created_at,
-        last_active_at: u.last_active_at,
-        tokenCount: tokenCounts[u.id] || 0
-      }));
+      const platformSignals = await loadClientPlatformSignalsByUserId(userIds);
+      const users = usersResult.map((u: any) =>
+        mapAdminListUser(u, tokenCounts, platformSignals, { is_restricted: true }),
+      );
 
       return res.json({ users, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
     }
@@ -746,21 +811,8 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
         });
       }
 
-      const users = usersResult.map((u: any) => ({
-        id: u.id,
-        email: u.email || u.phone_number || 'N/A',
-        phoneNumber: u.phone_number,
-        display_name: u.display_name,
-        age: u.age,
-        gender: u.gender,
-        location: u.location,
-        is_admin: u.is_admin === 1,
-        is_restricted: u.is_restricted === 1,
-        hiddenFromBrowse: u.hidden_from_browse === 1,
-        created_at: u.created_at,
-        last_active_at: u.last_active_at,
-        tokenCount: tokenCounts[u.id] || 0,
-      }));
+      const platformSignals = await loadClientPlatformSignalsByUserId(userIds);
+      const users = usersResult.map((u: any) => mapAdminListUser(u, tokenCounts, platformSignals));
 
       return res.json({ users, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
     }
@@ -805,22 +857,12 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
         tokensResult.forEach((row: any) => { tokenCounts[row.user_id] = parseInt(row.count) || 0; });
       }
 
-      const users = usersResult.map((u: any) => ({
-        id: u.id,
-        email: u.email || u.phone_number || 'N/A',
-        phoneNumber: u.phone_number,
-        display_name: u.display_name,
-        age: u.age,
-        gender: u.gender,
-        location: u.location,
-        is_admin: u.is_admin === 1,
-        is_restricted: u.is_restricted === 1,
-        hiddenFromBrowse: u.hidden_from_browse === 1,
-        account_status: u.account_status ?? 'onboarding',
-        created_at: u.created_at,
-        last_active_at: u.last_active_at,
-        tokenCount: tokenCounts[u.id] || 0,
-      }));
+      const platformSignals = await loadClientPlatformSignalsByUserId(userIds);
+      const users = usersResult.map((u: any) =>
+        mapAdminListUser(u, tokenCounts, platformSignals, {
+          account_status: u.account_status ?? 'onboarding',
+        }),
+      );
 
       return res.json({ users, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
     }
@@ -914,21 +956,8 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
       });
     }
 
-    const users = usersResult.map((u: any) => ({
-      id: u.id,
-      email: u.email || u.phone_number || 'N/A',
-      phoneNumber: u.phone_number,
-      display_name: u.display_name,
-      age: u.age,
-      gender: u.gender,
-      location: u.location,
-      is_admin: u.is_admin === 1,
-      is_restricted: u.is_restricted === 1,
-      hiddenFromBrowse: u.hidden_from_browse === 1,
-      created_at: u.created_at,
-      last_active_at: u.last_active_at,
-      tokenCount: tokenCounts[u.id] || 0
-    }));
+    const platformSignals = await loadClientPlatformSignalsByUserId(userIds);
+    const users = usersResult.map((u: any) => mapAdminListUser(u, tokenCounts, platformSignals));
 
     res.json({
       users,
@@ -1009,6 +1038,15 @@ adminRouter.get('/users/:id', authenticateToken, requireAdmin, async (req: AuthR
     const blocksResult = await (db.prepare('SELECT COUNT(*) as count FROM blocks WHERE blocker_id = ?').get([userId]) as Promise<{ count: number }>);
     const blocks = blocksResult?.count || 0;
 
+    const webPushRow = await (db
+      .prepare('SELECT 1 as ok FROM web_push_subscriptions WHERE user_id = ? LIMIT 1')
+      .get([userId]) as Promise<{ ok: number } | undefined>);
+    const clientPlatform = inferClientPlatformFromSignals({
+      last_client_platform: userResult.last_client_platform,
+      push_token: userResult.push_token,
+      has_web_push: Boolean(webPushRow),
+    });
+
     res.json({
       id: userResult.id,
       email: userResult.email || userResult.phone_number || 'N/A',
@@ -1018,6 +1056,8 @@ adminRouter.get('/users/:id', authenticateToken, requireAdmin, async (req: AuthR
       hiddenFromBrowse: userResult.hidden_from_browse === 1,
       created_at: userResult.created_at,
       last_active_at: userResult.last_active_at,
+      clientPlatform,
+      clientPlatformLabel: clientPlatformLabel(clientPlatform),
       profile: profileResult || null,
       photos,
       interests,

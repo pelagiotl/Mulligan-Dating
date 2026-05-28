@@ -267,6 +267,13 @@ export async function initDatabase() {
   }
   try {
     await execSQL(
+      `ALTER TABLE users ADD COLUMN last_client_platform ${usePostgres ? 'VARCHAR(16)' : 'TEXT'}`,
+    );
+  } catch (e) {
+    // Column already exists, ignore
+  }
+  try {
+    await execSQL(
       `UPDATE users SET profile_activated_at = COALESCE(profile_activated_at, tos_accepted_at, created_at)
        WHERE COALESCE(account_status, 'active') = 'active' AND profile_activated_at IS NULL`,
     );

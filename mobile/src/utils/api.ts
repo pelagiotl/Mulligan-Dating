@@ -228,6 +228,10 @@ async function request<T = any>(endpoint: string, options: RequestOptions = {}, 
     headers['User-Agent'] = DEFAULT_API_USER_AGENT;
   }
 
+  if (!headers['X-Mulligan-Client'] && !headers['x-mulligan-client']) {
+    headers['X-Mulligan-Client'] = Platform.OS === 'ios' ? 'ios' : 'android';
+  }
+
   if (
     Platform.OS === 'android' &&
     !isGetRequest &&
