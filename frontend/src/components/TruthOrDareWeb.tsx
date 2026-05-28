@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import type { Socket } from "socket.io-client";
 import { api, ApiError } from "../utils/api";
 import { filterBannedGamePrompts } from "../utils/gamePromptGuards";
+import MatchInGameChatPanel, { type MatchGameChatMessage } from "./MatchInGameChatPanel";
 
 const TRUTH_PROMPTS = [
   "What's the one thing that would make you actually stop scrolling?",
@@ -176,6 +177,10 @@ type Props = {
   matchId: string;
   socket: Socket | null;
   onSendToChat: (text: string) => Promise<boolean | void>;
+  gameChatMessages?: MatchGameChatMessage[];
+  sendingMessage?: boolean;
+  partnerDisplayName?: string;
+  partnerIsTyping?: boolean;
   onUnlockWithToken: () => Promise<void>;
   onBeforeUnlockPrompt: () => Promise<boolean>;
   openForAccept?: boolean;
@@ -191,6 +196,10 @@ export default function TruthOrDareWeb({
   matchId,
   socket,
   onSendToChat,
+  gameChatMessages = [],
+  sendingMessage = false,
+  partnerDisplayName = "Them",
+  partnerIsTyping = false,
   onUnlockWithToken,
   onBeforeUnlockPrompt,
   openForAccept,
@@ -798,6 +807,20 @@ export default function TruthOrDareWeb({
                 </div>
               </>
             )}
+            {modalOpen && gameState?.spiceReady && currentUserId ? (
+              <MatchInGameChatPanel
+                matchId={matchId}
+                socket={socket}
+                messages={gameChatMessages}
+                currentUserId={currentUserId}
+                partnerDisplayName={partnerDisplayName}
+                partnerIsTyping={partnerIsTyping}
+                sendingMessage={sendingMessage}
+                onSendToChat={onSendToChat}
+                visible
+                gameLabel="Truth or Dare"
+              />
+            ) : null}
             <button type="button" className="tod-web-close" onClick={closeModal}>
               Close
             </button>

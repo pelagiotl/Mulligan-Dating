@@ -2739,8 +2739,12 @@ export default function Matches() {
                     matchId={selectedMatch.id}
                     socket={socketRef.current}
                     messages={messages}
+                    gameChatMessages={messages}
                     currentUserId={user.id}
                     chatPartnerUserId={selectedMatch.otherUser.userId}
+                    partnerDisplayName={selectedMatch.otherUser.displayName}
+                    partnerIsTyping={typingUsers.has(selectedMatch.otherUser.userId)}
+                    sendingMessage={sendingMessage}
                     onSendToChat={sendChatText}
                     onBeforeUnlockPrompt={async () => {
                       const list = await fetchMatches();

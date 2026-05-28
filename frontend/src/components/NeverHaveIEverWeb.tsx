@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Socket } from "socket.io-client";
 import { api } from "../utils/api";
 import MatchChatDepthGateOverlay from "./MatchChatDepthGateOverlay";
+import MatchInGameChatPanel, { type MatchGameChatMessage } from "./MatchInGameChatPanel";
 import { matchChatDepthThresholdMet } from "../utils/matchChatDepthGate";
 
 type SpiceId = "pg13" | "ratedr" | "spicy";
@@ -46,17 +47,8 @@ type SocketPayload = {
   user2Strikes?: number;
 };
 
-/** Subset of match messages for in-game chat bubbles (same thread as main chat). */
-export type NhieGameChatMessage = {
-  id: string;
-  content: string;
-  senderId: string;
-  senderName: string;
-  sentAt: string;
-  imageUrl?: string | null;
-  videoUrl?: string | null;
-  audioUrl?: string | null;
-};
+/** @deprecated Use MatchGameChatMessage from MatchInGameChatPanel */
+export type NhieGameChatMessage = MatchGameChatMessage;
 
 type Props = {
   matchId: string;
@@ -77,17 +69,6 @@ type Props = {
   messages?: Array<{ senderId: string }>;
   chatPartnerUserId?: string;
 };
-
-const GAME_CHAT_MAX = 80;
-
-function bubbleBody(m: NhieGameChatMessage): string {
-  const t = (m.content ?? "").trim();
-  if (t) return t;
-  if (m.imageUrl) return "📷 Photo";
-  if (m.videoUrl) return "🎥 Video";
-  if (m.audioUrl) return "🎤 Voice";
-  return "";
-}
 
 const SPICE_OPTIONS: { id: SpiceId; title: string; blurb: string }[] = [
   {
@@ -196,11 +177,7 @@ export default function NeverHaveIEverWeb({
   const [submitting, setSubmitting] = useState(false);
   const [state, setState] = useState<GameState | null>(null);
   const [prompt, setPrompt] = useState("");
-  const [gameChatDraft, setGameChatDraft] = useState("");
-  const [gameChatSending, setGameChatSending] = useState(false);
   const [inactiveNotice, setInactiveNotice] = useState<string | null>(null);
-  const [compactGameLayout, setCompactGameLayout] = useState(false);
-  const [gameChatPanelOpen, setGameChatPanelOpen] = useState(true);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const waitingPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -211,11 +188,6 @@ export default function NeverHaveIEverWeb({
   const modalOpenRef = useRef(false);
   modalOpenRef.current = modalOpen;
   const promptLockedUntilRef = useRef(0);
-  const gameChatEndRef = useRef<HTMLDivElement | null>(null);
-  const gameChatTextareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const gameChatTypingActiveRef = useRef(false);
-  const gameChatTypingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const isUnlocked = !!gameUnlockedByToken;
   const displayPrompt = prompt || state?.prompt || "";
 
@@ -223,72 +195,12 @@ export default function NeverHaveIEverWeb({
     Boolean(currentUserId && chatPartnerUserId) &&
     matchChatDepthThresholdMet(messages, currentUserId as string, chatPartnerUserId as string);
 
-  const stopGameChatTyping = useCallback(() => {
-    if (gameChatTypingTimeoutRef.current) {
-      clearTimeout(gameChatTypingTimeoutRef.current);
-      gameChatTypingTimeoutRef.current = null;
-    }
-    if (gameChatTypingActiveRef.current) {
-      socket?.emit("stop_typing", { matchId });
-      gameChatTypingActiveRef.current = false;
-    }
-  }, [socket, matchId]);
-
-  const pulseGameChatTypingFromValue = useCallback(
-    (value: string) => {
-      if (!socket || !modalOpenRef.current) return;
-      const trimmed = value.trim();
-      if (!trimmed) {
-        stopGameChatTyping();
-        return;
-      }
-      if (!gameChatTypingActiveRef.current) {
-        socket.emit("typing", { matchId });
-        gameChatTypingActiveRef.current = true;
-      }
-      if (gameChatTypingTimeoutRef.current) clearTimeout(gameChatTypingTimeoutRef.current);
-      gameChatTypingTimeoutRef.current = setTimeout(() => {
-        socket.emit("stop_typing", { matchId });
-        gameChatTypingActiveRef.current = false;
-        gameChatTypingTimeoutRef.current = null;
-      }, 3000);
-    },
-    [socket, matchId, stopGameChatTyping]
-  );
-
-  const sortedGameChat = useMemo(() => {
-    const rows = gameChatMessages
-      .filter((m) => Boolean(bubbleBody(m)))
-      .sort((a, b) => new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime());
-    return rows.length > GAME_CHAT_MAX ? rows.slice(-GAME_CHAT_MAX) : rows;
-  }, [gameChatMessages]);
-
-  useLayoutEffect(() => {
-    if (!modalOpen) return;
-    gameChatEndRef.current?.scrollIntoView({ block: "end" });
-  }, [modalOpen, sortedGameChat]);
-
-  const sendGameChatMessage = async () => {
-    const text = gameChatDraft.trim();
-    if (!text || !currentUserId || gameChatSending || sendingMessage) return;
-    setGameChatSending(true);
-    setGameChatDraft("");
-    try {
-      const ok = await onSendToChat(text);
-      if (ok === false) setGameChatDraft(text);
-    } finally {
-      setGameChatSending(false);
-      stopGameChatTyping();
-    }
-  };
-
   useEffect(() => {
     setModalOpen(false);
     setLoading(false);
     setSubmitting(false);
     setState(null);
     setPrompt("");
-    setGameChatDraft("");
     lastRoundCompletedAtRef.current = 0;
     lastAnsweredPromptRef.current = "";
     lastKnownPointsRef.current = { yourPoints: 0, theirPoints: 0 };
@@ -303,19 +215,6 @@ export default function NeverHaveIEverWeb({
       waitingPollRef.current = null;
     }
   }, [matchId]);
-
-  useEffect(() => {
-    return () => {
-      if (gameChatTypingTimeoutRef.current) {
-        clearTimeout(gameChatTypingTimeoutRef.current);
-        gameChatTypingTimeoutRef.current = null;
-      }
-      if (gameChatTypingActiveRef.current) {
-        socket?.emit("stop_typing", { matchId });
-        gameChatTypingActiveRef.current = false;
-      }
-    };
-  }, [matchId, socket]);
 
   const gameOver = !!state && (state.gameOver || state.yourPoints >= 10 || state.theirPoints >= 10);
   const gameResultTitle = (() => {
@@ -410,10 +309,8 @@ export default function NeverHaveIEverWeb({
   }, [fetchState]);
 
   const closeModal = useCallback(() => {
-    stopGameChatTyping();
     setModalOpen(false);
     setPrompt("");
-    setGameChatDraft("");
     lastAnsweredPromptRef.current = "";
     if (pollRef.current) {
       clearInterval(pollRef.current);
@@ -423,7 +320,7 @@ export default function NeverHaveIEverWeb({
       clearInterval(waitingPollRef.current);
       waitingPollRef.current = null;
     }
-  }, [stopGameChatTyping]);
+  }, []);
 
   useEffect(() => {
     if (!inactiveNotice) return;
@@ -432,31 +329,8 @@ export default function NeverHaveIEverWeb({
   }, [inactiveNotice]);
 
   useEffect(() => {
-    if (!modalOpen) {
-      stopGameChatTyping();
-      setInactiveNotice(null);
-      return;
-    }
-    const mq = window.matchMedia("(max-width: 720px)");
-    setCompactGameLayout(mq.matches);
-    setGameChatPanelOpen(!mq.matches);
-  }, [modalOpen, stopGameChatTyping]);
-
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 720px)");
-    const onChange = () => {
-      const c = mq.matches;
-      setCompactGameLayout(c);
-      if (!c) setGameChatPanelOpen(true);
-    };
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  }, []);
-
-  useLayoutEffect(() => {
-    if (!modalOpen || !compactGameLayout || !gameChatPanelOpen) return;
-    requestAnimationFrame(() => gameChatTextareaRef.current?.focus());
-  }, [modalOpen, compactGameLayout, gameChatPanelOpen]);
+    if (!modalOpen) setInactiveNotice(null);
+  }, [modalOpen]);
 
   useEffect(() => {
     if (!openForAccept) return;
@@ -731,9 +605,7 @@ export default function NeverHaveIEverWeb({
     await handleLockedPress();
   };
 
-  const showGameChatRoot = Boolean(state && currentUserId);
-  const showEmbeddedGameChat = showGameChatRoot && (!compactGameLayout || gameChatPanelOpen);
-  const showGameChatFab = showGameChatRoot && compactGameLayout && !gameChatPanelOpen;
+  const showGameChat = Boolean(state && currentUserId);
 
   const unlockOverlay = unlockConfirmOpen ? (
     <div className="tod-web-unlock-overlay nhie-web-unlock-overlay" role="presentation" onClick={closeUnlockConfirm}>
@@ -916,99 +788,19 @@ export default function NeverHaveIEverWeb({
               </>
             )}
 
-            {showEmbeddedGameChat ? (
-              <div
-                className={`nhie-web-game-chat${compactGameLayout && gameChatPanelOpen ? " nhie-web-game-chat--sheet" : ""}`}
-                role="region"
-                aria-label="Messages with your match"
-              >
-                {compactGameLayout && gameChatPanelOpen ? (
-                  <div className="nhie-web-game-chat-toolbar">
-                    <span className="nhie-web-game-chat-toolbar-title">In-game chat</span>
-                    <button
-                      type="button"
-                      className="nhie-web-game-chat-minimize"
-                      onClick={() => setGameChatPanelOpen(false)}
-                      aria-label="Hide chat and keep playing"
-                    >
-                      Hide
-                    </button>
-                  </div>
-                ) : null}
-                {compactGameLayout && gameChatPanelOpen ? (
-                  <p className="nhie-web-game-chat-toolbar-hint">Message each other here while you play — same thread as your match chat.</p>
-                ) : null}
-                {!(compactGameLayout && gameChatPanelOpen) ? (
-                  <p className="nhie-web-game-chat-label">Message your match while you play</p>
-                ) : null}
-                {partnerIsTyping ? (
-                  <p className="nhie-web-game-chat-typing" aria-live="polite">
-                    {partnerDisplayName} is typing…
-                  </p>
-                ) : null}
-                <div className="nhie-web-game-chat-scroll">
-                  {sortedGameChat.length === 0 ? (
-                    <p className="nhie-web-game-chat-empty">No messages here yet — say something without leaving the game.</p>
-                  ) : (
-                    sortedGameChat.map((m, idx) => {
-                      const mine = m.senderId === currentUserId;
-                      const body = bubbleBody(m);
-                      const prev = idx > 0 ? sortedGameChat[idx - 1] : null;
-                      const senderFlip = prev != null && prev.senderId !== m.senderId;
-                      const senderLabel = mine ? "You" : m.senderName || partnerDisplayName || "Match";
-                      return (
-                        <div
-                          key={m.id}
-                          className={`nhie-web-game-chat-row${mine ? " nhie-web-game-chat-row--mine" : " nhie-web-game-chat-row--theirs"}${senderFlip ? " nhie-web-game-chat-row--sender-gap" : ""}`}
-                        >
-                          <div
-                            className={`nhie-web-game-chat-bubble${mine ? " nhie-web-game-chat-bubble--mine" : " nhie-web-game-chat-bubble--theirs"}`}
-                          >
-                            <span
-                              className={`nhie-web-game-chat-who${mine ? " nhie-web-game-chat-who--mine" : " nhie-web-game-chat-who--theirs"}`}
-                            >
-                              {senderLabel}
-                            </span>
-                            <span className="nhie-web-game-chat-text">{body}</span>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                  <div ref={gameChatEndRef} aria-hidden />
-                </div>
-                <div className="nhie-web-game-chat-composer">
-                  <textarea
-                    ref={gameChatTextareaRef}
-                    className="nhie-web-game-chat-input"
-                    rows={2}
-                    maxLength={1000}
-                    placeholder="Type a message…"
-                    value={gameChatDraft}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setGameChatDraft(v);
-                      pulseGameChatTypingFromValue(v);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        void sendGameChatMessage();
-                      }
-                    }}
-                    disabled={gameChatSending || sendingMessage}
-                    aria-label="Message to your match"
-                  />
-                  <button
-                    type="button"
-                    className="nhie-web-game-chat-send"
-                    onClick={() => void sendGameChatMessage()}
-                    disabled={gameChatSending || sendingMessage || !gameChatDraft.trim()}
-                  >
-                    Send
-                  </button>
-                </div>
-              </div>
+            {showGameChat ? (
+              <MatchInGameChatPanel
+                matchId={matchId}
+                socket={socket}
+                messages={gameChatMessages}
+                currentUserId={currentUserId}
+                partnerDisplayName={partnerDisplayName}
+                partnerIsTyping={partnerIsTyping}
+                sendingMessage={sendingMessage}
+                onSendToChat={onSendToChat}
+                visible={showGameChat}
+                gameLabel="Never Have I Ever"
+              />
             ) : null}
 
             <button type="button" className="tod-web-close" onClick={closeModal}>
@@ -1016,25 +808,6 @@ export default function NeverHaveIEverWeb({
             </button>
           </div>
         </div>
-        {showGameChatFab ? (
-          <button
-            type="button"
-            className="nhie-web-game-chat-fab"
-            title="Open in-game chat — message your match without leaving Never Have I Ever"
-            aria-label="Open in-game chat to message your match while playing Never Have I Ever"
-            onClick={(e) => {
-              e.stopPropagation();
-              setGameChatPanelOpen(true);
-            }}
-          >
-            <span className="nhie-web-game-chat-fab-inner">
-              <span className="nhie-web-game-chat-fab-emoji" aria-hidden>
-                💬
-              </span>
-              <span className="nhie-web-game-chat-fab-caption">Game chat</span>
-            </span>
-          </button>
-        ) : null}
       </div>
     ) : null;
 

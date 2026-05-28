@@ -635,6 +635,17 @@ export default function NeverHaveIEver({
   }, [modalVisible, compactGameChat]);
 
   useEffect(() => {
+    if (!showEmbeddedGameChat) return;
+    scrollGameChatToEnd();
+    const t1 = setTimeout(scrollGameChatToEnd, 60);
+    const t2 = setTimeout(scrollGameChatToEnd, 200);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [showEmbeddedGameChat, sortedGameChat, scrollGameChatToEnd]);
+
+  useEffect(() => {
     if (!modalVisible) return;
     const onUpdate = (payload: {
       matchId?: string;
@@ -1301,6 +1312,8 @@ export default function NeverHaveIEver({
             activeOpacity={0.88}
             onPress={() => {
               setGameChatPanelOpen(true);
+              setTimeout(scrollGameChatToEnd, 60);
+              setTimeout(scrollGameChatToEnd, 200);
             }}
             accessibilityRole="button"
             accessibilityLabel="Open in-game chat to message your match while playing Never Have I Ever"
