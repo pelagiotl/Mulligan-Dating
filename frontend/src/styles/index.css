@@ -12628,7 +12628,7 @@ button.chat-avatar-btn .chat-avatar img {
   .matches-page--mobile-conversation .message-input-wrapper {
     display: flex;
     flex-wrap: nowrap;
-    align-items: center;
+    align-items: stretch;
     gap: var(--space-2);
   }
 
@@ -12638,6 +12638,20 @@ button.chat-avatar-btn .chat-avatar img {
     width: auto;
     flex: 1 1 0%;
     min-width: 0;
+    min-height: 44px;
+    line-height: 1.25;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    box-sizing: border-box;
+  }
+
+  .matches-page--mobile-conversation .message-input:focus {
+    transform: none;
+  }
+
+  .matches-page--mobile-conversation .send-btn {
+    align-self: center;
+    min-height: 44px;
   }
 
   .matches-page--mobile-conversation .message-input-attachments {
@@ -12920,7 +12934,7 @@ button.chat-avatar-btn .chat-avatar img {
   .matches-page--compact-chat.matches-page--mobile-conversation .message-input-wrapper {
     display: flex;
     flex-wrap: nowrap;
-    align-items: center;
+    align-items: stretch;
     gap: var(--space-1);
     overflow: visible;
   }
@@ -12940,13 +12954,20 @@ button.chat-avatar-btn .chat-avatar img {
   }
 
   .matches-page--compact-chat.matches-page--mobile-conversation .message-input {
-    padding: var(--space-2) var(--space-3);
+    padding: 10px var(--space-3);
     font-size: 16px;
-    min-height: 36px;
+    min-height: 44px;
+    line-height: 1.25;
+    box-sizing: border-box;
+  }
+
+  .matches-page--compact-chat.matches-page--mobile-conversation .message-input:focus {
+    transform: none;
   }
 
   .matches-page--compact-chat.matches-page--mobile-conversation .send-btn {
-    min-height: 36px;
+    align-self: center;
+    min-height: 44px;
     padding: var(--space-2) var(--space-3);
     font-size: 0.85rem;
   }
@@ -13055,7 +13076,8 @@ button.chat-avatar-btn .chat-avatar img {
     padding-top: var(--space-2);
     padding-left: var(--space-2);
     padding-right: var(--space-2);
-    padding-bottom: calc(var(--native-tab-height) + var(--native-tab-safe-bottom) + var(--space-3));
+    /* Composer owns tab-bar clearance — avoids squeezing/clipping the input row */
+    padding-bottom: var(--space-2);
   }
 
   body.matches-mobile-chat-open .main-content {
@@ -13100,29 +13122,34 @@ button.chat-avatar-btn .chat-avatar img {
   body.matches-mobile-chat-open .matches-page--mobile-conversation .matches-chat-column {
     grid-row: 2;
     min-height: 0;
-    display: grid;
-    grid-template-rows: minmax(0, 1fr) auto;
+    display: flex;
+    flex-direction: column;
     overflow: hidden;
   }
 
   body.matches-mobile-chat-open .matches-page--mobile-conversation .messages-container {
-    grid-row: 1;
+    flex: 1 1 0;
     min-height: 0;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }
 
   body.matches-mobile-chat-open .matches-page--mobile-conversation .message-input-container {
-    grid-row: 2;
     flex-shrink: 0;
     position: relative;
-    z-index: 2;
+    z-index: 12;
     padding-top: var(--space-2);
     padding-bottom: max(
-      var(--space-3),
-      calc(var(--native-tab-height, 48px) + var(--native-tab-safe-bottom, 10px) + 6px)
+      env(safe-area-inset-bottom, 0px),
+      var(
+        --chat-composer-bottom-inset,
+        calc(var(--native-tab-height, 48px) + var(--native-tab-safe-bottom, 10px) + 8px)
+      )
     );
-    scroll-margin-bottom: calc(var(--native-tab-height) + var(--native-tab-safe-bottom) + var(--space-2));
+    scroll-margin-bottom: var(
+      --chat-composer-bottom-inset,
+      calc(var(--native-tab-height) + var(--native-tab-safe-bottom) + var(--space-2))
+    );
     overflow: visible;
   }
 
@@ -13151,7 +13178,16 @@ button.chat-avatar-btn .chat-avatar img {
   body.matches-mobile-chat-open
     .matches-page--compact-chat.matches-page--mobile-conversation
     .message-input-container {
-    padding: var(--space-2) var(--space-2) var(--space-3);
+    padding-top: var(--space-2);
+    padding-left: var(--space-2);
+    padding-right: var(--space-2);
+    padding-bottom: max(
+      env(safe-area-inset-bottom, 0px),
+      var(
+        --chat-composer-bottom-inset,
+        calc(var(--native-tab-height, 48px) + var(--native-tab-safe-bottom, 10px) + 8px)
+      )
+    );
   }
 
   body.matches-mobile-chat-open .matches-page--mobile-conversation .no-messages {
