@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { api } from "../utils/api";
 import { getPhotoUrl } from "../utils/photoUrl";
 import { usePhotoDragReorder } from "../hooks/usePhotoDragReorder";
@@ -433,54 +434,57 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
         })}
       </div>
 
-      {safeLightboxIndex !== null && sortedPhotos.length > 0 && (
-        <div
-          className="photo-lightbox-overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Enlarged photos"
-        >
-          <div className="photo-lightbox-backdrop" onClick={closeLightbox} aria-hidden />
-          <button type="button" className="photo-lightbox-close" onClick={closeLightbox} aria-label="Close">
-            ×
-          </button>
-          {sortedPhotos.length > 1 && (
-            <button
-              type="button"
-              className="photo-lightbox-nav photo-lightbox-nav--prev"
-              onClick={() => goLightbox(-1)}
-              aria-label="Previous photo"
+      {safeLightboxIndex !== null && sortedPhotos.length > 0
+        ? createPortal(
+            <div
+              className="photo-lightbox-overlay"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Enlarged photos"
             >
-              ‹
-            </button>
-          )}
-          <div className="photo-lightbox-content" onClick={(e) => e.stopPropagation()}>
-            <img
-              src={getPhotoUrl(sortedPhotos[safeLightboxIndex].url) || "#"}
-              alt={`Photo ${safeLightboxIndex + 1} of ${sortedPhotos.length}`}
-              className="photo-lightbox-img"
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = "none";
-              }}
-              draggable={false}
-            />
-            <div className="photo-lightbox-caption">
-              {safeLightboxIndex + 1} / {sortedPhotos.length}
-              {sortedPhotos[safeLightboxIndex].isPrimary ? <span className="photo-lightbox-primary-tag"> · Primary</span> : null}
-            </div>
-          </div>
-          {sortedPhotos.length > 1 && (
-            <button
-              type="button"
-              className="photo-lightbox-nav photo-lightbox-nav--next"
-              onClick={() => goLightbox(1)}
-              aria-label="Next photo"
-            >
-              ›
-            </button>
-          )}
-        </div>
-      )}
+              <div className="photo-lightbox-backdrop" onClick={closeLightbox} aria-hidden />
+              <button type="button" className="photo-lightbox-close" onClick={closeLightbox} aria-label="Close">
+                ×
+              </button>
+              {sortedPhotos.length > 1 && (
+                <button
+                  type="button"
+                  className="photo-lightbox-nav photo-lightbox-nav--prev"
+                  onClick={() => goLightbox(-1)}
+                  aria-label="Previous photo"
+                >
+                  ‹
+                </button>
+              )}
+              <div className="photo-lightbox-content" onClick={(e) => e.stopPropagation()}>
+                <img
+                  src={getPhotoUrl(sortedPhotos[safeLightboxIndex].url) || "#"}
+                  alt={`Photo ${safeLightboxIndex + 1} of ${sortedPhotos.length}`}
+                  className="photo-lightbox-img"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                  }}
+                  draggable={false}
+                />
+                <div className="photo-lightbox-caption">
+                  {safeLightboxIndex + 1} / {sortedPhotos.length}
+                  {sortedPhotos[safeLightboxIndex].isPrimary ? <span className="photo-lightbox-primary-tag"> · Primary</span> : null}
+                </div>
+              </div>
+              {sortedPhotos.length > 1 && (
+                <button
+                  type="button"
+                  className="photo-lightbox-nav photo-lightbox-nav--next"
+                  onClick={() => goLightbox(1)}
+                  aria-label="Next photo"
+                >
+                  ›
+                </button>
+              )}
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   );
 }

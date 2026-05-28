@@ -11514,7 +11514,16 @@ button.chat-avatar-btn .chat-avatar img {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--space-4);
+  width: 100vw;
+  min-height: 100dvh;
+  padding:
+    max(12px, env(safe-area-inset-top, 0px))
+    max(12px, env(safe-area-inset-right, 0px))
+    max(22px, env(safe-area-inset-bottom, 0px))
+    max(12px, env(safe-area-inset-left, 0px));
+  box-sizing: border-box;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .photo-lightbox-backdrop {
@@ -11599,7 +11608,7 @@ button.chat-avatar-btn .chat-avatar img {
   position: relative;
   z-index: 1;
   max-width: min(96vw, 1100px);
-  max-height: min(88vh, 900px);
+  max-height: min(90dvh, 900px);
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -11609,7 +11618,7 @@ button.chat-avatar-btn .chat-avatar img {
 
 .photo-lightbox-img {
   max-width: 100%;
-  max-height: calc(88vh - 4rem);
+  max-height: calc(90dvh - 4rem);
   width: auto;
   height: auto;
   object-fit: contain;
