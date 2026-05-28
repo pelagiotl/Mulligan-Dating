@@ -2888,24 +2888,20 @@ matchesRouter.post("/:matchId/truth-or-dare", authenticateToken, rateLimitAPI, a
     const excludePrompts = [...usedPrompts];
     if (currentPrompt && currentPrompt.trim()) excludePrompts.push(currentPrompt);
 
-    const { generateTruthOrDarePrompt } = await import('../services/truthOrDare.js');
+    const { generateDistinctTruthOrDarePrompt } = await import('../services/truthOrDare.js');
+    const { appendUsedPrompt } = await import('../services/gamePromptHistory.js');
 
-    const normalize = (s: string) => s.toLowerCase().trim().replace(/\s+/g, ' ');
-    let prompt = '';
-    let fromAI = false;
-    const maxTries = 3;
-    for (let attempt = 0; attempt < maxTries; attempt++) {
-      const result = await generateTruthOrDarePrompt(type, matchId, userId, levelNorm, excludePrompts);
-      prompt = result.prompt;
-      fromAI = result.fromAI;
-      const isDuplicate = excludePrompts.some((p) => normalize(p) === normalize(prompt));
-      if (!isDuplicate) break;
-      if (attempt === maxTries - 1) {
-        prompt = prompt + (prompt.endsWith('?') ? ' (pick a new angle)' : '?');
-      }
-    }
+    const result = await generateDistinctTruthOrDarePrompt(
+      type,
+      matchId,
+      userId,
+      levelNorm,
+      excludePrompts,
+    );
+    const prompt = result.prompt;
+    const fromAI = result.fromAI;
 
-    const newUsedPrompts = [...usedPrompts, prompt];
+    const newUsedPrompts = appendUsedPrompt(usedPrompts, prompt);
     const anotherOneAfter = anotherOne
       ? {
           anotherOneUsed: anotherOneBefore.anotherOneUsed + 1,
@@ -3416,16 +3412,34 @@ matchesRouter.post("/:matchId/never-have-i-ever/another", authenticateToken, rat
       return res.status(404).json({ error: "Match not found" });
     }
 
-    const rowResult = db.prepare('SELECT spice_level, current_prompt FROM never_have_i_ever_games WHERE match_id = ?').get([matchId]);
-    const row = (rowResult instanceof Promise ? await rowResult : rowResult) as { spice_level: string | null; current_prompt: string | null } | undefined;
+    const rowResult = db
+      .prepare('SELECT spice_level, current_prompt, used_prompts FROM never_have_i_ever_games WHERE match_id = ?')
+      .get([matchId]);
+    const row = (rowResult instanceof Promise ? await rowResult : rowResult) as {
+      spice_level: string | null;
+      current_prompt: string | null;
+      used_prompts?: string | null;
+    } | undefined;
     if (!row?.spice_level) {
       return res.status(400).json({ error: "Set the version (PG-13 / R / Spicy) first." });
     }
 
-    const { generateNeverHaveIEverPrompt } = await import('../services/neverHaveIEver.js');
+    const { generateDistinctNeverHaveIEverPrompt } = await import('../services/neverHaveIEver.js');
+    const { appendUsedPrompt, parseUsedPromptsJson } = await import('../services/gamePromptHistory.js');
     const spiceLevel = (row.spice_level === 'ratedr' ? 'ratedr' : row.spice_level === 'spicy' ? 'spicy' : 'pg13') as 'pg13' | 'ratedr' | 'spicy';
-    const prompt = await generateNeverHaveIEverPrompt(matchId, spiceLevel);
-    const updateResult = db.prepare('UPDATE never_have_i_ever_games SET current_prompt = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?').run([prompt, matchId]);
+    const used = parseUsedPromptsJson(row.used_prompts);
+    const prompt = await generateDistinctNeverHaveIEverPrompt(
+      matchId,
+      spiceLevel,
+      row.current_prompt,
+      used,
+    );
+    const newUsed = appendUsedPrompt(used, prompt);
+    const updateResult = db
+      .prepare(
+        'UPDATE never_have_i_ever_games SET current_prompt = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, used_prompts = ?, updated_at = CURRENT_TIMESTAMP WHERE match_id = ?',
+      )
+      .run([prompt, JSON.stringify(newUsed), matchId]);
     if (updateResult instanceof Promise) await updateResult;
 
     try {

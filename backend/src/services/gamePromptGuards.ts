@@ -20,6 +20,12 @@ export const GAME_PROMPT_INTERESTS_RULE =
 /** Hard topic bans for model output. */
 export const GAME_PROMPT_HARD_BANS = `HARD BANS (reject these angles entirely): concerts, festivals, bands, songs, playlists, Spotify/streaming, karaoke, music scenes, travel, trips, vacations, airports, hotels, road trips, sports games, stadiums, tourism, or any "go to a show / go on a trip" prompt.`;
 
+/** Extra guidance when spice is "spicy" — adult, sexual tension without porn. */
+export const GAME_PROMPT_SPICY_ADULT = `SPICY ADULT RULES: Write for consenting adults on a dating app. Sexual tension, desire, seduction, jealousy, power dynamics, sexting-adjacent honesty, boundaries bent (not broken illegally), and "what we'd do alone" energy are encouraged. Be specific and bold — not vague, not coy teen humor, not repetitive "hooked up on first date" clichés. NO pornographic anatomy, NO explicit sex acts described graphically, NO minors, NO coercion, NO incest, NO non-consent. App-store safe but unmistakably mature.`;
+
+/** Cliché phrases to avoid at spicy tier (models overuse these). */
+export const GAME_PROMPT_SPICY_CLICHE_AVOID = `AVOID overused spicy clichés: "one-night stand", "hooked up with someone I just met", "friends with benefits" as the whole prompt, generic "sent a risky pic", or repeating the same hookup checklist. Vary angles: power, anticipation, restraint, jealousy, confession, fantasy vs reality, what you'd do if they were on your couch, voice-note tension, etc.`;
+
 export function filterBannedGamePrompts<T extends string>(prompts: T[]): T[] {
   const filtered = prompts.filter((p) => !hasBannedGamePromptTheme(p));
   return filtered.length > 0 ? filtered : prompts;

@@ -21,8 +21,17 @@ import {
   GAME_PROMPT_HARD_BANS,
   GAME_PROMPT_INTERESTS_RULE,
   GAME_PROMPT_MATURE_TONE,
+  GAME_PROMPT_SPICY_ADULT,
+  GAME_PROMPT_SPICY_CLICHE_AVOID,
   hasBannedGamePromptTheme,
 } from './gamePromptGuards.js';
+import {
+  appendUsedPrompt,
+  buildExcludePromptList,
+  isPromptAlreadyUsed,
+  normalizeGamePrompt,
+  parseUsedPromptsJson,
+} from './gamePromptHistory.js';
 
 const STRIKES_TO_LOSE = 10;
 
@@ -177,6 +186,25 @@ const FALLBACK_PROMPTS_SPICY = [
   'had a crush that was mostly tension',
   'let chemistry override common sense',
   'wanted to know if someone thought about me later',
+  'teased someone I knew I should not',
+  'let someone watch me react to their message',
+  'said less than I wanted because I liked the tension',
+  'fantasized about someone from this app before we met',
+  'wanted to be dominated or to dominate — even just in chat',
+  'sent something that felt too honest for daylight',
+  'stayed up replaying what they might do if we were alone',
+  'used silence as flirting',
+  'wanted them to beg a little — or begged myself',
+  'crossed a line in my head before I crossed it in real life',
+  'been turned on by jealousy',
+  'held eye contact longer than was strictly friendly',
+  'said "we should not" while meaning "convince me"',
+  'wanted a slow burn but moved too fast anyway',
+  'let someone hear my voice when I was already in bed',
+  'been more honest drunk or horny than sober',
+  'wanted to hear them say my name',
+  'kept a match on read to feel in control',
+  'broken my own rule about sexting before meeting',
 ];
 
 function pickRandom<T>(arr: T[]): T {
@@ -207,6 +235,33 @@ const NHIE_PROMPT_ANGLES = [
   'the difference between attention and actual interest',
 ];
 
+const NHIE_PROMPT_ANGLES_SPICY = [
+  'sexual tension you pretended was casual',
+  'a message you sent that felt too honest',
+  'wanting someone who was slightly unavailable',
+  'power — who had it and who gave it up',
+  'restraint — stopping right before you would have gone further',
+  'jealousy that turned you on',
+  'a fantasy you would only act on with consent',
+  'voice-note or late-night chat that crossed a line',
+  'being desired vs being wanted for attention',
+  'a boundary you bent for chemistry',
+  'anticipation — dragging it out on purpose',
+  'admitting what you want without saying it plainly',
+  'almost sending something you knew was bold',
+  'choosing tension over clarity',
+  'what you would do if they were on your couch',
+  'seduction through patience, not pressure',
+  'a crush that was mostly mental',
+  'saying "we should not" while hoping they would',
+  'being turned on by confidence',
+  'hiding how much someone affected you',
+];
+
+function parseNhieUsedPrompts(raw: unknown): string[] {
+  return parseUsedPromptsJson(raw);
+}
+
 function fallbackPromptsForLevel(spiceLevel: SpiceLevel): string[] {
   const prompts =
     spiceLevel === 'spicy'
@@ -218,25 +273,36 @@ function fallbackPromptsForLevel(spiceLevel: SpiceLevel): string[] {
 }
 
 function normalizePromptForCompare(prompt: string | null | undefined): string {
-  return String(prompt || '')
-    .toLowerCase()
-    .replace(/^never\s+have\s+i\s+ever\s+/i, '')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
+  return normalizeGamePrompt(prompt);
 }
 
 function hasBannedTheme(prompt: string | null | undefined): boolean {
   return hasBannedGamePromptTheme(prompt);
 }
 
-export async function generateNeverHaveIEverPrompt(matchId: string, spiceLevel: SpiceLevel = 'pg13'): Promise<string> {
+function pickRandomExcludingNhie(fallbacks: string[], excludePrompts: string[]): string {
+  const excludeNorm = new Set(excludePrompts.map((p) => normalizePromptForCompare(p)));
+  const filtered = fallbacks.filter((activity) => {
+    const full = normalizePromptForCompare(`Never have I ever ${activity}`);
+    return !excludeNorm.has(full);
+  });
+  const pool = filtered.length > 0 ? filtered : fallbacks;
+  return pickRandom(pool);
+}
+
+export async function generateNeverHaveIEverPrompt(
+  matchId: string,
+  spiceLevel: SpiceLevel = 'pg13',
+  excludePrompts: string[] = [],
+): Promise<string> {
   const openaiApiKey = process.env.OPENAI_API_KEY;
   const isR = spiceLevel === 'ratedr';
   const isSpicy = spiceLevel === 'spicy';
   const fallbacks = fallbackPromptsForLevel(spiceLevel);
+  const toExclude = excludePrompts.filter((p) => p && p.trim().length > 0);
 
   if (!openaiApiKey) {
-    return `Never have I ever ${pickRandom(fallbacks)}`;
+    return `Never have I ever ${pickRandomExcludingNhie(fallbacks, toExclude)}`;
   }
 
   try {
@@ -257,7 +323,7 @@ export async function generateNeverHaveIEverPrompt(matchId: string, spiceLevel: 
       : '';
 
     const spiceInstruction = isSpicy
-      ? 'SPICE: SPICY — maximum heat for consenting adults, almost edgy. Hookups, risky late-night texts, FWB, secret crushes, jealousy, power plays, situationships, desire people hide, boundaries bent. VIP-lounge-after-midnight energy: bold, seductive, self-aware. No pornographic anatomy or illegal content. App-store safe but push the line.'
+      ? `SPICE: SPICY — maximum heat for consenting adults on a dating app. Sexual tension, seduction, desire, power, jealousy, late-night honesty, sexting-adjacent choices, boundaries tested consensually. ${GAME_PROMPT_SPICY_ADULT} ${GAME_PROMPT_SPICY_CLICHE_AVOID}`
       : isR
       ? 'SPICE: RATED R — suggestive, sexually charged stories and habits without graphic porn. Hookups, exes, risqué DMs, attraction, tension, real adult dating messiness. Confident bar-stool honesty.'
       : 'SPICE: PG-13 — grown-up dating energy: witty, emotionally intelligent, flirty. Real chemistry and choices; never childish icebreakers or hobby-tourism prompts.';
@@ -265,7 +331,16 @@ export async function generateNeverHaveIEverPrompt(matchId: string, spiceLevel: 
     const { default: OpenAI } = await import('openai');
     const openai = new OpenAI({ apiKey: openaiApiKey });
 
-    const creativeAngle = pickRandom(NHIE_PROMPT_ANGLES);
+    const anglePool = isSpicy ? NHIE_PROMPT_ANGLES_SPICY : NHIE_PROMPT_ANGLES;
+    const creativeAngle = pickRandom(anglePool);
+
+    const excludeHint =
+      toExclude.length > 0
+        ? `\n\nDo NOT repeat or closely paraphrase these (already used this game): ${toExclude
+            .slice(-12)
+            .map((p) => `"${p.replace(/^never have i ever\s+/i, '').trim()}"`)
+            .join(', ')}.`
+        : '';
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
@@ -287,6 +362,7 @@ Examples of the tone:
 - "sent a message that felt too honest"
 - "kept a situationship going too long"
 - "pretended I was fine when I was jealous"
+${isSpicy ? `\nSpicy examples (vary — do not copy verbatim):\n- "said something in chat I would not say in daylight"\n- "wanted them to make the first move physically"\n- "let tension build on purpose"\n- "been turned on by someone's voice note"\n- "almost sent a message I knew was too bold"` : ''}
 
 Output ONLY the activity, nothing else.`,
         },
@@ -300,11 +376,12 @@ ${interestsContext}
 
 ${GAME_PROMPT_INTERESTS_RULE}
 ${GAME_PROMPT_HARD_BANS}
+${excludeHint}
 
 Return ONLY the activity (4-10 words):`,
         },
       ],
-      temperature: 1.0,
+      temperature: isSpicy ? 1.05 : 1.0,
       max_tokens: 50,
     });
 
@@ -314,31 +391,38 @@ Return ONLY the activity (4-10 words):`,
       const isBad = badStarts.some((s) => content.toLowerCase().startsWith(s.toLowerCase()));
       if (!isBad && !hasBannedTheme(content)) {
         const activity = content.replace(/^["']|["']$/g, '').trim();
-        return `Never have I ever ${activity}`;
+        const full = `Never have I ever ${activity}`;
+        if (!isPromptAlreadyUsed(full, toExclude)) return full;
       }
     }
   } catch (error) {
     console.warn('Never Have I Ever AI generation failed:', error);
   }
 
-  return `Never have I ever ${pickRandom(fallbacks)}`;
+  return `Never have I ever ${pickRandomExcludingNhie(fallbacks, toExclude)}`;
 }
 
-async function generateDistinctNeverHaveIEverPrompt(
+const NHIE_DISTINCT_MAX_ATTEMPTS = 8;
+
+/** Unique NHIE prompt for this match session (both players share used_prompts). */
+export async function generateDistinctNeverHaveIEverPrompt(
   matchId: string,
   spiceLevel: SpiceLevel = 'pg13',
-  previousPrompt?: string | null
+  previousPrompt?: string | null,
+  usedPrompts: string[] = [],
 ): Promise<string> {
-  const previous = normalizePromptForCompare(previousPrompt);
-  for (let attempt = 0; attempt < 4; attempt++) {
-    const prompt = await generateNeverHaveIEverPrompt(matchId, spiceLevel);
-    if (normalizePromptForCompare(prompt) !== previous) return prompt;
+  const exclude = buildExcludePromptList(usedPrompts, previousPrompt);
+
+  for (let attempt = 0; attempt < NHIE_DISTINCT_MAX_ATTEMPTS; attempt++) {
+    const prompt = await generateNeverHaveIEverPrompt(matchId, spiceLevel, exclude);
+    if (!isPromptAlreadyUsed(prompt, exclude)) {
+      return prompt;
+    }
+    exclude.push(prompt.trim());
   }
 
-  const fallbackPool = fallbackPromptsForLevel(spiceLevel).filter(
-    (activity) => normalizePromptForCompare(`Never have I ever ${activity}`) !== previous
-  );
-  return `Never have I ever ${pickRandom(fallbackPool.length > 0 ? fallbackPool : FALLBACK_PROMPTS)}`;
+  const fallbackPool = fallbackPromptsForLevel(spiceLevel);
+  return `Never have I ever ${pickRandomExcludingNhie(fallbackPool, exclude)}`;
 }
 
 interface GameRow {
@@ -348,6 +432,7 @@ interface GameRow {
   user1_spice_choice: string | null;
   user2_spice_choice: string | null;
   spice_level: string | null;
+  used_prompts?: string | null;
   current_prompt: string | null;
   current_round_id?: string | null;
   current_turn_user_id: string | null;
@@ -422,12 +507,12 @@ export async function applyNeverHaveIEverInactivityReset(
 
   if (c1 && c2) {
     const level = moreConservative(c1, c2);
-    const prompt = await generateDistinctNeverHaveIEverPrompt(matchId, level, null);
+    const prompt = await generateDistinctNeverHaveIEverPrompt(matchId, level, null, []);
     const updateResult = db
       .prepare(
-        `UPDATE never_have_i_ever_games SET user1_strikes = 0, user2_strikes = 0, spice_level = ?, current_prompt = ?, current_round_id = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, user1_answer_round_id = NULL, user2_answer_round_id = NULL, user1_last_active_at = ?, user2_last_active_at = ?, updated_at = ? WHERE match_id = ?`
+        `UPDATE never_have_i_ever_games SET user1_strikes = 0, user2_strikes = 0, spice_level = ?, current_prompt = ?, current_round_id = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, user1_answer_round_id = NULL, user2_answer_round_id = NULL, used_prompts = ?, user1_last_active_at = ?, user2_last_active_at = ?, updated_at = ? WHERE match_id = ?`
       )
-      .run([level, prompt, uuidv4(), now, now, now, matchId]);
+      .run([level, prompt, uuidv4(), JSON.stringify([prompt]), now, now, now, matchId]);
     if (updateResult instanceof Promise) await updateResult;
   } else {
     const updateResult = db
@@ -696,8 +781,14 @@ export async function getGameState(
   // If we're in playing phase but prompt is missing/placeholder, generate one and persist (fixes UI showing only "Never have I ever...")
   if (!prompt || prompt === 'Never have I ever...') {
     try {
-      prompt = await generateNeverHaveIEverPrompt(matchId, level);
-      const promptResult = db.prepare('UPDATE never_have_i_ever_games SET current_prompt = ?, updated_at = ? WHERE match_id = ?').run([prompt, new Date().toISOString(), matchId]);
+      const used = parseNhieUsedPrompts(row.used_prompts);
+      prompt = await generateDistinctNeverHaveIEverPrompt(matchId, level, row.current_prompt, used);
+      const newUsed = appendUsedPrompt(used, prompt);
+      const promptResult = db
+        .prepare(
+          'UPDATE never_have_i_ever_games SET current_prompt = ?, used_prompts = ?, updated_at = ? WHERE match_id = ?',
+        )
+        .run([prompt, JSON.stringify(newUsed), new Date().toISOString(), matchId]);
       if (promptResult instanceof Promise) await promptResult;
     } catch (e) {
       console.warn('Never Have I Ever lazy prompt generation failed:', e);
@@ -825,19 +916,32 @@ export async function completeRoundIfBothAnswered(matchId: string): Promise<{ co
   const c2 = (r.user2_spice_choice ?? (r as any).user2_spice_choice) as SpiceLevel | null;
   const rowSpice = (r as any).spice_level ?? (r as any).spiceLevel ?? r.spice_level;
   const effectiveLevel = (c1 && c2 ? moreConservative(c1, c2) : (rowSpice as SpiceLevel)) || 'pg13';
+  let usedPrompts = parseNhieUsedPrompts((r as { used_prompts?: unknown }).used_prompts);
+  const priorPrompt = String((r as { current_prompt?: string | null }).current_prompt ?? '').trim();
+  if (priorPrompt) usedPrompts = [...usedPrompts, priorPrompt];
+
   let nextPrompt: string;
   try {
-    nextPrompt = await generateDistinctNeverHaveIEverPrompt(matchId, effectiveLevel, String(r.current_prompt ?? ''));
+    nextPrompt = await generateDistinctNeverHaveIEverPrompt(
+      matchId,
+      effectiveLevel,
+      String(r.current_prompt ?? ''),
+      usedPrompts,
+    );
     if (!nextPrompt || !nextPrompt.trim()) nextPrompt = `Never have I ever ${pickRandom(FALLBACK_PROMPTS)}`;
   } catch (e) {
     console.warn('NHIE completeRoundIfBothAnswered: generate failed', e);
     nextPrompt = `Never have I ever ${pickRandom(FALLBACK_PROMPTS)}`;
   }
 
+  const newUsedPrompts = appendUsedPrompt(usedPrompts, nextPrompt);
+
   const ts = new Date().toISOString();
   const nextRoundId = uuidv4();
-  const updateSql = `UPDATE never_have_i_ever_games SET current_prompt = ?, current_round_id = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, user1_answer_round_id = NULL, user2_answer_round_id = NULL, updated_at = ? WHERE match_id = ? AND current_round_id = ?`;
-  const runResult = db.prepare(updateSql).run([nextPrompt, nextRoundId, ts, matchId, currentRoundId]);
+  const updateSql = `UPDATE never_have_i_ever_games SET current_prompt = ?, current_round_id = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, user1_answer_round_id = NULL, user2_answer_round_id = NULL, used_prompts = ?, updated_at = ? WHERE match_id = ? AND current_round_id = ?`;
+  const runResult = db
+    .prepare(updateSql)
+    .run([nextPrompt, nextRoundId, JSON.stringify(newUsedPrompts), ts, matchId, currentRoundId]);
   const resolved = runResult instanceof Promise ? await runResult : runResult;
   const changed = (resolved as { changes?: number }).changes !== undefined && (resolved as { changes: number }).changes > 0;
 
@@ -929,11 +1033,16 @@ export async function setMySpiceChoice(
   const c2 = row.user2_spice_choice as SpiceLevel | null;
   if (c1 && c2 && !row.current_prompt) {
     const effectiveLevel = moreConservative(c1, c2);
-      const prompt = await generateDistinctNeverHaveIEverPrompt(matchId, effectiveLevel, row.current_prompt);
+      const prompt = await generateDistinctNeverHaveIEverPrompt(
+        matchId,
+        effectiveLevel,
+        row.current_prompt,
+        parseNhieUsedPrompts(row.used_prompts),
+      );
     // No current_turn_user_id: both users answer each prompt, then we generate the next (tally mode)
     const promptResult = db.prepare(
-      `UPDATE never_have_i_ever_games SET spice_level = ?, current_prompt = ?, current_round_id = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, user1_answer_round_id = NULL, user2_answer_round_id = NULL, updated_at = ? WHERE match_id = ?`
-    ).run([effectiveLevel, prompt, uuidv4(), now, matchId]);
+      `UPDATE never_have_i_ever_games SET spice_level = ?, current_prompt = ?, current_round_id = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, user1_answer_round_id = NULL, user2_answer_round_id = NULL, used_prompts = ?, updated_at = ? WHERE match_id = ?`
+    ).run([effectiveLevel, prompt, uuidv4(), JSON.stringify([prompt]), now, matchId]);
     if (promptResult instanceof Promise) await promptResult;
     await setBothNeverHaveIEverActivity(matchId);
   }
@@ -957,11 +1066,16 @@ export async function startGame(
   }
 
   const spiceLevel = row.user1_spice_choice as SpiceLevel;
-  const prompt = await generateDistinctNeverHaveIEverPrompt(matchId, spiceLevel, row.current_prompt);
+  const prompt = await generateDistinctNeverHaveIEverPrompt(
+    matchId,
+    spiceLevel,
+    row.current_prompt,
+    parseNhieUsedPrompts(row.used_prompts),
+  );
   // No current_turn_user_id: both users answer each prompt, then we generate the next (tally mode)
   const startResult = db.prepare(
-    `UPDATE never_have_i_ever_games SET spice_level = ?, current_prompt = ?, current_round_id = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, user1_answer_round_id = NULL, user2_answer_round_id = NULL, updated_at = ? WHERE match_id = ?`
-  ).run([spiceLevel, prompt, uuidv4(), new Date().toISOString(), matchId]);
+    `UPDATE never_have_i_ever_games SET spice_level = ?, current_prompt = ?, current_round_id = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, user1_answer_round_id = NULL, user2_answer_round_id = NULL, used_prompts = ?, updated_at = ? WHERE match_id = ?`
+  ).run([spiceLevel, prompt, uuidv4(), JSON.stringify([prompt]), new Date().toISOString(), matchId]);
   if (startResult instanceof Promise) await startResult;
   await setBothNeverHaveIEverActivity(matchId);
 
@@ -1104,12 +1218,20 @@ export async function submitAnswer(
       const c1 = row.user1_spice_choice as SpiceLevel | null;
       const c2 = row.user2_spice_choice as SpiceLevel | null;
       const effectiveLevel = (c1 && c2 ? moreConservative(c1, c2) : (row.spice_level as SpiceLevel)) || 'pg13';
-      const nextPrompt = await generateDistinctNeverHaveIEverPrompt(matchId, effectiveLevel, row.current_prompt);
+      let usedForRound = parseNhieUsedPrompts((row as { used_prompts?: unknown }).used_prompts);
+      if (row.current_prompt?.trim()) usedForRound = [...usedForRound, row.current_prompt.trim()];
+      const nextPrompt = await generateDistinctNeverHaveIEverPrompt(
+        matchId,
+        effectiveLevel,
+        row.current_prompt,
+        usedForRound,
+      );
       generatedNextPrompt = nextPrompt;
       const nextRoundId = uuidv4();
+      const newUsed = appendUsedPrompt(usedForRound, nextPrompt);
       const completeResult = db.prepare(
-        `UPDATE never_have_i_ever_games SET current_prompt = ?, current_round_id = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, user1_answer_round_id = NULL, user2_answer_round_id = NULL, updated_at = ? WHERE match_id = ? AND current_round_id = ?`
-      ).run([nextPrompt, nextRoundId, new Date().toISOString(), matchId, currentRoundId]);
+        `UPDATE never_have_i_ever_games SET current_prompt = ?, current_round_id = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, user1_answer_round_id = NULL, user2_answer_round_id = NULL, used_prompts = ?, updated_at = ? WHERE match_id = ? AND current_round_id = ?`
+      ).run([nextPrompt, nextRoundId, JSON.stringify(newUsed), new Date().toISOString(), matchId, currentRoundId]);
       if (completeResult instanceof Promise) await completeResult;
       const completionApplied = (completeResult as { changes?: number }).changes !== undefined && (completeResult as { changes: number }).changes > 0;
       if (!completionApplied) {
@@ -1180,13 +1302,35 @@ export async function submitTurnAnswer(
     newPrompt = row.current_prompt!;
     nextTurnUserId = null;
   } else {
-    newPrompt = await generateDistinctNeverHaveIEverPrompt(matchId, spiceLevel, row.current_prompt);
+    const usedTurn = parseNhieUsedPrompts(row.used_prompts);
+    newPrompt = await generateDistinctNeverHaveIEverPrompt(
+      matchId,
+      spiceLevel,
+      row.current_prompt,
+      usedTurn,
+    );
     nextTurnUserId = otherUserId;
   }
 
+  const usedAfterTurn = gameOver
+    ? parseNhieUsedPrompts(row.used_prompts)
+    : appendUsedPrompt(
+        buildExcludePromptList(parseNhieUsedPrompts(row.used_prompts), row.current_prompt),
+        newPrompt,
+      );
+
   const runResult = db.prepare(
-    `UPDATE never_have_i_ever_games SET user1_strikes = ?, user2_strikes = ?, current_prompt = ?, current_round_id = ?, current_turn_user_id = ?, user1_answer = NULL, user2_answer = NULL, user1_answer_round_id = NULL, user2_answer_round_id = NULL, updated_at = ? WHERE match_id = ?`
-  ).run([newUser1Strikes, newUser2Strikes, newPrompt, uuidv4(), nextTurnUserId, new Date().toISOString(), matchId]);
+    `UPDATE never_have_i_ever_games SET user1_strikes = ?, user2_strikes = ?, current_prompt = ?, current_round_id = ?, current_turn_user_id = ?, user1_answer = NULL, user2_answer = NULL, user1_answer_round_id = NULL, user2_answer_round_id = NULL, used_prompts = ?, updated_at = ? WHERE match_id = ?`
+  ).run([
+    newUser1Strikes,
+    newUser2Strikes,
+    newPrompt,
+    uuidv4(),
+    nextTurnUserId,
+    JSON.stringify(usedAfterTurn),
+    new Date().toISOString(),
+    matchId,
+  ]);
   if (runResult instanceof Promise) await runResult;
 
   const state = await getGameState(matchId, userId, match);
@@ -1209,10 +1353,18 @@ export async function advanceToNextRound(
   }
 
   const spiceLevel = (row.spice_level || 'pg13') as SpiceLevel;
-  const prompt = await generateDistinctNeverHaveIEverPrompt(matchId, spiceLevel, row.current_prompt);
+  let usedAdvance = parseNhieUsedPrompts(row.used_prompts);
+  if (row.current_prompt?.trim()) usedAdvance = [...usedAdvance, row.current_prompt.trim()];
+  const prompt = await generateDistinctNeverHaveIEverPrompt(
+    matchId,
+    spiceLevel,
+    row.current_prompt,
+    usedAdvance,
+  );
+  const newUsedAdvance = appendUsedPrompt(usedAdvance, prompt);
   const runResult = db.prepare(
-    `UPDATE never_have_i_ever_games SET current_prompt = ?, current_round_id = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, user1_answer_round_id = NULL, user2_answer_round_id = NULL, updated_at = ? WHERE match_id = ?`
-  ).run([prompt, uuidv4(), new Date().toISOString(), matchId]);
+    `UPDATE never_have_i_ever_games SET current_prompt = ?, current_round_id = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, user1_answer_round_id = NULL, user2_answer_round_id = NULL, used_prompts = ?, updated_at = ? WHERE match_id = ?`
+  ).run([prompt, uuidv4(), JSON.stringify(newUsedAdvance), new Date().toISOString(), matchId]);
   if (runResult instanceof Promise) await runResult;
 
   return getGameState(matchId, userId, match);
@@ -1231,7 +1383,7 @@ export async function returnToLobby(
   if (row) {
     const updateResult = db
       .prepare(
-        `UPDATE never_have_i_ever_games SET user1_strikes = 0, user2_strikes = 0, user1_spice_choice = NULL, user2_spice_choice = NULL, spice_level = NULL, current_prompt = NULL, current_round_id = NULL, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, user1_answer_round_id = NULL, user2_answer_round_id = NULL, updated_at = ? WHERE match_id = ?`
+        `UPDATE never_have_i_ever_games SET user1_strikes = 0, user2_strikes = 0, user1_spice_choice = NULL, user2_spice_choice = NULL, spice_level = NULL, current_prompt = NULL, current_round_id = NULL, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, user1_answer_round_id = NULL, user2_answer_round_id = NULL, used_prompts = '[]', updated_at = ? WHERE match_id = ?`
       )
       .run([now, matchId]);
     if (updateResult instanceof Promise) await updateResult;
@@ -1251,19 +1403,20 @@ export async function startNewGame(
     .get([matchId]);
   const row = (rowResult instanceof Promise ? await rowResult : rowResult) as GameRow | undefined;
   const spiceLevel = (row?.spice_level || 'pg13') as SpiceLevel;
-  const prompt = await generateDistinctNeverHaveIEverPrompt(matchId, spiceLevel, row?.current_prompt);
+  const prompt = await generateDistinctNeverHaveIEverPrompt(matchId, spiceLevel, row?.current_prompt, []);
 
   const ts = new Date().toISOString();
+  const usedJson = JSON.stringify([prompt]);
   // Keep tally mode (current_turn_user_id = NULL): both users answer each prompt, then we tally and generate next.
   if (row) {
     const updateResult = db.prepare(
-      `UPDATE never_have_i_ever_games SET user1_strikes = 0, user2_strikes = 0, current_prompt = ?, current_round_id = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, user1_answer_round_id = NULL, user2_answer_round_id = NULL, updated_at = ? WHERE match_id = ?`
-    ).run([prompt, uuidv4(), ts, matchId]);
+      `UPDATE never_have_i_ever_games SET user1_strikes = 0, user2_strikes = 0, current_prompt = ?, current_round_id = ?, current_turn_user_id = NULL, user1_answer = NULL, user2_answer = NULL, user1_answer_round_id = NULL, user2_answer_round_id = NULL, used_prompts = ?, updated_at = ? WHERE match_id = ?`
+    ).run([prompt, uuidv4(), usedJson, ts, matchId]);
     if (updateResult instanceof Promise) await updateResult;
   } else {
     const insertResult = db.prepare(
-      `INSERT INTO never_have_i_ever_games (match_id, user1_strikes, user2_strikes, spice_level, current_prompt, current_round_id, current_turn_user_id, user1_answer, user2_answer, user1_answer_round_id, user2_answer_round_id, updated_at) VALUES (?, 0, 0, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, ?)`
-    ).run([matchId, spiceLevel, prompt, uuidv4(), ts]);
+      `INSERT INTO never_have_i_ever_games (match_id, user1_strikes, user2_strikes, spice_level, current_prompt, current_round_id, current_turn_user_id, user1_answer, user2_answer, user1_answer_round_id, user2_answer_round_id, used_prompts, updated_at) VALUES (?, 0, 0, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, ?, ?)`
+    ).run([matchId, spiceLevel, prompt, uuidv4(), usedJson, ts]);
     if (insertResult instanceof Promise) await insertResult;
   }
 

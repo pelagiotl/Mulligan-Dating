@@ -26,8 +26,11 @@ import {
   GAME_PROMPT_HARD_BANS,
   GAME_PROMPT_INTERESTS_RULE,
   GAME_PROMPT_MATURE_TONE,
+  GAME_PROMPT_SPICY_ADULT,
+  GAME_PROMPT_SPICY_CLICHE_AVOID,
   hasBannedGamePromptTheme,
 } from './gamePromptGuards.js';
+import { isPromptAlreadyUsed, normalizeGamePrompt } from './gamePromptHistory.js';
 
 // PG-13: grown-up dating energy — flirty, direct, never teen-party cute.
 const TRUTH_FALLBACKS = [
@@ -81,7 +84,7 @@ function pickRandom<T>(arr: T[], exclude?: T): T {
 }
 
 function normalizePrompt(s: string): string {
-  return s.toLowerCase().trim().replace(/\s+/g, ' ');
+  return normalizeGamePrompt(s);
 }
 
 function pickRandomExcluding(list: string[], excludePrompts: string[]): string {
@@ -258,19 +261,19 @@ export async function generateTruthOrDarePrompt(
         ? `SPICE: PG-13 — for adults: confident, emotionally intelligent flirting. Dating-app safe: no explicit sexual acts, no graphic body descriptions, no coercion. Mature, cool vocabulary; never sound like a schoolyard game or icebreaker workshop.`
         : spiceLevel === 'ratedr'
           ? `SPICE: Rated R — mature audience: sexual tension, past hookups, innuendo, jealousy, and real attraction are fair game. Confident and suggestive — like two adults at a bar after midnight. Still no graphic porn, no minors, no non-consent. Chat-only actions (text, voice, selfie, short video).`
-          : `SPICE: Spicy — maximum heat, almost edgy, for consenting adults. Steamy, provocative, seductive dating energy: desire, power play, late-night honesty, tension you could cut. Push boundaries in words while staying app-store safe — no graphic porn, no minors, no non-consent. Dares stay doable in chat from home (voice, selfie, short clip, text); never require nudity or explicit acts on camera.`;
+          : `SPICE: Spicy — maximum heat for consenting adults on a dating app. Steamy, seductive, sexually charged tension: desire, anticipation, jealousy, power, late-night honesty, boundaries tested (consensually). Sound like adults flirting in private, not a party game. ${GAME_PROMPT_SPICY_ADULT} Dares stay doable in chat (voice, selfie, short clip, text); never require nudity or explicit acts on camera.`;
 
     const typeInstruction = type === 'truth'
       ? spiceLevel === 'pg13'
         ? 'a mature question about attraction, standards, emotional honesty, dating patterns, or chemistry — specific and self-aware, never cutesy or juvenile.'
         : spiceLevel === 'ratedr'
           ? 'a truth about hookups, tension, turn-ons, jealousy, boundaries, or bold dating stories — consensual, respectful, adult; no graphic porn.'
-          : 'a provocative truth about desire, jealousy, tension, boundaries, late-night habits, or bold experiences — never graphic porn, always consensual-adult framing. Make it feel like a VIP lounge conversation: sharp, seductive, almost edgy — not a teen party game.'
+          : 'a provocative truth about desire, seduction, jealousy, power, restraint, sexting-adjacent honesty, or bold adult experiences — specific and vivid, never graphic porn, always consensual. Make it feel like a private confession between two people who are already attracted — not a generic hookup checklist.'
       : spiceLevel === 'pg13'
         ? 'a confident dare they can do in chat from home. Mix voice, selfie, and short video. No travel, vacation, or location-based stunts.'
         : spiceLevel === 'ratedr'
           ? 'a bolder in-chat dare: flirty selfie, suggestive voice note, or teasing short video. No nudity required, no explicit sexual acts on camera — adult tension, not shock value.'
-          : 'a spicy dare they can complete in chat from the couch: voice, selfie, or short video — confident, seductive, cinematic tension, almost edgy but not pornographic. Lean into "what if we were alone right now" energy — bold, adult, unforgettable — without public stunts or events.';
+          : 'a spicy dare they can complete in chat: voice, selfie, or short video — confident, seductive, sexually charged but not pornographic. Lean into "we are alone in the same room" energy: implication, tone, anticipation, a bold compliment, a restrained gesture — never a public stunt or generic party dare.';
 
     const noTravelNote = type === 'dare'
       ? '\n- Do NOT use travel, vacation, "where you are", scenic views, or location. Users are often at home. Keep dares doable from wherever they are.'
@@ -281,8 +284,11 @@ export async function generateTruthOrDarePrompt(
         ? "\n- NEVER center prompts on: sports, games, teams, concerts, festivals, playlists, music scenes, travel, trips, vacations, hobbies-as-activities, or 'go do X in public'. Keep everything about the two people, chemistry, chat, voice, selfies, short clips, tension, desire — not events or outings."
         : "\n- Avoid sports, concerts, festivals, playlists, music, travel, and trips as the main hook; center the two people, chemistry, and chat — not outings or events.";
 
+    const spicyToneExtra =
+      spiceLevel === 'spicy' ? `\n- ${GAME_PROMPT_SPICY_CLICHE_AVOID}` : '';
+
     const toneNote =
-      `\n- ${GAME_PROMPT_MATURE_TONE}\n- NO corny wordplay, NO puns, NO cringe or try-hard humor, NO generic dating clichés. Confident, specific, flirty with edge.\n- WORD CHOICE: Use clear, everyday words. NEVER use vague or old-fashioned words like "sultry", "smoldering", "bedroom eyes". Prefer: "flirty selfie", "confident selfie", "look that says you're interested".`;
+      `\n- ${GAME_PROMPT_MATURE_TONE}${spicyToneExtra}\n- NO corny wordplay, NO puns, NO cringe or try-hard humor, NO generic dating clichés. Confident, specific, flirty with edge.\n- WORD CHOICE: Use clear, everyday words. NEVER use vague or old-fashioned words like "sultry", "smoldering", "bedroom eyes". Prefer: "flirty selfie", "confident selfie", "look that says you're interested".`;
 
     const lengthNote =
       spiceLevel === 'spicy'
@@ -306,12 +312,12 @@ ${GAME_PROMPT_HARD_BANS}
 
     const varietyLine =
       spiceLevel === 'spicy'
-        ? 'Prioritize tension, desire, boundaries, late-night honesty, and chat-native actions — never music, travel, concerts, or hobby-as-activity prompts.'
+        ? 'Prioritize sexual tension, seduction, power, restraint, jealousy, confession, and chat-native actions — never music, travel, concerts, or hobby-as-activity prompts. Do NOT repeat common hookup clichés.'
         : spiceLevel === 'ratedr'
           ? 'Prioritize adult dating tension, stories, and in-chat actions — never events, outings, playlists, travel, or hobby tourism.'
           : 'Prioritize mature chemistry, standards, and emotional honesty — confident adults, not party games or hobby prompts.';
 
-    const creativeAngle = randomCreativeAngle(type);
+    const creativeAngle = randomCreativeAngle(type, spiceLevel);
 
     const userPrompt = `Generate one unique ${typeLabel} prompt for two people playing on a dating app.${interestsContext}${interestsNote}
 
@@ -361,4 +367,38 @@ Return ONLY the prompt:`;
     const list = type === 'truth' ? truthFallbacksForLevel(spiceLevel) : dareFallbacksForLevel(spiceLevel);
     return { prompt: pickRandomExcluding(list, toExclude), fromAI: false };
   }
+}
+
+const TRUTH_OR_DARE_DISTINCT_MAX_ATTEMPTS = 8;
+
+/**
+ * Generate a prompt guaranteed unique within this match session (shared by both players).
+ * Retries AI/fallback until the line is not in excludePrompts.
+ */
+export async function generateDistinctTruthOrDarePrompt(
+  type: 'truth' | 'dare',
+  matchId: string,
+  userId: string,
+  spiceLevel: SpiceLevel = 'pg13',
+  excludePrompts: string[] = [],
+): Promise<{ prompt: string; fromAI: boolean }> {
+  let exclude = excludePrompts.filter((p) => p && p.trim().length > 0);
+  let lastResult: { prompt: string; fromAI: boolean } | null = null;
+
+  for (let attempt = 0; attempt < TRUTH_OR_DARE_DISTINCT_MAX_ATTEMPTS; attempt++) {
+    const result = await generateTruthOrDarePrompt(type, matchId, userId, spiceLevel, exclude);
+    lastResult = result;
+    if (!isPromptAlreadyUsed(result.prompt, exclude)) {
+      return result;
+    }
+    exclude = [...exclude, result.prompt.trim()];
+  }
+
+  const list = type === 'truth' ? truthFallbacksForLevel(spiceLevel) : dareFallbacksForLevel(spiceLevel);
+  const fallback = pickRandomExcluding(list, exclude);
+  if (!isPromptAlreadyUsed(fallback, exclude)) {
+    return { prompt: fallback, fromAI: false };
+  }
+
+  return lastResult ?? { prompt: pickRandomExcluding(list, []), fromAI: false };
 }

@@ -67,6 +67,14 @@ export const EXTRA_TRUTHS_SPICY: string[] = [
   "When does 'too much' become just enough for you?",
   "What's something you'd want a green light on before you escalate?",
   "Have you ever regretted holding back when you should have gone for it?",
+  "What kind of voice note would make you lose your composure?",
+  "Have you ever wanted someone to take control — or to take control yourself?",
+  "What's the hottest thing someone can do without touching you?",
+  "What would you do if they texted 'come over' and you were already in bed?",
+  "Have you ever flirted harder because you knew it was working?",
+  "What's a confession you'd only make if they asked first?",
+  "When did you last want someone because they were a little dangerous?",
+  "What's something you'd try once with the right person and never post about?",
 ];
 
 export const EXTRA_DARES_PG: string[] = [
@@ -123,4 +131,11 @@ export const EXTRA_DARES_SPICY: string[] = [
   "Voice note: what 'almost' feels like to you — almost kiss, almost text, almost rule broken",
   "Send a selfie in warm light that feels private without showing skin",
   "Voice note: one thing you'd want them to say before you'd lean in first",
+  "Text what you'd whisper if the door just locked — stop before explicit",
+  "Voice note: describe the energy you'd bring if you showed up in person tonight",
+  "Send a selfie: look like you're deciding whether to make the first move",
+  "Reply with what you'd type if you were done pretending to be patient",
+  "Voice note: one thing about their vibe that makes you want to misbehave — tasteful",
+  "Send a 5-sec video: lean closer to the camera like you're closing distance",
+  "Text a dare back: one thing you want them to admit out loud in a voice note",
 ];

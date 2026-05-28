@@ -70,7 +70,58 @@ const DARE_ANGLES = [
   "dare that could only work in chat, not IRL",
 ];
 
-export function randomCreativeAngle(type: "truth" | "dare"): string {
-  const pool = type === "truth" ? TRUTH_ANGLES : DARE_ANGLES;
+const TRUTH_ANGLES_SPICY = [
+  "raw desire they'd only admit after mutual tension",
+  "a boundary they pretend is firm but would bend for the right person",
+  "what 'almost' did to them — almost text, almost kiss, almost rule broken",
+  "power — who had it, who wanted it, who lost it on purpose",
+  "the message that made them weak — tone and timing, not the words",
+  "fantasy they'd act on only with full consent and full chemistry",
+  "jealousy that felt unfairly hot",
+  "what they'd want permission to say before escalating",
+  "restraint — what they held back and why it made it worse",
+  "body language they'd use if they were alone together",
+  "a line they crossed in chat that surprised them",
+  "what they'd do if the other person said 'your move'",
+  "late-night honesty they'd delete in the morning",
+  "the difference between wanting someone and needing their attention",
+  "a situation where they chose tension over clarity",
+  "what they'd whisper if the room were empty",
+  "how they know someone has them mentally undressed",
+  "a risk they'd take in person they won't put in a bio",
+  "what makes them feel desired vs merely wanted",
+  "the last time they replayed someone's voice in their head",
+];
+
+const DARE_ANGLES_SPICY = [
+  "voice note — slow, close-mic, one sentence that implies more",
+  "selfie — collarbone, jaw, eyes; suggestive not explicit",
+  "text — two lines max, would make them blush at 1 a.m.",
+  "short video — gesture only: lip press, slow blink, neck touch",
+  "confession dare — one honest thing about what you want from them",
+  "permission dare — ask what they'd green-light before you go further",
+  "tension dare — describe what you'd do on a couch, stop before explicit",
+  "challenge dare — dare them back in the same energy",
+  "slow-burn dare — imply the next move without naming acts",
+  "power dare — who leads, who waits, who breaks first",
+  "emoji dare — sequence that reads adult, not silly",
+  "hypothetical dare — 'if you were here right now…' then stop",
+  "compliment dare — specific, physical-adjacent, not crude",
+  "restraint dare — admit what you're not sending yet",
+  "mirror dare — match their flirt energy on purpose",
+  "voice dare — say it like you're already alone together",
+  "eyes dare — look at camera like you're deciding to make a move",
+  "boundary dare — one negotiable, one not — one sentence each",
+  "anticipation dare — what you're saving for when you meet",
+  "callback dare — reference the vibe between you two hypothetically",
+];
+
+export type CreativeAngleSpice = "pg13" | "ratedr" | "spicy";
+
+export function randomCreativeAngle(type: "truth" | "dare", spiceLevel?: CreativeAngleSpice): string {
+  let pool = type === "truth" ? TRUTH_ANGLES : DARE_ANGLES;
+  if (spiceLevel === "spicy") {
+    pool = type === "truth" ? TRUTH_ANGLES_SPICY : DARE_ANGLES_SPICY;
+  }
   return pool[Math.floor(Math.random() * pool.length)] ?? "something fresh and specific to these two people";
 }
