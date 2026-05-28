@@ -4763,6 +4763,9 @@ img {
 .my-profile {
   max-width: 800px;
   margin: 0 auto;
+  width: 100%;
+  overflow-x: clip;
+  touch-action: pan-y;
 }
 
 .my-profile-header {
@@ -5073,6 +5076,11 @@ button.my-profile-avatar:focus-visible {
 .my-profile-photo-lightbox-close:focus-visible {
   outline: 3px solid var(--color-rose-400);
   outline-offset: 2px;
+}
+
+.app-layout--native-mobile-shell .my-profile-photo-lightbox-close {
+  top: calc(max(14px, env(safe-area-inset-top, 0px)) + 54px);
+  right: max(12px, env(safe-area-inset-right, 0px));
 }
 
 .my-profile-photo-lightbox-counter {

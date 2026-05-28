@@ -93,6 +93,8 @@ body:has(.app-layout--native-mobile-shell):not(:has(.main-content[data-native-sh
     min-height: calc(100vh - var(--native-tab-height));
     min-height: calc(100dvh - var(--native-tab-height));
     -webkit-overflow-scrolling: touch;
+    overflow-x: hidden;
+    touch-action: pan-y;
   }
 
   /* Browse stack: #f5f5f5 like BrowseScreen container; tab screens: full 5-stop gradient */
