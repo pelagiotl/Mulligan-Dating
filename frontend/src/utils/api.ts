@@ -107,8 +107,14 @@ async function request<T = any>(endpoint: string, options: RequestInit = {}): Pr
         networkMsg.includes('connection failed'))
     ) {
       // More helpful error messages for specific endpoints
-      if (url.includes('/sms/send-code') || url.includes('/sms/verify-code')) {
-        throw new ApiError(0, 'Cannot connect to server. The backend may be starting up (this can take 30-60 seconds). Please wait a moment and try again. If you have a local backend running, make sure it\'s started on port 3001.')
+      if (url.includes('/sms/send-code')) {
+        throw new ApiError(
+          0,
+          'Cannot connect to server. If you already received a text code, enter it on the next screen. Otherwise wait a moment and try again.',
+        )
+      }
+      if (url.includes('/sms/verify-code')) {
+        throw new ApiError(0, 'Cannot connect to server. Please wait a moment and try again.')
       }
       if (url.includes('/auth/login')) {
         throw new ApiError(0, 'Server is starting up. Please wait a moment and try again.')

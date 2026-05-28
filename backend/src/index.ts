@@ -216,10 +216,33 @@ app.get("/child-safety", (_req, res) => {
   res.send(childSafetyHtml());
 });
 
-// CORS configuration
-const allowedOrigins = process.env.NODE_ENV === 'production' 
-  ? (process.env.ALLOWED_ORIGINS?.split(',') || []).map((s) => s.trim()).filter(Boolean)
-  : ["http://localhost:5173", "http://localhost:5174", "http://127.0.0.1:5173", "http://127.0.0.1:5174"];
+// CORS configuration — merge ALLOWED_ORIGINS + FRONTEND_URL (+ www/non-www variants)
+function buildAllowedOrigins(): string[] {
+  const origins = new Set<string>();
+  for (const raw of (process.env.ALLOWED_ORIGINS || '').split(',')) {
+    const o = raw.trim();
+    if (o) origins.add(o);
+  }
+  const frontend = process.env.FRONTEND_URL?.trim();
+  if (frontend) {
+    origins.add(frontend);
+    try {
+      const u = new URL(frontend);
+      const altHost = u.hostname.startsWith('www.')
+        ? u.hostname.slice(4)
+        : `www.${u.hostname}`;
+      origins.add(`${u.protocol}//${altHost}`);
+    } catch {
+      /* ignore invalid FRONTEND_URL */
+    }
+  }
+  return [...origins];
+}
+
+const allowedOrigins =
+  process.env.NODE_ENV === 'production'
+    ? buildAllowedOrigins()
+    : ['http://localhost:5173', 'http://localhost:5174', 'http://127.0.0.1:5173', 'http://127.0.0.1:5174'];
 
 app.use(
   cors({
@@ -241,6 +264,7 @@ app.use(
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
+        console.warn(`⚠️ CORS blocked origin: ${origin}. Allowed: ${allowedOrigins.join(', ') || '(none configured)'}`);
         callback(new Error('Not allowed by CORS'));
       }
     },

@@ -274,29 +274,31 @@ smsRouter.post('/send-code', rateLimitAuth, async (req, res) => {
       });
     }
 
-    // If using Twilio Verify, use it (no code generation needed)
+    // If using Twilio Verify, kick off SMS in background and respond immediately
+    // (avoids browser timeouts while Twilio/Render cold start finish)
     if (useVerify) {
-      const result = await sendVerificationCodeViaVerify(formattedPhone);
-      if (result.success) {
-        // Store userId for login flow (Verify handles code storage)
-        if (existingUser?.id) {
-          verificationCodes.set(formattedPhone, {
-            code: '', // Not needed with Verify
-            expiresAt: Date.now() + 10 * 60 * 1000, // 10 minutes
-            userId: existingUser.id
-          });
-        }
-        return res.json({
-          message: 'Verification code sent via SMS',
-          phoneNumber: formattedPhone,
-          smsSent: true,
-          usingVerify: true
-        });
-      } else {
-        return res.status(500).json({ 
-          error: 'Failed to send verification code. Please try again.' 
+      if (existingUser?.id) {
+        verificationCodes.set(formattedPhone, {
+          code: '', // Not needed with Verify
+          expiresAt: Date.now() + 10 * 60 * 1000, // 10 minutes
+          userId: existingUser.id,
         });
       }
+
+      res.json({
+        message: 'Verification code sent via SMS',
+        phoneNumber: formattedPhone,
+        smsSent: true,
+        usingVerify: true,
+      });
+
+      (async () => {
+        const result = await sendVerificationCodeViaVerify(formattedPhone);
+        if (!result.success) {
+          console.error(`❌ Twilio Verify failed for ${formattedPhone} after optimistic response`);
+        }
+      })();
+      return;
     }
 
     // Fallback to manual code generation (AWS SNS or Twilio Messages)

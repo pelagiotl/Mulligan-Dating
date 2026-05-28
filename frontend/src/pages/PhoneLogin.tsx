@@ -75,7 +75,20 @@ export default function PhoneLogin() {
       setShake(true)
       setTimeout(() => setShake(false), 600)
       const errorMsg = err?.response?.data?.error || err?.message || 'Failed to send verification code'
-      setError(errorMsg)
+      const lower = String(errorMsg).toLowerCase()
+      const maybeSent =
+        lower.includes('cannot connect') ||
+        lower.includes('load failed') ||
+        lower.includes('connection failed') ||
+        lower.includes('timeout') ||
+        lower.includes('failed to fetch')
+      if (maybeSent) {
+        // Backend may have sent the SMS before the browser lost the response (CORS, cold start, etc.)
+        setStep('verify')
+        setError('We had trouble confirming delivery, but your code may already be in your texts. Enter it below.')
+      } else {
+        setError(errorMsg)
+      }
       setLoading(false)
       console.error('Send code error:', err)
     }
