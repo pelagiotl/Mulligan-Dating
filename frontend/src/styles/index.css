@@ -9983,6 +9983,10 @@ button.chat-avatar-btn .chat-avatar img {
   box-shadow: 
     0 2px 8px rgba(0, 0, 0, 0.04),
     0 0 0 1px rgba(255, 255, 255, 0.5) inset;
+  resize: none;
+  min-height: 44px;
+  max-height: 140px;
+  overflow-y: auto;
 }
 
 .message-input:focus {

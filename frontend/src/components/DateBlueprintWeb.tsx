@@ -36,6 +36,7 @@ type Props = {
   /** From match list `isInitiator`: current user is `matches.user1_id`. */
   isCurrentUserMatchUser1: boolean;
   onInviteToChat: (text: string) => Promise<boolean | void>;
+  onPlanGenerated?: () => void;
   messages?: Array<{ senderId: string }>;
   chatPartnerUserId?: string;
 };
@@ -81,6 +82,7 @@ export default function DateBlueprintWeb({
   currentUserId,
   isCurrentUserMatchUser1,
   onInviteToChat,
+  onPlanGenerated,
   messages = [],
   chatPartnerUserId,
 }: Props) {
@@ -156,6 +158,7 @@ export default function DateBlueprintWeb({
       const p = planFromResponse(res);
       if (p) {
         setPlan(p);
+        onPlanGenerated?.();
         window.alert("Hangout plan created — open the calendar to view it.");
       } else {
         window.alert("Plan was generated but could not be read. Try opening again.");

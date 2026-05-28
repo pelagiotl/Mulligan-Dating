@@ -333,7 +333,7 @@ export default function Matches() {
   );
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const messageInputRef = useRef<HTMLInputElement>(null);
+  const messageInputRef = useRef<HTMLTextAreaElement>(null);
   const messageComposerRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -2733,6 +2733,13 @@ export default function Matches() {
                     currentUserId={user.id}
                     isCurrentUserMatchUser1={selectedMatch.isInitiator}
                     onInviteToChat={sendChatText}
+                    onPlanGenerated={() =>
+                      setNotification({
+                        message: "🎉 Date Plan Generator unlocked! Your first hangout plan is ready.",
+                        type: "success",
+                        duration: 5000,
+                      })
+                    }
                     messages={messages}
                     chatPartnerUserId={selectedMatch.otherUser.userId}
                   />
@@ -2760,6 +2767,11 @@ export default function Matches() {
                     onUnlockWithToken={async () => {
                       await api.post(`/matches/${selectedMatch.id}/unlock-game`, {
                         gameType: "truth_or_dare",
+                      });
+                      setNotification({
+                        message: "🎉 Truth or Dare unlocked! Let the spicy fun begin.",
+                        type: "success",
+                        duration: 4500,
                       });
                       const list = await fetchMatches();
                       const id = selectedMatch.id;
@@ -2818,6 +2830,11 @@ export default function Matches() {
                     onUnlockWithToken={async () => {
                       await api.post(`/matches/${selectedMatch.id}/unlock-game`, {
                         gameType: "never_have_i_ever",
+                      });
+                      setNotification({
+                        message: "🎉 Never Have I Ever unlocked! Time to spill secrets.",
+                        type: "success",
+                        duration: 4500,
                       });
                       const list = await fetchMatches();
                       const id = selectedMatch.id;
@@ -3202,16 +3219,16 @@ export default function Matches() {
                         🎤
                       </button>
                     </div>
-                    <input
+                    <textarea
                       key={`chat-message-${selectedMatch.id}`}
                       ref={messageInputRef}
-                      type="text"
                       className="message-input"
                       value={newMessage}
+                      rows={2}
                       autoComplete="off"
-                      autoCorrect="off"
+                      autoCorrect="on"
+                      autoCapitalize="sentences"
                       spellCheck
-                      enterKeyHint="send"
                       data-lpignore="true"
                       data-form-type="other"
                       name={`mulligan-chat-${selectedMatch.id}`}
