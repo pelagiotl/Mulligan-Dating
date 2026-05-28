@@ -668,7 +668,7 @@ export default function TruthOrDareWeb({
               onClick={() => void confirmUnlockAndPlay()}
               disabled={unlockConfirmBusy}
             >
-              {unlockConfirmBusy ? "Unlocking…" : "Unlock & play"}
+              {unlockConfirmBusy ? "Starting…" : "Let's play"}
             </button>
           </div>
         </div>

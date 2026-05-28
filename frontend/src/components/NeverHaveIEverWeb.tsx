@@ -189,6 +189,8 @@ export default function NeverHaveIEverWeb({
   chatPartnerUserId,
 }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
+  const [unlockConfirmOpen, setUnlockConfirmOpen] = useState(false);
+  const [unlockConfirmBusy, setUnlockConfirmBusy] = useState(false);
   const [messageGateOpen, setMessageGateOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -562,13 +564,13 @@ export default function NeverHaveIEverWeb({
 
   useEffect(() => {
     if (typeof document === "undefined") return;
-    if (!modalOpen) return;
+    if (!modalOpen && !unlockConfirmOpen) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = prev;
     };
-  }, [modalOpen]);
+  }, [modalOpen, unlockConfirmOpen]);
 
   const submitSpiceChoice = async (choice: SpiceId) => {
     setSubmitting(true);
@@ -695,19 +697,25 @@ export default function NeverHaveIEverWeb({
       return;
     }
     if (!onUnlockWithToken) return;
-    if (
-      !window.confirm(
-        "Unlock Never Have I Ever for this match? This uses a Mulligan token so you can play together."
-      )
-    ) {
-      return;
-    }
+    setUnlockConfirmOpen(true);
+  };
+
+  const closeUnlockConfirm = () => {
+    if (!unlockConfirmBusy) setUnlockConfirmOpen(false);
+  };
+
+  const confirmUnlockAndPlay = async () => {
+    if (!onUnlockWithToken) return;
+    setUnlockConfirmBusy(true);
     try {
       await onUnlockWithToken();
+      setUnlockConfirmOpen(false);
       openModal();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Could not unlock the game.";
+      const msg = err instanceof Error ? err.message : "Could not start the game.";
       window.alert(msg);
+    } finally {
+      setUnlockConfirmBusy(false);
     }
   };
 
@@ -726,6 +734,72 @@ export default function NeverHaveIEverWeb({
   const showGameChatRoot = Boolean(state && currentUserId);
   const showEmbeddedGameChat = showGameChatRoot && (!compactGameLayout || gameChatPanelOpen);
   const showGameChatFab = showGameChatRoot && compactGameLayout && !gameChatPanelOpen;
+
+  const unlockOverlay = unlockConfirmOpen ? (
+    <div className="tod-web-unlock-overlay nhie-web-unlock-overlay" role="presentation" onClick={closeUnlockConfirm}>
+      <div
+        className="tod-web-unlock-card nhie-web-unlock-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="nhie-unlock-title"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="tod-web-unlock-shine" aria-hidden />
+        <div className="tod-web-unlock-hero">
+          <span className="tod-web-unlock-dice nhie-web-unlock-monkey" aria-hidden>
+            🙊
+          </span>
+          <span className="tod-web-unlock-sparkles" aria-hidden>
+            ✨
+          </span>
+        </div>
+        <h2 id="nhie-unlock-title" className="tod-web-unlock-title">
+          Play Never Have I Ever?
+        </h2>
+        <p className="tod-web-unlock-lead">
+          You&apos;ll each pick a <strong>spice level</strong> (we use the more conservative of the two), then
+          answer <strong>Have</strong> or <strong>Haven&apos;t</strong> — first to 10 points loses. Same flow as in
+          the app.
+        </p>
+        <div className="tod-web-unlock-flow" aria-hidden>
+          <span className="tod-web-unlock-flow-step">
+            <span className="tod-web-unlock-flow-num">1</span>
+            Spice
+          </span>
+          <span className="tod-web-unlock-flow-arrow">→</span>
+          <span className="tod-web-unlock-flow-step">
+            <span className="tod-web-unlock-flow-num">2</span>
+            Play
+          </span>
+        </div>
+        <div className="tod-web-unlock-chips" role="list">
+          {SPICE_OPTIONS.map((opt) => (
+            <span key={opt.id} className="tod-web-unlock-chip" role="listitem">
+              {opt.title}
+            </span>
+          ))}
+        </div>
+        <div className="tod-web-unlock-actions">
+          <button
+            type="button"
+            className="tod-web-unlock-btn tod-web-unlock-btn--ghost"
+            onClick={closeUnlockConfirm}
+            disabled={unlockConfirmBusy}
+          >
+            Not now
+          </button>
+          <button
+            type="button"
+            className="tod-web-unlock-btn tod-web-unlock-btn--primary nhie-web-unlock-primary"
+            onClick={() => void confirmUnlockAndPlay()}
+            disabled={unlockConfirmBusy}
+          >
+            {unlockConfirmBusy ? "Starting…" : "Let's play"}
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
 
   const gameModal =
     modalOpen ? (
@@ -971,13 +1045,14 @@ export default function NeverHaveIEverWeb({
           type="button"
           className="tod-web-header-btn nhie-web-header-btn"
           onClick={() => void handleHeaderClick()}
-          aria-label={isUnlocked ? "Open Never Have I Ever" : "Unlock Never Have I Ever"}
+          aria-label={isUnlocked ? "Open Never Have I Ever" : "Play Never Have I Ever"}
         >
           <span className="tod-web-header-emoji" aria-hidden>
             🙊
           </span>
         </button>
       </div>
+      {typeof document !== "undefined" && unlockOverlay ? createPortal(unlockOverlay, document.body) : null}
       {typeof document !== "undefined" && gameModal ? createPortal(gameModal, document.body) : null}
       {typeof document !== "undefined" && currentUserId ? (
         createPortal(
