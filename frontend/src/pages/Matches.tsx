@@ -1045,22 +1045,15 @@ export default function Matches() {
 
   const syncMobileChatKeyboardInset = useCallback(() => {
     if (typeof window === "undefined" || window.innerWidth > 900) return;
-    const vv = window.visualViewport;
-    if (!vv) return;
     const activeEl = document.activeElement;
     const composerFocused =
       !!activeEl &&
       (activeEl === messageInputRef.current ||
         (messageComposerRef.current != null && messageComposerRef.current.contains(activeEl)));
-    const keyboardOpen = composerFocused && vv.height < window.innerHeight * 0.85;
-    // Use viewport height delta only; offsetTop can oscillate during iOS drag gestures.
-    const keyboardDelta = Math.max(0, window.innerHeight - vv.height);
-    const inset = keyboardOpen
-      ? keyboardDelta
-      : 0;
-    document.body.classList.toggle("matches-chat-keyboard-open", keyboardOpen);
-    document.body.style.setProperty("--chat-keyboard-inset", `${inset}px`);
-  }, []);
+    if (!composerFocused) {
+      clearMobileChatKeyboardInset();
+    }
+  }, [clearMobileChatKeyboardInset]);
 
   /** Keep the message field + Send above the tab bar after iOS keyboard dismiss (Done/checkmark). */
   const ensureMobileComposerVisible = useCallback(() => {

@@ -13144,12 +13144,6 @@ button.chat-avatar-btn .chat-avatar img {
     overflow: visible;
   }
 
-  body.matches-mobile-chat-open.matches-chat-keyboard-open
-    .matches-page--mobile-conversation
-    .message-input-container:focus-within {
-    transform: translateY(calc(-1 * var(--chat-keyboard-inset, 0px)));
-  }
-
   body.matches-mobile-chat-open .matches-page--mobile-conversation .message-input-wrapper {
     scroll-margin-bottom: var(--space-2);
     overflow: visible;
