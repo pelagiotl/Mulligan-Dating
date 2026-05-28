@@ -1047,7 +1047,12 @@ export default function Matches() {
     if (typeof window === "undefined" || window.innerWidth > 900) return;
     const vv = window.visualViewport;
     if (!vv) return;
-    const keyboardOpen = vv.height < window.innerHeight * 0.85;
+    const activeEl = document.activeElement;
+    const composerFocused =
+      !!activeEl &&
+      (activeEl === messageInputRef.current ||
+        (messageComposerRef.current != null && messageComposerRef.current.contains(activeEl)));
+    const keyboardOpen = composerFocused && vv.height < window.innerHeight * 0.85;
     const inset = keyboardOpen
       ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
       : 0;

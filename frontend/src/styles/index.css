@@ -13146,7 +13146,7 @@ button.chat-avatar-btn .chat-avatar img {
 
   body.matches-mobile-chat-open.matches-chat-keyboard-open
     .matches-page--mobile-conversation
-    .message-input-container {
+    .message-input-container:focus-within {
     transform: translateY(calc(-1 * var(--chat-keyboard-inset, 0px)));
   }
 
