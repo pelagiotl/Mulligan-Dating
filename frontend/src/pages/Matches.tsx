@@ -2563,8 +2563,8 @@ export default function Matches() {
         )}
       </div>
 
-      <div className="matches-main">
-        {selectedMatch ? (
+      {selectedMatch ? (
+        <div className="matches-main">
           <>
             <div className="matches-chat-chrome">
             {isNarrow && !mobileShowMatchList && (
@@ -3263,8 +3263,8 @@ export default function Matches() {
               </div>
             )}
           </>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
     </div>
   );
 }
