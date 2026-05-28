@@ -3263,12 +3263,7 @@ export default function Matches() {
               </div>
             )}
           </>
-        ) : (
-          <div className="no-match-selected">
-            <div className="no-match-icon">💌</div>
-            <h3>Select a match</h3>
-          </div>
-        )}
+        ) : null}
       </div>
     </div>
   );
