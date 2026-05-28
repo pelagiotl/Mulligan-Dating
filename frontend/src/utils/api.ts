@@ -98,7 +98,14 @@ async function request<T = any>(endpoint: string, options: RequestInit = {}): Pr
       throw error
     }
     // Check if it's a network error
-    if (error instanceof Error && (error.message.includes('Failed to fetch') || error.message.includes('NetworkError'))) {
+    const networkMsg = error instanceof Error ? error.message.toLowerCase() : '';
+    if (
+      error instanceof Error &&
+      (networkMsg.includes('failed to fetch') ||
+        networkMsg.includes('networkerror') ||
+        networkMsg.includes('load failed') ||
+        networkMsg.includes('connection failed'))
+    ) {
       // More helpful error messages for specific endpoints
       if (url.includes('/sms/send-code') || url.includes('/sms/verify-code')) {
         throw new ApiError(0, 'Cannot connect to server. The backend may be starting up (this can take 30-60 seconds). Please wait a moment and try again. If you have a local backend running, make sure it\'s started on port 3001.')
@@ -156,7 +163,14 @@ async function requestForm<T = unknown>(endpoint: string, formData: FormData): P
       throw new ApiError(408, 'Upload timed out. Please try again with a smaller file or better connection.')
     }
     if (error instanceof ApiError) throw error
-    if (error instanceof Error && (error.message.includes('Failed to fetch') || error.message.includes('NetworkError'))) {
+    const networkMsg = error instanceof Error ? error.message.toLowerCase() : '';
+    if (
+      error instanceof Error &&
+      (networkMsg.includes('failed to fetch') ||
+        networkMsg.includes('networkerror') ||
+        networkMsg.includes('load failed') ||
+        networkMsg.includes('connection failed'))
+    ) {
       throw new ApiError(0, `Connection failed while uploading. (${url})`)
     }
     throw new ApiError(0, error instanceof Error ? error.message : 'Network error')
