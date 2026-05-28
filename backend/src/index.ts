@@ -217,6 +217,23 @@ app.get("/child-safety", (_req, res) => {
 });
 
 // CORS configuration — merge ALLOWED_ORIGINS + FRONTEND_URL (+ www/non-www variants)
+const MULLIGAN_WEB_HOST_SUFFIXES = [
+  'mulligan-frontend.onrender.com',
+  'mulligandating.app',
+  'mulligandating.com',
+];
+
+function isMulliganWebOrigin(origin: string): boolean {
+  try {
+    const host = new URL(origin).hostname.toLowerCase();
+    return MULLIGAN_WEB_HOST_SUFFIXES.some(
+      (suffix) => host === suffix || host.endsWith(`.${suffix}`),
+    );
+  } catch {
+    return false;
+  }
+}
+
 function buildAllowedOrigins(): string[] {
   const origins = new Set<string>();
   for (const raw of (process.env.ALLOWED_ORIGINS || '').split(',')) {
@@ -261,7 +278,7 @@ app.use(
       )) {
         return callback(null, true);
       }
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (!origin || allowedOrigins.includes(origin) || isMulliganWebOrigin(origin)) {
         callback(null, true);
       } else {
         console.warn(`⚠️ CORS blocked origin: ${origin}. Allowed: ${allowedOrigins.join(', ') || '(none configured)'}`);
