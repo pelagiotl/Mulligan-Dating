@@ -1053,8 +1053,10 @@ export default function Matches() {
       (activeEl === messageInputRef.current ||
         (messageComposerRef.current != null && messageComposerRef.current.contains(activeEl)));
     const keyboardOpen = composerFocused && vv.height < window.innerHeight * 0.85;
+    // Use viewport height delta only; offsetTop can oscillate during iOS drag gestures.
+    const keyboardDelta = Math.max(0, window.innerHeight - vv.height);
     const inset = keyboardOpen
-      ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
+      ? keyboardDelta
       : 0;
     document.body.classList.toggle("matches-chat-keyboard-open", keyboardOpen);
     document.body.style.setProperty("--chat-keyboard-inset", `${inset}px`);
