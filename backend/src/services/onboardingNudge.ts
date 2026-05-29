@@ -8,12 +8,12 @@ import {
   sendTransactionalSms,
 } from './sms.js';
 
-const DEFAULT_PUSH_TITLE = 'Finish your Mulligan profile';
+const DEFAULT_PUSH_TITLE = 'Finish your Mulligan profile 💘';
 const DEFAULT_PUSH_BODY =
-  'Add your name, city & state, and 3 photos — then tap Complete Profile to start matching.';
+  'Launch is in 8 days! Add your name, city & state, and 3 photos — then tap Complete Profile to start matching.';
 
 const DEFAULT_SMS_BODY =
-  'Mulligan: Your account is not active yet. Add your name, city & state, and 3 photos to finish setup:';
+  'Mulligan 💘 Launch is in 8 days! Your account is not active yet — add your name, city & state, and 3 photos to finish setup:';
 
 const SMS_SUFFIX = ' Reply STOP to opt out.';
 
