@@ -51,7 +51,7 @@ export function dismissAddToHomePrompt(): void {
 export function shouldShowLandingAddToHomePrompt(): boolean {
   if (isStandaloneDisplay()) return false;
   if (isAddToHomeDismissed()) return false;
-  return isLikelyMobileBrowser();
+  return true;
 }
 
 /** Chromium PWA install prompt (Android / some desktop). */

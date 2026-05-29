@@ -42,6 +42,8 @@ export default function Landing() {
             <h1 className="connect-landing__title">Discover People</h1>
             <ConnectLandingTagline />
 
+            <LandingAddToHomePrompt />
+
             <div className="connect-landing__features">
               <div className="connect-landing__feature">
                 <span className="connect-landing__feature-emoji">✨</span>
@@ -65,8 +67,6 @@ export default function Landing() {
                 </span>
               </div>
             </div>
-
-            <LandingAddToHomePrompt />
 
             <Link to="/signup" className="connect-landing__cta connect-landing__cta--effects">
               <ConnectButtonEffects active borderRadius={18}>

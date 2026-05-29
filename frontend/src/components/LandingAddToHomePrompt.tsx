@@ -3,22 +3,25 @@ import {
   type BeforeInstallPromptEvent,
   detectAddToHomePlatform,
   dismissAddToHomePrompt,
+  isLikelyMobileBrowser,
   shouldShowLandingAddToHomePrompt,
 } from '../lib/addToHomeScreen';
 import './LandingAddToHomePrompt.css';
 
 /**
- * Mobile-only “add to home screen” hint on the public landing (`/`).
- * Not shown when already installed or after dismiss.
+ * “Add to home screen” hint on the public landing (`/`) only.
+ * Hidden when already installed as PWA or after dismiss.
  */
 export default function LandingAddToHomePrompt() {
   const [open, setOpen] = useState(false);
+  const [mobile, setMobile] = useState(true);
   const [platform, setPlatform] = useState<'ios' | 'android' | 'other'>('other');
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const [installing, setInstalling] = useState(false);
 
   useEffect(() => {
     if (!shouldShowLandingAddToHomePrompt()) return;
+    setMobile(isLikelyMobileBrowser());
     setPlatform(detectAddToHomePlatform());
     setOpen(true);
 
@@ -52,10 +55,13 @@ export default function LandingAddToHomePrompt() {
 
   if (!open) return null;
 
-  const canNativeInstall = platform === 'android' && installEvent != null;
+  const canNativeInstall = mobile && platform === 'android' && installEvent != null;
 
   return (
-    <aside className="landing-a2hs" aria-labelledby="landing-a2hs-title">
+    <aside
+      className={`landing-a2hs${mobile ? '' : ' landing-a2hs--desktop'}`}
+      aria-labelledby="landing-a2hs-title"
+    >
       <div className="landing-a2hs__glow" aria-hidden="true" />
       <div className="landing-a2hs__inner">
         <div className="landing-a2hs__icon" aria-hidden="true">
@@ -67,10 +73,12 @@ export default function LandingAddToHomePrompt() {
             Add Mulligan to your home screen
           </h2>
           <p className="landing-a2hs__body">
-            Feels like the app — faster to open, smoother on your phone. Do it before you sign up or after, your call.
+            {mobile
+              ? 'Feels like the app — faster to open, smoother on your phone. Do it before you sign up or after, your call.'
+              : 'Open Mulligan on your phone, then add it to your home screen for the best experience (Safari Share → Add to Home Screen).'}
           </p>
 
-          {platform === 'ios' ? (
+          {mobile && platform === 'ios' ? (
             <ol className="landing-a2hs__steps">
               <li>
                 Tap <strong>Share</strong>{' '}
@@ -84,7 +92,7 @@ export default function LandingAddToHomePrompt() {
               </li>
               <li>Tap <strong>Add</strong> — you&apos;re set</li>
             </ol>
-          ) : canNativeInstall ? (
+          ) : mobile && canNativeInstall ? (
             <button
               type="button"
               className="landing-a2hs__install"
@@ -93,11 +101,11 @@ export default function LandingAddToHomePrompt() {
             >
               {installing ? 'Opening…' : 'Add to home screen'}
             </button>
-          ) : (
+          ) : mobile ? (
             <p className="landing-a2hs__hint">
               In Chrome: menu <strong>⋮</strong> → <strong>Install app</strong> or <strong>Add to Home screen</strong>
             </p>
-          )}
+          ) : null}
         </div>
         <button type="button" className="landing-a2hs__dismiss" onClick={handleDismiss} aria-label="Dismiss">
           Not now

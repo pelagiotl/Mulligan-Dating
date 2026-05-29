@@ -1,6 +1,6 @@
 .landing-a2hs {
   position: relative;
-  margin: 1rem 0 0.25rem;
+  margin: 0.85rem 0 1rem;
   width: 100%;
   max-width: 100%;
 }
@@ -183,8 +183,14 @@
   color: #fff;
 }
 
-@media (min-width: 900px) {
-  .landing-a2hs {
-    display: none;
-  }
+.landing-a2hs--desktop .landing-a2hs__inner {
+  padding: 0.85rem 1rem;
+}
+
+.landing-a2hs--desktop .landing-a2hs__title {
+  font-size: 0.98rem;
+}
+
+.landing-a2hs--desktop .landing-a2hs__body {
+  font-size: 0.8rem;
 }
