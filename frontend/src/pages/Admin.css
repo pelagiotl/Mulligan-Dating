@@ -813,7 +813,12 @@
 .admin-onboarding-nudge-result {
   font-size: 0.85rem;
   margin: var(--space-3) 0 0;
-  color: var(--color-text, #334155);
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  color: #065f46;
+  font-weight: 600;
 }
 
 .admin-onboarding-nudge-hint code {

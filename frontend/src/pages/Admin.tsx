@@ -337,15 +337,19 @@ export default function Admin() {
   const sendOnboardingSmsNudge = async (dryRun: boolean) => {
     setOnboardingNudgeLoading(true);
     setOnboardingNudgeMessage(null);
+    setMessage({ type: 'success', text: dryRun ? 'Running SMS preview…' : 'Sending SMS reminders…' });
     try {
       const data = await api.post<{ message: string; smsConfigured?: boolean }>(
         '/admin/onboarding/complete-profile-sms-nudge',
         { dryRun, limit: 500, minHoursSinceSignup: 24 },
       );
-      setOnboardingNudgeMessage(`SMS: ${data.message}`);
+      const summary = `SMS: ${data.message}`;
+      setOnboardingNudgeMessage(summary);
+      setMessage({ type: 'success', text: summary });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to send SMS nudges';
       setOnboardingNudgeMessage(msg);
+      setMessage({ type: 'error', text: msg });
     } finally {
       setOnboardingNudgeLoading(false);
     }
@@ -1482,7 +1486,7 @@ export default function Admin() {
                         disabled={onboardingNudgeLoading}
                         onClick={() => void sendOnboardingSmsNudge(true)}
                       >
-                        {onboardingNudgeLoading ? '…' : 'Preview SMS reach'}
+                        {onboardingNudgeLoading ? 'Previewing…' : 'Preview SMS reach'}
                       </button>
                       <button
                         type="button"
