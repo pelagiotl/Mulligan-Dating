@@ -5,6 +5,7 @@ import ConnectLandingMark from "../components/ConnectLandingMark";
 import LaunchCountdown from "../components/LaunchCountdown";
 import WebTokenPurchase from "../components/WebTokenPurchase";
 import ConnectLandingTagline from "../components/ConnectLandingTagline";
+import LandingAddToHomePrompt from "../components/LandingAddToHomePrompt";
 
 /**
  * Public home — same Connect landing card as iOS BrowseScreen (Connect tab).
@@ -64,6 +65,8 @@ export default function Landing() {
                 </span>
               </div>
             </div>
+
+            <LandingAddToHomePrompt />
 
             <Link to="/signup" className="connect-landing__cta connect-landing__cta--effects">
               <ConnectButtonEffects active borderRadius={18}>
