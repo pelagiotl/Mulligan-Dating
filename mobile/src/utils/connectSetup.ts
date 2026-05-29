@@ -31,34 +31,43 @@ export function hasConnectDisplayName(profile: ConnectProfileLike): boolean {
   return displayNameFromProfile(profile).length >= 2;
 }
 
-export type ConnectSetupMissing = 'name' | 'location' | 'photos';
+export type ProfileActivationMissing = 'name' | 'location';
+export type ConnectSetupMissing = ProfileActivationMissing | 'photos';
+
+export function getProfileActivationMissing(profile: ConnectProfileLike): ProfileActivationMissing[] {
+  const missing: ProfileActivationMissing[] = [];
+  if (!hasConnectDisplayName(profile)) missing.push('name');
+  if (!isValidConnectLocation(profileLocationText(profile))) missing.push('location');
+  return missing;
+}
 
 export function getConnectSetupMissing(
   profile: ConnectProfileLike,
   photoCount: number | null
 ): ConnectSetupMissing[] {
-  const missing: ConnectSetupMissing[] = [];
+  const missing: ConnectSetupMissing[] = [...getProfileActivationMissing(profile)];
   if (photoCount === null) return missing;
-  if (!hasConnectDisplayName(profile)) missing.push('name');
-  if (!isValidConnectLocation(profileLocationText(profile))) missing.push('location');
   if (photoCount < MIN_PHOTOS_TO_CONNECT) missing.push('photos');
   return missing;
 }
 
+export function isProfileActivationComplete(profile: ConnectProfileLike): boolean {
+  return getProfileActivationMissing(profile).length === 0;
+}
+
 export function isConnectSetupComplete(profile: ConnectProfileLike, photoCount: number | null): boolean {
-  // Unknown photo count (request failed): gate on name + location only, not photos.
   if (photoCount === null) {
-    return hasConnectDisplayName(profile) && isValidConnectLocation(profileLocationText(profile));
+    return isProfileActivationComplete(profile);
   }
   return getConnectSetupMissing(profile, photoCount).length === 0;
 }
 
-/** Same gate as web `computeConnectSetupComplete` — name, city+state, min photos. */
+/** Browse routing after onboarding — name + city/state only. */
 export function computeConnectSetupComplete(profile: ConnectProfileLike, photoCount: number): boolean {
-  return isConnectSetupComplete(profile, photoCount);
+  return isProfileActivationComplete(profile);
 }
 
-/** Connect rules met and create-profile wizard finished (no in-progress draft). */
+/** Account setup finished and create-profile wizard finished (no in-progress draft). */
 export function computeAppConnectReady(
   profile: ConnectProfileLike,
   photoCount: number,
@@ -86,7 +95,8 @@ export function deriveAppRegistrationComplete(params: {
   if (!params.accountActive) return false;
   const profileReady =
     params.serverConnectFlag === true ||
-    (params.serverConnectFlag !== false &&
-      computeConnectSetupComplete(params.profile, params.photoCount));
+    (params.serverConnectFlag !== false && isProfileActivationComplete(params.profile));
   return profileReady && !params.wizardDraftActive;
 }
+
+export const CONNECT_PHOTOS_REQUIRED_MESSAGE = `Upload at least ${MIN_PHOTOS_TO_CONNECT} photos on your Profile to start matching with other people.`;

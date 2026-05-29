@@ -231,12 +231,16 @@ authRouter.get('/me', authenticateToken, async (req: AuthRequest, res) => {
       }
     }
 
+    const { getActivationSetupViolationsForUser, getConnectSetupViolationsForUser } = await import(
+      '../utils/connectRequirements.js',
+    );
+    const activationMissing = await getActivationSetupViolationsForUser(user.id);
     const connectSetupMissing = await getConnectSetupViolationsForUser(user.id);
     const { isActiveAccountStatus } = await import('../utils/accountStatus.js');
     const accountActive = isActiveAccountStatus(user.account_status);
     const profileActivated = !!(user.profile_activated_at && String(user.profile_activated_at).trim());
     const connectSetupComplete =
-      connectSetupMissing.length === 0 && accountActive && profileActivated;
+      activationMissing.length === 0 && accountActive && profileActivated;
 
     const matchmakingOff = isMatchmakingGloballyDisabled();
     const isAdmin = userHasAdminAccess(user.id, user.is_admin, user.phone_number);

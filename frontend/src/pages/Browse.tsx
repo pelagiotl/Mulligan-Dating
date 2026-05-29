@@ -3,6 +3,10 @@ import { createPortal } from "react-dom";
 import { useNavigate, Navigate } from "react-router-dom";
 import { api } from "../utils/api";
 import { useAuth } from "../context/AuthContext";
+import {
+  CONNECT_PHOTOS_REQUIRED_MESSAGE,
+  MIN_PHOTOS_TO_CONNECT,
+} from "../utils/connectProfileEligibility";
 import { getPhotoUrl } from "../utils/photoUrl";
 import MatchCelebration, { type CelebrationPartnerProfile } from "../components/MatchCelebration";
 import TokenDisplay from "../components/TokenDisplay";
@@ -197,7 +201,7 @@ function BrowseLocation({ location }: { location?: string }) {
 }
 
 export default function Browse() {
-  const { profile: userProfile, loading: authLoading } = useAuth();
+  const { profile: userProfile, loading: authLoading, user, photoCount } = useAuth();
   /** Mirrors mobile Connect tab: no /users/browse until user taps Connect (unlock-browse) this session. */
   const [browseSessionActive, setBrowseSessionActive] = useState(false);
   const [unlockingBrowse, setUnlockingBrowse] = useState(false);
@@ -656,6 +660,29 @@ export default function Browse() {
 
   const handleUnlockBrowse = useCallback(async () => {
     if (unlockingBrowse || !userProfile || isAutoMatching) return;
+
+    if (user?.matchmakingEnabled === false) {
+      setGateError(
+        user.matchmakingDisabledMessage?.trim() ||
+          "Matching isn't open yet. Check back on launch day!"
+      );
+      return;
+    }
+
+    let readyPhotoCount = photoCount;
+    if (readyPhotoCount < MIN_PHOTOS_TO_CONNECT) {
+      try {
+        const pm = await api.get<{ photos?: unknown[] }>(`/photos/me?_=${Date.now()}`);
+        readyPhotoCount = Array.isArray(pm.photos) ? pm.photos.length : 0;
+      } catch {
+        readyPhotoCount = photoCount;
+      }
+    }
+    if (readyPhotoCount < MIN_PHOTOS_TO_CONNECT) {
+      setGateError(`${CONNECT_PHOTOS_REQUIRED_MESSAGE} Open Profile from the menu to add photos.`);
+      return;
+    }
+
     setUnlockingBrowse(true);
     setIsAutoMatching(true);
     setGateError("");
@@ -712,7 +739,7 @@ export default function Browse() {
       setUnlockingBrowse(false);
       setIsAutoMatching(false);
     }
-  }, [unlockingBrowse, userProfile, isAutoMatching]);
+  }, [unlockingBrowse, userProfile, isAutoMatching, user, photoCount]);
 
   /** After “Keep Browsing”: return to Connect landing (user taps Connect again for a new match). */
   const handleCelebrationKeepBrowsing = useCallback(() => {

@@ -1,6 +1,6 @@
 import { hasCityAndState } from "./locationUtils";
 
-export const WEB_CREATE_PROFILE_STEPS = 3;
+export const WEB_CREATE_PROFILE_STEPS = 2;
 export const WEB_CREATE_PROFILE_DRAFT_KEY = "mulligan:create-profile:web";
 
 /** Placeholders for fields completed later in Settings (not shown in onboarding). */
@@ -39,21 +39,17 @@ export type WebCreateProfileDraft = {
   minAge?: number;
   maxAge?: number;
   maxDistance?: number;
-  /** Persisted after each successful upload so refresh can restore thumbnails. */
   photoSlots?: Array<DraftPhotoSlot | null>;
 };
 
 export type WebProfileProgressInput = {
   displayName: string;
   location: string;
-  photoCount: number;
-  minPhotosRequired: number;
 };
 
 export function computeWebCreateProfileResumeStep(input: WebProfileProgressInput): number {
   if (input.displayName.trim().length < 2) return 1;
   if (!hasCityAndState(input.location)) return 2;
-  if (input.photoCount < input.minPhotosRequired) return WEB_CREATE_PROFILE_STEPS;
   return WEB_CREATE_PROFILE_STEPS;
 }
 
@@ -88,7 +84,7 @@ export function clearWebCreateProfileDraft(): void {
   }
 }
 
-/** Restore wizard marker if onboarding was interrupted (e.g. draft cleared while photos saved on server). */
+/** Restore wizard marker if onboarding was interrupted. */
 export function ensureWebOnboardingDraft(): void {
   if (readWebCreateProfileDraft()) return;
   writeWebCreateProfileDraft({ step: WEB_CREATE_PROFILE_STEPS });

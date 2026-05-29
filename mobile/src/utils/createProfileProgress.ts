@@ -1,6 +1,6 @@
 import { hasCityAndState } from './locationUtils';
 
-export const MOBILE_CREATE_PROFILE_STEPS = 3;
+export const MOBILE_CREATE_PROFILE_STEPS = 2;
 export const MOBILE_CREATE_PROFILE_DRAFT_KEY = 'mulligan:create-profile:mobile';
 
 /** Placeholders for fields completed later in Settings (not shown in onboarding). */
@@ -47,14 +47,11 @@ export type MobileCreateProfileDraft = {
 export type MobileProfileProgressInput = {
   displayName: string;
   location: string;
-  photoCount: number;
-  minPhotosRequired: number;
 };
 
 export function computeMobileCreateProfileResumeStep(input: MobileProfileProgressInput): number {
   if (input.displayName.trim().length < 2) return 1;
   if (!hasCityAndState(input.location)) return 2;
-  if (input.photoCount < input.minPhotosRequired) return MOBILE_CREATE_PROFILE_STEPS;
   return MOBILE_CREATE_PROFILE_STEPS;
 }
 
@@ -92,7 +89,7 @@ export async function clearMobileCreateProfileDraft(): Promise<void> {
   }
 }
 
-/** Restore wizard marker if onboarding was interrupted (e.g. draft cleared while photos saved on server). */
+/** Restore wizard marker if onboarding was interrupted. */
 export async function ensureMobileOnboardingDraft(): Promise<void> {
   if (await readMobileCreateProfileDraft()) return;
   await writeMobileCreateProfileDraft({ step: MOBILE_CREATE_PROFILE_STEPS });

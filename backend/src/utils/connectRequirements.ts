@@ -23,8 +23,26 @@ export type OnboardingProgress = {
   /** Share of name + location + min photos (0–100). */
   percentComplete: number;
   missing: Array<'profile' | 'name' | 'location' | 'photos'>;
+  /** Name + location only — user may tap Complete Profile without photos. */
   readyToActivate: boolean;
 };
+
+/** Violations for POST /profile/activate and browse routing (no photos). */
+export async function getActivationSetupViolationsForUser(userId: string): Promise<string[]> {
+  const profileResult = db
+    .prepare('SELECT id, display_name, location FROM profiles WHERE user_id = ?')
+    .get([userId]);
+  const profile = (profileResult instanceof Promise ? await profileResult : profileResult) as
+    | { id: string; display_name: string; location: string | null }
+    | undefined;
+
+  if (!profile) return ['profile'];
+
+  const violations: string[] = [];
+  if (!hasConnectDisplayName(profile.display_name)) violations.push('name');
+  if (!isValidConnectLocation(profile.location)) violations.push('location');
+  return violations;
+}
 
 /** Admin + activation: same rules as getConnectSetupViolationsForUser, from list-row fields. */
 export function computeOnboardingProgress(
@@ -47,6 +65,11 @@ export function computeOnboardingProgress(
     (hasName ? 1 : 0) + (hasLocation ? 1 : 0) + (Math.min(safePhotoCount, photosRequired) >= photosRequired ? 1 : 0);
   const percentComplete = Math.round((stepsDone / 3) * 100);
 
+  const activationMissing: OnboardingProgress['missing'] = [];
+  if (!hasProfileRow) activationMissing.push('profile');
+  if (!hasName) activationMissing.push('name');
+  if (!hasLocation) activationMissing.push('location');
+
   return {
     hasName,
     hasLocation,
@@ -54,32 +77,28 @@ export function computeOnboardingProgress(
     photosRequired,
     percentComplete,
     missing,
-    readyToActivate: missing.length === 0,
+    readyToActivate: activationMissing.length === 0,
   };
 }
 
 export async function getConnectSetupViolationsForUser(userId: string): Promise<string[]> {
-  const profileResult = db
-    .prepare('SELECT id, display_name, location FROM profiles WHERE user_id = ?')
-    .get([userId]);
+  const activation = await getActivationSetupViolationsForUser(userId);
+  if (activation.length > 0) return activation;
+
+  const profileResult = db.prepare('SELECT id FROM profiles WHERE user_id = ?').get([userId]);
   const profile = (profileResult instanceof Promise ? await profileResult : profileResult) as
-    | { id: string; display_name: string; location: string | null }
+    | { id: string }
     | undefined;
-
   if (!profile) return ['profile'];
-
-  const violations: string[] = [];
-  if (!hasConnectDisplayName(profile.display_name)) violations.push('name');
-  if (!isValidConnectLocation(profile.location)) violations.push('location');
 
   const countResult = db.prepare('SELECT COUNT(*) as c FROM photos WHERE profile_id = ?').get([profile.id]);
   const countRow = (countResult instanceof Promise ? await countResult : countResult) as
     | { c: number | string }
     | undefined;
   const photoCount = Math.floor(Number(countRow?.c ?? 0));
-  if (photoCount < MIN_PHOTOS_TO_CONNECT) violations.push('photos');
+  if (photoCount < MIN_PHOTOS_TO_CONNECT) return [...activation, 'photos'];
 
-  return violations;
+  return [];
 }
 
 export function connectSetupErrorPayload(violations: string[]) {
@@ -87,9 +106,11 @@ export function connectSetupErrorPayload(violations: string[]) {
     profile: 'Complete your profile first.',
     name: 'Add your name in Settings before connecting.',
     location: 'Add your city and state on your Profile before connecting (e.g. Medford, Oregon).',
-    photos: `Add at least ${MIN_PHOTOS_TO_CONNECT} photos on your Profile before connecting.`,
+    photos: `Upload at least ${MIN_PHOTOS_TO_CONNECT} photos on your Profile to start matching with other people.`,
   };
-  const primary = violations[0] ?? 'profile';
+  const primary = violations.includes('photos')
+    ? 'photos'
+    : violations[0] ?? 'profile';
   return {
     error: messages[primary] || 'Complete your profile to connect.',
     code: 'CONNECT_SETUP_INCOMPLETE' as const,

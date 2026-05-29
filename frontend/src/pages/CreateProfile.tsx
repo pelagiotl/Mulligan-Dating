@@ -11,9 +11,9 @@ import {
 import { getPhotoUrl } from "../utils/photoUrl";
 import { compressImageFiles, uploadCompressedFiles } from "../utils/photoBatchUpload";
 import {
-  formatConnectSetupGapMessage,
-  getConnectSetupGaps,
-  type ConnectSetupGap,
+  formatProfileActivationGapMessage,
+  getProfileActivationGaps,
+  type ProfileActivationGap,
 } from "../utils/connectProfileEligibility";
 import {
   clearWebCreateProfileDraft,
@@ -152,8 +152,7 @@ const INTEREST_EMOJIS: Record<string, string> = {
   Education: "🎓",
 };
 
-const TOTAL_STEPS = 3;
-const MIN_PHOTOS_REQUIRED = 3;
+const TOTAL_STEPS = 2;
 const MAX_PHOTO_SLOTS = 6;
 
 type SlotPhoto = { id: string; url: string };
@@ -581,21 +580,17 @@ export default function CreateProfile() {
     await saveProfileProgress({ requireLocation: true });
   }, [saveProfileProgress]);
 
-  /** Same bar as Connect: name, city+state location, and ≥3 photos (not interests). */
-  const readConnectReadyOnServer = useCallback(async (): Promise<{
+  /** Activation: name + city/state only (photos required later on Connect). */
+  const readActivationReadyOnServer = useCallback(async (): Promise<{
     ready: boolean;
-    gaps: ConnectSetupGap[];
+    gaps: ProfileActivationGap[];
   }> => {
     try {
-      const [profileRes, photoRes] = await Promise.all([
-        api.get<{ profile: unknown }>("/profile"),
-        api.get<{ photos?: unknown[] }>(`/photos/me?_=${Date.now()}`),
-      ]);
-      const photoCount = Array.isArray(photoRes.photos) ? photoRes.photos.length : 0;
-      const gaps = getConnectSetupGaps(profileRes.profile, photoCount);
+      const profileRes = await api.get<{ profile: unknown }>("/profile");
+      const gaps = getProfileActivationGaps(profileRes.profile);
       return { ready: gaps.length === 0, gaps };
     } catch {
-      return { ready: false, gaps: ["name", "location", "photos"] };
+      return { ready: false, gaps: ["name", "location"] };
     }
   }, []);
 
@@ -815,8 +810,6 @@ export default function CreateProfile() {
       const resumeStep = computeWebCreateProfileResumeStep({
         displayName: dn,
         location: loc,
-        photoCount,
-        minPhotosRequired: MIN_PHOTOS_REQUIRED,
       });
       setStep(resumeStep);
     };
@@ -995,10 +988,6 @@ export default function CreateProfile() {
 
   const handleCompleteProfile = async () => {
     setError("");
-    if (uploadingPhotos) {
-      setError("Please wait for your photo upload to finish");
-      return;
-    }
 
     const validationError = validateMinimalOnboardingProfile(displayName, location);
     if (validationError) {
@@ -1010,35 +999,25 @@ export default function CreateProfile() {
     try {
       setSavingProfileDraft(true);
 
-      // Reconcile with server so local draft slots cannot mask missing uploads (common on iOS Safari).
-      const syncedCount = await syncPhotosFromServer({ force: true });
-
-      if (syncedCount < MIN_PHOTOS_REQUIRED) {
-        setError(
-          `Please upload at least ${MIN_PHOTOS_REQUIRED} photos. They must finish saving on the server before you can complete your profile.`
-        );
-        return;
-      }
-
-      let { ready: serverReady, gaps } = await readConnectReadyOnServer();
+      let { ready: serverReady, gaps } = await readActivationReadyOnServer();
       if (!serverReady) {
         try {
           await saveProfileForComplete();
         } catch (saveErr) {
-          const retry = await readConnectReadyOnServer();
+          const retry = await readActivationReadyOnServer();
           if (!retry.ready) throw saveErr;
           serverReady = true;
           gaps = [];
         }
         if (!serverReady) {
-          const afterSave = await readConnectReadyOnServer();
+          const afterSave = await readActivationReadyOnServer();
           serverReady = afterSave.ready;
           gaps = afterSave.gaps;
         }
       }
 
       if (!serverReady) {
-        throw new Error(formatConnectSetupGapMessage(gaps));
+        throw new Error(formatProfileActivationGapMessage(gaps));
       }
 
       await api.post('/profile/activate');
@@ -1084,8 +1063,7 @@ export default function CreateProfile() {
     loading ||
     savingProfileDraft ||
     savingProgress ||
-    uploadingPhotos ||
-    photoCount < MIN_PHOTOS_REQUIRED;
+    (step === 2 && (!locationValid || detectingLocation));
 
   const minAgeOptions = Array.from({ length: 103 }, (_, i) => 18 + i);
   const maxAgeOptions = Array.from({ length: 121 - minAge }, (_, i) => minAge + i);
@@ -1134,7 +1112,7 @@ export default function CreateProfile() {
           Step {step} of {TOTAL_STEPS}
         </p>
         <p className="create-profile-hero-hint">
-          Age, interests, and match preferences can be added anytime in Settings.
+          Add photos on your Profile before you Connect. Age, interests, and match preferences are in Settings.
         </p>
       </header>
 
@@ -1189,131 +1167,9 @@ export default function CreateProfile() {
                 {detectingLocation ? "Detecting…" : "📍 Use My Location"}
               </button>
             </>,
-            locationValid ? <span>✓ Location set! Tap Continue</span> : null
+            locationValid ? <span>✓ Location set! Tap Complete Profile</span> : null
           )}
 
-        {step === 3 && (
-          <div className="create-profile-photos-wrap">
-            <div className="create-profile-photos-header">
-              <span className="create-profile-interests-emoji">📸</span>
-              <h2 className="create-profile-interests-title">Add Your Photos</h2>
-              <p className="create-profile-interests-sub">
-                Upload at least {MIN_PHOTOS_REQUIRED} photos (up to {MAX_PHOTO_SLOTS} total). Add more about you in Settings after.
-              </p>
-              <p className="create-profile-photos-count">
-                {photoCount} / {MIN_PHOTOS_REQUIRED} minimum ({photoCount >= MIN_PHOTOS_REQUIRED ? "✓ Ready" : "Need more"})
-              </p>
-              {!profileReadyForPhotos && !savingProfileDraft ? (
-                <p className="create-profile-photos-saving">Saving your profile…</p>
-              ) : null}
-              {savingProfileDraft ? (
-                <p className="create-profile-photos-saving">Preparing to finish…</p>
-              ) : null}
-            </div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              className="create-profile-file-input"
-              onChange={(ev) => void onPhotoFileChange(ev)}
-            />
-            {filledPhotos.length > 0 ? (
-              <p className="create-profile-photos-reorder-hint">
-                {filledPhotos.length > 1
-                  ? "Drag photos to reorder. The first photo is your profile thumbnail."
-                  : "The first photo is your profile thumbnail."}{" "}
-                Tap the <strong>×</strong> on a photo to delete it.
-              </p>
-            ) : null}
-            {uploadingPhotos ? (
-              <p className="create-profile-photos-saving">Uploading photos…</p>
-            ) : null}
-            <div className="create-profile-photos-grid">
-              {photoSlots.map((ph, slotIndex) => {
-                const isRequired = slotIndex < MIN_PHOTOS_REQUIRED;
-                const canDrag = !!ph && filledPhotos.length > 1;
-                const slotClass = [
-                  "create-profile-photo-slot",
-                  dragOverSlot === slotIndex && draggingPhotoId ? "is-drag-over" : "",
-                ]
-                  .filter(Boolean)
-                  .join(" ");
-                return (
-                  <div
-                    key={slotIndex}
-                    className={slotClass}
-                    onDragOver={(e) => handlePhotoSlotDragOver(e, slotIndex)}
-                    onDragLeave={() => setDragOverSlot((s) => (s === slotIndex ? null : s))}
-                    onDrop={(e) => handlePhotoSlotDrop(e, slotIndex)}
-                  >
-                    {ph ? (
-                      <div
-                        className={[
-                          "create-profile-photo-filled",
-                          draggingPhotoId === ph.id ? "is-dragging" : "",
-                        ]
-                          .filter(Boolean)
-                          .join(" ")}
-                      >
-                        {canDrag ? (
-                          <span
-                            className="photo-drag-handle create-profile-photo-drag-handle"
-                            draggable
-                            onDragStart={(e) => handlePhotoDragStart(e, ph.id)}
-                            onDragEnd={handlePhotoDragEnd}
-                            aria-hidden
-                          >
-                            ⋮⋮
-                          </span>
-                        ) : null}
-                        <img src={getPhotoUrl(ph.url)} alt="" className="create-profile-photo-img" draggable={false} />
-                        {slotIndex === 0 ? <span className="create-profile-photo-primary">Primary</span> : null}
-                        <PhotoSlotRemoveButton
-                          busy={removingPhotoId === ph.id}
-                          disabled={
-                            removingPhotoId === ph.id || uploadingPhotos || reorderingPhotos
-                          }
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setRemoveConfirmSlot(slotIndex);
-                          }}
-                        />
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        className={`create-profile-photo-add ${isRequired && photoCount < MIN_PHOTOS_REQUIRED ? "is-required" : ""}`}
-                        onClick={() => openPhotoPicker(slotIndex)}
-                        disabled={uploadingPhotos || reorderingPhotos || photoCount >= MAX_PHOTO_SLOTS}
-                      >
-                        {uploadingSlotIndices.includes(slotIndex) ? (
-                          <span className="photo-slot-spinner create-profile-photo-slot-spinner" aria-hidden />
-                        ) : (
-                          <>
-                            <span className="create-profile-photo-add-icon">📷</span>
-                            <span>{isRequired ? "Add photos" : "Optional"}</span>
-                          </>
-                        )}
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            <div className="create-profile-photo-tips">
-              <strong>💡 Photo Tips</strong>
-              <ul>
-                <li>Select multiple photos at once from your gallery</li>
-                <li>Tap <strong>×</strong> on a photo to delete it and upload a different one</li>
-                <li>Use clear, recent photos</li>
-                <li>Include a mix of close-ups and full-body shots</li>
-                <li>Show your personality and interests</li>
-                <li>Make sure your face is clearly visible in at least one photo</li>
-              </ul>
-            </div>
-          </div>
-        )}
       </div>
 
       <div className="create-profile-actions">

@@ -31,17 +31,35 @@ function rowLocation(row: unknown): string {
   return String(v);
 }
 
-export type ConnectSetupGap = "name" | "location" | "photos";
+export type ProfileActivationGap = "name" | "location";
+export type ConnectSetupGap = ProfileActivationGap | "photos";
 
-export function getConnectSetupGaps(profileRow: unknown, photoCount: number): ConnectSetupGap[] {
-  const gaps: ConnectSetupGap[] = [];
+export function getProfileActivationGaps(profileRow: unknown): ProfileActivationGap[] {
+  const gaps: ProfileActivationGap[] = [];
   if (!profileRow || typeof profileRow !== "object") {
-    return ["name", "location", "photos"];
+    return ["name", "location"];
   }
   if (!hasConnectDisplayName(rowDisplayName(profileRow))) gaps.push("name");
   if (!isValidConnectLocation(rowLocation(profileRow))) gaps.push("location");
+  return gaps;
+}
+
+export function getConnectSetupGaps(profileRow: unknown, photoCount: number): ConnectSetupGap[] {
+  const gaps: ConnectSetupGap[] = [...getProfileActivationGaps(profileRow)];
   if (photoCount < MIN_PHOTOS_TO_CONNECT) gaps.push("photos");
   return gaps;
+}
+
+export function formatProfileActivationGapMessage(gaps: ProfileActivationGap[]): string {
+  if (gaps.length === 0) {
+    return "Profile not ready yet. Tap Complete Profile again.";
+  }
+  const parts: string[] = [];
+  if (gaps.includes("name")) parts.push("your name (at least 2 characters)");
+  if (gaps.includes("location")) {
+    parts.push("city and state on your profile (e.g. Medford, Oregon)");
+  }
+  return `Still missing on the server: ${parts.join(", ")}. Check your connection and try again.`;
 }
 
 export function formatConnectSetupGapMessage(gaps: ConnectSetupGap[]): string {
@@ -59,17 +77,21 @@ export function formatConnectSetupGapMessage(gaps: ConnectSetupGap[]): string {
   return `Still missing on the server: ${parts.join(", ")}. Check your connection and try again.`;
 }
 
+export function computeProfileActivationComplete(profileRow: unknown): boolean {
+  return getProfileActivationGaps(profileRow).length === 0;
+}
+
 export function computeConnectSetupComplete(profileRow: unknown, photoCount: number): boolean {
   return getConnectSetupGaps(profileRow, photoCount).length === 0;
 }
 
-/** Connect rules met and create-profile wizard finished (no in-progress draft). */
+/** Account setup finished (name + location) and create-profile wizard finished (no in-progress draft). */
 export function computeAppConnectReady(
   profileRow: unknown,
   photoCount: number,
   wizardDraftActive: boolean
 ): boolean {
-  return computeConnectSetupComplete(profileRow, photoCount) && !wizardDraftActive;
+  return computeProfileActivationComplete(profileRow) && !wizardDraftActive;
 }
 
 export function isAccountActiveFromAuthUser(
@@ -82,8 +104,8 @@ export function isAccountActiveFromAuthUser(
 }
 
 /**
- * User may use Connect/browse: account activated + profile requirements + wizard finished.
- * Never treat mid-wizard server saves (photos uploaded) as "done" while account is still onboarding.
+ * User may use browse after onboarding: account activated + name/location + wizard finished.
+ * Photos are required later when tapping Connect to match.
  */
 export function deriveAppRegistrationComplete(params: {
   accountActive: boolean;
@@ -95,7 +117,8 @@ export function deriveAppRegistrationComplete(params: {
   if (!params.accountActive) return false;
   const profileReady =
     params.serverConnectFlag === true ||
-    (params.serverConnectFlag !== false &&
-      computeConnectSetupComplete(params.profileRow, params.photoCount));
+    (params.serverConnectFlag !== false && computeProfileActivationComplete(params.profileRow));
   return profileReady && !params.wizardDraftActive;
 }
+
+export const CONNECT_PHOTOS_REQUIRED_MESSAGE = `Upload at least ${MIN_PHOTOS_TO_CONNECT} photos on your Profile to start matching with other people.`;

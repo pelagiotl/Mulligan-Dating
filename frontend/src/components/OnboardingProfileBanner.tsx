@@ -18,8 +18,8 @@ export default function OnboardingProfileBanner() {
     <div className="onboarding-profile-banner" role="status">
       <div className="onboarding-profile-banner-inner">
         <p className="onboarding-profile-banner-text">
-          <strong>Finish your profile</strong> to start matching — add your name, city &amp; state, and at least 3
-          photos, then tap Complete Profile.
+          <strong>Finish your profile</strong> — add your name and city &amp; state, then tap Complete Profile.
+          Upload 3 photos on your Profile before you Connect.
         </p>
         <Link to="/create-profile" className="onboarding-profile-banner-cta">
           Complete Profile

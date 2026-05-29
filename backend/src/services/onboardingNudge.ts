@@ -10,10 +10,10 @@ import {
 
 const DEFAULT_PUSH_TITLE = 'Finish your Mulligan profile 💘';
 const DEFAULT_PUSH_BODY =
-  'Launch is in 8 days! Add your name, city & state, and 3 photos — then tap Complete Profile to start matching.';
+  'Launch is in 8 days! Add your name and city & state — then tap Complete Profile. Add 3 photos on your Profile before you Connect.';
 
 const DEFAULT_SMS_BODY =
-  'Mulligan 💘 Launch is in 8 days! Your account is not active yet — add your name, city & state, and 3 photos to finish setup:';
+  'Mulligan 💘 Launch is in 8 days! Your account is not active yet — add your name and city & state to finish setup:';
 
 const SMS_SUFFIX = ' Reply STOP to opt out.';
 

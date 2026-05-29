@@ -65,7 +65,7 @@ function onboardingMissingLabel(m: 'profile' | 'name' | 'location' | 'photos'): 
 function AdminOnboardingProgressCell({ progress }: { progress: NonNullable<User['onboardingProgress']> }) {
   if (progress.readyToActivate) {
     return (
-      <span className="admin-onboarding-progress admin-onboarding-progress--ready" title="Has name, city/state, and 3 photos — needs Complete Profile tap">
+      <span className="admin-onboarding-progress admin-onboarding-progress--ready" title="Has name and city/state — needs Complete Profile tap">
         Ready ✓
       </span>
     );

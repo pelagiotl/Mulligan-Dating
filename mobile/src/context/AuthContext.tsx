@@ -18,6 +18,7 @@ import { navigationRef } from '../navigation/navigationRef';
 import {
   deriveAppRegistrationComplete,
   getConnectSetupMissing,
+  getProfileActivationMissing,
   isAccountActiveFromAuthUser,
 } from '../utils/connectSetup';
 import {
@@ -809,7 +810,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         accountStatus: data.user?.accountStatus,
       });
       if (!accountActive) {
-        const missingForDraft = getConnectSetupMissing(nextProfile, photoCount ?? 0);
+        const missingForDraft = getProfileActivationMissing(nextProfile);
         if (missingForDraft.length > 0) {
           await ensureMobileOnboardingDraft();
         }
@@ -823,7 +824,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         serverConnectFlag: data.connectSetupComplete,
       });
       if (connectSetupCompleteLatchRef.current && !nextConnectSetupComplete) {
-        const missing = getConnectSetupMissing(nextProfile, photoCount ?? 0);
+        const missing = getProfileActivationMissing(nextProfile);
         if (missing.length === 0 && accountActive) {
           nextConnectSetupComplete = true;
         }

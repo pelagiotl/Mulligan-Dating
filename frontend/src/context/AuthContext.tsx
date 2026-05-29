@@ -29,6 +29,10 @@ interface User {
   hasPushToken?: boolean
   webPushConfigured?: boolean
   webPushSubscriptionCount?: number
+  accountActive?: boolean
+  accountStatus?: string
+  matchmakingEnabled?: boolean
+  matchmakingDisabledMessage?: string | null
 }
 
 interface Profile {
@@ -44,8 +48,9 @@ interface Profile {
 interface AuthContextType {
   user: User | null
   profile: Profile | null
-  /** True when Connect rules are met and create-profile wizard was finished (no in-progress draft). */
+  /** True when name + location are set, account is active, and create-profile wizard was finished. */
   connectSetupComplete: boolean
+  photoCount: number
   isAuthenticated: boolean
   isAdmin: boolean
   loading: boolean
@@ -68,6 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [connectSetupComplete, setConnectSetupComplete] = useState(false)
+  const [photoCount, setPhotoCount] = useState(0)
   /** Only block the UI when we need to validate an existing session. */
   const [loading, setLoading] = useState(hasStoredAuthToken)
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -142,20 +148,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         hasPushToken: !!data.user.hasPushToken,
         webPushConfigured: !!data.user.webPushConfigured,
         webPushSubscriptionCount: typeof data.user.webPushSubscriptionCount === 'number' ? data.user.webPushSubscriptionCount : 0,
+        accountActive: u.accountActive,
+        accountStatus: u.accountStatus,
+        matchmakingEnabled: data.matchmakingEnabled !== false,
+        matchmakingDisabledMessage:
+          typeof data.matchmakingDisabledMessage === 'string' ? data.matchmakingDisabledMessage : null,
       }))
       const rawProfile = data.profile || null
       setProfile(rawProfile)
 
-      let photoCount =
+      let nextPhotoCount =
         typeof data.photoCount === 'number' && Number.isFinite(data.photoCount) ? data.photoCount : 0
       if (typeof data.photoCount !== 'number') {
         try {
           const pm = await api.get<{ photos?: unknown[] }>('/photos/me')
-          photoCount = Array.isArray(pm.photos) ? pm.photos.length : 0
+          nextPhotoCount = Array.isArray(pm.photos) ? pm.photos.length : 0
         } catch {
-          photoCount = 0
+          nextPhotoCount = 0
         }
       }
+      setPhotoCount(nextPhotoCount)
 
       const accountActive = isAccountActiveFromAuthUser({
         accountActive: u.accountActive,
@@ -168,7 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const complete = deriveAppRegistrationComplete({
         accountActive,
         profileRow: rawProfile,
-        photoCount,
+        photoCount: nextPhotoCount,
         wizardDraftActive,
         serverConnectFlag: data.connectSetupComplete,
       })
@@ -412,6 +424,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user, 
       profile, 
       connectSetupComplete,
+      photoCount,
       isAuthenticated: !!user,
       isAdmin,
       loading, 

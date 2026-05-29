@@ -1,5 +1,5 @@
 import { db } from '../database.js';
-import { getConnectSetupViolationsForUser } from './connectRequirements.js';
+import { getActivationSetupViolationsForUser } from './connectRequirements.js';
 
 export const ACCOUNT_STATUS_ONBOARDING = 'onboarding';
 export const ACCOUNT_STATUS_ACTIVE = 'active';
@@ -32,7 +32,7 @@ export async function activateUserAccount(userId: string): Promise<{
     throw Object.assign(new Error('User not found'), { status: 404 });
   }
 
-  const violations = await getConnectSetupViolationsForUser(userId);
+  const violations = await getActivationSetupViolationsForUser(userId);
   if (violations.length > 0) {
     throw Object.assign(
       new Error('Complete your profile before finishing account setup.'),
@@ -78,7 +78,7 @@ export async function syncAccountStatusFromProfileReadiness(): Promise<void> {
     account_status: string | null;
     profile_activated_at: string | null;
   }[]) {
-    const violations = await getConnectSetupViolationsForUser(row.id);
+    const violations = await getActivationSetupViolationsForUser(row.id);
     if (violations.length > 0) {
       await (db
         .prepare('UPDATE users SET account_status = ? WHERE id = ?')

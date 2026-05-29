@@ -55,7 +55,7 @@ import {
   resolveOnboardingPreferredGenders,
   writeMobileCreateProfileDraft,
 } from '../utils/createProfileProgress';
-import { computeConnectSetupComplete } from '../utils/connectSetup';
+import { CONNECT_PHOTOS_REQUIRED_MESSAGE, computeConnectSetupComplete } from '../utils/connectSetup';
 import ProfileCompleteCelebration from '../components/ProfileCompleteCelebration';
 import {
   deriveAppRegistrationComplete,
@@ -188,7 +188,7 @@ const INTEREST_EMOJIS: { [key: string]: string } = {
   'Education': '🎓',
 };
 
-const TOTAL_STEPS = 3; // 1 name, 2 location, 3 photos (rest in Settings)
+const TOTAL_STEPS = 2; // 1 name, 2 location (photos on Profile before Connect)
 const MIN_PHOTOS_REQUIRED = 3;
 const PHOTO_SLOT_COUNT = 6;
 
@@ -807,8 +807,6 @@ export default function CreateProfileScreen() {
     const resumeStep = computeMobileCreateProfileResumeStep({
       displayName: dn,
       location: loc,
-      photoCount,
-      minPhotosRequired: MIN_PHOTOS_REQUIRED,
     });
     const targetStep =
       initialStep != null && initialStep >= 1 && initialStep <= TOTAL_STEPS ? initialStep : resumeStep;
@@ -1311,35 +1309,6 @@ export default function CreateProfileScreen() {
   const handleSubmit = async () => {
     setLoading(true);
     setError('');
-
-    let readyCount = countUploadedPhotos(photos);
-    if (readyCount < MIN_PHOTOS_REQUIRED) {
-      try {
-        api.clearCache('/photos/me');
-        const data = await api.get<{ photos: Array<{ id: string; url: string; displayOrder?: number }> }>('/photos/me');
-        if (data.photos?.length >= MIN_PHOTOS_REQUIRED) {
-          const synced = photoSlotsFromApi(data.photos);
-          setPhotos(synced);
-          readyCount = countUploadedPhotos(synced);
-        }
-      } catch {
-        // fall through to validation error below
-      }
-    }
-
-    if (readyCount < MIN_PHOTOS_REQUIRED) {
-      setError(
-        `Please upload at least ${MIN_PHOTOS_REQUIRED} photos to complete your profile`
-      );
-      setLoading(false);
-      return;
-    }
-
-    if (uploadingPhotos) {
-      setError('Please wait for your photo upload to finish');
-      setLoading(false);
-      return;
-    }
 
     if (!displayName?.trim() || displayName.trim().length < 2) {
       setError('Please enter at least 2 characters for your name');
@@ -2329,8 +2298,7 @@ export default function CreateProfileScreen() {
     );
   };
 
-  const completeProfileDisabled =
-    loading || savingProgress || uploadingPhotos || uploadedPhotoCount < MIN_PHOTOS_REQUIRED;
+  const completeProfileDisabled = loading || savingProgress;
 
   return (
     <KeyboardAvoidingView
@@ -2343,7 +2311,7 @@ export default function CreateProfileScreen() {
       {!connectSetupComplete ? (
         <View style={styles.onboardingReminderStrip}>
           <Text style={styles.onboardingReminderText}>
-            Finish setup: name, city & state, 3+ photos — then tap Complete Profile. Add age, interests, and more in Settings anytime.
+            Finish setup: name and city & state — then tap Complete Profile. Add 3 photos on Profile before you Connect.
           </Text>
         </View>
       ) : null}
@@ -2434,7 +2402,6 @@ export default function CreateProfileScreen() {
 
       {step === 1 && renderStep1DisplayName()}
       {step === 2 && renderStep4Location()}
-      {step === 3 && renderStep7()}
 
       </View>
 

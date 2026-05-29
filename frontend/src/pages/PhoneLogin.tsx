@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../utils/api'
 import { useAuth } from '../context/AuthContext'
 import BrandMark from '../components/BrandMark'
+import LandingAddToHomePrompt from '../components/LandingAddToHomePrompt'
 import { isAgeGateAccepted } from '../lib/ageGate'
 
 export default function PhoneLogin() {
@@ -139,6 +140,8 @@ export default function PhoneLogin() {
         <div className="auth-orb auth-orb-3"></div>
 
         <div className="auth-container-enhanced">
+          <LandingAddToHomePrompt variant="featured" />
+
           <div className="auth-header-enhanced">
             <Link to="/" className="auth-logo-enhanced">
               <span className="auth-logo-icon">
@@ -230,6 +233,8 @@ export default function PhoneLogin() {
       <div className="auth-orb auth-orb-3"></div>
 
       <div className="auth-container-enhanced">
+        <LandingAddToHomePrompt variant="featured" />
+
         <div className="auth-header-enhanced">
           <Link to="/" className="auth-logo-enhanced">
             <span className="auth-logo-icon">

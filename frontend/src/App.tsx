@@ -200,7 +200,7 @@ function AgeGateRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-/** Connect/Matches require finished create-profile wizard (draft cleared) plus name, city+state, min photos. */
+/** Connect/Matches require finished create-profile wizard (draft cleared) plus name and city+state. */
 function RequireConnectSetup({ children }: { children: React.ReactNode }) {
   const { connectSetupComplete } = useAuth()
   if (!connectSetupComplete) {

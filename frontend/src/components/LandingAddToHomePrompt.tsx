@@ -11,11 +11,16 @@ import {
 } from '../lib/addToHomeScreen';
 import './LandingAddToHomePrompt.css';
 
+type LandingAddToHomePromptProps = {
+  /** Stronger visual priority for first visit (landing `/` and login). */
+  variant?: 'default' | 'featured';
+};
+
 /**
- * “Add to home screen” hint on the public landing (`/`) only.
+ * “Add to home screen” hint on public entry points (`/`, `/login`).
  * Offers “Show home screen tip” when dismissed via Not now.
  */
-export default function LandingAddToHomePrompt() {
+export default function LandingAddToHomePrompt({ variant = 'default' }: LandingAddToHomePromptProps) {
   const [showCard, setShowCard] = useState(false);
   const [showRestoreLink, setShowRestoreLink] = useState(false);
   const [mobile, setMobile] = useState(true);
@@ -101,11 +106,24 @@ export default function LandingAddToHomePrompt() {
 
   const canNativeInstall = mobile && platform === 'android' && installEvent != null;
 
+  const featured = variant === 'featured';
+
   return (
     <aside
-      className={`landing-a2hs${mobile ? '' : ' landing-a2hs--desktop'}`}
+      className={[
+        'landing-a2hs',
+        featured ? 'landing-a2hs--featured' : '',
+        mobile ? '' : 'landing-a2hs--desktop',
+      ]
+        .filter(Boolean)
+        .join(' ')}
       aria-labelledby="landing-a2hs-title"
     >
+      {featured ? (
+        <span className="landing-a2hs__badge" aria-hidden="true">
+          Recommended first step
+        </span>
+      ) : null}
       <div className="landing-a2hs__glow" aria-hidden="true" />
       <div className="landing-a2hs__shimmer" aria-hidden="true" />
       <div className="landing-a2hs__spark landing-a2hs__spark--1" aria-hidden="true" />
@@ -116,13 +134,15 @@ export default function LandingAddToHomePrompt() {
           <span className="landing-a2hs__icon-emoji">📲</span>
         </div>
         <div className="landing-a2hs__copy">
-          <p className="landing-a2hs__kicker">Pro tip</p>
+          <p className="landing-a2hs__kicker">{featured && mobile ? 'Do this first' : 'Pro tip'}</p>
           <h2 id="landing-a2hs-title" className="landing-a2hs__title">
             Add Mulligan to your home screen
           </h2>
           <p className="landing-a2hs__body">
             {mobile
-              ? 'Feels like the app — faster to open, smoother on your phone. Do it before you sign up or after, your call.'
+              ? featured
+                ? 'Takes 10 seconds in Safari — then tap the Mulligan icon on your home screen anytime. Best before you sign up.'
+                : 'Feels like the app — faster to open, smoother on your phone. Do it before you sign up or after, your call.'
               : 'Open Mulligan on your phone, then add it to your home screen for the best experience (Safari Share → Add to Home Screen).'}
           </p>
 
