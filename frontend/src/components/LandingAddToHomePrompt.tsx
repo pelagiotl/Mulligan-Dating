@@ -149,13 +149,11 @@ export default function LandingAddToHomePrompt({ variant = 'default' }: LandingA
           {mobile && platform === 'ios' ? (
             <ol className="landing-a2hs__steps">
               <li>
-                Tap <strong>⋯</strong> (three dots) at the bottom of Safari
-              </li>
-              <li>
-                Then tap <strong>Share</strong>{' '}
+                Tap <strong>⋯</strong> (three dots), then <strong>Share</strong>{' '}
                 <span className="landing-a2hs__share-icon" aria-hidden="true">
                   📤
-                </span>
+                </span>{' '}
+                at the bottom of Safari
               </li>
               <li>
                 Choose <strong>Add to Home Screen</strong>
