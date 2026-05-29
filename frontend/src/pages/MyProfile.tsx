@@ -10,6 +10,7 @@ import MyProfilePreviewModal, {
 } from "../components/MyProfilePreviewModal";
 import { getPhotoUrl } from "../utils/photoUrl";
 import { hasCityAndState } from "../utils/locationUtils";
+import { displayProfileGender } from "../utils/createProfileProgress";
 import { useAuth } from "../context/AuthContext";
 
 const PREFERRED_GENDER_LABELS: Record<string, string> = {
@@ -1064,7 +1065,7 @@ export default function MyProfile() {
               >
                 <span aria-hidden>⚧️</span>
                 <span className="my-profile-mini-label">Gender</span>
-                <span className="my-profile-mini-value">{profile.gender}</span>
+                <span className="my-profile-mini-value">{displayProfileGender(profile.gender)}</span>
                 <span className="my-profile-mini-hint">Tap to update</span>
               </button>
             </ProfilePerimeterBorder>

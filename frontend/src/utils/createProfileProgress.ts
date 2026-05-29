@@ -21,6 +21,16 @@ export function resolveOnboardingGender(gender: string): string {
   return t || ONBOARDING_DEFAULT_GENDER;
 }
 
+export function isStubProfileGender(gender: string | null | undefined): boolean {
+  const g = (gender ?? "").trim();
+  return !g || g === ONBOARDING_DEFAULT_GENDER;
+}
+
+/** Short label for profile cards when gender was not set during onboarding. */
+export function displayProfileGender(gender: string | null | undefined): string {
+  return isStubProfileGender(gender) ? "Not set" : (gender ?? "").trim();
+}
+
 export function resolveOnboardingPreferredGenders(preferredGenders: string[]): string[] {
   return preferredGenders.length > 0 ? preferredGenders : ["Everyone"];
 }

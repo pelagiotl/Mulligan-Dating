@@ -5731,6 +5731,16 @@ button.my-profile-avatar:focus-visible {
 .my-profile-mini-value {
   font-size: 1.15rem;
   font-weight: 800;
+  line-height: 1.2;
+  max-width: 100%;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.my-profile-mini-card--gender .my-profile-mini-value {
+  font-size: clamp(0.88rem, 3.4vw, 1.05rem);
+  letter-spacing: 0;
+  padding: 0 4px;
 }
 
 button.my-profile-mini-card {
@@ -6595,6 +6605,10 @@ button.my-profile-mini-card:focus-visible {
   gap: var(--space-4);
 }
 
+.my-profile-modal-body--age .my-profile-modal-field-label {
+  color: #312e81;
+}
+
 .my-profile-age-input-row {
   display: flex;
   align-items: center;
@@ -6607,8 +6621,9 @@ button.my-profile-mini-card:focus-visible {
   height: 2.75rem;
   border-radius: var(--radius-full);
   border: 2px solid rgba(102, 126, 234, 0.35);
-  background: linear-gradient(145deg, #fff, rgba(238, 242, 255, 0.95));
-  color: #4338ca;
+  background: #fff;
+  color: #1e1b4b;
+  -webkit-text-fill-color: #1e1b4b;
   font-size: 1.35rem;
   font-weight: 700;
   line-height: 1;
@@ -6649,7 +6664,7 @@ button.my-profile-mini-card:focus-visible {
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: #4338ca;
   text-align: center;
 }
 
@@ -6664,11 +6679,13 @@ button.my-profile-mini-card:focus-visible {
   min-width: 2.65rem;
   padding: 0.45rem 0.65rem;
   border-radius: var(--radius-lg);
-  border: 2px solid rgba(102, 126, 234, 0.22);
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(238, 242, 255, 0.85));
+  border: 2px solid rgba(102, 126, 234, 0.35);
+  background: #fff;
+  font-family: var(--font-body);
   font-size: 0.9rem;
   font-weight: 700;
-  color: #4338ca;
+  color: #1e1b4b;
+  -webkit-text-fill-color: #1e1b4b;
   cursor: pointer;
   transition:
     transform var(--transition-fast),

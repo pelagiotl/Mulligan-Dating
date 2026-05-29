@@ -34,6 +34,7 @@ import { GestureHandlerRootView, PanGestureHandler, State } from 'react-native-g
 import { api } from '../utils/api';
 import { uploadPhotoUris } from '../utils/batchPhotoUpload';
 import { compactCityState, handleLocationChange, hasCityAndState } from '../utils/locationUtils';
+import { displayProfileGender } from '../utils/createProfileProgress';
 import { detectUserLocation } from '../utils/detectUserLocation';
 import { getPhotoUrl } from '../utils/photoUrl';
 import OptimizedImage from '../components/OptimizedImage';
@@ -2059,7 +2060,17 @@ export default function MyProfileScreen() {
                     >
                       <Text style={styles.infoCardEmoji}>⚧️</Text>
                       <Text style={styles.infoCardLabel}>Gender</Text>
-                      <Text style={styles.infoCardValue}>{profile.gender}</Text>
+                      <Text
+                        style={[
+                          styles.infoCardValue,
+                          displayProfileGender(profile.gender).length > 6 && styles.infoCardValueCompact,
+                        ]}
+                        numberOfLines={2}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.72}
+                      >
+                        {displayProfileGender(profile.gender)}
+                      </Text>
                       <Text style={styles.infoCardTapHint}>Tap to update</Text>
                     </LinearGradient>
                   </TouchableOpacity>
@@ -2287,7 +2298,7 @@ export default function MyProfileScreen() {
                     keyboardType="number-pad"
                     maxLength={3}
                     placeholder="18"
-                    placeholderTextColor="rgba(255,255,255,0.5)"
+                    placeholderTextColor="rgba(30, 27, 75, 0.4)"
                   />
                   <TouchableOpacity
                     style={styles.ageStepBtn}
@@ -4018,16 +4029,16 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(255, 255, 255, 0.22)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.45)',
+    backgroundColor: '#fff',
+    borderWidth: 2,
+    borderColor: 'rgba(102, 126, 234, 0.4)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   ageStepBtnText: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#fff',
+    color: '#1e1b4b',
     lineHeight: 28,
   },
   ageEditInput: {
@@ -4035,17 +4046,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 36,
     fontWeight: '900',
-    color: '#fff',
+    color: '#1e1b4b',
     paddingVertical: 4,
     borderBottomWidth: 2,
-    borderBottomColor: 'rgba(255, 255, 255, 0.55)',
+    borderBottomColor: 'rgba(102, 126, 234, 0.45)',
   },
   ageQuickLabel: {
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 1.2,
     textTransform: 'uppercase',
-    color: 'rgba(255, 255, 255, 0.75)',
+    color: '#4338ca',
     textAlign: 'center',
     marginBottom: 10,
   },
@@ -4059,21 +4070,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.35)',
+    borderColor: 'rgba(255, 255, 255, 1)',
   },
   ageQuickChipActive: {
     backgroundColor: '#fff',
     borderColor: '#fff',
+    shadowColor: '#312e81',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   ageQuickChipText: {
     fontSize: 15,
     fontWeight: '700',
-    color: 'rgba(255, 255, 255, 0.95)',
+    color: '#1e1b4b',
   },
   ageQuickChipTextActive: {
     color: '#4338ca',
+  },
+  infoCardValueCompact: {
+    fontSize: 20,
+    lineHeight: 24,
+    letterSpacing: 0,
+    paddingHorizontal: 4,
+    textAlign: 'center',
+    alignSelf: 'stretch',
   },
   infoCardValueFull: {
     fontSize: 18,
