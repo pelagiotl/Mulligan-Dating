@@ -824,20 +824,14 @@ export default function CreateProfileScreen() {
     ensureTokenPrefetched();
   }, []);
 
-  useEffect(() => {
-    if (step === TOTAL_STEPS) {
-      prefetchMediaLibraryPermission();
-    }
-  }, [step]);
-
-  // Save profile data and load existing photos when entering final (photos) step
+  // Save profile when user reaches location step (step 2) so Complete Profile is fast.
   useEffect(() => {
     if (step !== TOTAL_STEPS || profileSaveStartedRef.current) return;
     profileSaveStartedRef.current = true;
 
-    const saveProfileAndLoadPhotos = async () => {
+    const saveProfileOnLocationStep = async () => {
       try {
-        console.log('💾 Saving profile data before photo upload...');
+        console.log('💾 Saving profile before Complete Profile...');
             
             // Ensure auth token is loaded (handles cache timing / AsyncStorage race)
             await ensureTokenPrefetched();
@@ -968,7 +962,7 @@ export default function CreateProfileScreen() {
       }
     };
 
-    profileSavePromiseRef.current = saveProfileAndLoadPhotos();
+    profileSavePromiseRef.current = saveProfileOnLocationStep();
     void profileSavePromiseRef.current.finally(() => {
       profileSavePromiseRef.current = null;
     });
@@ -1625,7 +1619,14 @@ export default function CreateProfileScreen() {
           <TouchableOpacity style={styles.focusedLocationButton} onPress={detectLocation} disabled={detectingLocation}>
             {detectingLocation ? <ActivityIndicator color="#fff" /> : <Text style={styles.focusedLocationButtonText}>📍 Use My Location</Text>}
           </TouchableOpacity>
-          {hasCityAndState(location) && <Animated.View style={[styles.successIndicator, { opacity: locationOpacity }]}><Text style={styles.successText}>✓ Location set! Tap Continue</Text></Animated.View>}
+          {hasCityAndState(location) && (
+            <Animated.View style={[styles.successIndicator, { opacity: locationOpacity }]}>
+              <Text style={styles.successText}>✓ Location set! Tap Complete Profile</Text>
+            </Animated.View>
+          )}
+          <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleSmall, { fontSize: rs.subtitleSizeSmall * 0.92, marginTop: 12, marginBottom: 0, opacity: 0.88 }]}>
+            Add 3 photos on your Profile tab before you tap Connect to match.
+          </Text>
         </LinearGradient>
       </Animated.View>
     </View>

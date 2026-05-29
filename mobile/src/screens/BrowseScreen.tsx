@@ -46,8 +46,10 @@ import LegalFooter from '../components/LegalFooter';
 import NoTokensModal from '../components/NoTokensModal';
 import OptimizedImage from '../components/OptimizedImage';
 import {
-  CONNECT_PHOTOS_REQUIRED_MESSAGE,
   MIN_PHOTOS_TO_CONNECT,
+  connectSetupGapMessage,
+  connectSetupGapNavigationTarget,
+  connectSetupGapPrimaryActionLabel,
   getConnectSetupMissing,
   isConnectSetupComplete,
 } from '../utils/connectSetup';
@@ -384,6 +386,42 @@ export default function BrowseScreen() {
     }
   };
 
+  const showConnectSetupAlert = useCallback(
+    (first: ReturnType<typeof getConnectSetupMissing>[number]) => {
+      const target = connectSetupGapNavigationTarget(first);
+      Alert.alert('Finish your profile', connectSetupGapMessage(first), [
+        {
+          text: connectSetupGapPrimaryActionLabel(first),
+          onPress: () => {
+            (navigation as any).navigate(target.screen, target.params);
+          },
+        },
+        { text: 'OK', style: 'cancel' },
+      ]);
+    },
+    [navigation]
+  );
+
+  const resolvePhotoCountForConnect = useCallback(async (): Promise<number> => {
+    if (photoCount !== null) return photoCount;
+    try {
+      const data = await api.get<{ photos: unknown[] }>('/photos/me', false);
+      const count = Array.isArray(data?.photos) ? data.photos.length : 0;
+      setPhotoCount(count);
+      return count;
+    } catch {
+      return 0;
+    }
+  }, [photoCount]);
+
+  const ensureReadyToConnect = useCallback(async (): Promise<boolean> => {
+    const count = await resolvePhotoCountForConnect();
+    const missing = getConnectSetupMissing(userProfile, count);
+    if (missing.length === 0) return true;
+    showConnectSetupAlert(missing[0]);
+    return false;
+  }, [resolvePhotoCountForConnect, userProfile, showConnectSetupAlert]);
+
   const handleUnlockBrowse = useCallback(async () => {
     if (unlocking) return;
 
@@ -406,37 +444,7 @@ export default function BrowseScreen() {
       return;
     }
 
-    let count = photoCount;
-    if (count === null) {
-      try {
-        const data = await api.get<{ photos: unknown[] }>('/photos/me', false);
-        count = Array.isArray(data?.photos) ? data.photos.length : 0;
-        setPhotoCount(count);
-      } catch {
-        count = 0;
-      }
-    }
-    const missing = getConnectSetupMissing(userProfile, count);
-    if (missing.length > 0) {
-      const first = missing[0];
-      const msg =
-        first === 'name'
-          ? 'Add your name in Settings (at least 2 characters) before you can Connect.'
-          : first === 'location'
-            ? 'Add your city and state on your Profile (e.g. Medford, Oregon) before you can Connect.'
-            : CONNECT_PHOTOS_REQUIRED_MESSAGE;
-      Alert.alert('Finish your profile', msg, [
-        {
-          text: first === 'name' ? 'Open Settings' : 'Open Profile',
-          onPress: () => {
-            if (first === 'name') (navigation as any).navigate('Settings');
-            else (navigation as any).navigate('MyProfile', first === 'photos' ? { scrollToPhotos: true } : undefined);
-          },
-        },
-        { text: 'OK', style: 'cancel' },
-      ]);
-      return;
-    }
+    if (!(await ensureReadyToConnect())) return;
     
     // Guard: do not enter unlock/auto-match flow when user has no tokens.
     // This keeps the user on landing and shows the no-tokens modal immediately.
@@ -663,7 +671,7 @@ export default function BrowseScreen() {
         setBrowseUnlocked(true);
       }
     }
-  }, [unlocking, isAuthenticated, user, userProfile, photoCount, handleConnect, refreshProfile, navigation]);
+  }, [unlocking, isAuthenticated, user, userProfile, ensureReadyToConnect, handleConnect, refreshProfile, navigation]);
 
   const fetchProfile = useCallback(async () => {
     try {
@@ -1068,27 +1076,16 @@ export default function BrowseScreen() {
       openMatchmakingPausedModal();
       return;
     }
-    if (connectReady) {
+    void (async () => {
+      if (!(await ensureReadyToConnect())) return;
       void handleUnlockBrowse();
-      return;
-    }
-    if (photoCount === null) {
-      void handleUnlockBrowse();
-      return;
-    }
-    const m = connectMissing[0];
-    if (m === 'name') (navigation as any).navigate('Settings');
-    else if (m === 'location') (navigation as any).navigate('MyProfile');
-    else if (m === 'photos') (navigation as any).navigate('MyProfile', { scrollToPhotos: true });
+    })();
   }, [
     unlocking,
     matchmakingPaused,
     openMatchmakingPausedModal,
-    connectReady,
+    ensureReadyToConnect,
     handleUnlockBrowse,
-    photoCount,
-    connectMissing,
-    navigation,
   ]);
 
   const stopLandingShimmerLoop = useCallback(() => {

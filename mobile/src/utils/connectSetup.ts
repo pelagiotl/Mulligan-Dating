@@ -100,3 +100,30 @@ export function deriveAppRegistrationComplete(params: {
 }
 
 export const CONNECT_PHOTOS_REQUIRED_MESSAGE = `Upload at least ${MIN_PHOTOS_TO_CONNECT} photos on your Profile to start matching with other people.`;
+
+export function connectSetupGapMessage(first: ConnectSetupMissing): string {
+  switch (first) {
+    case 'name':
+      return 'Add your name in Settings (at least 2 characters) before you can Connect.';
+    case 'location':
+      return 'Add your city and state on your Profile (e.g. Medford, Oregon) before you can Connect.';
+    case 'photos':
+      return CONNECT_PHOTOS_REQUIRED_MESSAGE;
+    default:
+      return CONNECT_PHOTOS_REQUIRED_MESSAGE;
+  }
+}
+
+export function connectSetupGapPrimaryActionLabel(first: ConnectSetupMissing): string {
+  return first === 'name' ? 'Open Settings' : 'Open Profile';
+}
+
+export type ConnectSetupNavigationTarget = {
+  screen: 'Settings' | 'MyProfile';
+  params?: { scrollToPhotos?: boolean };
+};
+
+export function connectSetupGapNavigationTarget(first: ConnectSetupMissing): ConnectSetupNavigationTarget {
+  if (first === 'name') return { screen: 'Settings' };
+  return { screen: 'MyProfile', params: first === 'photos' ? { scrollToPhotos: true } : undefined };
+}
