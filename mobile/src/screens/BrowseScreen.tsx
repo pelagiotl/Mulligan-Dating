@@ -35,6 +35,7 @@ import { connectShellGradientStops } from '../lib/connectShellTheme';
 import TokenDisplay from '../components/TokenDisplay';
 import LaunchCountdownBubble from '../components/LaunchCountdownBubble';
 import MatchmakingPausedModal from '../components/MatchmakingPausedModal';
+import ConnectPhotosRequiredModal from '../components/ConnectPhotosRequiredModal';
 import ConnectLandingValueProps, { ConnectFeatureLabel } from '../components/ConnectLandingValueProps';
 import ConnectLandingTagline from '../components/ConnectLandingTagline';
 import ConnectLandingMark from '../components/ConnectLandingMark';
@@ -47,12 +48,11 @@ import NoTokensModal from '../components/NoTokensModal';
 import OptimizedImage from '../components/OptimizedImage';
 import {
   MIN_PHOTOS_TO_CONNECT,
-  minPhotosToConnectLabel,
   connectSetupGapMessage,
   connectSetupGapNavigationTarget,
   connectSetupGapPrimaryActionLabel,
   getConnectSetupMissing,
-  isConnectSetupComplete,
+  getProfileActivationMissing,
 } from '../utils/connectSetup';
 import {
   endMatchCelebrationDemoSession,
@@ -221,6 +221,8 @@ export default function BrowseScreen() {
   const [showMatchCelebration, setShowMatchCelebration] = useState(false);
   const [showNoTokensModal, setShowNoTokensModal] = useState(false);
   const [matchmakingPausedModalVisible, setMatchmakingPausedModalVisible] = useState(false);
+  const [connectPhotosModalVisible, setConnectPhotosModalVisible] = useState(false);
+  const [connectPhotosModalCount, setConnectPhotosModalCount] = useState(0);
   const [showMatchLimitModal, setShowMatchLimitModal] = useState(false);
   const [matchLimitCanExpand, setMatchLimitCanExpand] = useState(false);
   const [matchLimitProfile, setMatchLimitProfile] = useState<Profile | null>(null);
@@ -247,8 +249,6 @@ export default function BrowseScreen() {
   const [photoCount, setPhotoCount] = useState<number | null>(null); // User's photo count (for 5-photo minimum)
   const [photoCountLoading, setPhotoCountLoading] = useState(false); // True while fetching count so we don't briefly show wrong state
   const profileConnectKey = `${(userProfile as { display_name?: string } | null)?.display_name ?? ''}|${userProfile?.displayName ?? ''}|${userProfile?.location ?? ''}`;
-  const connectReady = isConnectSetupComplete(userProfile, photoCount);
-  const connectMissing = getConnectSetupMissing(userProfile, photoCount);
   const socketRef = useRef<Socket | null>(null);
   const matchIdFromConnectRef = useRef<string | null>(null);
   const openTokenModalRef = useRef<(() => void) | null>(null);
@@ -387,22 +387,6 @@ export default function BrowseScreen() {
     }
   };
 
-  const showConnectSetupAlert = useCallback(
-    (first: ReturnType<typeof getConnectSetupMissing>[number]) => {
-      const target = connectSetupGapNavigationTarget(first);
-      Alert.alert('Finish your profile', connectSetupGapMessage(first), [
-        {
-          text: connectSetupGapPrimaryActionLabel(first),
-          onPress: () => {
-            (navigation as any).navigate(target.screen, target.params);
-          },
-        },
-        { text: 'OK', style: 'cancel' },
-      ]);
-    },
-    [navigation]
-  );
-
   const resolvePhotoCountForConnect = useCallback(async (): Promise<number> => {
     if (photoCount !== null) return photoCount;
     try {
@@ -415,21 +399,47 @@ export default function BrowseScreen() {
     }
   }, [photoCount]);
 
+  const promptPhotosRequired = useCallback((count: number) => {
+    setConnectPhotosModalCount(count);
+    setConnectPhotosModalVisible(true);
+  }, []);
+
+  const showConnectSetupAlert = useCallback(
+    (first: ReturnType<typeof getConnectSetupMissing>[number]) => {
+      if (first === 'photos') {
+        void resolvePhotoCountForConnect().then((count) => promptPhotosRequired(count));
+        return;
+      }
+      const target = connectSetupGapNavigationTarget(first);
+      Alert.alert('Finish your profile', connectSetupGapMessage(first), [
+        {
+          text: connectSetupGapPrimaryActionLabel(first),
+          onPress: () => {
+            (navigation as any).navigate(target.screen, target.params);
+          },
+        },
+        { text: 'OK', style: 'cancel' },
+      ]);
+    },
+    [navigation, resolvePhotoCountForConnect, promptPhotosRequired]
+  );
+
   const ensureReadyToConnect = useCallback(async (): Promise<boolean> => {
+    const activationMissing = getProfileActivationMissing(userProfile);
+    if (activationMissing.length > 0) {
+      showConnectSetupAlert(activationMissing[0]);
+      return false;
+    }
     const count = await resolvePhotoCountForConnect();
-    const missing = getConnectSetupMissing(userProfile, count);
-    if (missing.length === 0) return true;
-    showConnectSetupAlert(missing[0]);
-    return false;
-  }, [resolvePhotoCountForConnect, userProfile, showConnectSetupAlert]);
+    if (count < MIN_PHOTOS_TO_CONNECT) {
+      promptPhotosRequired(count);
+      return false;
+    }
+    return true;
+  }, [resolvePhotoCountForConnect, userProfile, showConnectSetupAlert, promptPhotosRequired]);
 
   const handleUnlockBrowse = useCallback(async () => {
     if (unlocking) return;
-
-    if (user?.matchmakingEnabled === false) {
-      setMatchmakingPausedModalVisible(true);
-      return;
-    }
 
     // Check if user is authenticated
     if (!isAuthenticated || !user) {
@@ -446,6 +456,11 @@ export default function BrowseScreen() {
     }
 
     if (!(await ensureReadyToConnect())) return;
+
+    if (user?.matchmakingEnabled === false) {
+      setMatchmakingPausedModalVisible(true);
+      return;
+    }
     
     // Guard: do not enter unlock/auto-match flow when user has no tokens.
     // This keeps the user on landing and shows the no-tokens modal immediately.
@@ -1073,19 +1088,31 @@ export default function BrowseScreen() {
 
   const handleLandingConnectPress = useCallback(() => {
     if (unlocking) return;
-    if (matchmakingPaused) {
-      openMatchmakingPausedModal();
-      return;
-    }
     void (async () => {
-      if (!(await ensureReadyToConnect())) return;
+      const activationMissing = getProfileActivationMissing(userProfile);
+      if (activationMissing.length > 0) {
+        showConnectSetupAlert(activationMissing[0]);
+        return;
+      }
+      const count = await resolvePhotoCountForConnect();
+      if (count < MIN_PHOTOS_TO_CONNECT) {
+        promptPhotosRequired(count);
+        return;
+      }
+      if (matchmakingPaused) {
+        openMatchmakingPausedModal();
+        return;
+      }
       void handleUnlockBrowse();
     })();
   }, [
     unlocking,
     matchmakingPaused,
     openMatchmakingPausedModal,
-    ensureReadyToConnect,
+    resolvePhotoCountForConnect,
+    userProfile,
+    showConnectSetupAlert,
+    promptPhotosRequired,
     handleUnlockBrowse,
   ]);
 
@@ -1324,6 +1351,19 @@ export default function BrowseScreen() {
 
   const shouldShowConnectButton = hasActiveProfile && !showLandingPage && !needsProfile && !loading;
   shouldShowConnectButtonRef.current = shouldShowConnectButton;
+
+  const renderLandingConnectButtonContent = (labelStyle: object) =>
+    unlocking ? (
+      <ActivityIndicator color="#fff" size="large" />
+    ) : (
+      <Text style={labelStyle} numberOfLines={1}>
+        Connect
+      </Text>
+    );
+
+  const landingConnectHint = matchmakingPaused
+    ? 'Tap Connect — matching opens at launch day'
+    : '⛳ Use a Mulligan';
 
   // Tab blur hides this screen (opacity 0); Android pauses native-driver loops. Stop on blur, restart after focus when visible again.
   useFocusEffect(
@@ -1780,7 +1820,7 @@ export default function BrowseScreen() {
                       unlocking && styles.landingButtonDisabled,
                     ]}
                   >
-                    {!unlocking && connectReady && (
+                    {!unlocking && (
                       <ConnectButtonShimmerEffect
                         key={`landing-shimmer-${connectShellMode}`}
                         shell={connectShellMode}
@@ -1796,46 +1836,14 @@ export default function BrowseScreen() {
                         zIndex: 4,
                       }}
                     >
-                      {unlocking ? (
-                        <ActivityIndicator color="#fff" size="large" />
-                      ) : connectReady ? (
-                        <Text style={[styles.landingButtonText, styles.midnightConnectLabel]} numberOfLines={1}>
-                          Connect
-                        </Text>
-                      ) : photoCount === null ? (
-                        <Text style={[styles.landingButtonText, styles.midnightConnectLabel]} numberOfLines={1}>
-                          Connect
-                        </Text>
-                      ) : connectMissing[0] === 'name' ? (
-                        <Text style={[styles.landingButtonText, styles.midnightConnectLabel]} numberOfLines={2}>
-                          Add your name
-                        </Text>
-                      ) : connectMissing[0] === 'location' ? (
-                        <Text style={[styles.landingButtonText, styles.midnightConnectLabel]} numberOfLines={2}>
-                          Add location
-                        </Text>
-                      ) : (
-                        <Text style={[styles.landingButtonText, styles.midnightConnectLabel]} numberOfLines={2}>
-                          Add 3+ photos
-                        </Text>
-                      )}
+                      {renderLandingConnectButtonContent(styles.midnightConnectLabel)}
                     </Animated.View>
                   </LinearGradient>
                 </TouchableOpacity>
               </Animated.View>
 
               <Animated.View style={[styles.landingHintWrap, { opacity: landingHintOpacity }]}>
-                <Text style={styles.midnightHint}>
-                  {matchmakingPaused
-                    ? 'Tap Connect — matching opens at launch'
-                    : !connectReady && photoCount !== null
-                    ? connectMissing[0] === 'name'
-                      ? 'Add your name in Settings to Connect'
-                      : connectMissing[0] === 'location'
-                        ? 'Add city & state on Profile to Connect'
-                        : `Add ${minPhotosToConnectLabel()} on Profile to Connect`
-                    : '⛳ Use a Mulligan'}
-                </Text>
+                <Text style={styles.midnightHint}>{landingConnectHint}</Text>
               </Animated.View>
               </View>
               </View>
@@ -1921,7 +1929,7 @@ export default function BrowseScreen() {
                           end={{ x: 1, y: 1 }}
                           style={[styles.landingButton, unlocking && styles.landingButtonDisabled]}
                         >
-                          {!unlocking && connectReady && (
+                          {!unlocking && (
                             <ConnectButtonShimmerEffect
                               key={`landing-shimmer-${connectShellMode}`}
                               shell={connectShellMode}
@@ -1937,46 +1945,14 @@ export default function BrowseScreen() {
                               zIndex: 4,
                             }}
                           >
-                            {unlocking ? (
-                              <ActivityIndicator color="#fff" size="large" />
-                            ) : connectReady ? (
-                              <Text style={[styles.landingButtonText, styles.sunnyConnectLabel]} numberOfLines={1}>
-                                Connect
-                              </Text>
-                            ) : photoCount === null ? (
-                              <Text style={[styles.landingButtonText, styles.sunnyConnectLabel]} numberOfLines={1}>
-                                Connect
-                              </Text>
-                            ) : connectMissing[0] === 'name' ? (
-                              <Text style={[styles.landingButtonText, styles.sunnyConnectLabel]} numberOfLines={2}>
-                                Add your name
-                              </Text>
-                            ) : connectMissing[0] === 'location' ? (
-                              <Text style={[styles.landingButtonText, styles.sunnyConnectLabel]} numberOfLines={2}>
-                                Add location
-                              </Text>
-                            ) : (
-                              <Text style={[styles.landingButtonText, styles.sunnyConnectLabel]} numberOfLines={2}>
-                                Add 3+ photos
-                              </Text>
-                            )}
+                            {renderLandingConnectButtonContent(styles.sunnyConnectLabel)}
                           </Animated.View>
                         </LinearGradient>
                       </TouchableOpacity>
                     </Animated.View>
 
                     <Animated.View style={[styles.landingHintWrap, { opacity: landingHintOpacity }]}>
-                      <Text style={styles.sunnyHint}>
-                        {matchmakingPaused
-                          ? 'Tap Connect — matching opens at launch'
-                          : !connectReady && photoCount !== null
-                          ? connectMissing[0] === 'name'
-                            ? 'Add your name in Settings to Connect'
-                            : connectMissing[0] === 'location'
-                              ? 'Add city & state on Profile to Connect'
-                              : `Add ${minPhotosToConnectLabel()} on Profile to Connect`
-                          : '⛳ Use a Mulligan'}
-                      </Text>
+                      <Text style={styles.sunnyHint}>{landingConnectHint}</Text>
                     </Animated.View>
                   </View>
                 </View>
@@ -2061,7 +2037,7 @@ export default function BrowseScreen() {
                           end={{ x: 1, y: 1 }}
                           style={[styles.landingButton, unlocking && styles.landingButtonDisabled]}
                         >
-                          {!unlocking && connectReady && (
+                          {!unlocking && (
                             <ConnectButtonShimmerEffect
                               key={`landing-shimmer-${connectShellMode}`}
                               shell={connectShellMode}
@@ -2077,46 +2053,14 @@ export default function BrowseScreen() {
                               zIndex: 4,
                             }}
                           >
-                            {unlocking ? (
-                              <ActivityIndicator color="#fff" size="large" />
-                            ) : connectReady ? (
-                              <Text style={[styles.landingButtonText, styles.softConnectLabel]} numberOfLines={1}>
-                                Connect
-                              </Text>
-                            ) : photoCount === null ? (
-                              <Text style={[styles.landingButtonText, styles.softConnectLabel]} numberOfLines={1}>
-                                Connect
-                              </Text>
-                            ) : connectMissing[0] === 'name' ? (
-                              <Text style={[styles.landingButtonText, styles.softConnectLabel]} numberOfLines={2}>
-                                Add your name
-                              </Text>
-                            ) : connectMissing[0] === 'location' ? (
-                              <Text style={[styles.landingButtonText, styles.softConnectLabel]} numberOfLines={2}>
-                                Add location
-                              </Text>
-                            ) : (
-                              <Text style={[styles.landingButtonText, styles.softConnectLabel]} numberOfLines={2}>
-                                Add 3+ photos
-                              </Text>
-                            )}
+                            {renderLandingConnectButtonContent(styles.softConnectLabel)}
                           </Animated.View>
                         </LinearGradient>
                       </TouchableOpacity>
                     </Animated.View>
 
                     <Animated.View style={[styles.landingHintWrap, { opacity: landingHintOpacity }]}>
-                      <Text style={styles.softHint}>
-                        {matchmakingPaused
-                          ? 'Tap Connect — matching opens at launch'
-                          : !connectReady && photoCount !== null
-                          ? connectMissing[0] === 'name'
-                            ? 'Add your name in Settings to Connect'
-                            : connectMissing[0] === 'location'
-                              ? 'Add city & state on Profile to Connect'
-                              : `Add ${minPhotosToConnectLabel()} on Profile to Connect`
-                          : '⛳ Use a Mulligan'}
-                      </Text>
+                      <Text style={styles.softHint}>{landingConnectHint}</Text>
                     </Animated.View>
                   </View>
                 </View>
@@ -2390,6 +2334,19 @@ export default function BrowseScreen() {
         onClose={() => setMatchmakingPausedModalVisible(false)}
         connectShell={connectShellMode}
         message={matchmakingPausedMessage}
+      />
+
+      <ConnectPhotosRequiredModal
+        visible={connectPhotosModalVisible}
+        photoCount={connectPhotosModalCount}
+        connectShell={connectShellMode}
+        onClose={() => setConnectPhotosModalVisible(false)}
+        onAddPhotos={() => {
+          setConnectPhotosModalVisible(false);
+          (navigation as { navigate: (name: string, params?: object) => void }).navigate('MyProfile', {
+            scrollToPhotos: true,
+          });
+        }}
       />
 
       {/* No Tokens Modal */}

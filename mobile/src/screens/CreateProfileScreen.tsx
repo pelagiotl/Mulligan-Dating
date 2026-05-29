@@ -425,7 +425,7 @@ export default function CreateProfileScreen() {
     };
   }, [screenWidth, screenHeight]);
 
-  // Animate and focus the active basic-info field when on steps 1-6 (basics + preferred + location + bio)
+  // Animate the active onboarding field (step 1: name, step 2: location)
   useEffect(() => {
     const anim = (s: Animated.Value, o: Animated.Value, g: Animated.Value) => {
       Animated.parallel([
@@ -440,19 +440,11 @@ export default function CreateProfileScreen() {
     if (step === 1) {
       anim(firstNameScale, firstNameOpacity, firstNameGlow);
     } else if (step === 2) {
-      anim(ageScale, ageOpacity, ageGlow);
-    } else if (step === 3) {
-      anim(genderScale, genderOpacity, genderGlow);
-    } else if (step === 4) {
-      anim(preferredGendersScale, preferredGendersOpacity, preferredGendersGlow);
-    } else if (step === 5) {
       anim(locationScale, locationOpacity, locationGlow);
-    } else if (step === 6) {
-      anim(bioScale, bioOpacity, bioGlow);
     } else {
-      [firstNameScale, ageScale, genderScale, preferredGendersScale, locationScale, bioScale].forEach(s => s.setValue(0.95));
-      [firstNameOpacity, ageOpacity, genderOpacity, preferredGendersOpacity, locationOpacity, bioOpacity].forEach(o => o.setValue(0));
-      [firstNameGlow, ageGlow, genderGlow, preferredGendersGlow, locationGlow, bioGlow].forEach(g => g.setValue(0));
+      [firstNameScale, locationScale].forEach(s => s.setValue(0.95));
+      [firstNameOpacity, locationOpacity].forEach(o => o.setValue(0));
+      [firstNameGlow, locationGlow].forEach(g => g.setValue(0));
     }
   }, [step]);
 
@@ -1505,14 +1497,27 @@ export default function CreateProfileScreen() {
     );
   };
 
-  // Steps 1-6: One card per page (display name, age, gender, preferred matches, location, bio)
-  const basicInfoStepWrapper = (content: React.ReactNode) => (
-    <ScrollView style={styles.stepContent} contentContainerStyle={[styles.lifestyleScrollContent, { flexGrow: 1 }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+  // Steps 1–2: compact onboarding layout (name, location)
+  const onboardingStepWrapper = (content: React.ReactNode) => (
+    <ScrollView
+      style={styles.onboardingStepScroll}
+      contentContainerStyle={[
+        styles.onboardingStepScrollContent,
+        keyboardVisible && styles.onboardingStepScrollContentKeyboard,
+      ]}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+    >
       {content}
     </ScrollView>
   );
-  const renderStep1DisplayName = () => basicInfoStepWrapper(
-    <View style={[styles.focusedFirstNameSection, keyboardVisible && styles.focusedSectionWithKeyboard, { minHeight: rs.sectionMinHeight, paddingHorizontal: rs.sectionPaddingH, paddingVertical: rs.sectionPaddingV }]}>
+  const onboardingFieldWrapStyle = [
+    styles.onboardingFieldWrap,
+    keyboardVisible && styles.onboardingFieldWrapKeyboard,
+    { paddingHorizontal: rs.sectionPaddingH },
+  ];
+  const renderStep1DisplayName = () => onboardingStepWrapper(
+    <View style={onboardingFieldWrapStyle}>
       <Animated.View style={[{ transform: [{ scale: firstNameScale }], opacity: firstNameOpacity }]}>
         <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.focusedFirstNameCard, keyboardVisible && styles.focusedCardWithKeyboard, { padding: keyboardVisible ? rs.cardPaddingKeyboard : rs.cardPaddingFirst }]}>
           <Text style={[styles.focusedEmoji, keyboardVisible && styles.focusedEmojiSmall, { fontSize: keyboardVisible ? rs.emojiSizeSmall : rs.emojiSize, marginBottom: keyboardVisible ? 8 : 20 }]}>👋</Text>
@@ -1525,6 +1530,13 @@ export default function CreateProfileScreen() {
         </LinearGradient>
       </Animated.View>
     </View>
+  );
+
+  // Legacy multi-step helpers (edit-profile wizard sections)
+  const basicInfoStepWrapper = (content: React.ReactNode) => (
+    <ScrollView style={styles.stepContent} contentContainerStyle={[styles.lifestyleScrollContent, { flexGrow: 1 }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      {content}
+    </ScrollView>
   );
 
   const renderStep2Age = () => basicInfoStepWrapper(
@@ -1586,8 +1598,8 @@ export default function CreateProfileScreen() {
     </View>
   );
 
-  const renderStep4Location = () => basicInfoStepWrapper(
-    <View style={[styles.focusedFieldSection, keyboardVisible && styles.focusedSectionWithKeyboard, { minHeight: rs.sectionMinHeight, paddingHorizontal: rs.sectionPaddingH, paddingVertical: rs.sectionPaddingV }]}>
+  const renderStep4Location = () => onboardingStepWrapper(
+    <View style={onboardingFieldWrapStyle}>
       <Animated.View style={[{ transform: [{ scale: locationScale }], opacity: locationOpacity }]}>
         <LinearGradient colors={['#f5576c', '#4facfe', '#00f2fe']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.focusedFieldCard, keyboardVisible && styles.focusedCardWithKeyboard, { padding: keyboardVisible ? rs.cardPaddingKeyboard : rs.cardPadding }]}>
           <Text style={[styles.focusedEmoji, keyboardVisible && styles.focusedEmojiSmall, { fontSize: keyboardVisible ? rs.emojiSizeSmall : rs.emojiSize, marginBottom: keyboardVisible ? 8 : 20 }]}>📍</Text>
@@ -2299,14 +2311,18 @@ export default function CreateProfileScreen() {
     );
   };
 
-  const completeProfileDisabled = loading || savingProgress;
+  const nameValid = displayName.trim().length >= 2;
+  const locationValid = hasCityAndState(location);
+  const continueDisabled = savingProgress || (step === 1 && !nameValid);
+  const completeProfileDisabled =
+    loading || savingProgress || !nameValid || (step === 2 && !locationValid);
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={styles.container}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
-      enabled={true}
+      enabled={Platform.OS === 'ios'}
     >
       <View style={styles.createProfileBody}>
       {!connectSetupComplete ? (
@@ -2406,7 +2422,16 @@ export default function CreateProfileScreen() {
 
       </View>
 
-      <View style={[styles.actions, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+      <View
+        style={[
+          styles.actionsFooter,
+          { paddingBottom: Platform.OS === 'android' ? Math.max(insets.bottom, 8) : Math.max(insets.bottom, 12) },
+        ]}
+      >
+        {step === 2 && !locationValid ? (
+          <Text style={styles.actionsHint}>Enter city and state (e.g. Medford, Oregon) to finish</Text>
+        ) : null}
+        <View style={styles.actions}>
           {step > 1 ? (
             <TouchableOpacity 
               style={styles.modernBackButton} 
@@ -2428,11 +2453,15 @@ export default function CreateProfileScreen() {
             <TouchableOpacity
               style={styles.modernNextButton}
               onPress={() => void handleNext()}
-              disabled={savingProgress}
-              activeOpacity={0.8}
+              disabled={continueDisabled}
+              activeOpacity={continueDisabled ? 1 : 0.8}
             >
               <LinearGradient
-                colors={['#667eea', '#764ba2', '#f093fb']}
+                colors={
+                  continueDisabled
+                    ? ['#ccc', '#bbb']
+                    : ['#667eea', '#764ba2', '#f093fb']
+                }
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.modernNextButtonGradient}
@@ -2447,7 +2476,7 @@ export default function CreateProfileScreen() {
               style={styles.modernNextButton}
               onPress={handleSubmit}
               disabled={completeProfileDisabled}
-              activeOpacity={0.8}
+              activeOpacity={completeProfileDisabled ? 1 : 0.8}
               hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
             >
               <LinearGradient
@@ -2467,8 +2496,7 @@ export default function CreateProfileScreen() {
             </TouchableOpacity>
           )}
         </View>
-      
-      {/* Profile Complete Celebration */}
+      </View>
       <ProfileCompleteCelebration
         visible={showCelebration}
         onClose={async () => {
@@ -4138,14 +4166,56 @@ const styles = StyleSheet.create({
   errorText: {
     color: '#d32f2f',
   },
+  onboardingStepScroll: {
+    flex: 1,
+    width: '100%',
+  },
+  onboardingStepScrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingTop: 4,
+    paddingBottom: 8,
+  },
+  onboardingStepScrollContentKeyboard: {
+    justifyContent: 'flex-start',
+    paddingTop: 0,
+    paddingBottom: 4,
+  },
+  onboardingFieldWrap: {
+    width: '100%',
+    justifyContent: 'center',
+    paddingVertical: Platform.OS === 'android' ? 8 : 16,
+  },
+  onboardingFieldWrapKeyboard: {
+    paddingVertical: 4,
+  },
+  actionsFooter: {
+    flexShrink: 0,
+    backgroundColor: '#f8f9fa',
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+    ...(Platform.OS === 'android'
+      ? { elevation: 6, shadowColor: '#000', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.06, shadowRadius: 4 }
+      : {}),
+  },
+  actionsHint: {
+    fontSize: 12,
+    lineHeight: 16,
+    color: '#64748b',
+    textAlign: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 2,
+    fontWeight: '600',
+  },
   actions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: 12,
     paddingTop: 8,
-    backgroundColor: '#f8f9fa',
-    borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
+    paddingBottom: 8,
+    backgroundColor: 'transparent',
     gap: 8,
     flexShrink: 0,
   },
