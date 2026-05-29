@@ -17,6 +17,15 @@ const PREFERRED_GENDER_LABELS: Record<string, string> = {
   Woman: "Women",
   Everyone: "Everyone",
 };
+
+const GENDER_OPTIONS = ["Man", "Woman", "Other"] as const;
+const GENDER_OPTION_META: Record<(typeof GENDER_OPTIONS)[number], { emoji: string; sub: string }> = {
+  Man: { emoji: "👨", sub: "I am a man" },
+  Woman: { emoji: "👩", sub: "I am a woman" },
+  Other: { emoji: "✨", sub: "Another identity" },
+};
+
+const AGE_QUICK_PICKS = [18, 21, 24, 25, 28, 30, 32, 35, 38, 40, 45, 50, 55, 60] as const;
 const MAX_DISTANCE_OPTIONS: (number | null)[] = [10, 25, 50, 100, 250, 500, null];
 
 /** Short labels under each mileage chip (max distance modal). */
@@ -377,11 +386,15 @@ export default function MyProfile() {
   const [error, setError] = useState("");
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  const [showAgeModal, setShowAgeModal] = useState(false);
+  const [showGenderModal, setShowGenderModal] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showDistanceModal, setShowDistanceModal] = useState(false);
   const [showPreferredModal, setShowPreferredModal] = useState(false);
   const [showLookingForModal, setShowLookingForModal] = useState(false);
   const [showBioModal, setShowBioModal] = useState(false);
+  const [editAge, setEditAge] = useState("");
+  const [editGender, setEditGender] = useState("");
   const [editLocation, setEditLocation] = useState("");
   const [editMaxDistance, setEditMaxDistance] = useState<number | null>(50);
   const [editPreferredGenders, setEditPreferredGenders] = useState<string[]>(["Everyone"]);
@@ -589,6 +602,67 @@ export default function MyProfile() {
     );
   };
 
+  const postProfileFields = async (fields: {
+    age?: number;
+    gender?: string;
+    location?: string | null;
+    bio?: string | null;
+    lookingFor?: string | null;
+  }) => {
+    if (!data?.profile) return;
+    await api.post("/profile", {
+      displayName: data.profile.display_name,
+      age: fields.age ?? data.profile.age,
+      gender: fields.gender ?? data.profile.gender,
+      location: fields.location !== undefined ? fields.location : data.profile.location ?? null,
+      bio: fields.bio !== undefined ? fields.bio : data.profile.bio ?? null,
+      lookingFor:
+        fields.lookingFor !== undefined ? fields.lookingFor : data.profile.looking_for ?? null,
+    });
+  };
+
+  const saveAge = async () => {
+    if (!data?.profile) return;
+    const ageNum = parseInt(editAge.trim(), 10);
+    if (Number.isNaN(ageNum) || ageNum < 18 || ageNum > 120) {
+      setError("Enter an age between 18 and 120.");
+      return;
+    }
+    setUpdatingField(true);
+    setError("");
+    try {
+      await postProfileFields({ age: ageNum });
+      setData((prev) => (prev ? { ...prev, profile: { ...prev.profile, age: ageNum } } : null));
+      setShowAgeModal(false);
+      await refreshProfile();
+    } catch (e: unknown) {
+      setError((e as Error)?.message || "Failed to update age.");
+    } finally {
+      setUpdatingField(false);
+    }
+  };
+
+  const saveGender = async () => {
+    if (!data?.profile) return;
+    const gender = editGender.trim();
+    if (!GENDER_OPTIONS.includes(gender as (typeof GENDER_OPTIONS)[number])) {
+      setError("Please choose Man, Woman, or Other.");
+      return;
+    }
+    setUpdatingField(true);
+    setError("");
+    try {
+      await postProfileFields({ gender });
+      setData((prev) => (prev ? { ...prev, profile: { ...prev.profile, gender } } : null));
+      setShowGenderModal(false);
+      await refreshProfile();
+    } catch (e: unknown) {
+      setError((e as Error)?.message || "Failed to update gender.");
+    } finally {
+      setUpdatingField(false);
+    }
+  };
+
   const saveLocation = async () => {
     if (!data?.profile) return;
     const loc = editLocation.trim() || null;
@@ -599,14 +673,7 @@ export default function MyProfile() {
     setUpdatingField(true);
     setError("");
     try {
-      await api.post("/profile", {
-        displayName: data.profile.display_name,
-        age: data.profile.age,
-        gender: data.profile.gender,
-        location: loc,
-        bio: data.profile.bio ?? null,
-        lookingFor: data.profile.looking_for ?? null,
-      });
+      await postProfileFields({ location: loc });
       setData((prev) => (prev ? { ...prev, profile: { ...prev.profile, location: loc } } : null));
       setShowLocationModal(false);
       await refreshProfile();
@@ -692,14 +759,7 @@ export default function MyProfile() {
     setUpdatingField(true);
     setError("");
     try {
-      await api.post("/profile", {
-        displayName: data.profile.display_name,
-        age: data.profile.age,
-        gender: data.profile.gender,
-        location: data.profile.location ?? null,
-        bio: data.profile.bio ?? null,
-        lookingFor,
-      });
+      await postProfileFields({ lookingFor });
       setData((prev) => (prev ? { ...prev, profile: { ...prev.profile, looking_for: lookingFor } } : null));
       setShowLookingForModal(false);
       await refreshProfile();
@@ -717,14 +777,7 @@ export default function MyProfile() {
     setUpdatingField(true);
     setError("");
     try {
-      await api.post("/profile", {
-        displayName: data.profile.display_name,
-        age: data.profile.age,
-        gender: data.profile.gender,
-        location: data.profile.location ?? null,
-        bio: val,
-        lookingFor: data.profile.looking_for ?? null,
-      });
+      await postProfileFields({ bio: val });
       setData((prev) => (prev ? { ...prev, profile: { ...prev.profile, bio: val } } : null));
       setShowBioModal(false);
       await refreshProfile();
@@ -986,18 +1039,34 @@ export default function MyProfile() {
 
           <div className="my-profile-info-grid">
             <ProfilePerimeterBorder delay={360} className="profile-perimeter-border--mini">
-              <div className="my-profile-mini-card my-profile-mini-card--age">
-                <span>🎂</span>
+              <button
+                type="button"
+                className="my-profile-mini-card my-profile-mini-card--age"
+                onClick={() => {
+                  setEditAge(String(profile.age));
+                  setShowAgeModal(true);
+                }}
+              >
+                <span aria-hidden>🎂</span>
                 <span className="my-profile-mini-label">Age</span>
                 <span className="my-profile-mini-value">{profile.age}</span>
-              </div>
+                <span className="my-profile-mini-hint">Tap to update</span>
+              </button>
             </ProfilePerimeterBorder>
             <ProfilePerimeterBorder delay={520} className="profile-perimeter-border--mini">
-              <div className="my-profile-mini-card my-profile-mini-card--gender">
-                <span>⚧️</span>
+              <button
+                type="button"
+                className="my-profile-mini-card my-profile-mini-card--gender"
+                onClick={() => {
+                  setEditGender(profile.gender || "");
+                  setShowGenderModal(true);
+                }}
+              >
+                <span aria-hidden>⚧️</span>
                 <span className="my-profile-mini-label">Gender</span>
                 <span className="my-profile-mini-value">{profile.gender}</span>
-              </div>
+                <span className="my-profile-mini-hint">Tap to update</span>
+              </button>
             </ProfilePerimeterBorder>
           </div>
 
@@ -1343,6 +1412,166 @@ export default function MyProfile() {
       </div>
 
       {/* Modals */}
+      {showAgeModal && (
+        <div className="my-profile-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="age-title">
+          <div className="my-profile-modal-backdrop" onClick={() => setShowAgeModal(false)} />
+          <div className="my-profile-modal-card my-profile-modal-card--age" role="document">
+            <button
+              type="button"
+              className="my-profile-modal-close"
+              aria-label="Close"
+              onClick={() => setShowAgeModal(false)}
+            >
+              ×
+            </button>
+            <div className="my-profile-age-modal-hero">
+              <span className="my-profile-age-modal-hero-icon" aria-hidden>
+                🎂
+              </span>
+              <div className="my-profile-age-modal-hero-text">
+                <h3 id="age-title">Update age</h3>
+                <p className="my-profile-modal-sub my-profile-age-modal-tagline">
+                  Must be 18 or older. Matches use this on your profile card.
+                </p>
+              </div>
+            </div>
+            <div className="my-profile-modal-body my-profile-modal-body--age">
+              <label className="my-profile-modal-field-label" htmlFor="my-profile-age-input">
+                Your age
+              </label>
+              <div className="my-profile-age-input-row">
+                <button
+                  type="button"
+                  className="my-profile-age-step-btn"
+                  aria-label="Decrease age"
+                  onClick={() => {
+                    const n = parseInt(editAge, 10);
+                    const next = Number.isNaN(n) ? 18 : Math.max(18, n - 1);
+                    setEditAge(String(next));
+                  }}
+                >
+                  −
+                </button>
+                <input
+                  id="my-profile-age-input"
+                  type="number"
+                  inputMode="numeric"
+                  min={18}
+                  max={120}
+                  className="my-profile-age-input"
+                  value={editAge}
+                  onChange={(e) => setEditAge(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="my-profile-age-step-btn"
+                  aria-label="Increase age"
+                  onClick={() => {
+                    const n = parseInt(editAge, 10);
+                    const next = Number.isNaN(n) ? 18 : Math.min(120, n + 1);
+                    setEditAge(String(next));
+                  }}
+                >
+                  +
+                </button>
+              </div>
+              <p className="my-profile-age-quick-label">Quick pick</p>
+              <div className="my-profile-age-quick-grid" role="list">
+                {AGE_QUICK_PICKS.map((age) => (
+                  <button
+                    key={age}
+                    type="button"
+                    role="listitem"
+                    className={`my-profile-age-quick-chip ${editAge === String(age) ? "is-selected" : ""}`}
+                    onClick={() => setEditAge(String(age))}
+                  >
+                    {age}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="my-profile-modal-actions">
+              <button type="button" className="btn btn-ghost" onClick={() => setShowAgeModal(false)}>
+                Cancel
+              </button>
+              <button type="button" className="btn btn-primary" onClick={() => void saveAge()} disabled={updatingField}>
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showGenderModal && (
+        <div className="my-profile-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="gender-title">
+          <div className="my-profile-modal-backdrop" onClick={() => setShowGenderModal(false)} />
+          <div className="my-profile-modal-card my-profile-modal-card--gender" role="document">
+            <button
+              type="button"
+              className="my-profile-modal-close"
+              aria-label="Close"
+              onClick={() => setShowGenderModal(false)}
+            >
+              ×
+            </button>
+            <div className="my-profile-gender-modal-hero">
+              <span className="my-profile-gender-modal-hero-icon" aria-hidden>
+                ⚧️
+              </span>
+              <div className="my-profile-gender-modal-hero-text">
+                <h3 id="gender-title">Update gender</h3>
+                <p className="my-profile-modal-sub my-profile-gender-modal-tagline">
+                  Shown on your profile when you connect with someone new.
+                </p>
+              </div>
+            </div>
+            <div className="my-profile-modal-body">
+              <label className="my-profile-modal-field-label" id="gender-group-label">
+                Choose one
+              </label>
+              <div
+                className="my-profile-looking-grid"
+                role="radiogroup"
+                aria-labelledby="gender-group-label"
+              >
+                {GENDER_OPTIONS.map((opt) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    role="radio"
+                    aria-checked={editGender === opt}
+                    className={`my-profile-looking-chip my-profile-gender-chip ${editGender === opt ? "is-selected" : ""}`}
+                    onClick={() => setEditGender(opt)}
+                  >
+                    <span className="my-profile-looking-chip-emoji" aria-hidden>
+                      {GENDER_OPTION_META[opt].emoji}
+                    </span>
+                    <span className="my-profile-looking-chip-copy">
+                      <span className="my-profile-looking-chip-title">{opt}</span>
+                      <span className="my-profile-looking-chip-sub">{GENDER_OPTION_META[opt].sub}</span>
+                    </span>
+                    {editGender === opt ? <span className="my-profile-looking-chip-check">✓</span> : null}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="my-profile-modal-actions">
+              <button type="button" className="btn btn-ghost" onClick={() => setShowGenderModal(false)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => void saveGender()}
+                disabled={updatingField}
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showLocationModal && (
         <div className="my-profile-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="loc-title">
           <div className="my-profile-modal-backdrop" onClick={() => setShowLocationModal(false)} />

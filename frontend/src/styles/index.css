@@ -5733,6 +5733,35 @@ button.my-profile-avatar:focus-visible {
   font-weight: 800;
 }
 
+button.my-profile-mini-card {
+  width: 100%;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  transition:
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+button.my-profile-mini-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+}
+
+button.my-profile-mini-card:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.95);
+  outline-offset: 3px;
+}
+
+.my-profile-mini-hint {
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  opacity: 0.88;
+  margin-top: 0.1rem;
+}
+
 /* Animated perimeter ring — profile tab cards (web) */
 .profile-perimeter-border {
   --perimeter-delay: 0ms;
@@ -6496,6 +6525,184 @@ button.my-profile-avatar:focus-visible {
 
 .my-profile-modal-card--looking::before {
   background: linear-gradient(90deg, var(--color-wine-800), var(--color-rose-600), var(--color-rose-300), var(--color-gold-400));
+}
+
+.my-profile-modal-card--age::before {
+  background: linear-gradient(90deg, #667eea, #764ba2, #a78bfa, #c4b5fd);
+}
+
+.my-profile-modal-card--age {
+  background: linear-gradient(
+    165deg,
+    #fffefb 0%,
+    rgba(238, 242, 255, 0.9) 45%,
+    rgba(245, 243, 255, 0.95) 100%
+  );
+}
+
+.my-profile-age-modal-hero,
+.my-profile-gender-modal-hero {
+  display: flex;
+  gap: var(--space-4);
+  align-items: flex-start;
+  margin-bottom: var(--space-5);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.my-profile-age-modal-hero-icon {
+  flex-shrink: 0;
+  width: 3.25rem;
+  height: 3.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  border-radius: var(--radius-xl);
+  background: linear-gradient(145deg, rgba(102, 126, 234, 0.25), rgba(255, 255, 255, 0.95));
+  border: 1px solid rgba(102, 126, 234, 0.3);
+  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.18);
+}
+
+.my-profile-gender-modal-hero-icon {
+  flex-shrink: 0;
+  width: 3.25rem;
+  height: 3.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  border-radius: var(--radius-xl);
+  background: linear-gradient(145deg, rgba(240, 147, 251, 0.35), rgba(255, 255, 255, 0.95));
+  border: 1px solid rgba(245, 87, 108, 0.28);
+  box-shadow: 0 8px 20px rgba(245, 87, 108, 0.16);
+}
+
+.my-profile-age-modal-hero-text h3,
+.my-profile-gender-modal-hero-text h3 {
+  margin-bottom: var(--space-2);
+}
+
+.my-profile-age-modal-tagline,
+.my-profile-gender-modal-tagline {
+  margin-top: 0;
+  max-width: 36rem;
+}
+
+.my-profile-modal-body--age {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.my-profile-age-input-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+}
+
+.my-profile-age-step-btn {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: var(--radius-full);
+  border: 2px solid rgba(102, 126, 234, 0.35);
+  background: linear-gradient(145deg, #fff, rgba(238, 242, 255, 0.95));
+  color: #4338ca;
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.my-profile-age-step-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.2);
+}
+
+.my-profile-age-input {
+  width: 5.5rem;
+  text-align: center;
+  font-size: 2rem;
+  font-weight: 800;
+  font-family: var(--font-display);
+  color: var(--color-wine-900);
+  border: 2px solid rgba(102, 126, 234, 0.35);
+  border-radius: var(--radius-xl);
+  padding: var(--space-2) var(--space-3);
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+.my-profile-age-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+}
+
+.my-profile-age-quick-label {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.my-profile-age-quick-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: center;
+}
+
+.my-profile-age-quick-chip {
+  min-width: 2.65rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: var(--radius-lg);
+  border: 2px solid rgba(102, 126, 234, 0.22);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(238, 242, 255, 0.85));
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #4338ca;
+  cursor: pointer;
+  transition:
+    transform var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.my-profile-age-quick-chip:hover {
+  transform: translateY(-1px);
+  border-color: rgba(102, 126, 234, 0.5);
+}
+
+.my-profile-age-quick-chip.is-selected {
+  border-color: #667eea;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.35);
+}
+
+.my-profile-modal-card--gender::before {
+  background: linear-gradient(90deg, #f093fb, #f5576c, var(--color-rose-500), #fda4af);
+}
+
+.my-profile-modal-card--gender {
+  background: linear-gradient(
+    165deg,
+    #fffefb 0%,
+    rgba(255, 241, 245, 0.92) 45%,
+    rgba(255, 251, 235, 0.95) 100%
+  );
+}
+
+.my-profile-gender-chip.is-selected .my-profile-looking-chip-emoji {
+  background: linear-gradient(145deg, rgba(255, 228, 236, 0.98), #fff);
 }
 
 .my-profile-modal-card--lifestyle {

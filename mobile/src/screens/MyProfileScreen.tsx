@@ -175,6 +175,14 @@ function preferredGenderLabel(value: string) { return PREFERRED_GENDERS_LABELS[v
 
 const MAX_DISTANCE_OPTIONS: (number | null)[] = [10, 25, 50, 100, 250, 500, null]; // null = Any
 
+const GENDER_OPTIONS = ['Man', 'Woman', 'Other'] as const;
+const GENDER_OPTION_META: Record<(typeof GENDER_OPTIONS)[number], { emoji: string; sub: string }> = {
+  Man: { emoji: '👨', sub: 'I am a man' },
+  Woman: { emoji: '👩', sub: 'I am a woman' },
+  Other: { emoji: '✨', sub: 'Another identity' },
+};
+const AGE_QUICK_PICKS = [18, 21, 24, 25, 28, 30, 32, 35, 38, 40, 45, 50, 55, 60];
+
 export default function MyProfileScreen() {
   const navigation = useNavigation();
   const route = useRoute();
@@ -208,9 +216,13 @@ export default function MyProfileScreen() {
   const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
   const dragAnimatedValue = useRef(new Animated.ValueXY()).current;
   // Location / Max distance / Bio edit modals and state
+  const [showAgeModal, setShowAgeModal] = useState(false);
+  const [showGenderModal, setShowGenderModal] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showDistanceModal, setShowDistanceModal] = useState(false);
   const [showPreferredGendersModal, setShowPreferredGendersModal] = useState(false);
+  const [editAge, setEditAge] = useState('');
+  const [editGender, setEditGender] = useState('');
   const [editLocation, setEditLocation] = useState('');
   const [editMaxDistance, setEditMaxDistance] = useState<number | null>(50);
   const [editPreferredGenders, setEditPreferredGenders] = useState<string[]>([]);
@@ -780,6 +792,62 @@ export default function MyProfileScreen() {
       Alert.alert('Location Error', message);
     } finally {
       setDetectingLocation(false);
+    }
+  };
+
+  const saveAge = async () => {
+    if (!data?.profile) return;
+    const ageNum = parseInt(editAge.trim(), 10);
+    if (Number.isNaN(ageNum) || ageNum < 18 || ageNum > 120) {
+      Alert.alert('Invalid age', 'Enter an age between 18 and 120.');
+      return;
+    }
+    setUpdatingField(true);
+    try {
+      await api.post('/profile', {
+        displayName: data.profile.display_name,
+        age: ageNum,
+        gender: data.profile.gender,
+        location: data.profile.location ?? null,
+        bio: data.profile.bio ?? null,
+        lookingFor: data.profile.looking_for ?? null,
+      });
+      setData((prev) => (prev ? { ...prev, profile: { ...prev.profile, age: ageNum } } : null));
+      setShowAgeModal(false);
+      api.clearCache('/profile');
+      refreshProfile?.();
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to update age.');
+    } finally {
+      setUpdatingField(false);
+    }
+  };
+
+  const saveGender = async () => {
+    if (!data?.profile) return;
+    const gender = editGender.trim();
+    if (!GENDER_OPTIONS.includes(gender as (typeof GENDER_OPTIONS)[number])) {
+      Alert.alert('Choose gender', 'Please select Man, Woman, or Other.');
+      return;
+    }
+    setUpdatingField(true);
+    try {
+      await api.post('/profile', {
+        displayName: data.profile.display_name,
+        age: data.profile.age,
+        gender,
+        location: data.profile.location ?? null,
+        bio: data.profile.bio ?? null,
+        lookingFor: data.profile.looking_for ?? null,
+      });
+      setData((prev) => (prev ? { ...prev, profile: { ...prev.profile, gender } } : null));
+      setShowGenderModal(false);
+      api.clearCache('/profile');
+      refreshProfile?.();
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to update gender.');
+    } finally {
+      setUpdatingField(false);
     }
   };
 
@@ -1947,16 +2015,26 @@ export default function MyProfileScreen() {
                   traceColors={['rgba(255,255,255,0.95)', '#667eea', '#764ba2', 'rgba(255,255,255,0.95)']}
                   style={{ flex: 1, marginBottom: 0 }}
                 >
-                  <LinearGradient
-                    colors={['#667eea', '#764ba2']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.infoCardInBorder}
+                  <TouchableOpacity
+                    activeOpacity={0.9}
+                    onPress={() => {
+                      setEditAge(String(profile.age));
+                      setShowAgeModal(true);
+                      Vibration.vibrate(50);
+                    }}
                   >
-                    <Text style={styles.infoCardEmoji}>🎂</Text>
-                    <Text style={styles.infoCardLabel}>Age</Text>
-                    <Text style={styles.infoCardValue}>{profile.age}</Text>
-                  </LinearGradient>
+                    <LinearGradient
+                      colors={['#667eea', '#764ba2']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.infoCardInBorder}
+                    >
+                      <Text style={styles.infoCardEmoji}>🎂</Text>
+                      <Text style={styles.infoCardLabel}>Age</Text>
+                      <Text style={styles.infoCardValue}>{profile.age}</Text>
+                      <Text style={styles.infoCardTapHint}>Tap to update</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
                 </ProfileEditableCardBorder>
 
                 <ProfileEditableCardBorder
@@ -1965,16 +2043,26 @@ export default function MyProfileScreen() {
                   traceColors={['rgba(255,255,255,0.95)', '#f093fb', '#f5576c', 'rgba(255,255,255,0.95)']}
                   style={{ flex: 1, marginBottom: 0 }}
                 >
-                  <LinearGradient
-                    colors={['#f093fb', '#f5576c']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.infoCardInBorder}
+                  <TouchableOpacity
+                    activeOpacity={0.9}
+                    onPress={() => {
+                      setEditGender(profile.gender || '');
+                      setShowGenderModal(true);
+                      Vibration.vibrate(50);
+                    }}
                   >
-                    <Text style={styles.infoCardEmoji}>⚧️</Text>
-                    <Text style={styles.infoCardLabel}>Gender</Text>
-                    <Text style={styles.infoCardValue}>{profile.gender}</Text>
-                  </LinearGradient>
+                    <LinearGradient
+                      colors={['#f093fb', '#f5576c']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.infoCardInBorder}
+                    >
+                      <Text style={styles.infoCardEmoji}>⚧️</Text>
+                      <Text style={styles.infoCardLabel}>Gender</Text>
+                      <Text style={styles.infoCardValue}>{profile.gender}</Text>
+                      <Text style={styles.infoCardTapHint}>Tap to update</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
                 </ProfileEditableCardBorder>
               </View>
 
@@ -2165,6 +2253,133 @@ export default function MyProfileScreen() {
           </View>
         </LinearGradient>
       </Animated.View>
+
+      {/* Age edit modal */}
+      <Modal visible={showAgeModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={styles.modalOverlayTouchable} activeOpacity={1} onPress={() => setShowAgeModal(false)} />
+          <View style={styles.editModalCard}>
+            <LinearGradient
+              colors={['#667eea', '#764ba2']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.editModalGradient}
+            >
+              <Text style={styles.editModalEmoji}>🎂</Text>
+              <Text style={styles.editModalTitleLight}>Update age</Text>
+              <Text style={styles.editModalSubtitleLight}>Must be 18 or older</Text>
+              <View style={styles.editModalInner}>
+                <View style={styles.ageEditRow}>
+                  <TouchableOpacity
+                    style={styles.ageStepBtn}
+                    onPress={() => {
+                      const n = parseInt(editAge, 10);
+                      setEditAge(String(Number.isNaN(n) ? 18 : Math.max(18, n - 1)));
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.ageStepBtnText}>−</Text>
+                  </TouchableOpacity>
+                  <TextInput
+                    style={styles.ageEditInput}
+                    value={editAge}
+                    onChangeText={setEditAge}
+                    keyboardType="number-pad"
+                    maxLength={3}
+                    placeholder="18"
+                    placeholderTextColor="rgba(255,255,255,0.5)"
+                  />
+                  <TouchableOpacity
+                    style={styles.ageStepBtn}
+                    onPress={() => {
+                      const n = parseInt(editAge, 10);
+                      setEditAge(String(Number.isNaN(n) ? 18 : Math.min(120, n + 1)));
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.ageStepBtnText}>+</Text>
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.ageQuickLabel}>Quick pick</Text>
+                <View style={styles.ageQuickGrid}>
+                  {AGE_QUICK_PICKS.map((age) => (
+                    <TouchableOpacity
+                      key={age}
+                      style={[styles.ageQuickChip, editAge === String(age) && styles.ageQuickChipActive]}
+                      onPress={() => setEditAge(String(age))}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={[styles.ageQuickChipText, editAge === String(age) && styles.ageQuickChipTextActive]}>
+                        {age}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+              <View style={styles.editModalActions}>
+                <TouchableOpacity style={styles.editModalCancelPill} onPress={() => setShowAgeModal(false)} activeOpacity={0.8}>
+                  <Text style={styles.editModalCancelPillText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.editModalSavePill} onPress={saveAge} disabled={updatingField} activeOpacity={0.8}>
+                  <Text style={styles.editModalSavePillText}>{updatingField ? 'Saving...' : 'Save'}</Text>
+                </TouchableOpacity>
+              </View>
+            </LinearGradient>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Gender edit modal */}
+      <Modal visible={showGenderModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={styles.modalOverlayTouchable} activeOpacity={1} onPress={() => setShowGenderModal(false)} />
+          <View style={styles.editModalCard}>
+            <LinearGradient
+              colors={['#f093fb', '#f5576c']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.editModalGradient}
+            >
+              <Text style={styles.editModalEmoji}>⚧️</Text>
+              <Text style={styles.editModalTitleLight}>Update gender</Text>
+              <Text style={styles.editModalSubtitleLight}>Shown on your profile when you connect</Text>
+              <ScrollView style={styles.profilePickerModalScroll} keyboardShouldPersistTaps="handled">
+                <View style={styles.editModalInner}>
+                  {GENDER_OPTIONS.map((opt) => (
+                    <TouchableOpacity
+                      key={opt}
+                      style={[
+                        styles.preferredGenderOption,
+                        editGender === opt && styles.preferredGenderOptionActive,
+                      ]}
+                      onPress={() => setEditGender(opt)}
+                      activeOpacity={0.85}
+                    >
+                      <Text
+                        style={[
+                          styles.preferredGenderOptionText,
+                          editGender === opt && styles.preferredGenderOptionTextActive,
+                        ]}
+                      >
+                        {GENDER_OPTION_META[opt].emoji} {opt}
+                      </Text>
+                      <Text style={styles.lookingForSub}>{GENDER_OPTION_META[opt].sub}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+              <View style={styles.editModalActions}>
+                <TouchableOpacity style={styles.editModalCancelPill} onPress={() => setShowGenderModal(false)} activeOpacity={0.8}>
+                  <Text style={styles.editModalCancelPillText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.editModalSavePill} onPress={saveGender} disabled={updatingField} activeOpacity={0.8}>
+                  <Text style={styles.editModalSavePillText}>{updatingField ? 'Saving...' : 'Save'}</Text>
+                </TouchableOpacity>
+              </View>
+            </LinearGradient>
+          </View>
+        </View>
+      </Modal>
 
       {/* Location edit modal - gradient card */}
       <Modal visible={showLocationModal} transparent animationType="fade">
@@ -3784,6 +3999,81 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.25)',
     textShadowOffset: { width: 0, height: 3 },
     textShadowRadius: 6,
+  },
+  infoCardTapHint: {
+    fontSize: 10,
+    color: 'rgba(255, 255, 255, 0.88)',
+    fontWeight: '600',
+    marginTop: 6,
+    letterSpacing: 0.4,
+  },
+  ageEditRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    marginBottom: 16,
+  },
+  ageStepBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ageStepBtnText: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#fff',
+    lineHeight: 28,
+  },
+  ageEditInput: {
+    minWidth: 72,
+    textAlign: 'center',
+    fontSize: 36,
+    fontWeight: '900',
+    color: '#fff',
+    paddingVertical: 4,
+    borderBottomWidth: 2,
+    borderBottomColor: 'rgba(255, 255, 255, 0.55)',
+  },
+  ageQuickLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: 'rgba(255, 255, 255, 0.75)',
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  ageQuickGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  ageQuickChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.35)',
+  },
+  ageQuickChipActive: {
+    backgroundColor: '#fff',
+    borderColor: '#fff',
+  },
+  ageQuickChipText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: 'rgba(255, 255, 255, 0.95)',
+  },
+  ageQuickChipTextActive: {
+    color: '#4338ca',
   },
   infoCardValueFull: {
     fontSize: 18,
