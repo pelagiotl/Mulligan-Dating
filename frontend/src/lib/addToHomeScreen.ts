@@ -48,6 +48,19 @@ export function dismissAddToHomePrompt(): void {
   }
 }
 
+export function clearAddToHomeDismiss(): void {
+  try {
+    localStorage.removeItem(DISMISS_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** True when user may see the landing add-to-home UI (card or “show again” link). */
+export function canShowLandingAddToHomeUi(): boolean {
+  return !isStandaloneDisplay();
+}
+
 export function shouldShowLandingAddToHomePrompt(): boolean {
   if (isStandaloneDisplay()) return false;
   if (isAddToHomeDismissed()) return false;

@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   type BeforeInstallPromptEvent,
+  canShowLandingAddToHomeUi,
+  clearAddToHomeDismiss,
   detectAddToHomePlatform,
   dismissAddToHomePrompt,
+  isAddToHomeDismissed,
   isLikelyMobileBrowser,
   shouldShowLandingAddToHomePrompt,
 } from '../lib/addToHomeScreen';
@@ -10,20 +13,39 @@ import './LandingAddToHomePrompt.css';
 
 /**
  * “Add to home screen” hint on the public landing (`/`) only.
- * Hidden when already installed as PWA or after dismiss.
+ * Offers “Show home screen tip” when dismissed via Not now.
  */
 export default function LandingAddToHomePrompt() {
-  const [open, setOpen] = useState(false);
+  const [showCard, setShowCard] = useState(false);
+  const [showRestoreLink, setShowRestoreLink] = useState(false);
   const [mobile, setMobile] = useState(true);
   const [platform, setPlatform] = useState<'ios' | 'android' | 'other'>('other');
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const [installing, setInstalling] = useState(false);
 
+  const syncVisibility = useCallback((forceCard?: boolean) => {
+    if (!canShowLandingAddToHomeUi()) {
+      setShowCard(false);
+      setShowRestoreLink(false);
+      return;
+    }
+    const dismissed = isAddToHomeDismissed();
+    if (forceCard || shouldShowLandingAddToHomePrompt()) {
+      setShowCard(true);
+      setShowRestoreLink(false);
+    } else if (dismissed) {
+      setShowCard(false);
+      setShowRestoreLink(true);
+    } else {
+      setShowCard(false);
+      setShowRestoreLink(false);
+    }
+  }, []);
+
   useEffect(() => {
-    if (!shouldShowLandingAddToHomePrompt()) return;
     setMobile(isLikelyMobileBrowser());
     setPlatform(detectAddToHomePlatform());
-    setOpen(true);
+    syncVisibility();
 
     const onBeforeInstall = (e: Event) => {
       e.preventDefault();
@@ -32,12 +54,20 @@ export default function LandingAddToHomePrompt() {
 
     window.addEventListener('beforeinstallprompt', onBeforeInstall);
     return () => window.removeEventListener('beforeinstallprompt', onBeforeInstall);
-  }, []);
+  }, [syncVisibility]);
 
   const handleDismiss = useCallback(() => {
     dismissAddToHomePrompt();
-    setOpen(false);
+    setShowCard(false);
+    setShowRestoreLink(true);
   }, []);
+
+  const handleShowAgain = useCallback(() => {
+    clearAddToHomeDismiss();
+    setMobile(isLikelyMobileBrowser());
+    setPlatform(detectAddToHomePlatform());
+    syncVisibility(true);
+  }, [syncVisibility]);
 
   const handleInstall = useCallback(async () => {
     if (!installEvent) return;
@@ -49,11 +79,25 @@ export default function LandingAddToHomePrompt() {
       /* user cancelled or browser blocked */
     } finally {
       setInstalling(false);
-      setOpen(false);
     }
   }, [installEvent]);
 
-  if (!open) return null;
+  if (!canShowLandingAddToHomeUi()) return null;
+
+  if (showRestoreLink && !showCard) {
+    return (
+      <div className="landing-a2hs-restore-wrap">
+        <button type="button" className="landing-a2hs-restore" onClick={handleShowAgain}>
+          <span className="landing-a2hs-restore__icon" aria-hidden="true">
+            📲
+          </span>
+          Show home screen tip
+        </button>
+      </div>
+    );
+  }
+
+  if (!showCard) return null;
 
   const canNativeInstall = mobile && platform === 'android' && installEvent != null;
 
@@ -63,6 +107,10 @@ export default function LandingAddToHomePrompt() {
       aria-labelledby="landing-a2hs-title"
     >
       <div className="landing-a2hs__glow" aria-hidden="true" />
+      <div className="landing-a2hs__shimmer" aria-hidden="true" />
+      <div className="landing-a2hs__spark landing-a2hs__spark--1" aria-hidden="true" />
+      <div className="landing-a2hs__spark landing-a2hs__spark--2" aria-hidden="true" />
+      <div className="landing-a2hs__spark landing-a2hs__spark--3" aria-hidden="true" />
       <div className="landing-a2hs__inner">
         <div className="landing-a2hs__icon" aria-hidden="true">
           <span className="landing-a2hs__icon-emoji">📲</span>
