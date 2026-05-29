@@ -46,7 +46,13 @@ import {
   computeMobileCreateProfileResumeStep,
   ensureMobileOnboardingDraft,
   hasMobileCreateProfileDraft,
+  ONBOARDING_DEFAULT_MAX_AGE,
+  ONBOARDING_DEFAULT_MAX_DISTANCE,
+  ONBOARDING_DEFAULT_MIN_AGE,
   readMobileCreateProfileDraft,
+  resolveOnboardingAge,
+  resolveOnboardingGender,
+  resolveOnboardingPreferredGenders,
   writeMobileCreateProfileDraft,
 } from '../utils/createProfileProgress';
 import { computeConnectSetupComplete } from '../utils/connectSetup';
@@ -110,7 +116,7 @@ function isStubProfileGender(
   profile: { display_name?: string | null; location?: string | null }
 ): boolean {
   const g = (gender ?? '').trim();
-  if (!g) return true;
+  if (!g || g === 'Not specified') return true;
   if (g !== 'Other') return false;
   const hasName = (profile.display_name ?? '').trim().length >= 2;
   const hasLocation = !!(profile.location ?? '').trim();
@@ -182,7 +188,7 @@ const INTEREST_EMOJIS: { [key: string]: string } = {
   'Education': '🎓',
 };
 
-const TOTAL_STEPS = 14; // 1-6 basics; 7 interests; 8 dealbreakers; 9 partner qualities; 10 lifestyle; 11-13 age/distance; 14 photos
+const TOTAL_STEPS = 3; // 1 name, 2 location, 3 photos (rest in Settings)
 const MIN_PHOTOS_REQUIRED = 3;
 const PHOTO_SLOT_COUNT = 6;
 
@@ -512,10 +518,19 @@ export default function CreateProfileScreen() {
       throw new Error('Session expired. Please log in again.');
     }
 
+    const ageNum = resolveOnboardingAge(age);
+    const genderVal = resolveOnboardingGender(gender);
+    const prefGenders = resolveOnboardingPreferredGenders(preferredGenders);
+    const minAgeVal = minAge >= 18 ? minAge : ONBOARDING_DEFAULT_MIN_AGE;
+    const maxAgeVal =
+      maxAge >= minAgeVal && maxAge <= 120 ? maxAge : ONBOARDING_DEFAULT_MAX_AGE;
+    const maxDist =
+      maxDistance != null && maxDistance >= 1 ? maxDistance : ONBOARDING_DEFAULT_MAX_DISTANCE;
+
     await api.post('/profile', {
       displayName,
-      age: parseInt(age, 10),
-      gender,
+      age: ageNum,
+      gender: genderVal,
       location,
       bio,
       lookingFor: null,
@@ -527,30 +542,37 @@ export default function CreateProfileScreen() {
       });
     }
 
-    await api.put('/profile/dealbreakers', {
-      dealbreakers: dealbreakers.filter((d) => DEALBREAKER_CANONICAL_SET.has(d)),
-    });
+    if (dealbreakers.length > 0) {
+      await api.put('/profile/dealbreakers', {
+        dealbreakers: dealbreakers.filter((d) => DEALBREAKER_CANONICAL_SET.has(d)),
+      });
+    }
 
-    await api.put('/profile/partner-qualities', {
-      qualities: partnerQualities.map((quality) => ({ quality, importance: 5 })),
-    });
+    if (partnerQualities.length > 0) {
+      await api.put('/profile/partner-qualities', {
+        qualities: partnerQualities.map((quality) => ({ quality, importance: 5 })),
+      });
+    }
 
-    await api.put('/profile/lifestyle', {
-      smoking: lifestyleForm.smoking || null,
-      drinking: lifestyleForm.drinking || null,
-      children: lifestyleForm.children || null,
-      pets: lifestyleForm.pets || null,
-      religion: lifestyleForm.religion || null,
-      political: lifestyleForm.political || null,
-      workLifeBalance: lifestyleForm.workLifeBalance || null,
-      worksOut: lifestyleForm.worksOut || null,
-    });
+    const lifestyleHasValues = Object.values(lifestyleForm).some((v) => v?.trim());
+    if (lifestyleHasValues) {
+      await api.put('/profile/lifestyle', {
+        smoking: lifestyleForm.smoking || null,
+        drinking: lifestyleForm.drinking || null,
+        children: lifestyleForm.children || null,
+        pets: lifestyleForm.pets || null,
+        religion: lifestyleForm.religion || null,
+        political: lifestyleForm.political || null,
+        workLifeBalance: lifestyleForm.workLifeBalance || null,
+        worksOut: lifestyleForm.worksOut || null,
+      });
+    }
 
     await api.put('/profile/preferences', {
-      minAge,
-      maxAge: maxAge >= minAge && maxAge <= 120 ? maxAge : null,
-      preferredGenders: preferredGendersPayload(preferredGenders),
-      maxDistance,
+      minAge: minAgeVal,
+      maxAge: maxAgeVal,
+      preferredGenders: preferredGendersPayload(prefGenders),
+      maxDistance: maxDist,
       relationshipType: null,
     });
   }, [
@@ -784,14 +806,7 @@ export default function CreateProfileScreen() {
 
     const resumeStep = computeMobileCreateProfileResumeStep({
       displayName: dn,
-      age: ageStr,
-      gender: genderVal,
       location: loc,
-      interests: interestList,
-      preferredGenders: prefGenders.length > 0 ? prefGenders : [],
-      minAge: minAgeVal,
-      maxAge: maxAgeVal,
-      maxDistance: maxDist,
       photoCount,
       minPhotosRequired: MIN_PHOTOS_REQUIRED,
     });
@@ -812,14 +827,14 @@ export default function CreateProfileScreen() {
   }, []);
 
   useEffect(() => {
-    if (step === 14) {
+    if (step === TOTAL_STEPS) {
       prefetchMediaLibraryPermission();
     }
   }, [step]);
 
   // Save profile data and load existing photos when entering final (photos) step
   useEffect(() => {
-    if (step !== 14 || profileSaveStartedRef.current) return;
+    if (step !== TOTAL_STEPS || profileSaveStartedRef.current) return;
     profileSaveStartedRef.current = true;
 
     const saveProfileAndLoadPhotos = async () => {
@@ -844,8 +859,8 @@ export default function CreateProfileScreen() {
             try {
               await api.post('/profile', {
                 displayName,
-                age: parseInt(age),
-                gender,
+                age: resolveOnboardingAge(age),
+                gender: resolveOnboardingGender(gender),
                 location,
                 bio,
                 lookingFor: null,
@@ -983,55 +998,12 @@ export default function CreateProfileScreen() {
       }
     }
     if (step === 2) {
-      const ageNum = parseInt(age);
-      if (!age?.trim() || isNaN(ageNum) || ageNum < 18 || ageNum > 120) {
-        setError('Please enter a valid age (18-120)');
-        return;
-      }
-    }
-    if (step === 3) {
-      if (!gender?.trim()) {
-        setError('Please select your gender');
-        return;
-      }
-    }
-    if (step === 4) {
-      if (preferredGenders.length < 1) {
-        setError('Please choose who you’d like to match with (select Everyone if you’re open to anyone)');
-        return;
-      }
-    }
-    if (step === 5) {
       if (!location?.trim()) {
         setError('Please enter your location');
         return;
       }
       if (!hasCityAndState(location)) {
         setError('Please enter both city and state (e.g. Medford, Oregon)');
-        return;
-      }
-    }
-    if (step === 7) {
-      if (interests.length < 3) {
-        setError('Please select at least 3 interests');
-        return;
-      }
-    }
-    if (step === 11) {
-      if (minAge === null || minAge < 18) {
-        setError('Minimum age must be 18 or older');
-        return;
-      }
-    }
-    if (step === 12) {
-      if (maxAge === null || maxAge < (minAge ?? 18)) {
-        setError('Maximum age must be at least ' + (minAge ?? 18));
-        return;
-      }
-    }
-    if (step === 13) {
-      if (maxDistance === null || maxDistance < 1) {
-        setError('Please enter a maximum distance (at least 1 mile)');
         return;
       }
     }
@@ -1051,7 +1023,7 @@ export default function CreateProfileScreen() {
     try {
       if (step === 1) {
         await api.put('/profile/basics', { displayName: displayName.trim() });
-      } else if (step >= 3) {
+      } else if (step === 2) {
         await saveAllProfileProgress();
         profileSavedRef.current = true;
       }
@@ -1368,6 +1340,17 @@ export default function CreateProfileScreen() {
       setLoading(false);
       return;
     }
+
+    if (!displayName?.trim() || displayName.trim().length < 2) {
+      setError('Please enter at least 2 characters for your name');
+      setLoading(false);
+      return;
+    }
+    if (!hasCityAndState(location)) {
+      setError('Please enter both city and state (e.g. Medford, Oregon)');
+      setLoading(false);
+      return;
+    }
     
     // Haptic feedback - vibrate when validation passes
     if (Platform.OS === 'ios') {
@@ -1377,46 +1360,59 @@ export default function CreateProfileScreen() {
     }
 
     try {
-      // Create profile
+      const ageNum = resolveOnboardingAge(age);
+      const genderVal = resolveOnboardingGender(gender);
+      const prefGenders = resolveOnboardingPreferredGenders(preferredGenders);
+      const minAgeVal = minAge != null && minAge >= 18 ? minAge : ONBOARDING_DEFAULT_MIN_AGE;
+      const maxAgeVal =
+        maxAge != null && maxAge >= minAgeVal && maxAge <= 120 ? maxAge : ONBOARDING_DEFAULT_MAX_AGE;
+      const maxDist =
+        maxDistance != null && maxDistance >= 1 ? maxDistance : ONBOARDING_DEFAULT_MAX_DISTANCE;
+
       await api.post('/profile', {
         displayName,
-        age: parseInt(age),
-        gender,
+        age: ageNum,
+        gender: genderVal,
         location,
         bio,
         lookingFor: null,
       });
 
-      // Add interests
       if (interests.length > 0) {
         await api.put('/profile/interests', {
           interests: interests.map(name => ({ name }))
         });
       }
 
-      await api.put('/profile/dealbreakers', {
-        dealbreakers: dealbreakers.filter((d) => DEALBREAKER_CANONICAL_SET.has(d)),
-      });
-      await api.put('/profile/partner-qualities', {
-        qualities: partnerQualities.map((quality) => ({ quality, importance: 5 })),
-      });
-      await api.put('/profile/lifestyle', {
-        smoking: lifestyleForm.smoking || null,
-        drinking: lifestyleForm.drinking || null,
-        children: lifestyleForm.children || null,
-        pets: lifestyleForm.pets || null,
-        religion: lifestyleForm.religion || null,
-        political: lifestyleForm.political || null,
-        workLifeBalance: lifestyleForm.workLifeBalance || null,
-        worksOut: lifestyleForm.worksOut || null,
-      });
+      if (dealbreakers.length > 0) {
+        await api.put('/profile/dealbreakers', {
+          dealbreakers: dealbreakers.filter((d) => DEALBREAKER_CANONICAL_SET.has(d)),
+        });
+      }
+      if (partnerQualities.length > 0) {
+        await api.put('/profile/partner-qualities', {
+          qualities: partnerQualities.map((quality) => ({ quality, importance: 5 })),
+        });
+      }
+      const lifestyleHasValues = Object.values(lifestyleForm).some((v) => v?.trim());
+      if (lifestyleHasValues) {
+        await api.put('/profile/lifestyle', {
+          smoking: lifestyleForm.smoking || null,
+          drinking: lifestyleForm.drinking || null,
+          children: lifestyleForm.children || null,
+          pets: lifestyleForm.pets || null,
+          religion: lifestyleForm.religion || null,
+          political: lifestyleForm.political || null,
+          workLifeBalance: lifestyleForm.workLifeBalance || null,
+          worksOut: lifestyleForm.worksOut || null,
+        });
+      }
 
-      // Save preferences
       await api.put('/profile/preferences', {
-        minAge,
-        maxAge: maxAge >= minAge && maxAge <= 120 ? maxAge : null,
-        preferredGenders: preferredGendersPayload(preferredGenders),
-        maxDistance,
+        minAge: minAgeVal,
+        maxAge: maxAgeVal,
+        preferredGenders: preferredGendersPayload(prefGenders),
+        maxDistance: maxDist,
         relationshipType: null
       });
 
@@ -2347,7 +2343,7 @@ export default function CreateProfileScreen() {
       {!connectSetupComplete ? (
         <View style={styles.onboardingReminderStrip}>
           <Text style={styles.onboardingReminderText}>
-            Finish setup: name, city & state, 3+ photos — then tap Complete Profile below.
+            Finish setup: name, city & state, 3+ photos — then tap Complete Profile. Add age, interests, and more in Settings anytime.
           </Text>
         </View>
       ) : null}
@@ -2437,19 +2433,8 @@ export default function CreateProfileScreen() {
       ) : null}
 
       {step === 1 && renderStep1DisplayName()}
-      {step === 2 && renderStep2Age()}
-      {step === 3 && renderStep3Gender()}
-      {step === 4 && renderStep12PreferredGenders()}
-      {step === 5 && renderStep4Location()}
-      {step === 6 && renderStep6Bio()}
-      {step === 7 && renderStep2()}
-      {step === 8 && renderStepDealbreakers()}
-      {step === 9 && renderStepPartnerQualities()}
-      {step === 10 && renderStepLifestyle()}
-      {step === 11 && renderStep10MinAge()}
-      {step === 12 && renderStep11MaxAge()}
-      {step === 13 && renderStep13MaxDistance()}
-      {step === 14 && renderStep7()}
+      {step === 2 && renderStep4Location()}
+      {step === 3 && renderStep7()}
 
       </View>
 

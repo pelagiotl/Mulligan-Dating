@@ -2740,6 +2740,13 @@ img {
   text-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
 }
 
+.create-profile-hero-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+  opacity: 0.85;
+  line-height: 1.35;
+}
+
 .create-profile-hero-step {
   margin: 0;
   font-size: 0.95rem;

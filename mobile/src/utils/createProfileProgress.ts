@@ -1,7 +1,29 @@
 import { hasCityAndState } from './locationUtils';
 
-export const MOBILE_CREATE_PROFILE_STEPS = 14;
+export const MOBILE_CREATE_PROFILE_STEPS = 3;
 export const MOBILE_CREATE_PROFILE_DRAFT_KEY = 'mulligan:create-profile:mobile';
+
+/** Placeholders for fields completed later in Settings (not shown in onboarding). */
+export const ONBOARDING_DEFAULT_AGE = 18;
+export const ONBOARDING_DEFAULT_GENDER = 'Not specified';
+export const ONBOARDING_DEFAULT_MIN_AGE = 18;
+export const ONBOARDING_DEFAULT_MAX_AGE = 100;
+export const ONBOARDING_DEFAULT_MAX_DISTANCE = 50;
+
+export function resolveOnboardingAge(age: string): number {
+  const n = parseInt(age, 10);
+  if (age.trim() && !Number.isNaN(n) && n >= 18 && n <= 120) return n;
+  return ONBOARDING_DEFAULT_AGE;
+}
+
+export function resolveOnboardingGender(gender: string): string {
+  const t = gender.trim();
+  return t || ONBOARDING_DEFAULT_GENDER;
+}
+
+export function resolveOnboardingPreferredGenders(preferredGenders: string[]): string[] {
+  return preferredGenders.length > 0 ? preferredGenders : ['Everyone'];
+}
 
 export type DraftPhotoSlot = { id: string; url: string };
 
@@ -24,41 +46,15 @@ export type MobileCreateProfileDraft = {
 
 export type MobileProfileProgressInput = {
   displayName: string;
-  age: string;
-  gender: string;
   location: string;
-  interests: string[];
-  preferredGenders: string[];
-  minAge: number;
-  maxAge: number;
-  maxDistance: number | null;
   photoCount: number;
   minPhotosRequired: number;
 };
 
 export function computeMobileCreateProfileResumeStep(input: MobileProfileProgressInput): number {
   if (input.displayName.trim().length < 2) return 1;
-
-  const ageNum = parseInt(input.age, 10);
-  if (!input.age.trim() || Number.isNaN(ageNum) || ageNum < 18 || ageNum > 120) return 2;
-
-  if (!input.gender.trim()) return 3;
-
-  if (input.preferredGenders.length < 1) return 4;
-
-  if (!hasCityAndState(input.location)) return 5;
-
-  // Steps 6–10: bio, dealbreakers, partner qualities, lifestyle are optional
-  if (input.interests.length < 3) return 7;
-
-  if (input.minAge < 18) return 11;
-
-  if (input.maxAge < input.minAge) return 12;
-
-  if (input.maxDistance == null || input.maxDistance < 1) return 13;
-
+  if (!hasCityAndState(input.location)) return 2;
   if (input.photoCount < input.minPhotosRequired) return MOBILE_CREATE_PROFILE_STEPS;
-
   return MOBILE_CREATE_PROFILE_STEPS;
 }
 
