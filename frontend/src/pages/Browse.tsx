@@ -3,10 +3,7 @@ import { createPortal } from "react-dom";
 import { useNavigate, Navigate } from "react-router-dom";
 import { api } from "../utils/api";
 import { useAuth } from "../context/AuthContext";
-import {
-  CONNECT_PHOTOS_REQUIRED_MESSAGE,
-  MIN_PHOTOS_TO_CONNECT,
-} from "../utils/connectProfileEligibility";
+import { MIN_PHOTOS_TO_CONNECT } from "../utils/connectProfileEligibility";
 import { getPhotoUrl } from "../utils/photoUrl";
 import MatchCelebration, { type CelebrationPartnerProfile } from "../components/MatchCelebration";
 import TokenDisplay from "../components/TokenDisplay";
@@ -20,6 +17,8 @@ import ConnectLandingTagline from "../components/ConnectLandingTagline";
 import { unlockMatchAudio } from "../utils/matchSound";
 import WebPushOnboardingPrompt from "../components/WebPushOnboardingPrompt";
 import { shouldShowWebPushPromptAfterProfile } from "../constants/webPushPrompt";
+import ConnectPhotosRequiredModalWeb from "../components/ConnectPhotosRequiredModalWeb";
+import MatchmakingPausedModalWeb from "../components/MatchmakingPausedModalWeb";
 
 interface Photo {
   id: string;
@@ -208,6 +207,9 @@ export default function Browse() {
   /** True while unlock-browse + first auto /matches/connect runs (mirrors mobile isAutoMatching). */
   const [isAutoMatching, setIsAutoMatching] = useState(false);
   const [gateError, setGateError] = useState("");
+  const [showConnectPhotosModal, setShowConnectPhotosModal] = useState(false);
+  const [connectPhotosModalCount, setConnectPhotosModalCount] = useState(0);
+  const [showMatchmakingPausedModal, setShowMatchmakingPausedModal] = useState(false);
   const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true); // Used in fetchProfile
@@ -658,28 +660,30 @@ export default function Browse() {
 
   handleConnectRef.current = handleConnect;
 
+  const resolveReadyPhotoCount = useCallback(async (): Promise<number> => {
+    if (photoCount >= MIN_PHOTOS_TO_CONNECT) return photoCount;
+    try {
+      const pm = await api.get<{ photos?: unknown[] }>(`/photos/me?_=${Date.now()}`);
+      return Array.isArray(pm.photos) ? pm.photos.length : photoCount;
+    } catch {
+      return photoCount;
+    }
+  }, [photoCount]);
+
   const handleUnlockBrowse = useCallback(async () => {
     if (unlockingBrowse || !userProfile || isAutoMatching) return;
 
-    if (user?.matchmakingEnabled === false) {
-      setGateError(
-        user.matchmakingDisabledMessage?.trim() ||
-          "Matching isn't open yet. Check back on launch day!"
-      );
+    const readyPhotoCount = await resolveReadyPhotoCount();
+    if (readyPhotoCount < MIN_PHOTOS_TO_CONNECT) {
+      setConnectPhotosModalCount(readyPhotoCount);
+      setShowConnectPhotosModal(true);
+      setGateError("");
       return;
     }
 
-    let readyPhotoCount = photoCount;
-    if (readyPhotoCount < MIN_PHOTOS_TO_CONNECT) {
-      try {
-        const pm = await api.get<{ photos?: unknown[] }>(`/photos/me?_=${Date.now()}`);
-        readyPhotoCount = Array.isArray(pm.photos) ? pm.photos.length : 0;
-      } catch {
-        readyPhotoCount = photoCount;
-      }
-    }
-    if (readyPhotoCount < MIN_PHOTOS_TO_CONNECT) {
-      setGateError(`${CONNECT_PHOTOS_REQUIRED_MESSAGE} Open Profile from the menu to add photos.`);
+    if (user?.matchmakingEnabled === false) {
+      setShowMatchmakingPausedModal(true);
+      setGateError("");
       return;
     }
 
@@ -729,17 +733,43 @@ export default function Browse() {
       }
       await runBrowseAndConnect();
     } catch (err: unknown) {
-      const msg =
-        (err as { message?: string })?.message ||
-        String(err || "Failed to unlock browsing");
-      setGateError(msg);
+      const apiErr = err as {
+        message?: string;
+        code?: string;
+        missing?: string[];
+        status?: number;
+      };
+      const msg = apiErr.message || String(err || "Failed to unlock browsing");
+      const code = apiErr.code;
+      const missing = apiErr.missing ?? [];
+
+      if (
+        code === "CONNECT_SETUP_INCOMPLETE" &&
+        (missing.includes("photos") || msg.toLowerCase().includes("photo"))
+      ) {
+        const count = await resolveReadyPhotoCount();
+        setConnectPhotosModalCount(count);
+        setShowConnectPhotosModal(true);
+        setGateError("");
+      } else if (code === "MATCHMAKING_DISABLED") {
+        setShowMatchmakingPausedModal(true);
+        setGateError("");
+      } else {
+        setGateError(msg);
+      }
       setBrowseSessionActive(false);
       setCurrentProfile(null);
     } finally {
       setUnlockingBrowse(false);
       setIsAutoMatching(false);
     }
-  }, [unlockingBrowse, userProfile, isAutoMatching, user, photoCount]);
+  }, [
+    unlockingBrowse,
+    userProfile,
+    isAutoMatching,
+    user,
+    resolveReadyPhotoCount,
+  ]);
 
   /** After “Keep Browsing”: return to Connect landing (user taps Connect again for a new match). */
   const handleCelebrationKeepBrowsing = useCallback(() => {
@@ -786,12 +816,24 @@ export default function Browse() {
 
   if (showConnectGate) {
     return (
-      <BrowseConnectLandingChrome
-        mode="gate"
-        onConnect={handleUnlockBrowse}
-        unlocking={unlockingBrowse}
-        gateError={gateError}
-      />
+      <>
+        <BrowseConnectLandingChrome
+          mode="gate"
+          onConnect={handleUnlockBrowse}
+          unlocking={unlockingBrowse}
+          gateError={gateError}
+        />
+        <ConnectPhotosRequiredModalWeb
+          open={showConnectPhotosModal}
+          photoCount={connectPhotosModalCount}
+          onClose={() => setShowConnectPhotosModal(false)}
+        />
+        <MatchmakingPausedModalWeb
+          open={showMatchmakingPausedModal}
+          message={user?.matchmakingDisabledMessage}
+          onClose={() => setShowMatchmakingPausedModal(false)}
+        />
+      </>
     );
   }
 
