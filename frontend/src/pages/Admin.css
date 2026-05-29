@@ -826,6 +826,40 @@
   word-break: break-all;
 }
 
+.admin-onboarding-progress-summary {
+  font-size: 0.8rem;
+  margin: var(--space-2) 0 0;
+  color: #334155;
+  line-height: 1.45;
+}
+
+.admin-onboarding-progress--ready {
+  color: #047857;
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+
+.admin-onboarding-checklist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.5rem;
+  font-size: 0.75rem;
+}
+
+.admin-onboarding-check {
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(248, 113, 113, 0.12);
+  color: #9f1239;
+  border: 1px solid rgba(251, 113, 133, 0.25);
+}
+
+.admin-onboarding-check--done {
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
 .users-table-col-narrow {
   width: 4rem;
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '../utils/api';
 import { getAdminDisplayPhotos } from '../utils/adminDisplayPhotos';
@@ -36,6 +36,61 @@ interface User {
   tokenCount: number;
   clientPlatform?: 'web' | 'android' | 'ios' | 'unknown';
   clientPlatformLabel?: string;
+  onboardingProgress?: {
+    hasName: boolean;
+    hasLocation: boolean;
+    photoCount: number;
+    photosRequired: number;
+    percentComplete: number;
+    missing: Array<'profile' | 'name' | 'location' | 'photos'>;
+    readyToActivate: boolean;
+  };
+}
+
+function onboardingMissingLabel(m: 'profile' | 'name' | 'location' | 'photos'): string {
+  switch (m) {
+    case 'profile':
+      return 'no profile';
+    case 'name':
+      return 'name';
+    case 'location':
+      return 'city, state';
+    case 'photos':
+      return 'photos';
+    default:
+      return m;
+  }
+}
+
+function AdminOnboardingProgressCell({ progress }: { progress: NonNullable<User['onboardingProgress']> }) {
+  if (progress.readyToActivate) {
+    return (
+      <span className="admin-onboarding-progress admin-onboarding-progress--ready" title="Has name, city/state, and 3 photos — needs Complete Profile tap">
+        Ready ✓
+      </span>
+    );
+  }
+  return (
+    <span className="admin-onboarding-progress" title={`Missing: ${progress.missing.map(onboardingMissingLabel).join(', ')}`}>
+      <span className="admin-onboarding-checklist">
+        <span className={progress.hasName ? 'admin-onboarding-check admin-onboarding-check--done' : 'admin-onboarding-check'}>
+          Name
+        </span>
+        <span className={progress.hasLocation ? 'admin-onboarding-check admin-onboarding-check--done' : 'admin-onboarding-check'}>
+          Location
+        </span>
+        <span
+          className={
+            progress.photoCount >= progress.photosRequired
+              ? 'admin-onboarding-check admin-onboarding-check--done'
+              : 'admin-onboarding-check'
+          }
+        >
+          Photos {progress.photoCount}/{progress.photosRequired}
+        </span>
+      </span>
+    </span>
+  );
 }
 
 function adminClientPlatformPill(user: Pick<User, 'clientPlatform' | 'clientPlatformLabel'>) {
@@ -289,6 +344,34 @@ export default function Admin() {
     };
     return map[key];
   };
+
+  const onboardingProgressSummary = useMemo(() => {
+    if (statDrill !== 'onboarding') return null;
+    let ready = 0;
+    let needPhotos = 0;
+    let needName = 0;
+    let needLocation = 0;
+    let noProfile = 0;
+    for (const u of statDrillUsers) {
+      const p = u.onboardingProgress;
+      if (!p) continue;
+      if (p.readyToActivate) ready += 1;
+      else {
+        if (p.missing.includes('profile')) noProfile += 1;
+        if (p.missing.includes('name')) needName += 1;
+        if (p.missing.includes('location')) needLocation += 1;
+        if (p.missing.includes('photos')) needPhotos += 1;
+      }
+    }
+    return {
+      ready,
+      needPhotos,
+      needName,
+      needLocation,
+      noProfile,
+      onPage: statDrillUsers.length,
+    };
+  }, [statDrill, statDrillUsers]);
 
   useEffect(() => {
     if (!statDrill) return;
@@ -1535,6 +1618,26 @@ export default function Admin() {
                         {onboardingNudgeMessage}
                       </p>
                     ) : null}
+                    {onboardingProgressSummary && onboardingProgressSummary.onPage > 0 ? (
+                      <p className="admin-onboarding-progress-summary" role="status">
+                        <strong>This page:</strong>{' '}
+                        {onboardingProgressSummary.ready > 0
+                          ? `${onboardingProgressSummary.ready} ready to tap Complete Profile`
+                          : 'none ready yet'}
+                        {onboardingProgressSummary.needPhotos > 0
+                          ? ` · ${onboardingProgressSummary.needPhotos} need photos`
+                          : ''}
+                        {onboardingProgressSummary.needName > 0
+                          ? ` · ${onboardingProgressSummary.needName} need name`
+                          : ''}
+                        {onboardingProgressSummary.needLocation > 0
+                          ? ` · ${onboardingProgressSummary.needLocation} need city, state`
+                          : ''}
+                        {onboardingProgressSummary.noProfile > 0
+                          ? ` · ${onboardingProgressSummary.noProfile} no profile row`
+                          : ''}
+                      </p>
+                    ) : null}
                   </div>
                 ) : null}
               </div>
@@ -1656,20 +1759,49 @@ export default function Admin() {
                     <thead>
                       <tr>
                         <th scope="col">Phone</th>
-                        <th scope="col">Email</th>
                         <th scope="col">Name</th>
-                        <th scope="col">Status</th>
-                        <th scope="col">Tokens</th>
+                        {statDrill === 'onboarding' ? (
+                          <>
+                            <th scope="col">Platform</th>
+                            <th scope="col">Setup progress</th>
+                          </>
+                        ) : (
+                          <>
+                            <th scope="col">Email</th>
+                            <th scope="col">Status</th>
+                            <th scope="col">Tokens</th>
+                          </>
+                        )}
                         <th scope="col">Joined</th>
                       </tr>
                     </thead>
                     <tbody>
                       {statDrillUsers.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="admin-stat-drill-empty">
+                          <td colSpan={statDrill === 'onboarding' ? 5 : 6} className="admin-stat-drill-empty">
                             No users on this page.
                           </td>
                         </tr>
+                      ) : statDrill === 'onboarding' ? (
+                        statDrillUsers.map((u) => (
+                          <tr key={u.id} className="admin-stat-drill-row-click" onClick={() => pickUserFromDrill(u.id)}>
+                            <td className="admin-stat-drill-phone" title={adminPhoneLabel(u.phoneNumber)}>
+                              {adminPhoneLabel(u.phoneNumber)}
+                            </td>
+                            <td>{u.display_name?.trim() || '—'}</td>
+                            <td>{adminClientPlatformPill(u)}</td>
+                            <td>
+                              {u.onboardingProgress ? (
+                                <AdminOnboardingProgressCell progress={u.onboardingProgress} />
+                              ) : (
+                                '—'
+                              )}
+                            </td>
+                            <td className="admin-stat-drill-date">
+                              {new Date(u.created_at).toLocaleDateString()}
+                            </td>
+                          </tr>
+                        ))
                       ) : (
                         statDrillUsers.map((u) => (
                           <tr key={u.id} className="admin-stat-drill-row-click" onClick={() => pickUserFromDrill(u.id)}>

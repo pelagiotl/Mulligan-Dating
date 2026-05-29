@@ -12,6 +12,7 @@ import {
   clientPlatformLabel,
   inferClientPlatformFromSignals,
 } from '../utils/clientPlatform.js';
+import { computeOnboardingProgress, type OnboardingProgress } from '../utils/connectRequirements.js';
 import { v4 as uuidv4 } from 'uuid';
 
 export const adminRouter = Router();
@@ -116,7 +117,7 @@ function mapAdminListUser(
   },
   tokenCounts: Record<string, number>,
   platformSignals: Record<string, ClientPlatformSignals>,
-  overrides?: { is_restricted?: boolean; account_status?: string },
+  overrides?: { is_restricted?: boolean; account_status?: string; onboardingProgress?: OnboardingProgress },
 ) {
   const signals = platformSignals[u.id];
   const clientPlatform = inferClientPlatformFromSignals(signals || {});
@@ -138,6 +139,9 @@ function mapAdminListUser(
     clientPlatform,
     clientPlatformLabel: clientPlatformLabel(clientPlatform),
     ...(overrides?.account_status != null ? { account_status: overrides.account_status } : {}),
+    ...(overrides?.onboardingProgress != null
+      ? { onboardingProgress: overrides.onboardingProgress }
+      : {}),
   };
 }
 
@@ -826,7 +830,8 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
       const query = `
         SELECT DISTINCT u.id, u.email, u.phone_number, u.is_admin, u.is_restricted, u.hidden_from_browse,
           u.created_at, u.last_active_at, u.account_status,
-          p.display_name, p.age, p.gender, p.location
+          p.id as profile_id, p.display_name, p.age, p.gender, p.location,
+          (SELECT COUNT(*) FROM photos ph WHERE ph.profile_id = p.id) as photo_count
         FROM users u
         LEFT JOIN profiles p ON p.user_id = u.id
         WHERE 1=1${onboardingOnly}${tayaHide}${searchWhere}
@@ -858,11 +863,20 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
       }
 
       const platformSignals = await loadClientPlatformSignalsByUserId(userIds);
-      const users = usersResult.map((u: any) =>
-        mapAdminListUser(u, tokenCounts, platformSignals, {
+      const users = usersResult.map((u: any) => {
+        const hasProfileRow = Boolean(u.profile_id);
+        const photoCount = Math.floor(Number(u.photo_count ?? 0));
+        const onboardingProgress = computeOnboardingProgress(
+          u.display_name,
+          u.location,
+          photoCount,
+          hasProfileRow,
+        );
+        return mapAdminListUser(u, tokenCounts, platformSignals, {
           account_status: u.account_status ?? 'onboarding',
-        }),
-      );
+          onboardingProgress,
+        });
+      });
 
       return res.json({ users, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
     }
