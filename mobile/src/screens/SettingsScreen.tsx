@@ -796,7 +796,7 @@ export default function SettingsScreen() {
         <View style={styles.emailCard}>
           <Text style={styles.emailCardLabel}>Display name</Text>
           <Text style={styles.emailCardSubLabel}>
-            Shown to people you connect with. You need a name, location, and three photos before you can use Connect.
+            Shown to people you connect with. You need a name, location, and a photo before you can use Connect.
           </Text>
           <TextInput
             value={displayNameDraft}

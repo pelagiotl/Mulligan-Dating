@@ -1625,7 +1625,7 @@ export default function CreateProfileScreen() {
             </Animated.View>
           )}
           <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleSmall, { fontSize: rs.subtitleSizeSmall * 0.92, marginTop: 12, marginBottom: 0, opacity: 0.88 }]}>
-            Add 3 photos on your Profile tab before you tap Connect to match.
+            Add a photo on your Profile tab before you tap Connect to match.
           </Text>
         </LinearGradient>
       </Animated.View>
@@ -2312,7 +2312,7 @@ export default function CreateProfileScreen() {
       {!connectSetupComplete ? (
         <View style={styles.onboardingReminderStrip}>
           <Text style={styles.onboardingReminderText}>
-            Finish setup: name and city & state — then tap Complete Profile. Add 3 photos on Profile before you Connect.
+            Finish setup: name and city & state — then tap Complete Profile. Add a photo on Profile before you Connect.
           </Text>
         </View>
       ) : null}

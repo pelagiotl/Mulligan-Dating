@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { MIN_PHOTOS_TO_CONNECT } from "../utils/connectProfileEligibility";
+import { MIN_PHOTOS_TO_CONNECT, minPhotosToConnectLabel } from "../utils/connectProfileEligibility";
 
 export default function ConnectPhotosRequiredModalWeb({
   open,
@@ -12,7 +12,6 @@ export default function ConnectPhotosRequiredModalWeb({
   photoCount: number;
 }) {
   const navigate = useNavigate();
-  const needed = Math.max(0, MIN_PHOTOS_TO_CONNECT - photoCount);
 
   useEffect(() => {
     if (!open) return;
@@ -52,7 +51,7 @@ export default function ConnectPhotosRequiredModalWeb({
               <div className="connect-photos-modal-header-copy">
                 <p className="connect-photos-modal-kicker">One quick step</p>
                 <h2 id="connect-photos-modal-title" className="connect-photos-modal-title">
-                  Add {MIN_PHOTOS_TO_CONNECT} photos to Connect
+                  Add {minPhotosToConnectLabel()} to Connect
                 </h2>
               </div>
             </header>
@@ -60,10 +59,13 @@ export default function ConnectPhotosRequiredModalWeb({
             <div className="connect-photos-modal-body">
               <p className="connect-photos-modal-lead">
                 You&apos;re set up with name and location — now show people who you are. Upload{" "}
-                <strong>{MIN_PHOTOS_TO_CONNECT} clear photos</strong> and you&apos;ll be ready to match.
+                <strong>one clear photo</strong> and you&apos;ll be ready to match.
               </p>
 
-              <div className="connect-photos-modal-slots" aria-label={`${photoCount} of ${MIN_PHOTOS_TO_CONNECT} photos uploaded`}>
+              <div
+                className="connect-photos-modal-slots"
+                aria-label={`${photoCount} of ${MIN_PHOTOS_TO_CONNECT} photo uploaded`}
+              >
                 {Array.from({ length: MIN_PHOTOS_TO_CONNECT }, (_, i) => {
                   const filled = i < photoCount;
                   return (
@@ -91,13 +93,13 @@ export default function ConnectPhotosRequiredModalWeb({
               </div>
 
               <p className="connect-photos-modal-progress">
-                <strong>{photoCount}</strong> / {MIN_PHOTOS_TO_CONNECT} photos
-                {needed > 0 ? (
+                {photoCount >= MIN_PHOTOS_TO_CONNECT ? (
+                  <>Photo added — you&apos;re ready</>
+                ) : (
                   <>
-                    {" "}
-                    — <span className="connect-photos-modal-progress-need">{needed} more to go</span>
+                    <span className="connect-photos-modal-progress-need">Add your photo to continue</span>
                   </>
-                ) : null}
+                )}
               </p>
 
               <div className="connect-photos-modal-chips">
@@ -109,7 +111,7 @@ export default function ConnectPhotosRequiredModalWeb({
 
             <footer className="connect-photos-modal-actions">
               <button type="button" className="connect-photos-modal-primary" onClick={goToPhotos}>
-                Add my photos →
+                Add my photo →
               </button>
               <button type="button" className="connect-photos-modal-secondary" onClick={onClose}>
                 Not now

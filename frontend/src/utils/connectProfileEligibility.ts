@@ -1,6 +1,10 @@
 /** Mirrors backend `connectRequirements.ts` for routing and post-login redirects. */
 
-export const MIN_PHOTOS_TO_CONNECT = 3;
+export const MIN_PHOTOS_TO_CONNECT = 1;
+
+export function minPhotosToConnectLabel(count = MIN_PHOTOS_TO_CONNECT): string {
+  return count === 1 ? "1 photo" : `${count} photos`;
+}
 
 export function hasConnectDisplayName(displayName: string | null | undefined): boolean {
   return typeof displayName === "string" && displayName.trim().length >= 2;
@@ -72,7 +76,7 @@ export function formatConnectSetupGapMessage(gaps: ConnectSetupGap[]): string {
     parts.push("city and state on your profile (e.g. Medford, Oregon)");
   }
   if (gaps.includes("photos")) {
-    parts.push(`at least ${MIN_PHOTOS_TO_CONNECT} photos saved on the server`);
+    parts.push(`at least ${minPhotosToConnectLabel()} saved on the server`);
   }
   return `Still missing on the server: ${parts.join(", ")}. Check your connection and try again.`;
 }
@@ -121,4 +125,4 @@ export function deriveAppRegistrationComplete(params: {
   return profileReady && !params.wizardDraftActive;
 }
 
-export const CONNECT_PHOTOS_REQUIRED_MESSAGE = `Upload at least ${MIN_PHOTOS_TO_CONNECT} photos on your Profile to start matching with other people.`;
+export const CONNECT_PHOTOS_REQUIRED_MESSAGE = `Upload at least ${minPhotosToConnectLabel()} on your Profile to start matching with other people.`;

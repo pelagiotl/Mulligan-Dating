@@ -47,6 +47,7 @@ import NoTokensModal from '../components/NoTokensModal';
 import OptimizedImage from '../components/OptimizedImage';
 import {
   MIN_PHOTOS_TO_CONNECT,
+  minPhotosToConnectLabel,
   connectSetupGapMessage,
   connectSetupGapNavigationTarget,
   connectSetupGapPrimaryActionLabel,
@@ -1832,7 +1833,7 @@ export default function BrowseScreen() {
                       ? 'Add your name in Settings to Connect'
                       : connectMissing[0] === 'location'
                         ? 'Add city & state on Profile to Connect'
-                        : `Add at least ${MIN_PHOTOS_TO_CONNECT} photos on Profile to Connect`
+                        : `Add ${minPhotosToConnectLabel()} on Profile to Connect`
                     : '⛳ Use a Mulligan'}
                 </Text>
               </Animated.View>
@@ -1973,7 +1974,7 @@ export default function BrowseScreen() {
                             ? 'Add your name in Settings to Connect'
                             : connectMissing[0] === 'location'
                               ? 'Add city & state on Profile to Connect'
-                              : `Add at least ${MIN_PHOTOS_TO_CONNECT} photos on Profile to Connect`
+                              : `Add ${minPhotosToConnectLabel()} on Profile to Connect`
                           : '⛳ Use a Mulligan'}
                       </Text>
                     </Animated.View>
@@ -2113,7 +2114,7 @@ export default function BrowseScreen() {
                             ? 'Add your name in Settings to Connect'
                             : connectMissing[0] === 'location'
                               ? 'Add city & state on Profile to Connect'
-                              : `Add at least ${MIN_PHOTOS_TO_CONNECT} photos on Profile to Connect`
+                              : `Add ${minPhotosToConnectLabel()} on Profile to Connect`
                           : '⛳ Use a Mulligan'}
                       </Text>
                     </Animated.View>

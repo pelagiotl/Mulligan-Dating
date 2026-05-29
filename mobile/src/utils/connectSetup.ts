@@ -1,4 +1,8 @@
-export const MIN_PHOTOS_TO_CONNECT = 3;
+export const MIN_PHOTOS_TO_CONNECT = 1;
+
+export function minPhotosToConnectLabel(count = MIN_PHOTOS_TO_CONNECT): string {
+  return count === 1 ? '1 photo' : `${count} photos`;
+}
 
 /** Auth/me and browse payloads may use displayName and/or display_name. */
 export type ConnectProfileLike = {
@@ -99,7 +103,7 @@ export function deriveAppRegistrationComplete(params: {
   return profileReady && !params.wizardDraftActive;
 }
 
-export const CONNECT_PHOTOS_REQUIRED_MESSAGE = `Upload at least ${MIN_PHOTOS_TO_CONNECT} photos on your Profile to start matching with other people.`;
+export const CONNECT_PHOTOS_REQUIRED_MESSAGE = `Upload at least ${minPhotosToConnectLabel()} on your Profile to start matching with other people.`;
 
 export function connectSetupGapMessage(first: ConnectSetupMissing): string {
   switch (first) {

@@ -1,6 +1,10 @@
 import { db } from '../database.js';
 
-export const MIN_PHOTOS_TO_CONNECT = 3;
+export const MIN_PHOTOS_TO_CONNECT = 1;
+
+function minPhotosToConnectPhrase(): string {
+  return MIN_PHOTOS_TO_CONNECT === 1 ? '1 photo' : `${MIN_PHOTOS_TO_CONNECT} photos`;
+}
 
 export function hasConnectDisplayName(displayName: string | null | undefined): boolean {
   return typeof displayName === 'string' && displayName.trim().length >= 2;
@@ -106,7 +110,7 @@ export function connectSetupErrorPayload(violations: string[]) {
     profile: 'Complete your profile first.',
     name: 'Add your name in Settings before connecting.',
     location: 'Add your city and state on your Profile before connecting (e.g. Medford, Oregon).',
-    photos: `Upload at least ${MIN_PHOTOS_TO_CONNECT} photos on your Profile to start matching with other people.`,
+    photos: `Upload at least ${minPhotosToConnectPhrase()} on your Profile to start matching with other people.`,
   };
   const primary = violations.includes('photos')
     ? 'photos'

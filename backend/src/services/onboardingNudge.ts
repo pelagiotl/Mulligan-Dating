@@ -10,7 +10,7 @@ import {
 
 const DEFAULT_PUSH_TITLE = 'Finish your Mulligan profile 💘';
 const DEFAULT_PUSH_BODY =
-  'Launch is in 8 days! Add your name and city & state — then tap Complete Profile. Add 3 photos on your Profile before you Connect.';
+  'Launch is in 8 days! Add your name and city & state — then tap Complete Profile. Add a photo on your Profile before you Connect.';
 
 const DEFAULT_SMS_BODY =
   'Mulligan 💘 Launch is in 8 days! Your account is not active yet — add your name and city & state to finish setup:';
