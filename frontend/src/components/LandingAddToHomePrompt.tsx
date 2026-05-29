@@ -143,17 +143,19 @@ export default function LandingAddToHomePrompt({ variant = 'default' }: LandingA
               ? featured
                 ? 'Takes 10 seconds in Safari — then tap the Mulligan icon on your home screen anytime. Best before you sign up.'
                 : 'Feels like the app — faster to open, smoother on your phone. Do it before you sign up or after, your call.'
-              : 'Open Mulligan on your phone, then add it to your home screen for the best experience (Safari Share → Add to Home Screen).'}
+              : 'Open Mulligan on your phone, then add it to your home screen (Safari ⋯ → Share → Add to Home Screen).'}
           </p>
 
           {mobile && platform === 'ios' ? (
             <ol className="landing-a2hs__steps">
               <li>
-                Tap <strong>Share</strong>{' '}
+                Tap <strong>⋯</strong> (three dots) at the bottom of Safari
+              </li>
+              <li>
+                Then tap <strong>Share</strong>{' '}
                 <span className="landing-a2hs__share-icon" aria-hidden="true">
                   📤
-                </span>{' '}
-                in Safari
+                </span>
               </li>
               <li>
                 Choose <strong>Add to Home Screen</strong>
