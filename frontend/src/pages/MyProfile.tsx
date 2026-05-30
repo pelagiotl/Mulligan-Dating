@@ -1521,6 +1521,8 @@ export default function MyProfile() {
         <div className="my-profile-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="gender-title">
           <div className="my-profile-modal-backdrop" onClick={() => setShowGenderModal(false)} />
           <div className="my-profile-modal-card my-profile-modal-card--gender" role="document">
+            <span className="my-profile-gender-modal-aurora" aria-hidden />
+            <span className="my-profile-gender-modal-aurora my-profile-gender-modal-aurora--secondary" aria-hidden />
             <button
               type="button"
               className="my-profile-modal-close"
@@ -1530,22 +1532,24 @@ export default function MyProfile() {
               ×
             </button>
             <div className="my-profile-gender-modal-hero">
-              <span className="my-profile-gender-modal-hero-icon" aria-hidden>
-                ⚧️
+              <span className="my-profile-gender-modal-hero-icon-wrap" aria-hidden>
+                <span className="my-profile-gender-modal-hero-glow" />
+                <span className="my-profile-gender-modal-hero-icon">⚧️</span>
               </span>
               <div className="my-profile-gender-modal-hero-text">
+                <p className="my-profile-gender-modal-kicker">Your profile</p>
                 <h3 id="gender-title">Update gender</h3>
                 <p className="my-profile-modal-sub my-profile-gender-modal-tagline">
                   Shown on your profile when you connect with someone new.
                 </p>
               </div>
             </div>
-            <div className="my-profile-modal-body">
-              <label className="my-profile-modal-field-label" id="gender-group-label">
+            <div className="my-profile-modal-body my-profile-modal-body--gender">
+              <label className="my-profile-modal-field-label my-profile-gender-field-label" id="gender-group-label">
                 Choose one
               </label>
               <div
-                className="my-profile-looking-grid"
+                className="my-profile-gender-grid"
                 role="radiogroup"
                 aria-labelledby="gender-group-label"
               >
@@ -1555,17 +1559,20 @@ export default function MyProfile() {
                     type="button"
                     role="radio"
                     aria-checked={editGender === opt}
-                    className={`my-profile-looking-chip my-profile-gender-chip ${editGender === opt ? "is-selected" : ""}`}
+                    className={`my-profile-gender-option my-profile-gender-option--${opt.toLowerCase()} ${editGender === opt ? "is-selected" : ""}`}
                     onClick={() => setEditGender(opt)}
                   >
-                    <span className="my-profile-looking-chip-emoji" aria-hidden>
+                    <span className="my-profile-gender-option-ring" aria-hidden />
+                    <span className="my-profile-gender-option-emoji" aria-hidden>
                       {GENDER_OPTION_META[opt].emoji}
                     </span>
-                    <span className="my-profile-looking-chip-copy">
-                      <span className="my-profile-looking-chip-title">{opt}</span>
-                      <span className="my-profile-looking-chip-sub">{GENDER_OPTION_META[opt].sub}</span>
-                    </span>
-                    {editGender === opt ? <span className="my-profile-looking-chip-check">✓</span> : null}
+                    <span className="my-profile-gender-option-label">{opt}</span>
+                    <span className="my-profile-gender-option-sub">{GENDER_OPTION_META[opt].sub}</span>
+                    {editGender === opt ? (
+                      <span className="my-profile-gender-option-check" aria-hidden>
+                        ✓
+                      </span>
+                    ) : null}
                   </button>
                 ))}
               </div>
@@ -1576,7 +1583,7 @@ export default function MyProfile() {
               </button>
               <button
                 type="button"
-                className="btn btn-primary"
+                className="btn btn-primary my-profile-gender-save-btn"
                 onClick={() => void saveGender()}
                 disabled={updatingField}
               >
