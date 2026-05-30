@@ -1,12 +1,21 @@
-import React, { memo, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Platform } from 'react-native';
+import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ActivityIndicator,
+  Platform,
+  TouchableOpacity,
+} from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const MAX_MULLIGANS = 7;
+const COLLAPSED_STORAGE_KEY = 'mulligan_matches_limits_panel_collapsed';
 
 const BURGUNDY = '#8B1538';
-const BURGUNDY_SOFT = 'rgba(139, 21, 56, 0.14)';
 const INK = '#1a1a2e';
+const MUTED = 'rgba(26, 26, 46, 0.52)';
 
 function formatCountdown(ms: number): string {
   if (ms <= 0) return 'Any moment now';
@@ -20,15 +29,14 @@ function formatCountdown(ms: number): string {
   return '<1m';
 }
 
-const statTileShadow =
-  Platform.OS === 'ios'
-    ? {
-        shadowColor: INK,
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.07,
-        shadowRadius: 10,
-      }
-    : { elevation: 2 };
+async function readCollapsedPreference(): Promise<boolean> {
+  try {
+    const v = await AsyncStorage.getItem(COLLAPSED_STORAGE_KEY);
+    return v === '1';
+  } catch {
+    return false;
+  }
+}
 
 type Props = {
   loading: boolean;
@@ -48,9 +56,12 @@ const ConnectLandingScarcity = memo(function ConnectLandingScarcity({
   slotLimit,
 }: Props) {
   const [now, setNow] = useState(() => Date.now());
+  const [collapsed, setCollapsed] = useState(false);
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
 
   const slotsOpen = Math.max(0, slotLimit - activeMatches);
   const tokensCapped = Math.min(Math.max(0, availableTokens), MAX_MULLIGANS);
+  const atCapacity = activeMatches >= slotLimit;
 
   const refillMs = useMemo(() => {
     if (!nextRefillDate || canClaimWeeklyToken) return null;
@@ -60,10 +71,32 @@ const ConnectLandingScarcity = memo(function ConnectLandingScarcity({
   }, [nextRefillDate, canClaimWeeklyToken, now]);
 
   useEffect(() => {
-    if (refillMs == null || refillMs <= 0) return;
+    let mounted = true;
+    void readCollapsedPreference().then((v) => {
+      if (mounted) {
+        setCollapsed(v);
+        setPrefsLoaded(true);
+      }
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (refillMs == null || refillMs <= 0 || collapsed) return;
     const id = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(id);
-  }, [refillMs]);
+  }, [refillMs, collapsed]);
+
+  const persistCollapsed = useCallback(async (next: boolean) => {
+    setCollapsed(next);
+    try {
+      await AsyncStorage.setItem(COLLAPSED_STORAGE_KEY, next ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const showRefillCountdown =
     refillMs != null &&
@@ -71,24 +104,54 @@ const ConnectLandingScarcity = memo(function ConnectLandingScarcity({
     !canClaimWeeklyToken &&
     tokensCapped < MAX_MULLIGANS;
 
-  const tokenScarce = tokensCapped <= 1;
-  const slotScarce = slotsOpen <= 5;
+  const statusNote = atCapacity
+    ? `At ${slotLimit} connections — unmatch or wait for expiry`
+    : canClaimWeeklyToken && tokensCapped < MAX_MULLIGANS
+      ? 'Weekly Mulligans ready on Connect'
+      : showRefillCountdown && refillMs != null
+        ? `Next Mulligan in ${formatCountdown(refillMs)}`
+        : null;
 
-  if (loading) {
+  if (loading || !prefsLoaded) {
     return (
-      <View style={styles.shellOuter} accessibilityLabel="Loading connection limits">
-        <View style={[styles.shell, styles.shellLoading]}>
-          <ActivityIndicator size="small" color={`${BURGUNDY}99`} />
-        </View>
+      <View style={styles.loadingWrap} accessibilityLabel="Loading connection limits">
+        <ActivityIndicator size="small" color={`${BURGUNDY}99`} />
+        <Text style={styles.loadingText}>Loading limits…</Text>
       </View>
+    );
+  }
+
+  if (collapsed) {
+    return (
+      <TouchableOpacity
+        style={styles.collapsedBar}
+        onPress={() => void persistCollapsed(false)}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel={`Your limits. Mulligans ${tokensCapped} of ${MAX_MULLIGANS}. Connections ${activeMatches} of ${slotLimit}. Double tap to expand.`}
+        accessibilityHint="Shows full limits details"
+      >
+        <Text style={styles.collapsedEyebrow}>Your limits</Text>
+        <View style={styles.collapsedStats}>
+          <Text style={styles.collapsedStat}>
+            <Text style={styles.collapsedStatIcon}>🎟 </Text>
+            {tokensCapped}/{MAX_MULLIGANS}
+          </Text>
+          <View style={styles.collapsedDivider} />
+          <Text style={[styles.collapsedStat, atCapacity && styles.collapsedStatFull]}>
+            <Text style={styles.collapsedStatIcon}>💞 </Text>
+            {activeMatches}/{slotLimit}
+          </Text>
+        </View>
+        <Text style={styles.collapsedAction}>Show</Text>
+      </TouchableOpacity>
     );
   }
 
   return (
     <View style={styles.shellOuter} accessibilityRole="summary">
       <LinearGradient
-        colors={['#ffffff', '#fff9fa', '#f8f7fc']}
-        locations={[0, 0.5, 1]}
+        colors={['#ffffff', '#faf9fc']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.shell}
@@ -100,79 +163,63 @@ const ConnectLandingScarcity = memo(function ConnectLandingScarcity({
           style={styles.accentBar}
         />
 
-        <View style={styles.headerBlock}>
-          <View style={styles.eyebrowPill}>
+        <View style={styles.toolbar}>
+          <View style={styles.titleGroup}>
             <Text style={styles.eyebrow}>Your limits</Text>
-          </View>
-          <Text style={styles.tagline}>
-            <Text style={styles.taglineLead}>
-              {MAX_MULLIGANS} Mulligans/week to send Connects · {slotLimit} active connections max.
+            <Text style={styles.lede}>
+              {MAX_MULLIGANS} Mulligans / week · {slotLimit} active connections max
             </Text>
-            {'\n'}
-            <Text style={styles.taglineSoft}>Mulligans ready: </Text>
-            <Text style={styles.taglineFraction}>{tokensCapped}</Text>
-            <Text style={styles.taglineFractionMuted}>/{MAX_MULLIGANS}</Text>
-          </Text>
-          {showRefillCountdown ? (
-            <View style={styles.countdownRibbon} accessibilityLiveRegion="polite">
-              <Text style={styles.countdownRibbonLabel}>Next refill in</Text>
-              <Text style={styles.countdownRibbonTime}>
-                {refillMs != null ? formatCountdown(refillMs) : ''}
+          </View>
+          <TouchableOpacity
+            style={styles.hideBtn}
+            onPress={() => void persistCollapsed(true)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel="Hide limits panel"
+          >
+            <Text style={styles.hideBtnText}>Hide</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.metricsRow}>
+          <View style={styles.metric}>
+            <Text style={styles.metricIcon} accessibilityElementsHidden>
+              🎟
+            </Text>
+            <View style={styles.metricBody}>
+              <Text style={styles.metricLabel}>Mulligans</Text>
+              <Text style={styles.metricValue}>
+                {tokensCapped}
+                <Text style={styles.metricDenom}>/{MAX_MULLIGANS}</Text>
               </Text>
             </View>
-          ) : null}
-        </View>
-
-        <View style={styles.row}>
-          <View
-            style={[
-              styles.statTile,
-              styles.statTilePrimary,
-              statTileShadow,
-              tokenScarce ? styles.statTileWarm : styles.statTileNeutral,
-            ]}
-          >
-            <Text style={styles.cellLabel}>Mulligans ready</Text>
-            <Text style={[styles.cellValueHero, tokenScarce && styles.cellValueWarm]}>
-              {tokensCapped}
-              <Text style={styles.cellValueHeroSuffix}> / {MAX_MULLIGANS}</Text>
-            </Text>
           </View>
 
-          <View
-            style={[
-              styles.statTile,
-              styles.statTileSecondary,
-              statTileShadow,
-              slotScarce ? styles.statTileCool : styles.statTileNeutral,
-            ]}
-          >
-            <Text style={styles.cellLabelSecondary}>Active connections</Text>
-            <Text style={[styles.cellValueSlot, slotScarce && styles.cellValueCool]}>
-              {activeMatches}
-              <Text style={styles.cellValueSlotSuffix}> / {slotLimit}</Text>
+          <View style={[styles.metric, atCapacity && styles.metricFull]}>
+            <Text style={styles.metricIcon} accessibilityElementsHidden>
+              💞
             </Text>
+            <View style={styles.metricBody}>
+              <Text style={styles.metricLabel}>Connections</Text>
+              <Text style={[styles.metricValue, atCapacity && styles.metricValueFull]}>
+                {activeMatches}
+                <Text style={styles.metricDenom}>/{slotLimit}</Text>
+              </Text>
+            </View>
+            {!atCapacity ? (
+              <View style={styles.openBadge}>
+                <Text style={styles.openBadgeText}>
+                  {slotsOpen} open
+                </Text>
+              </View>
+            ) : null}
           </View>
         </View>
 
-        {canClaimWeeklyToken && tokensCapped < MAX_MULLIGANS ? (
-          <View style={styles.footerInset}>
-            <Text style={styles.countdownTextMuted}>
-              Weekly Mulligans are available — tap Claim above when you’re ready.
-            </Text>
-          </View>
-        ) : slotsOpen === 0 ? (
-          <View style={[styles.footerInset, styles.capacityInset]}>
-            <Text style={styles.capacityTitle}>You&apos;re at capacity</Text>
-            <Text style={styles.capacityBody}>
-              You have {slotLimit} active connections — the maximum right now. Unmatch or wait for
-              a 7-day expiry to connect with someone new.
-            </Text>
-          </View>
-        ) : tokensCapped >= MAX_MULLIGANS ? (
-          <View style={styles.footerInset}>
-            <Text style={styles.countdownTextMuted}>
-              You’re maxed on Mulligans. Use one to Connect, then you can refill again.
+        {statusNote ? (
+          <View style={[styles.note, atCapacity && styles.noteCapacity]}>
+            <Text style={[styles.noteText, atCapacity && styles.noteTextCapacity]}>
+              {statusNote}
             </Text>
           </View>
         ) : null}
@@ -182,241 +229,235 @@ const ConnectLandingScarcity = memo(function ConnectLandingScarcity({
 });
 
 const styles = StyleSheet.create({
+  loadingWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    marginBottom: 10,
+  },
+  loadingText: {
+    fontSize: 12,
+    color: MUTED,
+    fontWeight: '500',
+  },
+  collapsedBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(139, 21, 56, 0.14)',
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
+    ...Platform.select({
+      android: { elevation: 1 },
+      ios: {
+        shadowColor: INK,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+      },
+    }),
+  },
+  collapsedEyebrow: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    color: BURGUNDY,
+  },
+  collapsedStats: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    minWidth: 0,
+  },
+  collapsedStat: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: INK,
+    fontVariant: ['tabular-nums'],
+  },
+  collapsedStatFull: {
+    color: BURGUNDY,
+  },
+  collapsedStatIcon: {
+    fontSize: 11,
+  },
+  collapsedDivider: {
+    width: 1,
+    height: 12,
+    backgroundColor: 'rgba(26, 26, 46, 0.12)',
+  },
+  collapsedAction: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: MUTED,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
   shellOuter: {
     width: '100%',
-    marginBottom: 18,
-    borderRadius: 22,
+    marginBottom: 10,
+    borderRadius: 12,
     ...Platform.select({
       ios: {
         shadowColor: INK,
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.09,
-        shadowRadius: 24,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
       },
-      android: { elevation: 4 },
+      android: { elevation: 2 },
     }),
   },
   shell: {
     width: '100%',
-    borderRadius: 22,
-    paddingTop: 14,
-    paddingBottom: 18,
-    paddingHorizontal: 18,
+    borderRadius: 12,
+    paddingTop: 10,
+    paddingBottom: 10,
+    paddingHorizontal: 12,
     overflow: 'hidden',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(139, 21, 56, 0.1)',
-  },
-  shellLoading: {
-    minHeight: 120,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
   },
   accentBar: {
     position: 'absolute',
     left: 0,
     right: 0,
     top: 0,
-    height: 3,
+    height: 2,
   },
-  headerBlock: {
-    alignItems: 'center',
-    marginBottom: 14,
-    paddingTop: 4,
+  toolbar: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 8,
+    paddingTop: 2,
   },
-  eyebrowPill: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 100,
-    backgroundColor: BURGUNDY_SOFT,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(139, 21, 56, 0.18)',
-    marginBottom: 10,
+  titleGroup: {
+    flex: 1,
+    minWidth: 0,
   },
   eyebrow: {
     fontSize: 10,
     fontWeight: '800',
-    letterSpacing: 1.6,
-    color: 'rgba(107, 13, 46, 0.85)',
+    letterSpacing: 0.9,
+    color: BURGUNDY,
     textTransform: 'uppercase',
+    marginBottom: 2,
   },
-  tagline: {
-    textAlign: 'center',
-    paddingHorizontal: 6,
-    alignSelf: 'center',
-  },
-  taglineLead: {
-    fontSize: 13,
-    lineHeight: 20,
-    color: 'rgba(26, 26, 46, 0.58)',
-    fontWeight: '600',
-    letterSpacing: 0.15,
-  },
-  taglineSoft: {
-    fontSize: 12,
-    lineHeight: 20,
-    color: 'rgba(26, 26, 46, 0.48)',
+  lede: {
+    fontSize: 11,
+    lineHeight: 15,
+    color: MUTED,
     fontWeight: '500',
   },
-  taglineFraction: {
-    fontSize: 15,
-    lineHeight: 20,
-    fontWeight: '800',
-    color: BURGUNDY,
-    fontVariant: ['tabular-nums'],
-  },
-  taglineFractionMuted: {
-    fontSize: 15,
-    lineHeight: 20,
-    fontWeight: '700',
-    color: 'rgba(26, 26, 46, 0.35)',
-    fontVariant: ['tabular-nums'],
-  },
-  countdownRibbon: {
-    marginTop: 12,
-    alignSelf: 'stretch',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexWrap: 'wrap',
-    gap: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    backgroundColor: 'rgba(139, 21, 56, 0.06)',
+  hideBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 100,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(139, 21, 56, 0.12)',
+    borderColor: 'rgba(26, 26, 46, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
   },
-  countdownRibbonLabel: {
-    fontSize: 10,
+  hideBtnText: {
+    fontSize: 9,
     fontWeight: '800',
-    letterSpacing: 1.2,
-    color: 'rgba(107, 13, 46, 0.65)',
+    letterSpacing: 0.6,
     textTransform: 'uppercase',
+    color: MUTED,
   },
-  countdownRibbonTime: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: BURGUNDY,
-    fontVariant: ['tabular-nums'],
-    letterSpacing: 0.3,
-  },
-  row: {
+  metricsRow: {
     flexDirection: 'row',
-    alignItems: 'stretch',
-    gap: 10,
+    gap: 6,
   },
-  statTile: {
+  metric: {
     flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
+    paddingVertical: 7,
     paddingHorizontal: 8,
-    borderRadius: 16,
+    borderRadius: 9,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
     borderWidth: StyleSheet.hairlineWidth,
-  },
-  statTilePrimary: {
-    paddingVertical: 14,
-    minWidth: 0,
-  },
-  statTileSecondary: {
-    paddingVertical: 12,
-    minWidth: 0,
-  },
-  statTileNeutral: {
-    backgroundColor: 'rgba(255, 255, 255, 0.72)',
     borderColor: 'rgba(26, 26, 46, 0.07)',
+    minWidth: 0,
   },
-  statTileWarm: {
-    backgroundColor: 'rgba(254, 242, 242, 0.95)',
-    borderColor: 'rgba(159, 18, 57, 0.14)',
+  metricFull: {
+    backgroundColor: 'rgba(139, 21, 56, 0.05)',
+    borderColor: 'rgba(139, 21, 56, 0.18)',
   },
-  statTileCool: {
-    backgroundColor: 'rgba(245, 243, 255, 0.95)',
-    borderColor: 'rgba(76, 29, 149, 0.12)',
+  metricIcon: {
+    fontSize: 14,
+    lineHeight: 16,
   },
-  cellLabel: {
+  metricBody: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 4,
+    minWidth: 0,
+    flexWrap: 'wrap',
+  },
+  metricLabel: {
     fontSize: 11,
-    fontWeight: '700',
-    color: 'rgba(26, 26, 46, 0.45)',
-    marginBottom: 6,
-    letterSpacing: 0.2,
+    fontWeight: '600',
+    color: MUTED,
   },
-  cellLabelSecondary: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: 'rgba(26, 26, 46, 0.4)',
-    marginBottom: 6,
-    letterSpacing: 0.15,
-    textAlign: 'center',
-  },
-  cellValueHero: {
-    fontSize: 40,
-    fontWeight: '900',
-    color: INK,
-    letterSpacing: -1.2,
-    fontVariant: ['tabular-nums'],
-  },
-  cellValueHeroSuffix: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: 'rgba(26, 26, 46, 0.28)',
-    fontVariant: ['tabular-nums'],
-  },
-  cellValueSlot: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: INK,
-    letterSpacing: -0.6,
-    fontVariant: ['tabular-nums'],
-  },
-  cellValueSlotSuffix: {
+  metricValue: {
     fontSize: 15,
+    fontWeight: '800',
+    color: INK,
+    fontVariant: ['tabular-nums'],
+  },
+  metricValueFull: {
+    color: BURGUNDY,
+  },
+  metricDenom: {
+    fontSize: 12,
     fontWeight: '700',
     color: 'rgba(26, 26, 46, 0.3)',
-    fontVariant: ['tabular-nums'],
   },
-  cellValueWarm: {
-    color: '#9f1239',
+  openBadge: {
+    paddingVertical: 2,
+    paddingHorizontal: 5,
+    borderRadius: 100,
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
   },
-  cellValueCool: {
-    color: '#5b21b6',
+  openBadgeText: {
+    fontSize: 8,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+    color: '#059669',
   },
-  footerInset: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 14,
+  note: {
+    marginTop: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 8,
     backgroundColor: 'rgba(26, 26, 46, 0.04)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(26, 26, 46, 0.06)',
-    gap: 10,
   },
-  countdownTextMuted: {
-    fontSize: 12,
-    color: 'rgba(26, 26, 46, 0.46)',
-    fontWeight: '600',
-    textAlign: 'center',
-    lineHeight: 17,
+  noteCapacity: {
+    backgroundColor: 'rgba(139, 21, 56, 0.06)',
   },
-  capacityInset: {
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-    backgroundColor: BURGUNDY_SOFT,
-    borderColor: 'rgba(139, 21, 56, 0.22)',
-  },
-  capacityTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: BURGUNDY,
-    marginBottom: 4,
-  },
-  capacityBody: {
-    fontSize: 13,
-    color: 'rgba(26, 26, 46, 0.62)',
-    lineHeight: 18,
+  noteText: {
+    fontSize: 11,
+    lineHeight: 15,
+    color: MUTED,
     fontWeight: '500',
+  },
+  noteTextCapacity: {
+    color: BURGUNDY,
+    fontWeight: '600',
   },
 });
 
