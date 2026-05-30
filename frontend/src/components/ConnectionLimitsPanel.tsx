@@ -58,6 +58,8 @@ export default function ConnectionLimitsPanel({
   const limit = slotLimit || DEFAULT_MATCH_SLOT_LIMIT;
   const slotsOpen = Math.max(0, limit - activeMatches);
   const atCapacity = activeMatches >= limit;
+  const tokenPct = Math.round((tokensReady / TOKEN_MAX) * 100);
+  const slotPct = Math.min(100, Math.round((activeMatches / limit) * 100));
 
   const refillMs =
     nextRefillDate && !canClaimWeeklyToken
@@ -93,6 +95,9 @@ export default function ConnectionLimitsPanel({
           aria-expanded={false}
           aria-controls="connection-limits-panel-body"
         >
+          <span className="connection-limits-panel__reveal-gem" aria-hidden>
+            ✦
+          </span>
           <span className="connection-limits-panel__reveal-label">Your limits</span>
           <span className="connection-limits-panel__reveal-stats" aria-hidden>
             <span className="connection-limits-panel__reveal-stat">
@@ -121,11 +126,13 @@ export default function ConnectionLimitsPanel({
       className="connection-limits-panel"
       aria-label="Mulligans and connection limits"
     >
+      <div className="connection-limits-panel__accent" aria-hidden />
+
       <div className="connection-limits-panel__toolbar">
         <div className="connection-limits-panel__title-group">
           <span className="connection-limits-panel__eyebrow">Your limits</span>
           <p className="connection-limits-panel__lede">
-            {TOKEN_MAX} Mulligans / week · {limit} active connections max
+            {TOKEN_MAX} Mulligans weekly · {limit} connections max
           </p>
         </div>
         <button
@@ -140,39 +147,68 @@ export default function ConnectionLimitsPanel({
       </div>
 
       <div className="connection-limits-panel__metrics">
-        <div className="connection-limits-panel__metric connection-limits-panel__metric--tokens">
-          <span className="connection-limits-panel__metric-icon" aria-hidden>
+        <article className="connection-limits-panel__metric connection-limits-panel__metric--tokens">
+          <div className="connection-limits-panel__metric-icon-wrap" aria-hidden>
             🎟
-          </span>
-          <div className="connection-limits-panel__metric-body">
-            <span className="connection-limits-panel__metric-label">Mulligans</span>
-            <span className="connection-limits-panel__metric-value">
-              {tokensReady}
-              <span className="connection-limits-panel__metric-denom">/{TOKEN_MAX}</span>
-            </span>
           </div>
-        </div>
-        <div
+          <div className="connection-limits-panel__metric-content">
+            <span className="connection-limits-panel__metric-label">Mulligans</span>
+            <p className="connection-limits-panel__metric-value">
+              {tokensReady}
+              <span className="connection-limits-panel__metric-denom"> / {TOKEN_MAX}</span>
+            </p>
+            <div
+              className="connection-limits-panel__metric-track"
+              role="progressbar"
+              aria-valuenow={tokensReady}
+              aria-valuemin={0}
+              aria-valuemax={TOKEN_MAX}
+              aria-label={`${tokensReady} of ${TOKEN_MAX} Mulligans`}
+            >
+              <span
+                className="connection-limits-panel__metric-fill connection-limits-panel__metric-fill--tokens"
+                style={{ width: `${tokenPct}%` }}
+              />
+            </div>
+          </div>
+        </article>
+
+        <article
           className={`connection-limits-panel__metric connection-limits-panel__metric--slots${
             atCapacity ? " connection-limits-panel__metric--full" : ""
           }`}
         >
-          <span className="connection-limits-panel__metric-icon" aria-hidden>
+          <div className="connection-limits-panel__metric-icon-wrap" aria-hidden>
             💞
-          </span>
-          <div className="connection-limits-panel__metric-body">
-            <span className="connection-limits-panel__metric-label">Connections</span>
-            <span className="connection-limits-panel__metric-value">
-              {activeMatches}
-              <span className="connection-limits-panel__metric-denom">/{limit}</span>
-            </span>
           </div>
-          {!atCapacity ? (
-            <span className="connection-limits-panel__metric-badge">
-              {slotsOpen} open
-            </span>
-          ) : null}
-        </div>
+          <div className="connection-limits-panel__metric-content">
+            <span className="connection-limits-panel__metric-label">Connections</span>
+            <p className="connection-limits-panel__metric-value">
+              {activeMatches}
+              <span className="connection-limits-panel__metric-denom"> / {limit}</span>
+            </p>
+            <div
+              className="connection-limits-panel__metric-track"
+              role="progressbar"
+              aria-valuenow={activeMatches}
+              aria-valuemin={0}
+              aria-valuemax={limit}
+              aria-label={`${activeMatches} of ${limit} active connections`}
+            >
+              <span
+                className={`connection-limits-panel__metric-fill connection-limits-panel__metric-fill--slots${
+                  atCapacity ? " connection-limits-panel__metric-fill--full" : ""
+                }`}
+                style={{ width: `${slotPct}%` }}
+              />
+            </div>
+            {!atCapacity ? (
+              <span className="connection-limits-panel__metric-chip">
+                {slotsOpen} slot{slotsOpen === 1 ? "" : "s"} available
+              </span>
+            ) : null}
+          </div>
+        </article>
       </div>
 
       {statusNote ? (
