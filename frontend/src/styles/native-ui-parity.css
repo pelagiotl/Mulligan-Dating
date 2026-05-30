@@ -1948,23 +1948,27 @@ button.connect-landing__cta:disabled::before {
   }
 }
 
-.matches-page.native-app-screen .matches-title {
+.matches-page.native-app-screen .matches-sidebar-header {
   margin: calc(-1 * var(--space-6)) calc(-1 * var(--space-6)) var(--space-5);
-  padding: var(--space-5) var(--space-6);
+  padding: var(--space-5) var(--space-6) var(--space-4);
   background: var(--native-gradient-matches-header);
-  color: #fff;
-  -webkit-text-fill-color: #fff;
   border-bottom: none;
+  border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+}
+
+.matches-page.native-app-screen .matches-title-row {
+  margin-bottom: var(--space-3);
+}
+
+.matches-page.native-app-screen .matches-title {
+  color: #fff;
+  background: none;
+  -webkit-text-fill-color: #fff;
   font-weight: 800;
   font-size: 1.35rem;
   letter-spacing: -0.02em;
   text-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
-  border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
   font-family: var(--font-body, system-ui, sans-serif);
-}
-
-.matches-page.native-app-screen .matches-title::after {
-  display: none;
 }
 
 .matches-page.native-app-screen .match-item {

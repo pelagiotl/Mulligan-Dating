@@ -24,6 +24,8 @@ import MatchPartnerProfileSheet from "../components/MatchPartnerProfileSheet";
 import { releaseAllBodyScrollLocks, useBodyScrollLock } from "../utils/bodyScrollLock";
 import { useConnectionLimits } from "../hooks/useConnectionLimits";
 import ConnectionLimitsPanel from "../components/ConnectionLimitsPanel";
+import MatchesHeaderHeartIcon from "../components/MatchesHeaderHeartIcon";
+import { useConnectShellTheme } from "../context/ConnectShellThemeContext";
 import { emitMatchSlotsUpdated } from "../lib/matchSlotEvents";
 
 interface Photo {
@@ -202,6 +204,7 @@ const PULSE_ENGAGEMENT_LABEL: Record<"cold" | "neutral" | "warming" | "hot", str
 
 export default function Matches() {
   const { user } = useAuth();
+  const { mode: connectShellMode } = useConnectShellTheme();
   const location = useLocation();
   const navigate = useNavigate();
   const connectionLimits = useConnectionLimits(!!user);
@@ -2123,16 +2126,20 @@ export default function Matches() {
         }}
       />
       <div className="matches-sidebar">
-        <h2 className="matches-title">Your Matches</h2>
-
-        <ConnectionLimitsPanel
-          loading={connectionLimits.loading}
-          availableTokens={connectionLimits.availableTokens}
-          canClaimWeeklyToken={connectionLimits.canClaimWeeklyToken}
-          nextRefillDate={connectionLimits.nextRefillDate}
-          activeMatches={connectionLimits.activeMatches}
-          slotLimit={connectionLimits.slotLimit}
-        />
+        <header className="matches-sidebar-header">
+          <div className="matches-title-row">
+            <MatchesHeaderHeartIcon shell={connectShellMode} />
+            <h2 className="matches-title">Your Matches</h2>
+          </div>
+          <ConnectionLimitsPanel
+            loading={connectionLimits.loading}
+            availableTokens={connectionLimits.availableTokens}
+            canClaimWeeklyToken={connectionLimits.canClaimWeeklyToken}
+            nextRefillDate={connectionLimits.nextRefillDate}
+            activeMatches={connectionLimits.activeMatches}
+            slotLimit={connectionLimits.slotLimit}
+          />
+        </header>
 
         {matches.length === 0 ? (
           <div className="no-matches">

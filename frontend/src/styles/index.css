@@ -9694,6 +9694,22 @@ button.my-profile-mini-card:focus-visible {
   background: var(--color-rose-300);
 }
 
+.matches-sidebar-header {
+  margin-bottom: var(--space-5);
+  padding-bottom: var(--space-4);
+  border-bottom: 2px solid rgba(244, 63, 94, 0.1);
+}
+
+.matches-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.65rem;
+  margin-bottom: var(--space-3);
+  overflow: visible;
+}
+
 .matches-title {
   font-size: 1.75rem;
   font-weight: 700;
@@ -9701,23 +9717,172 @@ button.my-profile-mini-card:focus-visible {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  margin-bottom: var(--space-6);
-  padding-bottom: var(--space-4);
-  border-bottom: 2px solid rgba(244, 63, 94, 0.1);
+  margin: 0;
+  padding: 0;
+  border-bottom: none;
   font-family: var(--font-display);
   letter-spacing: -0.5px;
   position: relative;
 }
 
-.matches-title::after {
-  content: '';
+.matches-sidebar-header .connection-limits-panel {
+  margin-bottom: 0;
+}
+
+/* Animated heart beside “Your Matches” (Android header parity) */
+.matches-header-heart {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-left: -0.35rem;
+  padding: 0.35rem 0.4rem;
+  animation: matches-header-heart-pulse 2.4s ease-in-out infinite;
+  transform-origin: center;
+}
+
+.matches-header-heart__glow {
   position: absolute;
-  bottom: -2px;
-  left: 0;
-  width: 80px;
-  height: 2px;
-  background: linear-gradient(90deg, var(--color-rose-500), transparent);
-  border-radius: var(--radius-full);
+  top: -0.2rem;
+  left: -0.2rem;
+  width: 3.35rem;
+  height: 3.35rem;
+  border-radius: 50%;
+  z-index: 0;
+  animation: matches-header-heart-glow 3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.matches-header-heart--soft .matches-header-heart__glow {
+  background: rgba(136, 19, 55, 0.28);
+  box-shadow: 0 0 22px rgba(136, 19, 55, 0.55);
+}
+
+.matches-header-heart--sunny .matches-header-heart__glow {
+  background: rgba(251, 146, 60, 0.32);
+  box-shadow: 0 0 22px rgba(234, 88, 12, 0.5);
+}
+
+.matches-header-heart--midnight .matches-header-heart__glow {
+  background: rgba(244, 114, 182, 0.36);
+  box-shadow: 0 0 24px rgba(236, 72, 153, 0.55);
+}
+
+.matches-header-heart__badge {
+  position: relative;
+  z-index: 1;
+  width: 3.15rem;
+  height: 3.15rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  overflow: hidden;
+  animation: matches-header-heart-wobble 6s ease-in-out infinite;
+}
+
+.matches-header-heart__gradient {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.92);
+}
+
+.matches-header-heart--soft .matches-header-heart__gradient {
+  background: linear-gradient(135deg, #fecdd3, #fb7185, #be185d);
+  box-shadow: 0 4px 14px rgba(136, 19, 55, 0.38);
+}
+
+.matches-header-heart--sunny .matches-header-heart__gradient {
+  background: linear-gradient(135deg, #fed7aa, #fb923c, #ea580c);
+  box-shadow: 0 4px 14px rgba(234, 88, 12, 0.36);
+}
+
+.matches-header-heart--midnight .matches-header-heart__gradient {
+  background: linear-gradient(135deg, #fbcfe8, #f472b6, #c026d3);
+  border-color: rgba(255, 255, 255, 0.28);
+  box-shadow: 0 4px 16px rgba(219, 39, 119, 0.42);
+}
+
+.matches-header-heart__shimmer {
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 200%;
+  height: 100%;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.42) 45%,
+    transparent 70%
+  );
+  transform: rotate(15deg);
+  animation: matches-header-heart-shimmer 2s linear infinite;
+  pointer-events: none;
+}
+
+.matches-header-heart__emoji {
+  position: relative;
+  z-index: 2;
+  font-size: 1.65rem;
+  line-height: 1;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.28));
+}
+
+@keyframes matches-header-heart-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+}
+
+@keyframes matches-header-heart-wobble {
+  0%,
+  100% {
+    transform: rotate(-10deg);
+  }
+  50% {
+    transform: rotate(10deg);
+  }
+}
+
+@keyframes matches-header-heart-glow {
+  0%,
+  100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+}
+
+@keyframes matches-header-heart-shimmer {
+  0% {
+    transform: translateX(-35%) rotate(15deg);
+    opacity: 0;
+  }
+  35% {
+    opacity: 0.35;
+  }
+  100% {
+    transform: translateX(35%) rotate(15deg);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .matches-header-heart,
+  .matches-header-heart__glow,
+  .matches-header-heart__badge,
+  .matches-header-heart__shimmer {
+    animation: none;
+  }
 }
 
 .no-matches {
