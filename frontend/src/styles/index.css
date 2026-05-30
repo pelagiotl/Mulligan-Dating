@@ -12365,6 +12365,201 @@ button.chat-avatar-btn .chat-avatar img {
   min-width: 8rem;
 }
 
+/* Animated perimeter ring — settings tab section cards */
+.settings-perimeter-border {
+  --perimeter-delay: 0ms;
+  --perimeter-rotate-duration: 26s;
+  --settings-ring-a: rgba(103, 232, 249, 0.9);
+  --settings-ring-b: rgba(167, 139, 250, 0.88);
+  --settings-ring-c: rgba(244, 114, 182, 0.86);
+  position: relative;
+  padding: 2px;
+  border-radius: var(--radius-2xl);
+  overflow: hidden;
+  margin-bottom: var(--space-6);
+  transition: transform var(--transition-base), filter var(--transition-base);
+}
+
+.settings-perimeter-border::before {
+  content: "";
+  position: absolute;
+  inset: -48%;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.96),
+    var(--settings-ring-a),
+    var(--settings-ring-b),
+    var(--settings-ring-c),
+    rgba(255, 255, 255, 0.96)
+  );
+  animation: profilePerimeterRotate var(--perimeter-rotate-duration) linear infinite;
+  animation-delay: var(--perimeter-delay);
+}
+
+.settings-perimeter-border:hover {
+  transform: translateY(-2px);
+}
+
+.settings-perimeter-border__inner {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  border-radius: calc(var(--radius-2xl) - 2px);
+}
+
+.settings-perimeter-border--notifications {
+  --settings-ring-a: rgba(251, 191, 36, 0.92);
+  --settings-ring-b: rgba(56, 189, 248, 0.9);
+  --settings-ring-c: rgba(129, 140, 248, 0.88);
+}
+
+.settings-perimeter-border--appearance {
+  --perimeter-rotate-duration: 22s;
+  --settings-ring-a: rgba(30, 27, 75, 0.88);
+  --settings-ring-b: rgba(251, 191, 36, 0.9);
+  --settings-ring-c: rgba(244, 114, 182, 0.88);
+}
+
+.settings-perimeter-border--account {
+  --settings-ring-a: rgba(99, 102, 241, 0.9);
+  --settings-ring-b: rgba(236, 72, 153, 0.88);
+  --settings-ring-c: rgba(251, 191, 36, 0.86);
+}
+
+.settings-perimeter-border--blocks {
+  --settings-ring-a: rgba(148, 163, 184, 0.92);
+  --settings-ring-b: rgba(239, 68, 68, 0.82);
+  --settings-ring-c: rgba(251, 146, 60, 0.86);
+}
+
+.settings-perimeter-border--tokens {
+  --settings-ring-a: rgba(251, 191, 36, 0.92);
+  --settings-ring-b: rgba(16, 185, 129, 0.88);
+  --settings-ring-c: rgba(99, 102, 241, 0.86);
+}
+
+.settings-perimeter-border--session {
+  --settings-ring-a: rgba(56, 189, 248, 0.88);
+  --settings-ring-b: rgba(129, 140, 248, 0.86);
+  --settings-ring-c: rgba(148, 163, 184, 0.9);
+}
+
+.settings-perimeter-border--danger {
+  --perimeter-rotate-duration: 18s;
+  --settings-ring-a: rgba(248, 113, 113, 0.92);
+  --settings-ring-b: rgba(239, 68, 68, 0.9);
+  --settings-ring-c: rgba(251, 146, 60, 0.88);
+}
+
+.settings-section--bordered {
+  margin-bottom: 0;
+  border: none;
+  overflow: hidden;
+}
+
+.settings-perimeter-border--notifications .settings-section--bordered {
+  background: linear-gradient(165deg, #fffefb 0%, rgba(254, 249, 195, 0.42) 55%, rgba(224, 242, 254, 0.35) 100%);
+}
+
+.settings-perimeter-border--appearance .settings-section--bordered {
+  background: linear-gradient(
+    165deg,
+    #fffefb 0%,
+    rgba(237, 233, 254, 0.55) 40%,
+    rgba(254, 243, 199, 0.38) 100%
+  );
+}
+
+.settings-perimeter-border--account .settings-section--bordered {
+  background: linear-gradient(
+    165deg,
+    #ffffff 0%,
+    rgba(238, 242, 255, 0.72) 45%,
+    rgba(255, 241, 242, 0.55) 100%
+  );
+}
+
+.settings-perimeter-border--blocks .settings-section--bordered {
+  background: linear-gradient(
+    165deg,
+    #fafafa 0%,
+    rgba(254, 226, 226, 0.28) 50%,
+    rgba(241, 245, 249, 0.65) 100%
+  );
+}
+
+.settings-perimeter-border--tokens .settings-section--bordered {
+  background: linear-gradient(
+    165deg,
+    #fffefb 0%,
+    rgba(254, 243, 199, 0.45) 42%,
+    rgba(209, 250, 229, 0.38) 100%
+  );
+}
+
+.settings-perimeter-border--session .settings-section--bordered {
+  background: linear-gradient(
+    165deg,
+    #ffffff 0%,
+    rgba(224, 242, 254, 0.5) 48%,
+    rgba(238, 242, 255, 0.55) 100%
+  );
+}
+
+.settings-perimeter-border--danger .settings-section--bordered.danger-zone {
+  background: linear-gradient(135deg, #fef2f2, #fee2e2);
+  border: none;
+}
+
+.settings-perimeter-border--danger .settings-section--bordered.danger-zone:hover {
+  border: none;
+}
+
+.settings-section--bordered::after {
+  content: "";
+  position: absolute;
+  top: -55%;
+  left: -35%;
+  width: 48%;
+  height: 210%;
+  pointer-events: none;
+  background: linear-gradient(
+    102deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.14) 45%,
+    rgba(255, 255, 255, 0.04) 52%,
+    transparent 58%
+  );
+  animation: settingsSectionShimmer 9s ease-in-out infinite;
+  animation-delay: var(--perimeter-delay);
+}
+
+@keyframes settingsSectionShimmer {
+  0% {
+    transform: translateX(-120%) rotate(10deg);
+    opacity: 0;
+  }
+  14% {
+    opacity: 0.35;
+  }
+  100% {
+    transform: translateX(260%) rotate(10deg);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-perimeter-border::before,
+  .settings-section--bordered::after {
+    animation: none;
+  }
+
+  .settings-perimeter-border::before {
+    opacity: 0.65;
+  }
+}
+
 .settings-section {
   background: var(--bg-secondary);
   border-radius: var(--radius-2xl);
@@ -12391,6 +12586,13 @@ button.chat-avatar-btn .chat-avatar img {
 
 .settings-section:hover {
   box-shadow: var(--shadow-lg);
+}
+
+.settings-section--bordered:hover {
+  border-color: transparent;
+}
+
+.settings-section:not(.settings-section--bordered):hover {
   border-color: var(--border-medium);
 }
 
@@ -12754,9 +12956,21 @@ button.chat-avatar-btn .chat-avatar img {
   box-shadow: 0 4px 20px rgba(239, 68, 68, 0.1);
 }
 
+.settings-section--bordered.danger-zone {
+  border: none;
+  box-shadow: var(--shadow-md);
+}
+
 .settings-section.danger-zone:hover {
-  border-color: #f87171;
   box-shadow: 0 6px 25px rgba(239, 68, 68, 0.15);
+}
+
+.settings-section--bordered.danger-zone:hover {
+  border-color: transparent;
+}
+
+.settings-section.danger-zone:not(.settings-section--bordered):hover {
+  border-color: #f87171;
 }
 
 .settings-section.danger-zone .settings-section-title {

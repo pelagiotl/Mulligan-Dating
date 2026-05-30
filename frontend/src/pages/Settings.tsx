@@ -5,6 +5,7 @@ import { connectShellDisplayLabel } from "../lib/connectShellTheme";
 import { api } from "../utils/api";
 import { Link, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import WebTokenPurchase from "../components/WebTokenPurchase";
+import SettingsSectionCard from "../components/SettingsSectionCard";
 import {
   browserSupportsWebPush,
   getVapidPublicKey,
@@ -377,7 +378,7 @@ export default function Settings() {
         {success && <div className="auth-success">{success}</div>}
 
         {/* Browser push (web / PWA) — high on the page so users see it; permission must be requested from a tap (especially iOS). */}
-        <div className="settings-section">
+        <SettingsSectionCard variant="notifications" delay={0}>
           <h2 className="settings-section-title">
             <span>🔔</span> Browser notifications
           </h2>
@@ -427,9 +428,9 @@ export default function Settings() {
               )}
             </>
           )}
-        </div>
+        </SettingsSectionCard>
 
-        <div className="settings-section">
+        <SettingsSectionCard variant="appearance" delay={140}>
           <h2 className="settings-section-title">
             <span>🎨</span> Connect tab appearance
           </h2>
@@ -449,10 +450,10 @@ export default function Settings() {
               {connectShellDisplayLabel(connectShellMode)}
             </button>
           </div>
-        </div>
+        </SettingsSectionCard>
 
         {/* Account — layout aligned with mobile Settings (stats + profile shortcuts) */}
-        <div className="settings-section">
+        <SettingsSectionCard variant="account" delay={280}>
           <h2 className="settings-section-title">
             <span>👤</span> Account
           </h2>
@@ -583,9 +584,9 @@ export default function Settings() {
               <span>📷</span> Photos (need 3 to Connect)
             </Link>
           </div>
-        </div>
+        </SettingsSectionCard>
 
-        <div className="settings-section">
+        <SettingsSectionCard variant="blocks" delay={420}>
           <h2 className="settings-section-title">
             <span>🚫</span> Block list
           </h2>
@@ -660,17 +661,17 @@ export default function Settings() {
               ))}
             </ul>
           )}
-        </div>
+        </SettingsSectionCard>
 
         {/* Tokens — shared with landing page (WebTokenPurchase) */}
-        <div id="tokens" className="settings-section">
+        <SettingsSectionCard id="tokens" variant="tokens" delay={560}>
           <h2 className="settings-section-title">
             <span>💳</span> Tokens
           </h2>
           <WebTokenPurchase variant="settings" customerEmail={accountEmail || undefined} />
-        </div>
+        </SettingsSectionCard>
 
-        <div className="settings-section settings-session-section">
+        <SettingsSectionCard variant="session" delay={700}>
           <h2 className="settings-section-title">
             <span>🚪</span> Session
           </h2>
@@ -684,10 +685,10 @@ export default function Settings() {
           >
             Log out
           </button>
-        </div>
+        </SettingsSectionCard>
 
         {/* Delete Account */}
-        <div className="settings-section danger-zone">
+        <SettingsSectionCard variant="danger" delay={840}>
           <h2 className="settings-section-title">
             <span>⚠️</span> Danger Zone
           </h2>
@@ -743,7 +744,7 @@ export default function Settings() {
               </div>
             </form>
           )}
-        </div>
+        </SettingsSectionCard>
       </div>
 
     </div>
