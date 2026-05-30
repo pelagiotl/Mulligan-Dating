@@ -18,7 +18,6 @@ import {
   TextInput,
   KeyboardAvoidingView,
 } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, useRoute, useFocusEffect, useIsFocused, CommonActions } from '@react-navigation/native';
 import { navigationRef } from '../navigation/navigationRef';
@@ -55,12 +54,21 @@ import {
   LOOKING_FOR_META,
   isCanonicalLookingFor,
   DEALBREAKER_EMOJI,
+  DEALBREAKER_SUGGESTIONS,
+  DEALBREAKER_CANONICAL_SET,
   canonicalDealbreakerLabel,
   PARTNER_QUALITY_EMOJI,
+  PARTNER_QUALITY_OPTIONS,
   getInterestEmoji,
   isCanonicalPartnerQuality,
   LIFESTYLE_FIELD_LABEL,
+  LIFESTYLE_FIELD_EMOJI,
+  LIFESTYLE_FIELD_OPTIONS,
+  lifestyleFormFromApi,
+  lifestyleOptionParts,
   lifestylePickerItemLabel,
+  type LifestyleFieldKey,
+  type LifestyleForm,
 } from '../constants/profileMySections';
 
 // Animated Emoji Component for section icons
@@ -172,9 +180,35 @@ interface SettingsData {
 // Values sent to API (matching uses profile.gender: "Man" | "Woman" | "Non-binary" etc.)
 const PREFERRED_GENDERS_VALUES = ['Man', 'Woman', 'Everyone'];
 const PREFERRED_GENDERS_LABELS: Record<string, string> = { Man: 'Men', Woman: 'Women', Everyone: 'Everyone' };
+const PREFERRED_GENDERS_EMOJI: Record<string, string> = { Man: '👨', Woman: '👩', Everyone: '🌍' };
 function preferredGenderLabel(value: string) { return PREFERRED_GENDERS_LABELS[value] ?? value; }
 
+const MAX_DISTANCE_META: Record<string, { tag: string }> = {
+  '10': { tag: 'Around town' },
+  '25': { tag: 'City & nearby' },
+  '50': { tag: 'Metro area' },
+  '100': { tag: 'Regional' },
+  '250': { tag: 'Wide net' },
+  '500': { tag: 'Far & wide' },
+  any: { tag: 'Everywhere' },
+};
+
+function distanceOptionKey(opt: number | null): string {
+  return opt === null ? 'any' : String(opt);
+}
+
 const MAX_DISTANCE_OPTIONS: (number | null)[] = [10, 25, 50, 100, 250, 500, null]; // null = Any
+
+const LIFESTYLE_FIELD_GRADIENTS: Record<LifestyleFieldKey, readonly [string, string, string]> = {
+  smoking: ['#6ee7b7', '#34d399', '#10b981'],
+  drinking: ['#93c5fd', '#60a5fa', '#3b82f6'],
+  children: ['#fcd34d', '#fbbf24', '#f59e0b'],
+  pets: ['#c4b5fd', '#a78bfa', '#8b5cf6'],
+  religion: ['#f9a8d4', '#f472b6', '#ec4899'],
+  political: ['#a5b4fc', '#818cf8', '#6366f1'],
+  workLifeBalance: ['#67e8f9', '#22d3ee', '#06b6d4'],
+  worksOut: ['#86efac', '#4ade80', '#22c55e'],
+};
 
 const GENDER_OPTIONS = ['Man', 'Woman', 'Other'] as const;
 const GENDER_OPTION_META: Record<(typeof GENDER_OPTIONS)[number], { emoji: string; sub: string }> = {
@@ -221,11 +255,13 @@ export default function MyProfileScreen() {
   const dragAnimatedValue = useRef(new Animated.ValueXY()).current;
   // Location / Max distance / Bio edit modals and state
   const [showAgeModal, setShowAgeModal] = useState(false);
+  const [showNameModal, setShowNameModal] = useState(false);
   const [showGenderModal, setShowGenderModal] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showDistanceModal, setShowDistanceModal] = useState(false);
   const [showPreferredGendersModal, setShowPreferredGendersModal] = useState(false);
   const [editAge, setEditAge] = useState('');
+  const [editDisplayName, setEditDisplayName] = useState('');
   const [editGender, setEditGender] = useState('');
   const [editLocation, setEditLocation] = useState('');
   const [editMaxDistance, setEditMaxDistance] = useState<number | null>(50);
@@ -234,6 +270,14 @@ export default function MyProfileScreen() {
   const [editBio, setEditBio] = useState('');
   const [showLookingForModal, setShowLookingForModal] = useState(false);
   const [editLookingFor, setEditLookingFor] = useState('');
+  const [showInterestsModal, setShowInterestsModal] = useState(false);
+  const [editInterests, setEditInterests] = useState<string[]>([]);
+  const [showDealbreakersModal, setShowDealbreakersModal] = useState(false);
+  const [editDealbreakers, setEditDealbreakers] = useState<string[]>([]);
+  const [showQualitiesModal, setShowQualitiesModal] = useState(false);
+  const [editQualities, setEditQualities] = useState<string[]>([]);
+  const [showLifestyleModal, setShowLifestyleModal] = useState(false);
+  const [editLifestyle, setEditLifestyle] = useState<LifestyleForm>(() => lifestyleFormFromApi(null));
   const [detectingLocation, setDetectingLocation] = useState(false);
   const [updatingField, setUpdatingField] = useState(false);
   const [updatingActiveStatus, setUpdatingActiveStatus] = useState(false);
@@ -296,54 +340,6 @@ export default function MyProfileScreen() {
   const sparkle2Anim = useRef(new Animated.Value(0)).current;
   const sparkle3Anim = useRef(new Animated.Value(0)).current;
 
-  // Edit Profile button animations (pulse + shimmer, similar to Connect button)
-  const editButtonPulse = useRef(new Animated.Value(1)).current;
-  const editButtonShimmer = useRef(new Animated.Value(0)).current;
-  const editButtonScale = useRef(new Animated.Value(1)).current;
-  const editButtonLoopsRef = useRef<{ pulseLoop: Animated.CompositeAnimation; shimmerLoop: Animated.CompositeAnimation } | null>(null);
-
-  const startEditButtonAnimations = useCallback(() => {
-    if (editButtonLoopsRef.current) return;
-    editButtonPulse.setValue(1);
-    editButtonShimmer.setValue(0);
-    const pulseLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(editButtonPulse, { toValue: 1.05, duration: 1500, useNativeDriver: true }),
-        Animated.timing(editButtonPulse, { toValue: 1, duration: 1500, useNativeDriver: true }),
-      ])
-    );
-    const shimmerLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(editButtonShimmer, { toValue: 1, duration: 3000, useNativeDriver: true }),
-        Animated.timing(editButtonShimmer, { toValue: 0, duration: 0, useNativeDriver: true }),
-      ])
-    );
-    pulseLoop.start();
-    shimmerLoop.start();
-    editButtonLoopsRef.current = { pulseLoop, shimmerLoop };
-  }, []);
-
-  const stopEditButtonAnimations = useCallback(() => {
-    const loops = editButtonLoopsRef.current;
-    if (loops) {
-      loops.pulseLoop.stop();
-      loops.shimmerLoop.stop();
-      editButtonLoopsRef.current = null;
-    }
-    editButtonPulse.setValue(1);
-    editButtonShimmer.setValue(0);
-  }, []);
-
-  const handleEditButtonLayout = useCallback(() => {
-    stopEditButtonAnimations();
-    setTimeout(() => startEditButtonAnimations(), 200);
-  }, [stopEditButtonAnimations, startEditButtonAnimations]);
-
-  useEffect(() => {
-    if (!isFocused) stopEditButtonAnimations();
-    return () => stopEditButtonAnimations();
-  }, [isFocused, stopEditButtonAnimations]);
-  
   useEffect(() => {
     if (data) {
       // Show header and avatar at full size immediately (no spring delay)
@@ -813,6 +809,34 @@ export default function MyProfileScreen() {
     }
   };
 
+  const saveDisplayName = async () => {
+    if (!data?.profile) return;
+    const name = editDisplayName.trim();
+    if (name.length < 2) {
+      Alert.alert('Name too short', 'Please enter at least 2 characters.');
+      return;
+    }
+    if (name.length > 50) {
+      Alert.alert('Name too long', 'Please keep your name under 50 characters.');
+      return;
+    }
+    setUpdatingField(true);
+    try {
+      await api.put('/profile/basics', { displayName: name });
+      setData((prev) =>
+        prev ? { ...prev, profile: { ...prev.profile, display_name: name } } : null
+      );
+      setShowNameModal(false);
+      api.clearCache('/profile');
+      api.clearCache('/auth/me');
+      refreshProfile?.();
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to update name.');
+    } finally {
+      setUpdatingField(false);
+    }
+  };
+
   const saveAge = async () => {
     if (!data?.profile) return;
     const ageNum = parseInt(editAge.trim(), 10);
@@ -952,7 +976,7 @@ export default function MyProfileScreen() {
       api.clearCache('/profile');
       refreshProfile?.();
     } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Failed to update preferred connections.');
+      Alert.alert('Error', e?.message || 'Failed to update preferred matches.');
     } finally {
       setUpdatingField(false);
     }
@@ -1010,6 +1034,102 @@ export default function MyProfileScreen() {
       refreshProfile?.();
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Failed to update.');
+    } finally {
+      setUpdatingField(false);
+    }
+  };
+
+  const toggleInterestEdit = (name: string) => {
+    setEditInterests((prev) =>
+      prev.includes(name) ? prev.filter((x) => x !== name) : [...prev, name]
+    );
+  };
+
+  const toggleDealbreakerEdit = (text: string) => {
+    if (!DEALBREAKER_CANONICAL_SET.has(text)) return;
+    setEditDealbreakers((prev) =>
+      prev.includes(text) ? prev.filter((x) => x !== text) : [...prev, text]
+    );
+  };
+
+  const toggleQualityEdit = (q: string) => {
+    setEditQualities((prev) => (prev.includes(q) ? prev.filter((x) => x !== q) : [...prev, q]));
+  };
+
+  const saveInterests = async () => {
+    if (editInterests.length < 3) {
+      Alert.alert('Pick more interests', 'Please select at least 3 interests.');
+      return;
+    }
+    setUpdatingField(true);
+    try {
+      await api.put('/profile/interests', {
+        interests: editInterests.map((name) => ({ name })),
+      });
+      await refreshProfileData();
+      setShowInterestsModal(false);
+      api.clearCache('/profile');
+      refreshProfile?.();
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to update interests.');
+    } finally {
+      setUpdatingField(false);
+    }
+  };
+
+  const saveDealbreakers = async () => {
+    setUpdatingField(true);
+    try {
+      await api.put('/profile/dealbreakers', {
+        dealbreakers: editDealbreakers.filter((d) => DEALBREAKER_CANONICAL_SET.has(d)),
+      });
+      await refreshProfileData();
+      setShowDealbreakersModal(false);
+      api.clearCache('/profile');
+      refreshProfile?.();
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to update dealbreakers.');
+    } finally {
+      setUpdatingField(false);
+    }
+  };
+
+  const saveQualities = async () => {
+    setUpdatingField(true);
+    try {
+      await api.put('/profile/partner-qualities', {
+        qualities: editQualities.map((quality) => ({ quality, importance: 5 })),
+      });
+      await refreshProfileData();
+      setShowQualitiesModal(false);
+      api.clearCache('/profile');
+      refreshProfile?.();
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to update what you\'re looking for.');
+    } finally {
+      setUpdatingField(false);
+    }
+  };
+
+  const saveLifestyle = async () => {
+    setUpdatingField(true);
+    try {
+      await api.put('/profile/lifestyle', {
+        smoking: editLifestyle.smoking || null,
+        drinking: editLifestyle.drinking || null,
+        children: editLifestyle.children || null,
+        pets: editLifestyle.pets || null,
+        religion: editLifestyle.religion || null,
+        political: editLifestyle.political || null,
+        workLifeBalance: editLifestyle.workLifeBalance || null,
+        worksOut: editLifestyle.worksOut || null,
+      });
+      await refreshProfileData();
+      setShowLifestyleModal(false);
+      api.clearCache('/profile');
+      refreshProfile?.();
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to update lifestyle.');
     } finally {
       setUpdatingField(false);
     }
@@ -2025,6 +2145,42 @@ export default function MyProfileScreen() {
                 </LinearGradient>
               </TouchableOpacity>
               
+              <ProfileEditableCardBorder
+                delay={180}
+                traceColors={['rgba(255,255,255,0.95)', '#667eea', '#f093fb', 'rgba(255,255,255,0.95)']}
+              >
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  onPress={() => {
+                    setEditDisplayName(profile.display_name || '');
+                    setShowNameModal(true);
+                    Vibration.vibrate(50);
+                  }}
+                >
+                  <LinearGradient
+                    colors={['#667eea', '#764ba2', '#f093fb']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.infoCardFull}
+                  >
+                    <Text style={styles.infoCardEmoji}>✨</Text>
+                    <Text style={styles.infoCardLabel}>Display name</Text>
+                    <Text
+                      style={[
+                        styles.infoCardValueFull,
+                        profile.display_name.length > 24 && styles.infoCardValueFullLong,
+                      ]}
+                      numberOfLines={2}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.72}
+                    >
+                      {profile.display_name}
+                    </Text>
+                    <Text style={styles.infoCardTapHint}>Tap to update</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </ProfileEditableCardBorder>
+
               {/* Modern Info Cards Grid */}
               <View style={styles.infoGrid}>
                 <ProfileEditableCardBorder
@@ -2160,7 +2316,7 @@ export default function MyProfileScreen() {
                 </TouchableOpacity>
               </ProfileEditableCardBorder>
 
-              {/* Preferred connections - tappable to update */}
+              {/* Preferred matches - tappable to update */}
               <ProfileEditableCardBorder
                 delay={400}
                 traceColors={['rgba(255,255,255,0.95)', '#a78bfa', '#e879f9', 'rgba(255,255,255,0.95)']}
@@ -2195,7 +2351,7 @@ export default function MyProfileScreen() {
                     style={styles.infoCardFull}
                   >
                     <Text style={styles.infoCardEmoji}>💕</Text>
-                    <Text style={styles.infoCardLabel}>Preferred connections</Text>
+                    <Text style={styles.infoCardLabel}>Preferred matches</Text>
                     <Text style={styles.infoCardValueFull}>
                       {(() => {
                         const pg = data?.preferences?.preferred_genders;
@@ -2281,6 +2437,93 @@ export default function MyProfileScreen() {
           </View>
         </LinearGradient>
       </Animated.View>
+
+      {/* Display name edit modal */}
+      <Modal visible={showNameModal} transparent animationType="fade">
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={0}
+        >
+          <View style={styles.modalOverlay}>
+            <TouchableOpacity
+              style={styles.modalOverlayTouchable}
+              activeOpacity={1}
+              onPress={() => setShowNameModal(false)}
+            />
+            <View style={styles.editModalCardWide}>
+              <LinearGradient
+                colors={['#667eea', '#764ba2', '#f093fb', '#f5576c']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.editModalGradient}
+              >
+                <Text style={styles.editModalEmoji}>✨</Text>
+                <Text style={styles.editModalTitleLight}>Your display name</Text>
+                <Text style={styles.editModalSubtitleLight}>
+                  Shown to people you connect with — first name or nickname works great
+                </Text>
+                <View style={styles.nameModalInner}>
+                  <LinearGradient
+                    colors={['rgba(102, 126, 234, 0.35)', 'rgba(240, 147, 251, 0.35)']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.nameModalInputRing}
+                  >
+                    <TextInput
+                      style={styles.nameModalInput}
+                      value={editDisplayName}
+                      onChangeText={setEditDisplayName}
+                      placeholder="Your name"
+                      placeholderTextColor="#94a3b8"
+                      autoCapitalize="words"
+                      autoCorrect={false}
+                      maxLength={50}
+                      editable={!updatingField}
+                      autoFocus
+                    />
+                  </LinearGradient>
+                  <Text style={styles.nameModalCharCount}>
+                    {editDisplayName.trim().length}/50
+                  </Text>
+                  {editDisplayName.trim().length >= 2 ? (
+                    <View style={styles.nameModalPreview}>
+                      <Text style={styles.nameModalPreviewLabel}>Matches will see</Text>
+                      <Text style={styles.nameModalPreviewValue}>
+                        👋 {editDisplayName.trim()}
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.nameModalHint}>At least 2 characters</Text>
+                  )}
+                </View>
+                <View style={styles.editModalActions}>
+                  <TouchableOpacity
+                    style={styles.editModalCancelPill}
+                    onPress={() => {
+                      setShowNameModal(false);
+                      setEditDisplayName(profile.display_name || '');
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.editModalCancelPillText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.editModalSavePill}
+                    onPress={saveDisplayName}
+                    disabled={updatingField || editDisplayName.trim().length < 2}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.editModalSavePillText}>
+                      {updatingField ? 'Saving...' : 'Save name'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </LinearGradient>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       {/* Age edit modal */}
       <Modal visible={showAgeModal} transparent animationType="fade">
@@ -2468,16 +2711,21 @@ export default function MyProfileScreen() {
               style={styles.editModalGradient}
             >
               <Text style={styles.editModalEmoji}>💕</Text>
-              <Text style={styles.editModalTitleLight}>Preferred connections</Text>
-              <Text style={styles.editModalSubtitleLight}>Who you want to see in Connect</Text>
+              <Text style={styles.editModalTitleLight}>Preferred matches</Text>
+              <Text style={styles.editModalSubtitleLight}>Who you want to see when browsing for matches</Text>
               <ScrollView style={styles.preferredGendersScroll} contentContainerStyle={styles.preferredGendersScrollContent} showsVerticalScrollIndicator={true}>
                 <View style={styles.editModalInner}>
-                  {PREFERRED_GENDERS_VALUES.map((opt) => (
+                  {PREFERRED_GENDERS_VALUES.map((opt) => {
+                    const selected =
+                      editPreferredGenders.includes(opt) ||
+                      (opt === 'Everyone' &&
+                        (editPreferredGenders.length === 0 || editPreferredGenders.includes('Everyone')));
+                    return (
                     <TouchableOpacity
                       key={opt}
                       style={[
                         styles.preferredGenderOption,
-                        (editPreferredGenders.includes(opt) || (opt === 'Everyone' && (editPreferredGenders.length === 0 || editPreferredGenders.includes('Everyone')))) && styles.preferredGenderOptionActive,
+                        selected && styles.preferredGenderOptionActive,
                       ]}
                       onPress={() => {
                         if (opt === 'Everyone') {
@@ -2495,14 +2743,23 @@ export default function MyProfileScreen() {
                       }}
                       activeOpacity={0.8}
                     >
-                      <Text style={[
-                        styles.preferredGenderOptionText,
-                        (editPreferredGenders.includes(opt) || (opt === 'Everyone' && (editPreferredGenders.length === 0 || editPreferredGenders.includes('Everyone')))) && styles.preferredGenderOptionTextActive,
-                      ]}>
-                        {preferredGenderLabel(opt)}
-                      </Text>
+                      <View style={styles.preferredMatchOptionRow}>
+                        <Text style={styles.preferredMatchEmoji} allowFontScaling={false}>
+                          {PREFERRED_GENDERS_EMOJI[opt]}
+                        </Text>
+                        <Text style={[
+                          styles.preferredGenderOptionText,
+                          selected && styles.preferredGenderOptionTextActive,
+                        ]}>
+                          {preferredGenderLabel(opt)}
+                        </Text>
+                        {selected ? (
+                          <Text style={styles.preferredMatchCheck} allowFontScaling={false}>✓</Text>
+                        ) : null}
+                      </View>
                     </TouchableOpacity>
-                  ))}
+                    );
+                  })}
                 </View>
               </ScrollView>
               <View style={styles.editModalActions}>
@@ -2641,43 +2898,319 @@ export default function MyProfileScreen() {
       <Modal visible={showDistanceModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <TouchableOpacity style={styles.modalOverlayTouchable} activeOpacity={1} onPress={() => setShowDistanceModal(false)} />
-          <View style={styles.editModalCard}>
+          <View style={styles.editModalCardWide}>
             <LinearGradient
-              colors={['#43e97b', '#38f9d7']}
+              colors={['#43e97b', '#38f9d7', '#0d9488']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.editModalGradient}
             >
               <Text style={styles.editModalEmoji}>📏</Text>
               <Text style={styles.editModalTitleLight}>Max distance</Text>
-              <Text style={styles.editModalSubtitleLight}>Matches within this distance (used by matching)</Text>
-              <View style={styles.editModalInner}>
-                <View style={styles.distanceOptionsRow}>
-                  {MAX_DISTANCE_OPTIONS.map((value) => (
-                    <TouchableOpacity
-                      key={value ?? 'any'}
-                      style={[
-                        styles.distanceOptionButton,
-                        editMaxDistance === value && styles.distanceOptionButtonActive,
-                      ]}
-                      onPress={() => setEditMaxDistance(value)}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={[
-                        styles.distanceOptionText,
-                        editMaxDistance === value && styles.distanceOptionTextActive,
-                      ]}>
-                        {value == null ? 'Any' : `${value} mi`}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+              <Text style={styles.editModalSubtitleLight}>
+                People outside this radius won't show when you browse — pick what feels right
+              </Text>
+              <ScrollView style={styles.distanceModalScroll} keyboardShouldPersistTaps="handled">
+                <View style={styles.distanceGrid}>
+                  {MAX_DISTANCE_OPTIONS.map((value) => {
+                    const key = distanceOptionKey(value);
+                    const meta = MAX_DISTANCE_META[key];
+                    const selected = editMaxDistance === value;
+                    return (
+                      <TouchableOpacity
+                        key={key}
+                        style={[styles.distanceOptionCard, selected && styles.distanceOptionCardSelected]}
+                        onPress={() => setEditMaxDistance(value)}
+                        activeOpacity={0.85}
+                      >
+                        <View style={[styles.distanceOptionRing, selected && styles.distanceOptionRingSelected]} />
+                        <View style={styles.distanceOptionPrimary}>
+                          {value == null ? (
+                            <>
+                              <Text style={styles.distanceOptionNum}>∞</Text>
+                              <Text style={styles.distanceOptionMi}>Any</Text>
+                            </>
+                          ) : (
+                            <>
+                              <Text style={styles.distanceOptionNum}>{value}</Text>
+                              <Text style={styles.distanceOptionMi}>mi</Text>
+                            </>
+                          )}
+                        </View>
+                        <Text style={styles.distanceOptionTag}>{meta?.tag ?? ''}</Text>
+                        {selected ? (
+                          <View style={styles.distanceOptionCheckWrap}>
+                            <Text style={styles.distanceOptionCheck}>✓</Text>
+                          </View>
+                        ) : null}
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
-              </View>
+              </ScrollView>
               <View style={styles.editModalActions}>
                 <TouchableOpacity style={styles.editModalCancelPill} onPress={() => setShowDistanceModal(false)} activeOpacity={0.8}>
                   <Text style={styles.editModalCancelPillText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.editModalSavePill} onPress={saveMaxDistance} disabled={updatingField} activeOpacity={0.8}>
+                  <Text style={styles.editModalSavePillText}>{updatingField ? 'Saving...' : 'Save'}</Text>
+                </TouchableOpacity>
+              </View>
+            </LinearGradient>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showInterestsModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={styles.modalOverlayTouchable} activeOpacity={1} onPress={() => setShowInterestsModal(false)} />
+          <View style={styles.editModalCard}>
+            <LinearGradient
+              colors={['#667eea', '#764ba2', '#f093fb']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.editModalGradient}
+            >
+              <Text style={styles.editModalEmoji}>🎯</Text>
+              <Text style={styles.editModalTitleLight}>My interests</Text>
+              <Text style={styles.editModalSubtitleLight}>Select at least 3 ({editInterests.length} selected)</Text>
+              <ScrollView style={styles.profilePickerModalScrollTall} keyboardShouldPersistTaps="handled">
+                <View style={styles.editModalInner}>
+                  <View style={styles.dealbreakerModalGrid}>
+                    {PARTNER_QUALITY_OPTIONS.map((interest) => {
+                      const selected = editInterests.includes(interest);
+                      const emoji = PARTNER_QUALITY_EMOJI[interest] || '✨';
+                      return (
+                        <TouchableOpacity
+                          key={interest}
+                          style={[styles.dealbreakerChip, selected && styles.dealbreakerChipSelected]}
+                          onPress={() => toggleInterestEdit(interest)}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={[styles.dealbreakerChipText, selected && styles.dealbreakerChipTextSelected]}>
+                            {emoji} {interest}{selected ? ' ✓' : ''}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              </ScrollView>
+              <View style={styles.editModalActions}>
+                <TouchableOpacity style={styles.editModalCancelPill} onPress={() => setShowInterestsModal(false)} activeOpacity={0.8}>
+                  <Text style={styles.editModalCancelPillText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.editModalSavePill} onPress={saveInterests} disabled={updatingField} activeOpacity={0.8}>
+                  <Text style={styles.editModalSavePillText}>{updatingField ? 'Saving...' : 'Save'}</Text>
+                </TouchableOpacity>
+              </View>
+            </LinearGradient>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showDealbreakersModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={styles.modalOverlayTouchable} activeOpacity={1} onPress={() => setShowDealbreakersModal(false)} />
+          <View style={styles.editModalCard}>
+            <LinearGradient
+              colors={['#ef4444', '#f5576c', '#a78bfa']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.editModalGradient}
+            >
+              <Text style={styles.editModalEmoji}>🚫</Text>
+              <Text style={styles.editModalTitleLight}>Dealbreakers</Text>
+              <Text style={styles.editModalSubtitleLight}>Hard passes — tap to toggle ({editDealbreakers.length} on)</Text>
+              <ScrollView style={styles.profilePickerModalScrollTall} keyboardShouldPersistTaps="handled">
+                <View style={styles.editModalInner}>
+                  <View style={styles.dealbreakerModalGrid}>
+                    {DEALBREAKER_SUGGESTIONS.map((label) => {
+                      const selected = editDealbreakers.includes(label);
+                      const emoji = DEALBREAKER_EMOJI[label];
+                      return (
+                        <TouchableOpacity
+                          key={label}
+                          style={[styles.dealbreakerChip, selected && styles.dealbreakerChipSelected]}
+                          onPress={() => toggleDealbreakerEdit(label)}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={[styles.dealbreakerChipText, selected && styles.dealbreakerChipTextSelected]}>
+                            {emoji} {label}{selected ? ' ✓' : ''}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              </ScrollView>
+              <View style={styles.editModalActions}>
+                <TouchableOpacity style={styles.editModalCancelPill} onPress={() => setShowDealbreakersModal(false)} activeOpacity={0.8}>
+                  <Text style={styles.editModalCancelPillText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.editModalSavePill} onPress={saveDealbreakers} disabled={updatingField} activeOpacity={0.8}>
+                  <Text style={styles.editModalSavePillText}>{updatingField ? 'Saving...' : 'Save'}</Text>
+                </TouchableOpacity>
+              </View>
+            </LinearGradient>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showQualitiesModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={styles.modalOverlayTouchable} activeOpacity={1} onPress={() => setShowQualitiesModal(false)} />
+          <View style={styles.editModalCard}>
+            <LinearGradient
+              colors={['#f093fb', '#e879f9', '#667eea']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.editModalGradient}
+            >
+              <Text style={styles.editModalEmoji}>💕</Text>
+              <Text style={styles.editModalTitleLight}>What I'm looking for</Text>
+              <Text style={styles.editModalSubtitleLight}>Qualities that matter in a match ({editQualities.length} selected)</Text>
+              <ScrollView style={styles.profilePickerModalScrollTall} keyboardShouldPersistTaps="handled">
+                <View style={styles.editModalInner}>
+                  <View style={styles.dealbreakerModalGrid}>
+                    {PARTNER_QUALITY_OPTIONS.map((quality) => {
+                      const selected = editQualities.includes(quality);
+                      const emoji = PARTNER_QUALITY_EMOJI[quality] || '✨';
+                      return (
+                        <TouchableOpacity
+                          key={quality}
+                          style={[styles.dealbreakerChip, selected && styles.dealbreakerChipSelected]}
+                          onPress={() => toggleQualityEdit(quality)}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={[styles.dealbreakerChipText, selected && styles.dealbreakerChipTextSelected]}>
+                            {emoji} {quality}{selected ? ' ✓' : ''}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              </ScrollView>
+              <View style={styles.editModalActions}>
+                <TouchableOpacity style={styles.editModalCancelPill} onPress={() => setShowQualitiesModal(false)} activeOpacity={0.8}>
+                  <Text style={styles.editModalCancelPillText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.editModalSavePill} onPress={saveQualities} disabled={updatingField} activeOpacity={0.8}>
+                  <Text style={styles.editModalSavePillText}>{updatingField ? 'Saving...' : 'Save'}</Text>
+                </TouchableOpacity>
+              </View>
+            </LinearGradient>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showLifestyleModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={styles.modalOverlayTouchable} activeOpacity={1} onPress={() => setShowLifestyleModal(false)} />
+          <View style={styles.editModalCardWide}>
+            <LinearGradient
+              colors={['#43e97b', '#38f9d7', '#667eea']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.editModalGradient}
+            >
+              <Text style={styles.editModalEmoji}>🌱</Text>
+              <Text style={styles.editModalTitleLight}>Lifestyle</Text>
+              <Text style={styles.editModalSubtitleLight}>Tap a card for each topic — all optional</Text>
+              <ScrollView style={styles.lifestyleEditModalScroll} keyboardShouldPersistTaps="handled">
+                <View style={styles.lifestyleEditModalBody}>
+                  {(Object.keys(LIFESTYLE_FIELD_OPTIONS) as LifestyleFieldKey[]).map((key) => {
+                    const opts = LIFESTYLE_FIELD_OPTIONS[key];
+                    const val = editLifestyle[key];
+                    const hasValue = Boolean(val?.trim());
+                    const gradient = LIFESTYLE_FIELD_GRADIENTS[key];
+                    return (
+                      <View key={key} style={styles.lifestyleEditFieldCard}>
+                        <LinearGradient
+                          colors={[gradient[0], gradient[1], gradient[2]]}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 0 }}
+                          style={styles.lifestyleEditFieldAccent}
+                        />
+                        <View style={styles.lifestyleEditFieldBody}>
+                          <View style={styles.lifestyleEditFieldHeader}>
+                            <LinearGradient
+                              colors={[gradient[0], gradient[2]]}
+                              start={{ x: 0, y: 0 }}
+                              end={{ x: 1, y: 1 }}
+                              style={styles.lifestyleEditFieldEmojiWrap}
+                            >
+                              <Text style={styles.lifestyleEditFieldEmoji}>{LIFESTYLE_FIELD_EMOJI[key]}</Text>
+                            </LinearGradient>
+                            <View style={styles.lifestyleEditFieldHeaderText}>
+                              <Text style={styles.lifestyleEditFieldTitle}>{LIFESTYLE_FIELD_LABEL[key]}</Text>
+                              <Text style={styles.lifestyleEditFieldHint}>
+                                {hasValue ? 'Selected — tap another to change' : 'Optional'}
+                              </Text>
+                            </View>
+                          </View>
+                          <View style={styles.lifestyleEditOptionsGrid}>
+                            {opts.map((opt) => {
+                              const selected = val === opt;
+                              const { emoji, text, isSkip } = lifestyleOptionParts(key, opt);
+                              return (
+                                <TouchableOpacity
+                                  key={String(opt || '__skip__')}
+                                  style={styles.lifestyleEditOptionChip}
+                                  onPress={() =>
+                                    setEditLifestyle((prev) => ({ ...prev, [key]: opt }))
+                                  }
+                                  activeOpacity={0.85}
+                                >
+                                  {selected ? (
+                                    <LinearGradient
+                                      colors={[gradient[0], gradient[1], gradient[2]]}
+                                      start={{ x: 0, y: 0 }}
+                                      end={{ x: 1, y: 1 }}
+                                      style={[
+                                        styles.lifestyleEditOptionInner,
+                                        styles.lifestyleEditOptionInnerSelected,
+                                      ]}
+                                    >
+                                      <Text style={styles.lifestyleEditOptionEmoji}>{emoji}</Text>
+                                      <Text style={styles.lifestyleEditOptionTextSelected} numberOfLines={3}>
+                                        {text}
+                                      </Text>
+                                      <View style={styles.lifestyleEditOptionCheck}>
+                                        <Text style={styles.lifestyleEditOptionCheckMark}>✓</Text>
+                                      </View>
+                                    </LinearGradient>
+                                  ) : (
+                                    <View
+                                      style={[
+                                        styles.lifestyleEditOptionInner,
+                                        isSkip
+                                          ? styles.lifestyleEditOptionInnerSkip
+                                          : styles.lifestyleEditOptionInnerIdle,
+                                      ]}
+                                    >
+                                      <Text style={styles.lifestyleEditOptionEmojiIdle}>{emoji}</Text>
+                                      <Text style={styles.lifestyleEditOptionTextIdle} numberOfLines={3}>
+                                        {text}
+                                      </Text>
+                                    </View>
+                                  )}
+                                </TouchableOpacity>
+                              );
+                            })}
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+              <View style={styles.editModalActions}>
+                <TouchableOpacity style={styles.editModalCancelPill} onPress={() => setShowLifestyleModal(false)} activeOpacity={0.8}>
+                  <Text style={styles.editModalCancelPillText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.editModalSavePill} onPress={saveLifestyle} disabled={updatingField} activeOpacity={0.8}>
                   <Text style={styles.editModalSavePillText}>{updatingField ? 'Saving...' : 'Save'}</Text>
                 </TouchableOpacity>
               </View>
@@ -2895,7 +3428,10 @@ export default function MyProfileScreen() {
           <Text style={styles.sectionTitle}> My Interests</Text>
           <TouchableOpacity
             style={styles.sectionEditTouchable}
-            onPress={() => navigateToCreateProfile({ initialStep: 7 })}
+            onPress={() => {
+              setEditInterests(interests.map((i) => i.name));
+              setShowInterestsModal(true);
+            }}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Text style={styles.sectionEditLink}>Edit</Text>
@@ -2956,7 +3492,17 @@ export default function MyProfileScreen() {
           <Text style={styles.sectionTitle}> My Dealbreakers</Text>
           <TouchableOpacity
             style={styles.sectionEditTouchable}
-            onPress={() => navigateToCreateProfile({ initialStep: 8 })}
+            onPress={() => {
+              const next = Array.from(
+                new Set(
+                  dealbreakers
+                    .map((d) => canonicalDealbreakerLabel(d.description))
+                    .filter((x): x is NonNullable<typeof x> => x != null)
+                )
+              );
+              setEditDealbreakers(next);
+              setShowDealbreakersModal(true);
+            }}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Text style={styles.sectionEditLink}>Edit</Text>
@@ -3019,7 +3565,10 @@ export default function MyProfileScreen() {
           <Text style={styles.sectionTitle}> What I'm Looking For</Text>
           <TouchableOpacity
             style={styles.sectionEditTouchable}
-            onPress={() => navigateToCreateProfile({ initialStep: 9 })}
+            onPress={() => {
+              setEditQualities(partnerQualities.map((q) => q.quality));
+              setShowQualitiesModal(true);
+            }}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Text style={styles.sectionEditLink}>Edit</Text>
@@ -3085,7 +3634,10 @@ export default function MyProfileScreen() {
           <Text style={styles.sectionTitle}> Lifestyle</Text>
           <TouchableOpacity
             style={styles.sectionEditTouchable}
-            onPress={() => navigateToCreateProfile({ initialStep: 10 })}
+            onPress={() => {
+              setEditLifestyle(lifestyleFormFromApi(lifestyle));
+              setShowLifestyleModal(true);
+            }}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Text style={styles.sectionEditLink}>Edit</Text>
@@ -3156,62 +3708,6 @@ export default function MyProfileScreen() {
         </View>
         </ProfileEditableCardBorder>
       </Animated.View>
-
-      {/* Edit Profile Button */}
-      <View style={styles.editButton} onLayout={handleEditButtonLayout}>
-        <TouchableOpacity
-          activeOpacity={0.9}
-          onPressIn={() => {
-            Animated.timing(editButtonScale, {
-              toValue: 0.92,
-              duration: 30,
-              useNativeDriver: true,
-            }).start();
-          }}
-          onPressOut={() => {
-            Animated.spring(editButtonScale, {
-              toValue: 1,
-              friction: 6,
-              tension: 300,
-              useNativeDriver: true,
-            }).start();
-          }}
-          onPress={() => {
-            if (Platform.OS === 'ios') {
-              Vibration.vibrate(50);
-            } else {
-              Vibration.vibrate(50);
-            }
-            navigateToCreateProfile({ startFromBeginning: false });
-          }}
-        >
-          <Animated.View
-            style={{
-              transform: [{ scale: Animated.multiply(editButtonPulse, editButtonScale) }],
-            }}
-          >
-            <LinearGradient
-              colors={['#667eea', '#764ba2', '#f093fb', '#f5576c']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={[styles.editButtonGradient]}
-            >
-              <Animated.View
-                style={[
-                  styles.editButtonShimmer,
-                  {
-                    transform: [
-                      { translateX: editButtonShimmer.interpolate({ inputRange: [0, 1], outputRange: [-200, 400] }) },
-                      { rotate: editButtonShimmer.interpolate({ inputRange: [0, 1], outputRange: ['-20deg', '-20deg'] }) },
-                    ],
-                  },
-                ]}
-              />
-              <Text style={styles.editButtonText}>✨ Edit Profile</Text>
-            </LinearGradient>
-          </Animated.View>
-        </TouchableOpacity>
-      </View>
 
       {/* Legal Footer */}
       <View style={{ marginTop: 'auto', paddingTop: 20 }}>
@@ -3538,6 +4034,17 @@ const styles = StyleSheet.create({
     shadowRadius: 24,
     elevation: 16,
   },
+  editModalCardWide: {
+    width: '100%',
+    maxWidth: Math.min(420, Dimensions.get('window').width - 24),
+    borderRadius: 24,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.35,
+    shadowRadius: 24,
+    elevation: 16,
+  },
   editModalGradient: {
     padding: 28,
     paddingTop: 32,
@@ -3682,6 +4189,22 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderColor: '#7c3aed',
   },
+  preferredMatchOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  preferredMatchEmoji: {
+    fontSize: 24,
+    width: 32,
+    textAlign: 'center',
+  },
+  preferredMatchCheck: {
+    marginLeft: 'auto',
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#5b21b6',
+  },
   preferredGenderOptionText: {
     fontSize: 16,
     fontWeight: '600',
@@ -3690,32 +4213,101 @@ const styles = StyleSheet.create({
   preferredGenderOptionTextActive: {
     color: '#5b21b6',
   },
-  distanceOptionsRow: {
+  distanceModalScroll: {
+    maxHeight: Math.min(420, Dimensions.get('window').height * 0.5),
+    width: '100%',
+  },
+  distanceGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
+    justifyContent: 'space-between',
+  },
+  distanceOptionCard: {
+    width: '48%',
+    minHeight: 96,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+    borderWidth: 2,
+    borderColor: 'rgba(148, 163, 184, 0.35)',
+    backgroundColor: 'rgba(255, 255, 255, 0.97)',
+    position: 'relative',
+    overflow: 'hidden',
+    shadowColor: '#0d9488',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  distanceOptionCardSelected: {
+    borderColor: 'rgba(13, 148, 136, 0.85)',
+    backgroundColor: 'rgba(240, 253, 250, 0.98)',
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  distanceOptionRing: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: 'rgba(148, 163, 184, 0.45)',
+    borderStyle: 'dashed',
+    opacity: 0.65,
+  },
+  distanceOptionRingSelected: {
+    borderColor: 'rgba(13, 148, 136, 0.55)',
+    borderStyle: 'solid',
+    opacity: 1,
+    backgroundColor: 'rgba(45, 212, 191, 0.12)',
+  },
+  distanceOptionPrimary: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 3,
+    marginTop: 4,
+  },
+  distanceOptionNum: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#0f766e',
+    letterSpacing: -0.5,
+    lineHeight: 30,
+  },
+  distanceOptionMi: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: 'rgba(15, 23, 42, 0.45)',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  distanceOptionTag: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748b',
+    marginTop: 8,
+    lineHeight: 16,
+    paddingRight: 24,
+  },
+  distanceOptionCheckWrap: {
+    position: 'absolute',
+    bottom: 10,
+    right: 10,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#0d9488',
+    alignItems: 'center',
     justifyContent: 'center',
   },
-  distanceOptionButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.4)',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
-  },
-  distanceOptionButtonActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderColor: '#0d9488',
-  },
-  distanceOptionText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#0f766e',
-  },
-  distanceOptionTextActive: {
-    color: '#0d9488',
+  distanceOptionCheck: {
+    fontSize: 13,
     fontWeight: '800',
+    color: '#fff',
   },
   avatarWrapper: {
     alignSelf: 'center',
@@ -4441,6 +5033,159 @@ const styles = StyleSheet.create({
     maxHeight: 440,
     width: '100%',
   },
+  lifestyleEditModalScroll: {
+    maxHeight: Math.min(520, Dimensions.get('window').height * 0.58),
+    width: '100%',
+  },
+  lifestyleEditModalBody: {
+    gap: 14,
+    paddingBottom: 4,
+  },
+  lifestyleEditFieldCard: {
+    backgroundColor: 'rgba(255,255,255,0.97)',
+    borderRadius: 18,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(102, 126, 234, 0.12)',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  lifestyleEditFieldAccent: {
+    height: 4,
+    width: '100%',
+  },
+  lifestyleEditFieldBody: {
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 10,
+  },
+  lifestyleEditFieldHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    gap: 10,
+  },
+  lifestyleEditFieldEmojiWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  lifestyleEditFieldEmoji: {
+    fontSize: 22,
+    textAlign: 'center',
+  },
+  lifestyleEditFieldHeaderText: {
+    flex: 1,
+  },
+  lifestyleEditFieldTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#1e293b',
+    letterSpacing: 0.2,
+  },
+  lifestyleEditFieldHint: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#94a3b8',
+    marginTop: 2,
+  },
+  lifestyleEditOptionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    justifyContent: 'space-between',
+  },
+  lifestyleEditOptionChip: {
+    width: '48%',
+    borderRadius: 14,
+    overflow: 'hidden',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  lifestyleEditOptionInner: {
+    minHeight: 72,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  lifestyleEditOptionInnerSelected: {
+    borderRadius: 14,
+  },
+  lifestyleEditOptionInnerIdle: {
+    backgroundColor: '#fff',
+    borderWidth: 1.5,
+    borderColor: 'rgba(102, 126, 234, 0.14)',
+    borderRadius: 14,
+  },
+  lifestyleEditOptionInnerSkip: {
+    backgroundColor: 'rgba(248, 250, 252, 0.95)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(148, 163, 184, 0.45)',
+    borderStyle: 'dashed',
+    borderRadius: 14,
+  },
+  lifestyleEditOptionEmoji: {
+    fontSize: 20,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  lifestyleEditOptionEmojiIdle: {
+    fontSize: 18,
+    marginBottom: 4,
+    textAlign: 'center',
+    opacity: 0.85,
+  },
+  lifestyleEditOptionTextSelected: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#fff',
+    textAlign: 'center',
+    lineHeight: 14,
+    letterSpacing: 0.15,
+    textShadowColor: 'rgba(0, 0, 0, 0.15)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  lifestyleEditOptionTextIdle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569',
+    textAlign: 'center',
+    lineHeight: 14,
+  },
+  lifestyleEditOptionCheck: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: 'rgba(255, 255, 255, 0.35)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  lifestyleEditOptionCheckMark: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#fff',
+  },
   dealbreakerModalGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -4469,25 +5214,6 @@ const styles = StyleSheet.create({
   },
   dealbreakerChipTextSelected: {
     color: '#5b21b6',
-  },
-  lifestylePickerRow: {
-    marginBottom: 16,
-  },
-  lifestylePickerLabel: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#1e293b',
-    marginBottom: 6,
-  },
-  lifestylePickerWrap: {
-    borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    borderWidth: 1,
-    borderColor: 'rgba(148,163,184,0.5)',
-  },
-  lifestylePicker: {
-    width: '100%',
   },
   lifestyleContainer: {
     gap: 12,
@@ -4522,44 +5248,68 @@ const styles = StyleSheet.create({
     letterSpacing: 0.1,
     flexShrink: 0,
   },
-  editButton: {
-    marginHorizontal: 20,
-    marginTop: 32,
-    borderRadius: 28,
-    overflow: 'hidden',
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.45,
-    shadowRadius: 28,
-    elevation: 16,
-    borderWidth: 2.5,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+  nameModalInner: {
+    backgroundColor: 'rgba(255,255,255,0.96)',
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
   },
-  editButtonGradient: {
-    paddingVertical: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    position: 'relative',
+  nameModalInputRing: {
+    borderRadius: 16,
+    padding: 2,
   },
-  editButtonShimmer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    width: 50,
-    backgroundColor: 'rgba(255, 255, 255, 0.4)',
-    transform: [{ skewX: '-20deg' }],
-  },
-  editButtonText: {
-    color: '#fff',
+  nameModalInput: {
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
     fontSize: 22,
-    fontWeight: '900',
-    letterSpacing: 1,
-    textShadowColor: 'rgba(0, 0, 0, 0.25)',
-    textShadowOffset: { width: 0, height: 3 },
-    textShadowRadius: 6,
+    fontWeight: '700',
+    color: '#1e1b4b',
+    textAlign: 'center',
+    letterSpacing: 0.3,
+  },
+  nameModalCharCount: {
+    marginTop: 10,
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#94a3b8',
+    textAlign: 'right',
+  },
+  nameModalPreview: {
+    marginTop: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    backgroundColor: 'rgba(237, 233, 254, 0.85)',
+    borderWidth: 1,
+    borderColor: 'rgba(102, 126, 234, 0.2)',
+    alignItems: 'center',
+  },
+  nameModalPreviewLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#7c3aed',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginBottom: 4,
+  },
+  nameModalPreviewValue: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#1e1b4b',
+  },
+  nameModalHint: {
+    marginTop: 14,
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#94a3b8',
+    textAlign: 'center',
   },
   photoGalleryModal: {
     flex: 1,

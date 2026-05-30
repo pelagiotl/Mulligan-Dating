@@ -59,6 +59,7 @@ import ConnectLandingMark from '../components/ConnectLandingMark';
 import ConnectButtonShimmerEffect, {
   CONNECT_SHIMMER_DURATION_MS,
 } from '../components/ConnectButtonShimmerEffect';
+import ConnectButtonHeartFireworks from '../components/ConnectButtonHeartFireworks';
 import MatchCelebration from '../components/MatchCelebration';
 import LegalFooter from '../components/LegalFooter';
 import NoTokensModal from '../components/NoTokensModal';
@@ -1554,6 +1555,77 @@ export default function BrowseScreen() {
       </Text>
     );
 
+  /** Hearts arc from above the CTA — render outside overflow:hidden gradient wrappers. */
+  const renderLandingConnectButton = (
+    gradientColors: string[],
+    labelStyle: object,
+    buttonGradientStyle?: object
+  ) => (
+    <Animated.View
+      style={[
+        styles.landingButtonContainer,
+        { transform: [{ scale: buttonPulse }] },
+      ]}
+    >
+      <View style={styles.landingButtonEffectWrap}>
+        <TouchableOpacity
+          onPress={handleLandingConnectPress}
+          onPressIn={() => {
+            Animated.spring(buttonScale, {
+              toValue: 0.95,
+              useNativeDriver: true,
+            }).start();
+          }}
+          onPressOut={() => {
+            Animated.spring(buttonScale, {
+              toValue: 1,
+              useNativeDriver: true,
+            }).start();
+          }}
+          disabled={unlocking}
+          activeOpacity={0.9}
+          style={styles.landingButtonTouchable}
+        >
+          <LinearGradient
+            colors={gradientColors}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[
+              styles.landingButton,
+              buttonGradientStyle,
+              unlocking && styles.landingButtonDisabled,
+            ]}
+          >
+            {!unlocking && (
+              <ConnectButtonShimmerEffect
+                key={`landing-shimmer-${connectShellMode}`}
+                shell={connectShellMode}
+                progress={shimmerProgress}
+                borderRadius={22}
+                sweepWidth={connectButtonSweepWidth}
+                showHearts={false}
+              />
+            )}
+
+            <Animated.View
+              style={{
+                transform: [{ scale: buttonScale }],
+                zIndex: 4,
+              }}
+            >
+              {renderLandingConnectButtonContent(labelStyle)}
+            </Animated.View>
+          </LinearGradient>
+        </TouchableOpacity>
+        {!unlocking ? (
+          <View style={styles.landingButtonHeartsOverlay} pointerEvents="none">
+            <ConnectButtonHeartFireworks active />
+          </View>
+        ) : null}
+      </View>
+    </Animated.View>
+  );
+
   const landingConnectHint = '⛳ Use a Mulligan';
 
   // Tab blur hides this screen (opacity 0); Android pauses native-driver loops. Stop on blur, restart after focus when visible again.
@@ -1977,63 +2049,11 @@ export default function BrowseScreen() {
 
               {isAuthenticated ? <ConnectLandingValueProps variant="midnightFeatures" /> : null}
 
-              <Animated.View
-                style={[
-                  styles.landingButtonContainer,
-                  {
-                    transform: [{ scale: buttonPulse }],
-                  },
-                ]}
-              >
-                <TouchableOpacity
-                  onPress={handleLandingConnectPress}
-                  onPressIn={() => {
-                    Animated.spring(buttonScale, {
-                      toValue: 0.95,
-                      useNativeDriver: true,
-                    }).start();
-                  }}
-                  onPressOut={() => {
-                    Animated.spring(buttonScale, {
-                      toValue: 1,
-                      useNativeDriver: true,
-                    }).start();
-                  }}
-                  disabled={unlocking}
-                  activeOpacity={0.9}
-                  style={styles.landingButtonTouchable}
-                >
-                  <LinearGradient
-                    colors={['#667eea', '#764ba2', '#f093fb', '#f5576c']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={[
-                      styles.landingButton,
-                      styles.midnightConnectGradient,
-                      unlocking && styles.landingButtonDisabled,
-                    ]}
-                  >
-                    {!unlocking && (
-                      <ConnectButtonShimmerEffect
-                        key={`landing-shimmer-${connectShellMode}`}
-                        shell={connectShellMode}
-                        progress={shimmerProgress}
-                        borderRadius={22}
-                        sweepWidth={connectButtonSweepWidth}
-                      />
-                    )}
-
-                    <Animated.View
-                      style={{
-                        transform: [{ scale: buttonScale }],
-                        zIndex: 4,
-                      }}
-                    >
-                      {renderLandingConnectButtonContent(styles.midnightConnectLabel)}
-                    </Animated.View>
-                  </LinearGradient>
-                </TouchableOpacity>
-              </Animated.View>
+              {renderLandingConnectButton(
+                ['#667eea', '#764ba2', '#f093fb', '#f5576c'],
+                styles.midnightConnectLabel,
+                styles.midnightConnectGradient
+              )}
 
               <View style={styles.landingHintWrap}>
                 <Text style={styles.midnightHint}>{landingConnectHint}</Text>
@@ -2092,59 +2112,10 @@ export default function BrowseScreen() {
                       </View>
                     ) : null}
 
-                    <Animated.View
-                      style={[
-                        styles.landingButtonContainer,
-                        {
-                          transform: [{ scale: buttonPulse }],
-                        },
-                      ]}
-                    >
-                      <TouchableOpacity
-                        onPress={handleLandingConnectPress}
-                        onPressIn={() => {
-                          Animated.spring(buttonScale, {
-                            toValue: 0.95,
-                            useNativeDriver: true,
-                          }).start();
-                        }}
-                        onPressOut={() => {
-                          Animated.spring(buttonScale, {
-                            toValue: 1,
-                            useNativeDriver: true,
-                          }).start();
-                        }}
-                        disabled={unlocking}
-                        activeOpacity={0.9}
-                        style={styles.landingButtonTouchable}
-                      >
-                        <LinearGradient
-                          colors={['#0284c7', '#ea580c', '#fb923c', '#fbbf24']}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 1 }}
-                          style={[styles.landingButton, unlocking && styles.landingButtonDisabled]}
-                        >
-                          {!unlocking && (
-                            <ConnectButtonShimmerEffect
-                              key={`landing-shimmer-${connectShellMode}`}
-                              shell={connectShellMode}
-                              progress={shimmerProgress}
-                              borderRadius={22}
-                              sweepWidth={connectButtonSweepWidth}
-                            />
-                          )}
-
-                          <Animated.View
-                            style={{
-                              transform: [{ scale: buttonScale }],
-                              zIndex: 4,
-                            }}
-                          >
-                            {renderLandingConnectButtonContent(styles.sunnyConnectLabel)}
-                          </Animated.View>
-                        </LinearGradient>
-                      </TouchableOpacity>
-                    </Animated.View>
+                    {renderLandingConnectButton(
+                      ['#0284c7', '#ea580c', '#fb923c', '#fbbf24'],
+                      styles.sunnyConnectLabel
+                    )}
 
                     <View style={styles.landingHintWrap}>
                       <Text style={styles.sunnyHint}>{landingConnectHint}</Text>
@@ -2202,59 +2173,10 @@ export default function BrowseScreen() {
                       </View>
                     ) : null}
 
-                    <Animated.View
-                      style={[
-                        styles.landingButtonContainer,
-                        {
-                          transform: [{ scale: buttonPulse }],
-                        },
-                      ]}
-                    >
-                      <TouchableOpacity
-                        onPress={handleLandingConnectPress}
-                        onPressIn={() => {
-                          Animated.spring(buttonScale, {
-                            toValue: 0.95,
-                            useNativeDriver: true,
-                          }).start();
-                        }}
-                        onPressOut={() => {
-                          Animated.spring(buttonScale, {
-                            toValue: 1,
-                            useNativeDriver: true,
-                          }).start();
-                        }}
-                        disabled={unlocking}
-                        activeOpacity={0.9}
-                        style={styles.landingButtonTouchable}
-                      >
-                        <LinearGradient
-                          colors={['#667eea', '#764ba2', '#f093fb', '#f5576c']}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 1 }}
-                          style={[styles.landingButton, unlocking && styles.landingButtonDisabled]}
-                        >
-                          {!unlocking && (
-                            <ConnectButtonShimmerEffect
-                              key={`landing-shimmer-${connectShellMode}`}
-                              shell={connectShellMode}
-                              progress={shimmerProgress}
-                              borderRadius={22}
-                              sweepWidth={connectButtonSweepWidth}
-                            />
-                          )}
-
-                          <Animated.View
-                            style={{
-                              transform: [{ scale: buttonScale }],
-                              zIndex: 4,
-                            }}
-                          >
-                            {renderLandingConnectButtonContent(styles.softConnectLabel)}
-                          </Animated.View>
-                        </LinearGradient>
-                      </TouchableOpacity>
-                    </Animated.View>
+                    {renderLandingConnectButton(
+                      ['#667eea', '#764ba2', '#f093fb', '#f5576c'],
+                      styles.softConnectLabel
+                    )}
 
                     <View style={styles.landingHintWrap}>
                       <Text style={styles.softHint}>{landingConnectHint}</Text>
@@ -3601,6 +3523,15 @@ const styles = StyleSheet.create({
     marginTop: 14,
     marginBottom: Platform.OS === 'android' ? 6 : 2,
     zIndex: 1,
+  },
+  landingButtonEffectWrap: {
+    width: '100%',
+    position: 'relative',
+    overflow: 'visible',
+  },
+  landingButtonHeartsOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 3,
   },
   landingButtonTouchable: {
     width: '100%',

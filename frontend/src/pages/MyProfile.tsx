@@ -994,7 +994,7 @@ export default function MyProfile() {
 
           {settings && (
             <div className="my-profile-stats-row">
-              <ProfilePerimeterBorder delay={0} className="profile-perimeter-border--stat">
+              <ProfilePerimeterBorder delay={0} variant="stat">
                 <div className="my-profile-stat-card my-profile-stat-card--member">
                   <span className="my-profile-stat-emoji">🎉</span>
                   <span className="my-profile-stat-label">Member Since</span>
@@ -1008,7 +1008,7 @@ export default function MyProfile() {
                   </span>
                 </div>
               </ProfilePerimeterBorder>
-              <ProfilePerimeterBorder delay={180} className="profile-perimeter-border--stat">
+              <ProfilePerimeterBorder delay={180} variant="stat">
                 <button
                   type="button"
                   className="my-profile-stat-card my-profile-stat-card--active"
@@ -1053,7 +1053,7 @@ export default function MyProfile() {
           </button>
 
           <div className="my-profile-info-grid">
-            <ProfilePerimeterBorder delay={360} className="profile-perimeter-border--mini">
+            <ProfilePerimeterBorder delay={360} variant="mini">
               <button
                 type="button"
                 className="my-profile-mini-card my-profile-mini-card--age"
@@ -1068,7 +1068,7 @@ export default function MyProfile() {
                 <span className="my-profile-mini-hint">Tap to update</span>
               </button>
             </ProfilePerimeterBorder>
-            <ProfilePerimeterBorder delay={520} className="profile-perimeter-border--mini">
+            <ProfilePerimeterBorder delay={520} variant="mini">
               <button
                 type="button"
                 className="my-profile-mini-card my-profile-mini-card--gender"
@@ -1217,7 +1217,7 @@ export default function MyProfile() {
         </div>
       </div>
 
-      <ProfilePerimeterBorder delay={700} className="profile-perimeter-border--section">
+      <ProfilePerimeterBorder delay={700} variant="photos">
       <div className="profile-detail-section" id="my-photos">
         <h2 className="profile-detail-title">
           <span>📸</span> My Photos
@@ -1233,7 +1233,7 @@ export default function MyProfile() {
       </div>
       </ProfilePerimeterBorder>
 
-      <ProfilePerimeterBorder delay={900} className="profile-perimeter-border--section">
+      <ProfilePerimeterBorder delay={900} variant="interests">
       <div className="profile-detail-section" id="my-interests">
         <div className="profile-detail-title-row">
           <h2 className="profile-detail-title">
@@ -1265,7 +1265,7 @@ export default function MyProfile() {
       </div>
       </ProfilePerimeterBorder>
 
-      <ProfilePerimeterBorder delay={1100} className="profile-perimeter-border--section">
+      <ProfilePerimeterBorder delay={1100} variant="dealbreakers">
       <div className="profile-detail-section" id="my-dealbreakers">
         <div className="profile-detail-title-row">
           <h2 className="profile-detail-title">
@@ -1309,7 +1309,7 @@ export default function MyProfile() {
       </div>
       </ProfilePerimeterBorder>
 
-      <ProfilePerimeterBorder delay={1300} className="profile-perimeter-border--section">
+      <ProfilePerimeterBorder delay={1300} variant="qualities">
       <div className="profile-detail-section" id="my-partner-qualities">
         <div className="profile-detail-title-row">
           <h2 className="profile-detail-title">
@@ -1345,7 +1345,7 @@ export default function MyProfile() {
       </div>
       </ProfilePerimeterBorder>
 
-      <ProfilePerimeterBorder delay={1500} className="profile-perimeter-border--section">
+      <ProfilePerimeterBorder delay={1500} variant="lifestyle">
       <div className="profile-detail-section" id="my-lifestyle">
         <div className="profile-detail-title-row">
           <h2 className="profile-detail-title">

@@ -15,8 +15,16 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getPhotoUrl } from '../utils/photoUrl';
 import {
+  DEALBREAKER_EMOJI,
+  canonicalDealbreakerLabel,
+  getInterestEmoji,
+  isCanonicalLookingFor,
+  isCanonicalPartnerQuality,
+  LIFESTYLE_FIELD_EMOJI,
   LIFESTYLE_FIELD_LABEL,
   lifestylePickerItemLabel,
+  LOOKING_FOR_META,
+  PARTNER_QUALITY_EMOJI,
   type LifestyleFieldKey,
 } from '../constants/profileMySections';
 
@@ -76,6 +84,22 @@ const LIFESTYLE_KEYS: Array<{ key: LifestyleFieldKey; field: keyof NonNullable<M
   { key: 'worksOut', field: 'works_out' },
 ];
 
+type SectionAccent = {
+  emoji: string;
+  colors: readonly [string, string, string];
+};
+
+const SECTION_ACCENTS: Record<string, SectionAccent> = {
+  'Looking for': { emoji: '💞', colors: ['#fda4af', '#fb7185', '#f472b6'] },
+  'Preferred matches': { emoji: '💕', colors: ['#a78bfa', '#c084fc', '#e879f9'] },
+  About: { emoji: '💬', colors: ['#667eea', '#764ba2', '#a855f7'] },
+  "What you're looking for": { emoji: '✨', colors: ['#f093fb', '#e879f9', '#667eea'] },
+  Interests: { emoji: '🎯', colors: ['#f5576c', '#f093fb', '#667eea'] },
+  Values: { emoji: '💎', colors: ['#f472b6', '#ec4899', '#db2777'] },
+  Dealbreakers: { emoji: '🚫', colors: ['#ef4444', '#f5576c', '#a78bfa'] },
+  Lifestyle: { emoji: '🌱', colors: ['#43e97b', '#38f9d7', '#667eea'] },
+};
+
 export function parseProfileValues(raw: string | null | undefined): string[] {
   if (!raw) return [];
   try {
@@ -101,6 +125,14 @@ export function formatPreferredGendersLabel(raw: string | null | undefined): str
 
 export function formatMaxDistanceLabel(maxDistance: number | null | undefined): string {
   return maxDistance == null ? 'Any distance' : `Within ${maxDistance} mi`;
+}
+
+function preferredMatchesEmoji(label: string): string {
+  if (label === 'Everyone') return '🌍';
+  if (label === 'Men') return '👨';
+  if (label === 'Women') return '👩';
+  if (label.includes('Men') && label.includes('Women')) return '💕';
+  return '💕';
 }
 
 type Props = {
@@ -163,29 +195,88 @@ export default function MyProfilePreviewModal({ visible, onClose, data, photos }
 
   const sheetTop = Platform.OS === 'android' ? Math.max(insets.top, 8) + 8 : Math.max(insets.top, 14) + 12;
 
-  const renderSection = (title: string, body: React.ReactNode) => (
-    <View style={styles.block}>
-      <Text style={styles.blockTitle}>{title}</Text>
-      {body}
-    </View>
-  );
+  const lookingForDisplay = useMemo(() => {
+    if (!data.lookingFor) return null;
+    if (isCanonicalLookingFor(data.lookingFor)) {
+      const meta = LOOKING_FOR_META[data.lookingFor];
+      return `${meta.emoji} ${data.lookingFor}`;
+    }
+    return data.lookingFor;
+  }, [data.lookingFor]);
+
+  const renderDetailSection = (title: string, body: React.ReactNode) => {
+    const accent = SECTION_ACCENTS[title] ?? SECTION_ACCENTS.About;
+    return (
+      <View style={styles.detailBlock} key={title}>
+        <LinearGradient
+          colors={[accent.colors[0], accent.colors[1], accent.colors[2]]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={styles.detailBlockAccent}
+        />
+        <View style={styles.detailBlockInner}>
+          <View style={styles.detailBlockHeader}>
+            <LinearGradient
+              colors={[accent.colors[0], accent.colors[2]]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.detailBlockEmojiWrap}
+            >
+              <Text style={styles.detailBlockEmoji} allowFontScaling={false}>
+                {accent.emoji}
+              </Text>
+            </LinearGradient>
+            <Text style={styles.detailBlockTitle}>{title}</Text>
+          </View>
+          {body}
+        </View>
+      </View>
+    );
+  };
+
+  const hasDetails =
+    data.lookingFor ||
+    data.bio ||
+    data.partnerQualities.length > 0 ||
+    data.interests.length > 0 ||
+    data.values.length > 0 ||
+    data.dealbreakers.length > 0 ||
+    hasLifestyle(data.lifestyle);
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.overlay}>
         <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
         <View style={[styles.sheet, { marginTop: sheetTop, paddingBottom: Math.max(insets.bottom, 16) }]}>
+          <View style={styles.sheetHandleWrap}>
+            <View style={styles.sheetHandle} />
+          </View>
+
           <LinearGradient
-            colors={['#667eea', '#764ba2', '#a855f7']}
+            colors={['#667eea', '#764ba2', '#a855f7', '#ec4899']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.headerGradient}
           >
-            <View style={styles.header}>
+            <View style={styles.headerGlowOrb} pointerEvents="none" />
+            <View style={styles.headerGlowOrbSecondary} pointerEvents="none" />
+
+            <View style={styles.headerTopRow}>
               <View style={styles.previewBadge}>
-                <Text style={styles.previewBadgeText}>Preview mode</Text>
+                <Text style={styles.previewBadgeText}>👁 Preview</Text>
               </View>
-              <View style={styles.headerMain}>
+              <TouchableOpacity style={styles.closeBtn} onPress={onClose} accessibilityLabel="Close">
+                <Text style={styles.closeBtnText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.heroCenter}>
+              <LinearGradient
+                colors={['rgba(255,255,255,0.95)', 'rgba(255,255,255,0.35)', 'rgba(255,255,255,0.9)']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.avatarRing}
+              >
                 {primaryPhotoUrl ? (
                   <Image source={{ uri: primaryPhotoUrl }} style={styles.avatar} />
                 ) : (
@@ -193,32 +284,32 @@ export default function MyProfilePreviewModal({ visible, onClose, data, photos }
                     <Text style={styles.avatarPlaceholderText}>👤</Text>
                   </View>
                 )}
-                <View style={styles.headerText}>
-                  <Text style={styles.name}>
-                    {data.displayName}
-                    {data.age ? `, ${data.age}` : ''}
-                  </Text>
-                  <View style={styles.metaChips}>
-                    {data.gender ? (
-                      <View style={styles.metaChip}>
-                        <Text style={styles.metaChipText}>{data.gender}</Text>
-                      </View>
-                    ) : null}
-                    {data.location ? (
-                      <View style={styles.metaChip}>
-                        <Text style={styles.metaChipText}>📍 {data.location}</Text>
-                      </View>
-                    ) : null}
-                    <View style={styles.metaChip}>
-                      <Text style={styles.metaChipText}>{data.maxDistanceLabel}</Text>
-                    </View>
+              </LinearGradient>
+
+              <Text style={styles.name}>
+                {data.displayName}
+                {data.age ? `, ${data.age}` : ''}
+              </Text>
+
+              <View style={styles.metaChips}>
+                {data.gender ? (
+                  <View style={styles.metaChip}>
+                    <Text style={styles.metaChipText}>⚧️ {data.gender}</Text>
                   </View>
-                  <Text style={styles.tagline}>How your profile looks to others on Mulligan</Text>
+                ) : null}
+                {data.location ? (
+                  <View style={styles.metaChip}>
+                    <Text style={styles.metaChipText}>📍 {data.location}</Text>
+                  </View>
+                ) : null}
+                <View style={styles.metaChip}>
+                  <Text style={styles.metaChipText}>📏 {data.maxDistanceLabel}</Text>
                 </View>
               </View>
-              <TouchableOpacity style={styles.closeBtn} onPress={onClose} accessibilityLabel="Close">
-                <Text style={styles.closeBtnText}>✕</Text>
-              </TouchableOpacity>
+
+              <Text style={styles.tagline}>
+                This is how your profile looks to others on Mulligan
+              </Text>
             </View>
           </LinearGradient>
 
@@ -228,110 +319,197 @@ export default function MyProfilePreviewModal({ visible, onClose, data, photos }
             showsVerticalScrollIndicator={false}
           >
             {sortedPhotos.length > 0 ? (
-              <View style={styles.surface}>
-                <Text style={styles.sectionEyebrow}>Gallery</Text>
-                <Text style={styles.sectionTitle}>Photos</Text>
+              <View style={styles.galleryCard}>
+                <LinearGradient
+                  colors={['rgba(102, 126, 234, 0.08)', 'rgba(168, 85, 247, 0.04)']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={StyleSheet.absoluteFillObject}
+                />
+                <View style={styles.galleryHeader}>
+                  <View>
+                    <Text style={styles.sectionEyebrow}>Gallery</Text>
+                    <Text style={styles.sectionTitle}>Photos</Text>
+                  </View>
+                  <View style={styles.photoCountBadge}>
+                    <Text style={styles.photoCountBadgeText}>{sortedPhotos.length}</Text>
+                  </View>
+                </View>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoRail}>
                   {sortedPhotos.map((ph, i) => (
                     <TouchableOpacity
                       key={ph.id}
-                      activeOpacity={0.85}
+                      activeOpacity={0.88}
                       onPress={() => setFullscreenIndex(i)}
+                      style={styles.thumbWrap}
                     >
                       <Image source={{ uri: getPhotoUrl(ph.url) }} style={styles.thumb} />
+                      <LinearGradient
+                        colors={['transparent', 'rgba(15, 23, 42, 0.72)']}
+                        style={styles.thumbOverlay}
+                      >
+                        <Text style={styles.thumbOverlayIcon} allowFontScaling={false}>🔍</Text>
+                        <Text style={styles.thumbOverlayLabel}>View</Text>
+                      </LinearGradient>
+                      {ph.isPrimary ? (
+                        <View style={styles.primaryBadge}>
+                          <Text style={styles.primaryBadgeText}>★ Main</Text>
+                        </View>
+                      ) : null}
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
+                <Text style={styles.galleryHint}>Tap a photo to browse full screen</Text>
               </View>
             ) : (
-              <Text style={styles.emptyHint}>No photos yet — add some from your profile.</Text>
+              <View style={styles.emptyPhotosCard}>
+                <Text style={styles.emptyPhotosEmoji} allowFontScaling={false}>📸</Text>
+                <Text style={styles.emptyHint}>No photos yet — add some from your profile.</Text>
+              </View>
             )}
 
-            {data.lookingFor
-              ? renderSection('Looking for', <Text style={styles.blockBody}>{data.lookingFor}</Text>)
-              : null}
+            {hasDetails ? (
+              <View style={styles.detailsCard}>
+                <View style={styles.detailsCardHeader}>
+                  <Text style={styles.sectionEyebrow}>Your profile</Text>
+                  <Text style={styles.sectionTitle}>Details</Text>
+                </View>
 
-            {renderSection(
-              'Wants to connect with',
-              <Text style={styles.blockBody}>{data.preferredGendersLabel}</Text>
+                {data.lookingFor
+                  ? renderDetailSection(
+                      'Looking for',
+                      <Text style={styles.blockBody}>{lookingForDisplay}</Text>
+                    )
+                  : null}
+
+                {renderDetailSection(
+                  'Preferred matches',
+                  <View style={styles.highlightPill}>
+                    <Text style={styles.highlightPillText}>
+                      {preferredMatchesEmoji(data.preferredGendersLabel)} {data.preferredGendersLabel}
+                    </Text>
+                  </View>
+                )}
+
+                {data.bio
+                  ? renderDetailSection('About', <Text style={styles.blockBody}>{data.bio}</Text>)
+                  : null}
+
+                {data.partnerQualities.length > 0
+                  ? renderDetailSection(
+                      "What you're looking for",
+                      <View style={styles.qualityList}>
+                        {data.partnerQualities.map((q, idx) => {
+                          const em = isCanonicalPartnerQuality(q.quality)
+                            ? PARTNER_QUALITY_EMOJI[q.quality]
+                            : '✨';
+                          return (
+                            <View key={idx} style={styles.qualityPill}>
+                              <Text style={styles.qualityPillText}>
+                                {em} {q.quality}
+                              </Text>
+                              <Text style={styles.qualityStars}>
+                                {'⭐'.repeat(Math.min(q.importance, 5))}
+                              </Text>
+                            </View>
+                          );
+                        })}
+                      </View>
+                    )
+                  : null}
+
+                {data.interests.length > 0
+                  ? renderDetailSection(
+                      'Interests',
+                      <View style={styles.tags}>
+                        {data.interests.map((name) => (
+                          <LinearGradient
+                            key={name}
+                            colors={['rgba(237, 233, 254, 0.98)', 'rgba(224, 231, 255, 0.95)']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={styles.tag}
+                          >
+                            <Text style={styles.tagText}>
+                              {getInterestEmoji(name)} {name}
+                            </Text>
+                          </LinearGradient>
+                        ))}
+                      </View>
+                    )
+                  : null}
+
+                {data.values.length > 0
+                  ? renderDetailSection(
+                      'Values',
+                      <View style={styles.tags}>
+                        {data.values.map((v) => (
+                          <LinearGradient
+                            key={v}
+                            colors={['rgba(252, 231, 243, 0.95)', 'rgba(251, 207, 232, 0.9)']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={[styles.tag, styles.valueTag]}
+                          >
+                            <Text style={[styles.tagText, styles.valueTagText]}>💎 {v}</Text>
+                          </LinearGradient>
+                        ))}
+                      </View>
+                    )
+                  : null}
+
+                {data.dealbreakers.length > 0
+                  ? renderDetailSection(
+                      'Dealbreakers',
+                      <View style={styles.tags}>
+                        {data.dealbreakers.map((d, i) => {
+                          const canon = canonicalDealbreakerLabel(d);
+                          const em = canon ? DEALBREAKER_EMOJI[canon] : '🚫';
+                          const label = canon ?? d;
+                          return (
+                            <View key={i} style={styles.dealbreakerTag}>
+                              <Text style={styles.dealbreakerTagText}>
+                                {em} {label}
+                              </Text>
+                            </View>
+                          );
+                        })}
+                      </View>
+                    )
+                  : null}
+
+                {hasLifestyle(data.lifestyle) && data.lifestyle
+                  ? renderDetailSection(
+                      'Lifestyle',
+                      <View style={styles.lifestyleGrid}>
+                        {LIFESTYLE_KEYS.map(({ key, field }) => {
+                          const raw = data.lifestyle![field];
+                          if (!raw || typeof raw !== 'string') return null;
+                          return (
+                            <View key={key} style={styles.lifestyleCard}>
+                              <Text style={styles.lifestyleLabel}>
+                                {LIFESTYLE_FIELD_EMOJI[key]} {LIFESTYLE_FIELD_LABEL[key]}
+                              </Text>
+                              <Text style={styles.lifestyleValue}>
+                                {lifestylePickerItemLabel(key, raw)}
+                              </Text>
+                            </View>
+                          );
+                        })}
+                      </View>
+                    )
+                  : null}
+              </View>
+            ) : (
+              <View style={styles.emptyDetailsCard}>
+                <Text style={styles.emptyPhotosEmoji} allowFontScaling={false}>✨</Text>
+                <Text style={styles.emptyHint}>
+                  Add bio, interests, and more from your profile to fill this preview out.
+                </Text>
+              </View>
             )}
 
-            {data.bio
-              ? renderSection('About', <Text style={styles.blockBody}>{data.bio}</Text>)
-              : null}
-
-            {data.partnerQualities.length > 0
-              ? renderSection(
-                  "What you're looking for",
-                  <>
-                    {data.partnerQualities.map((q, idx) => (
-                      <View key={idx} style={styles.qualityRow}>
-                        <Text style={styles.qualityName}>{q.quality}</Text>
-                        <Text style={styles.qualityStars}>{'⭐'.repeat(Math.min(q.importance, 5))}</Text>
-                      </View>
-                    ))}
-                  </>
-                )
-              : null}
-
-            {data.interests.length > 0
-              ? renderSection(
-                  'Interests',
-                  <View style={styles.tags}>
-                    {data.interests.map((name) => (
-                      <View key={name} style={styles.tag}>
-                        <Text style={styles.tagText}>{name}</Text>
-                      </View>
-                    ))}
-                  </View>
-                )
-              : null}
-
-            {data.values.length > 0
-              ? renderSection(
-                  'Values',
-                  <View style={styles.tags}>
-                    {data.values.map((v) => (
-                      <View key={v} style={[styles.tag, styles.valueTag]}>
-                        <Text style={styles.tagText}>{v}</Text>
-                      </View>
-                    ))}
-                  </View>
-                )
-              : null}
-
-            {data.dealbreakers.length > 0
-              ? renderSection(
-                  'Dealbreakers',
-                  <>
-                    {data.dealbreakers.map((d, i) => (
-                      <Text key={i} style={styles.listItem}>
-                        • {d}
-                      </Text>
-                    ))}
-                  </>
-                )
-              : null}
-
-            {hasLifestyle(data.lifestyle) && data.lifestyle
-              ? renderSection(
-                  'Lifestyle',
-                  <View style={styles.lifestyleGrid}>
-                    {LIFESTYLE_KEYS.map(({ key, field }) => {
-                      const raw = data.lifestyle![field];
-                      if (!raw || typeof raw !== 'string') return null;
-                      return (
-                        <View key={key} style={styles.lifestyleCard}>
-                          <Text style={styles.lifestyleLabel}>{LIFESTYLE_FIELD_LABEL[key]}</Text>
-                          <Text style={styles.lifestyleValue}>
-                            {lifestylePickerItemLabel(key, raw)}
-                          </Text>
-                        </View>
-                      );
-                    })}
-                  </View>
-                )
-              : null}
+            <Text style={styles.footerNote}>Only you can see this preview</Text>
           </ScrollView>
         </View>
       </View>
@@ -444,63 +622,120 @@ export default function MyProfilePreviewModal({ visible, onClose, data, photos }
 }
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const thumbSize = Math.min(120, SCREEN_WIDTH * 0.32);
+const thumbSize = Math.min(128, SCREEN_WIDTH * 0.34);
 
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(46, 16, 101, 0.72)',
+    backgroundColor: 'rgba(30, 10, 60, 0.78)',
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
   },
   sheet: {
     flex: 1,
-    marginHorizontal: 10,
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
-    backgroundColor: '#faf8ff',
+    marginHorizontal: 8,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    backgroundColor: '#f5f3ff',
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.65)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.75)',
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 24,
+    elevation: 20,
+  },
+  sheetHandleWrap: {
+    position: 'absolute',
+    top: 8,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    alignItems: 'center',
+  },
+  sheetHandle: {
+    width: 44,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.55)',
   },
   headerGradient: {
-    borderBottomWidth: 0,
+    paddingBottom: 22,
+    overflow: 'hidden',
   },
-  header: {
+  headerGlowOrb: {
+    position: 'absolute',
+    top: -40,
+    right: -30,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  headerGlowOrbSecondary: {
+    position: 'absolute',
+    bottom: -20,
+    left: -40,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(236, 72, 153, 0.15)',
+  },
+  headerTopRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    padding: 16,
-    paddingTop: 14,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 20,
   },
   previewBadge: {
-    position: 'absolute',
-    top: 12,
-    left: 16,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 999,
     backgroundColor: 'rgba(255, 255, 255, 0.22)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.35)',
+    borderColor: 'rgba(255, 255, 255, 0.38)',
   },
   previewBadgeText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '800',
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
+    letterSpacing: 0.4,
     color: '#fff',
   },
-  headerMain: {
-    flex: 1,
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 22,
+  closeBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.96)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  closeBtnText: {
+    fontSize: 18,
+    color: '#5b21b6',
+    fontWeight: '700',
+  },
+  heroCenter: {
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 8,
+  },
+  avatarRing: {
+    padding: 4,
+    borderRadius: 999,
+    marginBottom: 14,
   },
   avatar: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     borderWidth: 3,
     borderColor: 'rgba(255, 255, 255, 0.95)',
   },
@@ -510,152 +745,270 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   avatarPlaceholderText: {
-    fontSize: 28,
-  },
-  headerText: {
-    flex: 1,
+    fontSize: 36,
   },
   name: {
-    fontSize: 21,
-    fontWeight: '800',
+    fontSize: 24,
+    fontWeight: '900',
     color: '#fff',
-    letterSpacing: -0.3,
+    letterSpacing: -0.4,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.15)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   metaChips: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 6,
-    marginTop: 8,
+    gap: 8,
+    marginTop: 12,
+    justifyContent: 'center',
   },
   metaChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.28)',
+    borderColor: 'rgba(255, 255, 255, 0.32)',
   },
   metaChipText: {
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 12,
+    fontWeight: '700',
     color: '#fff',
   },
   tagline: {
-    marginTop: 8,
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.88)',
-    lineHeight: 16,
-  },
-  closeBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(255,255,255,0.96)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 20,
-  },
-  closeBtnText: {
-    fontSize: 18,
-    color: '#5b21b6',
-    fontWeight: '600',
+    marginTop: 12,
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.9)',
+    lineHeight: 18,
+    textAlign: 'center',
+    paddingHorizontal: 8,
   },
   scroll: {
     flex: 1,
-    backgroundColor: '#faf8ff',
+    backgroundColor: '#f5f3ff',
   },
   scrollContent: {
     padding: 14,
-    paddingBottom: 32,
-    gap: 10,
+    paddingBottom: 28,
+    gap: 12,
   },
-  surface: {
-    marginBottom: 4,
-    padding: 14,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+  galleryCard: {
+    padding: 16,
+    borderRadius: 20,
+    backgroundColor: '#fff',
     borderWidth: 1,
     borderColor: 'rgba(102, 126, 234, 0.14)',
+    overflow: 'hidden',
     shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 4,
+  },
+  galleryHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  photoCountBadge: {
+    minWidth: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(102, 126, 234, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(102, 126, 234, 0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+  },
+  photoCountBadgeText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#5b21b6',
   },
   sectionEyebrow: {
     fontSize: 11,
     fontWeight: '800',
-    letterSpacing: 0.7,
+    letterSpacing: 0.8,
     textTransform: 'uppercase',
     color: '#7c3aed',
   },
   sectionTitle: {
-    fontSize: 17,
-    fontWeight: '800',
+    fontSize: 18,
+    fontWeight: '900',
     color: '#1e1b4b',
-    marginBottom: 12,
     marginTop: 2,
   },
   photoRail: {
     flexDirection: 'row',
   },
+  thumbWrap: {
+    marginRight: 12,
+    borderRadius: 18,
+    overflow: 'hidden',
+    position: 'relative',
+  },
   thumb: {
     width: thumbSize,
-    height: thumbSize * 1.25,
-    borderRadius: 16,
-    marginRight: 10,
+    height: thumbSize * 1.28,
+    borderRadius: 18,
     backgroundColor: '#ede9fe',
+  },
+  thumbOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    paddingBottom: 10,
+  },
+  thumbOverlayIcon: {
+    fontSize: 16,
+    marginBottom: 2,
+  },
+  thumbOverlayLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#fff',
+    letterSpacing: 0.4,
+  },
+  primaryBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+  },
+  primaryBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#5b21b6',
+  },
+  galleryHint: {
+    marginTop: 12,
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#94a3b8',
+    textAlign: 'center',
+  },
+  emptyPhotosCard: {
+    padding: 24,
+    borderRadius: 20,
+    backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: 'rgba(102, 126, 234, 0.15)',
+    borderColor: 'rgba(102, 126, 234, 0.12)',
+    alignItems: 'center',
+  },
+  emptyPhotosEmoji: {
+    fontSize: 36,
+    marginBottom: 8,
   },
   emptyHint: {
     color: '#64748b',
-    marginBottom: 16,
     fontSize: 14,
     textAlign: 'center',
+    lineHeight: 20,
   },
-  block: {
-    padding: 14,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.96)',
+  detailsCard: {
+    padding: 16,
+    borderRadius: 20,
+    backgroundColor: '#fff',
     borderWidth: 1,
     borderColor: 'rgba(102, 126, 234, 0.12)',
     shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    elevation: 3,
+    gap: 12,
   },
-  blockTitle: {
-    fontSize: 11,
+  detailsCardHeader: {
+    marginBottom: 4,
+  },
+  detailBlock: {
+    flexDirection: 'row',
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(248, 250, 252, 0.9)',
+    borderWidth: 1,
+    borderColor: 'rgba(102, 126, 234, 0.1)',
+  },
+  detailBlockAccent: {
+    width: 4,
+  },
+  detailBlockInner: {
+    flex: 1,
+    padding: 12,
+    paddingLeft: 10,
+  },
+  detailBlockHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 10,
+  },
+  detailBlockEmojiWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailBlockEmoji: {
+    fontSize: 18,
+  },
+  detailBlockTitle: {
+    fontSize: 14,
     fontWeight: '800',
-    color: '#6d28d9',
-    marginBottom: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
+    color: '#1e1b4b',
+    letterSpacing: 0.2,
   },
   blockBody: {
     fontSize: 15,
     lineHeight: 22,
     color: '#334155',
-  },
-  qualityRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-    paddingBottom: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(102, 126, 234, 0.12)',
-  },
-  qualityName: {
-    flex: 1,
-    fontSize: 15,
-    color: '#334155',
     fontWeight: '500',
   },
+  highlightPill: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(237, 233, 254, 0.95)',
+    borderWidth: 1,
+    borderColor: 'rgba(167, 139, 250, 0.35)',
+  },
+  highlightPillText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#5b21b6',
+  },
+  qualityList: {
+    gap: 8,
+  },
+  qualityPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    borderWidth: 1,
+    borderColor: 'rgba(102, 126, 234, 0.12)',
+  },
+  qualityPillText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#334155',
+  },
   qualityStars: {
-    fontSize: 12,
+    fontSize: 11,
+    marginLeft: 8,
   },
   tags: {
     flexDirection: 'row',
@@ -664,49 +1017,75 @@ const styles = StyleSheet.create({
   },
   tag: {
     paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: 'rgba(237, 233, 254, 0.95)',
     borderWidth: 1,
-    borderColor: 'rgba(102, 126, 234, 0.22)',
+    borderColor: 'rgba(102, 126, 234, 0.2)',
   },
   valueTag: {
-    backgroundColor: 'rgba(252, 231, 243, 0.9)',
-    borderColor: 'rgba(236, 72, 153, 0.22)',
+    borderColor: 'rgba(236, 72, 153, 0.25)',
   },
   tagText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#5b21b6',
   },
-  listItem: {
-    fontSize: 14,
-    color: '#475569',
-    marginBottom: 6,
-    lineHeight: 20,
+  valueTagText: {
+    color: '#be185d',
+  },
+  dealbreakerTag: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(254, 226, 226, 0.85)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.25)',
+  },
+  dealbreakerTagText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#b91c1c',
   },
   lifestyleGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
   },
   lifestyleCard: {
+    width: '48%',
     padding: 10,
-    borderRadius: 12,
-    backgroundColor: 'rgba(237, 242, 255, 0.75)',
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
     borderWidth: 1,
-    borderColor: 'rgba(102, 126, 234, 0.1)',
+    borderColor: 'rgba(102, 126, 234, 0.12)',
   },
   lifestyleLabel: {
     fontSize: 10,
     fontWeight: '800',
     color: '#64748b',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
   lifestyleValue: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#334155',
     marginTop: 4,
-    fontWeight: '500',
+    fontWeight: '600',
+    lineHeight: 16,
+  },
+  emptyDetailsCard: {
+    padding: 28,
+    borderRadius: 20,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: 'rgba(102, 126, 234, 0.12)',
+    alignItems: 'center',
+  },
+  footerNote: {
+    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#94a3b8',
+    marginTop: 4,
   },
   fullscreenOverlay: {
     flex: 1,
