@@ -10,6 +10,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useIsFocused } from '@react-navigation/native';
 import type { ProfileEnhancementItem } from '../utils/profileEnhancementChecklist';
 
 export type ConnectEnhancementShell = 'midnight' | 'sunny' | 'soft';
@@ -215,6 +216,7 @@ export default function ConnectProfileEnhancementCard({
   const total = 5;
   const done = total - items.length;
   const progressPct = done / total;
+  const isFocused = useIsFocused();
 
   useEffect(() => {
     if (Platform.OS === 'android') {
@@ -222,6 +224,11 @@ export default function ConnectProfileEnhancementCard({
       cardTranslateY.setValue(0);
       contentOpacity.setValue(1);
       progressWidth.setValue(progressPct);
+      return;
+    }
+
+    if (!isFocused) {
+      iconScale.setValue(1);
       return;
     }
 
@@ -271,7 +278,7 @@ export default function ConnectProfileEnhancementCard({
     );
     iconLoop.start();
     return () => iconLoop.stop();
-  }, [cardOpacity, cardTranslateY, contentOpacity, iconScale, progressPct, progressWidth]);
+  }, [cardOpacity, cardTranslateY, contentOpacity, iconScale, progressPct, progressWidth, isFocused]);
 
   const progressAnimWidth = progressWidth.interpolate({
     inputRange: [0, 1],

@@ -356,7 +356,8 @@ function WebNavbarTokenBadge({
   useEffect(() => {
     pulseLoopRef.current?.stop();
     shimmerLoopRef.current?.stop();
-    if (reduceMotion || loading) {
+    // Android navbar badge is static (no shadow pulse); skip JS-thread loop entirely.
+    if (reduceMotion || loading || Platform.OS === 'android') {
       pulse.setValue(0);
       shimmer.setValue(0);
       return;

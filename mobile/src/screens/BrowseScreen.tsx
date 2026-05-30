@@ -304,8 +304,12 @@ export default function BrowseScreen() {
   const claimBannerPulse = useRef(new Animated.Value(1)).current;
   const claimBannerScale = useRef(new Animated.Value(1)).current;
 
-  // Claim banner pulse animation (subtle breath effect)
+  // Claim banner pulse animation (subtle breath effect) — only while Connect tab is focused
   useEffect(() => {
+    if (!isFocused) {
+      claimBannerPulse.setValue(1);
+      return;
+    }
     const pulse = Animated.loop(
       Animated.sequence([
         Animated.timing(claimBannerPulse, { toValue: 1.03, duration: 1200, useNativeDriver: true }),
@@ -314,7 +318,7 @@ export default function BrowseScreen() {
     );
     pulse.start();
     return () => pulse.stop();
-  }, [claimBannerPulse]);
+  }, [claimBannerPulse, isFocused]);
 
   useEffect(() => {
     if (!connecting) {
@@ -1366,7 +1370,7 @@ export default function BrowseScreen() {
   // MUST be before any early returns
   useEffect(() => {
     let buttonLoop: Animated.CompositeAnimation | null = null;
-    if (showLandingPage && !unlocking) {
+    if (showLandingPage && !unlocking && isFocused) {
       // Animate "Discover People" title
       Animated.parallel([
         Animated.timing(titleOpacity, { toValue: 1, duration: 1000, useNativeDriver: true }),
@@ -1399,6 +1403,7 @@ export default function BrowseScreen() {
   }, [
     showLandingPage,
     unlocking,
+    isFocused,
     connectShellMode,
     startLandingShimmerLoop,
     stopLandingShimmerLoop,

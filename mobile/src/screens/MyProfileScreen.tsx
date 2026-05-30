@@ -345,13 +345,13 @@ export default function MyProfileScreen() {
   const sparkle3Anim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (data) {
+    if (data && isFocused) {
       // Show header and avatar at full size immediately (no spring delay)
       headerFade.setValue(1);
       headerScale.setValue(1);
       avatarScale.setValue(1);
       
-      // Start ring animations when we have full profile data
+      // Start ring animations only while Profile tab is focused (avoids background load on other tabs)
       const ring1Pulse = Animated.loop(
         Animated.sequence([
           Animated.parallel([
@@ -557,6 +557,22 @@ export default function MyProfileScreen() {
         sparkle2Float.stop();
         sparkle3Float.stop();
       };
+    } else if (data && !isFocused) {
+      headerFade.setValue(1);
+      headerScale.setValue(1);
+      avatarScale.setValue(1);
+      ring1Scale.setValue(1);
+      ring1Opacity.setValue(0.6);
+      ring2Scale.setValue(1);
+      ring2Opacity.setValue(0.4);
+      ring3Scale.setValue(1);
+      ring3Opacity.setValue(0.2);
+      ringRotation.setValue(0);
+      shimmerPosition.setValue(0);
+      avatarBreath.setValue(1);
+      sparkle1Anim.setValue(0);
+      sparkle2Anim.setValue(0);
+      sparkle3Anim.setValue(0);
     } else if ((cachedPrimaryPhotoUrl || photos.length > 0) && isFocused) {
       // Show header/avatar immediately from cache or photos while profile loads
       headerFade.setValue(1);

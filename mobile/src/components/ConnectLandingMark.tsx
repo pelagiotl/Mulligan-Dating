@@ -1,5 +1,6 @@
 import React, { memo, useEffect, useRef } from 'react';
 import { Animated, View, StyleSheet, ViewStyle } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
 import Svg, { Defs, LinearGradient, Stop, Path } from 'react-native-svg';
 
 /**
@@ -18,8 +19,14 @@ const ConnectLandingMark = memo(function ConnectLandingMark({
   const gradId = gradIdRef.current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const isFocused = useIsFocused();
 
   useEffect(() => {
+    if (!isFocused) {
+      rotateAnim.setValue(0);
+      pulseAnim.setValue(1);
+      return;
+    }
     const rotateLoop = Animated.loop(
       Animated.timing(rotateAnim, {
         toValue: 1,
@@ -47,7 +54,7 @@ const ConnectLandingMark = memo(function ConnectLandingMark({
       rotateLoop.stop();
       pulseLoop.stop();
     };
-  }, [rotateAnim, pulseAnim]);
+  }, [rotateAnim, pulseAnim, isFocused]);
 
   const rotate = rotateAnim.interpolate({
     inputRange: [0, 1],

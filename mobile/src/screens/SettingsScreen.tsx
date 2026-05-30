@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import Constants from 'expo-constants';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useIsFocused } from '@react-navigation/native';
 import Purchases from 'react-native-purchases';
 import type { PurchasesPackage } from 'react-native-purchases';
 import { api } from '../utils/api';
@@ -109,15 +109,25 @@ export default function SettingsScreen() {
   const statCardFallbackAnim = useRef(new Animated.Value(1)).current;
   const gradientPos = useRef(new Animated.Value(0)).current;
   const settingsFetchGen = useRef(0);
+  const headerIconLoopRef = useRef<Animated.CompositeAnimation | null>(null);
+  const gradientLoopRef = useRef<Animated.CompositeAnimation | null>(null);
+  const isFocused = useIsFocused();
+  const entrancePlayedRef = useRef(false);
 
   useEffect(() => {
     if (user) {
       fetchSettings();
     } else {
       setLoading(false);
+      entrancePlayedRef.current = false;
     }
+  }, [user]);
 
-    // Header entrance animation
+  // One-time entrance animations when settings loads (not repeated on tab blur)
+  useEffect(() => {
+    if (!user || entrancePlayedRef.current) return;
+    entrancePlayedRef.current = true;
+
     Animated.parallel([
       Animated.spring(headerScale, {
         toValue: 1,
@@ -131,40 +141,7 @@ export default function SettingsScreen() {
         useNativeDriver: true,
       }),
     ]).start();
-    
-    // Continuous icon rotation
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(headerIconRotate, {
-          toValue: 1,
-          duration: 3000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(headerIconRotate, {
-          toValue: 0,
-          duration: 3000,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-    
-    // Animated gradient background
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(gradientPos, {
-          toValue: 1,
-          duration: 10000,
-          useNativeDriver: false,
-        }),
-        Animated.timing(gradientPos, {
-          toValue: 0,
-          duration: 10000,
-          useNativeDriver: false,
-        }),
-      ])
-    ).start();
-    
-    // Initialize section animations
+
     for (let i = 0; i < 10; i++) {
       sectionAnimations[i] = new Animated.Value(0);
       Animated.timing(sectionAnimations[i], {
@@ -174,8 +151,7 @@ export default function SettingsScreen() {
         useNativeDriver: true,
       }).start();
     }
-    
-    // Initialize stat card animations
+
     for (let i = 0; i < 2; i++) {
       statCardAnimations[i] = new Animated.Value(0);
       Animated.spring(statCardAnimations[i], {
@@ -187,6 +163,53 @@ export default function SettingsScreen() {
       }).start();
     }
   }, [user]);
+
+  // Continuous header loops — pause when Settings tab is in background (gradient uses JS driver)
+  useEffect(() => {
+    headerIconLoopRef.current?.stop();
+    gradientLoopRef.current?.stop();
+
+    if (!isFocused || !user) {
+      gradientPos.setValue(0);
+      return;
+    }
+
+    headerIconLoopRef.current = Animated.loop(
+      Animated.sequence([
+        Animated.timing(headerIconRotate, {
+          toValue: 1,
+          duration: 3000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(headerIconRotate, {
+          toValue: 0,
+          duration: 3000,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    gradientLoopRef.current = Animated.loop(
+      Animated.sequence([
+        Animated.timing(gradientPos, {
+          toValue: 1,
+          duration: 10000,
+          useNativeDriver: false,
+        }),
+        Animated.timing(gradientPos, {
+          toValue: 0,
+          duration: 10000,
+          useNativeDriver: false,
+        }),
+      ])
+    );
+    headerIconLoopRef.current.start();
+    gradientLoopRef.current.start();
+
+    return () => {
+      headerIconLoopRef.current?.stop();
+      gradientLoopRef.current?.stop();
+    };
+  }, [isFocused, user, gradientPos, headerIconRotate]);
 
   useEffect(() => {
     if (!profile) {
