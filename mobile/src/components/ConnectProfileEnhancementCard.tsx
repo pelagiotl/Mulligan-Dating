@@ -1,5 +1,13 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, type ViewStyle } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Animated,
+  Easing,
+  type ViewStyle,
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { ProfileEnhancementItem } from '../utils/profileEnhancementChecklist';
 
@@ -92,6 +100,61 @@ const SHELL_STYLES: Record<
   },
 };
 
+function AnimatedRow({
+  index,
+  item,
+  palette,
+  onPress,
+}: {
+  index: number;
+  item: ProfileEnhancementItem;
+  palette: (typeof SHELL_STYLES)[ConnectEnhancementShell];
+  onPress: () => void;
+}) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateX = useRef(new Animated.Value(-10)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 380,
+        delay: 220 + index * 70,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(translateX, {
+        toValue: 0,
+        duration: 380,
+        delay: 220 + index * 70,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [index, opacity, translateX]);
+
+  return (
+    <Animated.View style={{ opacity, transform: [{ translateX }] }}>
+      <TouchableOpacity
+        style={[
+          styles.row,
+          { backgroundColor: palette.rowBg, borderColor: palette.rowBorder },
+        ]}
+        onPress={onPress}
+        activeOpacity={0.75}
+        accessibilityRole="button"
+        accessibilityLabel={item.label}
+      >
+        <View style={[styles.dot, { backgroundColor: palette.dot }]} />
+        <Text style={[styles.label, { color: palette.row }]} numberOfLines={1}>
+          {item.label}
+        </Text>
+        <Text style={[styles.chev, { color: palette.chev }]}>›</Text>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
 export default function ConnectProfileEnhancementCard({
   items,
   shell,
@@ -100,15 +163,84 @@ export default function ConnectProfileEnhancementCard({
   onDismiss,
   style,
 }: Props) {
-  if (items.length === 0) return null;
+  const cardOpacity = useRef(new Animated.Value(0)).current;
+  const cardTranslateY = useRef(new Animated.Value(16)).current;
+  const iconScale = useRef(new Animated.Value(1)).current;
+  const progressWidth = useRef(new Animated.Value(0)).current;
+  const contentOpacity = useRef(new Animated.Value(0)).current;
 
   const palette = SHELL_STYLES[shell];
   const total = 5;
   const done = total - items.length;
   const progressPct = done / total;
 
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(cardOpacity, {
+        toValue: 1,
+        duration: 480,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(cardTranslateY, {
+        toValue: 0,
+        duration: 480,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(progressWidth, {
+        toValue: progressPct,
+        duration: 900,
+        delay: 180,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }),
+      Animated.timing(contentOpacity, {
+        toValue: 1,
+        duration: 420,
+        delay: 260,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    const iconLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(iconScale, {
+          toValue: 1.14,
+          duration: 900,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(iconScale, {
+          toValue: 1,
+          duration: 900,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    iconLoop.start();
+    return () => iconLoop.stop();
+  }, [cardOpacity, cardTranslateY, contentOpacity, iconScale, progressPct, progressWidth]);
+
+  const progressAnimWidth = progressWidth.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0%', '100%'],
+  });
+
   return (
-    <View style={[styles.card, palette.card, style]} accessibilityRole="summary">
+    <Animated.View
+      style={[
+        styles.card,
+        palette.card,
+        style,
+        {
+          opacity: cardOpacity,
+          transform: [{ translateY: cardTranslateY }],
+        },
+      ]}
+      accessibilityRole="summary"
+    >
       <LinearGradient
         colors={palette.accent}
         start={{ x: 0, y: 0 }}
@@ -117,9 +249,12 @@ export default function ConnectProfileEnhancementCard({
       />
       <View style={styles.head}>
         <View style={styles.titleWrap}>
-          <Text style={styles.icon} allowFontScaling={false}>
+          <Animated.Text
+            style={[styles.icon, { transform: [{ scale: iconScale }] }]}
+            allowFontScaling={false}
+          >
             ✨
-          </Text>
+          </Animated.Text>
           <Text style={[styles.eyebrow, { color: palette.eyebrow }]}>Better matches</Text>
         </View>
         <Text style={[styles.progressBadge, { color: palette.progress, borderColor: palette.rowBorder }]}>
@@ -127,36 +262,28 @@ export default function ConnectProfileEnhancementCard({
         </Text>
       </View>
       <View style={[styles.progressTrack, { backgroundColor: palette.progressTrack }]}>
-        <LinearGradient
-          colors={palette.progressFill}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={[styles.progressFill, { width: `${Math.round(progressPct * 100)}%` }]}
-        />
+        <Animated.View style={{ width: progressAnimWidth, height: '100%' }}>
+          <LinearGradient
+            colors={palette.progressFill}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.progressFill}
+          />
+        </Animated.View>
       </View>
-      <Text style={[styles.lead, { color: palette.lead }]}>
+      <Animated.Text style={[styles.lead, { color: palette.lead, opacity: contentOpacity }]}>
         Quick Profile updates help us curate stronger connections.
-      </Text>
-      {items.map((item) => (
-        <TouchableOpacity
+      </Animated.Text>
+      {items.map((item, index) => (
+        <AnimatedRow
           key={item.id}
-          style={[
-            styles.row,
-            { backgroundColor: palette.rowBg, borderColor: palette.rowBorder },
-          ]}
+          index={index}
+          item={item}
+          palette={palette}
           onPress={() => onItemPress(item)}
-          activeOpacity={0.75}
-          accessibilityRole="button"
-          accessibilityLabel={item.label}
-        >
-          <View style={[styles.dot, { backgroundColor: palette.dot }]} />
-          <Text style={[styles.label, { color: palette.row }]} numberOfLines={1}>
-            {item.label}
-          </Text>
-          <Text style={[styles.chev, { color: palette.chev }]}>›</Text>
-        </TouchableOpacity>
+        />
       ))}
-      <View style={[styles.actions, { borderTopColor: palette.rowBorder }]}>
+      <Animated.View style={[styles.actions, { borderTopColor: palette.rowBorder, opacity: contentOpacity }]}>
         <TouchableOpacity onPress={onOpenProfile} activeOpacity={0.85} style={styles.profileBtnWrap}>
           <LinearGradient
             colors={palette.profileBtn}
@@ -170,8 +297,8 @@ export default function ConnectProfileEnhancementCard({
         <TouchableOpacity onPress={onDismiss} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <Text style={[styles.dismiss, { color: palette.dismiss }]}>Not now</Text>
         </TouchableOpacity>
-      </View>
-    </View>
+      </Animated.View>
+    </Animated.View>
   );
 }
 
@@ -234,7 +361,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   progressFill: {
-    height: '100%',
+    flex: 1,
     borderRadius: 999,
   },
   lead: {

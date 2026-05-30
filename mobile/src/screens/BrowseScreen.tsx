@@ -1954,11 +1954,11 @@ export default function BrowseScreen() {
                 </TouchableOpacity>
               </Animated.View>
 
-              {isAuthenticated ? renderProfileEnhancement('midnight') : null}
-
               <Animated.View style={[styles.landingHintWrap, { opacity: landingHintOpacity }]}>
                 <Text style={styles.midnightHint}>{landingConnectHint}</Text>
               </Animated.View>
+
+              {isAuthenticated ? renderProfileEnhancement('midnight') : null}
               </View>
               </View>
             </LinearGradient>
@@ -2065,11 +2065,11 @@ export default function BrowseScreen() {
                       </TouchableOpacity>
                     </Animated.View>
 
-                    {isAuthenticated ? renderProfileEnhancement('sunny') : null}
-
                     <Animated.View style={[styles.landingHintWrap, { opacity: landingHintOpacity }]}>
                       <Text style={styles.sunnyHint}>{landingConnectHint}</Text>
                     </Animated.View>
+
+                    {isAuthenticated ? renderProfileEnhancement('sunny') : null}
                   </View>
                 </View>
               ) : (
@@ -2175,11 +2175,11 @@ export default function BrowseScreen() {
                       </TouchableOpacity>
                     </Animated.View>
 
-                    {isAuthenticated ? renderProfileEnhancement('soft') : null}
-
                     <Animated.View style={[styles.landingHintWrap, { opacity: landingHintOpacity }]}>
                       <Text style={styles.softHint}>{landingConnectHint}</Text>
                     </Animated.View>
+
+                    {isAuthenticated ? renderProfileEnhancement('soft') : null}
                   </View>
                 </View>
               )}
