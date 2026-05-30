@@ -53,6 +53,7 @@ import {
   type ProfileEnhancementItem,
   type ProfileEnhancementSnapshot,
 } from '../utils/profileEnhancementChecklist';
+import { fetchProfileEnhancementSnapshot } from '../utils/fetchProfileEnhancementSnapshot';
 import ConnectLandingValueProps, { ConnectFeatureLabel } from '../components/ConnectLandingValueProps';
 import ConnectLandingTagline from '../components/ConnectLandingTagline';
 import ConnectLandingMark from '../components/ConnectLandingMark';
@@ -1059,30 +1060,7 @@ export default function BrowseScreen() {
       /* keep cached count */
     }
 
-    try {
-      const data = await api.get<{
-        profile: { looking_for?: string | null; lookingFor?: string | null };
-        interests: unknown[];
-        dealbreakers: unknown[];
-        lifestyle: ProfileEnhancementSnapshot['lifestyle'];
-      }>('/profile');
-      const profileRow = data.profile;
-      setEnhancementSnapshot({
-        photoCount: resolvedPhotoCount,
-        interestsCount: data.interests?.length ?? 0,
-        lookingFor: profileRow?.looking_for ?? profileRow?.lookingFor ?? null,
-        lifestyle: data.lifestyle ?? null,
-        dealbreakersCount: data.dealbreakers?.length ?? 0,
-      });
-    } catch {
-      setEnhancementSnapshot({
-        photoCount: resolvedPhotoCount,
-        interestsCount: 0,
-        lookingFor: null,
-        lifestyle: null,
-        dealbreakersCount: 0,
-      });
-    }
+    setEnhancementSnapshot(await fetchProfileEnhancementSnapshot(resolvedPhotoCount));
   }, [photoCount]);
 
   useEffect(() => {
@@ -1128,7 +1106,20 @@ export default function BrowseScreen() {
   const handleEnhancementCelebrationClose = useCallback(() => {
     void markProfileEnhancementCelebrationShown();
     setShowEnhancementCelebration(false);
-  }, []);
+    if (navigationRef.current?.isReady()) {
+      navigationRef.current.dispatch(
+        CommonActions.navigate({
+          name: 'MainTabs',
+          params: { screen: 'Browse', params: { resetToLanding: true } },
+        })
+      );
+    } else {
+      navigation.navigate('MainTabs' as never, {
+        screen: 'Browse',
+        params: { resetToLanding: true },
+      } as never);
+    }
+  }, [navigation]);
 
   const openProfileEnhancement = useCallback((item: ProfileEnhancementItem) => {
     const params =

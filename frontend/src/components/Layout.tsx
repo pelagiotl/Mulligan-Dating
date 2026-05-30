@@ -8,6 +8,7 @@ import {
 } from '../lib/tokenBalanceEvents'
 import MaintenanceBanner from './MaintenanceBanner'
 import OnboardingProfileBanner from './OnboardingProfileBanner'
+import ProfileEnhancementCelebrationHost from './ProfileEnhancementCelebrationHost'
 import BrandMark from './BrandMark'
 import TokenDisplay from './TokenDisplay'
 import WebTokenPurchase from './WebTokenPurchase'
@@ -84,6 +85,7 @@ export default function Layout() {
     >
       <MaintenanceBanner />
       <OnboardingProfileBanner />
+      {isAuthenticated && connectSetupComplete ? <ProfileEnhancementCelebrationHost /> : null}
       {!isCreateProfileWizard ? (
         <nav className="navbar">
           <div className="navbar-inner">

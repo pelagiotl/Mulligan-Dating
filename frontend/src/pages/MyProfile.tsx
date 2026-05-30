@@ -11,6 +11,7 @@ import MyProfilePreviewModal, {
 } from "../components/MyProfilePreviewModal";
 import { getPhotoUrl } from "../utils/photoUrl";
 import { hasCityAndState } from "../utils/locationUtils";
+import { dispatchProfileEnhancementRefresh } from "../constants/profileEnhancementEvents";
 import { LIFESTYLE_FIELD_LABEL, getInterestEmoji } from "../constants/profileMySections";
 import { displayProfileGender } from "../utils/createProfileProgress";
 import { useAuth } from "../context/AuthContext";
@@ -826,6 +827,7 @@ export default function MyProfile() {
       setData((prev) => (prev ? { ...prev, profile: { ...prev.profile, looking_for: lookingFor } } : null));
       setShowLookingForModal(false);
       await refreshProfile();
+      dispatchProfileEnhancementRefresh();
       restoreCapturedScrollPosition();
     } catch (e: unknown) {
       setError((e as Error)?.message || "Failed to update looking for.");
@@ -854,6 +856,7 @@ export default function MyProfile() {
   const refreshProfileData = async () => {
     const next = await api.get<ProfileData>("/profile");
     setData(next);
+    dispatchProfileEnhancementRefresh();
   };
 
   const saveInterests = async () => {
@@ -1303,6 +1306,7 @@ export default function MyProfile() {
             void fetchPhotos();
             if (kind !== "reorder") {
               void fetchProfile();
+              dispatchProfileEnhancementRefresh();
             }
           }}
         />

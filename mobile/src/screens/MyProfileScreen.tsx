@@ -48,6 +48,9 @@ import MyProfilePreviewModal, {
   parseProfileValues,
   type MyProfilePreviewData,
 } from '../components/MyProfilePreviewModal';
+import BetterMatchesCompleteCelebration from '../components/BetterMatchesCompleteCelebration';
+import { markProfileEnhancementCelebrationShown } from '../utils/profileEnhancementChecklist';
+import { maybeShowProfileEnhancementCelebration } from '../utils/maybeShowProfileEnhancementCelebration';
 import { androidShellBackdropColors } from '../utils/androidConnectShellChrome';
 import {
   LOOKING_FOR_OPTIONS,
@@ -222,7 +225,8 @@ export default function MyProfileScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   const isFocused = useIsFocused();
-  const { refreshProfile, user, loading: authLoading } = useAuth();
+  const { refreshProfile, user, loading: authLoading, connectSetupComplete } = useAuth();
+  const [showEnhancementCelebration, setShowEnhancementCelebration] = useState(false);
   const { mode: connectShellMode } = useConnectShellTheme();
   const shellBackdropColors = useMemo(
     () => androidShellBackdropColors(connectShellMode),
@@ -1005,10 +1009,38 @@ export default function MyProfileScreen() {
     }
   };
 
+  const checkEnhancementCelebration = useCallback(async () => {
+    if (!connectSetupComplete) return;
+    await maybeShowProfileEnhancementCelebration(
+      photos.length,
+      () => setShowEnhancementCelebration(true),
+      () => setShowEnhancementCelebration(false)
+    );
+  }, [connectSetupComplete, photos.length]);
+
   const refreshProfileData = async () => {
     const next = await api.get<ProfileData>('/profile');
     setData(next);
+    await checkEnhancementCelebration();
   };
+
+  const handleEnhancementCelebrationClose = useCallback(() => {
+    void markProfileEnhancementCelebrationShown();
+    setShowEnhancementCelebration(false);
+    if (navigationRef.current?.isReady()) {
+      navigationRef.current.dispatch(
+        CommonActions.navigate({
+          name: 'MainTabs',
+          params: { screen: 'Browse', params: { resetToLanding: true } },
+        })
+      );
+    } else {
+      navigation.navigate('MainTabs' as never, {
+        screen: 'Browse',
+        params: { resetToLanding: true },
+      } as never);
+    }
+  }, [navigation]);
 
   const saveLookingFor = async () => {
     if (!data?.profile) return;
@@ -1032,6 +1064,7 @@ export default function MyProfileScreen() {
       setShowLookingForModal(false);
       api.clearCache('/profile');
       refreshProfile?.();
+      await checkEnhancementCelebration();
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Failed to update.');
     } finally {
@@ -1234,6 +1267,7 @@ export default function MyProfileScreen() {
 
       api.clearCache('/photos/me');
       await Promise.all([fetchPhotos(), fetchProfile(), refreshProfile?.() ?? Promise.resolve()]);
+      await checkEnhancementCelebration();
     } catch (err: any) {
       console.error('Upload error:', err);
       Alert.alert('Error', err?.message || 'Failed to upload photos');
@@ -3723,6 +3757,11 @@ export default function MyProfileScreen() {
           photos={photos}
         />
       ) : null}
+
+      <BetterMatchesCompleteCelebration
+        visible={showEnhancementCelebration}
+        onClose={handleEnhancementCelebrationClose}
+      />
 
       {/* Photo Gallery Modal */}
       <Modal

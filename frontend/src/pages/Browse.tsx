@@ -22,19 +22,15 @@ import MatchmakingPausedModalWeb from "../components/MatchmakingPausedModalWeb";
 import ConnectProfileEnhancementCard, {
   ConnectProfileEnhancementRestoreLink,
 } from "../components/ConnectProfileEnhancementCard";
-import BetterMatchesCompleteCelebration from "../components/BetterMatchesCompleteCelebration";
 import {
   clearProfileEnhancementDismiss,
-  clearProfileEnhancementCelebrationShown,
   dismissProfileEnhancement,
-  isProfileEnhancementCelebrationShown,
   isProfileEnhancementDismissed,
-  markProfileEnhancementCelebrationShown,
   profileEnhancementIncomplete,
-  profileEnhancementIsComplete,
   type ProfileEnhancementItem,
   type ProfileEnhancementSnapshot,
 } from "../utils/profileEnhancementChecklist";
+import { fetchProfileEnhancementSnapshot } from "../utils/fetchProfileEnhancementSnapshot";
 
 interface Photo {
   id: string;
@@ -233,7 +229,6 @@ export default function Browse() {
   const [enhancementDismissed, setEnhancementDismissed] = useState(() =>
     isProfileEnhancementDismissed()
   );
-  const [showEnhancementCelebration, setShowEnhancementCelebration] = useState(false);
   const [enhancementSnapshot, setEnhancementSnapshot] = useState<ProfileEnhancementSnapshot | null>(
     null
   );
@@ -855,41 +850,7 @@ export default function Browse() {
   }, [location.pathname, refreshEnhancementDismissed]);
 
   const loadEnhancementSnapshot = useCallback(async () => {
-    let resolvedPhotoCount = photoCount ?? 0;
-    try {
-      const photosData = await api.get<{ photos?: unknown[] }>(`/photos/me?_=${Date.now()}`);
-      if (Array.isArray(photosData.photos)) {
-        resolvedPhotoCount = photosData.photos.length;
-      }
-    } catch {
-      /* keep auth fallback */
-    }
-
-    try {
-      const data = await api.get<{
-        profile: { looking_for?: string | null; lookingFor?: string | null };
-        interests: unknown[];
-        dealbreakers: unknown[];
-        lifestyle: ProfileEnhancementSnapshot["lifestyle"];
-      }>("/profile");
-      const profileRow = data.profile;
-      setEnhancementSnapshot({
-        photoCount: resolvedPhotoCount,
-        interestsCount: data.interests?.length ?? 0,
-        lookingFor: profileRow?.looking_for ?? profileRow?.lookingFor ?? null,
-        lifestyle: data.lifestyle ?? null,
-        dealbreakersCount: data.dealbreakers?.length ?? 0,
-      });
-    } catch {
-      // Still show tips if /profile fails — assume gaps beyond what we know from photos.
-      setEnhancementSnapshot({
-        photoCount: resolvedPhotoCount,
-        interestsCount: 0,
-        lookingFor: null,
-        lifestyle: null,
-        dealbreakersCount: 0,
-      });
-    }
+    setEnhancementSnapshot(await fetchProfileEnhancementSnapshot(photoCount ?? 0));
   }, [photoCount]);
 
   useEffect(() => {
@@ -901,24 +862,6 @@ export default function Browse() {
     if (!enhancementSnapshot) return [];
     return profileEnhancementIncomplete(enhancementSnapshot);
   }, [enhancementSnapshot]);
-
-  useEffect(() => {
-    if (!enhancementSnapshot || !showConnectGate) return;
-    const complete = profileEnhancementIsComplete(enhancementSnapshot);
-    if (!complete) {
-      clearProfileEnhancementCelebrationShown();
-      setShowEnhancementCelebration(false);
-      return;
-    }
-    if (!isProfileEnhancementCelebrationShown()) {
-      setShowEnhancementCelebration(true);
-    }
-  }, [enhancementSnapshot, showConnectGate]);
-
-  const handleEnhancementCelebrationClose = useCallback(() => {
-    markProfileEnhancementCelebrationShown();
-    setShowEnhancementCelebration(false);
-  }, []);
 
   const handleRestoreProfileEnhancement = useCallback(() => {
     clearProfileEnhancementDismiss();
@@ -979,10 +922,6 @@ export default function Browse() {
         open={showMatchmakingPausedModal}
         message={user?.matchmakingDisabledMessage}
         onClose={() => setShowMatchmakingPausedModal(false)}
-      />
-      <BetterMatchesCompleteCelebration
-        open={showEnhancementCelebration}
-        onClose={handleEnhancementCelebrationClose}
       />
     </>
   );
