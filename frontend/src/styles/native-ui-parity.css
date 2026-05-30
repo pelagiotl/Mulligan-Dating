@@ -1954,6 +1954,12 @@ button.connect-landing__cta:disabled::before {
   background: var(--native-gradient-matches-header);
   border-bottom: none;
   border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+  overflow: visible;
+}
+
+.matches-page.native-app-screen .matches-sidebar-header .connection-limits-panel {
+  margin-left: 0;
+  margin-right: 0;
 }
 
 .matches-page.native-app-screen .matches-title-row {

@@ -9698,6 +9698,7 @@ button.my-profile-mini-card:focus-visible {
   margin-bottom: var(--space-5);
   padding-bottom: var(--space-4);
   border-bottom: 2px solid rgba(244, 63, 94, 0.1);
+  overflow: visible;
 }
 
 .matches-title-row {
@@ -19026,9 +19027,10 @@ button.compatibility-pulse-pill:focus-visible {
 .connection-limits-panel {
   position: relative;
   margin: 0 0 var(--space-3);
-  padding: var(--space-3) var(--space-3) 0.65rem;
+  padding: var(--space-3) var(--space-3) 0.75rem;
   border-radius: 14px;
-  overflow: hidden;
+  overflow: visible;
+  container-type: inline-size;
   background: var(--limits-panel-bg);
   border: 1px solid var(--limits-panel-border);
   box-shadow: var(--limits-panel-shadow);
@@ -19229,14 +19231,16 @@ button.compatibility-pulse-pill:focus-visible {
 
 .connection-limits-panel__metrics {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 0.5rem;
 }
 
 .connection-limits-panel__metric {
   display: flex;
   gap: 0.55rem;
-  padding: 0.55rem 0.5rem;
+  min-width: 0;
+  overflow: visible;
+  padding: 0.55rem 0.45rem 0.6rem;
   border-radius: 11px;
   background: var(--limits-metric-bg);
   border: 1px solid var(--limits-metric-border);
@@ -19404,6 +19408,7 @@ button.compatibility-pulse-pill:focus-visible {
 
 .connection-limits-panel__metric-chip {
   align-self: flex-start;
+  max-width: 100%;
   margin-top: 0.1rem;
   padding: 0.12rem 0.45rem;
   border-radius: 6px;
@@ -19414,6 +19419,7 @@ button.compatibility-pulse-pill:focus-visible {
   background: var(--limits-chip-bg);
   border: 1px solid var(--limits-chip-border);
   line-height: 1.3;
+  white-space: normal;
 }
 
 .connection-limits-panel__note {
@@ -19432,6 +19438,13 @@ button.compatibility-pulse-pill:focus-visible {
   font-weight: 600;
   background: var(--limits-note-capacity-bg);
   border-color: var(--limits-metric-full-border);
+}
+
+/* Stack metric cards when the panel is narrower than two comfortable columns (browser sidebar, etc.) */
+@container (max-width: 300px) {
+  .connection-limits-panel__metrics {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 400px) {
