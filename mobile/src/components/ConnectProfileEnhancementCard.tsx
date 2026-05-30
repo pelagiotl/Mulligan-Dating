@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Animated,
   Easing,
+  Platform,
   type ViewStyle,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -30,7 +31,6 @@ const SHELL_STYLES: Record<
     eyebrow: string;
     lead: string;
     row: string;
-    rowBg: string;
     rowBorder: string;
     chev: string;
     dismiss: string;
@@ -44,13 +44,12 @@ const SHELL_STYLES: Record<
   midnight: {
     card: {
       borderColor: 'rgba(167, 139, 250, 0.38)',
-      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+      backgroundColor: 'transparent',
     },
     accent: ['#667eea', '#a78bfa', '#f093fb'],
     eyebrow: 'rgba(233, 213, 255, 0.98)',
     lead: 'rgba(255, 255, 255, 0.82)',
     row: '#fff',
-    rowBg: 'rgba(255, 255, 255, 0.1)',
     rowBorder: 'rgba(255, 255, 255, 0.16)',
     chev: 'rgba(255, 255, 255, 0.45)',
     dismiss: 'rgba(255, 255, 255, 0.55)',
@@ -63,13 +62,12 @@ const SHELL_STYLES: Record<
   sunny: {
     card: {
       borderColor: 'rgba(245, 158, 11, 0.38)',
-      backgroundColor: 'rgba(255, 255, 255, 0.62)',
+      backgroundColor: Platform.OS === 'android' ? 'transparent' : 'rgba(255, 255, 255, 0.62)',
     },
     accent: ['#f59e0b', '#fb923c', '#fbbf24'],
     eyebrow: '#b45309',
     lead: 'rgba(120, 53, 15, 0.82)',
     row: '#78350f',
-    rowBg: 'rgba(255, 255, 255, 0.78)',
     rowBorder: 'rgba(245, 158, 11, 0.2)',
     chev: 'rgba(180, 83, 9, 0.45)',
     dismiss: 'rgba(120, 53, 15, 0.55)',
@@ -82,13 +80,12 @@ const SHELL_STYLES: Record<
   soft: {
     card: {
       borderColor: 'rgba(244, 114, 182, 0.32)',
-      backgroundColor: 'rgba(255, 255, 255, 0.68)',
+      backgroundColor: Platform.OS === 'android' ? 'transparent' : 'rgba(255, 255, 255, 0.68)',
     },
     accent: ['#667eea', '#f472b6', '#fda4af'],
     eyebrow: '#9d174d',
     lead: 'rgba(76, 29, 52, 0.82)',
     row: '#4c1d34',
-    rowBg: 'rgba(255, 255, 255, 0.82)',
     rowBorder: 'rgba(244, 114, 182, 0.2)',
     chev: 'rgba(157, 23, 77, 0.45)',
     dismiss: 'rgba(76, 29, 52, 0.55)',
@@ -138,7 +135,7 @@ function AnimatedRow({
       <TouchableOpacity
         style={[
           styles.row,
-          { backgroundColor: palette.rowBg, borderColor: palette.rowBorder },
+          { borderColor: palette.rowBorder },
         ]}
         onPress={onPress}
         activeOpacity={0.75}
@@ -312,11 +309,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     marginTop: 14,
     overflow: 'hidden',
-    shadowColor: '#312e81',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12,
-    shadowRadius: 14,
-    elevation: 4,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#312e81',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.12,
+        shadowRadius: 14,
+      },
+      android: {
+        elevation: 0,
+      },
+      default: {},
+    }),
   },
   accent: {
     position: 'absolute',
@@ -410,11 +414,18 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
     paddingHorizontal: 16,
     alignItems: 'center',
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.28,
-    shadowRadius: 8,
-    elevation: 3,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#667eea',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.28,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 0,
+      },
+      default: {},
+    }),
   },
   profileBtnText: {
     color: '#fff',
