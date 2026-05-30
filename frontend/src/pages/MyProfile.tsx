@@ -1058,7 +1058,9 @@ export default function MyProfile() {
             <div className="my-profile-hero-row">
               <div className="my-profile-stats-row">
                 <div className="my-profile-stat-card my-profile-stat-card--member">
-                  <span className="my-profile-stat-emoji">🎉</span>
+                  <span className="my-profile-stat-emoji my-profile-stat-emoji--member" aria-hidden>
+                    ✨
+                  </span>
                   <span className="my-profile-stat-label">Member Since</span>
                   <span className="my-profile-stat-value">
                     {settings.createdAt
@@ -1131,6 +1133,9 @@ export default function MyProfile() {
 
           <section className="my-profile-identity-section" aria-labelledby="my-profile-basics-heading">
             <h2 id="my-profile-basics-heading" className="my-profile-identity-section-title">
+              <span className="my-profile-identity-section-title-icon" aria-hidden>
+                ✦
+              </span>
               Basics
             </h2>
             <div className="my-profile-info-grid">
@@ -1142,7 +1147,9 @@ export default function MyProfile() {
                   setShowAgeModal(true);
                 }}
               >
-                <span aria-hidden>🎂</span>
+                <span className="my-profile-mini-emoji my-profile-mini-emoji--age" aria-hidden>
+                  🎂
+                </span>
                 <span className="my-profile-mini-label">Age</span>
                 <span className="my-profile-mini-value">{profile.age}</span>
                 <span className="my-profile-mini-hint">Tap to update</span>
@@ -1155,7 +1162,9 @@ export default function MyProfile() {
                   setShowGenderModal(true);
                 }}
               >
-                <span aria-hidden>⚧️</span>
+                <span className="my-profile-mini-emoji my-profile-mini-emoji--gender" aria-hidden>
+                  ⚧️
+                </span>
                 <span className="my-profile-mini-label">Gender</span>
                 <span className="my-profile-mini-value">{displayProfileGender(profile.gender)}</span>
                 <span className="my-profile-mini-hint">Tap to update</span>
@@ -1164,13 +1173,20 @@ export default function MyProfile() {
           </section>
 
           <section
-            className="my-profile-identity-section"
+            className="my-profile-identity-section my-profile-identity-section--matching"
             aria-labelledby="my-profile-matching-heading"
           >
             <h2 id="my-profile-matching-heading" className="my-profile-identity-section-title">
+              <span className="my-profile-identity-section-title-icon" aria-hidden>
+                💫
+              </span>
               Matching preferences
             </h2>
-            <div className="my-profile-prefs-grid">
+            <p className="my-profile-identity-section-lead">
+              Who you want to meet and where — tap any row to update.
+            </p>
+            <div className="my-profile-prefs-panel">
+              <div className="my-profile-prefs-grid">
               <button
                 type="button"
                 id="my-profile-location"
@@ -1181,7 +1197,10 @@ export default function MyProfile() {
                   setShowLocationModal(true);
                 }}
               >
-                <span className="my-profile-pref-field-emoji" aria-hidden>
+                <span
+                  className="my-profile-pref-field-emoji my-profile-pref-field-emoji--location"
+                  aria-hidden
+                >
                   📍
                 </span>
                 <span className="my-profile-pref-field-body">
@@ -1204,7 +1223,10 @@ export default function MyProfile() {
                   setShowDistanceModal(true);
                 }}
               >
-                <span className="my-profile-pref-field-emoji" aria-hidden>
+                <span
+                  className="my-profile-pref-field-emoji my-profile-pref-field-emoji--distance"
+                  aria-hidden
+                >
                   📏
                 </span>
                 <span className="my-profile-pref-field-body">
@@ -1229,7 +1251,10 @@ export default function MyProfile() {
                   setShowPreferredModal(true);
                 }}
               >
-                <span className="my-profile-pref-field-emoji" aria-hidden>
+                <span
+                  className="my-profile-pref-field-emoji my-profile-pref-field-emoji--preferred"
+                  aria-hidden
+                >
                   💕
                 </span>
                 <span className="my-profile-pref-field-body">
@@ -1253,7 +1278,10 @@ export default function MyProfile() {
                   setShowLookingForModal(true);
                 }}
               >
-                <span className="my-profile-pref-field-emoji" aria-hidden>
+                <span
+                  className="my-profile-pref-field-emoji my-profile-pref-field-emoji--looking"
+                  aria-hidden
+                >
                   ❤️
                 </span>
                 <span className="my-profile-pref-field-body">
@@ -1266,32 +1294,56 @@ export default function MyProfile() {
                   ›
                 </span>
               </button>
+              </div>
             </div>
           </section>
 
-          <section className="my-profile-identity-section" aria-labelledby="my-profile-about-heading">
+          <section
+            className="my-profile-identity-section my-profile-identity-section--about"
+            aria-labelledby="my-profile-about-heading"
+          >
             <h2 id="my-profile-about-heading" className="my-profile-identity-section-title">
+              <span className="my-profile-identity-section-title-icon" aria-hidden>
+                ✍️
+              </span>
               About me
             </h2>
             <button
               type="button"
-              className="my-profile-bio-block my-profile-bio-block--compact"
+              className="my-profile-bio-block my-profile-bio-block--identity"
               onClick={() => {
                 setEditBio(profile.bio || "");
                 setShowBioModal(true);
               }}
             >
-              <p
-                className={
-                  profile.bio
-                    ? "my-profile-bio-text"
-                    : "my-profile-bio-text my-profile-bio-placeholder"
-                }
-              >
-                {profile.bio ||
-                  "Share what makes you you — interests, humor, what you are looking for."}
-              </p>
-              <span className="my-profile-bio-block-hint">Tap to edit</span>
+              <span className="my-profile-bio-block-accent" aria-hidden />
+              <div className="my-profile-bio-block-inner">
+                <span
+                  className="my-profile-bio-block-icon-tile my-profile-bio-block-icon-tile--animated"
+                  aria-hidden
+                >
+                  💬
+                </span>
+                <div className="my-profile-bio-block-main">
+                  <span className="my-profile-bio-block-kicker">Your story</span>
+                  <div className="my-profile-bio-body">
+                    <p
+                      className={
+                        profile.bio
+                          ? "my-profile-bio-text"
+                          : "my-profile-bio-text my-profile-bio-placeholder"
+                      }
+                    >
+                      {profile.bio ||
+                        "Share what makes you you — interests, humor, what you are looking for."}
+                    </p>
+                  </div>
+                  <span className="my-profile-bio-block-hint">Tap to edit</span>
+                </div>
+                <span className="my-profile-bio-block-chevron" aria-hidden>
+                  ›
+                </span>
+              </div>
             </button>
           </section>
         </div>
