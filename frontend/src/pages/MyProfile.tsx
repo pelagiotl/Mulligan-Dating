@@ -390,6 +390,7 @@ export default function MyProfile() {
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const [showAgeModal, setShowAgeModal] = useState(false);
+  const [showNameModal, setShowNameModal] = useState(false);
   const [showGenderModal, setShowGenderModal] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showDistanceModal, setShowDistanceModal] = useState(false);
@@ -397,6 +398,7 @@ export default function MyProfile() {
   const [showLookingForModal, setShowLookingForModal] = useState(false);
   const [showBioModal, setShowBioModal] = useState(false);
   const [editAge, setEditAge] = useState("");
+  const [editDisplayName, setEditDisplayName] = useState("");
   const [editGender, setEditGender] = useState("");
   const [editLocation, setEditLocation] = useState("");
   const [editMaxDistance, setEditMaxDistance] = useState<number | null>(50);
@@ -634,6 +636,33 @@ export default function MyProfile() {
       lookingFor:
         fields.lookingFor !== undefined ? fields.lookingFor : data.profile.looking_for ?? null,
     });
+  };
+
+  const saveDisplayName = async () => {
+    if (!data?.profile) return;
+    const name = editDisplayName.trim();
+    if (name.length < 2) {
+      setError("Please enter at least 2 characters.");
+      return;
+    }
+    if (name.length > 50) {
+      setError("Please keep your name under 50 characters.");
+      return;
+    }
+    setUpdatingField(true);
+    setError("");
+    try {
+      await api.put("/profile/basics", { displayName: name });
+      setData((prev) =>
+        prev ? { ...prev, profile: { ...prev.profile, display_name: name } } : null
+      );
+      setShowNameModal(false);
+      await refreshProfile();
+    } catch (e: unknown) {
+      setError((e as Error)?.message || "Failed to update name.");
+    } finally {
+      setUpdatingField(false);
+    }
   };
 
   const saveAge = async () => {
@@ -1052,6 +1081,34 @@ export default function MyProfile() {
             </span>
           </button>
 
+          <ProfilePerimeterBorder delay={180}>
+            <button
+              type="button"
+              id="my-profile-display-name"
+              className="my-profile-full-card my-profile-full-card--name"
+              onClick={() => {
+                captureProfileScrollAnchor("my-profile-display-name");
+                setEditDisplayName(profile.display_name || "");
+                setShowNameModal(true);
+              }}
+            >
+              <span className="my-profile-full-card-shine" aria-hidden />
+              <span className="my-profile-full-card-inner">
+                <span className="my-profile-full-card-icon-tile" aria-hidden>
+                  ✨
+                </span>
+                <span className="my-profile-full-card-main">
+                  <span className="my-profile-full-card-label">Display name</span>
+                  <span className="my-profile-full-card-value">{profile.display_name}</span>
+                  <span className="my-profile-full-card-hint">Tap to update</span>
+                </span>
+                <span className="my-profile-full-card-chevron" aria-hidden>
+                  ›
+                </span>
+              </span>
+            </button>
+          </ProfilePerimeterBorder>
+
           <div className="my-profile-info-grid">
             <ProfilePerimeterBorder delay={360} variant="mini">
               <button
@@ -1420,13 +1477,96 @@ export default function MyProfile() {
       </div>
       </ProfilePerimeterBorder>
 
-      <div className="text-center mt-8">
-        <Link to="/create-profile" className="btn btn-secondary">
-          Edit full profile wizard
-        </Link>
-      </div>
-
       {/* Modals */}
+      {showNameModal && (
+        <div className="my-profile-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="name-title">
+          <div
+            className="my-profile-modal-backdrop"
+            onClick={() => {
+              setShowNameModal(false);
+              setEditDisplayName(profile.display_name || "");
+            }}
+          />
+          <div className="my-profile-modal-card my-profile-modal-card--name" role="document">
+            <span className="my-profile-name-modal-aurora my-profile-name-modal-aurora--primary" aria-hidden />
+            <span className="my-profile-name-modal-aurora my-profile-name-modal-aurora--secondary" aria-hidden />
+            <button
+              type="button"
+              className="my-profile-modal-close"
+              aria-label="Close"
+              onClick={() => {
+                setShowNameModal(false);
+                setEditDisplayName(profile.display_name || "");
+              }}
+            >
+              ×
+            </button>
+            <div className="my-profile-name-modal-hero">
+              <span className="my-profile-name-modal-hero-icon-wrap" aria-hidden>
+                <span className="my-profile-name-modal-hero-glow" />
+                <span className="my-profile-name-modal-hero-icon">✨</span>
+              </span>
+              <div className="my-profile-name-modal-hero-text">
+                <p className="my-profile-name-modal-kicker">Your profile</p>
+                <h3 id="name-title">Update display name</h3>
+                <p className="my-profile-modal-sub my-profile-name-modal-tagline">
+                  Shown to people you connect with — first name or nickname works great.
+                </p>
+              </div>
+            </div>
+            <div className="my-profile-modal-body my-profile-modal-body--name">
+              <label className="my-profile-modal-field-label" htmlFor="my-profile-name-input">
+                Display name
+              </label>
+              <div className="my-profile-name-input-ring">
+                <input
+                  id="my-profile-name-input"
+                  type="text"
+                  className="my-profile-name-input"
+                  value={editDisplayName}
+                  onChange={(e) => setEditDisplayName(e.target.value)}
+                  placeholder="Your name"
+                  autoComplete="name"
+                  autoCapitalize="words"
+                  maxLength={50}
+                  disabled={updatingField}
+                  autoFocus
+                />
+              </div>
+              <p className="my-profile-name-char-count">{editDisplayName.trim().length}/50</p>
+              {editDisplayName.trim().length >= 2 ? (
+                <div className="my-profile-name-preview">
+                  <span className="my-profile-name-preview-label">Matches will see</span>
+                  <span className="my-profile-name-preview-value">👋 {editDisplayName.trim()}</span>
+                </div>
+              ) : (
+                <p className="my-profile-name-hint">At least 2 characters</p>
+              )}
+            </div>
+            <div className="my-profile-modal-actions">
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => {
+                  setShowNameModal(false);
+                  setEditDisplayName(profile.display_name || "");
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary my-profile-name-save-btn"
+                onClick={() => void saveDisplayName()}
+                disabled={updatingField || editDisplayName.trim().length < 2}
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showAgeModal && (
         <div className="my-profile-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="age-title">
           <div className="my-profile-modal-backdrop" onClick={() => setShowAgeModal(false)} />
