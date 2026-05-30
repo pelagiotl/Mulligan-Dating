@@ -24,6 +24,7 @@ import MatchPartnerProfileSheet from "../components/MatchPartnerProfileSheet";
 import { releaseAllBodyScrollLocks, useBodyScrollLock } from "../utils/bodyScrollLock";
 import { useConnectionLimits } from "../hooks/useConnectionLimits";
 import ConnectionLimitsPanel from "../components/ConnectionLimitsPanel";
+import MatchExpiryHourglass from "../components/MatchExpiryHourglass";
 import MatchesHeaderHeartIcon from "../components/MatchesHeaderHeartIcon";
 import { useConnectShellTheme } from "../context/ConnectShellThemeContext";
 import { emitMatchSlotsUpdated } from "../lib/matchSlotEvents";
@@ -2269,9 +2270,7 @@ export default function Matches() {
                           )}
                           {match.expiresAt ? (
                             <div className="match-timer match-timer--card">
-                              <span className="timer-icon" aria-hidden>
-                                ⏳
-                              </span>
+                              <MatchExpiryHourglass delayMs={(index % 8) * 180} />
                               <span className="timer-text">
                                 {(() => {
                                   const daysRemaining = getDaysRemaining(match.expiresAt);
@@ -2402,7 +2401,7 @@ export default function Matches() {
                     ) : null}
                     {selectedMatch.stage !== "pending" && selectedMatch.expiresAt ? (
                       <div className="match-timer-header">
-                        <span className="timer-icon">⏳</span>
+                        <MatchExpiryHourglass />
                         <span className="timer-text">
                           {(() => {
                             const daysRemaining = getDaysRemaining(selectedMatch.expiresAt);

@@ -60,6 +60,7 @@ import MatchCelebration from '../components/MatchCelebration';
 import PhotoUnlockExplainerModal from '../components/PhotoUnlockExplainerModal';
 import MatchPartnerProfileModal from '../components/MatchPartnerProfileModal';
 import ConnectLandingScarcity from '../components/ConnectLandingScarcity';
+import AnimatedLaunchHourglass from '../components/AnimatedLaunchHourglass';
 import { fetchMatchSlotStatus, type MatchSlotStatus } from '../utils/matchSlotStatus';
 
 /** Set to true to show the Never Have I Ever game card in match detail. */
@@ -940,9 +941,12 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
                 </View>
               ) : null}
               {item.expiresAt && getTimeRemaining(item.expiresAt) ? (
-                <Text style={[styles.timerInline, { color: cardColors.timer }]}>
-                  ⏳ {getTimeRemaining(item.expiresAt)}
-                </Text>
+                <View style={styles.timerInlineRow}>
+                  <AnimatedLaunchHourglass size="xs" />
+                  <Text style={[styles.timerInline, { color: cardColors.timer }]}>
+                    {getTimeRemaining(item.expiresAt)}
+                  </Text>
+                </View>
               ) : null}
             </View>
           </View>
@@ -4697,6 +4701,13 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0,0,0,0.25)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 1,
+  },
+  timerInlineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flexShrink: 1,
+    minWidth: 0,
   },
   timerInline: {
     fontSize: 12,

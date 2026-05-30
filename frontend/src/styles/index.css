@@ -10263,7 +10263,57 @@ button.my-profile-mini-card:focus-visible {
   background: transparent;
   font-size: 0.7rem;
   color: var(--text-secondary);
-  gap: 0.25rem;
+  gap: 0.35rem;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Compact animated hourglass on match cards (launch countdown keyframes) */
+.match-expiry-hourglass.launch-countdown__hourglass {
+  --match-hourglass-delay: 0ms;
+  width: 1.28rem;
+  height: 1.28rem;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.match-expiry-hourglass .launch-countdown__hourglass-glow,
+.match-expiry-hourglass .launch-countdown__hourglass-emoji,
+.match-expiry-hourglass .launch-countdown__hourglass-sand {
+  animation-delay: var(--match-hourglass-delay), var(--match-hourglass-delay),
+    var(--match-hourglass-delay);
+}
+
+.match-expiry-hourglass .launch-countdown__hourglass-emoji {
+  font-size: 0.82rem;
+}
+
+.match-expiry-hourglass .launch-countdown__hourglass-glow {
+  inset: -5px;
+}
+
+.match-expiry-hourglass .launch-countdown__hourglass-sand {
+  width: 2px;
+  height: 11px;
+  margin-left: -1px;
+  margin-top: -5.5px;
+}
+
+.match-timer-header .match-expiry-hourglass.launch-countdown__hourglass {
+  width: 1.4rem;
+  height: 1.4rem;
+}
+
+.match-timer-header .match-expiry-hourglass .launch-countdown__hourglass-emoji {
+  font-size: 0.9rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .match-expiry-hourglass .launch-countdown__hourglass-emoji,
+  .match-expiry-hourglass .launch-countdown__hourglass-glow,
+  .match-expiry-hourglass .launch-countdown__hourglass-sand {
+    animation: none;
+  }
 }
 
 /* Shimmer effect on match cards */
