@@ -1,37 +1,86 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { MIN_PHOTOS_TO_CONNECT, minPhotosToConnectLabel } from "../utils/connectProfileEligibility";
+import { uploadPhotoFiles } from "../utils/photoBatchUpload";
 
 export default function ConnectPhotosRequiredModalWeb({
   open,
   onClose,
   photoCount,
+  onPhotoUploaded,
 }: {
   open: boolean;
   onClose: () => void;
   photoCount: number;
+  onPhotoUploaded?: () => void;
 }) {
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
 
   useEffect(() => {
     if (!open) return;
+    setUploadError("");
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape" && !uploading) onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  }, [open, onClose, uploading]);
 
   if (!open) return null;
 
+  const hasPhoto = photoCount >= MIN_PHOTOS_TO_CONNECT;
+
   const goToPhotos = () => {
+    if (uploading) return;
     onClose();
     navigate("/profile#my-photos");
   };
 
+  const openFilePicker = () => {
+    if (uploading || hasPhoto) return;
+    setUploadError("");
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files?.length) return;
+
+    const file = files[0];
+    if (!file.type.startsWith("image/")) {
+      setUploadError("Please choose an image file.");
+      e.target.value = "";
+      return;
+    }
+
+    setUploading(true);
+    setUploadError("");
+    try {
+      await uploadPhotoFiles([file]);
+      e.target.value = "";
+      onPhotoUploaded?.();
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Upload failed. Try again.");
+      e.target.value = "";
+    } finally {
+      setUploading(false);
+    }
+  };
+
   return (
     <div className="connect-photos-modal-overlay" role="presentation">
-      <button type="button" className="connect-photos-modal-backdrop" aria-label="Close" onClick={onClose} />
+      <button
+        type="button"
+        className="connect-photos-modal-backdrop"
+        aria-label="Close"
+        onClick={() => {
+          if (!uploading) onClose();
+        }}
+        disabled={uploading}
+      />
       <div
         className="connect-photos-modal-dialog"
         role="dialog"
@@ -62,45 +111,74 @@ export default function ConnectPhotosRequiredModalWeb({
                 <strong>one clear photo</strong> and you&apos;ll be ready to match.
               </p>
 
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="connect-photos-modal-file-input"
+                onChange={(e) => void handleFileSelect(e)}
+                tabIndex={-1}
+                aria-hidden
+              />
+
               <div
                 className="connect-photos-modal-slots"
                 aria-label={`${photoCount} of ${MIN_PHOTOS_TO_CONNECT} photo uploaded`}
               >
                 {Array.from({ length: MIN_PHOTOS_TO_CONNECT }, (_, i) => {
                   const filled = i < photoCount;
+                  if (filled) {
+                    return (
+                      <div key={i} className="connect-photos-modal-slot is-filled">
+                        <span className="connect-photos-modal-slot-emoji" aria-hidden>
+                          📷
+                        </span>
+                        <span className="connect-photos-modal-slot-check" aria-hidden>
+                          ✓
+                        </span>
+                      </div>
+                    );
+                  }
                   return (
-                    <div
+                    <button
                       key={i}
-                      className={`connect-photos-modal-slot ${filled ? "is-filled" : "is-empty"}`}
+                      type="button"
+                      className={`connect-photos-modal-slot connect-photos-modal-slot-btn is-empty ${
+                        uploading ? "is-uploading" : ""
+                      }`}
+                      onClick={openFilePicker}
+                      disabled={uploading}
+                      aria-label={uploading ? "Uploading photo…" : "Upload a photo"}
                     >
-                      {filled ? (
-                        <>
-                          <span className="connect-photos-modal-slot-emoji" aria-hidden>
-                            📷
-                          </span>
-                          <span className="connect-photos-modal-slot-check" aria-hidden>
-                            ✓
-                          </span>
-                        </>
+                      {uploading ? (
+                        <span className="connect-photos-modal-slot-spinner" aria-hidden />
                       ) : (
                         <span className="connect-photos-modal-slot-plus" aria-hidden>
                           +
                         </span>
                       )}
-                    </div>
+                    </button>
                   );
                 })}
               </div>
 
               <p className="connect-photos-modal-progress">
-                {photoCount >= MIN_PHOTOS_TO_CONNECT ? (
+                {uploading ? (
+                  <>Uploading your photo…</>
+                ) : hasPhoto ? (
                   <>Photo added — you&apos;re ready</>
                 ) : (
-                  <>
-                    <span className="connect-photos-modal-progress-need">Add your photo to continue</span>
-                  </>
+                  <span className="connect-photos-modal-progress-need">
+                    Tap + to upload, or use the button below
+                  </span>
                 )}
               </p>
+
+              {uploadError ? (
+                <p className="connect-photos-modal-error" role="alert">
+                  {uploadError}
+                </p>
+              ) : null}
 
               <div className="connect-photos-modal-chips">
                 <span className="connect-photos-modal-chip">😊 Face visible</span>
@@ -110,10 +188,20 @@ export default function ConnectPhotosRequiredModalWeb({
             </div>
 
             <footer className="connect-photos-modal-actions">
-              <button type="button" className="connect-photos-modal-primary" onClick={goToPhotos}>
-                Add my photo →
+              <button
+                type="button"
+                className="connect-photos-modal-primary"
+                onClick={goToPhotos}
+                disabled={uploading}
+              >
+                {hasPhoto ? "View on Profile →" : "Add my photo →"}
               </button>
-              <button type="button" className="connect-photos-modal-secondary" onClick={onClose}>
+              <button
+                type="button"
+                className="connect-photos-modal-secondary"
+                onClick={onClose}
+                disabled={uploading}
+              >
                 Not now
               </button>
             </footer>

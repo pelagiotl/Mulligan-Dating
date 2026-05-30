@@ -1,4 +1,4 @@
-import React, { memo, useMemo } from 'react';
+import React, { memo, useMemo, useState } from 'react';
 import {
   Modal,
   View,
@@ -6,15 +6,20 @@ import {
   StyleSheet,
   TouchableOpacity,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { ConnectShellMode } from '../lib/connectShellTheme';
 import { MIN_PHOTOS_TO_CONNECT } from '../utils/connectSetup';
+import { pickImagesFromLibrary, MediaLibraryPermissionDenied } from '../utils/pickImagesFromLibrary';
+import { uploadPhotoUris } from '../utils/batchPhotoUpload';
+import { api } from '../utils/api';
 
 export interface ConnectPhotosRequiredModalProps {
   visible: boolean;
   onClose: () => void;
   onAddPhotos: () => void;
+  onPhotoUploaded?: () => void;
   photoCount: number;
   connectShell: ConnectShellMode;
 }
@@ -35,22 +40,69 @@ const ConnectPhotosRequiredModal = memo(function ConnectPhotosRequiredModal({
   visible,
   onClose,
   onAddPhotos,
+  onPhotoUploaded,
   photoCount,
   connectShell,
 }: ConnectPhotosRequiredModalProps) {
   const rim = useMemo(() => rimGradient(connectShell), [connectShell]);
   const cta = useMemo(() => ctaGradient(connectShell), [connectShell]);
   const hasPhoto = photoCount >= MIN_PHOTOS_TO_CONNECT;
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+
+  const handleSlotPress = async () => {
+    if (hasPhoto || uploading) return;
+    setUploadError('');
+    setUploading(true);
+    try {
+      const result = await pickImagesFromLibrary({
+        allowsMultipleSelection: false,
+        selectionLimit: 1,
+        quality: 0.85,
+      });
+      if (result.canceled || !result.assets.length) {
+        setUploading(false);
+        return;
+      }
+      const uris = result.assets.map((a) => a.uri).filter(Boolean) as string[];
+      if (!uris.length) {
+        setUploading(false);
+        return;
+      }
+      await uploadPhotoUris(uris);
+      api.clearCache('/photos/me');
+      onPhotoUploaded?.();
+    } catch (err) {
+      if (err instanceof MediaLibraryPermissionDenied) {
+        setUploadError('Photo access is required to upload. Enable it in Settings.');
+      } else {
+        const message = err instanceof Error ? err.message : 'Upload failed. Try again.';
+        if (!message.toLowerCase().includes('cancel')) {
+          setUploadError(message);
+        }
+      }
+    } finally {
+      setUploading(false);
+    }
+  };
 
   return (
     <Modal
       visible={visible}
       transparent
       animationType="fade"
-      onRequestClose={onClose}
+      onRequestClose={() => {
+        if (!uploading) onClose();
+      }}
       statusBarTranslucent
     >
-      <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose}>
+      <TouchableOpacity
+        style={styles.overlay}
+        activeOpacity={1}
+        onPress={() => {
+          if (!uploading) onClose();
+        }}
+      >
         <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={styles.sheet}>
           <View style={styles.handleBar} accessibilityElementsHidden />
 
@@ -77,29 +129,48 @@ const ConnectPhotosRequiredModal = memo(function ConnectPhotosRequiredModal({
                 </Text>
 
                 <View style={styles.slotRow} accessibilityLabel={`${photoCount} of ${MIN_PHOTOS_TO_CONNECT} photos`}>
-                  <View style={[styles.slot, hasPhoto ? styles.slotFilled : styles.slotEmpty]}>
-                    {hasPhoto ? (
-                      <>
-                        <Text style={styles.slotEmoji}>📷</Text>
-                        <View style={styles.slotCheck}>
-                          <Text style={styles.slotCheckText}>✓</Text>
-                        </View>
-                      </>
-                    ) : (
-                      <Text style={styles.slotPlus}>+</Text>
-                    )}
-                  </View>
+                  {hasPhoto ? (
+                    <View style={[styles.slot, styles.slotFilled]}>
+                      <Text style={styles.slotEmoji}>📷</Text>
+                      <View style={styles.slotCheck}>
+                        <Text style={styles.slotCheckText}>✓</Text>
+                      </View>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      style={[styles.slot, styles.slotEmpty, uploading && styles.slotUploading]}
+                      onPress={() => void handleSlotPress()}
+                      disabled={uploading}
+                      activeOpacity={0.85}
+                      accessibilityRole="button"
+                      accessibilityLabel={uploading ? 'Uploading photo' : 'Upload a photo'}
+                    >
+                      {uploading ? (
+                        <ActivityIndicator color="#f472b6" size="small" />
+                      ) : (
+                        <Text style={styles.slotPlus}>+</Text>
+                      )}
+                    </TouchableOpacity>
+                  )}
                 </View>
 
                 <Text style={styles.progress}>
-                  {hasPhoto ? (
-                    'Photo added — you&apos;re ready for launch day'
+                  {uploading ? (
+                    'Uploading your photo…'
+                  ) : hasPhoto ? (
+                    "Photo added — you're ready for launch day"
                   ) : (
                     <>
-                      <Text style={styles.progressStrong}>Add your photo</Text> to unlock Connect on launch day
+                      <Text style={styles.progressStrong}>Tap + to upload</Text>, or use the button below
                     </>
                   )}
                 </Text>
+
+                {uploadError ? (
+                  <Text style={styles.uploadError} accessibilityRole="alert">
+                    {uploadError}
+                  </Text>
+                ) : null}
 
                 <View style={styles.chips}>
                   <View style={styles.chip}>
@@ -116,14 +187,20 @@ const ConnectPhotosRequiredModal = memo(function ConnectPhotosRequiredModal({
                   onPress={onAddPhotos}
                   activeOpacity={0.88}
                   style={styles.primaryTouchable}
+                  disabled={uploading}
                   accessibilityRole="button"
-                  accessibilityLabel="Add my photo"
+                  accessibilityLabel={hasPhoto ? 'View on Profile' : 'Add my photo'}
                 >
                   <LinearGradient colors={cta} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.primaryGradient}>
-                    <Text style={styles.primaryText}>Add my photo →</Text>
+                    <Text style={styles.primaryText}>{hasPhoto ? 'View on Profile →' : 'Add my photo →'}</Text>
                   </LinearGradient>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={onClose} style={styles.secondaryBtn} accessibilityRole="button">
+                <TouchableOpacity
+                  onPress={onClose}
+                  style={styles.secondaryBtn}
+                  disabled={uploading}
+                  accessibilityRole="button"
+                >
                   <Text style={styles.secondaryText}>Not now</Text>
                 </TouchableOpacity>
               </View>
@@ -237,6 +314,10 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(244, 63, 94, 0.45)',
     backgroundColor: 'rgba(255, 241, 245, 0.95)',
   },
+  slotUploading: {
+    borderStyle: 'solid',
+    opacity: 0.9,
+  },
   slotFilled: {
     borderWidth: 2,
     borderColor: 'rgba(16, 185, 129, 0.55)',
@@ -276,6 +357,13 @@ const styles = StyleSheet.create({
   progressStrong: {
     fontWeight: '700',
     color: '#be185d',
+  },
+  uploadError: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#b91c1c',
+    textAlign: 'center',
+    marginBottom: 10,
   },
   chips: {
     flexDirection: 'row',

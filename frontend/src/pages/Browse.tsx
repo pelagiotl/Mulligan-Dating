@@ -212,7 +212,7 @@ function BrowseLocation({ location }: { location?: string }) {
 }
 
 export default function Browse() {
-  const { profile: userProfile, loading: authLoading, user, photoCount } = useAuth();
+  const { profile: userProfile, loading: authLoading, user, photoCount, refreshProfile } = useAuth();
   /** Mirrors mobile Connect tab: no /users/browse until user taps Connect (unlock-browse) this session. */
   const [browseSessionActive, setBrowseSessionActive] = useState(false);
   const [unlockingBrowse, setUnlockingBrowse] = useState(false);
@@ -871,6 +871,31 @@ export default function Browse() {
       />
     ) : null;
   
+  const handleConnectPhotoUploaded = useCallback(async () => {
+    await refreshProfile({ silent: true });
+    const count = await resolveReadyPhotoCount();
+    setConnectPhotosModalCount(count);
+    if (count >= MIN_PHOTOS_TO_CONNECT) {
+      setShowConnectPhotosModal(false);
+    }
+  }, [refreshProfile, resolveReadyPhotoCount]);
+
+  const connectGateModals = (
+    <>
+      <ConnectPhotosRequiredModalWeb
+        open={showConnectPhotosModal}
+        photoCount={connectPhotosModalCount}
+        onClose={() => setShowConnectPhotosModal(false)}
+        onPhotoUploaded={() => void handleConnectPhotoUploaded()}
+      />
+      <MatchmakingPausedModalWeb
+        open={showMatchmakingPausedModal}
+        message={user?.matchmakingDisabledMessage}
+        onClose={() => setShowMatchmakingPausedModal(false)}
+      />
+    </>
+  );
+
   if (!authLoading && !userProfile) {
     return <Navigate to="/create-profile" replace />;
   }
@@ -890,22 +915,14 @@ export default function Browse() {
           gateError={gateError}
           enhancementSlot={enhancementSlot}
         />
-        <ConnectPhotosRequiredModalWeb
-          open={showConnectPhotosModal}
-          photoCount={connectPhotosModalCount}
-          onClose={() => setShowConnectPhotosModal(false)}
-        />
-        <MatchmakingPausedModalWeb
-          open={showMatchmakingPausedModal}
-          message={user?.matchmakingDisabledMessage}
-          onClose={() => setShowMatchmakingPausedModal(false)}
-        />
+        {connectGateModals}
       </>
     );
   }
 
   return (
     <div className="browse-page-native native-app-screen">
+      {connectGateModals}
       {isAutoMatching ? <BrowseConnectLandingChrome mode="auto-connecting" /> : null}
 
       {matchNotification &&

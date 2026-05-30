@@ -411,6 +411,17 @@ export default function BrowseScreen() {
     }
   }, [photoCount]);
 
+  const handleConnectPhotoUploaded = useCallback(async () => {
+    api.clearCache('/photos/me');
+    await refreshProfile({ silent: true });
+    const count = await resolvePhotoCountForConnect();
+    setConnectPhotosModalCount(count);
+    setPhotoCount(count);
+    if (count >= MIN_PHOTOS_TO_CONNECT) {
+      setConnectPhotosModalVisible(false);
+    }
+  }, [refreshProfile, resolvePhotoCountForConnect]);
+
   const promptPhotosRequired = useCallback((count: number) => {
     setConnectPhotosModalCount(count);
     setConnectPhotosModalVisible(true);
@@ -2454,6 +2465,7 @@ export default function BrowseScreen() {
             scrollToPhotos: true,
           });
         }}
+        onPhotoUploaded={() => void handleConnectPhotoUploaded()}
       />
 
       {/* No Tokens Modal */}

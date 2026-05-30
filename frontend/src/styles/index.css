@@ -16221,6 +16221,66 @@ button.compatibility-pulse-pill:focus-visible {
   background: linear-gradient(165deg, rgba(255, 241, 245, 0.95), rgba(255, 251, 235, 0.9));
 }
 
+.connect-photos-modal-slot-btn {
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.connect-photos-modal-slot-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: rgba(244, 63, 94, 0.65);
+  box-shadow: 0 8px 20px rgba(244, 63, 94, 0.15);
+}
+
+.connect-photos-modal-slot-btn:disabled {
+  cursor: wait;
+  opacity: 0.85;
+}
+
+.connect-photos-modal-slot.is-uploading {
+  border-style: solid;
+}
+
+.connect-photos-modal-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.connect-photos-modal-slot-spinner {
+  width: 1.35rem;
+  height: 1.35rem;
+  border: 2px solid rgba(244, 63, 94, 0.25);
+  border-top-color: var(--color-rose-500);
+  border-radius: 50%;
+  animation: connect-photos-modal-spin 0.75s linear infinite;
+}
+
+@keyframes connect-photos-modal-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.connect-photos-modal-error {
+  margin: 0 0 var(--space-3);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #b91c1c;
+  text-align: center;
+}
+
 .connect-photos-modal-slot.is-filled {
   border: 2px solid rgba(16, 185, 129, 0.55);
   background: linear-gradient(165deg, #ecfdf5, #fffbeb);
