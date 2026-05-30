@@ -6461,6 +6461,86 @@ button.my-profile-mini-card:focus-visible {
   --profile-glow-color: rgba(16, 185, 129, 0.28);
 }
 
+.profile-perimeter-border--lifestyle .my-profile-lifestyle-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10.25rem, 1fr));
+  gap: 0.65rem;
+}
+
+.profile-perimeter-border--lifestyle .my-profile-lifestyle-summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.98) 0%,
+    rgba(236, 253, 245, 0.92) 55%,
+    rgba(224, 242, 254, 0.88) 100%
+  );
+  border: 1px solid rgba(16, 185, 129, 0.22);
+  box-shadow:
+    0 4px 14px rgba(16, 185, 129, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.profile-perimeter-border--lifestyle .my-profile-lifestyle-summary-card:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 8px 22px rgba(16, 185, 129, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.profile-perimeter-border--lifestyle .my-profile-lifestyle-summary-card__kicker {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #047857;
+}
+
+.profile-perimeter-border--lifestyle .my-profile-lifestyle-summary-card__kicker-emoji {
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.profile-perimeter-border--lifestyle .my-profile-lifestyle-summary-card__value {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: #134e4a;
+}
+
+.profile-perimeter-border--lifestyle .my-profile-lifestyle-summary-card__value-emoji {
+  flex-shrink: 0;
+  font-size: 1.05rem;
+  line-height: 1.2;
+}
+
+.profile-perimeter-border--interests .interest-tag--profile {
+  background: linear-gradient(135deg, rgba(237, 233, 254, 0.98), rgba(224, 231, 255, 0.95));
+  color: #5b21b6;
+  border-color: rgba(167, 139, 250, 0.28);
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.12);
+}
+
+.profile-perimeter-border--interests .interest-tag--profile:hover {
+  background: linear-gradient(135deg, rgba(237, 233, 254, 1), rgba(199, 210, 254, 0.95));
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.18);
+}
+
+.interest-tag__emoji {
+  margin-right: 0.15rem;
+}
+
 .profile-perimeter-border .my-profile-full-card,
 .profile-perimeter-border .my-profile-bio-block {
   margin-bottom: 0;

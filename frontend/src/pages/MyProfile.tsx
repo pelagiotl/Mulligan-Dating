@@ -11,6 +11,7 @@ import MyProfilePreviewModal, {
 } from "../components/MyProfilePreviewModal";
 import { getPhotoUrl } from "../utils/photoUrl";
 import { hasCityAndState } from "../utils/locationUtils";
+import { LIFESTYLE_FIELD_LABEL, getInterestEmoji } from "../constants/profileMySections";
 import { displayProfileGender } from "../utils/createProfileProgress";
 import { useAuth } from "../context/AuthContext";
 
@@ -353,6 +354,24 @@ type LifestyleForm = {
   workLifeBalance: string;
   worksOut: string;
 };
+
+const LIFESTYLE_SUMMARY_FIELDS: Array<{
+  key: LifestyleFieldKey;
+  apiField: keyof NonNullable<ProfileData["lifestyle"]>;
+}> = [
+  { key: "smoking", apiField: "smoking" },
+  { key: "drinking", apiField: "drinking" },
+  { key: "children", apiField: "children" },
+  { key: "pets", apiField: "pets" },
+  { key: "religion", apiField: "religion" },
+  { key: "political", apiField: "political" },
+  { key: "workLifeBalance", apiField: "work_life_balance" },
+  { key: "worksOut", apiField: "works_out" },
+];
+
+function lifestyleValueEmoji(field: LifestyleFieldKey, value: string): string {
+  return LIFESTYLE_OPTION_EMOJI[field][value] ?? LIFESTYLE_SECTION_EMOJI[field];
+}
 
 function lifestyleFormFromApi(l: ProfileData["lifestyle"]): LifestyleForm {
   if (!l) {
@@ -1311,7 +1330,10 @@ export default function MyProfile() {
         {interests.length > 0 ? (
           <div className="profile-card-interests">
             {interests.map((interest, idx) => (
-              <span key={idx} className="interest-tag">
+              <span key={idx} className="interest-tag interest-tag--profile">
+                <span className="interest-tag__emoji" aria-hidden>
+                  {getInterestEmoji(interest.name)}
+                </span>
                 {interest.name}
               </span>
             ))}
@@ -1421,55 +1443,31 @@ export default function MyProfile() {
           </button>
         </div>
         {lifestyle &&
-        (lifestyle.smoking ||
-          lifestyle.drinking ||
-          lifestyle.children ||
-          lifestyle.pets ||
-          lifestyle.religion ||
-          lifestyle.political ||
-          lifestyle.work_life_balance ||
-          lifestyle.works_out) ? (
-          <div className="profile-lifestyle">
-            {lifestyle.smoking ? (
-              <div className="lifestyle-item">
-                <strong>Smoking:</strong> {lifestyle.smoking}
-              </div>
-            ) : null}
-            {lifestyle.drinking ? (
-              <div className="lifestyle-item">
-                <strong>Drinking:</strong> {lifestyle.drinking}
-              </div>
-            ) : null}
-            {lifestyle.children ? (
-              <div className="lifestyle-item">
-                <strong>Children:</strong> {lifestyle.children}
-              </div>
-            ) : null}
-            {lifestyle.pets ? (
-              <div className="lifestyle-item">
-                <strong>Pets:</strong> {lifestyle.pets}
-              </div>
-            ) : null}
-            {lifestyle.religion ? (
-              <div className="lifestyle-item">
-                <strong>Religion:</strong> {lifestyle.religion}
-              </div>
-            ) : null}
-            {lifestyle.political ? (
-              <div className="lifestyle-item">
-                <strong>Politics:</strong> {lifestyle.political}
-              </div>
-            ) : null}
-            {lifestyle.work_life_balance ? (
-              <div className="lifestyle-item">
-                <strong>Work-Life Balance:</strong> {lifestyle.work_life_balance}
-              </div>
-            ) : null}
-            {lifestyle.works_out ? (
-              <div className="lifestyle-item">
-                <strong>Works out:</strong> {lifestyle.works_out}
-              </div>
-            ) : null}
+        LIFESTYLE_SUMMARY_FIELDS.some(({ apiField }) => {
+          const raw = lifestyle[apiField];
+          return typeof raw === "string" && raw.length > 0;
+        }) ? (
+          <div className="my-profile-lifestyle-grid">
+            {LIFESTYLE_SUMMARY_FIELDS.map(({ key, apiField }) => {
+              const raw = lifestyle[apiField];
+              if (!raw || typeof raw !== "string") return null;
+              return (
+                <div key={key} className="my-profile-lifestyle-summary-card">
+                  <span className="my-profile-lifestyle-summary-card__kicker">
+                    <span className="my-profile-lifestyle-summary-card__kicker-emoji" aria-hidden>
+                      {LIFESTYLE_SECTION_EMOJI[key]}
+                    </span>
+                    {LIFESTYLE_FIELD_LABEL[key]}
+                  </span>
+                  <span className="my-profile-lifestyle-summary-card__value">
+                    <span className="my-profile-lifestyle-summary-card__value-emoji" aria-hidden>
+                      {lifestyleValueEmoji(key, raw)}
+                    </span>
+                    {raw}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         ) : (
           <p className="my-profile-empty-hint">Lifestyle not set — tap Edit to add preferences.</p>
