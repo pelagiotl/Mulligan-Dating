@@ -15,6 +15,7 @@ import WebTokenPurchase from './WebTokenPurchase'
 import { TOKEN_MAX } from '../constants/tokens'
 import { useConnectShellTheme } from '../context/ConnectShellThemeContext'
 import { releaseAllBodyScrollLocks } from '../utils/bodyScrollLock'
+import { hapticTabTap } from '../utils/hapticTap'
 
 export default function Layout() {
   // Always call hooks at the top level, before any conditional logic
@@ -70,6 +71,10 @@ export default function Layout() {
   }
 
   const closeTokenModal = useCallback(() => setShowTokenModal(false), [])
+
+  const onBottomTabPress = useCallback(() => {
+    hapticTabTap()
+  }, [])
 
   useEffect(() => {
     if (!showTokenModal) return
@@ -192,6 +197,7 @@ export default function Layout() {
             to={connectPath}
             className={`app-bottom-tabs__item${isActive('/browse') ? ' app-bottom-tabs__item--active' : ''}`}
             aria-label="Connect"
+            onClick={onBottomTabPress}
           >
             {isActive('/browse') && <span className="app-bottom-tabs__glow" aria-hidden />}
             <span className="app-bottom-tabs__emoji">😍</span>
@@ -201,6 +207,7 @@ export default function Layout() {
             to="/matches"
             className={`app-bottom-tabs__item${isActive('/matches') ? ' app-bottom-tabs__item--active' : ''}`}
             aria-label="Matches"
+            onClick={onBottomTabPress}
           >
             {isActive('/matches') && <span className="app-bottom-tabs__glow" aria-hidden />}
             <span className="app-bottom-tabs__emoji">❤️</span>
@@ -209,6 +216,7 @@ export default function Layout() {
           <Link
             to="/profile"
             className={`app-bottom-tabs__item${isActive('/profile') ? ' app-bottom-tabs__item--active' : ''}`}
+            onClick={onBottomTabPress}
           >
             {isActive('/profile') && <span className="app-bottom-tabs__glow" aria-hidden />}
             <span className="app-bottom-tabs__emoji">👤</span>
@@ -217,6 +225,7 @@ export default function Layout() {
           <Link
             to="/settings"
             className={`app-bottom-tabs__item${isActive('/settings') ? ' app-bottom-tabs__item--active' : ''}`}
+            onClick={onBottomTabPress}
           >
             {isActive('/settings') && <span className="app-bottom-tabs__glow" aria-hidden />}
             <span className="app-bottom-tabs__emoji">⚙️</span>
@@ -226,6 +235,7 @@ export default function Layout() {
             <Link
               to="/admin"
               className={`app-bottom-tabs__item${isActive('/admin') ? ' app-bottom-tabs__item--active' : ''}`}
+              onClick={onBottomTabPress}
             >
               {isActive('/admin') && <span className="app-bottom-tabs__glow" aria-hidden />}
               <span className="app-bottom-tabs__emoji">👑</span>

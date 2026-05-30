@@ -61,6 +61,7 @@ import PhotoUnlockExplainerModal from '../components/PhotoUnlockExplainerModal';
 import MatchPartnerProfileModal from '../components/MatchPartnerProfileModal';
 import ConnectLandingScarcity from '../components/ConnectLandingScarcity';
 import AnimatedLaunchHourglass from '../components/AnimatedLaunchHourglass';
+import ProfileCardAnimatedEmoji from '../components/ProfileCardAnimatedEmoji';
 import { fetchMatchSlotStatus, type MatchSlotStatus } from '../utils/matchSlotStatus';
 
 /** Set to true to show the Never Have I Ever game card in match detail. */
@@ -1132,21 +1133,49 @@ function EmptyStateAnimated({
   );
 }
 
+function matchLocationPinDelay(location: string): number {
+  let h = 0;
+  for (let i = 0; i < location.length; i += 1) {
+    h = (h + location.charCodeAt(i) * (i + 1)) % 480;
+  }
+  return h;
+}
+
+function MatchLocationPin({ delay = 0 }: { delay?: number }) {
+  return (
+    <ProfileCardAnimatedEmoji
+      emoji="📍"
+      variant="bob"
+      fontSize={14}
+      delay={delay}
+      containerStyle={styles.matchLocationEmojiWrap}
+    />
+  );
+}
+
 // Helper function to render location with proper formatting
 function renderMatchLocation(location: string | null | undefined, locationColor: string) {
   if (!location) return null;
 
+  const pinDelay = matchLocationPinDelay(location);
   const locationParts = location.split(',').map((s) => s.trim());
   const city = locationParts[0] || '';
   const state = locationParts.slice(1).join(', ') || '';
 
   if (!state) {
-    return <Text style={[styles.matchLocation, { color: locationColor }]}>📍 {location}</Text>;
+    return (
+      <View style={styles.matchLocationContainer}>
+        <MatchLocationPin delay={pinDelay} />
+        <Text style={[styles.matchLocation, { color: locationColor, marginBottom: 0, flex: 1 }]}>
+          {location}
+        </Text>
+      </View>
+    );
   }
 
   return (
     <View style={styles.matchLocationContainer}>
-      <Text style={styles.matchLocationEmoji}>📍</Text>
+      <MatchLocationPin delay={pinDelay} />
       <View style={styles.matchLocationTextContainer}>
         <Text style={[styles.matchLocationCity, { color: locationColor }]}>{city}</Text>
         <Text style={[styles.matchLocationComma, { color: locationColor }]}>, </Text>
@@ -4628,6 +4657,11 @@ const styles = StyleSheet.create({
   matchLocationEmoji: {
     fontSize: 14,
     marginRight: 5,
+  },
+  matchLocationEmojiWrap: {
+    marginRight: 5,
+    width: 18,
+    alignItems: 'center',
   },
   matchLocationTextContainer: {
     flexDirection: 'row',

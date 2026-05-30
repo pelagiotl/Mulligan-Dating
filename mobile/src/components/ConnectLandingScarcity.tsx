@@ -234,12 +234,7 @@ const ConnectLandingScarcity = memo(function ConnectLandingScarcity({
               { backgroundColor: colors.metricTokensBg, borderColor: colors.metricTokensBorder },
             ]}
           >
-            <View
-              style={[
-                styles.iconWrap,
-                { backgroundColor: colors.iconWrapBg, borderColor: colors.iconWrapTokensBorder },
-              ]}
-            >
+            <View style={styles.metricIconSlot}>
               <AnimatedLimitsMetricIcon kind="ticket" style={styles.iconEmoji} />
             </View>
             <View style={styles.metricContent}>
@@ -263,12 +258,7 @@ const ConnectLandingScarcity = memo(function ConnectLandingScarcity({
               },
             ]}
           >
-            <View
-              style={[
-                styles.iconWrap,
-                { backgroundColor: colors.iconWrapBg, borderColor: colors.iconWrapSlotsBorder },
-              ]}
-            >
+            <View style={styles.metricIconSlot}>
               <AnimatedLimitsMetricIcon kind="heart" style={styles.iconEmoji} />
             </View>
             <View style={styles.metricContent}>
@@ -467,13 +457,11 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     minWidth: 0,
   },
-  iconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
+  metricIconSlot: {
+    width: 28,
+    height: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
   },
   iconEmoji: {
     fontSize: 15,

@@ -22,6 +22,7 @@ import { getAdminDisplayPhotos } from '../utils/adminDisplayPhotos';
 import { useAuth } from '../context/AuthContext';
 import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
 import { AdminModerationAudio } from '../components/AdminModerationAudio';
+import ProfileCardAnimatedEmoji from '../components/ProfileCardAnimatedEmoji';
 import { androidShellBackdropColors } from '../utils/androidConnectShellChrome';
 
 interface Stats {
@@ -662,9 +663,15 @@ export default function AdminScreen() {
             <View style={styles.titleBlock}>
               <Text style={styles.titleLine}>Admin</Text>
               <Text style={[styles.titleLine, styles.titleLinePanel]}>Panel</Text>
-              <Text style={styles.titleCrown} accessibilityElementsHidden>
-                👑
-              </Text>
+              <View accessibilityElementsHidden>
+                <ProfileCardAnimatedEmoji
+                  emoji="👑"
+                  variant="crown"
+                  fontSize={30}
+                  delay={0}
+                  style={styles.titleCrown}
+                />
+              </View>
             </View>
             <Text style={styles.subtitle}>Manage your app</Text>
           </LinearGradient>
@@ -680,7 +687,16 @@ export default function AdminScreen() {
       {/* Stats */}
       {stats && !adminDenied && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>📊 Statistics</Text>
+          <View style={styles.sectionTitleRow}>
+            <ProfileCardAnimatedEmoji
+              emoji="📊"
+              variant="sway"
+              fontSize={24}
+              delay={0}
+              containerStyle={styles.sectionTitleEmojiWrap}
+            />
+            <Text style={styles.sectionTitle}>Statistics</Text>
+          </View>
           <View style={styles.statsGrid}>
             <TouchableOpacity style={styles.statCardTouchable} onPress={() => openStatDrillDown('users')} activeOpacity={0.9}>
               <LinearGradient colors={['#667eea', '#764ba2']} style={styles.statCardGradient}>
@@ -868,7 +884,16 @@ export default function AdminScreen() {
       {/* User List */}
       {!adminDenied && (
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>👥 User Management</Text>
+        <View style={styles.sectionTitleRow}>
+          <ProfileCardAnimatedEmoji
+            emoji="👥"
+            variant="pulse"
+            fontSize={24}
+            delay={120}
+            containerStyle={styles.sectionTitleEmojiWrap}
+          />
+          <Text style={styles.sectionTitle}>User Management</Text>
+        </View>
         <Text style={styles.sectionDescription}>Tap a user for details. Use 💬 to view their messages with matches.</Text>
         <TextInput
           style={styles.searchInput}
@@ -1515,12 +1540,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(102, 126, 234, 0.12)',
   },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  sectionTitleEmojiWrap: {
+    marginRight: 8,
+  },
   sectionTitle: {
     fontSize: 22,
     fontWeight: '800',
     color: '#1a1a1a',
-    marginBottom: 6,
     letterSpacing: -0.3,
+    flex: 1,
   },
   sectionDescription: {
     fontSize: 16,

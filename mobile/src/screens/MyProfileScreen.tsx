@@ -41,6 +41,7 @@ import { useAuth } from '../context/AuthContext';
 import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
 import LegalFooter from '../components/LegalFooter';
 import ProfileEditableCardBorder from '../components/ProfileEditableCardBorder';
+import ProfileCardAnimatedEmoji from '../components/ProfileCardAnimatedEmoji';
 import ConnectionQualityScore from '../components/ConnectionQualityScore';
 import MyProfilePreviewModal, {
   formatMaxDistanceLabel,
@@ -2110,7 +2111,13 @@ export default function MyProfileScreen() {
                         end={{ x: 1, y: 1 }}
                         style={styles.statCardInBorder}
                       >
-                        <Text style={styles.statEmojiSmall}>🎉</Text>
+                        <ProfileCardAnimatedEmoji
+                          emoji="🎉"
+                          variant="celebrate"
+                          fontSize={26}
+                          delay={0}
+                          containerStyle={styles.statEmojiWrap}
+                        />
                         <Text style={styles.statLabel}>Member Since</Text>
                         <Text style={styles.statValue} numberOfLines={1}>
                           {settings.createdAt
@@ -2151,7 +2158,13 @@ export default function MyProfileScreen() {
                           end={{ x: 1, y: 1 }}
                           style={[styles.statCardInBorder, styles.statCardLastActive]}
                         >
-                          <Text style={styles.statEmojiSmall}>🟢</Text>
+                          <ProfileCardAnimatedEmoji
+                            emoji="🟢"
+                            variant="pulse"
+                            fontSize={26}
+                            delay={200}
+                            containerStyle={styles.statEmojiWrap}
+                          />
                           <Text style={styles.statLabel}>Last Active</Text>
                           <Text style={styles.statValue} numberOfLines={1}>
                             {settings.lastActiveAt
@@ -2185,7 +2198,12 @@ export default function MyProfileScreen() {
                   style={styles.viewProfilePreviewGradient}
                 >
                   <View style={styles.viewProfilePreviewIconWrap}>
-                    <Text style={styles.viewProfilePreviewIcon}>👁</Text>
+                    <ProfileCardAnimatedEmoji
+                      emoji="👁"
+                      variant="peek"
+                      fontSize={20}
+                      delay={120}
+                    />
                   </View>
                   <View style={styles.viewProfilePreviewCopy}>
                     <Text style={styles.viewProfilePreviewText}>View my profile</Text>
@@ -2213,7 +2231,13 @@ export default function MyProfileScreen() {
                     end={{ x: 1, y: 1 }}
                     style={styles.infoCardFull}
                   >
-                    <Text style={styles.infoCardEmoji}>✨</Text>
+                    <ProfileCardAnimatedEmoji
+                      emoji="✨"
+                      variant="shimmer"
+                      fontSize={36}
+                      delay={0}
+                      containerStyle={styles.infoCardEmojiWrap}
+                    />
                     <Text style={styles.infoCardLabel}>Display name</Text>
                     <Text
                       style={[
@@ -2253,7 +2277,13 @@ export default function MyProfileScreen() {
                       end={{ x: 1, y: 1 }}
                       style={styles.infoCardInBorder}
                     >
-                      <Text style={styles.infoCardEmoji}>🎂</Text>
+                      <ProfileCardAnimatedEmoji
+                        emoji="🎂"
+                        variant="bounce"
+                        fontSize={36}
+                        delay={80}
+                        containerStyle={styles.infoCardEmojiWrap}
+                      />
                       <Text style={styles.infoCardLabel}>Age</Text>
                       <Text style={styles.infoCardValue}>{profile.age}</Text>
                       <Text style={styles.infoCardTapHint}>Tap to update</Text>
@@ -2281,7 +2311,13 @@ export default function MyProfileScreen() {
                       end={{ x: 1, y: 1 }}
                       style={styles.infoCardInBorder}
                     >
-                      <Text style={styles.infoCardEmoji}>⚧️</Text>
+                      <ProfileCardAnimatedEmoji
+                        emoji="⚧️"
+                        variant="glow"
+                        fontSize={36}
+                        delay={160}
+                        containerStyle={styles.infoCardEmojiWrap}
+                      />
                       <Text style={styles.infoCardLabel}>Gender</Text>
                       <Text
                         style={[
@@ -2319,7 +2355,13 @@ export default function MyProfileScreen() {
                     end={{ x: 1, y: 1 }}
                     style={styles.infoCardFull}
                   >
-                    <Text style={styles.infoCardEmoji}>📍</Text>
+                    <ProfileCardAnimatedEmoji
+                      emoji="📍"
+                      variant="bob"
+                      fontSize={36}
+                      delay={240}
+                      containerStyle={styles.infoCardEmojiWrap}
+                    />
                     <Text style={styles.infoCardLabel}>Location</Text>
                     <Text
                     style={[
@@ -2355,7 +2397,13 @@ export default function MyProfileScreen() {
                     end={{ x: 1, y: 1 }}
                     style={styles.infoCardFull}
                   >
-                    <Text style={styles.infoCardEmoji}>📏</Text>
+                    <ProfileCardAnimatedEmoji
+                      emoji="📏"
+                      variant="sway"
+                      fontSize={36}
+                      delay={320}
+                      containerStyle={styles.infoCardEmojiWrap}
+                    />
                     <Text style={styles.infoCardLabel}>Max distance</Text>
                     <Text style={styles.infoCardValueFull}>
                       {data?.preferences?.max_distance == null
@@ -2400,7 +2448,13 @@ export default function MyProfileScreen() {
                     end={{ x: 1, y: 1 }}
                     style={styles.infoCardFull}
                   >
-                    <Text style={styles.infoCardEmoji}>💕</Text>
+                    <ProfileCardAnimatedEmoji
+                      emoji="💕"
+                      variant="heartbeat"
+                      fontSize={36}
+                      delay={400}
+                      containerStyle={styles.infoCardEmojiWrap}
+                    />
                     <Text style={styles.infoCardLabel}>Preferred matches</Text>
                     <Text style={styles.infoCardValueFull}>
                       {(() => {
@@ -2438,7 +2492,13 @@ export default function MyProfileScreen() {
                     end={{ x: 1, y: 1 }}
                     style={styles.infoCardFull}
                   >
-                    <Text style={styles.infoCardEmoji}>💞</Text>
+                    <ProfileCardAnimatedEmoji
+                      emoji="💞"
+                      variant="shimmer"
+                      fontSize={36}
+                      delay={480}
+                      containerStyle={styles.infoCardEmojiWrap}
+                    />
                     <Text style={styles.infoCardLabel}>Looking for</Text>
                     <Text style={styles.infoCardValueFull}>
                       {profile.looking_for?.trim()
@@ -4577,6 +4637,14 @@ const styles = StyleSheet.create({
   statEmojiSmall: {
     fontSize: 26,
     marginBottom: 4,
+  },
+  statEmojiWrap: {
+    marginBottom: 4,
+    alignItems: 'center',
+  },
+  infoCardEmojiWrap: {
+    marginBottom: 10,
+    alignItems: 'center',
   },
   statLabel: {
     fontSize: 10,

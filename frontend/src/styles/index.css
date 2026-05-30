@@ -19296,9 +19296,6 @@ button.compatibility-pulse-pill:focus-visible {
   justify-content: center;
   font-size: 0.95rem;
   line-height: 1;
-  border-radius: 10px;
-  background: var(--limits-icon-wrap-bg);
-  border: 1px solid var(--limits-icon-wrap-border);
   overflow: visible;
 }
 
@@ -19359,14 +19356,6 @@ button.compatibility-pulse-pill:focus-visible {
   .connection-limits-panel__reveal-icon--heart {
     animation: none;
   }
-}
-
-.connection-limits-panel__metric--tokens .connection-limits-panel__metric-icon-wrap {
-  border-color: var(--limits-icon-wrap-tokens-border);
-}
-
-.connection-limits-panel__metric--slots .connection-limits-panel__metric-icon-wrap {
-  border-color: var(--limits-icon-wrap-slots-border);
 }
 
 .connection-limits-panel__metric-content {

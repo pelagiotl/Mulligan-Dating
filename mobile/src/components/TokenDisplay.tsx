@@ -37,6 +37,7 @@ import { formatPackagePerTokenLine, normalizePackageFormattedPrice } from '../ut
 import BrowseConnectLandingTokenStrip from './BrowseConnectLandingTokenStrip';
 import WeeklyTokenClaimCelebration from './WeeklyTokenClaimCelebration';
 import type { ConnectShellMode } from '../lib/connectShellTheme';
+import ProfileCardAnimatedEmoji from './ProfileCardAnimatedEmoji';
 
 interface TokenData {
   availableTokens: number;
@@ -338,8 +339,10 @@ function WebNavbarTokenBadge({
   const [pressed, setPressed] = useState(false);
   const pulse = useRef(new Animated.Value(0)).current;
   const shimmer = useRef(new Animated.Value(0)).current;
+  const badgeScale = useRef(new Animated.Value(1)).current;
   const pulseLoopRef = useRef<Animated.CompositeAnimation | null>(null);
   const shimmerLoopRef = useRef<Animated.CompositeAnimation | null>(null);
+  const badgeScaleLoopRef = useRef<Animated.CompositeAnimation | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -356,31 +359,52 @@ function WebNavbarTokenBadge({
   useEffect(() => {
     pulseLoopRef.current?.stop();
     shimmerLoopRef.current?.stop();
-    // Android navbar badge is static (no shadow pulse); skip JS-thread loop entirely.
-    if (reduceMotion || loading || Platform.OS === 'android') {
+    badgeScaleLoopRef.current?.stop();
+
+    if (reduceMotion || loading) {
       pulse.setValue(0);
       shimmer.setValue(0);
+      badgeScale.setValue(1);
       return;
     }
-    pulseLoopRef.current = Animated.loop(
+
+    badgeScaleLoopRef.current = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulse, {
+        Animated.timing(badgeScale, {
+          toValue: 1.045,
+          duration: 1500,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(badgeScale, {
           toValue: 1,
           duration: 1500,
           easing: Easing.inOut(Easing.ease),
-          useNativeDriver: false,
+          useNativeDriver: true,
         }),
-        Animated.timing(pulse, {
-          toValue: 0,
-          duration: 1500,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: false,
-        }),
-      ])
+      ]),
     );
-    pulseLoopRef.current.start();
+    badgeScaleLoopRef.current.start();
 
-    if (Platform.OS !== 'android') {
+    if (Platform.OS === 'ios') {
+      pulseLoopRef.current = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulse, {
+            toValue: 1,
+            duration: 1500,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: false,
+          }),
+          Animated.timing(pulse, {
+            toValue: 0,
+            duration: 1500,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: false,
+          }),
+        ]),
+      );
+      pulseLoopRef.current.start();
+
       shimmerLoopRef.current = Animated.loop(
         Animated.sequence([
           Animated.timing(shimmer, {
@@ -394,25 +418,33 @@ function WebNavbarTokenBadge({
             duration: 0,
             useNativeDriver: true,
           }),
-        ])
+        ]),
       );
       shimmerLoopRef.current.start();
     } else {
+      pulse.setValue(0);
       shimmer.setValue(0);
     }
 
     return () => {
       pulseLoopRef.current?.stop();
       shimmerLoopRef.current?.stop();
+      badgeScaleLoopRef.current?.stop();
     };
-  }, [reduceMotion, loading, pulse, shimmer]);
+  }, [reduceMotion, loading, pulse, shimmer, badgeScale]);
 
-  const shadowOpacity = reduceMotion || loading
-    ? 0.2
-    : pulse.interpolate({ inputRange: [0, 1], outputRange: [0.16, 0.28] });
-  const shadowRadius = reduceMotion || loading
-    ? 12
-    : pulse.interpolate({ inputRange: [0, 1], outputRange: [10, 20] });
+  const shadowOpacity =
+    reduceMotion || loading
+      ? 0.2
+      : Platform.OS === 'ios'
+        ? pulse.interpolate({ inputRange: [0, 1], outputRange: [0.16, 0.28] })
+        : 0.22;
+  const shadowRadius =
+    reduceMotion || loading
+      ? 12
+      : Platform.OS === 'ios'
+        ? pulse.interpolate({ inputRange: [0, 1], outputRange: [10, 20] })
+        : 14;
   const shimmerTranslateX = shimmer.interpolate({
     inputRange: [0, 1],
     outputRange: [-72, 168],
@@ -495,7 +527,12 @@ function WebNavbarTokenBadge({
           <ActivityIndicator size="small" color={textColor} />
         ) : (
           <>
-            <Text style={[{ fontSize: 16, lineHeight: 18 }, androidGlyphStyle]}>🎟️</Text>
+            <ProfileCardAnimatedEmoji
+              emoji="🎟️"
+              variant="celebrate"
+              fontSize={16}
+              delay={0}
+            />
             <Text
               style={[
                 {
@@ -537,7 +574,10 @@ function WebNavbarTokenBadge({
                 shadowRadius,
                 elevation: pressed ? 8 : 5,
               }),
-          transform: [{ translateY: pressed ? -2 : 0 }],
+          transform: [
+            { translateY: pressed ? -2 : 0 },
+            ...(reduceMotion || loading ? [] : [{ scale: badgeScale }]),
+          ],
         }}
       >
         {Platform.OS === 'android' ? (

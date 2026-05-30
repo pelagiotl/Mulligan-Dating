@@ -34,6 +34,7 @@ import { purchaseTokensWithGooglePay } from '../utils/googlePay';
 import { navigationRef } from '../navigation/navigationRef';
 import { clearPushToken } from '../utils/pushNotifications';
 import LegalFooter from '../components/LegalFooter';
+import ProfileCardAnimatedEmoji from '../components/ProfileCardAnimatedEmoji';
 
 /** Android elevation renders as a harsh grey box behind rounded cards — disable it there. */
 const E = (n: number) => (Platform.OS === 'android' ? 0 : n);
@@ -574,7 +575,7 @@ export default function SettingsScreen() {
                 colors={['#fff', '#f8f9ff']}
                 style={StyleSheet.absoluteFill}
               />
-              <Text style={styles.headerIcon}>⚙️</Text>
+              <ProfileCardAnimatedEmoji emoji="⚙️" variant="shimmer" fontSize={40} delay={0} />
             </Animated.View>
             <Text style={styles.headerTitle}>Settings</Text>
             <Text style={styles.headerSubtitle}>Manage your account preferences</Text>
@@ -583,13 +584,31 @@ export default function SettingsScreen() {
 
       {error ? (
         <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>⚠️ {error}</Text>
+          <View style={styles.bannerTextRow}>
+            <ProfileCardAnimatedEmoji
+              emoji="⚠️"
+              variant="sway"
+              fontSize={18}
+              delay={0}
+              containerStyle={styles.bannerEmojiWrap}
+            />
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
         </View>
       ) : null}
 
       {success ? (
         <View style={styles.successContainer}>
-          <Text style={styles.successText}>✅ {success}</Text>
+          <View style={styles.bannerTextRow}>
+            <ProfileCardAnimatedEmoji
+              emoji="✅"
+              variant="pulse"
+              fontSize={18}
+              delay={0}
+              containerStyle={styles.bannerEmojiWrap}
+            />
+            <Text style={styles.successText}>{success}</Text>
+          </View>
         </View>
       ) : null}
 
@@ -611,7 +630,13 @@ export default function SettingsScreen() {
           ]}
         >
           <View style={styles.sectionTitleContainer}>
-            <Text style={styles.sectionEmoji}>🎨</Text>
+            <ProfileCardAnimatedEmoji
+              emoji="🎨"
+              variant="shimmer"
+              fontSize={26}
+              delay={0}
+              containerStyle={styles.sectionEmojiWrap}
+            />
             <Text style={styles.sectionTitle}>Connect tab appearance</Text>
           </View>
           <LinearGradient
@@ -672,7 +697,13 @@ export default function SettingsScreen() {
         ]}
       >
         <View style={styles.sectionTitleContainer}>
-          <Text style={styles.sectionEmoji}>👤</Text>
+          <ProfileCardAnimatedEmoji
+            emoji="👤"
+            variant="bob"
+            fontSize={26}
+            delay={80}
+            containerStyle={styles.sectionEmojiWrap}
+          />
           <Text style={styles.sectionTitle}>Account</Text>
         </View>
 
@@ -696,7 +727,13 @@ export default function SettingsScreen() {
               end={{ x: 1, y: 1 }}
               style={styles.statCard}
             >
-              <Text style={styles.statEmoji}>🎉</Text>
+              <ProfileCardAnimatedEmoji
+                emoji="🎉"
+                variant="celebrate"
+                fontSize={32}
+                delay={0}
+                containerStyle={styles.statEmojiWrap}
+              />
               <Text style={styles.statLabel}>Member Since</Text>
               <Text style={styles.statValue}>
                 {settings?.createdAt
@@ -727,7 +764,13 @@ export default function SettingsScreen() {
               end={{ x: 1, y: 1 }}
               style={styles.statCard}
             >
-              <Text style={styles.statEmoji}>🟢</Text>
+              <ProfileCardAnimatedEmoji
+                emoji="🟢"
+                variant="pulse"
+                fontSize={32}
+                delay={200}
+                containerStyle={styles.statEmojiWrap}
+              />
               <Text style={styles.statLabel}>Last Active</Text>
               <Text style={styles.statValue}>
                 {settings?.lastActiveAt
@@ -747,7 +790,13 @@ export default function SettingsScreen() {
             onPress={() => navigationRef.current?.navigate('PushNotificationSettings')}
             activeOpacity={0.8}
           >
-            <Text style={styles.pushNotificationsRowIcon}>🔔</Text>
+            <ProfileCardAnimatedEmoji
+              emoji="🔔"
+              variant="bob"
+              fontSize={22}
+              delay={0}
+              containerStyle={styles.pushNotificationsRowIconWrap}
+            />
             <Text style={styles.pushNotificationsRowText}>Push notifications</Text>
             <Text style={styles.pushNotificationsRowChevron}>›</Text>
           </TouchableOpacity>
@@ -758,7 +807,13 @@ export default function SettingsScreen() {
             onPress={() => navigationRef.current?.navigate('BlockedUsers')}
             activeOpacity={0.8}
           >
-            <Text style={styles.pushNotificationsRowIcon}>🚫</Text>
+            <ProfileCardAnimatedEmoji
+              emoji="🚫"
+              variant="peek"
+              fontSize={22}
+              delay={100}
+              containerStyle={styles.pushNotificationsRowIconWrap}
+            />
             <Text style={styles.pushNotificationsRowText}>Block list</Text>
             <Text style={styles.pushNotificationsRowChevron}>›</Text>
           </TouchableOpacity>
@@ -858,7 +913,13 @@ export default function SettingsScreen() {
             onPress={() => (navigation as any).navigate('MyProfile')}
             activeOpacity={0.8}
           >
-            <Text style={styles.pushNotificationsRowIcon}>📍</Text>
+            <ProfileCardAnimatedEmoji
+              emoji="📍"
+              variant="bob"
+              fontSize={22}
+              delay={200}
+              containerStyle={styles.pushNotificationsRowIconWrap}
+            />
             <Text style={styles.pushNotificationsRowText}>Location, bio & preferences (Profile tab)</Text>
             <Text style={styles.pushNotificationsRowChevron}>›</Text>
           </TouchableOpacity>
@@ -869,7 +930,13 @@ export default function SettingsScreen() {
             onPress={() => (navigation as any).navigate('MyProfile', { scrollToPhotos: true })}
             activeOpacity={0.8}
           >
-            <Text style={styles.pushNotificationsRowIcon}>📷</Text>
+            <ProfileCardAnimatedEmoji
+              emoji="📷"
+              variant="peek"
+              fontSize={22}
+              delay={300}
+              containerStyle={styles.pushNotificationsRowIconWrap}
+            />
             <Text style={styles.pushNotificationsRowText}>Photos (need 3 to Connect)</Text>
             <Text style={styles.pushNotificationsRowChevron}>›</Text>
           </TouchableOpacity>
@@ -894,7 +961,13 @@ export default function SettingsScreen() {
         ]}
       >
         <View style={styles.sectionTitleContainer}>
-          <Text style={styles.sectionEmoji}>💳</Text>
+          <ProfileCardAnimatedEmoji
+            emoji="💳"
+            variant="heartbeat"
+            fontSize={26}
+            delay={0}
+            containerStyle={styles.sectionEmojiWrap}
+          />
           <Text style={styles.sectionTitle}>Tokens</Text>
         </View>
         <LinearGradient
@@ -920,7 +993,10 @@ export default function SettingsScreen() {
               end={{ x: 1, y: 1 }}
               style={styles.primaryButton}
             >
-              <Text style={[styles.buttonText, styles.primaryButtonText]}>💳 Cop some more</Text>
+              <View style={styles.buttonTextRow}>
+                <ProfileCardAnimatedEmoji emoji="💳" variant="heartbeat" fontSize={20} delay={0} />
+                <Text style={[styles.buttonText, styles.primaryButtonText]}>Cop some more</Text>
+              </View>
             </LinearGradient>
           </TouchableOpacity>
         </LinearGradient>
@@ -945,7 +1021,13 @@ export default function SettingsScreen() {
         ]}
       >
         <View style={styles.sectionTitleContainer}>
-          <Text style={styles.sectionEmoji}>⚠️</Text>
+          <ProfileCardAnimatedEmoji
+            emoji="⚠️"
+            variant="sway"
+            fontSize={26}
+            delay={0}
+            containerStyle={styles.sectionEmojiWrap}
+          />
           <Text style={styles.sectionTitle}>Danger Zone</Text>
         </View>
         <Text style={styles.dangerText}>
@@ -978,7 +1060,13 @@ export default function SettingsScreen() {
         ]}
       >
         <View style={styles.sectionTitleContainer}>
-          <Text style={styles.sectionEmoji}>💬</Text>
+          <ProfileCardAnimatedEmoji
+            emoji="💬"
+            variant="glow"
+            fontSize={26}
+            delay={80}
+            containerStyle={styles.sectionEmojiWrap}
+          />
           <Text style={styles.sectionTitle}>Help & Support</Text>
         </View>
         <TouchableOpacity
@@ -1013,7 +1101,10 @@ export default function SettingsScreen() {
           onPress={() => setShowLogoutModal(true)}
           activeOpacity={0.85}
         >
-          <Text style={[styles.buttonText, styles.logoutButtonText]}>🚪 Logout</Text>
+          <View style={styles.buttonTextRow}>
+            <ProfileCardAnimatedEmoji emoji="🚪" variant="peek" fontSize={20} delay={0} />
+            <Text style={[styles.buttonText, styles.logoutButtonText]}>Logout</Text>
+          </View>
         </TouchableOpacity>
       </Animated.View>
 
@@ -1080,7 +1171,13 @@ export default function SettingsScreen() {
                 end={{ x: 1, y: 1 }}
                 style={styles.logoutModalGradient}
               >
-                <Text style={styles.logoutModalEmoji}>⚠️</Text>
+                <ProfileCardAnimatedEmoji
+                  emoji="⚠️"
+                  variant="sway"
+                  fontSize={52}
+                  delay={0}
+                  containerStyle={styles.logoutModalEmojiWrap}
+                />
                 <Text style={styles.logoutModalTitle}>Delete your account?</Text>
                 <Text style={styles.logoutModalSubtitle}>
                   This permanently deletes your profile, photos, matches, and messages. You cannot undo this.
@@ -1149,7 +1246,13 @@ export default function SettingsScreen() {
                 end={{ x: 1, y: 1 }}
                 style={styles.logoutModalGradient}
               >
-                <Text style={styles.logoutModalEmoji}>👋</Text>
+                <ProfileCardAnimatedEmoji
+                  emoji="👋"
+                  variant="bounce"
+                  fontSize={48}
+                  delay={0}
+                  containerStyle={styles.logoutModalEmojiWrap}
+                />
                 <Text style={styles.logoutModalTitle}>Log out?</Text>
                 <Text style={styles.logoutModalSubtitle}>
                   You&apos;ll need to sign in again to browse, match, and chat on Mulligan.
@@ -1419,6 +1522,32 @@ const styles = StyleSheet.create({
   sectionEmoji: {
     fontSize: 26,
     marginRight: 12,
+  },
+  sectionEmojiWrap: {
+    marginRight: 12,
+  },
+  statEmojiWrap: {
+    marginBottom: 8,
+    alignItems: 'center',
+  },
+  bannerTextRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  bannerEmojiWrap: {
+    flexShrink: 0,
+  },
+  buttonTextRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  pushNotificationsRowIconWrap: {
+    marginRight: 12,
+    width: 28,
+    alignItems: 'center',
   },
   sectionTitle: {
     fontSize: 24,
@@ -1870,6 +1999,10 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.2)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 6,
+  },
+  logoutModalEmojiWrap: {
+    marginBottom: 12,
+    alignItems: 'center',
   },
   logoutModalTitle: {
     fontSize: 24,
