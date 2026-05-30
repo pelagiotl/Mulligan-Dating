@@ -9,7 +9,7 @@ type Props = {
 export default function MatchExpiryHourglass({ delayMs = 0 }: Props) {
   return (
     <span
-      className="launch-countdown__hourglass match-expiry-hourglass"
+      className="match-expiry-hourglass"
       aria-hidden
       style={
         delayMs > 0
@@ -17,8 +17,8 @@ export default function MatchExpiryHourglass({ delayMs = 0 }: Props) {
           : undefined
       }
     >
-      <span className="launch-countdown__hourglass-emoji">⏳</span>
-      <span className="launch-countdown__hourglass-sand" />
+      <span className="match-expiry-hourglass__emoji">⏳</span>
+      <span className="match-expiry-hourglass__sand" />
     </span>
   );
 }

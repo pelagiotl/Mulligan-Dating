@@ -10292,34 +10292,43 @@ button.my-profile-mini-card:focus-visible {
   overflow: visible;
 }
 
-.match-expiry-hourglass.launch-countdown__hourglass {
+.match-expiry-hourglass {
   --match-hourglass-delay: 0ms;
-  width: 1.28rem;
-  height: 1.28rem;
-  border-radius: 10px;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+  width: auto;
+  height: auto;
+  background: none;
+  border: none;
   box-shadow: none;
-  isolation: isolate;
+  border-radius: 0;
+  padding: 0;
 }
 
-.match-expiry-hourglass .launch-countdown__hourglass-glow {
-  display: none;
-}
-
-.match-expiry-hourglass.launch-countdown__hourglass .launch-countdown__hourglass-emoji {
+.match-expiry-hourglass__emoji {
   display: inline-block;
   font-size: 0.82rem;
   line-height: 1;
   transform-origin: 50% 55%;
+  filter: none;
   animation: matchExpiryHourglassRock 3.2s ease-in-out infinite;
   animation-delay: var(--match-hourglass-delay, 0ms);
 }
 
-.match-expiry-hourglass .launch-countdown__hourglass-sand {
+.match-expiry-hourglass__sand {
+  position: absolute;
+  left: 50%;
+  top: 50%;
   width: 2px;
   height: 11px;
   margin-left: -1px;
   margin-top: -5.5px;
+  border-radius: 999px;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent, rgba(253, 230, 138, 0.85), transparent);
   animation: matchExpiryHourglassSand 2.4s ease-in-out infinite;
   animation-delay: var(--match-hourglass-delay, 0ms);
 }
