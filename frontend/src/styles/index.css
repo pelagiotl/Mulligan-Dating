@@ -10268,30 +10268,33 @@ button.my-profile-mini-card:focus-visible {
   align-items: center;
 }
 
-/* Compact animated hourglass on match cards (launch countdown keyframes) */
+/* Compact animated hourglass on match cards */
+.match-item-signals,
+.match-timer.match-timer--card {
+  overflow: visible;
+}
+
 .match-expiry-hourglass.launch-countdown__hourglass {
   --match-hourglass-delay: 0ms;
   width: 1.28rem;
   height: 1.28rem;
   border-radius: 10px;
   flex-shrink: 0;
-}
-
-.match-expiry-hourglass .launch-countdown__hourglass-emoji,
-.match-expiry-hourglass .launch-countdown__hourglass-sand {
-  animation-delay: var(--match-hourglass-delay), var(--match-hourglass-delay);
-}
-
-.match-expiry-hourglass.launch-countdown__hourglass {
   box-shadow: none;
+  isolation: isolate;
 }
 
 .match-expiry-hourglass .launch-countdown__hourglass-glow {
   display: none;
 }
 
-.match-expiry-hourglass .launch-countdown__hourglass-emoji {
+.match-expiry-hourglass.launch-countdown__hourglass .launch-countdown__hourglass-emoji {
+  display: inline-block;
   font-size: 0.82rem;
+  line-height: 1;
+  transform-origin: 50% 55%;
+  animation: matchExpiryHourglassRock 3.2s ease-in-out infinite;
+  animation-delay: var(--match-hourglass-delay, 0ms);
 }
 
 .match-expiry-hourglass .launch-countdown__hourglass-sand {
@@ -10299,6 +10302,30 @@ button.my-profile-mini-card:focus-visible {
   height: 11px;
   margin-left: -1px;
   margin-top: -5.5px;
+  animation: matchExpiryHourglassSand 2.4s ease-in-out infinite;
+  animation-delay: var(--match-hourglass-delay, 0ms);
+}
+
+@keyframes matchExpiryHourglassRock {
+  0%,
+  100% {
+    transform: rotate(-14deg) scale(1);
+  }
+  50% {
+    transform: rotate(14deg) scale(1.08);
+  }
+}
+
+@keyframes matchExpiryHourglassSand {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: translateY(4px) scaleY(0.5);
+  }
+  50% {
+    opacity: 0.95;
+    transform: translateY(-3px) scaleY(1);
+  }
 }
 
 .match-timer-header .match-expiry-hourglass.launch-countdown__hourglass {
@@ -10311,7 +10338,7 @@ button.my-profile-mini-card:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .match-expiry-hourglass .launch-countdown__hourglass-emoji,
+  .match-expiry-hourglass.launch-countdown__hourglass .launch-countdown__hourglass-emoji,
   .match-expiry-hourglass .launch-countdown__hourglass-sand {
     animation: none;
   }
@@ -19225,6 +19252,66 @@ button.compatibility-pulse-pill:focus-visible {
   border-radius: 10px;
   background: var(--limits-icon-wrap-bg);
   border: 1px solid var(--limits-icon-wrap-border);
+  overflow: visible;
+}
+
+.connection-limits-panel__metric-icon-emoji {
+  display: inline-block;
+  line-height: 1;
+  transform-origin: center center;
+}
+
+.connection-limits-panel__metric-icon-wrap--ticket .connection-limits-panel__metric-icon-emoji {
+  animation: limitsTicketWiggle 2.6s ease-in-out infinite;
+}
+
+.connection-limits-panel__metric-icon-wrap--heart .connection-limits-panel__metric-icon-emoji {
+  animation: limitsHeartBeat 1.8s ease-in-out infinite;
+}
+
+.connection-limits-panel__reveal-icon--ticket {
+  display: inline-block;
+  animation: limitsTicketWiggle 2.6s ease-in-out infinite;
+}
+
+.connection-limits-panel__reveal-icon--heart {
+  display: inline-block;
+  animation: limitsHeartBeat 1.8s ease-in-out infinite;
+}
+
+@keyframes limitsTicketWiggle {
+  0%,
+  100% {
+    transform: rotate(-8deg) scale(1);
+  }
+  50% {
+    transform: rotate(8deg) scale(1.12);
+  }
+}
+
+@keyframes limitsHeartBeat {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  18% {
+    transform: scale(1.16);
+  }
+  36% {
+    transform: scale(1);
+  }
+  54% {
+    transform: scale(1.1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .connection-limits-panel__metric-icon-wrap--ticket .connection-limits-panel__metric-icon-emoji,
+  .connection-limits-panel__metric-icon-wrap--heart .connection-limits-panel__metric-icon-emoji,
+  .connection-limits-panel__reveal-icon--ticket,
+  .connection-limits-panel__reveal-icon--heart {
+    animation: none;
+  }
 }
 
 .connection-limits-panel__metric--tokens .connection-limits-panel__metric-icon-wrap {

@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
+import AnimatedLimitsMetricIcon from './AnimatedLimitsMetricIcon';
 import { effectiveConnectionSlotLimit } from '../constants/matchSlots';
 import {
   connectionLimitsPanelColors,
@@ -166,20 +167,24 @@ const ConnectLandingScarcity = memo(function ConnectLandingScarcity({
         </Text>
         <Text style={[styles.collapsedEyebrow, { color: colors.eyebrow }]}>Limits</Text>
         <View style={styles.collapsedStats}>
-          <Text style={[styles.collapsedStat, { color: colors.collapsedStat }]}>
-            <Text style={styles.collapsedStatIcon}>🎟 </Text>
-            {tokensCapped}/{MAX_MULLIGANS}
-          </Text>
+          <View style={styles.collapsedStatRow}>
+            <AnimatedLimitsMetricIcon kind="ticket" style={styles.collapsedStatIcon} />
+            <Text style={[styles.collapsedStat, { color: colors.collapsedStat }]}>
+              {tokensCapped}/{MAX_MULLIGANS}
+            </Text>
+          </View>
           <View style={[styles.collapsedDivider, { backgroundColor: colors.collapsedDivider }]} />
-          <Text
-            style={[
-              styles.collapsedStat,
-              { color: atCapacity ? colors.collapsedStatFull : colors.collapsedStat },
-            ]}
-          >
-            <Text style={styles.collapsedStatIcon}>💞 </Text>
-            {activeMatches}/{connectionLimit}
-          </Text>
+          <View style={styles.collapsedStatRow}>
+            <AnimatedLimitsMetricIcon kind="heart" style={styles.collapsedStatIcon} />
+            <Text
+              style={[
+                styles.collapsedStat,
+                { color: atCapacity ? colors.collapsedStatFull : colors.collapsedStat },
+              ]}
+            >
+              {activeMatches}/{connectionLimit}
+            </Text>
+          </View>
         </View>
         <Text style={[styles.collapsedAction, { color: colors.collapsedAction }]}>Show</Text>
       </TouchableOpacity>
@@ -235,9 +240,7 @@ const ConnectLandingScarcity = memo(function ConnectLandingScarcity({
                 { backgroundColor: colors.iconWrapBg, borderColor: colors.iconWrapTokensBorder },
               ]}
             >
-              <Text style={styles.iconEmoji} accessibilityElementsHidden>
-                🎟
-              </Text>
+              <AnimatedLimitsMetricIcon kind="ticket" style={styles.iconEmoji} />
             </View>
             <View style={styles.metricContent}>
               <Text style={[styles.metricLabel, { color: colors.label }]}>Mulligans</Text>
@@ -266,9 +269,7 @@ const ConnectLandingScarcity = memo(function ConnectLandingScarcity({
                 { backgroundColor: colors.iconWrapBg, borderColor: colors.iconWrapSlotsBorder },
               ]}
             >
-              <Text style={styles.iconEmoji} accessibilityElementsHidden>
-                💞
-              </Text>
+              <AnimatedLimitsMetricIcon kind="heart" style={styles.iconEmoji} />
             </View>
             <View style={styles.metricContent}>
               <Text style={[styles.metricLabel, { color: colors.label }]}>Connections</Text>
@@ -370,6 +371,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     minWidth: 0,
+  },
+  collapsedStatRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
   },
   collapsedStat: {
     fontSize: 13,

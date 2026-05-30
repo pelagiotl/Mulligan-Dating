@@ -101,7 +101,9 @@ export default function ConnectionLimitsPanel({
           <span className="connection-limits-panel__reveal-label">Limits</span>
           <span className="connection-limits-panel__reveal-stats" aria-hidden>
             <span className="connection-limits-panel__reveal-stat">
-              <span className="connection-limits-panel__reveal-icon">🎟</span>
+              <span className="connection-limits-panel__reveal-icon connection-limits-panel__reveal-icon--ticket">
+                🎟
+              </span>
               {tokensReady}/{TOKEN_MAX}
             </span>
             <span className="connection-limits-panel__reveal-divider" />
@@ -110,7 +112,9 @@ export default function ConnectionLimitsPanel({
                 atCapacity ? " connection-limits-panel__reveal-stat--full" : ""
               }`}
             >
-              <span className="connection-limits-panel__reveal-icon">💞</span>
+              <span className="connection-limits-panel__reveal-icon connection-limits-panel__reveal-icon--heart">
+                💞
+              </span>
               {activeMatches}/{limit}
             </span>
           </span>
@@ -148,8 +152,11 @@ export default function ConnectionLimitsPanel({
 
       <div className="connection-limits-panel__metrics">
         <article className="connection-limits-panel__metric connection-limits-panel__metric--tokens">
-          <div className="connection-limits-panel__metric-icon-wrap" aria-hidden>
-            🎟
+          <div
+            className="connection-limits-panel__metric-icon-wrap connection-limits-panel__metric-icon-wrap--ticket"
+            aria-hidden
+          >
+            <span className="connection-limits-panel__metric-icon-emoji">🎟</span>
           </div>
           <div className="connection-limits-panel__metric-content">
             <span className="connection-limits-panel__metric-label">Mulligans</span>
@@ -178,8 +185,11 @@ export default function ConnectionLimitsPanel({
             atCapacity ? " connection-limits-panel__metric--full" : ""
           }`}
         >
-          <div className="connection-limits-panel__metric-icon-wrap" aria-hidden>
-            💞
+          <div
+            className="connection-limits-panel__metric-icon-wrap connection-limits-panel__metric-icon-wrap--heart"
+            aria-hidden
+          >
+            <span className="connection-limits-panel__metric-icon-emoji">💞</span>
           </div>
           <div className="connection-limits-panel__metric-content">
             <span className="connection-limits-panel__metric-label">Connections</span>
