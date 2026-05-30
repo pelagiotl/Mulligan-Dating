@@ -1,0 +1,569 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Modal,
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  StyleSheet,
+  Platform,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { api } from '../utils/api';
+import { useAuth } from '../context/AuthContext';
+import { getPhotoUrl } from '../utils/photoUrl';
+import OptimizedImage from './OptimizedImage';
+import { profilePreviewSheetStyles as styles } from './MyProfilePreviewModal';
+import {
+  DEALBREAKER_EMOJI,
+  canonicalDealbreakerLabel,
+  getInterestEmoji,
+  isCanonicalLookingFor,
+  isCanonicalPartnerQuality,
+  LOOKING_FOR_META,
+  PARTNER_QUALITY_EMOJI,
+} from '../constants/profileMySections';
+import { formatPreferredGendersLabel } from './MyProfilePreviewModal';
+
+export type MatchPartnerPhoto = {
+  id: string;
+  url: string;
+  displayOrder?: number;
+  isPrimary?: boolean;
+};
+
+export type MatchPartnerUser = {
+  userId: string;
+  displayName: string;
+  age: number;
+  gender: string;
+  location: string | null;
+  bio: string | null;
+  lookingFor?: string | null;
+  photoUrl: string | null;
+  photos?: MatchPartnerPhoto[];
+  interests: string[];
+  values: string[];
+  partnerQualities: Array<{ quality: string; importance: number }>;
+  dealbreakers?: string[];
+  preferredGenders?: string[] | null;
+  lastActiveLabel?: string | null;
+};
+
+export type MatchPartnerProfileMatch = {
+  id: string;
+  stage: 'stage1' | 'stage2';
+  otherUser: MatchPartnerUser;
+};
+
+type SectionAccent = {
+  emoji: string;
+  colors: readonly [string, string, string];
+};
+
+const SECTION_ACCENTS: Record<string, SectionAccent> = {
+  'Looking for': { emoji: '💞', colors: ['#fda4af', '#fb7185', '#f472b6'] },
+  'Preferred matches': { emoji: '💕', colors: ['#a78bfa', '#c084fc', '#e879f9'] },
+  About: { emoji: '💬', colors: ['#667eea', '#764ba2', '#a855f7'] },
+  "What you're looking for": { emoji: '✨', colors: ['#f093fb', '#e879f9', '#667eea'] },
+  Interests: { emoji: '🎯', colors: ['#f5576c', '#f093fb', '#667eea'] },
+  Values: { emoji: '💎', colors: ['#f472b6', '#ec4899', '#db2777'] },
+  Dealbreakers: { emoji: '🚫', colors: ['#ef4444', '#f5576c', '#a78bfa'] },
+};
+
+function preferredMatchesEmoji(label: string): string {
+  if (label === 'Everyone') return '🌍';
+  if (label === 'Men') return '👨';
+  if (label === 'Women') return '👩';
+  if (label.includes('Men') && label.includes('Women')) return '💕';
+  return '💕';
+}
+
+function DetailSection({ title, children }: { title: string; children: React.ReactNode }) {
+  const accent = SECTION_ACCENTS[title] ?? SECTION_ACCENTS.About;
+  return (
+    <View style={styles.detailBlock}>
+      <LinearGradient
+        colors={[accent.colors[0], accent.colors[1], accent.colors[2]]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={styles.detailBlockAccent}
+      />
+      <View style={styles.detailBlockInner}>
+        <View style={styles.detailBlockHeader}>
+          <LinearGradient
+            colors={[accent.colors[0], accent.colors[2]]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.detailBlockEmojiWrap}
+          >
+            <Text style={styles.detailBlockEmoji} allowFontScaling={false}>
+              {accent.emoji}
+            </Text>
+          </LinearGradient>
+          <Text style={styles.detailBlockTitle}>{title}</Text>
+        </View>
+        {children}
+      </View>
+    </View>
+  );
+}
+
+type Props = {
+  match: MatchPartnerProfileMatch;
+  visible: boolean;
+  onClose: () => void;
+  onPhotoPress?: (url: string, allUrls?: string[], index?: number) => void;
+  onReport?: () => void;
+  onBlock?: () => void;
+  noModal?: boolean;
+};
+
+export default function MatchPartnerProfileModal({
+  match,
+  visible,
+  onClose,
+  onPhotoPress,
+  onReport,
+  onBlock,
+  noModal = false,
+}: Props) {
+  const { otherUser } = match;
+  const { user } = useAuth();
+  const insets = useSafeAreaInsets();
+  const [currentUserInterests, setCurrentUserInterests] = useState<string[]>([]);
+
+  const allPhotos = useMemo((): MatchPartnerPhoto[] => {
+    if (match.stage === 'stage1') {
+      if (otherUser.photoUrl) {
+        return [{ id: 'primary', url: otherUser.photoUrl, isPrimary: true, displayOrder: 0 }];
+      }
+      return [];
+    }
+    return otherUser.photos ?? [];
+  }, [match.stage, otherUser.photoUrl, otherUser.photos]);
+
+  const sortedPhotos = useMemo(
+    () =>
+      [...allPhotos].sort((a, b) => {
+        if (a.isPrimary && !b.isPrimary) return -1;
+        if (!a.isPrimary && b.isPrimary) return 1;
+        return (a.displayOrder ?? 0) - (b.displayOrder ?? 0);
+      }),
+    [allPhotos]
+  );
+
+  const primaryPhoto = sortedPhotos.find((p) => p.isPrimary) || sortedPhotos[0];
+  const primaryPhotoUrl = primaryPhoto ? getPhotoUrl(primaryPhoto.url) : null;
+
+  useEffect(() => {
+    if (!visible || !user) {
+      setCurrentUserInterests([]);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const data = await api.get<{ interests?: Array<{ name: string } | string> }>('/profile');
+        if (cancelled) return;
+        const raw = data.interests;
+        if (!Array.isArray(raw)) {
+          setCurrentUserInterests([]);
+          return;
+        }
+        setCurrentUserInterests(
+          raw.map((i) => (typeof i === 'string' ? i : i.name)).filter(Boolean)
+        );
+      } catch {
+        if (!cancelled) setCurrentUserInterests([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, user, match.id]);
+
+  const matchInterests = otherUser.interests || [];
+  const commonInterests = currentUserInterests.filter((mine) =>
+    matchInterests.some((t) => t.toLowerCase() === mine.toLowerCase())
+  );
+
+  const lookingForDisplay = useMemo(() => {
+    if (!otherUser.lookingFor) return null;
+    if (isCanonicalLookingFor(otherUser.lookingFor)) {
+      const meta = LOOKING_FOR_META[otherUser.lookingFor];
+      return `${meta.emoji} ${otherUser.lookingFor}`;
+    }
+    return otherUser.lookingFor;
+  }, [otherUser.lookingFor]);
+
+  const preferredLabel =
+    otherUser.preferredGenders !== undefined
+      ? formatPreferredGendersLabel(
+          otherUser.preferredGenders ? JSON.stringify(otherUser.preferredGenders) : null
+        )
+      : null;
+
+  const hasDetails = !!(
+    otherUser.bio ||
+    otherUser.lookingFor ||
+    (otherUser.partnerQualities?.length ?? 0) > 0 ||
+    matchInterests.length > 0 ||
+    (otherUser.values?.length ?? 0) > 0 ||
+    (otherUser.dealbreakers?.length ?? 0) > 0 ||
+    otherUser.preferredGenders !== undefined
+  );
+
+  const sheetTop = Platform.OS === 'android' ? Math.max(insets.top, 8) + 8 : Math.max(insets.top, 14) + 12;
+
+  const emptyPhotosMessage =
+    match.stage === 'stage2'
+      ? 'No gallery photos listed yet.'
+      : 'Additional photos unlock as you each send enough messages in chat.';
+
+  const openPhoto = (index: number) => {
+    if (!onPhotoPress || sortedPhotos.length === 0) return;
+    const urls = sortedPhotos.map((p) => getPhotoUrl(p.url));
+    onPhotoPress(urls[index], urls, index);
+  };
+
+  const content = (
+    <View style={styles.overlay}>
+      <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
+      <View style={[styles.sheet, { marginTop: sheetTop, paddingBottom: Math.max(insets.bottom, 16) }]}>
+        <View style={styles.sheetHandleWrap}>
+          <View style={styles.sheetHandle} />
+        </View>
+
+        <LinearGradient
+          colors={['#667eea', '#764ba2', '#a855f7', '#ec4899']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.headerGradient}
+        >
+          <View style={styles.headerGlowOrb} pointerEvents="none" />
+          <View style={styles.headerGlowOrbSecondary} pointerEvents="none" />
+
+          <View style={styles.headerTopRow}>
+            <View style={styles.previewBadge}>
+              <Text style={styles.previewBadgeText}>💬 Quick view</Text>
+            </View>
+            <TouchableOpacity style={styles.closeBtn} onPress={onClose} accessibilityLabel="Close profile">
+              <Text style={styles.closeBtnText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.heroCenter}>
+            <TouchableOpacity
+              activeOpacity={primaryPhotoUrl ? 0.88 : 1}
+              disabled={!primaryPhotoUrl}
+              onPress={() => {
+                if (primaryPhotoUrl) openPhoto(0);
+              }}
+            >
+              <LinearGradient
+                colors={['rgba(255,255,255,0.95)', 'rgba(255,255,255,0.35)', 'rgba(255,255,255,0.9)']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.avatarRing}
+              >
+                {primaryPhotoUrl ? (
+                  <OptimizedImage
+                    source={primaryPhoto?.url ?? primaryPhotoUrl}
+                    style={styles.avatar}
+                    resizeMode="cover"
+                    showLoadingIndicator={false}
+                  />
+                ) : (
+                  <View style={[styles.avatar, styles.avatarPlaceholder]}>
+                    <Text style={styles.avatarPlaceholderText}>
+                      {otherUser.displayName.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <Text style={styles.name}>
+              {otherUser.displayName}
+              {otherUser.age ? `, ${otherUser.age}` : ''}
+            </Text>
+
+            <View style={styles.metaChips}>
+              {otherUser.gender ? (
+                <View style={styles.metaChip}>
+                  <Text style={styles.metaChipText}>⚧️ {otherUser.gender}</Text>
+                </View>
+              ) : null}
+              {otherUser.location ? (
+                <View style={styles.metaChip}>
+                  <Text style={styles.metaChipText}>📍 {otherUser.location}</Text>
+                </View>
+              ) : null}
+              {otherUser.lastActiveLabel ? (
+                <View style={styles.metaChip}>
+                  <Text style={styles.metaChipText}>🟢 {otherUser.lastActiveLabel}</Text>
+                </View>
+              ) : null}
+            </View>
+
+            <Text style={styles.tagline}>Tap their photo or gallery to view full size</Text>
+          </View>
+        </LinearGradient>
+
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {commonInterests.length > 0 ? (
+            <View style={styles.galleryCard}>
+              <LinearGradient
+                colors={['rgba(102, 126, 234, 0.08)', 'rgba(168, 85, 247, 0.04)']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={StyleSheet.absoluteFillObject}
+              />
+              <Text style={styles.sectionEyebrow}>In common</Text>
+              <Text style={styles.sectionTitle}>You both like</Text>
+              <Text style={[styles.galleryHint, { marginTop: 4, marginBottom: 10 }]}>
+                {commonInterests.length} {commonInterests.length === 1 ? 'interest' : 'interests'} overlap
+              </Text>
+              <View style={styles.tags}>
+                {commonInterests.slice(0, 8).map((interest) => (
+                  <LinearGradient
+                    key={interest}
+                    colors={['rgba(254, 205, 211, 0.95)', 'rgba(251, 207, 232, 0.9)']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.tag}
+                  >
+                    <Text style={[styles.tagText, { color: '#9d174d' }]}>
+                      {getInterestEmoji(interest)} {interest}
+                    </Text>
+                  </LinearGradient>
+                ))}
+              </View>
+            </View>
+          ) : null}
+
+          {sortedPhotos.length > 0 ? (
+            <View style={styles.galleryCard}>
+              <LinearGradient
+                colors={['rgba(102, 126, 234, 0.08)', 'rgba(168, 85, 247, 0.04)']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={StyleSheet.absoluteFillObject}
+              />
+              <View style={styles.galleryHeader}>
+                <View>
+                  <Text style={styles.sectionEyebrow}>Gallery</Text>
+                  <Text style={styles.sectionTitle}>Photos</Text>
+                </View>
+                <View style={styles.photoCountBadge}>
+                  <Text style={styles.photoCountBadgeText}>{sortedPhotos.length}</Text>
+                </View>
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoRail}>
+                {sortedPhotos.map((ph, i) => (
+                  <TouchableOpacity
+                    key={ph.id}
+                    activeOpacity={0.88}
+                    onPress={() => openPhoto(i)}
+                    style={styles.thumbWrap}
+                  >
+                    <OptimizedImage
+                      source={ph.url}
+                      style={styles.thumb}
+                      resizeMode="cover"
+                      showLoadingIndicator={false}
+                    />
+                    <LinearGradient
+                      colors={['transparent', 'rgba(15, 23, 42, 0.72)']}
+                      style={styles.thumbOverlay}
+                    >
+                      <Text style={styles.thumbOverlayIcon} allowFontScaling={false}>🔍</Text>
+                      <Text style={styles.thumbOverlayLabel}>View</Text>
+                    </LinearGradient>
+                    {ph.isPrimary ? (
+                      <View style={styles.primaryBadge}>
+                        <Text style={styles.primaryBadgeText}>★ Main</Text>
+                      </View>
+                    ) : null}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              <Text style={styles.galleryHint}>Tap a photo to browse full screen</Text>
+            </View>
+          ) : (
+            <View style={styles.emptyPhotosCard}>
+              <Text style={styles.emptyPhotosEmoji} allowFontScaling={false}>📸</Text>
+              <Text style={styles.emptyHint}>{emptyPhotosMessage}</Text>
+            </View>
+          )}
+
+          {hasDetails ? (
+            <View style={styles.detailsCard}>
+              <View style={styles.detailsCardHeader}>
+                <Text style={styles.sectionEyebrow}>Their profile</Text>
+                <Text style={styles.sectionTitle}>Details</Text>
+              </View>
+
+              {otherUser.lookingFor && lookingForDisplay ? (
+                <DetailSection title="Looking for">
+                  <Text style={styles.blockBody}>{lookingForDisplay}</Text>
+                </DetailSection>
+              ) : null}
+
+              {preferredLabel ? (
+                <DetailSection title="Preferred matches">
+                  <View style={styles.highlightPill}>
+                    <Text style={styles.highlightPillText}>
+                      {preferredMatchesEmoji(preferredLabel)} {preferredLabel}
+                    </Text>
+                  </View>
+                </DetailSection>
+              ) : null}
+
+              {otherUser.bio ? (
+                <DetailSection title="About">
+                  <Text style={styles.blockBody}>{otherUser.bio}</Text>
+                </DetailSection>
+              ) : null}
+
+              {(otherUser.partnerQualities?.length ?? 0) > 0 ? (
+                <DetailSection title="What you're looking for">
+                  <View style={styles.qualityList}>
+                    {otherUser.partnerQualities.map((q, idx) => {
+                      const em = isCanonicalPartnerQuality(q.quality)
+                        ? PARTNER_QUALITY_EMOJI[q.quality]
+                        : '✨';
+                      return (
+                        <View key={idx} style={styles.qualityPill}>
+                          <Text style={styles.qualityPillText}>
+                            {em} {q.quality}
+                          </Text>
+                          <Text style={styles.qualityStars}>
+                            {'⭐'.repeat(Math.min(q.importance, 5))}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </DetailSection>
+              ) : null}
+
+              {matchInterests.length > 0 ? (
+                <DetailSection title="Interests">
+                  <View style={styles.tags}>
+                    {matchInterests.map((name) => (
+                      <LinearGradient
+                        key={name}
+                        colors={['rgba(237, 233, 254, 0.98)', 'rgba(224, 231, 255, 0.95)']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.tag}
+                      >
+                        <Text style={styles.tagText}>
+                          {getInterestEmoji(name)} {name}
+                        </Text>
+                      </LinearGradient>
+                    ))}
+                  </View>
+                </DetailSection>
+              ) : null}
+
+              {(otherUser.values?.length ?? 0) > 0 ? (
+                <DetailSection title="Values">
+                  <View style={styles.tags}>
+                    {otherUser.values.map((v) => (
+                      <LinearGradient
+                        key={v}
+                        colors={['rgba(252, 231, 243, 0.95)', 'rgba(251, 207, 232, 0.9)']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={[styles.tag, styles.valueTag]}
+                      >
+                        <Text style={[styles.tagText, styles.valueTagText]}>💎 {v}</Text>
+                      </LinearGradient>
+                    ))}
+                  </View>
+                </DetailSection>
+              ) : null}
+
+              {(otherUser.dealbreakers?.length ?? 0) > 0 ? (
+                <DetailSection title="Dealbreakers">
+                  <View style={styles.tags}>
+                    {otherUser.dealbreakers!.map((d, i) => {
+                      const canon = canonicalDealbreakerLabel(d);
+                      const em = canon ? DEALBREAKER_EMOJI[canon] : '🚫';
+                      const label = canon ?? d;
+                      return (
+                        <View key={i} style={styles.dealbreakerTag}>
+                          <Text style={styles.dealbreakerTagText}>
+                            {em} {label}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </DetailSection>
+              ) : null}
+            </View>
+          ) : (
+            <View style={styles.emptyDetailsCard}>
+              <Text style={styles.emptyPhotosEmoji} allowFontScaling={false}>✨</Text>
+              <Text style={styles.emptyHint}>They haven&apos;t added written profile sections yet.</Text>
+            </View>
+          )}
+
+          {(onReport || onBlock) && (
+            <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 12, marginTop: 4 }}>
+              {onBlock ? (
+                <TouchableOpacity
+                  onPress={onBlock}
+                  style={{
+                    paddingVertical: 14,
+                    paddingHorizontal: 22,
+                    borderRadius: 14,
+                    backgroundColor: '#f1f5f9',
+                    borderWidth: 1,
+                    borderColor: '#e2e8f0',
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: '#334155' }}>🚫 Block</Text>
+                </TouchableOpacity>
+              ) : null}
+              {onReport ? (
+                <TouchableOpacity
+                  onPress={onReport}
+                  style={{
+                    paddingVertical: 14,
+                    paddingHorizontal: 22,
+                    borderRadius: 14,
+                    backgroundColor: '#fef2f2',
+                    borderWidth: 1,
+                    borderColor: '#fecaca',
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: '#b91c1c' }}>🚩 Report</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          )}
+        </ScrollView>
+      </View>
+    </View>
+  );
+
+  if (!visible) return null;
+
+  if (noModal) {
+    return <View style={{ flex: 1 }}>{content}</View>;
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      {content}
+    </Modal>
+  );
+}

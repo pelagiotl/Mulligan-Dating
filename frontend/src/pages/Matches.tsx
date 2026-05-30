@@ -7,7 +7,6 @@ import { matchesRouteActiveRef, openMatchIdRef } from "../lib/currentMatchView";
 import { api, ApiError } from "../utils/api";
 import { useAuth } from "../context/AuthContext";
 import { getPhotoUrl } from "../utils/photoUrl";
-import { formatPreferredMatchesFromGenders } from "../utils/preferredMatchesLabel";
 import { formatLastActive } from "../utils/formatLastActive";
 import Notification from "../components/Notification";
 import ConfirmModal from "../components/ConfirmModal";
@@ -21,6 +20,7 @@ import ChatMediaModerationModal, { type ChatMediaKind } from "../components/Chat
 import ReportUserModal from "../components/ReportUserModal";
 import InterestCompatibilityModal from "../components/InterestCompatibilityModal";
 import CompatibilityPulseModal from "../components/CompatibilityPulseModal";
+import MatchPartnerProfileSheet from "../components/MatchPartnerProfileSheet";
 
 interface Photo {
   id: string;
@@ -108,117 +108,6 @@ function interestsFromProfilePayload(data: unknown): string[] {
     })
     .filter(Boolean);
 }
-
-function matchHasProfileDetails(ou: Match["otherUser"]): boolean {
-  return !!(
-    ou.bio ||
-    ou.lookingFor ||
-    (ou.partnerQualities?.length ?? 0) > 0 ||
-    (ou.interests?.length ?? 0) > 0 ||
-    (ou.values?.length ?? 0) > 0 ||
-    (ou.dealbreakers?.length ?? 0) > 0 ||
-    ou.preferredGenders !== undefined
-  );
-}
-
-/** Shared profile blocks for stage1 (horizontal) and stage2 (stacked). */
-function MatchOtherProfileSections({
-  otherUser,
-  variant,
-}: {
-  otherUser: Match["otherUser"];
-  variant: "stage1" | "stage2";
-}) {
-  const hasAny =
-    !!otherUser.bio ||
-    !!otherUser.lookingFor ||
-    (otherUser.partnerQualities?.length ?? 0) > 0 ||
-    (otherUser.interests?.length ?? 0) > 0 ||
-    (otherUser.values?.length ?? 0) > 0 ||
-    (otherUser.dealbreakers?.length ?? 0) > 0 ||
-    otherUser.preferredGenders !== undefined;
-  if (!hasAny) return null;
-
-  const blocks = (
-    <>
-      {otherUser.lookingFor ? (
-        <div className={variant === "stage1" ? "stage1-section" : "stage2-profile-block"}>
-          <h4>Looking for</h4>
-          <p className="stage2-profile-text">{otherUser.lookingFor}</p>
-        </div>
-      ) : null}
-      {otherUser.preferredGenders !== undefined ? (
-        <div className={variant === "stage1" ? "stage1-section" : "stage2-profile-block"}>
-          <h4>Wants to connect with</h4>
-          <p className="stage2-profile-text">{formatPreferredMatchesFromGenders(otherUser.preferredGenders)}</p>
-        </div>
-      ) : null}
-      {otherUser.bio ? (
-        <div className={variant === "stage1" ? "stage1-section" : "stage2-profile-block"}>
-          <h4>About</h4>
-          <p className="stage1-bio stage2-profile-text">{otherUser.bio}</p>
-        </div>
-      ) : null}
-      {(otherUser.partnerQualities?.length ?? 0) > 0 ? (
-        <div className={variant === "stage1" ? "stage1-section" : "stage2-profile-block"}>
-          <h4>What they&apos;re looking for</h4>
-          <div className="qualities-list">
-            {otherUser.partnerQualities.map((q, idx) => (
-              <div key={idx} className="quality-item">
-                <span className="quality-name">{q.quality}</span>
-                <span className="quality-importance">{"⭐".repeat(q.importance)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-      {(otherUser.interests?.length ?? 0) > 0 ? (
-        <div className={variant === "stage1" ? "stage1-section" : "stage2-profile-block"}>
-          <h4>Interests</h4>
-          <div className="profile-card-interests">
-            {otherUser.interests.map((interest) => (
-              <span key={interest} className="interest-tag">
-                {interest}
-              </span>
-            ))}
-          </div>
-        </div>
-      ) : null}
-      {(otherUser.values?.length ?? 0) > 0 ? (
-        <div className={variant === "stage1" ? "stage1-section" : "stage2-profile-block"}>
-          <h4>Values</h4>
-          <div className="profile-card-interests">
-            {otherUser.values.map((value) => (
-              <span key={value} className="value-tag">
-                {value}
-              </span>
-            ))}
-          </div>
-        </div>
-      ) : null}
-      {(otherUser.dealbreakers?.length ?? 0) > 0 ? (
-        <div className={variant === "stage1" ? "stage1-section" : "stage2-profile-block"}>
-          <h4>Dealbreakers</h4>
-          <ul className="stage2-dealbreakers-list">
-            {otherUser.dealbreakers!.map((d, i) => (
-              <li key={i}>{d}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-    </>
-  );
-
-  if (variant === "stage1") {
-    return (
-      <div className="stage1-profile-info">
-        <div className="stage1-sections-grid">{blocks}</div>
-      </div>
-    );
-  }
-  return <div className="stage2-profile-sections-inner">{blocks}</div>;
-}
-
 
 /** Slim photo-unlock reminder in the composer footer (replaces the large scroll-top card). */
 function Stage1PhotoUnlockCompact({
@@ -2188,205 +2077,37 @@ export default function Matches() {
           </div>
         </div>
       )}
-      {partnerDrawerOpen &&
-        selectedMatch &&
-        selectedMatch.stage !== "pending" &&
-        typeof document !== "undefined" &&
-        createPortal(
-        <div className="chat-partner-drawer-root">
-          <button
-            type="button"
-            className="chat-partner-drawer-backdrop"
-            aria-label="Close profile panel"
-            onClick={() => setPartnerDrawerOpen(false)}
-          />
-          <aside
-            className="chat-partner-drawer-panel"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="chat-partner-drawer-title"
-          >
-            <div className="chat-partner-drawer-toolbar">
-              <div className="chat-partner-drawer-toolbar-main">
-                <div className="chat-partner-drawer-avatar-col">
-                  {selectedMatchPhotos.length > 0 ? (
-                    <button
-                      type="button"
-                      className="chat-partner-drawer-avatar-btn"
-                      onClick={() => openPhotoLightbox(selectedMatchPhotos, selectedMatchPhotos[0])}
-                      aria-label={`View ${selectedMatch.otherUser.displayName}'s photos`}
-                    >
-                      <span className="chat-partner-drawer-avatar-ring">
-                        <img
-                          src={getPhotoUrl(selectedMatchPhotos[0].url)}
-                          alt=""
-                          className="chat-partner-drawer-avatar-img"
-                          draggable={false}
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = "none";
-                          }}
-                        />
-                      </span>
-                    </button>
-                  ) : (
-                    <div
-                      className="chat-partner-drawer-avatar-ring chat-partner-drawer-avatar-ring--placeholder"
-                      aria-hidden
-                    >
-                      <span className="chat-partner-drawer-avatar-initial">
-                        {selectedMatch.otherUser.displayName.trim().charAt(0).toUpperCase() || "?"}
-                      </span>
-                    </div>
-                  )}
-                  {selectedMatchPhotos.length > 0 ? (
-                    <p className="chat-partner-drawer-avatar-hint">Tap to expand</p>
-                  ) : null}
-                </div>
-                <div className="chat-partner-drawer-toolbar-text">
-                  <p className="chat-partner-drawer-kicker">
-                    <span className="chat-partner-drawer-kicker-pill">Quick view</span>
-                  </p>
-                  <h2 id="chat-partner-drawer-title">{selectedMatch.otherUser.displayName}</h2>
-                  <p className="chat-partner-drawer-subtitle">Profile</p>
-                  <div className="chat-partner-drawer-meta" aria-label="Basics">
-                    {typeof selectedMatch.otherUser.age === "number" &&
-                    !Number.isNaN(selectedMatch.otherUser.age) ? (
-                      <span className="chat-partner-drawer-meta-chip">
-                        <span className="chat-partner-drawer-meta-chip-label">Age</span>
-                        {selectedMatch.otherUser.age}
-                      </span>
-                    ) : null}
-                    {selectedMatch.otherUser.gender ? (
-                      <span className="chat-partner-drawer-meta-chip">
-                        <span className="chat-partner-drawer-meta-chip-label">Gender</span>
-                        {selectedMatch.otherUser.gender}
-                      </span>
-                    ) : null}
-                    {selectedMatch.otherUser.location ? (
-                      <span className="chat-partner-drawer-meta-chip chat-partner-drawer-meta-chip--location">
-                        <span className="chat-partner-drawer-meta-chip-icon" aria-hidden>
-                          📍
-                        </span>
-                        {selectedMatch.otherUser.location}
-                      </span>
-                    ) : null}
-                    {getLastActiveLabel(selectedMatch.otherUser.lastActiveAt) ? (
-                      <span className="chat-partner-drawer-meta-chip chat-partner-drawer-meta-chip--active">
-                        <span className="chat-partner-drawer-meta-chip-icon" aria-hidden>
-                          🟢
-                        </span>
-                        {getLastActiveLabel(selectedMatch.otherUser.lastActiveAt)}
-                      </span>
-                    ) : null}
-                  </div>
-                  <p className="chat-partner-drawer-tagline">
-                    Tap their photo for full size. Scroll for gallery and what they wrote on their profile.
-                  </p>
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm chat-partner-drawer-report"
-                    onClick={() => openReportForMatch(selectedMatch)}
-                  >
-                    Report user
-                  </button>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="chat-partner-drawer-close"
-                onClick={() => setPartnerDrawerOpen(false)}
-                aria-label="Close"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="chat-partner-drawer-inner">
-              {partnerDrawerCommonInterests.length > 0 ? (
-                <div className="chat-partner-drawer-common" role="region" aria-label="Shared interests">
-                  <div className="chat-partner-drawer-common-accent" aria-hidden />
-                  <div className="chat-partner-drawer-common-body">
-                    <span className="chat-partner-drawer-common-mark" aria-hidden>
-                      ✦
-                    </span>
-                    <div className="chat-partner-drawer-common-copy">
-                      <p className="chat-partner-drawer-section-eyebrow">In common</p>
-                      <p className="chat-partner-drawer-common-title">You both like</p>
-                      <p className="chat-partner-drawer-common-sub">
-                        {partnerDrawerCommonInterests.length}{" "}
-                        {partnerDrawerCommonInterests.length === 1 ? "interest" : "interests"} overlap
-                      </p>
-                    </div>
-                    <div className="chat-partner-drawer-common-tags">
-                      {partnerDrawerCommonInterests.slice(0, 8).map((interest) => (
-                        <span key={interest} className="chat-partner-drawer-common-chip">
-                          {interest}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-              {selectedMatchPhotos.length > 0 ? (
-                <div className="chat-partner-drawer-surface chat-partner-drawer-surface--photos">
-                  <div className="chat-partner-drawer-gallery-block">
-                    <h3 className="chat-partner-drawer-section-heading">
-                      <span className="chat-partner-drawer-section-eyebrow">Gallery</span>
-                      <span className="chat-partner-drawer-section-title">Photos</span>
-                    </h3>
-                    <div className="chat-partner-drawer-photo-rail" role="list">
-                      {selectedMatchPhotos.map((ph, i) => (
-                        <button
-                          key={ph.id}
-                          type="button"
-                          className="chat-partner-drawer-photo-thumb"
-                          onClick={() => openPhotoLightbox(selectedMatchPhotos, ph)}
-                          role="listitem"
-                        >
-                          <img
-                            src={getPhotoUrl(ph.url)}
-                            alt={`${selectedMatch.otherUser.displayName} — photo ${i + 1}`}
-                            draggable={false}
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).style.display = "none";
-                            }}
-                          />
-                        </button>
-                      ))}
-                    </div>
-                    <p className="chat-partner-drawer-hint">
-                      Scroll the row, then tap — full screen uses ‹ › or swipe when there are multiple photos
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="chat-partner-drawer-surface chat-partner-drawer-surface--empty">
-                  <p className="chat-partner-drawer-empty subtle">
-                    {selectedMatch.stage === "stage2"
-                      ? "No gallery photos listed yet."
-                      : "Additional photos unlock as you chat (both send enough messages first)."}
-                  </p>
-                </div>
-              )}
-
-              <div className="chat-partner-drawer-surface chat-partner-drawer-surface--profile">
-                <h3 className="chat-partner-drawer-section-heading">
-                  <span className="chat-partner-drawer-section-eyebrow">Their world</span>
-                  <span className="chat-partner-drawer-section-title">Details</span>
-                </h3>
-                <div className="chat-partner-drawer-profile chat-partner-drawer-profile--styled">
-                  {matchHasProfileDetails(selectedMatch.otherUser) ? (
-                    <MatchOtherProfileSections otherUser={selectedMatch.otherUser} variant="stage2" />
-                  ) : (
-                    <p className="chat-partner-drawer-empty">They haven&apos;t added written profile sections yet.</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          </aside>
-        </div>,
-        document.body,
-        )}
+      <MatchPartnerProfileSheet
+        open={
+          partnerDrawerOpen &&
+          !!selectedMatch &&
+          selectedMatch.stage !== "pending"
+        }
+        onClose={() => setPartnerDrawerOpen(false)}
+        stage={selectedMatch?.stage === "stage2" ? "stage2" : "stage1"}
+        photos={selectedMatchPhotos}
+        otherUser={{
+          displayName: selectedMatch?.otherUser.displayName ?? "",
+          age: selectedMatch?.otherUser.age,
+          gender: selectedMatch?.otherUser.gender,
+          location: selectedMatch?.otherUser.location,
+          lastActiveLabel: selectedMatch
+            ? getLastActiveLabel(selectedMatch.otherUser.lastActiveAt)
+            : null,
+          bio: selectedMatch?.otherUser.bio,
+          lookingFor: selectedMatch?.otherUser.lookingFor,
+          interests: selectedMatch?.otherUser.interests,
+          values: selectedMatch?.otherUser.values,
+          partnerQualities: selectedMatch?.otherUser.partnerQualities,
+          dealbreakers: selectedMatch?.otherUser.dealbreakers,
+          preferredGenders: selectedMatch?.otherUser.preferredGenders,
+        }}
+        commonInterests={partnerDrawerCommonInterests}
+        onPhotoSelect={(photos, photo) => openPhotoLightbox(photos, photo)}
+        onReport={() => {
+          if (selectedMatch) openReportForMatch(selectedMatch);
+        }}
+      />
       <div className="matches-sidebar">
         <h2 className="matches-title">Your Matches</h2>
 

@@ -107,7 +107,7 @@ function preferredMatchesEmoji(label: string): string {
   return "💕";
 }
 
-function PreviewDetailSection({ title, children }: { title: string; children: ReactNode }) {
+export function PreviewDetailSection({ title, children }: { title: string; children: ReactNode }) {
   const accent = SECTION_ACCENTS[title] ?? SECTION_ACCENTS.About;
   return (
     <article

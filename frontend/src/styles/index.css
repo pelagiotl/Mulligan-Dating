@@ -5796,6 +5796,91 @@ button.my-profile-avatar:focus-visible {
   color: #94a3b8;
 }
 
+/* Match partner quick view (messaging) — reuses preview sheet chrome */
+.match-partner-preview-root {
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.match-partner-preview-report {
+  margin-top: 0.65rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.45);
+  color: #fff;
+}
+
+.match-partner-preview-report:hover {
+  background: rgba(255, 255, 255, 0.28);
+  color: #fff;
+}
+
+.my-profile-preview-card--common {
+  padding-bottom: 1.1rem;
+}
+
+.my-profile-preview-common {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.75rem 1rem;
+}
+
+.my-profile-preview-common-mark {
+  font-size: 1.35rem;
+  line-height: 1;
+  color: #be185d;
+  flex-shrink: 0;
+}
+
+.my-profile-preview-common-copy {
+  flex: 1;
+  min-width: 8rem;
+}
+
+.my-profile-preview-common-title {
+  margin: 0.1rem 0 0;
+  font-size: 1rem;
+  font-weight: 900;
+  color: #1e1b4b;
+  letter-spacing: -0.02em;
+}
+
+.my-profile-preview-common-sub {
+  margin: 0.2rem 0 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.my-profile-preview-common-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  width: 100%;
+}
+
+.my-profile-preview-common-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #9d174d;
+  background: linear-gradient(135deg, rgba(254, 205, 211, 0.95), rgba(251, 207, 232, 0.9));
+  border: 1px solid rgba(236, 72, 153, 0.22);
+}
+
+@media (min-width: 901px) {
+  .match-partner-preview-root {
+    align-items: center;
+    padding: 1.5rem;
+  }
+}
+
 .chat-partner-drawer-header {
   flex-shrink: 0;
   display: flex;
