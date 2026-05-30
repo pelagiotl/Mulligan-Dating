@@ -1,13 +1,10 @@
-import {
-  CONNECT_BURST_HEARTS,
-  CONNECT_SHOOTING_HEARTS,
-} from '../constants/connectButtonEffects';
+import { CONNECT_SHOOTING_HEARTS } from '../constants/connectButtonEffects';
 
 type ConnectButtonHeartFireworksProps = {
   active?: boolean;
 };
 
-/** Shooting hearts/sparkles that arc onto the Connect CTA from above (mobile parity). */
+/** Shooting hearts/sparkles that arc onto the Connect CTA from above (no center burst on web). */
 export default function ConnectButtonHeartFireworks({
   active = true,
 }: ConnectButtonHeartFireworksProps) {
@@ -34,23 +31,6 @@ export default function ConnectButtonHeartFireworks({
           {spec.emoji}
         </span>
       ))}
-      <div className="connect-btn-hearts__burst-origin">
-        {CONNECT_BURST_HEARTS.map((spec, i) => (
-          <span
-            key={`burst-${spec.emoji}-${i}`}
-            className="connect-btn-hearts__burst"
-            style={{
-              fontSize: spec.sizePx,
-              ['--burst-delay' as string]: `${spec.delayMs}ms`,
-              ['--burst-dur' as string]: `${spec.durationMs}ms`,
-              ['--burst-x' as string]: `${spec.offsetX}px`,
-              ['--burst-y' as string]: `${spec.offsetY}px`,
-            }}
-          >
-            {spec.emoji}
-          </span>
-        ))}
-      </div>
     </div>
   );
 }

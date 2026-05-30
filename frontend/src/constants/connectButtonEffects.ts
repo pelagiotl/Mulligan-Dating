@@ -45,6 +45,8 @@ const CONNECT_BURST_SPECS: BurstHeartSpec[] = [
   { emoji: '💝', delayMs: 1800, durationMs: 1300, offsetX: 0, offsetY: -16, sizePx: 13 },
 ];
 
-/** Shooting + burst particles — same specs as mobile ConnectButtonHeartFireworks. */
+/** Arcing particles from above — same specs as mobile shooting hearts. */
 export const CONNECT_SHOOTING_HEARTS = CONNECT_SHOOTING_SPECS;
+
+/** Center burst particles (mobile only; omitted on web — reads as a static heart on the button). */
 export const CONNECT_BURST_HEARTS = CONNECT_BURST_SPECS;
