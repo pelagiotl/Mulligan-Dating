@@ -467,7 +467,7 @@
 }
 
 .browse-native-connect-btn--effects {
-  overflow: hidden;
+  overflow: visible;
   isolation: isolate;
 }
 

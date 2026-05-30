@@ -1,7 +1,24 @@
-/* Connect CTA — perimeter shimmer + sparkle particles (mobile parity) */
+/* Connect CTA — perimeter shimmer + floating heart particles (mobile parity) */
+
+.connect-btn-effects-wrap {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-height: inherit;
+  overflow: visible;
+}
+
+.connect-btn-effects-wrap__hearts {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  overflow: visible;
+}
 
 .connect-btn-effects {
   position: relative;
+  z-index: 3;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -153,7 +170,7 @@
   bottom: 0;
 }
 
-/* ─── Sparkle particles (hearts omitted on web) ─── */
+/* ─── Floating hearts / sparkles (arc down into the button) ─── */
 .connect-btn-hearts {
   position: absolute;
   top: -44px;
@@ -162,7 +179,6 @@
   right: -12px;
   overflow: visible;
   pointer-events: none;
-  z-index: 2;
 }
 
 .connect-btn-hearts__shoot {
@@ -170,9 +186,10 @@
   top: 0;
   margin-left: -8px;
   line-height: 1;
-  filter: drop-shadow(0 0 8px rgba(255, 223, 120, 0.95));
+  text-shadow: 0 0 8px rgba(255, 105, 180, 0.9);
   animation: connectHeartShoot var(--shoot-dur, 2.2s) linear infinite;
   animation-delay: var(--shoot-delay, 0ms);
+  will-change: transform, opacity;
 }
 
 @keyframes connectHeartShoot {
@@ -184,8 +201,16 @@
   12% {
     opacity: 1;
   }
+  35% {
+    transform: translate(calc(var(--shoot-dx, 0px) * 0.55), calc((var(--shoot-y0, -36px) + var(--shoot-y1, 34px)) / 2))
+      scale(1.15) rotate(var(--shoot-rot0, -18deg));
+  }
   55% {
     opacity: 1;
+  }
+  70% {
+    transform: translate(calc(var(--shoot-dx, 0px) * 0.85), calc(var(--shoot-y1, 34px) * 0.72))
+      scale(0.95) rotate(var(--shoot-rot1, 8deg));
   }
   88% {
     opacity: 0.85;
@@ -210,9 +235,10 @@
   left: -6px;
   top: -6px;
   line-height: 1;
-  filter: drop-shadow(0 0 6px rgba(255, 230, 150, 0.95));
+  text-shadow: 0 0 6px rgba(255, 182, 193, 0.95);
   animation: connectHeartBurst var(--burst-dur, 1.4s) ease-out infinite;
   animation-delay: var(--burst-delay, 0ms);
+  will-change: transform, opacity;
 }
 
 @keyframes connectHeartBurst {
@@ -242,7 +268,8 @@ a.connect-landing__cta--effects::before {
 
 .connect-landing__cta--effects,
 .browse-native-connect-btn--effects {
-  overflow: hidden;
+  /* Visible overflow so heart particles can arc in from above (shimmer clips internally). */
+  overflow: visible;
   isolation: isolate;
   animation: none !important;
   transition: none !important;
@@ -259,7 +286,8 @@ a.connect-landing__cta--effects::before {
     display: none;
   }
 
-  .connect-btn-hearts {
+  .connect-btn-hearts,
+  .connect-btn-effects-wrap__hearts {
     display: none;
   }
 

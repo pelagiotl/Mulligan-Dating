@@ -4,9 +4,6 @@ export const CONNECT_SHIMMER_DURATION_MS = 3400;
 export const CONNECT_TRACE_COLOR = 'rgba(103, 232, 249, 0.95)';
 export const CONNECT_TRACE_EDGE_PX = 2.5;
 
-/** Heart emojis excluded from web Connect CTA particles (sparkles only). */
-export const CONNECT_HEART_EMOJIS = new Set(['💕', '💖', '💗', '💝']);
-
 export type ShootingHeartSpec = {
   emoji: string;
   left: string;
@@ -48,10 +45,6 @@ const CONNECT_BURST_SPECS: BurstHeartSpec[] = [
   { emoji: '💝', delayMs: 1800, durationMs: 1300, offsetX: 0, offsetY: -16, sizePx: 13 },
 ];
 
-function toSparkleParticle<T extends { emoji: string }>(spec: T): T {
-  return CONNECT_HEART_EMOJIS.has(spec.emoji) ? { ...spec, emoji: '✨' } : spec;
-}
-
-/** Web Connect CTA: sparkle particles only (hearts swapped to ✨). */
-export const CONNECT_SHOOTING_HEARTS = CONNECT_SHOOTING_SPECS.map(toSparkleParticle);
-export const CONNECT_BURST_HEARTS = CONNECT_BURST_SPECS.map(toSparkleParticle);
+/** Shooting + burst particles — same specs as mobile ConnectButtonHeartFireworks. */
+export const CONNECT_SHOOTING_HEARTS = CONNECT_SHOOTING_SPECS;
+export const CONNECT_BURST_HEARTS = CONNECT_BURST_SPECS;

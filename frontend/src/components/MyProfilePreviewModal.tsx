@@ -1,5 +1,26 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
+import {
+  DEALBREAKER_EMOJI,
+  canonicalDealbreakerLabel,
+  getInterestEmoji,
+  isCanonicalLookingFor,
+  isCanonicalPartnerQuality,
+  lifestylePickerItemLabel,
+  LOOKING_FOR_META,
+  LIFESTYLE_FIELD_EMOJI,
+  LIFESTYLE_FIELD_LABEL,
+  PARTNER_QUALITY_EMOJI,
+  type LifestyleFieldKey,
+} from "../constants/profileMySections";
 import { getPhotoUrl } from "../utils/photoUrl";
 import { formatPreferredMatchesFromGenders } from "../utils/preferredMatchesLabel";
 
@@ -36,6 +57,34 @@ export type MyProfilePreviewData = {
 
 type PhotoLightboxState = { urls: string[]; index: number };
 
+type SectionAccent = {
+  emoji: string;
+  colors: [string, string, string];
+  slug: string;
+};
+
+const SECTION_ACCENTS: Record<string, SectionAccent> = {
+  "Looking for": { emoji: "💞", colors: ["#fda4af", "#fb7185", "#f472b6"], slug: "looking-for" },
+  "Preferred matches": { emoji: "💕", colors: ["#a78bfa", "#c084fc", "#e879f9"], slug: "preferred" },
+  About: { emoji: "💬", colors: ["#667eea", "#764ba2", "#a855f7"], slug: "about" },
+  "What you're looking for": { emoji: "✨", colors: ["#f093fb", "#e879f9", "#667eea"], slug: "qualities" },
+  Interests: { emoji: "🎯", colors: ["#f5576c", "#f093fb", "#667eea"], slug: "interests" },
+  Values: { emoji: "💎", colors: ["#f472b6", "#ec4899", "#db2777"], slug: "values" },
+  Dealbreakers: { emoji: "🚫", colors: ["#ef4444", "#f5576c", "#a78bfa"], slug: "dealbreakers" },
+  Lifestyle: { emoji: "🌱", colors: ["#43e97b", "#38f9d7", "#667eea"], slug: "lifestyle" },
+};
+
+const LIFESTYLE_KEYS: Array<{ key: LifestyleFieldKey; field: keyof NonNullable<MyProfilePreviewData["lifestyle"]> }> = [
+  { key: "smoking", field: "smoking" },
+  { key: "drinking", field: "drinking" },
+  { key: "children", field: "children" },
+  { key: "pets", field: "pets" },
+  { key: "religion", field: "religion" },
+  { key: "political", field: "political" },
+  { key: "workLifeBalance", field: "work_life_balance" },
+  { key: "worksOut", field: "works_out" },
+];
+
 function hasLifestyle(lifestyle: MyProfilePreviewData["lifestyle"]): boolean {
   if (!lifestyle) return false;
   return !!(
@@ -50,16 +99,39 @@ function hasLifestyle(lifestyle: MyProfilePreviewData["lifestyle"]): boolean {
   );
 }
 
-function hasProfileDetails(data: MyProfilePreviewData): boolean {
-  return !!(
-    data.bio ||
-    data.lookingFor ||
-    data.interests.length > 0 ||
-    data.dealbreakers.length > 0 ||
-    data.partnerQualities.length > 0 ||
-    data.values.length > 0 ||
-    data.preferredGenders !== null ||
-    hasLifestyle(data.lifestyle)
+function preferredMatchesEmoji(label: string): string {
+  if (label === "Everyone") return "🌍";
+  if (label === "Men") return "👨";
+  if (label === "Women") return "👩";
+  if (label.includes("Men") && label.includes("Women")) return "💕";
+  return "💕";
+}
+
+function PreviewDetailSection({ title, children }: { title: string; children: ReactNode }) {
+  const accent = SECTION_ACCENTS[title] ?? SECTION_ACCENTS.About;
+  return (
+    <article
+      className="my-profile-preview-detail"
+      data-accent={accent.slug}
+      style={
+        {
+          "--detail-a": accent.colors[0],
+          "--detail-b": accent.colors[1],
+          "--detail-c": accent.colors[2],
+        } as CSSProperties
+      }
+    >
+      <div className="my-profile-preview-detail__bar" aria-hidden />
+      <div className="my-profile-preview-detail__inner">
+        <header className="my-profile-preview-detail__head">
+          <span className="my-profile-preview-detail__emoji-wrap" aria-hidden>
+            {accent.emoji}
+          </span>
+          <h4 className="my-profile-preview-detail__title">{title}</h4>
+        </header>
+        <div className="my-profile-preview-detail__body">{children}</div>
+      </div>
+    </article>
   );
 }
 
@@ -112,6 +184,31 @@ export default function MyProfilePreviewModal({
     return primary ? getPhotoUrl(primary.url) : null;
   }, [sortedPhotos]);
 
+  const distanceLabel =
+    data.maxDistance == null ? "Any distance" : `Within ${data.maxDistance} mi`;
+
+  const preferredLabel = formatPreferredMatchesFromGenders(data.preferredGenders);
+
+  const lookingForDisplay = useMemo(() => {
+    if (!data.lookingFor) return null;
+    if (isCanonicalLookingFor(data.lookingFor)) {
+      const meta = LOOKING_FOR_META[data.lookingFor];
+      return `${meta.emoji} ${data.lookingFor}`;
+    }
+    return data.lookingFor;
+  }, [data.lookingFor]);
+
+  const hasDetails = !!(
+    data.lookingFor ||
+    data.bio ||
+    data.partnerQualities.length > 0 ||
+    data.interests.length > 0 ||
+    data.values.length > 0 ||
+    data.dealbreakers.length > 0 ||
+    data.preferredGenders !== null ||
+    hasLifestyle(data.lifestyle)
+  );
+
   const closeLightbox = useCallback(() => setPhotoLightbox(null), []);
 
   const stepLightbox = useCallback((delta: number) => {
@@ -158,263 +255,260 @@ export default function MyProfilePreviewModal({
 
   if (!open) return null;
 
-  const distanceLabel =
-    data.maxDistance == null ? "Any distance" : `Within ${data.maxDistance} mi`;
-
   const overlay = (
     <>
-      <div className="chat-partner-drawer-root chat-partner-drawer-root--my-preview" role="presentation">
+      <div className="my-profile-preview-root" role="presentation">
         <button
           type="button"
-          className="chat-partner-drawer-backdrop"
+          className="my-profile-preview-backdrop"
           aria-label="Close profile preview"
           onClick={onClose}
         />
-        <aside
-          className="chat-partner-drawer-panel"
+        <div
+          className="my-profile-preview-sheet"
           role="dialog"
           aria-modal="true"
           aria-labelledby="my-profile-preview-title"
         >
-          <div className="chat-partner-drawer-header">
-            <div className="chat-partner-drawer-hero">
+          <div className="my-profile-preview-handle-wrap" aria-hidden>
+            <span className="my-profile-preview-handle" />
+          </div>
+
+          <header className="my-profile-preview-header">
+            <span className="my-profile-preview-header__orb my-profile-preview-header__orb--a" aria-hidden />
+            <span className="my-profile-preview-header__orb my-profile-preview-header__orb--b" aria-hidden />
+
+            <div className="my-profile-preview-header__top">
+              <span className="my-profile-preview-badge">👁 Preview</span>
+              <button
+                type="button"
+                className="my-profile-preview-close"
+                onClick={onClose}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="my-profile-preview-hero">
               {primaryPhotoUrl ? (
                 <button
                   type="button"
-                  className="chat-partner-drawer-avatar-btn"
+                  className="my-profile-preview-avatar-btn"
                   onClick={() => {
                     const first = sortedPhotos[0];
                     if (first) openPhotoLightbox(first);
                   }}
                   aria-label={`View photo — ${data.displayName}`}
                 >
-                  <span className="chat-partner-drawer-avatar-ring">
-                    <img
-                      src={primaryPhotoUrl}
-                      alt=""
-                      className="chat-partner-drawer-avatar-img"
-                      draggable={false}
-                    />
+                  <span className="my-profile-preview-avatar-ring">
+                    <img src={primaryPhotoUrl} alt="" className="my-profile-preview-avatar-img" draggable={false} />
                   </span>
                 </button>
               ) : (
-                <span
-                  className="chat-partner-drawer-avatar-ring chat-partner-drawer-avatar-ring--placeholder"
-                  aria-hidden
-                >
-                  <span className="chat-partner-drawer-avatar-initial">👤</span>
+                <span className="my-profile-preview-avatar-ring my-profile-preview-avatar-ring--placeholder" aria-hidden>
+                  <span className="my-profile-preview-avatar-placeholder">👤</span>
                 </span>
               )}
-              <div className="chat-partner-drawer-headline">
-                <h2 id="my-profile-preview-title" className="chat-partner-drawer-name">
-                  {data.displayName}
-                  {data.age ? <span className="chat-partner-drawer-age">, {data.age}</span> : null}
-                </h2>
-                <div className="chat-partner-drawer-meta">
-                  {data.gender ? (
-                    <span className="chat-partner-drawer-meta-chip">{data.gender}</span>
-                  ) : null}
-                  {data.location ? (
-                    <span className="chat-partner-drawer-meta-chip chat-partner-drawer-meta-chip--location">
-                      <span className="chat-partner-drawer-meta-chip-icon" aria-hidden>
-                        📍
-                      </span>
-                      {data.location}
-                    </span>
-                  ) : null}
-                  <span className="chat-partner-drawer-meta-chip">{distanceLabel}</span>
-                </div>
-                <p className="chat-partner-drawer-tagline">
-                  This is how your profile looks to others on Mulligan — photos and what you wrote.
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              className="chat-partner-drawer-close"
-              onClick={onClose}
-              aria-label="Close"
-            >
-              ×
-            </button>
-          </div>
 
-          <div className="chat-partner-drawer-inner">
+              <h2 id="my-profile-preview-title" className="my-profile-preview-name">
+                {data.displayName}
+                {data.age ? <span className="my-profile-preview-age">, {data.age}</span> : null}
+              </h2>
+
+              <div className="my-profile-preview-meta">
+                {data.gender ? (
+                  <span className="my-profile-preview-meta-chip">⚧️ {data.gender}</span>
+                ) : null}
+                {data.location ? (
+                  <span className="my-profile-preview-meta-chip">📍 {data.location}</span>
+                ) : null}
+                <span className="my-profile-preview-meta-chip">📏 {distanceLabel}</span>
+              </div>
+
+              <p className="my-profile-preview-tagline">
+                This is how your profile looks to others on Mulligan
+              </p>
+            </div>
+          </header>
+
+          <div className="my-profile-preview-scroll">
             {sortedPhotos.length > 0 ? (
-              <div className="chat-partner-drawer-surface chat-partner-drawer-surface--photos">
-                <div className="chat-partner-drawer-gallery-block">
-                  <h3 className="chat-partner-drawer-section-heading">
-                    <span className="chat-partner-drawer-section-eyebrow">Gallery</span>
-                    <span className="chat-partner-drawer-section-title">Photos</span>
-                  </h3>
-                  <div className="chat-partner-drawer-photo-rail" role="list">
-                    {sortedPhotos.map((ph, i) => (
-                      <button
-                        key={ph.id}
-                        type="button"
-                        className="chat-partner-drawer-photo-thumb"
-                        onClick={() => openPhotoLightbox(ph)}
-                        role="listitem"
-                        aria-label={`View photo ${i + 1} of ${sortedPhotos.length}`}
-                      >
-                        <img
-                          src={getPhotoUrl(ph.url)}
-                          alt=""
-                          draggable={false}
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = "none";
-                          }}
-                        />
-                        <span className="chat-partner-drawer-photo-view-overlay" aria-hidden>
-                          <span className="chat-partner-drawer-photo-view-icon">🧤</span>
-                          <span className="chat-partner-drawer-photo-view-label">View</span>
-                        </span>
-                      </button>
-                    ))}
+              <section className="my-profile-preview-card my-profile-preview-card--gallery">
+                <div className="my-profile-preview-card__glow" aria-hidden />
+                <div className="my-profile-preview-card__head">
+                  <div>
+                    <p className="my-profile-preview-eyebrow">Gallery</p>
+                    <h3 className="my-profile-preview-card-title">Photos</h3>
                   </div>
-                  <p className="chat-partner-drawer-hint">
-                    Tap a photo to open · swipe or use ‹ › to browse all photos
-                  </p>
+                  <span className="my-profile-preview-photo-count">{sortedPhotos.length}</span>
                 </div>
-              </div>
+                <div className="my-profile-preview-photo-rail" role="list">
+                  {sortedPhotos.map((ph, i) => (
+                    <button
+                      key={ph.id}
+                      type="button"
+                      className="my-profile-preview-photo-thumb"
+                      onClick={() => openPhotoLightbox(ph)}
+                      role="listitem"
+                      aria-label={`View photo ${i + 1} of ${sortedPhotos.length}`}
+                    >
+                      <img
+                        src={getPhotoUrl(ph.url)}
+                        alt=""
+                        draggable={false}
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = "none";
+                        }}
+                      />
+                      <span className="my-profile-preview-photo-overlay" aria-hidden>
+                        <span>🔍</span>
+                        <span>View</span>
+                      </span>
+                      {ph.isPrimary ? (
+                        <span className="my-profile-preview-photo-primary">★ Main</span>
+                      ) : null}
+                    </button>
+                  ))}
+                </div>
+                <p className="my-profile-preview-gallery-hint">Tap a photo to browse full screen</p>
+              </section>
             ) : (
-              <div className="chat-partner-drawer-surface chat-partner-drawer-surface--empty">
-                <p className="chat-partner-drawer-empty subtle">No photos yet — add some from your profile tab.</p>
-              </div>
+              <section className="my-profile-preview-card my-profile-preview-card--empty">
+                <span className="my-profile-preview-empty-emoji" aria-hidden>
+                  📸
+                </span>
+                <p>No photos yet — add some from your profile tab.</p>
+              </section>
             )}
 
-            <div className="chat-partner-drawer-surface chat-partner-drawer-surface--profile">
-              <h3 className="chat-partner-drawer-section-heading">
-                <span className="chat-partner-drawer-section-eyebrow">Your profile</span>
-                <span className="chat-partner-drawer-section-title">Details</span>
-              </h3>
-              <div className="chat-partner-drawer-profile chat-partner-drawer-profile--styled">
-                {hasProfileDetails(data) ? (
-                  <div className="stage2-profile-sections-inner">
-                    {data.lookingFor ? (
-                      <div className="stage2-profile-block">
-                        <h4>Looking for</h4>
-                        <p className="stage2-profile-text">{data.lookingFor}</p>
-                      </div>
-                    ) : null}
-                    {data.preferredGenders !== null ? (
-                      <div className="stage2-profile-block">
-                        <h4>Wants to connect with</h4>
-                        <p className="stage2-profile-text">
-                          {formatPreferredMatchesFromGenders(data.preferredGenders)}
-                        </p>
-                      </div>
-                    ) : null}
-                    {data.bio ? (
-                      <div className="stage2-profile-block">
-                        <h4>About</h4>
-                        <p className="stage2-profile-text">{data.bio}</p>
-                      </div>
-                    ) : null}
-                    {data.partnerQualities.length > 0 ? (
-                      <div className="stage2-profile-block">
-                        <h4>What you&apos;re looking for</h4>
-                        <div className="qualities-list">
-                          {data.partnerQualities.map((q, idx) => (
-                            <div key={idx} className="quality-item">
-                              <span className="quality-name">{q.quality}</span>
-                              <span className="quality-importance">{"⭐".repeat(q.importance)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null}
-                    {data.interests.length > 0 ? (
-                      <div className="stage2-profile-block">
-                        <h4>Interests</h4>
-                        <div className="profile-card-interests">
-                          {data.interests.map((interest) => (
-                            <span key={interest} className="interest-tag">
-                              {interest}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null}
-                    {data.values.length > 0 ? (
-                      <div className="stage2-profile-block">
-                        <h4>Values</h4>
-                        <div className="profile-card-interests">
-                          {data.values.map((value) => (
-                            <span key={value} className="value-tag">
-                              {value}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null}
-                    {data.dealbreakers.length > 0 ? (
-                      <div className="stage2-profile-block">
-                        <h4>Dealbreakers</h4>
-                        <ul className="stage2-dealbreakers-list">
-                          {data.dealbreakers.map((d, i) => (
-                            <li key={i}>{d}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : null}
-                    {hasLifestyle(data.lifestyle) && data.lifestyle ? (
-                      <div className="stage2-profile-block">
-                        <h4>Lifestyle</h4>
-                        <div className="profile-lifestyle">
-                          {data.lifestyle.smoking ? (
-                            <div className="lifestyle-item">
-                              <strong>Smoking:</strong> {data.lifestyle.smoking}
-                            </div>
-                          ) : null}
-                          {data.lifestyle.drinking ? (
-                            <div className="lifestyle-item">
-                              <strong>Drinking:</strong> {data.lifestyle.drinking}
-                            </div>
-                          ) : null}
-                          {data.lifestyle.children ? (
-                            <div className="lifestyle-item">
-                              <strong>Children:</strong> {data.lifestyle.children}
-                            </div>
-                          ) : null}
-                          {data.lifestyle.pets ? (
-                            <div className="lifestyle-item">
-                              <strong>Pets:</strong> {data.lifestyle.pets}
-                            </div>
-                          ) : null}
-                          {data.lifestyle.religion ? (
-                            <div className="lifestyle-item">
-                              <strong>Religion:</strong> {data.lifestyle.religion}
-                            </div>
-                          ) : null}
-                          {data.lifestyle.political ? (
-                            <div className="lifestyle-item">
-                              <strong>Politics:</strong> {data.lifestyle.political}
-                            </div>
-                          ) : null}
-                          {data.lifestyle.work_life_balance ? (
-                            <div className="lifestyle-item">
-                              <strong>Work-Life Balance:</strong> {data.lifestyle.work_life_balance}
-                            </div>
-                          ) : null}
-                          {data.lifestyle.works_out ? (
-                            <div className="lifestyle-item">
-                              <strong>Works out:</strong> {data.lifestyle.works_out}
-                            </div>
-                          ) : null}
-                        </div>
-                      </div>
-                    ) : null}
+            {hasDetails ? (
+              <section className="my-profile-preview-card my-profile-preview-card--details">
+                <div className="my-profile-preview-card__head my-profile-preview-card__head--solo">
+                  <div>
+                    <p className="my-profile-preview-eyebrow">Your profile</p>
+                    <h3 className="my-profile-preview-card-title">Details</h3>
                   </div>
-                ) : (
-                  <p className="chat-partner-drawer-empty">
-                    You haven&apos;t added written profile sections yet.
-                  </p>
-                )}
-              </div>
-            </div>
+                </div>
+
+                <div className="my-profile-preview-details">
+                  {data.lookingFor && lookingForDisplay ? (
+                    <PreviewDetailSection title="Looking for">
+                      <p className="my-profile-preview-text">{lookingForDisplay}</p>
+                    </PreviewDetailSection>
+                  ) : null}
+
+                  {data.preferredGenders !== null ? (
+                    <PreviewDetailSection title="Preferred matches">
+                      <span className="my-profile-preview-highlight-pill">
+                        {preferredMatchesEmoji(preferredLabel)} {preferredLabel}
+                      </span>
+                    </PreviewDetailSection>
+                  ) : null}
+
+                  {data.bio ? (
+                    <PreviewDetailSection title="About">
+                      <p className="my-profile-preview-text">{data.bio}</p>
+                    </PreviewDetailSection>
+                  ) : null}
+
+                  {data.partnerQualities.length > 0 ? (
+                    <PreviewDetailSection title="What you're looking for">
+                      <ul className="my-profile-preview-quality-list">
+                        {data.partnerQualities.map((q, idx) => {
+                          const em = isCanonicalPartnerQuality(q.quality)
+                            ? PARTNER_QUALITY_EMOJI[q.quality]
+                            : "✨";
+                          return (
+                            <li key={idx} className="my-profile-preview-quality-pill">
+                              <span>
+                                {em} {q.quality}
+                              </span>
+                              <span className="my-profile-preview-quality-stars" aria-hidden>
+                                {"⭐".repeat(Math.min(q.importance, 5))}
+                              </span>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </PreviewDetailSection>
+                  ) : null}
+
+                  {data.interests.length > 0 ? (
+                    <PreviewDetailSection title="Interests">
+                      <div className="my-profile-preview-tags">
+                        {data.interests.map((name) => (
+                          <span key={name} className="my-profile-preview-tag my-profile-preview-tag--interest">
+                            {getInterestEmoji(name)} {name}
+                          </span>
+                        ))}
+                      </div>
+                    </PreviewDetailSection>
+                  ) : null}
+
+                  {data.values.length > 0 ? (
+                    <PreviewDetailSection title="Values">
+                      <div className="my-profile-preview-tags">
+                        {data.values.map((v) => (
+                          <span key={v} className="my-profile-preview-tag my-profile-preview-tag--value">
+                            💎 {v}
+                          </span>
+                        ))}
+                      </div>
+                    </PreviewDetailSection>
+                  ) : null}
+
+                  {data.dealbreakers.length > 0 ? (
+                    <PreviewDetailSection title="Dealbreakers">
+                      <div className="my-profile-preview-tags">
+                        {data.dealbreakers.map((d, i) => {
+                          const canon = canonicalDealbreakerLabel(d);
+                          const em = canon ? DEALBREAKER_EMOJI[canon] : "🚫";
+                          const label = canon ?? d;
+                          return (
+                            <span key={i} className="my-profile-preview-tag my-profile-preview-tag--dealbreaker">
+                              {em} {label}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </PreviewDetailSection>
+                  ) : null}
+
+                  {hasLifestyle(data.lifestyle) && data.lifestyle ? (
+                    <PreviewDetailSection title="Lifestyle">
+                      <div className="my-profile-preview-lifestyle-grid">
+                        {LIFESTYLE_KEYS.map(({ key, field }) => {
+                          const raw = data.lifestyle![field];
+                          if (!raw || typeof raw !== "string") return null;
+                          return (
+                            <div key={key} className="my-profile-preview-lifestyle-card">
+                              <span className="my-profile-preview-lifestyle-label">
+                                {LIFESTYLE_FIELD_EMOJI[key]} {LIFESTYLE_FIELD_LABEL[key]}
+                              </span>
+                              <span className="my-profile-preview-lifestyle-value">
+                                {lifestylePickerItemLabel(key, raw)}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </PreviewDetailSection>
+                  ) : null}
+                </div>
+              </section>
+            ) : (
+              <section className="my-profile-preview-card my-profile-preview-card--empty">
+                <span className="my-profile-preview-empty-emoji" aria-hidden>
+                  ✨
+                </span>
+                <p>Add bio, interests, and more from your profile to fill this preview out.</p>
+              </section>
+            )}
+
+            <p className="my-profile-preview-footer">Only you can see this preview</p>
           </div>
-        </aside>
+        </div>
       </div>
 
       {photoLightbox && photoLightbox.urls.length > 0 ? (

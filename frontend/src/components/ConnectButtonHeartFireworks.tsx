@@ -7,7 +7,7 @@ type ConnectButtonHeartFireworksProps = {
   active?: boolean;
 };
 
-/** Shooting-star sparkles + mini bursts — web omits pink heart emojis. */
+/** Shooting hearts/sparkles that arc onto the Connect CTA from above (mobile parity). */
 export default function ConnectButtonHeartFireworks({
   active = true,
 }: ConnectButtonHeartFireworksProps) {
