@@ -53,6 +53,7 @@ import BetterMatchesCompleteCelebration from '../components/BetterMatchesComplet
 import { markProfileEnhancementCelebrationShown } from '../utils/profileEnhancementChecklist';
 import { maybeShowProfileEnhancementCelebration } from '../utils/maybeShowProfileEnhancementCelebration';
 import { androidShellBackdropColors } from '../utils/androidConnectShellChrome';
+import { profilePageColors } from '../lib/connectShellTheme';
 import {
   LOOKING_FOR_OPTIONS,
   LOOKING_FOR_META,
@@ -232,6 +233,46 @@ export default function MyProfileScreen() {
   const shellBackdropColors = useMemo(
     () => androidShellBackdropColors(connectShellMode),
     [connectShellMode]
+  );
+  const profileColors = useMemo(
+    () => profilePageColors(connectShellMode),
+    [connectShellMode]
+  );
+  const profileUi = useMemo(
+    () => ({
+      headerGradient: { shadowColor: profileColors.headerShadowColor },
+      headerGradientInner: { borderColor: profileColors.headerBorder },
+      name: {
+        color: profileColors.nameColor,
+        textShadowColor: profileColors.nameTextShadow,
+      },
+      section: { backgroundColor: profileColors.sectionBg },
+      sectionTitle: {
+        color: profileColors.sectionTitleColor,
+        textShadowColor: profileColors.sectionTitleTextShadow,
+      },
+      sectionEditLink: { color: profileColors.sectionEditLink },
+      sectionEmptyHint: { color: profileColors.sectionEmptyHint },
+      bioGradient: { borderColor: profileColors.bioBorder },
+      bioTitle: { color: profileColors.bioTitle },
+      bioAccentLine: { backgroundColor: profileColors.bioAccent },
+      bio: { color: profileColors.bioText },
+      bioPlaceholder: { color: profileColors.bioPlaceholder },
+      avatar: {
+        borderColor: profileColors.avatarBorder,
+        shadowColor: profileColors.avatarShadow,
+      },
+      avatarPlaceholder: {
+        borderColor: profileColors.avatarBorder,
+        shadowColor: profileColors.avatarShadow,
+      },
+      avatarOrb: {
+        backgroundColor: profileColors.avatarOrb,
+        shadowColor: profileColors.avatarShadow,
+      },
+      shimmerOverlay: { backgroundColor: profileColors.shimmerOverlay },
+    }),
+    [profileColors]
   );
   const [data, setData] = useState<ProfileData | null>(null);
   const [photos, setPhotos] = useState<Photo[]>([]);
@@ -1487,32 +1528,35 @@ export default function MyProfileScreen() {
           <Animated.View
             style={[
               styles.headerGradient,
+              profileUi.headerGradient,
               { opacity: headerFade, transform: [{ scale: headerScale }] },
             ]}
           >
             <LinearGradient
-              colors={['rgba(255, 255, 255, 0.98)', 'rgba(255, 245, 248, 0.95)', 'rgba(255, 255, 255, 0.98)', 'rgba(250, 250, 255, 0.95)']}
+              colors={[...profileColors.headerGradient]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={styles.headerGradientInner}
+              style={[styles.headerGradientInner, profileUi.headerGradientInner]}
             >
               <View style={styles.header}>
                 <Animated.View style={[styles.avatarWrapper, { transform: [{ scale: avatarScale }] }]}>
                   <Animated.Image
                     source={{ uri: shellPhotoUrl }}
-                    style={[styles.avatar, { transform: [{ scale: avatarBreath }] }]}
+                    style={[styles.avatar, profileUi.avatar, { transform: [{ scale: avatarBreath }] }]}
                     resizeMode="cover"
                   />
                 </Animated.View>
                 <View style={styles.info}>
-                  <Text style={styles.name}>...</Text>
+                  <Text style={[styles.name, profileUi.name]}>...</Text>
                 </View>
               </View>
             </LinearGradient>
           </Animated.View>
           <View style={{ padding: 24, alignItems: 'center' }}>
-            <ActivityIndicator size="small" color="#667eea" />
-            <Text style={[styles.loadingText, { color: '#666', marginTop: 12 }]}>Loading your profile...</Text>
+            <ActivityIndicator size="small" color={profileColors.loadingSpinner} />
+            <Text style={[styles.loadingText, { color: profileColors.loadingText, marginTop: 12 }]}>
+              Loading your profile...
+            </Text>
           </View>
         </ScrollView>
       </GestureHandlerRootView>
@@ -1578,6 +1622,7 @@ export default function MyProfileScreen() {
       <Animated.View
         style={[
           styles.headerGradient,
+          profileUi.headerGradient,
           {
             opacity: headerFade,
             transform: [{ scale: headerScale }],
@@ -1585,10 +1630,10 @@ export default function MyProfileScreen() {
         ]}
       >
         <LinearGradient
-          colors={['rgba(255, 255, 255, 0.98)', 'rgba(255, 245, 248, 0.95)', 'rgba(255, 255, 255, 0.98)', 'rgba(250, 250, 255, 0.95)']}
+          colors={[...profileColors.headerGradient]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={styles.headerGradientInner}
+          style={[styles.headerGradientInner, profileUi.headerGradientInner]}
         >
           <View style={styles.header}>
             {displayPhotoUrl ? (
@@ -1637,7 +1682,7 @@ export default function MyProfileScreen() {
                   ]}
                 >
                   <LinearGradient
-                    colors={['#f093fb', '#f5576c', '#667eea', '#764ba2', '#f093fb']}
+                    colors={[...profileColors.ringOuter]}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                     style={styles.ringGradient}
@@ -1664,7 +1709,7 @@ export default function MyProfileScreen() {
                   ]}
                 >
                   <LinearGradient
-                    colors={['#4facfe', '#00f2fe', '#667eea', '#764ba2', '#4facfe']}
+                    colors={[...profileColors.ringMiddle]}
                     start={{ x: 1, y: 0 }}
                     end={{ x: 0, y: 1 }}
                     style={styles.ringGradient}
@@ -1691,7 +1736,7 @@ export default function MyProfileScreen() {
                   ]}
                 >
                   <LinearGradient
-                    colors={['#667eea', '#764ba2', '#f093fb', '#f5576c', '#667eea']}
+                    colors={[...profileColors.ringInner]}
                     start={{ x: 0, y: 1 }}
                     end={{ x: 1, y: 0 }}
                     style={styles.ringGradient}
@@ -1702,6 +1747,7 @@ export default function MyProfileScreen() {
                 <Animated.View
                   style={[
                     styles.avatarOrb,
+                    profileUi.avatarOrb,
                     {
                       transform: [{ scale: ring1Scale }],
                       opacity: ring1Opacity.interpolate({
@@ -1716,6 +1762,7 @@ export default function MyProfileScreen() {
                 <Animated.View
                   style={[
                     styles.shimmerOverlay,
+                    profileUi.shimmerOverlay,
                     {
                       opacity: shimmerPosition.interpolate({
                         inputRange: [0, 0.5, 1],
@@ -1738,6 +1785,7 @@ export default function MyProfileScreen() {
                   source={{ uri: profilePhotoUrl ? `${profilePhotoUrl}${profilePhotoUrl.includes('?') ? '&' : '?'}v=${avatarVersion}` : (cachedPrimaryPhotoUrl || undefined) }}
                   style={[
                     styles.avatar,
+                    profileUi.avatar,
                     {
                       transform: [{ scale: avatarBreath }],
                     },
@@ -1873,7 +1921,7 @@ export default function MyProfileScreen() {
                   ]}
                 >
                   <LinearGradient
-                    colors={['#f093fb', '#f5576c', '#667eea', '#764ba2', '#f093fb']}
+                    colors={[...profileColors.ringOuter]}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                     style={styles.ringGradient}
@@ -1900,7 +1948,7 @@ export default function MyProfileScreen() {
                   ]}
                 >
                   <LinearGradient
-                    colors={['#4facfe', '#00f2fe', '#667eea', '#764ba2', '#4facfe']}
+                    colors={[...profileColors.ringMiddle]}
                     start={{ x: 1, y: 0 }}
                     end={{ x: 0, y: 1 }}
                     style={styles.ringGradient}
@@ -1927,7 +1975,7 @@ export default function MyProfileScreen() {
                   ]}
                 >
                   <LinearGradient
-                    colors={['#667eea', '#764ba2', '#f093fb', '#f5576c', '#667eea']}
+                    colors={[...profileColors.ringInner]}
                     start={{ x: 0, y: 1 }}
                     end={{ x: 1, y: 0 }}
                     style={styles.ringGradient}
@@ -1938,6 +1986,7 @@ export default function MyProfileScreen() {
                 <Animated.View
                   style={[
                     styles.avatarOrb,
+                    profileUi.avatarOrb,
                     {
                       transform: [{ scale: ring1Scale }],
                       opacity: ring1Opacity.interpolate({
@@ -1952,6 +2001,7 @@ export default function MyProfileScreen() {
                 <Animated.View
                   style={[
                     styles.shimmerOverlay,
+                    profileUi.shimmerOverlay,
                     {
                       opacity: shimmerPosition.interpolate({
                         inputRange: [0, 0.5, 1],
@@ -1978,7 +2028,7 @@ export default function MyProfileScreen() {
                     colors={['#667eea', '#764ba2', '#f093fb']}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
-                    style={styles.avatarPlaceholder}
+                    style={[styles.avatarPlaceholder, profileUi.avatarPlaceholder]}
                   >
                     <Text style={styles.avatarPlaceholderText}>
                       {profile.display_name.charAt(0).toUpperCase()}
@@ -2085,7 +2135,7 @@ export default function MyProfileScreen() {
               </Animated.View>
             )}
             <View style={styles.info}>
-              <Text style={styles.name}>{profile.display_name}</Text>
+              <Text style={[styles.name, profileUi.name]}>{profile.display_name}</Text>
 
               {/* Animated Profile Stats Cards */}
               {settings && (
@@ -2102,11 +2152,11 @@ export default function MyProfileScreen() {
                     <ProfileEditableCardBorder
                       delay={0}
                       borderRadius={24}
-                      traceColors={['rgba(255,255,255,0.95)', '#667eea', '#764ba2', 'rgba(255,255,255,0.95)']}
+                      traceColors={[...profileColors.traceMember]}
                       style={{ flex: 1, marginBottom: 0 }}
                     >
                       <LinearGradient
-                        colors={['#667eea', '#764ba2']}
+                        colors={[...profileColors.gradMember]}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
                         style={styles.statCardInBorder}
@@ -2143,7 +2193,7 @@ export default function MyProfileScreen() {
                     <ProfileEditableCardBorder
                       delay={180}
                       borderRadius={24}
-                      traceColors={['rgba(255,255,255,0.95)', '#f093fb', '#f5576c', 'rgba(255,255,255,0.95)']}
+                      traceColors={[...profileColors.traceActive]}
                       style={{ flex: 1, marginBottom: 0 }}
                     >
                       <TouchableOpacity
@@ -2153,7 +2203,7 @@ export default function MyProfileScreen() {
                         style={styles.statCardTouchable}
                       >
                         <LinearGradient
-                          colors={['#f093fb', '#f5576c']}
+                          colors={[...profileColors.gradActive]}
                           start={{ x: 0, y: 0 }}
                           end={{ x: 1, y: 1 }}
                           style={[styles.statCardInBorder, styles.statCardLastActive]}
@@ -2192,7 +2242,7 @@ export default function MyProfileScreen() {
                 accessibilityLabel="View how your profile appears to others"
               >
                 <LinearGradient
-                  colors={['#667eea', '#764ba2', '#a855f7']}
+                  colors={[...profileColors.gradPreview]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                   style={styles.viewProfilePreviewGradient}
@@ -2215,7 +2265,7 @@ export default function MyProfileScreen() {
               
               <ProfileEditableCardBorder
                 delay={180}
-                traceColors={['rgba(255,255,255,0.95)', '#667eea', '#f093fb', 'rgba(255,255,255,0.95)']}
+                traceColors={[...profileColors.traceDisplay]}
               >
                 <TouchableOpacity
                   activeOpacity={0.9}
@@ -2226,7 +2276,7 @@ export default function MyProfileScreen() {
                   }}
                 >
                   <LinearGradient
-                    colors={['#667eea', '#764ba2', '#f093fb']}
+                    colors={[...profileColors.gradDisplay]}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                     style={styles.infoCardFull}
@@ -2260,7 +2310,7 @@ export default function MyProfileScreen() {
                 <ProfileEditableCardBorder
                   delay={360}
                   borderRadius={28}
-                  traceColors={['rgba(255,255,255,0.95)', '#667eea', '#764ba2', 'rgba(255,255,255,0.95)']}
+                  traceColors={[...profileColors.traceAge]}
                   style={{ flex: 1, marginBottom: 0 }}
                 >
                   <TouchableOpacity
@@ -2272,7 +2322,7 @@ export default function MyProfileScreen() {
                     }}
                   >
                     <LinearGradient
-                      colors={['#667eea', '#764ba2']}
+                      colors={[...profileColors.gradAge]}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                       style={styles.infoCardInBorder}
@@ -2294,7 +2344,7 @@ export default function MyProfileScreen() {
                 <ProfileEditableCardBorder
                   delay={520}
                   borderRadius={28}
-                  traceColors={['rgba(255,255,255,0.95)', '#f093fb', '#f5576c', 'rgba(255,255,255,0.95)']}
+                  traceColors={[...profileColors.traceGender]}
                   style={{ flex: 1, marginBottom: 0 }}
                 >
                   <TouchableOpacity
@@ -2306,7 +2356,7 @@ export default function MyProfileScreen() {
                     }}
                   >
                     <LinearGradient
-                      colors={['#f093fb', '#f5576c']}
+                      colors={[...profileColors.gradGender]}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                       style={styles.infoCardInBorder}
@@ -2339,7 +2389,7 @@ export default function MyProfileScreen() {
               {/* Location - tappable to update */}
               <ProfileEditableCardBorder
                 delay={0}
-                traceColors={['rgba(255,255,255,0.95)', '#4facfe', '#00f2fe', 'rgba(255,255,255,0.95)']}
+                traceColors={[...profileColors.traceLocation]}
               >
                 <TouchableOpacity
                   activeOpacity={0.9}
@@ -2350,7 +2400,7 @@ export default function MyProfileScreen() {
                   }}
                 >
                   <LinearGradient
-                    colors={['#4facfe', '#00f2fe']}
+                    colors={[...profileColors.gradLocation]}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                     style={styles.infoCardFull}
@@ -2381,7 +2431,7 @@ export default function MyProfileScreen() {
               {/* Max distance - tappable to update (used by matching) */}
               <ProfileEditableCardBorder
                 delay={200}
-                traceColors={['rgba(255,255,255,0.95)', '#43e97b', '#38f9d7', 'rgba(255,255,255,0.95)']}
+                traceColors={[...profileColors.traceDistance]}
               >
                 <TouchableOpacity
                   activeOpacity={0.9}
@@ -2392,7 +2442,7 @@ export default function MyProfileScreen() {
                   }}
                 >
                   <LinearGradient
-                    colors={['#43e97b', '#38f9d7']}
+                    colors={[...profileColors.gradDistance]}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                     style={styles.infoCardFull}
@@ -2417,7 +2467,7 @@ export default function MyProfileScreen() {
               {/* Preferred matches - tappable to update */}
               <ProfileEditableCardBorder
                 delay={400}
-                traceColors={['rgba(255,255,255,0.95)', '#a78bfa', '#e879f9', 'rgba(255,255,255,0.95)']}
+                traceColors={[...profileColors.tracePreferred]}
               >
                 <TouchableOpacity
                   activeOpacity={0.9}
@@ -2443,7 +2493,7 @@ export default function MyProfileScreen() {
                   }}
                 >
                   <LinearGradient
-                    colors={['#a78bfa', '#c084fc', '#e879f9']}
+                    colors={[...profileColors.gradPreferred]}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                     style={styles.infoCardFull}
@@ -2476,7 +2526,7 @@ export default function MyProfileScreen() {
               {/* Relationship goal — same options as web "Looking for" */}
               <ProfileEditableCardBorder
                 delay={600}
-                traceColors={['rgba(255,255,255,0.95)', '#fda4af', '#f472b6', 'rgba(255,255,255,0.95)']}
+                traceColors={[...profileColors.traceLooking]}
               >
                 <TouchableOpacity
                   activeOpacity={0.9}
@@ -2487,7 +2537,7 @@ export default function MyProfileScreen() {
                   }}
                 >
                   <LinearGradient
-                    colors={['#fda4af', '#fb7185', '#f472b6']}
+                    colors={[...profileColors.gradLooking]}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                     style={styles.infoCardFull}
@@ -2513,21 +2563,21 @@ export default function MyProfileScreen() {
               <ProfileEditableCardBorder
                 delay={800}
                 borderRadius={24}
-                traceColors={['#667eea', '#f093fb', '#c084fc', 'rgba(255,255,255,0.95)']}
+                traceColors={[...profileColors.traceBio]}
                 style={styles.bioBorderWrap}
               >
                 <LinearGradient
-                  colors={['rgba(102, 126, 234, 0.08)', 'rgba(240, 147, 251, 0.06)', 'rgba(102, 126, 234, 0.06)']}
+                  colors={[...profileColors.bioGradient]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
-                  style={styles.bioGradient}
+                  style={[styles.bioGradient, profileUi.bioGradient]}
                 >
                   <View style={styles.bioHeader}>
                     <View style={styles.bioTitleRow}>
                       <Text style={styles.bioIcon}>💬</Text>
-                      <Text style={styles.bioTitle}>About Me</Text>
+                      <Text style={[styles.bioTitle, profileUi.bioTitle]}>About Me</Text>
                     </View>
-                    <View style={styles.bioAccentLine} />
+                    <View style={[styles.bioAccentLine, profileUi.bioAccentLine]} />
                   </View>
                   <TouchableOpacity
                     activeOpacity={0.9}
@@ -2537,7 +2587,14 @@ export default function MyProfileScreen() {
                       Vibration.vibrate(50);
                     }}
                   >
-                    <Text style={[styles.bio, !profile.bio && styles.bioPlaceholder]}>
+                    <Text
+                      style={[
+                        styles.bio,
+                        profileUi.bio,
+                        !profile.bio && styles.bioPlaceholder,
+                        !profile.bio && profileUi.bioPlaceholder,
+                      ]}
+                    >
                       {profile.bio || 'Tap to add'}
                     </Text>
                   </TouchableOpacity>
@@ -3356,13 +3413,13 @@ export default function MyProfileScreen() {
         <ProfileEditableCardBorder
           delay={700}
           borderRadius={30}
-          traceColors={['rgba(255,255,255,0.95)', '#667eea', '#764ba2', '#f093fb']}
+          traceColors={[...profileColors.traceSection]}
           style={{ marginBottom: 0 }}
         >
-        <View style={styles.section}>
+        <View style={[styles.section, profileUi.section]}>
         <View style={styles.sectionTitleContainer}>
           <AnimatedEmoji emoji="📸" delay={0} />
-          <Text style={styles.sectionTitle}> My Photos</Text>
+          <Text style={[styles.sectionTitle, profileUi.sectionTitle]}> My Photos</Text>
         </View>
         
         {/* View Photos Button */}
@@ -3529,13 +3586,13 @@ export default function MyProfileScreen() {
         <ProfileEditableCardBorder
           delay={900}
           borderRadius={30}
-          traceColors={['rgba(255,255,255,0.95)', '#f5576c', '#f093fb', '#667eea']}
+          traceColors={[...profileColors.traceSectionInterests]}
           style={{ marginBottom: 0 }}
         >
-        <View style={styles.section}>
+        <View style={[styles.section, profileUi.section]}>
         <View style={styles.sectionTitleContainer}>
           <AnimatedEmoji emoji="🎯" delay={200} />
-          <Text style={styles.sectionTitle}> My Interests</Text>
+          <Text style={[styles.sectionTitle, profileUi.sectionTitle]}> My Interests</Text>
           <TouchableOpacity
             style={styles.sectionEditTouchable}
             onPress={() => {
@@ -3544,7 +3601,7 @@ export default function MyProfileScreen() {
             }}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Text style={styles.sectionEditLink}>Edit</Text>
+            <Text style={[styles.sectionEditLink, profileUi.sectionEditLink]}>Edit</Text>
           </TouchableOpacity>
         </View>
         {interests.length > 0 ? (
@@ -3558,7 +3615,9 @@ export default function MyProfileScreen() {
             ))}
           </View>
         ) : (
-          <Text style={styles.sectionEmptyHint}>No interests yet — tap Edit to add (pick at least 3).</Text>
+          <Text style={[styles.sectionEmptyHint, profileUi.sectionEmptyHint]}>
+            No interests yet — tap Edit to add (pick at least 3).
+          </Text>
         )}
         </View>
         </ProfileEditableCardBorder>
@@ -3593,13 +3652,13 @@ export default function MyProfileScreen() {
         <ProfileEditableCardBorder
           delay={1100}
           borderRadius={30}
-          traceColors={['rgba(255,255,255,0.95)', '#ef4444', '#f5576c', '#a78bfa']}
+          traceColors={[...profileColors.traceSectionDealbreakers]}
           style={{ marginBottom: 0 }}
         >
-        <View style={styles.section}>
+        <View style={[styles.section, profileUi.section]}>
         <View style={styles.sectionTitleContainer}>
           <AnimatedEmoji emoji="🚫" delay={280} />
-          <Text style={styles.sectionTitle}> My Dealbreakers</Text>
+          <Text style={[styles.sectionTitle, profileUi.sectionTitle]}> My Dealbreakers</Text>
           <TouchableOpacity
             style={styles.sectionEditTouchable}
             onPress={() => {
@@ -3615,7 +3674,7 @@ export default function MyProfileScreen() {
             }}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Text style={styles.sectionEditLink}>Edit</Text>
+            <Text style={[styles.sectionEditLink, profileUi.sectionEditLink]}>Edit</Text>
           </TouchableOpacity>
         </View>
         {dealbreakers.length > 0 ? (
@@ -3634,7 +3693,9 @@ export default function MyProfileScreen() {
             })}
           </View>
         ) : (
-          <Text style={styles.sectionEmptyHint}>No dealbreakers yet — tap Edit to add.</Text>
+          <Text style={[styles.sectionEmptyHint, profileUi.sectionEmptyHint]}>
+            No dealbreakers yet — tap Edit to add.
+          </Text>
         )}
         </View>
         </ProfileEditableCardBorder>
@@ -3666,13 +3727,13 @@ export default function MyProfileScreen() {
         <ProfileEditableCardBorder
           delay={1300}
           borderRadius={30}
-          traceColors={['rgba(255,255,255,0.95)', '#f093fb', '#e879f9', '#667eea']}
+          traceColors={[...profileColors.traceSectionLooking]}
           style={{ marginBottom: 0 }}
         >
-        <View style={styles.section}>
+        <View style={[styles.section, profileUi.section]}>
         <View style={styles.sectionTitleContainer}>
           <AnimatedEmoji emoji="💕" delay={360} />
-          <Text style={styles.sectionTitle}> What I'm Looking For</Text>
+          <Text style={[styles.sectionTitle, profileUi.sectionTitle]}> What I'm Looking For</Text>
           <TouchableOpacity
             style={styles.sectionEditTouchable}
             onPress={() => {
@@ -3681,7 +3742,7 @@ export default function MyProfileScreen() {
             }}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Text style={styles.sectionEditLink}>Edit</Text>
+            <Text style={[styles.sectionEditLink, profileUi.sectionEditLink]}>Edit</Text>
           </TouchableOpacity>
         </View>
         {partnerQualities.length > 0 ? (
@@ -3698,7 +3759,7 @@ export default function MyProfileScreen() {
             })}
           </View>
         ) : (
-          <Text style={styles.sectionEmptyHint}>
+          <Text style={[styles.sectionEmptyHint, profileUi.sectionEmptyHint]}>
             No qualities listed yet — tap Edit to choose what matters to you.
           </Text>
         )}
@@ -3735,13 +3796,13 @@ export default function MyProfileScreen() {
         <ProfileEditableCardBorder
           delay={1500}
           borderRadius={30}
-          traceColors={['rgba(255,255,255,0.95)', '#43e97b', '#38f9d7', '#667eea']}
+          traceColors={[...profileColors.traceSectionLifestyle]}
           style={{ marginBottom: 0 }}
         >
-        <View style={styles.section}>
+        <View style={[styles.section, profileUi.section]}>
         <View style={styles.sectionTitleContainer}>
           <AnimatedEmoji emoji="🌱" delay={440} />
-          <Text style={styles.sectionTitle}> Lifestyle</Text>
+          <Text style={[styles.sectionTitle, profileUi.sectionTitle]}> Lifestyle</Text>
           <TouchableOpacity
             style={styles.sectionEditTouchable}
             onPress={() => {
@@ -3750,7 +3811,7 @@ export default function MyProfileScreen() {
             }}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Text style={styles.sectionEditLink}>Edit</Text>
+            <Text style={[styles.sectionEditLink, profileUi.sectionEditLink]}>Edit</Text>
           </TouchableOpacity>
         </View>
         {lifestyle &&
@@ -3813,7 +3874,9 @@ export default function MyProfileScreen() {
             ) : null}
           </View>
         ) : (
-          <Text style={styles.sectionEmptyHint}>Lifestyle not set — tap Edit to add preferences.</Text>
+          <Text style={[styles.sectionEmptyHint, profileUi.sectionEmptyHint]}>
+            Lifestyle not set — tap Edit to add preferences.
+          </Text>
         )}
         </View>
         </ProfileEditableCardBorder>

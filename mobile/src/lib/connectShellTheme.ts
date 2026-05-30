@@ -362,6 +362,246 @@ export function connectionLimitsPanelColors(mode: ConnectShellMode): ConnectionL
   }
 }
 
+/** Profile tab — header, sections, hero cards, bio (aligned with web `--profile-*`). */
+export type ProfilePageColors = {
+  headerGradient: readonly [string, string, ...string[]];
+  headerBorder: string;
+  headerShadowColor: string;
+  nameColor: string;
+  nameTextShadow: string;
+  sectionBg: string;
+  sectionTitleColor: string;
+  sectionTitleTextShadow: string;
+  sectionEditLink: string;
+  sectionEmptyHint: string;
+  bioGradient: readonly [string, string, ...string[]];
+  bioBorder: string;
+  bioTitle: string;
+  bioAccent: string;
+  bioText: string;
+  bioPlaceholder: string;
+  loadingSpinner: string;
+  loadingText: string;
+  avatarBorder: string;
+  avatarShadow: string;
+  avatarOrb: string;
+  shimmerOverlay: string;
+  ringOuter: readonly [string, string, ...string[]];
+  ringMiddle: readonly [string, string, ...string[]];
+  ringInner: readonly [string, string, ...string[]];
+  traceMember: readonly [string, string, ...string[]];
+  traceActive: readonly [string, string, ...string[]];
+  traceDisplay: readonly [string, string, ...string[]];
+  traceAge: readonly [string, string, ...string[]];
+  traceGender: readonly [string, string, ...string[]];
+  traceLocation: readonly [string, string, ...string[]];
+  traceDistance: readonly [string, string, ...string[]];
+  tracePreferred: readonly [string, string, ...string[]];
+  traceLooking: readonly [string, string, ...string[]];
+  traceBio: readonly [string, string, ...string[]];
+  traceSection: readonly [string, string, ...string[]];
+  traceSectionInterests: readonly [string, string, ...string[]];
+  traceSectionDealbreakers: readonly [string, string, ...string[]];
+  traceSectionLooking: readonly [string, string, ...string[]];
+  traceSectionLifestyle: readonly [string, string, ...string[]];
+  gradMember: readonly [string, string, ...string[]];
+  gradActive: readonly [string, string, ...string[]];
+  gradPreview: readonly [string, string, ...string[]];
+  gradDisplay: readonly [string, string, ...string[]];
+  gradAge: readonly [string, string, ...string[]];
+  gradGender: readonly [string, string, ...string[]];
+  gradLocation: readonly [string, string, ...string[]];
+  gradDistance: readonly [string, string, ...string[]];
+  gradPreferred: readonly [string, string, ...string[]];
+  gradLooking: readonly [string, string, ...string[]];
+};
+
+const PROFILE_TRACE_LIGHT: readonly [string, string, string, string] = [
+  'rgba(255,255,255,0.95)',
+  '#667eea',
+  '#764ba2',
+  'rgba(255,255,255,0.95)',
+];
+
+export function profilePageColors(mode: ConnectShellMode): ProfilePageColors {
+  switch (mode) {
+    case 'midnight':
+      return {
+        headerGradient: [
+          'rgba(28, 24, 38, 0.98)',
+          'rgba(30, 27, 46, 0.96)',
+          'rgba(24, 20, 36, 0.98)',
+          'rgba(30, 27, 46, 0.96)',
+        ],
+        headerBorder: 'rgba(167, 139, 250, 0.28)',
+        headerShadowColor: '#000',
+        nameColor: '#f1f5f9',
+        nameTextShadow: 'rgba(167, 139, 250, 0.35)',
+        sectionBg: 'rgba(30, 27, 46, 0.96)',
+        sectionTitleColor: '#f1f5f9',
+        sectionTitleTextShadow: 'rgba(167, 139, 250, 0.25)',
+        sectionEditLink: '#c4b5fd',
+        sectionEmptyHint: '#94a3b8',
+        bioGradient: ['rgba(38, 32, 52, 0.95)', 'rgba(30, 27, 46, 0.92)', 'rgba(38, 32, 52, 0.9)'],
+        bioBorder: 'rgba(167, 139, 250, 0.2)',
+        bioTitle: '#c4b5fd',
+        bioAccent: 'rgba(167, 139, 250, 0.5)',
+        bioText: '#cbd5e1',
+        bioPlaceholder: '#64748b',
+        loadingSpinner: '#a78bfa',
+        loadingText: '#94a3b8',
+        avatarBorder: 'rgba(30, 27, 46, 0.95)',
+        avatarShadow: '#a78bfa',
+        avatarOrb: '#7c3aed',
+        shimmerOverlay: 'rgba(255, 255, 255, 0.12)',
+        ringOuter: ['#f472b6', '#ec4899', '#a78bfa', '#7c3aed', '#f472b6'],
+        ringMiddle: ['#c084fc', '#a78bfa', '#818cf8', '#7c3aed', '#c084fc'],
+        ringInner: ['#a78bfa', '#7c3aed', '#f472b6', '#ec4899', '#a78bfa'],
+        traceMember: ['rgba(196, 181, 253, 0.5)', '#a78bfa', '#7c3aed', 'rgba(196, 181, 253, 0.5)'],
+        traceActive: ['rgba(244, 114, 182, 0.45)', '#f472b6', '#ec4899', 'rgba(244, 114, 182, 0.45)'],
+        traceDisplay: ['rgba(196, 181, 253, 0.5)', '#a78bfa', '#f472b6', 'rgba(196, 181, 253, 0.5)'],
+        traceAge: ['rgba(196, 181, 253, 0.5)', '#a78bfa', '#7c3aed', 'rgba(196, 181, 253, 0.5)'],
+        traceGender: ['rgba(244, 114, 182, 0.45)', '#f472b6', '#ec4899', 'rgba(244, 114, 182, 0.45)'],
+        traceLocation: ['rgba(129, 140, 248, 0.45)', '#818cf8', '#6366f1', 'rgba(129, 140, 248, 0.45)'],
+        traceDistance: ['rgba(52, 211, 153, 0.4)', '#34d399', '#10b981', 'rgba(52, 211, 153, 0.4)'],
+        tracePreferred: ['rgba(196, 181, 253, 0.5)', '#c084fc', '#e879f9', 'rgba(196, 181, 253, 0.5)'],
+        traceLooking: ['rgba(244, 114, 182, 0.45)', '#fda4af', '#f472b6', 'rgba(244, 114, 182, 0.45)'],
+        traceBio: ['#a78bfa', '#f472b6', '#c084fc', 'rgba(196, 181, 253, 0.4)'],
+        traceSection: ['rgba(196, 181, 253, 0.45)', '#a78bfa', '#7c3aed', '#f472b6'],
+        traceSectionInterests: ['rgba(244, 114, 182, 0.45)', '#f472b6', '#ec4899', '#a78bfa'],
+        traceSectionDealbreakers: ['rgba(248, 113, 113, 0.4)', '#f87171', '#f472b6', '#a78bfa'],
+        traceSectionLooking: ['rgba(244, 114, 182, 0.45)', '#f472b6', '#e879f9', '#a78bfa'],
+        traceSectionLifestyle: ['rgba(52, 211, 153, 0.4)', '#34d399', '#a78bfa', '#7c3aed'],
+        gradMember: ['#4c1d95', '#6b21a8', '#7c3aed'],
+        gradActive: ['#6b21a8', '#9333ea', '#db2777', '#ec4899'],
+        gradPreview: ['#4c1d95', '#6b21a8', '#7c3aed', '#db2777'],
+        gradDisplay: ['#4c1d95', '#6b21a8', '#7c3aed', '#db2777'],
+        gradAge: ['#4c1d95', '#6b21a8', '#7c3aed'],
+        gradGender: ['#7c3aed', '#db2777', '#ec4899'],
+        gradLocation: ['#4338ca', '#6366f1', '#818cf8'],
+        gradDistance: ['#065f46', '#047857', '#10b981'],
+        gradPreferred: ['#5b21b6', '#7c3aed', '#c084fc'],
+        gradLooking: ['#9f1239', '#db2777', '#f472b6'],
+      };
+    case 'sunny':
+      return {
+        headerGradient: [
+          'rgba(255, 253, 245, 0.98)',
+          'rgba(255, 247, 237, 0.96)',
+          'rgba(255, 253, 245, 0.98)',
+          'rgba(254, 243, 199, 0.92)',
+        ],
+        headerBorder: 'rgba(251, 191, 36, 0.35)',
+        headerShadowColor: '#fb923c',
+        nameColor: '#431407',
+        nameTextShadow: 'rgba(234, 88, 12, 0.2)',
+        sectionBg: 'rgba(255, 253, 245, 0.98)',
+        sectionTitleColor: '#431407',
+        sectionTitleTextShadow: 'rgba(251, 146, 60, 0.2)',
+        sectionEditLink: '#c2410c',
+        sectionEmptyHint: '#78716c',
+        bioGradient: ['rgba(255, 251, 235, 0.95)', 'rgba(255, 247, 237, 0.9)', 'rgba(254, 243, 199, 0.85)'],
+        bioBorder: 'rgba(251, 191, 36, 0.28)',
+        bioTitle: '#c2410c',
+        bioAccent: 'rgba(251, 146, 60, 0.5)',
+        bioText: '#78350f',
+        bioPlaceholder: '#a8a29e',
+        loadingSpinner: '#ea580c',
+        loadingText: '#78716c',
+        avatarBorder: '#fffbeb',
+        avatarShadow: '#fb923c',
+        avatarOrb: '#f97316',
+        shimmerOverlay: 'rgba(255, 255, 255, 0.35)',
+        ringOuter: ['#fcd34d', '#fb923c', '#ea580c', '#f97316', '#fcd34d'],
+        ringMiddle: ['#38bdf8', '#0ea5e9', '#fb923c', '#ea580c', '#38bdf8'],
+        ringInner: ['#fb923c', '#ea580c', '#fcd34d', '#f97316', '#fb923c'],
+        traceMember: ['rgba(255,255,255,0.95)', '#0ea5e9', '#ea580c', 'rgba(255,255,255,0.95)'],
+        traceActive: ['rgba(255,255,255,0.95)', '#fb923c', '#ea580c', 'rgba(255,255,255,0.95)'],
+        traceDisplay: ['rgba(255,255,255,0.95)', '#0ea5e9', '#fb923c', 'rgba(255,255,255,0.95)'],
+        traceAge: PROFILE_TRACE_LIGHT,
+        traceGender: ['rgba(255,255,255,0.95)', '#f093fb', '#f5576c', 'rgba(255,255,255,0.95)'],
+        traceLocation: ['rgba(255,255,255,0.95)', '#38bdf8', '#0ea5e9', 'rgba(255,255,255,0.95)'],
+        traceDistance: ['rgba(255,255,255,0.95)', '#22c55e', '#16a34a', 'rgba(255,255,255,0.95)'],
+        tracePreferred: ['rgba(255,255,255,0.95)', '#fb923c', '#ea580c', 'rgba(255,255,255,0.95)'],
+        traceLooking: ['rgba(255,255,255,0.95)', '#f472b6', '#ec4899', 'rgba(255,255,255,0.95)'],
+        traceBio: ['#fb923c', '#fcd34d', '#ea580c', 'rgba(255,255,255,0.95)'],
+        traceSection: ['rgba(255,255,255,0.95)', '#0ea5e9', '#ea580c', '#fcd34d'],
+        traceSectionInterests: ['rgba(255,255,255,0.95)', '#f5576c', '#f093fb', '#ea580c'],
+        traceSectionDealbreakers: ['rgba(255,255,255,0.95)', '#ef4444', '#f5576c', '#fb923c'],
+        traceSectionLooking: ['rgba(255,255,255,0.95)', '#f093fb', '#fb923c', '#ea580c'],
+        traceSectionLifestyle: ['rgba(255,255,255,0.95)', '#22c55e', '#38bdf8', '#ea580c'],
+        gradMember: ['#0ea5e9', '#0284c7', '#0369a1'],
+        gradActive: ['#fb923c', '#f97316', '#ea580c'],
+        gradPreview: ['#0ea5e9', '#38bdf8', '#fb923c', '#ea580c'],
+        gradDisplay: ['#0ea5e9', '#38bdf8', '#fb923c'],
+        gradAge: ['#0ea5e9', '#0284c7'],
+        gradGender: ['#f093fb', '#f5576c'],
+        gradLocation: ['#38bdf8', '#0ea5e9'],
+        gradDistance: ['#22c55e', '#16a34a'],
+        gradPreferred: ['#fb923c', '#ea580c', '#fcd34d'],
+        gradLooking: ['#fda4af', '#fb7185', '#f472b6'],
+      };
+    case 'soft':
+      return {
+        headerGradient: [
+          'rgba(255, 255, 255, 0.98)',
+          'rgba(255, 245, 248, 0.95)',
+          'rgba(255, 255, 255, 0.98)',
+          'rgba(250, 250, 255, 0.95)',
+        ],
+        headerBorder: 'rgba(255, 255, 255, 0.9)',
+        headerShadowColor: '#667eea',
+        nameColor: '#1a1a1a',
+        nameTextShadow: 'rgba(102, 126, 234, 0.25)',
+        sectionBg: 'rgba(255, 255, 255, 0.98)',
+        sectionTitleColor: '#1a1a1a',
+        sectionTitleTextShadow: 'rgba(102, 126, 234, 0.25)',
+        sectionEditLink: '#667eea',
+        sectionEmptyHint: '#64748b',
+        bioGradient: ['rgba(102, 126, 234, 0.08)', 'rgba(240, 147, 251, 0.06)', 'rgba(102, 126, 234, 0.06)'],
+        bioBorder: 'rgba(102, 126, 234, 0.18)',
+        bioTitle: '#4f46e5',
+        bioAccent: 'rgba(102, 126, 234, 0.45)',
+        bioText: '#334155',
+        bioPlaceholder: '#94a3b8',
+        loadingSpinner: '#667eea',
+        loadingText: '#64748b',
+        avatarBorder: '#fff',
+        avatarShadow: '#667eea',
+        avatarOrb: '#667eea',
+        shimmerOverlay: 'rgba(255, 255, 255, 0.3)',
+        ringOuter: ['#f093fb', '#f5576c', '#667eea', '#764ba2', '#f093fb'],
+        ringMiddle: ['#4facfe', '#00f2fe', '#667eea', '#764ba2', '#4facfe'],
+        ringInner: ['#667eea', '#764ba2', '#f093fb', '#f5576c', '#667eea'],
+        traceMember: PROFILE_TRACE_LIGHT,
+        traceActive: ['rgba(255,255,255,0.95)', '#f093fb', '#f5576c', 'rgba(255,255,255,0.95)'],
+        traceDisplay: ['rgba(255,255,255,0.95)', '#667eea', '#f093fb', 'rgba(255,255,255,0.95)'],
+        traceAge: PROFILE_TRACE_LIGHT,
+        traceGender: ['rgba(255,255,255,0.95)', '#f093fb', '#f5576c', 'rgba(255,255,255,0.95)'],
+        traceLocation: ['rgba(255,255,255,0.95)', '#4facfe', '#00f2fe', 'rgba(255,255,255,0.95)'],
+        traceDistance: ['rgba(255,255,255,0.95)', '#43e97b', '#38f9d7', 'rgba(255,255,255,0.95)'],
+        tracePreferred: ['rgba(255,255,255,0.95)', '#a78bfa', '#e879f9', 'rgba(255,255,255,0.95)'],
+        traceLooking: ['rgba(255,255,255,0.95)', '#fda4af', '#f472b6', 'rgba(255,255,255,0.95)'],
+        traceBio: ['#667eea', '#f093fb', '#c084fc', 'rgba(255,255,255,0.95)'],
+        traceSection: ['rgba(255,255,255,0.95)', '#667eea', '#764ba2', '#f093fb'],
+        traceSectionInterests: ['rgba(255,255,255,0.95)', '#f5576c', '#f093fb', '#667eea'],
+        traceSectionDealbreakers: ['rgba(255,255,255,0.95)', '#ef4444', '#f5576c', '#a78bfa'],
+        traceSectionLooking: ['rgba(255,255,255,0.95)', '#f093fb', '#e879f9', '#667eea'],
+        traceSectionLifestyle: ['rgba(255,255,255,0.95)', '#43e97b', '#38f9d7', '#667eea'],
+        gradMember: ['#667eea', '#764ba2'],
+        gradActive: ['#f093fb', '#f5576c'],
+        gradPreview: ['#667eea', '#764ba2', '#a855f7'],
+        gradDisplay: ['#667eea', '#764ba2', '#f093fb'],
+        gradAge: ['#667eea', '#764ba2'],
+        gradGender: ['#f093fb', '#f5576c'],
+        gradLocation: ['#4facfe', '#00f2fe'],
+        gradDistance: ['#43e97b', '#38f9d7'],
+        gradPreferred: ['#a78bfa', '#c084fc', '#e879f9'],
+        gradLooking: ['#fda4af', '#fb7185', '#f472b6'],
+      };
+  }
+}
+
 export function connectButtonShimmerColors(mode: ConnectShellMode): ConnectButtonShimmerColors {
   switch (mode) {
     case 'midnight':
