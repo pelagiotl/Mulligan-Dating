@@ -12,6 +12,7 @@ import {
 import { getPhotoUrl } from "../utils/photoUrl";
 import { formatPreferredMatchesFromGenders } from "../utils/preferredMatchesLabel";
 import { PreviewDetailSection } from "./MyProfilePreviewModal";
+import { useBodyScrollLock } from "../utils/bodyScrollLock";
 
 export type MatchPartnerPhoto = {
   id: string;
@@ -179,17 +180,16 @@ export default function MatchPartnerProfileSheet({
   const primaryPhotoUrl = primaryPhoto ? getPhotoUrl(primaryPhoto.url) : null;
   const hasDetailsBeyondBio = hasProfileDetailsBeyondBio(otherUser);
 
+  useBodyScrollLock(open);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     document.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
     return () => {
       document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prev;
     };
   }, [open, onClose]);
 

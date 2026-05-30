@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { api } from "../utils/api";
 import { getPhotoUrl } from "../utils/photoUrl";
+import { useBodyScrollLock } from "../utils/bodyScrollLock";
 import { usePhotoDragReorder } from "../hooks/usePhotoDragReorder";
 import { uploadPhotoFiles } from "../utils/photoBatchUpload";
 
@@ -42,14 +43,7 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
     }
   }, [profileId]);
 
-  useEffect(() => {
-    if (lightboxIndex === null) return;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prevOverflow;
-    };
-  }, [lightboxIndex]);
+  useBodyScrollLock(lightboxIndex !== null);
 
   useEffect(() => {
     if (lightboxIndex === null) return;

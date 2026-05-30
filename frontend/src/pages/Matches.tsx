@@ -21,6 +21,7 @@ import ReportUserModal from "../components/ReportUserModal";
 import InterestCompatibilityModal from "../components/InterestCompatibilityModal";
 import CompatibilityPulseModal from "../components/CompatibilityPulseModal";
 import MatchPartnerProfileSheet from "../components/MatchPartnerProfileSheet";
+import { releaseAllBodyScrollLocks, useBodyScrollLock } from "../utils/bodyScrollLock";
 
 interface Photo {
   id: string;
@@ -396,14 +397,13 @@ export default function Matches() {
     setPartnerDrawerOpen(false);
   }, [selectedMatch?.id]);
 
+  useBodyScrollLock(partnerDrawerOpen);
+
   useEffect(() => {
-    if (!partnerDrawerOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
     return () => {
-      document.body.style.overflow = prev;
+      releaseAllBodyScrollLocks();
     };
-  }, [partnerDrawerOpen]);
+  }, []);
 
   const voiceCanceledRef = useRef(false);
 

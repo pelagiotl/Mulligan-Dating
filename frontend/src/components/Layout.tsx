@@ -14,6 +14,7 @@ import TokenDisplay from './TokenDisplay'
 import WebTokenPurchase from './WebTokenPurchase'
 import { TOKEN_MAX } from '../constants/tokens'
 import { useConnectShellTheme } from '../context/ConnectShellThemeContext'
+import { releaseAllBodyScrollLocks } from '../utils/bodyScrollLock'
 
 export default function Layout() {
   // Always call hooks at the top level, before any conditional logic
@@ -78,6 +79,11 @@ export default function Layout() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [showTokenModal, closeTokenModal])
+
+  // Matches modals/chat can leave body scroll locked after tab switches.
+  useEffect(() => {
+    releaseAllBodyScrollLocks()
+  }, [location.pathname])
 
   return (
     <div

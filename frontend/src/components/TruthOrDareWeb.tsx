@@ -4,6 +4,7 @@ import type { Socket } from "socket.io-client";
 import { api, ApiError } from "../utils/api";
 import { filterBannedGamePrompts } from "../utils/gamePromptGuards";
 import MatchInGameChatPanel, { type MatchGameChatMessage } from "./MatchInGameChatPanel";
+import { useBodyScrollLock } from "../utils/bodyScrollLock";
 
 const TRUTH_PROMPTS = [
   "What's the one thing that would make you actually stop scrolling?",
@@ -518,15 +519,7 @@ export default function TruthOrDareWeb({
     }
   }, [isUnlocked, fetchState]);
 
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    if (!modalOpen && !unlockConfirmOpen && !messageGateOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [modalOpen, unlockConfirmOpen, messageGateOpen]);
+  useBodyScrollLock(modalOpen || unlockConfirmOpen || messageGateOpen);
 
   const sessionExpired = gameState?.tokenUnlocked && secondsRemaining !== null && secondsRemaining <= 0;
 

@@ -23,6 +23,7 @@ import {
 } from "../constants/profileMySections";
 import { getPhotoUrl } from "../utils/photoUrl";
 import { formatPreferredMatchesFromGenders } from "../utils/preferredMatchesLabel";
+import { useBodyScrollLock } from "../utils/bodyScrollLock";
 
 export type MyProfilePreviewPhoto = {
   id: string;
@@ -228,6 +229,8 @@ export default function MyProfilePreviewModal({
     [sortedPhotos]
   );
 
+  useBodyScrollLock(open);
+
   useEffect(() => {
     if (!open) {
       setPhotoLightbox(null);
@@ -245,11 +248,8 @@ export default function MyProfilePreviewModal({
       }
     };
     document.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
     return () => {
       document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prev;
     };
   }, [open, onClose, photoLightbox, closeLightbox, stepLightbox]);
 

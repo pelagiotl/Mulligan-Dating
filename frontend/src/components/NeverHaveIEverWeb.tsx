@@ -5,6 +5,7 @@ import { api } from "../utils/api";
 import MatchChatDepthGateOverlay from "./MatchChatDepthGateOverlay";
 import MatchInGameChatPanel, { type MatchGameChatMessage } from "./MatchInGameChatPanel";
 import { matchChatDepthThresholdMet } from "../utils/matchChatDepthGate";
+import { useBodyScrollLock } from "../utils/bodyScrollLock";
 
 type SpiceId = "pg13" | "ratedr" | "spicy";
 type AnswerId = "have" | "havent";
@@ -436,15 +437,7 @@ export default function NeverHaveIEverWeb({
     };
   }, []);
 
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    if (!modalOpen && !unlockConfirmOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [modalOpen, unlockConfirmOpen]);
+  useBodyScrollLock(modalOpen || unlockConfirmOpen);
 
   const submitSpiceChoice = async (choice: SpiceId) => {
     setSubmitting(true);
