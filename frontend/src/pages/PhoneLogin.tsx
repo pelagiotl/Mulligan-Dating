@@ -1,6 +1,6 @@
-import { useState, FormEvent } from 'react'
+import { useState, FormEvent, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { api } from '../utils/api'
+import { api, ApiError } from '../utils/api'
 import { useAuth } from '../context/AuthContext'
 import BrandMark from '../components/BrandMark'
 import LandingAddToHomePrompt from '../components/LandingAddToHomePrompt'
@@ -12,6 +12,8 @@ export default function PhoneLogin() {
   const [step, setStep] = useState<'phone' | 'verify'>('phone')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [resendLoading, setResendLoading] = useState(false)
+  const [submittedPhone, setSubmittedPhone] = useState('')
   const [shake, setShake] = useState(false)
   const navigate = useNavigate()
   const { phoneLogin } = useAuth()
@@ -50,8 +52,6 @@ export default function PhoneLogin() {
     e.preventDefault()
     setError('')
     setLoading(true)
-    // Show code entry immediately — SMS is often already on its way
-    setStep('verify')
 
     try {
       const response = await api.post<{ message: string; phoneNumber: string; code?: string; smsSent: boolean }>('/sms/send-code', {
@@ -67,26 +67,54 @@ export default function PhoneLogin() {
         setError('SMS delivery may have failed. Check the alert above for your verification code.')
       }
 
+      setSubmittedPhone(response.phoneNumber || phoneNumber)
+      setStep('verify')
       setLoading(false)
-    } catch (err: any) {
+    } catch (err: unknown) {
       setShake(true)
       setTimeout(() => setShake(false), 600)
-      const errorMsg = err?.response?.data?.error || err?.message || 'Failed to send verification code'
-      const lower = String(errorMsg).toLowerCase()
-      const hardFail =
-        lower.includes('invalid phone') ||
-        lower.includes('too many') ||
-        lower.includes('required')
-      if (hardFail) {
-        setStep('phone')
-        setError(errorMsg)
+      const status = err instanceof ApiError ? err.status : 0
+      const errorMsg =
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : 'Failed to send verification code'
+      if (status === 429) {
+        setError('Too many attempts. Please wait a minute and try again.')
       } else {
-        setError('Check your texts for a 6-digit code. If nothing arrives in a minute, tap Change Phone Number and try again.')
+        setError(errorMsg)
       }
       setLoading(false)
       console.error('Send code error:', err)
     }
   }
+
+  const handleResendCode = useCallback(async () => {
+    const phone = submittedPhone || phoneNumber
+    if (!phone) return
+    setError('')
+    setResendLoading(true)
+    try {
+      const response = await api.post<{ message: string; phoneNumber: string; code?: string; smsSent: boolean }>(
+        '/sms/send-code',
+        { phoneNumber: phone }
+      )
+      if (response.code) {
+        alert(`Your verification code is: ${response.code}\n\n(Enter this code to continue)`)
+      }
+    } catch (err: unknown) {
+      const errorMsg =
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : 'Failed to resend verification code'
+      setError(errorMsg)
+    } finally {
+      setResendLoading(false)
+    }
+  }, [submittedPhone, phoneNumber])
 
   const handleVerifySubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -95,7 +123,7 @@ export default function PhoneLogin() {
 
     try {
       // Use phoneLogin from AuthContext which handles token storage and user fetching
-      const { connectSetupComplete: ready } = await phoneLogin(phoneNumber, code)
+      const { connectSetupComplete: ready } = await phoneLogin(submittedPhone || phoneNumber, code)
 
       if (!isAgeGateAccepted()) {
         navigate('/age-gate', { replace: true })
@@ -244,7 +272,7 @@ export default function PhoneLogin() {
           </Link>
           <h1 className="auth-title-enhanced">Verify Your Phone</h1>
           <p className="auth-subtitle-enhanced">
-            We sent a 6-digit code to {phoneNumber}
+            We sent a 6-digit code to {submittedPhone || phoneNumber}
           </p>
         </div>
 
@@ -305,12 +333,28 @@ export default function PhoneLogin() {
                 border: '2px solid var(--color-rose-300)',
                 marginTop: 'var(--space-4)'
               }}
+              onClick={() => void handleResendCode()}
+              disabled={loading || resendLoading}
+            >
+              {resendLoading ? 'Sending…' : 'Resend code'}
+            </button>
+
+            <button
+              type="button"
+              className="btn-enhanced"
+              style={{
+                background: 'transparent',
+                color: 'var(--color-rose-600)',
+                border: '2px solid var(--color-rose-300)',
+                marginTop: 'var(--space-3)'
+              }}
               onClick={() => {
                 setStep('phone')
                 setCode('')
                 setError('')
+                setSubmittedPhone('')
               }}
-              disabled={loading}
+              disabled={loading || resendLoading}
             >
               Change Phone Number
             </button>

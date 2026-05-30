@@ -88,7 +88,12 @@ async function request<T = any>(endpoint: string, options: RequestInit = {}): Pr
     
     if (error instanceof Error && error.name === 'AbortError') {
       console.error('Request was aborted (timeout)')
-      // Check if it's a login endpoint - might be cold start
+      if (url.includes('/sms/send-code')) {
+        throw new ApiError(
+          408,
+          'Server is slow to respond. Wait a moment, then tap Send Verification Code again.',
+        )
+      }
       if (url.includes('/auth/login')) {
         throw new ApiError(408, 'Server is starting up. Please wait a moment and try again.')
       }
