@@ -19,7 +19,13 @@ export function parseClientPlatformHeader(req: Request): ClientPlatform | null {
 export function parseClientPlatformFromUserAgent(req: Request): ClientPlatform | null {
   const ua = (req.headers['user-agent'] || '').toString().toLowerCase();
   if (!ua) return null;
-  if (ua.includes('mulligan-dating-web') || ua.includes('mulligan/web')) return 'web';
+  if (
+    ua.includes('mulligan-dating-web') ||
+    ua.includes('mulligan-dating-app') ||
+    ua.includes('mulligan/web')
+  ) {
+    return 'web';
+  }
   if (ua.includes('reactnative') || ua.includes('mulligan/')) {
     if (ua.includes('ios')) return 'ios';
     if (ua.includes('android')) return 'android';
@@ -30,6 +36,21 @@ export function parseClientPlatformFromUserAgent(req: Request): ClientPlatform |
 
 export function detectClientPlatformFromRequest(req: Request): ClientPlatform | null {
   return parseClientPlatformHeader(req) ?? parseClientPlatformFromUserAgent(req);
+}
+
+/** Record platform + activity on login/signup and on authenticated requests. */
+export async function persistClientPlatformForUser(req: Request, userId: string): Promise<void> {
+  const clientPlatform = detectClientPlatformFromRequest(req);
+  const { db } = await import('../database.js');
+  if (clientPlatform) {
+    const stmt = db.prepare(
+      'UPDATE users SET last_active_at = CURRENT_TIMESTAMP, last_client_platform = ? WHERE id = ?',
+    );
+    await (stmt.run([clientPlatform, userId]) as Promise<unknown>);
+  } else {
+    const stmt = db.prepare('UPDATE users SET last_active_at = CURRENT_TIMESTAMP WHERE id = ?');
+    await (stmt.run([userId]) as Promise<unknown>);
+  }
 }
 
 export function normalizeStoredClientPlatform(value: string | null | undefined): ClientPlatform | null {

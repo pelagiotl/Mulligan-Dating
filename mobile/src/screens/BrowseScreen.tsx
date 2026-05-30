@@ -36,6 +36,16 @@ import TokenDisplay from '../components/TokenDisplay';
 import LaunchCountdownBubble from '../components/LaunchCountdownBubble';
 import MatchmakingPausedModal from '../components/MatchmakingPausedModal';
 import ConnectPhotosRequiredModal from '../components/ConnectPhotosRequiredModal';
+import ConnectProfileEnhancementCard, {
+  type ConnectEnhancementShell,
+} from '../components/ConnectProfileEnhancementCard';
+import {
+  dismissProfileEnhancement,
+  isProfileEnhancementDismissed,
+  profileEnhancementIncomplete,
+  type ProfileEnhancementItem,
+  type ProfileEnhancementSnapshot,
+} from '../utils/profileEnhancementChecklist';
 import ConnectLandingValueProps, { ConnectFeatureLabel } from '../components/ConnectLandingValueProps';
 import ConnectLandingTagline from '../components/ConnectLandingTagline';
 import ConnectLandingMark from '../components/ConnectLandingMark';
@@ -248,6 +258,8 @@ export default function BrowseScreen() {
   const [availableTokens, setAvailableTokens] = useState<number>(0);
   const [photoCount, setPhotoCount] = useState<number | null>(null); // User's photo count (for 5-photo minimum)
   const [photoCountLoading, setPhotoCountLoading] = useState(false); // True while fetching count so we don't briefly show wrong state
+  const [enhancementDismissed, setEnhancementDismissed] = useState(true);
+  const [enhancementSnapshot, setEnhancementSnapshot] = useState<ProfileEnhancementSnapshot | null>(null);
   const profileConnectKey = `${(userProfile as { display_name?: string } | null)?.display_name ?? ''}|${userProfile?.displayName ?? ''}|${userProfile?.location ?? ''}`;
   const socketRef = useRef<Socket | null>(null);
   const matchIdFromConnectRef = useRef<string | null>(null);
@@ -995,6 +1007,95 @@ export default function BrowseScreen() {
     })();
     return () => { cancelled = true; setPhotoCountLoading(false); };
   }, [showLandingPage, isAuthenticated, isFocused, profileConnectKey]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void isProfileEnhancementDismissed().then(setEnhancementDismissed);
+    }, [])
+  );
+
+  useEffect(() => {
+    if (!showLandingPage || !isAuthenticated || !isFocused) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const data = await api.get<{
+          profile: { looking_for: string | null };
+          interests: unknown[];
+          dealbreakers: unknown[];
+          lifestyle: ProfileEnhancementSnapshot['lifestyle'];
+        }>('/profile');
+        if (cancelled) return;
+        setEnhancementSnapshot({
+          photoCount: photoCount ?? 0,
+          interestsCount: data.interests?.length ?? 0,
+          lookingFor: data.profile?.looking_for,
+          lifestyle: data.lifestyle ?? null,
+          dealbreakersCount: data.dealbreakers?.length ?? 0,
+        });
+      } catch {
+        if (!cancelled) setEnhancementSnapshot(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [showLandingPage, isAuthenticated, isFocused, photoCount, profileConnectKey]);
+
+  const enhancementIncompleteItems = useMemo(() => {
+    if (!enhancementSnapshot) return [];
+    return profileEnhancementIncomplete(enhancementSnapshot);
+  }, [enhancementSnapshot]);
+
+  const openProfileEnhancement = useCallback((item: ProfileEnhancementItem) => {
+    const params =
+      item.id === 'photos'
+        ? { scrollToPhotos: true as const }
+        : item.id === 'looking-for'
+          ? undefined
+          : { profileSection: item.id };
+    if (navigationRef.current?.isReady()) {
+      navigationRef.current.dispatch(
+        CommonActions.navigate({
+          name: 'MainTabs',
+          params: { screen: 'MyProfile', params },
+        })
+      );
+    } else {
+      navigation.navigate('MainTabs' as never, { screen: 'MyProfile', params } as never);
+    }
+  }, [navigation]);
+
+  const openProfileTab = useCallback(() => {
+    if (navigationRef.current?.isReady()) {
+      navigationRef.current.dispatch(
+        CommonActions.navigate({
+          name: 'MainTabs',
+          params: { screen: 'MyProfile' },
+        })
+      );
+    } else {
+      navigation.navigate('MainTabs' as never, { screen: 'MyProfile' } as never);
+    }
+  }, [navigation]);
+
+  const renderProfileEnhancement = useCallback(
+    (shell: ConnectEnhancementShell) => {
+      if (enhancementDismissed || enhancementIncompleteItems.length === 0) return null;
+      return (
+        <ConnectProfileEnhancementCard
+          shell={shell}
+          items={enhancementIncompleteItems}
+          onItemPress={openProfileEnhancement}
+          onOpenProfile={openProfileTab}
+          onDismiss={() => {
+            void dismissProfileEnhancement().then(() => setEnhancementDismissed(true));
+          }}
+        />
+      );
+    },
+    [enhancementDismissed, enhancementIncompleteItems, openProfileEnhancement, openProfileTab]
+  );
 
   useEffect(() => {
     if (hasFetched && offset > 0) {
@@ -1842,6 +1943,8 @@ export default function BrowseScreen() {
                 </TouchableOpacity>
               </Animated.View>
 
+              {isAuthenticated ? renderProfileEnhancement('midnight') : null}
+
               <Animated.View style={[styles.landingHintWrap, { opacity: landingHintOpacity }]}>
                 <Text style={styles.midnightHint}>{landingConnectHint}</Text>
               </Animated.View>
@@ -1951,6 +2054,8 @@ export default function BrowseScreen() {
                       </TouchableOpacity>
                     </Animated.View>
 
+                    {isAuthenticated ? renderProfileEnhancement('sunny') : null}
+
                     <Animated.View style={[styles.landingHintWrap, { opacity: landingHintOpacity }]}>
                       <Text style={styles.sunnyHint}>{landingConnectHint}</Text>
                     </Animated.View>
@@ -2058,6 +2163,8 @@ export default function BrowseScreen() {
                         </LinearGradient>
                       </TouchableOpacity>
                     </Animated.View>
+
+                    {isAuthenticated ? renderProfileEnhancement('soft') : null}
 
                     <Animated.View style={[styles.landingHintWrap, { opacity: landingHintOpacity }]}>
                       <Text style={styles.softHint}>{landingConnectHint}</Text>

@@ -42,7 +42,12 @@ export type { RootStackParamList };
 export type MainTabParamList = {
   Browse: { resetToLanding?: boolean } | undefined;
   Matches: { matchId?: string } | undefined;
-  MyProfile: { scrollToPhotos?: boolean } | undefined;
+  MyProfile:
+    | {
+        scrollToPhotos?: boolean;
+        profileSection?: 'photos' | 'interests' | 'looking-for' | 'lifestyle' | 'dealbreakers';
+      }
+    | undefined;
   Settings: undefined;
   Admin: undefined;
 };

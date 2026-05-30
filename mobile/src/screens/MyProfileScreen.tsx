@@ -211,6 +211,9 @@ export default function MyProfileScreen() {
   const photoGalleryProgrammaticScrollRef = useRef(false);
   const scrollViewRef = useRef<ScrollView>(null);
   const photosSectionYRef = useRef<number>(0);
+  const profileSectionYRef = useRef<
+    Partial<Record<'interests' | 'lifestyle' | 'dealbreakers', number>>
+  >({});
   const profileCheckDoneRef = useRef(false);
   const [draggingPhotoId, setDraggingPhotoId] = useState<string | null>(null);
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
@@ -606,20 +609,34 @@ export default function MyProfileScreen() {
     }, [user])
   );
 
-  // Scroll to photos section when navigated from "Add 5+ Photos" button
+  // Scroll to profile section when opened from Connect enhancement checklist
   useEffect(() => {
-    const params = (route.params ?? {}) as { scrollToPhotos?: boolean };
-    if (!params.scrollToPhotos || loading) return;
-    const scrollToPhotosSection = (attempt = 0) => {
-      const y = photosSectionYRef.current;
-      if (y > 0 && scrollViewRef.current) {
+    const params = (route.params ?? {}) as {
+      scrollToPhotos?: boolean;
+      profileSection?: 'photos' | 'interests' | 'looking-for' | 'lifestyle' | 'dealbreakers';
+    };
+    const section =
+      params.profileSection ?? (params.scrollToPhotos ? ('photos' as const) : undefined);
+    if (!section || loading) return;
+
+    const scrollToProfileSection = (attempt = 0) => {
+      if (section === 'looking-for') {
+        scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+        (navigation as any).setParams({ scrollToPhotos: undefined, profileSection: undefined });
+        return;
+      }
+      const y =
+        section === 'photos'
+          ? photosSectionYRef.current
+          : profileSectionYRef.current[section];
+      if (y != null && y > 0 && scrollViewRef.current) {
         scrollViewRef.current.scrollTo({ y: Math.max(0, y - 24), animated: true });
-        (navigation as any).setParams({ scrollToPhotos: undefined });
-      } else if (attempt < 8) {
-        setTimeout(() => scrollToPhotosSection(attempt + 1), 150);
+        (navigation as any).setParams({ scrollToPhotos: undefined, profileSection: undefined });
+      } else if (attempt < 10) {
+        setTimeout(() => scrollToProfileSection(attempt + 1), 150);
       }
     };
-    const t = setTimeout(() => scrollToPhotosSection(0), 200);
+    const t = setTimeout(() => scrollToProfileSection(0), 200);
     return () => clearTimeout(t);
   }, [route.params, navigation, loading]);
   
@@ -2842,6 +2859,9 @@ export default function MyProfileScreen() {
 
       {/* Interests */}
       <Animated.View
+        onLayout={(e) => {
+          profileSectionYRef.current.interests = e.nativeEvent.layout.y;
+        }}
         style={[
           styles.sectionShell,
           {
@@ -2900,6 +2920,9 @@ export default function MyProfileScreen() {
 
       {/* My Dealbreakers */}
       <Animated.View
+        onLayout={(e) => {
+          profileSectionYRef.current.dealbreakers = e.nativeEvent.layout.y;
+        }}
         style={[
           styles.sectionShell,
           {
@@ -3026,6 +3049,9 @@ export default function MyProfileScreen() {
 
       {/* Lifestyle */}
       <Animated.View
+        onLayout={(e) => {
+          profileSectionYRef.current.lifestyle = e.nativeEvent.layout.y;
+        }}
         style={[
           styles.sectionShell,
           {

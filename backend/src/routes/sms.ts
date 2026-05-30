@@ -1,7 +1,8 @@
-import { Router } from 'express';
+import { Router, type Request } from 'express';
 import { z } from 'zod';
 import { db } from '../database.js';
 import { v4 as uuidv4 } from 'uuid';
+import { persistClientPlatformForUser } from '../utils/clientPlatform.js';
 import { sendVerificationCode, formatPhoneNumber, isValidPhoneNumber, isTwilioVerifyConfigured, sendVerificationCodeViaVerify, verifyCodeViaVerify } from '../services/sms.js';
 import { sendVerificationCodeSNS, formatPhoneNumber as formatPhoneNumberSNS, isValidPhoneNumber as isValidPhoneNumberSNS, isSNSConfigured } from '../services/aws-sns.js';
 import { rateLimitAuth } from '../middleware/security.js';
@@ -117,6 +118,7 @@ async function ensureTestAutoMatchesForPhone(formattedPhone: string): Promise<vo
 }
 
 async function completePhoneLogin(
+  req: Request,
   formattedPhone: string,
   acceptTerms?: boolean,
   acceptPrivacy?: boolean
@@ -172,6 +174,7 @@ async function completePhoneLogin(
     : profileAfterResult) as { id: string } | null;
 
   await ensureTestAutoMatchesForPhone(formattedPhone);
+  await persistClientPlatformForUser(req, userId);
 
   return {
     message: existingUser
@@ -394,7 +397,7 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
         return res.status(400).json({ error: 'Invalid verification code' });
       }
       try {
-        const result = await completePhoneLogin(formattedPhone, acceptTerms, acceptPrivacy);
+        const result = await completePhoneLogin(req, formattedPhone, acceptTerms, acceptPrivacy);
         verificationCodes.delete(formattedPhone);
         return res.json({ ...result, testBypass: true });
       } catch (err) {
@@ -445,6 +448,7 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
       const profile = await (profileStmt.get(userId) as Promise<{ id: string } | null>);
       const hasProfile = !!profile;
       await ensureTestAutoMatchesForPhone(formattedPhone);
+      await persistClientPlatformForUser(req, userId);
       return res.json({
         message: existingUser
           ? 'Login successful'
@@ -534,6 +538,7 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
       const profile = await (profileStmt.get(userId) as Promise<{ id: string } | null>);
       const hasProfile = !!profile;
       await ensureTestAutoMatchesForPhone(formattedPhone);
+      await persistClientPlatformForUser(req, userId);
       
       res.json({
         message: isNewUser
@@ -634,6 +639,7 @@ smsRouter.post('/verify-code', rateLimitAuth, async (req, res) => {
     const profile = await (profileStmt.get(userId) as Promise<{ id: string } | null>);
     const hasProfile = !!profile;
     await ensureTestAutoMatchesForPhone(formattedPhone);
+    await persistClientPlatformForUser(req, userId);
     
     res.json({
       message: isNewUser

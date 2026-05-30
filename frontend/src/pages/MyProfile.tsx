@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
+import { useLocation } from "react-router-dom";
 import { Link } from "react-router-dom";
 import { api } from "../utils/api";
 import PhotoUpload from "../components/PhotoUpload";
@@ -379,6 +380,7 @@ function lifestyleFormFromApi(l: ProfileData["lifestyle"]): LifestyleForm {
 }
 
 export default function MyProfile() {
+  const location = useLocation();
   const { refreshProfile } = useAuth();
   const [data, setData] = useState<ProfileData | null>(null);
   const [photos, setPhotos] = useState<Photo[]>([]);
@@ -465,6 +467,18 @@ export default function MyProfile() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [showAvatarLightbox]);
+
+  useEffect(() => {
+    if (loading || !data) return;
+    const hash = location.hash.replace(/^#/, "").trim();
+    if (!hash) return;
+    const scrollToHash = () => {
+      const el = document.getElementById(hash);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+    const t = window.setTimeout(scrollToHash, 180);
+    return () => window.clearTimeout(t);
+  }, [loading, data, location.hash]);
 
   const fetchPhotos = async () => {
     try {

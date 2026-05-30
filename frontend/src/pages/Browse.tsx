@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, Navigate } from "react-router-dom";
 import { api } from "../utils/api";
@@ -19,6 +19,14 @@ import WebPushOnboardingPrompt from "../components/WebPushOnboardingPrompt";
 import { shouldShowWebPushPromptAfterProfile } from "../constants/webPushPrompt";
 import ConnectPhotosRequiredModalWeb from "../components/ConnectPhotosRequiredModalWeb";
 import MatchmakingPausedModalWeb from "../components/MatchmakingPausedModalWeb";
+import ConnectProfileEnhancementCard from "../components/ConnectProfileEnhancementCard";
+import {
+  dismissProfileEnhancement,
+  isProfileEnhancementDismissed,
+  profileEnhancementIncomplete,
+  type ProfileEnhancementItem,
+  type ProfileEnhancementSnapshot,
+} from "../utils/profileEnhancementChecklist";
 
 interface Photo {
   id: string;
@@ -65,11 +73,13 @@ function BrowseConnectLandingChrome({
   onConnect,
   unlocking,
   gateError,
+  enhancementSlot,
 }: {
   mode: ConnectLandingMode;
   onConnect?: () => void;
   unlocking?: boolean;
   gateError?: string;
+  enhancementSlot?: ReactNode;
 }) {
   const navigate = useNavigate();
   const isGate = mode === "gate";
@@ -174,6 +184,8 @@ function BrowseConnectLandingChrome({
             </div>
           )}
 
+          {enhancementSlot}
+
           <p className="connect-landing__hint">⛳ Use a Mulligan</p>
         </div>
       </div>
@@ -210,6 +222,12 @@ export default function Browse() {
   const [showConnectPhotosModal, setShowConnectPhotosModal] = useState(false);
   const [connectPhotosModalCount, setConnectPhotosModalCount] = useState(0);
   const [showMatchmakingPausedModal, setShowMatchmakingPausedModal] = useState(false);
+  const [enhancementDismissed, setEnhancementDismissed] = useState(() =>
+    isProfileEnhancementDismissed()
+  );
+  const [enhancementSnapshot, setEnhancementSnapshot] = useState<ProfileEnhancementSnapshot | null>(
+    null
+  );
   const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true); // Used in fetchProfile
@@ -804,6 +822,54 @@ export default function Browse() {
     !authLoading &&
     !loading &&
     !isAutoMatching;
+
+  useEffect(() => {
+    if (!showConnectGate) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const data = await api.get<{
+          profile: { looking_for: string | null };
+          interests: unknown[];
+          dealbreakers: unknown[];
+          lifestyle: ProfileEnhancementSnapshot["lifestyle"];
+        }>("/profile");
+        if (cancelled) return;
+        setEnhancementSnapshot({
+          photoCount: photoCount ?? 0,
+          interestsCount: data.interests?.length ?? 0,
+          lookingFor: data.profile?.looking_for,
+          lifestyle: data.lifestyle ?? null,
+          dealbreakersCount: data.dealbreakers?.length ?? 0,
+        });
+      } catch {
+        if (!cancelled) setEnhancementSnapshot(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [showConnectGate, photoCount]);
+
+  const enhancementIncompleteItems = useMemo(() => {
+    if (!enhancementSnapshot) return [];
+    return profileEnhancementIncomplete(enhancementSnapshot);
+  }, [enhancementSnapshot]);
+
+  const enhancementSlot =
+    showConnectGate && !enhancementDismissed && enhancementIncompleteItems.length > 0 ? (
+      <ConnectProfileEnhancementCard
+        items={enhancementIncompleteItems}
+        onItemClick={(item: ProfileEnhancementItem) => {
+          navigate(`/profile#${item.profileHash}`);
+        }}
+        onOpenProfile={() => navigate("/profile")}
+        onDismiss={() => {
+          dismissProfileEnhancement();
+          setEnhancementDismissed(true);
+        }}
+      />
+    ) : null;
   
   if (!authLoading && !userProfile) {
     return <Navigate to="/create-profile" replace />;
@@ -822,6 +888,7 @@ export default function Browse() {
           onConnect={handleUnlockBrowse}
           unlocking={unlockingBrowse}
           gateError={gateError}
+          enhancementSlot={enhancementSlot}
         />
         <ConnectPhotosRequiredModalWeb
           open={showConnectPhotosModal}

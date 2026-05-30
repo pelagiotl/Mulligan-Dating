@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
 import { db } from '../database.js';
 import { generateToken, authenticateToken, AuthRequest, userHasAdminAccess } from '../middleware/auth.js';
+import { persistClientPlatformForUser } from '../utils/clientPlatform.js';
 import { sanitizeText, rateLimitAuth, rateLimitSignup, rateLimitAPI } from '../middleware/security.js';
 import { isWebPushConfigured } from '../services/webPushDelivery.js';
 import { getConnectSetupViolationsForUser } from '../utils/connectRequirements.js';
@@ -69,6 +70,8 @@ authRouter.post('/signup', rateLimitSignup, async (req, res) => {
       'INSERT INTO users (id, email, password, tos_accepted_at, privacy_accepted_at, account_status) VALUES (?, ?, ?, ?, ?, ?)',
     );
     await (insertStmt.run([userId, email, hashedPassword, now, now, ACCOUNT_STATUS_ONBOARDING]) as Promise<any>);
+
+    await persistClientPlatformForUser(req, userId);
 
     const token = generateToken(userId);
     res.status(201).json({ 
@@ -146,6 +149,8 @@ authRouter.post('/login', rateLimitAuth, async (req, res) => {
       // Don't fail login if profile query fails, just assume no profile
       profile = null;
     }
+
+    await persistClientPlatformForUser(req, user.id);
     
     res.json({ 
       message: 'Login successful',
