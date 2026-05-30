@@ -1,6 +1,9 @@
 import { db } from "../database.js";
 import { DEFAULT_MATCH_SLOT_LIMIT } from "../config/matchSlots.js";
 
+/** Launch active-connection cap (independent of stale per-user rows or low MATCH_SLOT_LIMIT). */
+const PLATFORM_CONNECTION_LIMIT = 10;
+
 export async function getActiveMatchCount(userId: string): Promise<number> {
   const countResult = db
     .prepare(
@@ -22,5 +25,6 @@ export async function getUserSlotLimit(userId: string): Promise<number> {
     | { slot_limit: number | string }
     | undefined;
   const raw = Math.floor(Number(limitRow?.slot_limit ?? DEFAULT_MATCH_SLOT_LIMIT));
-  return Math.min(Math.max(raw, 1), DEFAULT_MATCH_SLOT_LIMIT);
+  const cap = Math.max(DEFAULT_MATCH_SLOT_LIMIT, PLATFORM_CONNECTION_LIMIT);
+  return Math.min(Math.max(raw, PLATFORM_CONNECTION_LIMIT), cap);
 }

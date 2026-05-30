@@ -311,7 +311,9 @@ export async function initDatabase() {
   }
   // Launch cap: 10 active matches per user (override via MATCH_SLOT_LIMIT env on server)
   try {
-    await execSQL(`UPDATE users SET match_slot_limit = 10 WHERE match_slot_limit IS NULL OR match_slot_limit > 10`);
+    await execSQL(
+      `UPDATE users SET match_slot_limit = 10 WHERE match_slot_limit IS NULL OR match_slot_limit < 10 OR match_slot_limit > 10`,
+    );
   } catch (e) {
     // Non-fatal; column might not exist on first run
   }

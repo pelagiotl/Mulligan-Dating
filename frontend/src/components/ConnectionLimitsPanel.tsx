@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { TOKEN_MAX } from "../constants/tokens";
-import { DEFAULT_MATCH_SLOT_LIMIT } from "../constants/matchSlots";
+import { effectiveConnectionSlotLimit } from "../constants/matchSlots";
 import type { ConnectionLimitsState } from "../hooks/useConnectionLimits";
 
 const COLLAPSED_STORAGE_KEY = "mulligan_matches_limits_panel_collapsed";
@@ -55,7 +55,7 @@ export default function ConnectionLimitsPanel({
   }, []);
 
   const tokensReady = Math.min(Math.max(0, availableTokens), TOKEN_MAX);
-  const limit = slotLimit || DEFAULT_MATCH_SLOT_LIMIT;
+  const limit = effectiveConnectionSlotLimit(slotLimit);
   const slotsOpen = Math.max(0, limit - activeMatches);
   const atCapacity = activeMatches >= limit;
   const tokenPct = Math.round((tokensReady / TOKEN_MAX) * 100);
@@ -98,7 +98,7 @@ export default function ConnectionLimitsPanel({
           <span className="connection-limits-panel__reveal-gem" aria-hidden>
             ✦
           </span>
-          <span className="connection-limits-panel__reveal-label">Your limits</span>
+          <span className="connection-limits-panel__reveal-label">Limits</span>
           <span className="connection-limits-panel__reveal-stats" aria-hidden>
             <span className="connection-limits-panel__reveal-stat">
               <span className="connection-limits-panel__reveal-icon">🎟</span>
@@ -130,7 +130,7 @@ export default function ConnectionLimitsPanel({
 
       <div className="connection-limits-panel__toolbar">
         <div className="connection-limits-panel__title-group">
-          <span className="connection-limits-panel__eyebrow">Your limits</span>
+          <span className="connection-limits-panel__eyebrow">Limits</span>
           <p className="connection-limits-panel__lede">
             {TOKEN_MAX} Mulligans weekly · {limit} connections max
           </p>

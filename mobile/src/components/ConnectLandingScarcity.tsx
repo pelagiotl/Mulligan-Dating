@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
+import { effectiveConnectionSlotLimit } from '../constants/matchSlots';
 import {
   connectionLimitsPanelColors,
   type ConnectShellMode,
@@ -61,15 +62,16 @@ const ConnectLandingScarcity = memo(function ConnectLandingScarcity({
   slotLimit,
 }: Props) {
   const colors = useMemo(() => connectionLimitsPanelColors(connectShell), [connectShell]);
+  const connectionLimit = effectiveConnectionSlotLimit(slotLimit);
   const [now, setNow] = useState(() => Date.now());
   const [collapsed, setCollapsed] = useState(false);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
 
-  const slotsOpen = Math.max(0, slotLimit - activeMatches);
+  const slotsOpen = Math.max(0, connectionLimit - activeMatches);
   const tokensCapped = Math.min(Math.max(0, availableTokens), MAX_MULLIGANS);
-  const atCapacity = activeMatches >= slotLimit;
+  const atCapacity = activeMatches >= connectionLimit;
   const tokenPct = Math.round((tokensCapped / MAX_MULLIGANS) * 100);
-  const slotPct = Math.min(100, Math.round((activeMatches / slotLimit) * 100));
+  const slotPct = Math.min(100, Math.round((activeMatches / connectionLimit) * 100));
 
   const refillMs = useMemo(() => {
     if (!nextRefillDate || canClaimWeeklyToken) return null;
@@ -113,7 +115,7 @@ const ConnectLandingScarcity = memo(function ConnectLandingScarcity({
     tokensCapped < MAX_MULLIGANS;
 
   const statusNote = atCapacity
-    ? `At ${slotLimit} connections — unmatch or wait for expiry`
+    ? `At ${connectionLimit} connections — unmatch or wait for expiry`
     : canClaimWeeklyToken && tokensCapped < MAX_MULLIGANS
       ? 'Weekly Mulligans ready on Connect'
       : showRefillCountdown && refillMs != null
@@ -156,13 +158,13 @@ const ConnectLandingScarcity = memo(function ConnectLandingScarcity({
         onPress={() => void persistCollapsed(false)}
         activeOpacity={0.85}
         accessibilityRole="button"
-        accessibilityLabel={`Your limits. Mulligans ${tokensCapped} of ${MAX_MULLIGANS}. Connections ${activeMatches} of ${slotLimit}. Double tap to expand.`}
+        accessibilityLabel={`Limits. Mulligans ${tokensCapped} of ${MAX_MULLIGANS}. Connections ${activeMatches} of ${connectionLimit}. Double tap to expand.`}
         accessibilityHint="Shows full limits details"
       >
         <Text style={[styles.collapsedGem, { color: colors.collapsedGem }]} accessibilityElementsHidden>
           ✦
         </Text>
-        <Text style={[styles.collapsedEyebrow, { color: colors.eyebrow }]}>Your limits</Text>
+        <Text style={[styles.collapsedEyebrow, { color: colors.eyebrow }]}>Limits</Text>
         <View style={styles.collapsedStats}>
           <Text style={[styles.collapsedStat, { color: colors.collapsedStat }]}>
             <Text style={styles.collapsedStatIcon}>🎟 </Text>
@@ -176,7 +178,7 @@ const ConnectLandingScarcity = memo(function ConnectLandingScarcity({
             ]}
           >
             <Text style={styles.collapsedStatIcon}>💞 </Text>
-            {activeMatches}/{slotLimit}
+            {activeMatches}/{connectionLimit}
           </Text>
         </View>
         <Text style={[styles.collapsedAction, { color: colors.collapsedAction }]}>Show</Text>
@@ -201,9 +203,9 @@ const ConnectLandingScarcity = memo(function ConnectLandingScarcity({
 
         <View style={styles.toolbar}>
           <View style={styles.titleGroup}>
-            <Text style={[styles.eyebrow, { color: colors.eyebrow }]}>Your limits</Text>
+            <Text style={[styles.eyebrow, { color: colors.eyebrow }]}>Limits</Text>
             <Text style={[styles.lede, { color: colors.lede }]}>
-              {MAX_MULLIGANS} Mulligans weekly · {slotLimit} connections max
+              {MAX_MULLIGANS} Mulligans weekly · {connectionLimit} connections max
             </Text>
           </View>
           <TouchableOpacity
@@ -272,7 +274,7 @@ const ConnectLandingScarcity = memo(function ConnectLandingScarcity({
               <Text style={[styles.metricLabel, { color: colors.label }]}>Connections</Text>
               <Text style={[styles.metricValue, { color: atCapacity ? colors.valueFull : colors.value }]}>
                 {activeMatches}
-                <Text style={[styles.metricDenom, { color: colors.denom }]}> / {slotLimit}</Text>
+                <Text style={[styles.metricDenom, { color: colors.denom }]}> / {connectionLimit}</Text>
               </Text>
               <View style={[styles.track, { backgroundColor: colors.trackBg }]}>
                 <View
