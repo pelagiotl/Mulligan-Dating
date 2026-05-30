@@ -5216,7 +5216,10 @@ button.my-profile-avatar:focus-visible {
   flex-direction: column;
   width: 100%;
   max-width: 540px;
+  /* Explicit height so the inner scroll region can shrink (max-height alone expands with content). */
+  height: min(90dvh, calc(100dvh - env(safe-area-inset-top, 0px) - 12px));
   max-height: min(90dvh, calc(100dvh - env(safe-area-inset-top, 0px) - 12px));
+  min-height: 0;
   margin-top: max(env(safe-area-inset-top, 0px), 10px);
   border-radius: 1.75rem 1.75rem 0 0;
   overflow: hidden;
@@ -5429,6 +5432,7 @@ button.my-profile-avatar:focus-visible {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+  touch-action: pan-y;
   padding: 0.875rem 0.875rem calc(1.75rem + env(safe-area-inset-bottom, 0px));
   display: flex;
   flex-direction: column;
@@ -5438,12 +5442,18 @@ button.my-profile-avatar:focus-visible {
 
 .my-profile-preview-card {
   position: relative;
+  flex-shrink: 0;
   padding: 1rem;
   border-radius: 1.25rem;
   background: #fff;
   border: 1px solid rgba(102, 126, 234, 0.14);
   box-shadow: 0 6px 20px rgba(102, 126, 234, 0.08);
   overflow: hidden;
+}
+
+.my-profile-preview-card--gallery {
+  overflow: visible;
+  padding-bottom: 1.15rem;
 }
 
 .my-profile-preview-card__glow {
@@ -5508,16 +5518,22 @@ button.my-profile-avatar:focus-visible {
   display: flex;
   gap: 0.75rem;
   overflow-x: auto;
-  padding-bottom: 0.25rem;
+  overflow-y: visible;
+  padding: 0.15rem 0.25rem 0.5rem;
+  margin: 0 -0.25rem;
   scroll-snap-type: x mandatory;
+  scroll-padding-inline: 0.25rem;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
 }
 
 .my-profile-preview-photo-thumb {
   position: relative;
   flex: 0 0 auto;
-  width: min(8rem, 34vw);
-  aspect-ratio: 3 / 3.85;
+  width: min(9.25rem, 38vw);
+  height: auto;
+  min-height: 11.5rem;
+  aspect-ratio: 4 / 5;
   padding: 0;
   border: none;
   border-radius: 1.125rem;
@@ -5525,6 +5541,7 @@ button.my-profile-avatar:focus-visible {
   cursor: pointer;
   scroll-snap-align: start;
   background: #ede9fe;
+  box-shadow: 0 4px 14px rgba(102, 126, 234, 0.12);
 }
 
 .my-profile-preview-photo-thumb img {
@@ -10305,6 +10322,7 @@ button.chat-avatar-btn .chat-avatar img {
     width: 100%;
     max-width: 100%;
     margin-top: max(env(safe-area-inset-top, 0px), 10px);
+    height: min(90dvh, calc(100dvh - env(safe-area-inset-top, 0px) - 10px));
     max-height: min(90dvh, calc(100dvh - env(safe-area-inset-top, 0px) - 10px));
   }
 
@@ -10330,6 +10348,7 @@ button.chat-avatar-btn .chat-avatar img {
   }
 
   .my-profile-preview-sheet {
+    height: min(88vh, 860px);
     max-height: min(88vh, 860px);
     margin-top: 0;
     border-radius: 1.75rem;
