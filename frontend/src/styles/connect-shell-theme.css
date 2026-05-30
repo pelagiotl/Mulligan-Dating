@@ -111,6 +111,30 @@ html[data-connect-shell="midnight"],
   --limits-note-text: #cbd5e1;
   --limits-note-capacity-bg: rgba(244, 114, 182, 0.1);
   --limits-note-capacity-text: #fda4af;
+  --profile-stat-member-bg: linear-gradient(135deg, #4c1d95 0%, #6b21a8 45%, #7c3aed 100%);
+  --profile-stat-active-bg: linear-gradient(135deg, #6b21a8 0%, #9333ea 40%, #db2777 72%, #ec4899 100%);
+  --profile-stat-card-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(167, 139, 250, 0.18) inset;
+  --profile-stat-active-hover-shadow:
+    0 12px 28px rgba(219, 39, 119, 0.32),
+    0 0 0 1px rgba(244, 114, 182, 0.22) inset;
+  --profile-preview-bg: linear-gradient(105deg, #4c1d95 0%, #6b21a8 36%, #7c3aed 58%, #db2777 100%);
+  --profile-preview-shadow:
+    0 8px 24px rgba(124, 58, 237, 0.38),
+    0 0 0 1px rgba(167, 139, 250, 0.2) inset;
+  --profile-preview-shadow-hover:
+    0 12px 28px rgba(219, 39, 119, 0.35),
+    0 0 0 1px rgba(196, 181, 253, 0.28) inset;
+  --profile-preview-icon-bg: rgba(255, 255, 255, 0.14);
+  --profile-mini-age-bg: linear-gradient(135deg, #4c1d95 0%, #6b21a8 50%, #7c3aed 100%);
+  --profile-mini-gender-bg: linear-gradient(135deg, #7c3aed 0%, #db2777 55%, #ec4899 100%);
+  --profile-mini-card-shadow:
+    0 6px 20px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(167, 139, 250, 0.14) inset;
+  --profile-mini-card-hover-shadow:
+    0 10px 28px rgba(124, 58, 237, 0.28),
+    0 0 0 1px rgba(244, 114, 182, 0.18) inset;
 }
 
 html[data-connect-shell="sunny"],
@@ -227,6 +251,30 @@ html[data-connect-shell="sunny"],
   --limits-note-text: #78350f;
   --limits-note-capacity-bg: rgba(254, 215, 170, 0.45);
   --limits-note-capacity-text: #c2410c;
+  --profile-stat-member-bg: linear-gradient(135deg, #38bdf8 0%, #0ea5e9 48%, #0284c7 100%);
+  --profile-stat-active-bg: linear-gradient(135deg, #fcd34d 0%, #fb923c 42%, #f97316 72%, #ea580c 100%);
+  --profile-stat-card-shadow:
+    0 8px 24px rgba(251, 146, 60, 0.18),
+    0 0 0 1px rgba(255, 255, 255, 0.35) inset;
+  --profile-stat-active-hover-shadow:
+    0 12px 28px rgba(234, 88, 12, 0.28),
+    0 0 0 1px rgba(255, 255, 255, 0.4) inset;
+  --profile-preview-bg: linear-gradient(105deg, #38bdf8 0%, #fcd34d 30%, #fb923c 56%, #f5576c 100%);
+  --profile-preview-shadow:
+    0 8px 24px rgba(251, 146, 60, 0.28),
+    0 0 0 1px rgba(255, 255, 255, 0.28) inset;
+  --profile-preview-shadow-hover:
+    0 12px 28px rgba(234, 88, 12, 0.32),
+    0 0 0 1px rgba(255, 255, 255, 0.35) inset;
+  --profile-preview-icon-bg: rgba(255, 255, 255, 0.22);
+  --profile-mini-age-bg: linear-gradient(135deg, #38bdf8 0%, #0ea5e9 50%, #0284c7 100%);
+  --profile-mini-gender-bg: linear-gradient(135deg, #fb923c 0%, #f97316 52%, #ea580c 100%);
+  --profile-mini-card-shadow:
+    0 6px 20px rgba(251, 146, 60, 0.14),
+    0 0 0 1px rgba(255, 255, 255, 0.32) inset;
+  --profile-mini-card-hover-shadow:
+    0 10px 28px rgba(234, 88, 12, 0.22),
+    0 0 0 1px rgba(255, 255, 255, 0.38) inset;
 }
 
 html[data-connect-shell="soft"],
@@ -343,6 +391,30 @@ html[data-connect-shell="soft"],
   --limits-note-text: #475569;
   --limits-note-capacity-bg: rgba(252, 231, 243, 0.55);
   --limits-note-capacity-text: #9f1239;
+  --profile-stat-member-bg: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #7c3aed 100%);
+  --profile-stat-active-bg: linear-gradient(135deg, #a855f7 0%, #ec4899 48%, #f43f5e 100%);
+  --profile-stat-card-shadow:
+    0 8px 24px rgba(102, 126, 234, 0.22),
+    0 0 0 1px rgba(255, 255, 255, 0.28) inset;
+  --profile-stat-active-hover-shadow:
+    0 12px 28px rgba(236, 72, 153, 0.26),
+    0 0 0 1px rgba(255, 255, 255, 0.34) inset;
+  --profile-preview-bg: linear-gradient(105deg, #667eea 0%, #764ba2 38%, #a855f7 62%, #ec4899 100%);
+  --profile-preview-shadow:
+    0 8px 24px rgba(102, 126, 234, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.22) inset;
+  --profile-preview-shadow-hover:
+    0 12px 28px rgba(102, 126, 234, 0.36),
+    0 0 0 1px rgba(255, 255, 255, 0.3) inset;
+  --profile-preview-icon-bg: rgba(255, 255, 255, 0.2);
+  --profile-mini-age-bg: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #7c3aed 100%);
+  --profile-mini-gender-bg: linear-gradient(135deg, #c084fc 0%, #ec4899 52%, #f43f5e 100%);
+  --profile-mini-card-shadow:
+    0 6px 20px rgba(102, 126, 234, 0.16),
+    0 0 0 1px rgba(255, 255, 255, 0.26) inset;
+  --profile-mini-card-hover-shadow:
+    0 10px 28px rgba(102, 126, 234, 0.22),
+    0 0 0 1px rgba(255, 255, 255, 0.32) inset;
 }
 
 @media (max-width: 900px) {

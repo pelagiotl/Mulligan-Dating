@@ -5125,18 +5125,25 @@ button.my-profile-avatar:focus-visible {
   border-radius: 1.15rem;
   cursor: pointer;
   text-align: left;
-  background: linear-gradient(105deg, #667eea 0%, #764ba2 48%, #a855f7 100%);
-  box-shadow:
+  background: var(
+    --profile-preview-bg,
+    linear-gradient(105deg, #667eea 0%, #764ba2 48%, #a855f7 100%)
+  );
+  box-shadow: var(
+    --profile-preview-shadow,
     0 8px 24px rgba(102, 126, 234, 0.32),
-    0 0 0 1px rgba(255, 255, 255, 0.18) inset;
+    0 0 0 1px rgba(255, 255, 255, 0.18) inset
+  );
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .my-profile-preview-btn:hover {
   transform: translateY(-1px);
-  box-shadow:
+  box-shadow: var(
+    --profile-preview-shadow-hover,
     0 12px 28px rgba(102, 126, 234, 0.38),
-    0 0 0 1px rgba(255, 255, 255, 0.22) inset;
+    0 0 0 1px rgba(255, 255, 255, 0.22) inset
+  );
 }
 
 .my-profile-preview-btn__icon {
@@ -5146,7 +5153,7 @@ button.my-profile-avatar:focus-visible {
   width: 2.5rem;
   height: 2.5rem;
   border-radius: 0.7rem;
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--profile-preview-icon-bg, rgba(255, 255, 255, 0.2));
   font-size: 1.15rem;
   flex-shrink: 0;
 }
@@ -6543,15 +6550,21 @@ button.my-profile-avatar:focus-visible {
   text-align: center;
   color: #fff;
   cursor: default;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--profile-stat-card-shadow, 0 8px 24px rgba(0, 0, 0, 0.12));
 }
 
 .my-profile-stat-card--member {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(
+    --profile-stat-member-bg,
+    linear-gradient(135deg, #667eea 0%, #764ba2 100%)
+  );
 }
 
 .my-profile-stat-card--active {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  background: var(
+    --profile-stat-active-bg,
+    linear-gradient(135deg, #f093fb 0%, #f5576c 100%)
+  );
   cursor: pointer;
   width: 100%;
   font: inherit;
@@ -6561,7 +6574,10 @@ button.my-profile-avatar:focus-visible {
 
 .my-profile-stat-card--active:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 12px 28px rgba(245, 87, 108, 0.35);
+  box-shadow: var(
+    --profile-stat-active-hover-shadow,
+    0 12px 28px rgba(245, 87, 108, 0.35)
+  );
 }
 
 .my-profile-stat-card--active:disabled {
@@ -6747,15 +6763,21 @@ button.my-profile-avatar:focus-visible {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--profile-mini-card-shadow, 0 6px 20px rgba(0, 0, 0, 0.1));
 }
 
 .my-profile-mini-card--age {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(
+    --profile-mini-age-bg,
+    linear-gradient(135deg, #667eea 0%, #764ba2 100%)
+  );
 }
 
 .my-profile-mini-card--gender {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  background: var(
+    --profile-mini-gender-bg,
+    linear-gradient(135deg, #f093fb 0%, #f5576c 100%)
+  );
 }
 
 .my-profile-mini-label {
@@ -6794,7 +6816,7 @@ button.my-profile-mini-card {
 
 button.my-profile-mini-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--profile-mini-card-hover-shadow, 0 10px 28px rgba(0, 0, 0, 0.18));
 }
 
 button.my-profile-mini-card:focus-visible {
@@ -10355,18 +10377,13 @@ button.my-profile-mini-card:focus-visible {
   }
 }
 
-.match-timer-header .match-expiry-hourglass.launch-countdown__hourglass {
-  width: 1.4rem;
-  height: 1.4rem;
-}
-
-.match-timer-header .match-expiry-hourglass .launch-countdown__hourglass-emoji {
+.match-timer-header .match-expiry-hourglass__emoji {
   font-size: 0.9rem;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .match-expiry-hourglass.launch-countdown__hourglass .launch-countdown__hourglass-emoji,
-  .match-expiry-hourglass .launch-countdown__hourglass-sand {
+  .match-expiry-hourglass__emoji,
+  .match-expiry-hourglass__sand {
     animation: none;
   }
 }
