@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { useNavigate, Navigate } from "react-router-dom";
+import { useNavigate, Navigate, useLocation } from "react-router-dom";
 import { api } from "../utils/api";
 import { useAuth } from "../context/AuthContext";
 import { MIN_PHOTOS_TO_CONNECT } from "../utils/connectProfileEligibility";
@@ -19,8 +19,11 @@ import WebPushOnboardingPrompt from "../components/WebPushOnboardingPrompt";
 import { shouldShowWebPushPromptAfterProfile } from "../constants/webPushPrompt";
 import ConnectPhotosRequiredModalWeb from "../components/ConnectPhotosRequiredModalWeb";
 import MatchmakingPausedModalWeb from "../components/MatchmakingPausedModalWeb";
-import ConnectProfileEnhancementCard from "../components/ConnectProfileEnhancementCard";
+import ConnectProfileEnhancementCard, {
+  ConnectProfileEnhancementRestoreLink,
+} from "../components/ConnectProfileEnhancementCard";
 import {
+  clearProfileEnhancementDismiss,
   dismissProfileEnhancement,
   isProfileEnhancementDismissed,
   profileEnhancementIncomplete,
@@ -184,9 +187,9 @@ function BrowseConnectLandingChrome({
             </div>
           )}
 
-          <p className="connect-landing__hint">⛳ Use a Mulligan</p>
-
           {enhancementSlot}
+
+          <p className="connect-landing__hint">⛳ Use a Mulligan</p>
         </div>
       </div>
     </div>
@@ -247,6 +250,7 @@ export default function Browse() {
   const showMatchCelebrationRef = useRef(false);
   const socketRef = useRef<Socket | null>(null);
   const navigate = useNavigate();
+  const location = useLocation();
   const photoRailRef = useRef<HTMLDivElement>(null);
   const [photoIndex, setPhotoIndex] = useState(0);
   const handleConnectRef = useRef<(profile: Profile, expandSlot?: boolean) => Promise<void>>(
@@ -678,8 +682,8 @@ export default function Browse() {
 
   handleConnectRef.current = handleConnect;
 
-  const resolveReadyPhotoCount = useCallback(async (): Promise<number> => {
-    if (photoCount >= MIN_PHOTOS_TO_CONNECT) return photoCount;
+  const resolveReadyPhotoCount = useCallback(async (options?: { force?: boolean }): Promise<number> => {
+    if (!options?.force && photoCount >= MIN_PHOTOS_TO_CONNECT) return photoCount;
     try {
       const pm = await api.get<{ photos?: unknown[] }>(`/photos/me?_=${Date.now()}`);
       return Array.isArray(pm.photos) ? pm.photos.length : photoCount;
@@ -823,62 +827,121 @@ export default function Browse() {
     !loading &&
     !isAutoMatching;
 
+  const profileConnectKey = useMemo(
+    () =>
+      `${userProfile?.displayName ?? ""}|${(userProfile as { location?: string } | null)?.location ?? ""}`,
+    [userProfile]
+  );
+
+  const refreshEnhancementDismissed = useCallback(() => {
+    setEnhancementDismissed(isProfileEnhancementDismissed());
+  }, []);
+
+  useEffect(() => {
+    refreshEnhancementDismissed();
+    const onFocus = () => refreshEnhancementDismissed();
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, [location.pathname, refreshEnhancementDismissed]);
+
+  const loadEnhancementSnapshot = useCallback(async () => {
+    let resolvedPhotoCount = photoCount ?? 0;
+    try {
+      const photosData = await api.get<{ photos?: unknown[] }>(`/photos/me?_=${Date.now()}`);
+      if (Array.isArray(photosData.photos)) {
+        resolvedPhotoCount = photosData.photos.length;
+      }
+    } catch {
+      /* keep auth fallback */
+    }
+
+    try {
+      const data = await api.get<{
+        profile: { looking_for?: string | null; lookingFor?: string | null };
+        interests: unknown[];
+        dealbreakers: unknown[];
+        lifestyle: ProfileEnhancementSnapshot["lifestyle"];
+      }>("/profile");
+      const profileRow = data.profile;
+      setEnhancementSnapshot({
+        photoCount: resolvedPhotoCount,
+        interestsCount: data.interests?.length ?? 0,
+        lookingFor: profileRow?.looking_for ?? profileRow?.lookingFor ?? null,
+        lifestyle: data.lifestyle ?? null,
+        dealbreakersCount: data.dealbreakers?.length ?? 0,
+      });
+    } catch {
+      // Still show tips if /profile fails — assume gaps beyond what we know from photos.
+      setEnhancementSnapshot({
+        photoCount: resolvedPhotoCount,
+        interestsCount: 0,
+        lookingFor: null,
+        lifestyle: null,
+        dealbreakersCount: 0,
+      });
+    }
+  }, [photoCount]);
+
   useEffect(() => {
     if (!showConnectGate) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const data = await api.get<{
-          profile: { looking_for: string | null };
-          interests: unknown[];
-          dealbreakers: unknown[];
-          lifestyle: ProfileEnhancementSnapshot["lifestyle"];
-        }>("/profile");
-        if (cancelled) return;
-        setEnhancementSnapshot({
-          photoCount: photoCount ?? 0,
-          interestsCount: data.interests?.length ?? 0,
-          lookingFor: data.profile?.looking_for,
-          lifestyle: data.lifestyle ?? null,
-          dealbreakersCount: data.dealbreakers?.length ?? 0,
-        });
-      } catch {
-        if (!cancelled) setEnhancementSnapshot(null);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [showConnectGate, photoCount]);
+    void loadEnhancementSnapshot();
+  }, [showConnectGate, photoCount, profileConnectKey, loadEnhancementSnapshot]);
 
   const enhancementIncompleteItems = useMemo(() => {
     if (!enhancementSnapshot) return [];
     return profileEnhancementIncomplete(enhancementSnapshot);
   }, [enhancementSnapshot]);
 
+  const handleRestoreProfileEnhancement = useCallback(() => {
+    clearProfileEnhancementDismiss();
+    setEnhancementDismissed(false);
+  }, []);
+
   const enhancementSlot =
-    showConnectGate && !enhancementDismissed && enhancementIncompleteItems.length > 0 ? (
-      <ConnectProfileEnhancementCard
-        items={enhancementIncompleteItems}
-        onItemClick={(item: ProfileEnhancementItem) => {
-          navigate(`/profile#${item.profileHash}`);
-        }}
-        onOpenProfile={() => navigate("/profile")}
-        onDismiss={() => {
-          dismissProfileEnhancement();
-          setEnhancementDismissed(true);
-        }}
-      />
+    showConnectGate && enhancementIncompleteItems.length > 0 ? (
+      enhancementDismissed ? (
+        <ConnectProfileEnhancementRestoreLink
+          incompleteCount={enhancementIncompleteItems.length}
+          onRestore={handleRestoreProfileEnhancement}
+        />
+      ) : (
+        <ConnectProfileEnhancementCard
+          items={enhancementIncompleteItems}
+          onItemClick={(item: ProfileEnhancementItem) => {
+            navigate(`/profile#${item.profileHash}`);
+          }}
+          onOpenProfile={() => navigate("/profile")}
+          onDismiss={() => {
+            dismissProfileEnhancement();
+            setEnhancementDismissed(true);
+          }}
+        />
+      )
     ) : null;
   
-  const handleConnectPhotoUploaded = useCallback(async () => {
-    await refreshProfile({ silent: true });
-    const count = await resolveReadyPhotoCount();
-    setConnectPhotosModalCount(count);
-    if (count >= MIN_PHOTOS_TO_CONNECT) {
+  const handleConnectPhotoUploaded = useCallback((uploaded: { id: string; url: string }[]) => {
+    const optimistic = connectPhotosModalCount + uploaded.length;
+    setConnectPhotosModalCount(optimistic);
+    if (optimistic >= MIN_PHOTOS_TO_CONNECT) {
       setShowConnectPhotosModal(false);
     }
-  }, [refreshProfile, resolveReadyPhotoCount]);
+    void (async () => {
+      try {
+        await refreshProfile({ silent: true });
+        const count = await resolveReadyPhotoCount({ force: true });
+        setConnectPhotosModalCount(count);
+        if (count >= MIN_PHOTOS_TO_CONNECT) {
+          setShowConnectPhotosModal(false);
+        }
+      } catch {
+        /* optimistic state already applied */
+      }
+    })();
+  }, [connectPhotosModalCount, refreshProfile, resolveReadyPhotoCount]);
 
   const connectGateModals = (
     <>
@@ -886,7 +949,7 @@ export default function Browse() {
         open={showConnectPhotosModal}
         photoCount={connectPhotosModalCount}
         onClose={() => setShowConnectPhotosModal(false)}
-        onPhotoUploaded={() => void handleConnectPhotoUploaded()}
+        onPhotoUploaded={(uploaded) => handleConnectPhotoUploaded(uploaded)}
       />
       <MatchmakingPausedModalWeb
         open={showMatchmakingPausedModal}

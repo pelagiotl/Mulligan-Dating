@@ -153,3 +153,11 @@ export function dismissProfileEnhancement(days = PROFILE_ENHANCEMENT_DISMISS_DAY
     /* private mode */
   }
 }
+
+export function clearProfileEnhancementDismiss(): void {
+  try {
+    localStorage.removeItem(PROFILE_ENHANCEMENT_DISMISS_KEY);
+  } catch {
+    /* private mode */
+  }
+}

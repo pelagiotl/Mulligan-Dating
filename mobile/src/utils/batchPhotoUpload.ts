@@ -1,4 +1,4 @@
-import { getToken } from './api';
+import { api, getToken } from './api';
 
 export type UploadedPhotoResult = { id: string; url: string };
 
@@ -14,6 +14,18 @@ function mimeForFilename(filename: string): string {
     webp: 'image/webp',
   };
   return mimeTypes[ext] || 'image/jpeg';
+}
+
+const UPLOAD_TIMEOUT_MS = 120_000;
+
+async function recoverPhotosAfterUpload(expectedCount: number): Promise<UploadedPhotoResult[]> {
+  api.clearCache('/photos/me');
+  const pm = await api.get<{ photos?: UploadedPhotoResult[] }>('/photos/me', false);
+  const photos = Array.isArray(pm.photos) ? pm.photos : [];
+  if (photos.length >= expectedCount) {
+    return photos.slice(-expectedCount);
+  }
+  throw new Error('Invalid response from server');
 }
 
 /** Upload one or more local image URIs in a single multipart request. */
@@ -37,11 +49,25 @@ export async function uploadPhotoUris(uris: string[]): Promise<UploadedPhotoResu
     } as unknown as Blob);
   }
 
-  const response = await fetch(`${API_URL}/api/photos`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
-    body: formData,
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}/api/photos`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+      signal: controller.signal,
+    });
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err instanceof Error && err.name === 'AbortError') {
+      return recoverPhotosAfterUpload(uris.length);
+    }
+    throw err;
+  }
+  clearTimeout(timeoutId);
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => 'Unknown error');
@@ -55,8 +81,7 @@ export async function uploadPhotoUris(uris: string[]): Promise<UploadedPhotoResu
   }
 
   const result = (await response.json()) as { photos?: UploadedPhotoResult[] };
-  if (!result.photos?.length) {
-    throw new Error('Invalid response from server');
-  }
-  return result.photos;
+  if (result.photos?.length) return result.photos;
+
+  return recoverPhotosAfterUpload(uris.length);
 }

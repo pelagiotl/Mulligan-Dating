@@ -37,9 +37,11 @@ import LaunchCountdownBubble from '../components/LaunchCountdownBubble';
 import MatchmakingPausedModal from '../components/MatchmakingPausedModal';
 import ConnectPhotosRequiredModal from '../components/ConnectPhotosRequiredModal';
 import ConnectProfileEnhancementCard, {
+  ConnectProfileEnhancementRestoreLink,
   type ConnectEnhancementShell,
 } from '../components/ConnectProfileEnhancementCard';
 import {
+  clearProfileEnhancementDismiss,
   dismissProfileEnhancement,
   isProfileEnhancementDismissed,
   profileEnhancementIncomplete,
@@ -399,28 +401,43 @@ export default function BrowseScreen() {
     }
   };
 
-  const resolvePhotoCountForConnect = useCallback(async (): Promise<number> => {
-    if (photoCount !== null) return photoCount;
+  const resolvePhotoCountForConnect = useCallback(async (options?: { force?: boolean }): Promise<number> => {
+    if (!options?.force && photoCount !== null && photoCount >= MIN_PHOTOS_TO_CONNECT) {
+      return photoCount;
+    }
     try {
+      api.clearCache('/photos/me');
       const data = await api.get<{ photos: unknown[] }>('/photos/me', false);
       const count = Array.isArray(data?.photos) ? data.photos.length : 0;
       setPhotoCount(count);
       return count;
     } catch {
-      return 0;
+      return photoCount ?? 0;
     }
   }, [photoCount]);
 
-  const handleConnectPhotoUploaded = useCallback(async () => {
-    api.clearCache('/photos/me');
-    await refreshProfile({ silent: true });
-    const count = await resolvePhotoCountForConnect();
-    setConnectPhotosModalCount(count);
-    setPhotoCount(count);
-    if (count >= MIN_PHOTOS_TO_CONNECT) {
+  const handleConnectPhotoUploaded = useCallback((uploaded: { id: string; url: string }[]) => {
+    const optimistic = connectPhotosModalCount + uploaded.length;
+    setConnectPhotosModalCount(optimistic);
+    setPhotoCount(optimistic);
+    if (optimistic >= MIN_PHOTOS_TO_CONNECT) {
       setConnectPhotosModalVisible(false);
     }
-  }, [refreshProfile, resolvePhotoCountForConnect]);
+    void (async () => {
+      try {
+        api.clearCache('/photos/me');
+        await refreshProfile();
+        const count = await resolvePhotoCountForConnect({ force: true });
+        setConnectPhotosModalCount(count);
+        setPhotoCount(count);
+        if (count >= MIN_PHOTOS_TO_CONNECT) {
+          setConnectPhotosModalVisible(false);
+        }
+      } catch {
+        /* optimistic state already applied */
+      }
+    })();
+  }, [connectPhotosModalCount, refreshProfile, resolvePhotoCountForConnect]);
 
   const promptPhotosRequired = useCallback((count: number) => {
     setConnectPhotosModalCount(count);
@@ -1090,9 +1107,22 @@ export default function BrowseScreen() {
     }
   }, [navigation]);
 
+  const handleRestoreProfileEnhancement = useCallback(() => {
+    void clearProfileEnhancementDismiss().then(() => setEnhancementDismissed(false));
+  }, []);
+
   const renderProfileEnhancement = useCallback(
     (shell: ConnectEnhancementShell) => {
-      if (enhancementDismissed || enhancementIncompleteItems.length === 0) return null;
+      if (enhancementIncompleteItems.length === 0) return null;
+      if (enhancementDismissed) {
+        return (
+          <ConnectProfileEnhancementRestoreLink
+            shell={shell}
+            incompleteCount={enhancementIncompleteItems.length}
+            onRestore={handleRestoreProfileEnhancement}
+          />
+        );
+      }
       return (
         <ConnectProfileEnhancementCard
           shell={shell}
@@ -1105,7 +1135,13 @@ export default function BrowseScreen() {
         />
       );
     },
-    [enhancementDismissed, enhancementIncompleteItems, openProfileEnhancement, openProfileTab]
+    [
+      enhancementDismissed,
+      enhancementIncompleteItems,
+      handleRestoreProfileEnhancement,
+      openProfileEnhancement,
+      openProfileTab,
+    ]
   );
 
   useEffect(() => {
@@ -2465,7 +2501,7 @@ export default function BrowseScreen() {
             scrollToPhotos: true,
           });
         }}
-        onPhotoUploaded={() => void handleConnectPhotoUploaded()}
+        onPhotoUploaded={(uploaded) => void handleConnectPhotoUploaded(uploaded)}
       />
 
       {/* No Tokens Modal */}

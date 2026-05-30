@@ -1,4 +1,4 @@
-import React, { memo, useMemo, useState } from 'react';
+import React, { memo, useEffect, useMemo, useState } from 'react';
 import {
   Modal,
   View,
@@ -12,14 +12,14 @@ import { LinearGradient } from 'expo-linear-gradient';
 import type { ConnectShellMode } from '../lib/connectShellTheme';
 import { MIN_PHOTOS_TO_CONNECT } from '../utils/connectSetup';
 import { pickImagesFromLibrary, MediaLibraryPermissionDenied } from '../utils/pickImagesFromLibrary';
-import { uploadPhotoUris } from '../utils/batchPhotoUpload';
+import { uploadPhotoUris, type UploadedPhotoResult } from '../utils/batchPhotoUpload';
 import { api } from '../utils/api';
 
 export interface ConnectPhotosRequiredModalProps {
   visible: boolean;
   onClose: () => void;
   onAddPhotos: () => void;
-  onPhotoUploaded?: () => void;
+  onPhotoUploaded?: (uploaded: UploadedPhotoResult[]) => void;
   photoCount: number;
   connectShell: ConnectShellMode;
 }
@@ -46,12 +46,21 @@ const ConnectPhotosRequiredModal = memo(function ConnectPhotosRequiredModal({
 }: ConnectPhotosRequiredModalProps) {
   const rim = useMemo(() => rimGradient(connectShell), [connectShell]);
   const cta = useMemo(() => ctaGradient(connectShell), [connectShell]);
-  const hasPhoto = photoCount >= MIN_PHOTOS_TO_CONNECT;
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const [optimisticCount, setOptimisticCount] = useState(0);
+
+  useEffect(() => {
+    if (!visible) return;
+    setUploadError('');
+    setOptimisticCount(0);
+  }, [visible]);
+
+  const displayCount = Math.max(photoCount, optimisticCount);
+  const displayHasPhoto = displayCount >= MIN_PHOTOS_TO_CONNECT;
 
   const handleSlotPress = async () => {
-    if (hasPhoto || uploading) return;
+    if (displayHasPhoto || uploading) return;
     setUploadError('');
     setUploading(true);
     try {
@@ -69,9 +78,11 @@ const ConnectPhotosRequiredModal = memo(function ConnectPhotosRequiredModal({
         setUploading(false);
         return;
       }
-      await uploadPhotoUris(uris);
+      const uploaded = await uploadPhotoUris(uris);
       api.clearCache('/photos/me');
-      onPhotoUploaded?.();
+      const newCount = photoCount + uploaded.length;
+      setOptimisticCount(newCount);
+      onPhotoUploaded?.(uploaded);
     } catch (err) {
       if (err instanceof MediaLibraryPermissionDenied) {
         setUploadError('Photo access is required to upload. Enable it in Settings.');
@@ -128,8 +139,8 @@ const ConnectPhotosRequiredModal = memo(function ConnectPhotosRequiredModal({
                   to match others when we launch.
                 </Text>
 
-                <View style={styles.slotRow} accessibilityLabel={`${photoCount} of ${MIN_PHOTOS_TO_CONNECT} photos`}>
-                  {hasPhoto ? (
+                <View style={styles.slotRow} accessibilityLabel={`${displayCount} of ${MIN_PHOTOS_TO_CONNECT} photos`}>
+                  {displayHasPhoto ? (
                     <View style={[styles.slot, styles.slotFilled]}>
                       <Text style={styles.slotEmoji}>📷</Text>
                       <View style={styles.slotCheck}>
@@ -157,7 +168,7 @@ const ConnectPhotosRequiredModal = memo(function ConnectPhotosRequiredModal({
                 <Text style={styles.progress}>
                   {uploading ? (
                     'Uploading your photo…'
-                  ) : hasPhoto ? (
+                  ) : displayHasPhoto ? (
                     "Photo added — you're ready for launch day"
                   ) : (
                     <>
@@ -189,10 +200,10 @@ const ConnectPhotosRequiredModal = memo(function ConnectPhotosRequiredModal({
                   style={styles.primaryTouchable}
                   disabled={uploading}
                   accessibilityRole="button"
-                  accessibilityLabel={hasPhoto ? 'View on Profile' : 'Add my photo'}
+                  accessibilityLabel={displayHasPhoto ? 'View on Profile' : 'Add my photo'}
                 >
                   <LinearGradient colors={cta} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.primaryGradient}>
-                    <Text style={styles.primaryText}>{hasPhoto ? 'View on Profile →' : 'Add my photo →'}</Text>
+                    <Text style={styles.primaryText}>{displayHasPhoto ? 'View on Profile →' : 'Add my photo →'}</Text>
                   </LinearGradient>
                 </TouchableOpacity>
                 <TouchableOpacity

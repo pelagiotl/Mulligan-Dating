@@ -1,3 +1,4 @@
+import { api } from "./api";
 import { compressImage } from "./photoImageCompress";
 
 function getApiBase(): string {
@@ -6,6 +7,17 @@ function getApiBase(): string {
     (import.meta.env as { VITE_NGROK_URL?: string }).VITE_NGROK_URL ||
     "";
   return API_URL ? `${API_URL}/api` : "/api";
+}
+
+const UPLOAD_TIMEOUT_MS = 120_000;
+
+async function recoverPhotosAfterUpload(expectedCount: number): Promise<UploadedPhoto[]> {
+  const pm = await api.get<{ photos?: UploadedPhoto[] }>(`/photos/me?_=${Date.now()}`);
+  const photos = Array.isArray(pm.photos) ? pm.photos : [];
+  if (photos.length >= expectedCount) {
+    return photos.slice(-expectedCount);
+  }
+  throw new Error("Invalid response from server");
 }
 
 export type UploadedPhoto = { id: string; url: string };
@@ -41,6 +53,18 @@ export async function uploadCompressedFiles(
   const data = await new Promise<{ photos?: UploadedPhoto[]; error?: string; message?: string }>(
     (resolve, reject) => {
       const xhr = new XMLHttpRequest();
+      let settled = false;
+      const finish = (fn: () => void) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeoutId);
+        fn();
+      };
+
+      const timeoutId = setTimeout(() => {
+        xhr.abort();
+        reject(new Error("UPLOAD_TIMEOUT"));
+      }, UPLOAD_TIMEOUT_MS);
 
       xhr.upload.addEventListener("progress", (e) => {
         if (e.lengthComputable) {
@@ -54,12 +78,12 @@ export async function uploadCompressedFiles(
           try {
             const contentType = xhr.getResponseHeader("content-type");
             if (contentType?.includes("application/json")) {
-              resolve(JSON.parse(xhr.responseText));
+              finish(() => resolve(JSON.parse(xhr.responseText)));
             } else {
-              resolve({ message: "Photo uploaded successfully" });
+              finish(() => resolve({ message: "Photo uploaded successfully" }));
             }
           } catch {
-            resolve({ message: "Photo uploaded successfully" });
+            finish(() => resolve({ message: "Photo uploaded successfully" }));
           }
           return;
         }
@@ -70,22 +94,30 @@ export async function uploadCompressedFiles(
         } catch {
           errorMessage = xhr.responseText || errorMessage;
         }
-        reject(new Error(errorMessage));
+        finish(() => reject(new Error(errorMessage)));
       });
 
-      xhr.addEventListener("error", () => reject(new Error("Network error during upload")));
-      xhr.addEventListener("abort", () => reject(new Error("Upload cancelled")));
+      xhr.addEventListener("error", () => finish(() => reject(new Error("Network error during upload"))));
+      xhr.addEventListener("abort", () => {
+        if (!settled) finish(() => reject(new Error("UPLOAD_TIMEOUT")));
+      });
 
       xhr.open("POST", `${BASE_URL}/photos`);
       if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
       xhr.send(formData);
     }
-  );
+  ).catch(async (err) => {
+    if (err instanceof Error && err.message === "UPLOAD_TIMEOUT") {
+      return recoverPhotosAfterUpload(compressed.length);
+    }
+    throw err;
+  });
 
-  if (!data.photos?.length) {
-    throw new Error(data.error || "Invalid response from server");
-  }
-  return data.photos;
+  if (Array.isArray(data)) return data;
+
+  if (data.photos?.length) return data.photos;
+
+  return recoverPhotosAfterUpload(compressed.length);
 }
 
 /** Compress (in parallel) then upload one or more photos in a single request. */

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { MIN_PHOTOS_TO_CONNECT, minPhotosToConnectLabel } from "../utils/connectProfileEligibility";
-import { uploadPhotoFiles } from "../utils/photoBatchUpload";
+import { uploadPhotoFiles, type UploadedPhoto } from "../utils/photoBatchUpload";
 
 export default function ConnectPhotosRequiredModalWeb({
   open,
@@ -12,16 +12,18 @@ export default function ConnectPhotosRequiredModalWeb({
   open: boolean;
   onClose: () => void;
   photoCount: number;
-  onPhotoUploaded?: () => void;
+  onPhotoUploaded?: (uploaded: UploadedPhoto[]) => void;
 }) {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const [optimisticCount, setOptimisticCount] = useState(0);
 
   useEffect(() => {
     if (!open) return;
     setUploadError("");
+    setOptimisticCount(0);
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !uploading) onClose();
     };
@@ -31,7 +33,8 @@ export default function ConnectPhotosRequiredModalWeb({
 
   if (!open) return null;
 
-  const hasPhoto = photoCount >= MIN_PHOTOS_TO_CONNECT;
+  const displayCount = Math.max(photoCount, optimisticCount);
+  const hasPhoto = displayCount >= MIN_PHOTOS_TO_CONNECT;
 
   const goToPhotos = () => {
     if (uploading) return;
@@ -59,9 +62,11 @@ export default function ConnectPhotosRequiredModalWeb({
     setUploading(true);
     setUploadError("");
     try {
-      await uploadPhotoFiles([file]);
+      const uploaded = await uploadPhotoFiles([file]);
       e.target.value = "";
-      onPhotoUploaded?.();
+      const newCount = photoCount + uploaded.length;
+      setOptimisticCount(newCount);
+      onPhotoUploaded?.(uploaded);
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : "Upload failed. Try again.");
       e.target.value = "";
@@ -123,10 +128,10 @@ export default function ConnectPhotosRequiredModalWeb({
 
               <div
                 className="connect-photos-modal-slots"
-                aria-label={`${photoCount} of ${MIN_PHOTOS_TO_CONNECT} photo uploaded`}
+                aria-label={`${displayCount} of ${MIN_PHOTOS_TO_CONNECT} photo uploaded`}
               >
                 {Array.from({ length: MIN_PHOTOS_TO_CONNECT }, (_, i) => {
-                  const filled = i < photoCount;
+                  const filled = i < displayCount;
                   if (filled) {
                     return (
                       <div key={i} className="connect-photos-modal-slot is-filled">

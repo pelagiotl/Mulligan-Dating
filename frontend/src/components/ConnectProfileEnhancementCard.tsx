@@ -9,6 +9,37 @@ type Props = {
   onDismiss: () => void;
 };
 
+type RestoreProps = {
+  incompleteCount: number;
+  onRestore: () => void;
+};
+
+export function ConnectProfileEnhancementRestoreLink({
+  incompleteCount,
+  onRestore,
+}: RestoreProps) {
+  if (incompleteCount <= 0) return null;
+
+  return (
+    <button
+      type="button"
+      className="connect-enhancement-restore"
+      onClick={onRestore}
+      aria-label={`Show Better matches profile tips, ${incompleteCount} items remaining`}
+    >
+      <span className="connect-enhancement-restore__icon" aria-hidden>
+        ✨
+      </span>
+      <span className="connect-enhancement-restore__copy">
+        <span className="connect-enhancement-restore__title">Show Better matches tips</span>
+        <span className="connect-enhancement-restore__meta">
+          {incompleteCount} quick {incompleteCount === 1 ? "update" : "updates"} left on Profile
+        </span>
+      </span>
+    </button>
+  );
+}
+
 export default function ConnectProfileEnhancementCard({
   items,
   onItemClick,

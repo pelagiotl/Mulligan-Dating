@@ -23,6 +23,51 @@ type Props = {
   style?: ViewStyle;
 };
 
+type RestoreProps = {
+  shell: ConnectEnhancementShell;
+  incompleteCount: number;
+  onRestore: () => void;
+  style?: ViewStyle;
+};
+
+export function ConnectProfileEnhancementRestoreLink({
+  shell,
+  incompleteCount,
+  onRestore,
+  style,
+}: RestoreProps) {
+  if (incompleteCount <= 0) return null;
+
+  const palette = SHELL_STYLES[shell];
+
+  return (
+    <TouchableOpacity
+      style={[styles.restore, palette.card, style]}
+      onPress={onRestore}
+      activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityLabel={`Show Better matches profile tips, ${incompleteCount} items remaining`}
+    >
+      <LinearGradient
+        colors={palette.accent}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={styles.accent}
+      />
+      <Text style={styles.restoreIcon} allowFontScaling={false}>
+        ✨
+      </Text>
+      <View style={styles.restoreCopy}>
+        <Text style={[styles.restoreTitle, { color: palette.eyebrow }]}>Show Better matches tips</Text>
+        <Text style={[styles.restoreMeta, { color: palette.lead }]}>
+          {incompleteCount} quick {incompleteCount === 1 ? 'update' : 'updates'} left on Profile
+        </Text>
+      </View>
+      <Text style={[styles.restoreChev, { color: palette.chev }]}>›</Text>
+    </TouchableOpacity>
+  );
+}
+
 const SHELL_STYLES: Record<
   ConnectEnhancementShell,
   {
@@ -438,5 +483,53 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textDecorationLine: 'underline',
     paddingHorizontal: 4,
+  },
+  restore: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 18,
+    paddingTop: 14,
+    paddingBottom: 14,
+    paddingHorizontal: 14,
+    marginTop: 14,
+    overflow: 'hidden',
+    gap: 10,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#312e81',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
+      },
+      android: {
+        elevation: 0,
+      },
+      default: {},
+    }),
+  },
+  restoreIcon: {
+    fontSize: 16,
+  },
+  restoreCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  restoreTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  restoreMeta: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '500',
+  },
+  restoreChev: {
+    fontSize: 20,
+    fontWeight: '600',
+    lineHeight: 22,
   },
 });

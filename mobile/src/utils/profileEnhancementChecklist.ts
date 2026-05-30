@@ -136,3 +136,12 @@ export async function dismissProfileEnhancement(
     /* ignore */
   }
 }
+
+export async function clearProfileEnhancementDismiss(): Promise<void> {
+  try {
+    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+    await AsyncStorage.removeItem(PROFILE_ENHANCEMENT_DISMISS_KEY);
+  } catch {
+    /* ignore */
+  }
+}
