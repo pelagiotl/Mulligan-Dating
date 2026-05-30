@@ -42,7 +42,7 @@ export function initializeSocket(server: HTTPServer) {
       origin: (origin, callback) => {
         callback(null, isSocketOriginAllowed(origin));
       },
-      credentials: true,
+      credentials: false,
     },
   });
   

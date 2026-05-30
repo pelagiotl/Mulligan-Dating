@@ -294,7 +294,7 @@ app.use(
         callback(new Error('Not allowed by CORS'));
       }
     },
-    credentials: true,
+    credentials: false,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Mulligan-Client'],
   })

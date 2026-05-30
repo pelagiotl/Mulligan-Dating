@@ -48,6 +48,18 @@ export default function PhoneLogin() {
     }
   }
 
+  const goToVerifyStep = useCallback(() => {
+    const digits = phoneNumber.replace(/\D/g, '')
+    if (digits.length < 10) {
+      setError('Enter your phone number first.')
+      return
+    }
+    setSubmittedPhone(phoneNumber)
+    setStep('verify')
+    setError('')
+    setCode('')
+  }, [phoneNumber])
+
   const handlePhoneSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setError('')
@@ -105,7 +117,9 @@ export default function PhoneLogin() {
       } else if (finalStatus === 0) {
         setSubmittedPhone(phoneNumber)
         setStep('verify')
-        setError(errorMsg)
+        setError(
+          'We could not confirm the code was sent. If you received a text, enter the 6-digit code below.',
+        )
       } else {
         setError(errorMsg)
       }
@@ -242,6 +256,21 @@ export default function PhoneLogin() {
                 ) : (
                   'Send Verification Code'
                 )}
+              </button>
+
+              <button
+                type="button"
+                className="btn-enhanced"
+                style={{
+                  background: 'transparent',
+                  color: 'var(--color-rose-600)',
+                  border: '2px solid var(--color-rose-300)',
+                  marginTop: 'var(--space-3)',
+                }}
+                onClick={goToVerifyStep}
+                disabled={loading || phoneNumber.length < 10}
+              >
+                I already have a code
               </button>
             </form>
 

@@ -16,7 +16,6 @@ async function request<T = any>(endpoint: string, options: RequestInit = {}): Pr
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
     'X-Mulligan-Client': 'web',
-    'User-Agent': 'Mulligan-Dating-Web/1.0',
     ...options.headers
   }
 
@@ -37,6 +36,8 @@ async function request<T = any>(endpoint: string, options: RequestInit = {}): Pr
       headers,
       signal: controller.signal,
       cache: 'no-store',
+      credentials: 'omit',
+      mode: 'cors',
     })
     clearTimeout(timeoutId)
 
@@ -115,7 +116,7 @@ async function request<T = any>(endpoint: string, options: RequestInit = {}): Pr
       if (url.includes('/sms/send-code')) {
         throw new ApiError(
           0,
-          'Could not reach the server. Your code may still arrive by text — tap "I received a code" to enter it, or wait and try again.',
+          'Could not reach the server. If a text arrived, use “I already have a code” below to enter it.',
         )
       }
       if (url.includes('/sms/verify-code')) {
@@ -147,6 +148,8 @@ async function requestForm<T = unknown>(endpoint: string, formData: FormData): P
       headers,
       body: formData,
       signal: controller.signal,
+      credentials: 'omit',
+      mode: 'cors',
     })
     clearTimeout(timeoutId)
     const contentType = response.headers.get('content-type')
