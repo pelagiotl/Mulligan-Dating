@@ -10277,19 +10277,21 @@ button.my-profile-mini-card:focus-visible {
   flex-shrink: 0;
 }
 
-.match-expiry-hourglass .launch-countdown__hourglass-glow,
 .match-expiry-hourglass .launch-countdown__hourglass-emoji,
 .match-expiry-hourglass .launch-countdown__hourglass-sand {
-  animation-delay: var(--match-hourglass-delay), var(--match-hourglass-delay),
-    var(--match-hourglass-delay);
+  animation-delay: var(--match-hourglass-delay), var(--match-hourglass-delay);
+}
+
+.match-expiry-hourglass.launch-countdown__hourglass {
+  box-shadow: none;
+}
+
+.match-expiry-hourglass .launch-countdown__hourglass-glow {
+  display: none;
 }
 
 .match-expiry-hourglass .launch-countdown__hourglass-emoji {
   font-size: 0.82rem;
-}
-
-.match-expiry-hourglass .launch-countdown__hourglass-glow {
-  inset: -5px;
 }
 
 .match-expiry-hourglass .launch-countdown__hourglass-sand {
@@ -10310,7 +10312,6 @@ button.my-profile-mini-card:focus-visible {
 
 @media (prefers-reduced-motion: reduce) {
   .match-expiry-hourglass .launch-countdown__hourglass-emoji,
-  .match-expiry-hourglass .launch-countdown__hourglass-glow,
   .match-expiry-hourglass .launch-countdown__hourglass-sand {
     animation: none;
   }

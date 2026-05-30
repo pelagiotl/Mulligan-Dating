@@ -20,11 +20,13 @@ const SIZES = {
 
 type Props = {
   size?: AnimatedLaunchHourglassSize;
+  /** Radial pulse behind the emoji (off for compact match-card timers). */
+  showGlow?: boolean;
   style?: ViewStyle;
 };
 
 /** Flip + glow + sand drip — mirrors web `launchHourglass*` keyframes. */
-export default function AnimatedLaunchHourglass({ size = 'md', style }: Props) {
+export default function AnimatedLaunchHourglass({ size = 'md', showGlow = true, style }: Props) {
   const dim = SIZES[size];
   const [reduceMotion, setReduceMotion] = useState(false);
   const flip = useRef(new Animated.Value(0)).current;
@@ -68,28 +70,30 @@ export default function AnimatedLaunchHourglass({ size = 'md', style }: Props) {
       ]),
     );
 
-    const glowLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(glow, {
-          toValue: 1,
-          duration: 1944,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(glow, {
-          toValue: 0,
-          duration: 1944,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(glow, {
-          toValue: 1,
-          duration: 1512,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ]),
-    );
+    const glowLoop = showGlow
+      ? Animated.loop(
+          Animated.sequence([
+            Animated.timing(glow, {
+              toValue: 1,
+              duration: 1944,
+              easing: Easing.inOut(Easing.ease),
+              useNativeDriver: true,
+            }),
+            Animated.timing(glow, {
+              toValue: 0,
+              duration: 1944,
+              easing: Easing.inOut(Easing.ease),
+              useNativeDriver: true,
+            }),
+            Animated.timing(glow, {
+              toValue: 1,
+              duration: 1512,
+              easing: Easing.inOut(Easing.ease),
+              useNativeDriver: true,
+            }),
+          ]),
+        )
+      : null;
 
     const sandLoop = Animated.loop(
       Animated.sequence([
@@ -121,14 +125,14 @@ export default function AnimatedLaunchHourglass({ size = 'md', style }: Props) {
     );
 
     flipLoop.start();
-    glowLoop.start();
+    glowLoop?.start();
     sandLoop.start();
     return () => {
       flipLoop.stop();
-      glowLoop.stop();
+      glowLoop?.stop();
       sandLoop.stop();
     };
-  }, [reduceMotion, flip, glow, sand]);
+  }, [reduceMotion, showGlow, flip, glow, sand]);
 
   const rotate = flip.interpolate({
     inputRange: [0, 0.5, 1],
@@ -146,20 +150,22 @@ export default function AnimatedLaunchHourglass({ size = 'md', style }: Props) {
 
   return (
     <View style={[styles.wrap, { width: dim.wrap, height: dim.wrap }, style]}>
-      <Animated.View
-        pointerEvents="none"
-        style={[
-          styles.glow,
-          {
-            top: -dim.glow,
-            left: -dim.glow,
-            right: -dim.glow,
-            bottom: -dim.glow,
-            opacity: reduceMotion ? 0.6 : glowOpacity,
-            transform: [{ scale: reduceMotion ? 1 : glowScale }],
-          },
-        ]}
-      />
+      {showGlow ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.glow,
+            {
+              top: -dim.glow,
+              left: -dim.glow,
+              right: -dim.glow,
+              bottom: -dim.glow,
+              opacity: reduceMotion ? 0.6 : glowOpacity,
+              transform: [{ scale: reduceMotion ? 1 : glowScale }],
+            },
+          ]}
+        />
+      ) : null}
       <Animated.View style={{ transform: [{ rotate }, { scale: emojiScale }] }}>
         <Text style={{ fontSize: dim.emoji, lineHeight: dim.emoji + 2 }} allowFontScaling={false}>
           ⏳

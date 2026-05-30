@@ -942,7 +942,7 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
               ) : null}
               {item.expiresAt && getTimeRemaining(item.expiresAt) ? (
                 <View style={styles.timerInlineRow}>
-                  <AnimatedLaunchHourglass size="xs" />
+                  <AnimatedLaunchHourglass size="xs" showGlow={false} />
                   <Text style={[styles.timerInline, { color: cardColors.timer }]}>
                     {getTimeRemaining(item.expiresAt)}
                   </Text>

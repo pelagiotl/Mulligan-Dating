@@ -17,7 +17,6 @@ export default function MatchExpiryHourglass({ delayMs = 0 }: Props) {
           : undefined
       }
     >
-      <span className="launch-countdown__hourglass-glow" />
       <span className="launch-countdown__hourglass-emoji">⏳</span>
       <span className="launch-countdown__hourglass-sand" />
     </span>
