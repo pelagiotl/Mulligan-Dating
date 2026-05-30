@@ -624,7 +624,11 @@ export default function AppNavigator() {
               cardStyle: { backgroundColor: '#f8f9ff' },
             }}
           >
-            <Stack.Screen name="PhoneLogin" component={PhoneLoginScreen} />
+            <Stack.Screen
+              name="PhoneLogin"
+              component={PhoneLoginScreen}
+              options={{ contentStyle: { backgroundColor: '#667eea' } }}
+            />
             <Stack.Screen name="AgeGate" component={AgeGateScreen} />
             <Stack.Screen name="CreateProfile" component={CreateProfileScreen} />
             <Stack.Screen name="MainTabs" component={MainTabs} />

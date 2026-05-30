@@ -226,9 +226,18 @@ const MULLIGAN_WEB_HOST_SUFFIXES = [
 function isMulliganWebOrigin(origin: string): boolean {
   try {
     const host = new URL(origin).hostname.toLowerCase();
-    return MULLIGAN_WEB_HOST_SUFFIXES.some(
-      (suffix) => host === suffix || host.endsWith(`.${suffix}`),
-    );
+    if (
+      MULLIGAN_WEB_HOST_SUFFIXES.some(
+        (suffix) => host === suffix || host.endsWith(`.${suffix}`),
+      )
+    ) {
+      return true;
+    }
+    // Render preview / branch deploys for Mulligan frontend
+    if (/^mulligan[-a-z0-9]*\.onrender\.com$/.test(host)) {
+      return true;
+    }
+    return false;
   } catch {
     return false;
   }

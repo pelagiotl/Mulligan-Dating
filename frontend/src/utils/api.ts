@@ -1,7 +1,6 @@
 // Use API URL from environment variable (for production) or ngrok (for testing)
 // Default to local proxy ('/api') for local development - Vite will proxy to localhost:3001
-const API_URL: string = (import.meta.env as any).VITE_API_URL || (import.meta.env as any).VITE_NGROK_URL || '';
-const BASE_URL = API_URL ? `${API_URL}/api` : '/api'
+import { resolveApiBaseUrl } from './apiBaseUrl'
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -12,6 +11,7 @@ export class ApiError extends Error {
 
 async function request<T = any>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem('token')
+  const baseUrl = await resolveApiBaseUrl()
   
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
@@ -28,7 +28,7 @@ async function request<T = any>(endpoint: string, options: RequestInit = {}): Pr
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), 45000) // 45 second timeout for cold starts
 
-  const url = `${BASE_URL}${endpoint}`
+  const url = `${baseUrl}${endpoint}`
   console.log('Making API request:', { method: options.method || 'GET', url, hasToken: !!token })
 
   try {
@@ -115,7 +115,7 @@ async function request<T = any>(endpoint: string, options: RequestInit = {}): Pr
       if (url.includes('/sms/send-code')) {
         throw new ApiError(
           0,
-          'Cannot connect to server. If you already received a text code, enter it on the next screen. Otherwise wait a moment and try again.',
+          'Could not reach the server. Your code may still arrive by text — tap "I received a code" to enter it, or wait and try again.',
         )
       }
       if (url.includes('/sms/verify-code')) {
@@ -133,13 +133,14 @@ async function request<T = any>(endpoint: string, options: RequestInit = {}): Pr
 /** POST multipart (e.g. chat image/video/audio). Do not set Content-Type — browser sets boundary. */
 async function requestForm<T = unknown>(endpoint: string, formData: FormData): Promise<T> {
   const token = localStorage.getItem('token')
+  const baseUrl = await resolveApiBaseUrl()
   const headers: HeadersInit = {}
   if (token) {
     (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`
   }
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), 120000)
-  const url = `${BASE_URL}${endpoint}`
+  const url = `${baseUrl}${endpoint}`
   try {
     const response = await fetch(url, {
       method: 'POST',

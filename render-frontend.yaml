@@ -1,0 +1,23 @@
+# Render Web Service for Mulligan frontend (recommended over Static Site for phone login).
+# Same-origin /api proxy avoids cross-origin browser blocks (Safari, ad blockers).
+#
+# Dashboard setup:
+# - Service type: Web Service
+# - Root directory: frontend
+# - Build: npm install && npm run build:embedded
+# - Start: npm start
+# - Env: API_PROXY_TARGET=https://mulligan-backend.onrender.com
+# - Do NOT set VITE_API_URL (build:embedded leaves API calls on /api)
+
+services:
+  - type: web
+    name: mulligan-frontend
+    runtime: node
+    rootDir: frontend
+    buildCommand: npm install && npm run build:embedded
+    startCommand: npm start
+    envVars:
+      - key: API_PROXY_TARGET
+        value: https://mulligan-backend.onrender.com
+      - key: NODE_ENV
+        value: production

@@ -53,10 +53,11 @@ export default function PhoneLogin() {
     setError('')
     setLoading(true)
 
-    try {
-      const response = await api.post<{ message: string; phoneNumber: string; code?: string; smsSent: boolean }>('/sms/send-code', {
-        phoneNumber
-      })
+    const attemptSend = async () => {
+      const response = await api.post<{ message: string; phoneNumber: string; code?: string; smsSent: boolean }>(
+        '/sms/send-code',
+        { phoneNumber },
+      )
 
       if (response.code) {
         console.log('🔐 Verification code:', response.code)
@@ -70,18 +71,41 @@ export default function PhoneLogin() {
       setSubmittedPhone(response.phoneNumber || phoneNumber)
       setStep('verify')
       setLoading(false)
+    }
+
+    try {
+      await attemptSend()
     } catch (err: unknown) {
+      const status = err instanceof ApiError ? err.status : 0
+      const isNetworkFailure = status === 0
+
+      if (isNetworkFailure) {
+        try {
+          await new Promise((resolve) => setTimeout(resolve, 2000))
+          await attemptSend()
+          return
+        } catch (retryErr: unknown) {
+          if (retryErr instanceof ApiError) {
+            err = retryErr
+          }
+        }
+      }
+
       setShake(true)
       setTimeout(() => setShake(false), 600)
-      const status = err instanceof ApiError ? err.status : 0
       const errorMsg =
         err instanceof ApiError
           ? err.message
           : err instanceof Error
             ? err.message
             : 'Failed to send verification code'
-      if (status === 429) {
+      const finalStatus = err instanceof ApiError ? err.status : 0
+      if (finalStatus === 429) {
         setError('Too many attempts. Please wait a minute and try again.')
+      } else if (finalStatus === 0) {
+        setSubmittedPhone(phoneNumber)
+        setStep('verify')
+        setError(errorMsg)
       } else {
         setError(errorMsg)
       }

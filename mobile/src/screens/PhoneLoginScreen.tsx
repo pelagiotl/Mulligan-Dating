@@ -17,26 +17,37 @@ import {
   ScrollView,
   Animated,
   useWindowDimensions,
+  Dimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { G, Path, Circle, Defs, LinearGradient as SvgLinearGradient, Stop, ClipPath, Rect } from 'react-native-svg';
 import { useNavigation } from '@react-navigation/native';
 import { api } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 
 const LOGIN_BG_GRADIENT_ID = 'loginScreenBgGradient';
+const LOGIN_GRADIENT_FALLBACK = '#667eea';
 
 /** SVG gradient avoids expo-linear-gradient native mismatch after SDK 53 until dev client is rebuilt. */
 function LoginScreenGradient() {
   const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const screenHeight = Dimensions.get('screen').height;
+  const gradientHeight =
+    Platform.OS === 'android'
+      ? Math.max(screenHeight, height + insets.bottom)
+      : height + insets.bottom;
+
   return (
-    <Svg
-      width={width}
-      height={height}
-      style={StyleSheet.absoluteFill}
-      pointerEvents="none"
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-    >
+    <View style={[StyleSheet.absoluteFillObject, styles.gradientBackdrop]}>
+      <Svg
+        width={width}
+        height={gradientHeight}
+        style={styles.gradientSvg}
+        pointerEvents="none"
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+      >
       <Defs>
         <SvgLinearGradient id={LOGIN_BG_GRADIENT_ID} x1="0%" y1="0%" x2="100%" y2="100%">
           <Stop offset="0%" stopColor="#667eea" />
@@ -46,8 +57,9 @@ function LoginScreenGradient() {
           <Stop offset="100%" stopColor="#4facfe" />
         </SvgLinearGradient>
       </Defs>
-      <Rect x={0} y={0} width={width} height={height} fill={`url(#${LOGIN_BG_GRADIENT_ID})`} />
+      <Rect x={0} y={0} width={width} height={gradientHeight} fill={`url(#${LOGIN_BG_GRADIENT_ID})`} />
     </Svg>
+    </View>
   );
 }
 
@@ -790,10 +802,13 @@ export default function PhoneLoginScreen() {
           style={styles.keyboardView}
         >
           <ScrollView 
+            style={styles.scrollView}
             contentContainerStyle={styles.scrollContent}
             removeClippedSubviews={false}
             keyboardShouldPersistTaps="always"
             keyboardDismissMode="on-drag"
+            overScrollMode="never"
+            bounces={false}
           >
           <View style={styles.header}>
             <AnimatedLogo />
@@ -817,10 +832,13 @@ export default function PhoneLoginScreen() {
         style={styles.keyboardView}
       >
         <ScrollView 
+          style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           removeClippedSubviews={false}
           keyboardShouldPersistTaps="always"
           keyboardDismissMode="on-drag"
+          overScrollMode="never"
+          bounces={false}
         >
         <View style={styles.header}>
           <AnimatedLogo />
@@ -899,10 +917,23 @@ export default function PhoneLoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'transparent',
+    backgroundColor: LOGIN_GRADIENT_FALLBACK,
+  },
+  gradientBackdrop: {
+    backgroundColor: LOGIN_GRADIENT_FALLBACK,
+  },
+  gradientSvg: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
   },
   keyboardView: {
     flex: 1,
+    backgroundColor: 'transparent',
+  },
+  scrollView: {
+    flex: 1,
+    backgroundColor: 'transparent',
   },
   scrollContent: {
     flexGrow: 1,
