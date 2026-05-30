@@ -131,42 +131,44 @@ function Stage1PhotoUnlockCompact({
   const bothDone = userCount >= 3 && otherCount >= 3;
 
   return (
-    <div className="chat-composer-unlock" role="note">
-      <span className="chat-composer-unlock-icon" aria-hidden>
-        🔓
+    <div className="chat-composer-unlock chat-unlock-banner chat-unlock-banner--photos" role="note">
+      <span className="chat-unlock-banner__icon-ring chat-composer-unlock-icon" aria-hidden>
+        <span className="chat-unlock-banner__icon chat-unlock-banner__icon--unlock">🔓</span>
       </span>
-      <p className="chat-composer-unlock-text">
-        <strong>More photos</strong> unlock when you each send 3 messages.{" "}
-        <span className="chat-composer-unlock-counts">
-          You{" "}
-          <span
-            className={
-              userCount >= 3
-                ? "chat-composer-unlock-count chat-composer-unlock-count--done"
-                : "chat-composer-unlock-count"
-            }
-          >
-            {Math.min(userCount, 3)}/3
+      <div className="chat-unlock-banner__content">
+        <p className="chat-composer-unlock-text">
+          <strong>More photos</strong> unlock when you each send 3 messages.{" "}
+          <span className="chat-composer-unlock-counts">
+            You{" "}
+            <span
+              className={
+                userCount >= 3
+                  ? "chat-composer-unlock-count chat-composer-unlock-count--done"
+                  : "chat-composer-unlock-count"
+              }
+            >
+              {Math.min(userCount, 3)}/3
+            </span>
+            {" · "}
+            Them{" "}
+            <span
+              className={
+                otherCount >= 3
+                  ? "chat-composer-unlock-count chat-composer-unlock-count--done"
+                  : "chat-composer-unlock-count"
+              }
+            >
+              {Math.min(otherCount, 3)}/3
+            </span>
           </span>
-          {" · "}
-          Them{" "}
-          <span
-            className={
-              otherCount >= 3
-                ? "chat-composer-unlock-count chat-composer-unlock-count--done"
-                : "chat-composer-unlock-count"
-            }
-          >
-            {Math.min(otherCount, 3)}/3
-          </span>
-        </span>
-        {bothDone ? (
-          <span className="chat-composer-unlock-almost"> — almost there, keep chatting!</span>
-        ) : null}
-      </p>
-      <button type="button" className="chat-composer-unlock-link" onClick={onOpenExplainer}>
-        How it works
-      </button>
+          {bothDone ? (
+            <span className="chat-composer-unlock-almost"> — almost there, keep chatting!</span>
+          ) : null}
+        </p>
+        <button type="button" className="chat-composer-unlock-link chat-unlock-banner__link" onClick={onOpenExplainer}>
+          How it works
+        </button>
+      </div>
     </div>
   );
 }
@@ -2679,7 +2681,15 @@ export default function Matches() {
                 <div className="messages-container" ref={messagesContainerRef}>
                   {messages.length === 0 ? (
                     <div className="no-messages">
-                      <p>No messages yet. Say hi! 👋</p>
+                      <div className="no-messages__inner">
+                        <span className="no-messages__wave" aria-hidden>
+                          👋
+                        </span>
+                        <p className="no-messages__copy">
+                          <span className="no-messages__line">No messages yet.</span>
+                          <span className="no-messages__cta">Say hi!</span>
+                        </p>
+                      </div>
                     </div>
                   ) : (
                     <div className="messages-list">
@@ -2857,11 +2867,11 @@ export default function Matches() {
                     aria-hidden
                   />
                   {!chatMediaUnlocked && (
-                    <p className="chat-media-lock-hint" role="note">
-                      <span className="chat-media-lock-hint-icon" aria-hidden>
-                        🔒
+                    <div className="chat-media-lock-hint chat-unlock-banner chat-unlock-banner--media" role="note">
+                      <span className="chat-unlock-banner__icon-ring chat-media-lock-hint-icon" aria-hidden>
+                        <span className="chat-unlock-banner__icon chat-unlock-banner__icon--lock">🔒</span>
                       </span>
-                      <span className="chat-media-lock-hint-text">
+                      <p className="chat-media-lock-hint-text chat-unlock-banner__text">
                         <strong>Photos, video &amp; voice</strong> unlock after 3 messages each.{" "}
                         <span className="chat-media-lock-hint-counts">
                           You{" "}
@@ -2886,8 +2896,8 @@ export default function Matches() {
                             {Math.min(chatMediaMessageCounts.their, 3)}/3
                           </span>
                         </span>
-                      </span>
-                    </p>
+                      </p>
+                    </div>
                   )}
                   {pendingImagePreviewUrl ? (
                     <div className="chat-pending-media">

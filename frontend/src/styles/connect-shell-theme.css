@@ -1342,6 +1342,78 @@ html[data-connect-shell="soft"] .matches-page.native-app-screen .match-card-acti
   -webkit-text-fill-color: currentColor;
 }
 
+/* Matches chat — unlock banners + empty state (midnight) */
+html[data-connect-shell="midnight"] .matches-page .chat-unlock-banner--photos,
+.app-layout.connect-shell--midnight .matches-page .chat-unlock-banner--photos {
+  color: #e2e8f0;
+  background: linear-gradient(
+    145deg,
+    rgba(38, 32, 52, 0.95) 0%,
+    rgba(52, 32, 48, 0.88) 50%,
+    rgba(30, 27, 46, 0.92) 100%
+  );
+  border-color: rgba(244, 114, 182, 0.28);
+  box-shadow:
+    0 6px 20px rgba(0, 0, 0, 0.28),
+    0 0 0 1px rgba(167, 139, 250, 0.12) inset;
+}
+
+html[data-connect-shell="midnight"] .matches-page .chat-unlock-banner--media,
+.app-layout.connect-shell--midnight .matches-page .chat-unlock-banner--media {
+  color: #e2e8f0;
+  background: linear-gradient(
+    145deg,
+    rgba(30, 27, 46, 0.95) 0%,
+    rgba(46, 40, 72, 0.88) 50%,
+    rgba(38, 32, 52, 0.92) 100%
+  );
+  border-color: rgba(167, 139, 250, 0.28);
+  box-shadow:
+    0 6px 20px rgba(0, 0, 0, 0.28),
+    0 0 0 1px rgba(167, 139, 250, 0.12) inset;
+}
+
+html[data-connect-shell="midnight"] .matches-page .chat-composer-unlock-text strong,
+html[data-connect-shell="midnight"] .matches-page .chat-media-lock-hint-text strong,
+.app-layout.connect-shell--midnight .matches-page .chat-composer-unlock-text strong,
+.app-layout.connect-shell--midnight .matches-page .chat-media-lock-hint-text strong {
+  color: #f1f5f9;
+}
+
+html[data-connect-shell="midnight"] .matches-page .chat-unlock-banner__icon-ring,
+.app-layout.connect-shell--midnight .matches-page .chat-unlock-banner__icon-ring {
+  background: radial-gradient(circle at 35% 30%, rgba(52, 48, 68, 0.98), rgba(30, 27, 46, 0.75));
+  box-shadow:
+    0 3px 12px rgba(124, 58, 237, 0.25),
+    0 0 0 1px rgba(167, 139, 250, 0.2) inset;
+}
+
+html[data-connect-shell="midnight"] .matches-page .no-messages__inner,
+.app-layout.connect-shell--midnight .matches-page .no-messages__inner {
+  background: linear-gradient(
+    165deg,
+    rgba(30, 27, 46, 0.96) 0%,
+    rgba(52, 32, 48, 0.75) 50%,
+    rgba(38, 32, 52, 0.9) 100%
+  );
+  border-color: rgba(167, 139, 250, 0.28);
+  box-shadow:
+    0 10px 32px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(167, 139, 250, 0.1) inset;
+}
+
+html[data-connect-shell="midnight"] .matches-page .no-messages__line,
+.app-layout.connect-shell--midnight .matches-page .no-messages__line {
+  color: #cbd5e1;
+}
+
+html[data-connect-shell="midnight"] .matches-page .no-messages__cta,
+.app-layout.connect-shell--midnight .matches-page .no-messages__cta {
+  background: linear-gradient(105deg, #fda4af, #c4b5fd, #a78bfa);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
 /* Sunny — warm cream / amber (hero sunny card) */
 html[data-connect-shell="sunny"] .launch-countdown-bubble.launch-countdown-bubble--collapsed {
   background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 35%, #fde68a 65%, #fff7ed 100%);
