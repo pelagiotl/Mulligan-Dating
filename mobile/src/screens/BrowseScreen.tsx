@@ -1083,6 +1083,14 @@ export default function BrowseScreen() {
     void loadEnhancementSnapshot();
   }, [showLandingPage, user, photoCount, profileConnectKey, loadEnhancementSnapshot]);
 
+  useFocusEffect(
+    useCallback(() => {
+      if (!showLandingPage || !user) return;
+      api.clearCache('/profile');
+      void loadEnhancementSnapshot();
+    }, [showLandingPage, user, loadEnhancementSnapshot]),
+  );
+
   const enhancementIncompleteItems = useMemo(() => {
     if (!enhancementSnapshot) return [];
     return profileEnhancementIncomplete(enhancementSnapshot);

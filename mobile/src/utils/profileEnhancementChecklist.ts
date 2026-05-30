@@ -4,7 +4,8 @@ export const PROFILE_ENHANCEMENT_PHOTO_TARGET = Math.max(2, MIN_PHOTOS_TO_CONNEC
 
 export const PROFILE_ENHANCEMENT_MIN_INTERESTS = 3;
 
-export const PROFILE_ENHANCEMENT_MIN_LIFESTYLE_FIELDS = 2;
+/** One answered lifestyle field is enough for Better matches (e.g. non-drinker). */
+export const PROFILE_ENHANCEMENT_MIN_LIFESTYLE_FIELDS = 1;
 
 export const PROFILE_ENHANCEMENT_DISMISS_KEY = 'mulligan:connect-profile-enhancement-dismissed-until';
 
@@ -87,7 +88,7 @@ export function buildProfileEnhancementChecklist(
     },
     {
       id: 'lifestyle',
-      label: 'Lifestyle details',
+      label: 'Lifestyle details (1+)',
       done: lifestyleFieldCount(snapshot.lifestyle) >= PROFILE_ENHANCEMENT_MIN_LIFESTYLE_FIELDS,
     },
     {

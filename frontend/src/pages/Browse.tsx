@@ -889,7 +889,7 @@ export default function Browse() {
   useEffect(() => {
     if (!showConnectGate) return;
     void loadEnhancementSnapshot();
-  }, [showConnectGate, photoCount, profileConnectKey, loadEnhancementSnapshot]);
+  }, [showConnectGate, photoCount, profileConnectKey, loadEnhancementSnapshot, location.pathname]);
 
   const enhancementIncompleteItems = useMemo(() => {
     if (!enhancementSnapshot) return [];
