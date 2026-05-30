@@ -2380,6 +2380,8 @@ export default function MatchesScreen() {
   const connectionLimitsHeader = (
     <View style={styles.connectionLimitsHeader}>
       <ConnectLandingScarcity
+        connectShell={connectShellMode}
+        embeddedInHeader={Platform.OS === 'android'}
         loading={limitsLoading}
         availableTokens={availableTokens}
         canClaimWeeklyToken={canClaimTokens}
@@ -3119,14 +3121,24 @@ export default function MatchesScreen() {
           gradientPos={headerGradientPos}
           shellBackdropColors={shellBackdropColors}
         >
-          <View style={styles.header}>
-            <View style={styles.headerTitleContainer}>
+          <View style={[styles.header, Platform.OS === 'android' && styles.headerWithLimits]}>
+            <View
+              style={[
+                styles.headerTitleContainer,
+                Platform.OS === 'android' && styles.headerTitleContainerWithLimits,
+              ]}
+            >
               <AnimatedLinkHeaderIcon connectShell={connectShellMode} />
               <Text style={styles.headerTitle}>Your Matches</Text>
             </View>
+            {Platform.OS === 'android' ? (
+              <View style={styles.connectionLimitsInHeader}>{connectionLimitsHeader}</View>
+            ) : null}
           </View>
         </AnimatedHeaderGradient>
-        <View style={styles.connectionLimitsHeaderWrap}>{connectionLimitsHeader}</View>
+        {Platform.OS !== 'android' ? (
+          <View style={styles.connectionLimitsHeaderWrap}>{connectionLimitsHeader}</View>
+        ) : null}
         {visibleMatches.length === 0 ? (
           <EmptyStateAnimated
             navigation={navigation}
@@ -4152,6 +4164,10 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     overflow: 'visible',
   },
+  headerTitleContainerWithLimits: {
+    marginBottom: 4,
+    paddingBottom: Platform.OS === 'android' ? 4 : 12,
+  },
   headerTitleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -4355,6 +4371,13 @@ const styles = StyleSheet.create({
   matchesList: {
     padding: 16,
     paddingTop: 20,
+  },
+  headerWithLimits: {
+    paddingBottom: Platform.OS === 'android' ? 14 : 24,
+  },
+  connectionLimitsInHeader: {
+    width: '100%',
+    marginTop: 2,
   },
   connectionLimitsHeaderWrap: {
     paddingHorizontal: 16,

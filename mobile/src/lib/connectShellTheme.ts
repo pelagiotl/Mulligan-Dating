@@ -160,6 +160,200 @@ export function connectShellGradientStops(mode: ConnectShellMode): readonly stri
   }
 }
 
+/** Matches tab “Your limits” card — aligned with web `--limits-*` per shell. */
+export type ConnectionLimitsPanelColors = {
+  shellGradient: readonly [string, string, ...string[]];
+  accentGradient: readonly [string, string, ...string[]];
+  shellBorder: string;
+  eyebrow: string;
+  lede: string;
+  hideBorder: string;
+  hideBg: string;
+  hideText: string;
+  collapsedBarBg: string;
+  collapsedBarBorder: string;
+  collapsedGem: string;
+  collapsedStat: string;
+  collapsedStatFull: string;
+  collapsedAction: string;
+  collapsedDivider: string;
+  metricBg: string;
+  metricBorder: string;
+  metricTokensBg: string;
+  metricTokensBorder: string;
+  metricSlotsBg: string;
+  metricSlotsBorder: string;
+  metricFullBg: string;
+  metricFullBorder: string;
+  iconWrapBg: string;
+  iconWrapBorder: string;
+  iconWrapTokensBorder: string;
+  iconWrapSlotsBorder: string;
+  label: string;
+  value: string;
+  valueFull: string;
+  denom: string;
+  trackBg: string;
+  fillTokens: string;
+  fillSlots: string;
+  fillFull: string;
+  chipText: string;
+  chipBg: string;
+  chipBorder: string;
+  noteBg: string;
+  noteText: string;
+  noteCapacityBg: string;
+  noteCapacityText: string;
+  loadingText: string;
+  shadowColor: string;
+};
+
+export function connectionLimitsPanelColors(mode: ConnectShellMode): ConnectionLimitsPanelColors {
+  switch (mode) {
+    case 'midnight':
+      return {
+        shellGradient: ['#1c1826', '#1e1b2e', '#16122a'],
+        accentGradient: ['#a78bfa', '#c084fc', '#f472b6'],
+        shellBorder: 'rgba(167, 139, 250, 0.22)',
+        eyebrow: '#c4b5fd',
+        lede: '#94a3b8',
+        hideBorder: 'rgba(167, 139, 250, 0.2)',
+        hideBg: 'rgba(38, 32, 52, 0.9)',
+        hideText: '#94a3b8',
+        collapsedBarBg: 'rgba(30, 27, 46, 0.95)',
+        collapsedBarBorder: 'rgba(167, 139, 250, 0.22)',
+        collapsedGem: 'rgba(196, 181, 253, 0.55)',
+        collapsedStat: '#e2e8f0',
+        collapsedStatFull: '#fda4af',
+        collapsedAction: '#94a3b8',
+        collapsedDivider: 'rgba(167, 139, 250, 0.2)',
+        metricBg: 'rgba(38, 32, 52, 0.75)',
+        metricBorder: 'rgba(167, 139, 250, 0.12)',
+        metricTokensBg: 'rgba(46, 40, 72, 0.9)',
+        metricTokensBorder: 'rgba(129, 140, 248, 0.28)',
+        metricSlotsBg: 'rgba(52, 32, 48, 0.9)',
+        metricSlotsBorder: 'rgba(244, 114, 182, 0.22)',
+        metricFullBg: 'rgba(52, 28, 44, 0.95)',
+        metricFullBorder: 'rgba(244, 114, 182, 0.35)',
+        iconWrapBg: 'rgba(22, 18, 34, 0.95)',
+        iconWrapBorder: 'rgba(167, 139, 250, 0.15)',
+        iconWrapTokensBorder: 'rgba(129, 140, 248, 0.32)',
+        iconWrapSlotsBorder: 'rgba(244, 114, 182, 0.28)',
+        label: '#94a3b8',
+        value: '#f1f5f9',
+        valueFull: '#fda4af',
+        denom: 'rgba(226, 232, 240, 0.35)',
+        trackBg: 'rgba(15, 12, 22, 0.55)',
+        fillTokens: '#a78bfa',
+        fillSlots: '#f472b6',
+        fillFull: '#fb7185',
+        chipText: '#6ee7b7',
+        chipBg: 'rgba(16, 185, 129, 0.14)',
+        chipBorder: 'rgba(52, 211, 153, 0.28)',
+        noteBg: 'rgba(15, 12, 22, 0.45)',
+        noteText: '#cbd5e1',
+        noteCapacityBg: 'rgba(244, 114, 182, 0.1)',
+        noteCapacityText: '#fda4af',
+        loadingText: '#94a3b8',
+        shadowColor: '#000',
+      };
+    case 'sunny':
+      return {
+        shellGradient: ['#fffdf7', '#fff7ed', '#fef3c7'],
+        accentGradient: ['#38bdf8', '#fcd34d', '#fb923c'],
+        shellBorder: 'rgba(251, 191, 36, 0.28)',
+        eyebrow: '#c2410c',
+        lede: '#9a3412',
+        hideBorder: 'rgba(251, 191, 36, 0.28)',
+        hideBg: 'rgba(255, 255, 255, 0.92)',
+        hideText: '#78716c',
+        collapsedBarBg: 'rgba(255, 253, 245, 0.96)',
+        collapsedBarBorder: 'rgba(251, 191, 36, 0.24)',
+        collapsedGem: 'rgba(234, 88, 12, 0.45)',
+        collapsedStat: '#431407',
+        collapsedStatFull: '#be123c',
+        collapsedAction: '#78716c',
+        collapsedDivider: 'rgba(251, 191, 36, 0.2)',
+        metricBg: 'rgba(255, 255, 255, 0.82)',
+        metricBorder: 'rgba(251, 191, 36, 0.14)',
+        metricTokensBg: 'rgba(255, 255, 255, 0.98)',
+        metricTokensBorder: 'rgba(56, 189, 248, 0.22)',
+        metricSlotsBg: 'rgba(255, 255, 255, 0.98)',
+        metricSlotsBorder: 'rgba(251, 146, 60, 0.22)',
+        metricFullBg: 'rgba(255, 251, 235, 0.98)',
+        metricFullBorder: 'rgba(234, 88, 12, 0.32)',
+        iconWrapBg: '#ffffff',
+        iconWrapBorder: 'rgba(251, 191, 36, 0.18)',
+        iconWrapTokensBorder: 'rgba(56, 189, 248, 0.28)',
+        iconWrapSlotsBorder: 'rgba(251, 146, 60, 0.26)',
+        label: '#78716c',
+        value: '#431407',
+        valueFull: '#be123c',
+        denom: 'rgba(67, 20, 7, 0.32)',
+        trackBg: 'rgba(251, 191, 36, 0.15)',
+        fillTokens: '#0ea5e9',
+        fillSlots: '#f97316',
+        fillFull: '#ea580c',
+        chipText: '#15803d',
+        chipBg: 'rgba(34, 197, 94, 0.12)',
+        chipBorder: 'rgba(22, 163, 74, 0.22)',
+        noteBg: 'rgba(255, 251, 235, 0.65)',
+        noteText: '#78350f',
+        noteCapacityBg: 'rgba(254, 215, 170, 0.45)',
+        noteCapacityText: '#c2410c',
+        loadingText: '#78716c',
+        shadowColor: '#fb923c',
+      };
+    case 'soft':
+      return {
+        shellGradient: ['#ffffff', '#fcf8ff', '#ede9fe'],
+        accentGradient: ['#818cf8', '#a78bfa', '#f472b6'],
+        shellBorder: 'rgba(102, 126, 234, 0.16)',
+        eyebrow: '#6d28d9',
+        lede: '#64748b',
+        hideBorder: 'rgba(102, 126, 234, 0.14)',
+        hideBg: 'rgba(255, 255, 255, 0.92)',
+        hideText: '#64748b',
+        collapsedBarBg: 'rgba(255, 255, 255, 0.94)',
+        collapsedBarBorder: 'rgba(102, 126, 234, 0.16)',
+        collapsedGem: 'rgba(109, 40, 217, 0.4)',
+        collapsedStat: '#312e81',
+        collapsedStatFull: '#be185d',
+        collapsedAction: '#64748b',
+        collapsedDivider: 'rgba(102, 126, 234, 0.14)',
+        metricBg: 'rgba(255, 255, 255, 0.85)',
+        metricBorder: 'rgba(102, 126, 234, 0.1)',
+        metricTokensBg: 'rgba(255, 255, 255, 0.98)',
+        metricTokensBorder: 'rgba(99, 102, 241, 0.18)',
+        metricSlotsBg: 'rgba(255, 255, 255, 0.98)',
+        metricSlotsBorder: 'rgba(236, 72, 153, 0.14)',
+        metricFullBg: 'rgba(255, 255, 255, 0.98)',
+        metricFullBorder: 'rgba(139, 21, 56, 0.2)',
+        iconWrapBg: '#ffffff',
+        iconWrapBorder: 'rgba(102, 126, 234, 0.1)',
+        iconWrapTokensBorder: 'rgba(99, 102, 241, 0.2)',
+        iconWrapSlotsBorder: 'rgba(244, 63, 94, 0.16)',
+        label: '#64748b',
+        value: '#312e81',
+        valueFull: '#9f1239',
+        denom: 'rgba(49, 46, 129, 0.3)',
+        trackBg: 'rgba(102, 126, 234, 0.1)',
+        fillTokens: '#6366f1',
+        fillSlots: '#f43f5e',
+        fillFull: '#be123c',
+        chipText: '#047857',
+        chipBg: 'rgba(16, 185, 129, 0.1)',
+        chipBorder: 'rgba(16, 185, 129, 0.18)',
+        noteBg: 'rgba(237, 233, 254, 0.35)',
+        noteText: '#475569',
+        noteCapacityBg: 'rgba(252, 231, 243, 0.55)',
+        noteCapacityText: '#9f1239',
+        loadingText: '#64748b',
+        shadowColor: '#667eea',
+      };
+  }
+}
+
 export function connectButtonShimmerColors(mode: ConnectShellMode): ConnectButtonShimmerColors {
   switch (mode) {
     case 'midnight':

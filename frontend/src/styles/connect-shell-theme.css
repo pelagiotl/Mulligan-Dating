@@ -59,6 +59,53 @@ html[data-connect-shell="midnight"],
   --create-profile-tips-bg: rgba(22, 18, 34, 0.9);
   --create-profile-tips-border: rgba(167, 139, 250, 0.28);
   --token-cannot-claim-text: #e2e8f0;
+  --limits-panel-bg: linear-gradient(
+    155deg,
+    rgba(28, 24, 38, 0.98) 0%,
+    rgba(30, 27, 46, 0.96) 55%,
+    rgba(22, 18, 34, 0.98) 100%
+  );
+  --limits-panel-border: rgba(167, 139, 250, 0.22);
+  --limits-panel-shadow: 0 1px 0 rgba(167, 139, 250, 0.08) inset, 0 6px 20px rgba(0, 0, 0, 0.28);
+  --limits-accent-gradient: linear-gradient(90deg, #a78bfa, #c084fc, #f472b6);
+  --limits-eyebrow: #c4b5fd;
+  --limits-lede: #94a3b8;
+  --limits-hide-border: rgba(167, 139, 250, 0.2);
+  --limits-hide-bg: rgba(38, 32, 52, 0.9);
+  --limits-hide-text: #94a3b8;
+  --limits-reveal-bg: linear-gradient(135deg, rgba(30, 27, 46, 0.95), rgba(22, 18, 34, 0.92));
+  --limits-reveal-border: rgba(167, 139, 250, 0.22);
+  --limits-reveal-gem: rgba(196, 181, 253, 0.55);
+  --limits-reveal-stat: #e2e8f0;
+  --limits-reveal-stat-full: #fda4af;
+  --limits-collapsedDivider: rgba(167, 139, 250, 0.2);
+  --limits-metric-bg: rgba(38, 32, 52, 0.75);
+  --limits-metric-border: rgba(167, 139, 250, 0.12);
+  --limits-metric-tokens-bg: linear-gradient(145deg, rgba(46, 40, 72, 0.9), rgba(30, 27, 46, 0.85));
+  --limits-metric-tokens-border: rgba(129, 140, 248, 0.28);
+  --limits-metric-slots-bg: linear-gradient(145deg, rgba(52, 32, 48, 0.9), rgba(30, 27, 46, 0.85));
+  --limits-metric-slots-border: rgba(244, 114, 182, 0.22);
+  --limits-metric-full-bg: linear-gradient(145deg, rgba(52, 28, 44, 0.95), rgba(38, 24, 40, 0.9));
+  --limits-metric-full-border: rgba(244, 114, 182, 0.35);
+  --limits-icon-wrap-bg: rgba(22, 18, 34, 0.95);
+  --limits-icon-wrap-border: rgba(167, 139, 250, 0.15);
+  --limits-icon-wrap-tokens-border: rgba(129, 140, 248, 0.32);
+  --limits-icon-wrap-slots-border: rgba(244, 114, 182, 0.28);
+  --limits-label: #94a3b8;
+  --limits-value: #f1f5f9;
+  --limits-value-full: #fda4af;
+  --limits-denom: rgba(226, 232, 240, 0.35);
+  --limits-track-bg: rgba(15, 12, 22, 0.55);
+  --limits-fill-tokens: linear-gradient(90deg, #818cf8, #a78bfa);
+  --limits-fill-slots: linear-gradient(90deg, #f472b6, #ec4899);
+  --limits-fill-full: linear-gradient(90deg, #fb7185, #f43f5e);
+  --limits-chip-text: #6ee7b7;
+  --limits-chip-bg: rgba(16, 185, 129, 0.14);
+  --limits-chip-border: rgba(52, 211, 153, 0.28);
+  --limits-note-bg: rgba(15, 12, 22, 0.45);
+  --limits-note-text: #cbd5e1;
+  --limits-note-capacity-bg: rgba(244, 114, 182, 0.1);
+  --limits-note-capacity-text: #fda4af;
 }
 
 html[data-connect-shell="sunny"],
@@ -123,6 +170,53 @@ html[data-connect-shell="sunny"],
   --create-profile-tips-bg: rgba(255, 253, 245, 0.94);
   --create-profile-tips-border: rgba(251, 146, 60, 0.32);
   --token-cannot-claim-text: #9a3412;
+  --limits-panel-bg: linear-gradient(
+    155deg,
+    rgba(255, 253, 245, 0.98) 0%,
+    rgba(255, 247, 237, 0.96) 55%,
+    rgba(254, 243, 199, 0.35) 100%
+  );
+  --limits-panel-border: rgba(251, 191, 36, 0.28);
+  --limits-panel-shadow: 0 1px 0 rgba(255, 255, 255, 0.85) inset, 0 6px 20px rgba(251, 146, 60, 0.1);
+  --limits-accent-gradient: linear-gradient(90deg, #38bdf8, #fcd34d, #fb923c);
+  --limits-eyebrow: #c2410c;
+  --limits-lede: #9a3412;
+  --limits-hide-border: rgba(251, 191, 36, 0.28);
+  --limits-hide-bg: rgba(255, 255, 255, 0.92);
+  --limits-hide-text: #78716c;
+  --limits-reveal-bg: linear-gradient(135deg, rgba(255, 253, 245, 0.96), rgba(255, 247, 237, 0.9));
+  --limits-reveal-border: rgba(251, 191, 36, 0.24);
+  --limits-reveal-gem: rgba(234, 88, 12, 0.45);
+  --limits-reveal-stat: #431407;
+  --limits-reveal-stat-full: #be123c;
+  --limits-collapsedDivider: rgba(251, 191, 36, 0.2);
+  --limits-metric-bg: rgba(255, 255, 255, 0.82);
+  --limits-metric-border: rgba(251, 191, 36, 0.14);
+  --limits-metric-tokens-bg: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(254, 243, 199, 0.45));
+  --limits-metric-tokens-border: rgba(56, 189, 248, 0.22);
+  --limits-metric-slots-bg: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(255, 237, 213, 0.5));
+  --limits-metric-slots-border: rgba(251, 146, 60, 0.22);
+  --limits-metric-full-bg: linear-gradient(145deg, rgba(255, 251, 235, 0.98), rgba(254, 215, 170, 0.4));
+  --limits-metric-full-border: rgba(234, 88, 12, 0.32);
+  --limits-icon-wrap-bg: #fff;
+  --limits-icon-wrap-border: rgba(251, 191, 36, 0.18);
+  --limits-icon-wrap-tokens-border: rgba(56, 189, 248, 0.28);
+  --limits-icon-wrap-slots-border: rgba(251, 146, 60, 0.26);
+  --limits-label: #78716c;
+  --limits-value: #431407;
+  --limits-value-full: #be123c;
+  --limits-denom: rgba(67, 20, 7, 0.32);
+  --limits-track-bg: rgba(251, 191, 36, 0.15);
+  --limits-fill-tokens: linear-gradient(90deg, #38bdf8, #0ea5e9);
+  --limits-fill-slots: linear-gradient(90deg, #fb923c, #f97316);
+  --limits-fill-full: linear-gradient(90deg, #ea580c, #c2410c);
+  --limits-chip-text: #15803d;
+  --limits-chip-bg: rgba(34, 197, 94, 0.12);
+  --limits-chip-border: rgba(22, 163, 74, 0.22);
+  --limits-note-bg: rgba(255, 251, 235, 0.65);
+  --limits-note-text: #78350f;
+  --limits-note-capacity-bg: rgba(254, 215, 170, 0.45);
+  --limits-note-capacity-text: #c2410c;
 }
 
 html[data-connect-shell="soft"],
@@ -187,6 +281,53 @@ html[data-connect-shell="soft"],
   --create-profile-tips-bg: rgba(255, 255, 255, 0.9);
   --create-profile-tips-border: rgba(102, 126, 234, 0.22);
   --token-cannot-claim-text: #4c1d95;
+  --limits-panel-bg: linear-gradient(
+    155deg,
+    rgba(255, 255, 255, 0.98) 0%,
+    rgba(252, 248, 255, 0.96) 55%,
+    rgba(237, 233, 254, 0.45) 100%
+  );
+  --limits-panel-border: rgba(102, 126, 234, 0.16);
+  --limits-panel-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 6px 20px rgba(102, 126, 234, 0.08);
+  --limits-accent-gradient: linear-gradient(90deg, #818cf8, #a78bfa, #f472b6);
+  --limits-eyebrow: #6d28d9;
+  --limits-lede: #64748b;
+  --limits-hide-border: rgba(102, 126, 234, 0.14);
+  --limits-hide-bg: rgba(255, 255, 255, 0.92);
+  --limits-hide-text: #64748b;
+  --limits-reveal-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(237, 233, 254, 0.5));
+  --limits-reveal-border: rgba(102, 126, 234, 0.16);
+  --limits-reveal-gem: rgba(109, 40, 217, 0.4);
+  --limits-reveal-stat: #1e1b4b;
+  --limits-reveal-stat-full: #be185d;
+  --limits-collapsedDivider: rgba(102, 126, 234, 0.14);
+  --limits-metric-bg: rgba(255, 255, 255, 0.85);
+  --limits-metric-border: rgba(102, 126, 234, 0.1);
+  --limits-metric-tokens-bg: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(224, 231, 255, 0.55));
+  --limits-metric-tokens-border: rgba(99, 102, 241, 0.18);
+  --limits-metric-slots-bg: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(252, 231, 243, 0.45));
+  --limits-metric-slots-border: rgba(236, 72, 153, 0.14);
+  --limits-metric-full-bg: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(237, 233, 254, 0.5));
+  --limits-metric-full-border: rgba(139, 21, 56, 0.2);
+  --limits-icon-wrap-bg: #fff;
+  --limits-icon-wrap-border: rgba(102, 126, 234, 0.1);
+  --limits-icon-wrap-tokens-border: rgba(99, 102, 241, 0.2);
+  --limits-icon-wrap-slots-border: rgba(244, 63, 94, 0.16);
+  --limits-label: #64748b;
+  --limits-value: #312e81;
+  --limits-value-full: #9f1239;
+  --limits-denom: rgba(49, 46, 129, 0.3);
+  --limits-track-bg: rgba(102, 126, 234, 0.1);
+  --limits-fill-tokens: linear-gradient(90deg, #818cf8, #6366f1);
+  --limits-fill-slots: linear-gradient(90deg, #fb7185, #f43f5e);
+  --limits-fill-full: linear-gradient(90deg, #be123c, #9f1239);
+  --limits-chip-text: #047857;
+  --limits-chip-bg: rgba(16, 185, 129, 0.1);
+  --limits-chip-border: rgba(16, 185, 129, 0.18);
+  --limits-note-bg: rgba(237, 233, 254, 0.35);
+  --limits-note-text: #475569;
+  --limits-note-capacity-bg: rgba(252, 231, 243, 0.55);
+  --limits-note-capacity-text: #9f1239;
 }
 
 @media (max-width: 900px) {

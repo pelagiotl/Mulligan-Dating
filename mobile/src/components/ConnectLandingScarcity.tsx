@@ -9,13 +9,13 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
+import {
+  connectionLimitsPanelColors,
+  type ConnectShellMode,
+} from '../lib/connectShellTheme';
 
 const MAX_MULLIGANS = 7;
 const COLLAPSED_STORAGE_KEY = 'mulligan_matches_limits_panel_collapsed';
-
-const BURGUNDY = '#8B1538';
-const INK = '#1a1a2e';
-const MUTED = 'rgba(26, 26, 46, 0.52)';
 
 function formatCountdown(ms: number): string {
   if (ms <= 0) return 'Any moment now';
@@ -39,6 +39,9 @@ async function readCollapsedPreference(): Promise<boolean> {
 }
 
 type Props = {
+  connectShell: ConnectShellMode;
+  /** Tighter spacing when rendered inside the matches header (Android). */
+  embeddedInHeader?: boolean;
   loading: boolean;
   availableTokens: number;
   canClaimWeeklyToken: boolean;
@@ -48,6 +51,8 @@ type Props = {
 };
 
 const ConnectLandingScarcity = memo(function ConnectLandingScarcity({
+  connectShell,
+  embeddedInHeader = false,
   loading,
   availableTokens,
   canClaimWeeklyToken,
@@ -55,6 +60,7 @@ const ConnectLandingScarcity = memo(function ConnectLandingScarcity({
   activeMatches,
   slotLimit,
 }: Props) {
+  const colors = useMemo(() => connectionLimitsPanelColors(connectShell), [connectShell]);
   const [now, setNow] = useState(() => Date.now());
   const [collapsed, setCollapsed] = useState(false);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
@@ -114,11 +120,23 @@ const ConnectLandingScarcity = memo(function ConnectLandingScarcity({
         ? `Next Mulligan in ${formatCountdown(refillMs)}`
         : null;
 
+  const outerSpacing = embeddedInHeader ? styles.embeddedOuter : null;
+
+  const shellShadow =
+    Platform.OS === 'ios'
+      ? {
+          shadowColor: colors.shadowColor,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: connectShell === 'midnight' ? 0.35 : 0.08,
+          shadowRadius: 8,
+        }
+      : { elevation: connectShell === 'midnight' ? 3 : 2 };
+
   if (loading || !prefsLoaded) {
     return (
-      <View style={styles.loadingWrap} accessibilityLabel="Loading connection limits">
-        <ActivityIndicator size="small" color={`${BURGUNDY}99`} />
-        <Text style={styles.loadingText}>Loading limits…</Text>
+      <View style={[styles.loadingWrap, outerSpacing]} accessibilityLabel="Loading connection limits">
+        <ActivityIndicator size="small" color={colors.eyebrow} />
+        <Text style={[styles.loadingText, { color: colors.loadingText }]}>Loading limits…</Text>
       </View>
     );
   }
@@ -126,43 +144,56 @@ const ConnectLandingScarcity = memo(function ConnectLandingScarcity({
   if (collapsed) {
     return (
       <TouchableOpacity
-        style={styles.collapsedBar}
+        style={[
+          styles.collapsedBar,
+          outerSpacing,
+          {
+            backgroundColor: colors.collapsedBarBg,
+            borderColor: colors.collapsedBarBorder,
+          },
+          shellShadow,
+        ]}
         onPress={() => void persistCollapsed(false)}
         activeOpacity={0.85}
         accessibilityRole="button"
         accessibilityLabel={`Your limits. Mulligans ${tokensCapped} of ${MAX_MULLIGANS}. Connections ${activeMatches} of ${slotLimit}. Double tap to expand.`}
         accessibilityHint="Shows full limits details"
       >
-        <Text style={styles.collapsedGem} accessibilityElementsHidden>
+        <Text style={[styles.collapsedGem, { color: colors.collapsedGem }]} accessibilityElementsHidden>
           ✦
         </Text>
-        <Text style={styles.collapsedEyebrow}>Your limits</Text>
+        <Text style={[styles.collapsedEyebrow, { color: colors.eyebrow }]}>Your limits</Text>
         <View style={styles.collapsedStats}>
-          <Text style={styles.collapsedStat}>
+          <Text style={[styles.collapsedStat, { color: colors.collapsedStat }]}>
             <Text style={styles.collapsedStatIcon}>🎟 </Text>
             {tokensCapped}/{MAX_MULLIGANS}
           </Text>
-          <View style={styles.collapsedDivider} />
-          <Text style={[styles.collapsedStat, atCapacity && styles.collapsedStatFull]}>
+          <View style={[styles.collapsedDivider, { backgroundColor: colors.collapsedDivider }]} />
+          <Text
+            style={[
+              styles.collapsedStat,
+              { color: atCapacity ? colors.collapsedStatFull : colors.collapsedStat },
+            ]}
+          >
             <Text style={styles.collapsedStatIcon}>💞 </Text>
             {activeMatches}/{slotLimit}
           </Text>
         </View>
-        <Text style={styles.collapsedAction}>Show</Text>
+        <Text style={[styles.collapsedAction, { color: colors.collapsedAction }]}>Show</Text>
       </TouchableOpacity>
     );
   }
 
   return (
-    <View style={styles.shellOuter} accessibilityRole="summary">
+    <View style={[styles.shellOuter, outerSpacing, shellShadow]} accessibilityRole="summary">
       <LinearGradient
-        colors={['#ffffff', '#fcf8fa', '#f5f3ff']}
+        colors={[...colors.shellGradient]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={styles.shell}
+        style={[styles.shell, { borderColor: colors.shellBorder }]}
       >
         <LinearGradient
-          colors={['#c084fc', '#d9467a', BURGUNDY]}
+          colors={[...colors.accentGradient]}
           start={{ x: 0, y: 0.5 }}
           end={{ x: 1, y: 0.5 }}
           style={styles.accentBar}
@@ -170,65 +201,98 @@ const ConnectLandingScarcity = memo(function ConnectLandingScarcity({
 
         <View style={styles.toolbar}>
           <View style={styles.titleGroup}>
-            <Text style={styles.eyebrow}>Your limits</Text>
-            <Text style={styles.lede}>
+            <Text style={[styles.eyebrow, { color: colors.eyebrow }]}>Your limits</Text>
+            <Text style={[styles.lede, { color: colors.lede }]}>
               {MAX_MULLIGANS} Mulligans weekly · {slotLimit} connections max
             </Text>
           </View>
           <TouchableOpacity
-            style={styles.hideBtn}
+            style={[
+              styles.hideBtn,
+              { borderColor: colors.hideBorder, backgroundColor: colors.hideBg },
+            ]}
             onPress={() => void persistCollapsed(true)}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             accessibilityRole="button"
             accessibilityLabel="Hide limits panel"
           >
-            <Text style={styles.hideBtnText}>Hide</Text>
+            <Text style={[styles.hideBtnText, { color: colors.hideText }]}>Hide</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.metricsRow}>
-          <View style={[styles.metric, styles.metricTokens]}>
-            <View style={[styles.iconWrap, styles.iconWrapTokens]}>
+          <View
+            style={[
+              styles.metric,
+              { backgroundColor: colors.metricTokensBg, borderColor: colors.metricTokensBorder },
+            ]}
+          >
+            <View
+              style={[
+                styles.iconWrap,
+                { backgroundColor: colors.iconWrapBg, borderColor: colors.iconWrapTokensBorder },
+              ]}
+            >
               <Text style={styles.iconEmoji} accessibilityElementsHidden>
                 🎟
               </Text>
             </View>
             <View style={styles.metricContent}>
-              <Text style={styles.metricLabel}>Mulligans</Text>
-              <Text style={styles.metricValue}>
+              <Text style={[styles.metricLabel, { color: colors.label }]}>Mulligans</Text>
+              <Text style={[styles.metricValue, { color: colors.value }]}>
                 {tokensCapped}
-                <Text style={styles.metricDenom}> / {MAX_MULLIGANS}</Text>
+                <Text style={[styles.metricDenom, { color: colors.denom }]}> / {MAX_MULLIGANS}</Text>
               </Text>
-              <View style={styles.track}>
-                <View style={[styles.trackFill, styles.trackFillTokens, { width: `${tokenPct}%` }]} />
+              <View style={[styles.track, { backgroundColor: colors.trackBg }]}>
+                <View style={[styles.trackFill, { width: `${tokenPct}%`, backgroundColor: colors.fillTokens }]} />
               </View>
             </View>
           </View>
 
-          <View style={[styles.metric, styles.metricSlots, atCapacity && styles.metricFull]}>
-            <View style={[styles.iconWrap, styles.iconWrapSlots]}>
+          <View
+            style={[
+              styles.metric,
+              {
+                backgroundColor: atCapacity ? colors.metricFullBg : colors.metricSlotsBg,
+                borderColor: atCapacity ? colors.metricFullBorder : colors.metricSlotsBorder,
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.iconWrap,
+                { backgroundColor: colors.iconWrapBg, borderColor: colors.iconWrapSlotsBorder },
+              ]}
+            >
               <Text style={styles.iconEmoji} accessibilityElementsHidden>
                 💞
               </Text>
             </View>
             <View style={styles.metricContent}>
-              <Text style={styles.metricLabel}>Connections</Text>
-              <Text style={[styles.metricValue, atCapacity && styles.metricValueFull]}>
+              <Text style={[styles.metricLabel, { color: colors.label }]}>Connections</Text>
+              <Text style={[styles.metricValue, { color: atCapacity ? colors.valueFull : colors.value }]}>
                 {activeMatches}
-                <Text style={styles.metricDenom}> / {slotLimit}</Text>
+                <Text style={[styles.metricDenom, { color: colors.denom }]}> / {slotLimit}</Text>
               </Text>
-              <View style={styles.track}>
+              <View style={[styles.track, { backgroundColor: colors.trackBg }]}>
                 <View
                   style={[
                     styles.trackFill,
-                    atCapacity ? styles.trackFillFull : styles.trackFillSlots,
-                    { width: `${slotPct}%` },
+                    {
+                      width: `${slotPct}%`,
+                      backgroundColor: atCapacity ? colors.fillFull : colors.fillSlots,
+                    },
                   ]}
                 />
               </View>
               {!atCapacity ? (
-                <View style={styles.metricChip}>
-                  <Text style={styles.metricChipText}>
+                <View
+                  style={[
+                    styles.metricChip,
+                    { backgroundColor: colors.chipBg, borderColor: colors.chipBorder },
+                  ]}
+                >
+                  <Text style={[styles.metricChipText, { color: colors.chipText }]}>
                     {slotsOpen} slot{slotsOpen === 1 ? '' : 's'} available
                   </Text>
                 </View>
@@ -238,8 +302,21 @@ const ConnectLandingScarcity = memo(function ConnectLandingScarcity({
         </View>
 
         {statusNote ? (
-          <View style={[styles.note, atCapacity && styles.noteCapacity]}>
-            <Text style={[styles.noteText, atCapacity && styles.noteTextCapacity]}>
+          <View
+            style={[
+              styles.note,
+              {
+                backgroundColor: atCapacity ? colors.noteCapacityBg : colors.noteBg,
+                borderColor: atCapacity ? colors.metricFullBorder : colors.metricBorder,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.noteText,
+                { color: atCapacity ? colors.noteCapacityText : colors.noteText },
+              ]}
+            >
               {statusNote}
             </Text>
           </View>
@@ -250,6 +327,9 @@ const ConnectLandingScarcity = memo(function ConnectLandingScarcity({
 });
 
 const styles = StyleSheet.create({
+  embeddedOuter: {
+    marginBottom: 0,
+  },
   loadingWrap: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -260,12 +340,10 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 12,
-    color: MUTED,
     fontWeight: '500',
   },
   collapsedGem: {
     fontSize: 9,
-    color: 'rgba(139, 21, 56, 0.45)',
   },
   collapsedBar: {
     flexDirection: 'row',
@@ -276,24 +354,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     borderRadius: 11,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(139, 21, 56, 0.14)',
-    backgroundColor: 'rgba(255, 255, 255, 0.92)',
-    ...Platform.select({
-      android: { elevation: 1 },
-      ios: {
-        shadowColor: INK,
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
-      },
-    }),
   },
   collapsedEyebrow: {
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 0.8,
     textTransform: 'uppercase',
-    color: BURGUNDY,
   },
   collapsedStats: {
     flex: 1,
@@ -306,11 +372,7 @@ const styles = StyleSheet.create({
   collapsedStat: {
     fontSize: 13,
     fontWeight: '700',
-    color: INK,
     fontVariant: ['tabular-nums'],
-  },
-  collapsedStatFull: {
-    color: BURGUNDY,
   },
   collapsedStatIcon: {
     fontSize: 11,
@@ -318,12 +380,10 @@ const styles = StyleSheet.create({
   collapsedDivider: {
     width: 1,
     height: 12,
-    backgroundColor: 'rgba(26, 26, 46, 0.12)',
   },
   collapsedAction: {
     fontSize: 10,
     fontWeight: '700',
-    color: MUTED,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
@@ -331,15 +391,6 @@ const styles = StyleSheet.create({
     width: '100%',
     marginBottom: 10,
     borderRadius: 12,
-    ...Platform.select({
-      ios: {
-        shadowColor: INK,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
-      },
-      android: { elevation: 2 },
-    }),
   },
   shell: {
     width: '100%',
@@ -349,7 +400,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 11,
     overflow: 'hidden',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(139, 21, 56, 0.12)',
   },
   accentBar: {
     position: 'absolute',
@@ -374,14 +424,12 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 0.9,
-    color: BURGUNDY,
     textTransform: 'uppercase',
     marginBottom: 2,
   },
   lede: {
     fontSize: 11,
     lineHeight: 15,
-    color: MUTED,
     fontWeight: '500',
   },
   hideBtn: {
@@ -389,15 +437,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     borderRadius: 100,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(26, 26, 46, 0.1)',
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
   },
   hideBtnText: {
     fontSize: 9,
     fontWeight: '800',
     letterSpacing: 0.6,
     textTransform: 'uppercase',
-    color: MUTED,
   },
   metricsRow: {
     flexDirection: 'row',
@@ -411,22 +456,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 7,
     borderRadius: 11,
-    backgroundColor: 'rgba(255, 255, 255, 0.88)',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(26, 26, 46, 0.07)',
     minWidth: 0,
-  },
-  metricTokens: {
-    borderColor: 'rgba(99, 102, 241, 0.14)',
-    backgroundColor: 'rgba(238, 242, 255, 0.35)',
-  },
-  metricSlots: {
-    borderColor: 'rgba(244, 63, 94, 0.12)',
-    backgroundColor: 'rgba(255, 241, 245, 0.35)',
-  },
-  metricFull: {
-    backgroundColor: 'rgba(139, 21, 56, 0.06)',
-    borderColor: 'rgba(139, 21, 56, 0.2)',
   },
   iconWrap: {
     width: 32,
@@ -434,15 +465,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(26, 26, 46, 0.08)',
-  },
-  iconWrapTokens: {
-    borderColor: 'rgba(99, 102, 241, 0.18)',
-  },
-  iconWrapSlots: {
-    borderColor: 'rgba(244, 63, 94, 0.16)',
   },
   iconEmoji: {
     fontSize: 15,
@@ -458,41 +481,25 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.4,
     textTransform: 'uppercase',
-    color: MUTED,
   },
   metricValue: {
     fontSize: 17,
     fontWeight: '800',
-    color: INK,
     fontVariant: ['tabular-nums'],
     letterSpacing: -0.3,
-  },
-  metricValueFull: {
-    color: BURGUNDY,
   },
   metricDenom: {
     fontSize: 12,
     fontWeight: '700',
-    color: 'rgba(26, 26, 46, 0.3)',
   },
   track: {
     height: 3,
     borderRadius: 99,
-    backgroundColor: 'rgba(26, 26, 46, 0.08)',
     overflow: 'hidden',
   },
   trackFill: {
     height: '100%',
     borderRadius: 99,
-  },
-  trackFillTokens: {
-    backgroundColor: '#6366f1',
-  },
-  trackFillSlots: {
-    backgroundColor: '#f43f5e',
-  },
-  trackFillFull: {
-    backgroundColor: BURGUNDY,
   },
   metricChip: {
     alignSelf: 'flex-start',
@@ -500,34 +507,23 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     paddingHorizontal: 6,
     borderRadius: 6,
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(16, 185, 129, 0.2)',
   },
   metricChipText: {
     fontSize: 9,
     fontWeight: '700',
-    color: '#047857',
   },
   note: {
     marginTop: 6,
     paddingVertical: 6,
     paddingHorizontal: 8,
     borderRadius: 8,
-    backgroundColor: 'rgba(26, 26, 46, 0.04)',
-  },
-  noteCapacity: {
-    backgroundColor: 'rgba(139, 21, 56, 0.06)',
+    borderWidth: StyleSheet.hairlineWidth,
   },
   noteText: {
     fontSize: 11,
     lineHeight: 15,
-    color: MUTED,
     fontWeight: '500',
-  },
-  noteTextCapacity: {
-    color: BURGUNDY,
-    fontWeight: '600',
   },
 });
 
