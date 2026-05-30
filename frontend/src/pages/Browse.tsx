@@ -13,6 +13,10 @@ import LaunchCountdown from "../components/LaunchCountdown";
 import { io, Socket } from "socket.io-client";
 import { getSocketUrl } from "../utils/socketUrl";
 import { emitTokenBalanceUpdated } from "../lib/tokenBalanceEvents";
+import { emitMatchSlotsUpdated } from "../lib/matchSlotEvents";
+import { useMatchSlotStatus } from "../hooks/useMatchSlotStatus";
+import MatchCapacityBanner from "../components/MatchCapacityBanner";
+import MatchLimitModalWeb from "../components/MatchLimitModalWeb";
 import ConnectLandingTagline from "../components/ConnectLandingTagline";
 import { unlockMatchAudio } from "../utils/matchSound";
 import WebPushOnboardingPrompt from "../components/WebPushOnboardingPrompt";
@@ -78,12 +82,14 @@ function BrowseConnectLandingChrome({
   unlocking,
   gateError,
   enhancementSlot,
+  capacitySlot,
 }: {
   mode: ConnectLandingMode;
   onConnect?: () => void;
   unlocking?: boolean;
   gateError?: string;
   enhancementSlot?: ReactNode;
+  capacitySlot?: ReactNode;
 }) {
   const navigate = useNavigate();
   const isGate = mode === "gate";
@@ -95,6 +101,7 @@ function BrowseConnectLandingChrome({
       <div className="connect-landing">
         {showTokenStrip ? (
           <aside className="browse-connect-landing-token" aria-label="Mulligan tokens">
+            {capacitySlot}
             <TokenDisplay />
           </aside>
         ) : null}
@@ -226,6 +233,10 @@ export default function Browse() {
   const [showConnectPhotosModal, setShowConnectPhotosModal] = useState(false);
   const [connectPhotosModalCount, setConnectPhotosModalCount] = useState(0);
   const [showMatchmakingPausedModal, setShowMatchmakingPausedModal] = useState(false);
+  const [showMatchLimitModal, setShowMatchLimitModal] = useState(false);
+  const { status: matchSlotStatus, isAtCapacity, refresh: refreshMatchSlots } = useMatchSlotStatus(
+    !!user
+  );
   const [enhancementDismissed, setEnhancementDismissed] = useState(() =>
     isProfileEnhancementDismissed()
   );
@@ -549,6 +560,11 @@ export default function Browse() {
     async (profile: Profile, expandSlot?: boolean) => {
       if (connecting) return;
 
+      if (isAtCapacity) {
+        setShowMatchLimitModal(true);
+        return;
+      }
+
       unlockMatchAudio();
 
       const hadBrowseSession = browseSessionActiveRef.current;
@@ -603,6 +619,8 @@ export default function Browse() {
         } catch {
           /* non-fatal — navbar refreshes on next navigation */
         }
+        emitMatchSlotsUpdated();
+        void refreshMatchSlots();
 
         const hasPhoto =
           !!profile.photoUrl || !!(profile.photos && profile.photos.length > 0);
@@ -648,14 +666,17 @@ export default function Browse() {
               currentLimit?: number;
               newLimit?: number;
             };
-            if (apiErr.status === 400 && apiErr.code === "AT_MATCH_LIMIT" && apiErr.canExpand) {
-              const currentLimit = apiErr.currentLimit ?? 20;
-              const ok = window.confirm(
-                `You’ve reached your limit of ${currentLimit} active chats. You need 2 Mulligan tokens (1 to connect + 1 for the extra slot). Spend 2 tokens to connect?`
+            if (apiErr.status === 400 && apiErr.code === "TARGET_AT_MATCH_LIMIT") {
+              setError(
+                err.message ||
+                  "This person has the maximum number of active connections right now. Try someone else or check back later."
               );
-              if (ok) {
-                void handleConnectRef.current(profile, true);
-              }
+              setTimeout(() => setError(""), 8000);
+              return;
+            }
+            if (apiErr.status === 400 && apiErr.code === "AT_MATCH_LIMIT") {
+              setShowMatchLimitModal(true);
+              void refreshMatchSlots();
               return;
             }
             if (apiErr.status === 400) {
@@ -678,7 +699,7 @@ export default function Browse() {
         setTimeout(() => setError(""), 8000);
       }
     },
-    [connecting, navigate, clearMatchNotification]
+    [connecting, navigate, clearMatchNotification, isAtCapacity, refreshMatchSlots]
   );
 
   handleConnectRef.current = handleConnect;
@@ -910,6 +931,11 @@ export default function Browse() {
     })();
   }, [connectPhotosModalCount, refreshProfile, resolveReadyPhotoCount]);
 
+  const capacitySlot =
+    isAtCapacity && matchSlotStatus ? (
+      <MatchCapacityBanner slotLimit={matchSlotStatus.slotLimit} />
+    ) : null;
+
   const connectGateModals = (
     <>
       <ConnectPhotosRequiredModalWeb
@@ -922,6 +948,11 @@ export default function Browse() {
         open={showMatchmakingPausedModal}
         message={user?.matchmakingDisabledMessage}
         onClose={() => setShowMatchmakingPausedModal(false)}
+      />
+      <MatchLimitModalWeb
+        open={showMatchLimitModal}
+        slotLimit={matchSlotStatus?.slotLimit ?? 10}
+        onClose={() => setShowMatchLimitModal(false)}
       />
     </>
   );
@@ -944,6 +975,7 @@ export default function Browse() {
           unlocking={unlockingBrowse}
           gateError={gateError}
           enhancementSlot={enhancementSlot}
+          capacitySlot={capacitySlot}
         />
         {connectGateModals}
       </>
@@ -953,7 +985,9 @@ export default function Browse() {
   return (
     <div className="browse-page-native native-app-screen">
       {connectGateModals}
-      {isAutoMatching ? <BrowseConnectLandingChrome mode="auto-connecting" /> : null}
+      {isAutoMatching ? (
+        <BrowseConnectLandingChrome mode="auto-connecting" capacitySlot={capacitySlot} />
+      ) : null}
 
       {matchNotification &&
         !showMatchCelebration &&
@@ -1012,6 +1046,7 @@ export default function Browse() {
             <TokenDisplay />
           </div>
           <div className="browse-native-scroll">
+            {capacitySlot}
             <header className="browse-native-header">
               <h1>Discover People</h1>
               <ConnectLandingTagline className="browse-native-header-tagline" />

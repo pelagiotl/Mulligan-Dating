@@ -65,6 +65,9 @@ import MatchCelebration from '../components/MatchCelebration';
 import LegalFooter from '../components/LegalFooter';
 import NoTokensModal from '../components/NoTokensModal';
 import OptimizedImage from '../components/OptimizedImage';
+import { DEFAULT_MATCH_SLOT_LIMIT } from '../constants/matchSlots';
+import { fetchMatchSlotStatus } from '../utils/matchSlotStatus';
+import MatchCapacityBanner from '../components/MatchCapacityBanner';
 import {
   MIN_PHOTOS_TO_CONNECT,
   connectSetupGapMessage,
@@ -244,6 +247,7 @@ export default function BrowseScreen() {
   const [connectPhotosModalCount, setConnectPhotosModalCount] = useState(0);
   const [showMatchLimitModal, setShowMatchLimitModal] = useState(false);
   const [matchLimitCanExpand, setMatchLimitCanExpand] = useState(false);
+  const [matchLimitCurrent, setMatchLimitCurrent] = useState(DEFAULT_MATCH_SLOT_LIMIT);
   const [matchLimitProfile, setMatchLimitProfile] = useState<Profile | null>(null);
   const [showNoProfilesModal, setShowNoProfilesModal] = useState(false);
   const [noProfilesDistanceMode, setNoProfilesDistanceMode] = useState(false);
@@ -265,6 +269,10 @@ export default function BrowseScreen() {
   const [isAutoMatching, setIsAutoMatching] = useState(false); // Track when auto-matching to prevent UI flash
   const [canClaimTokens, setCanClaimTokens] = useState<boolean>(false); // Weekly claim available from API
   const [availableTokens, setAvailableTokens] = useState<number>(0);
+  const [nextRefillDate, setNextRefillDate] = useState<string | null>(null);
+  const [activeMatches, setActiveMatches] = useState(0);
+  const [slotLimit, setSlotLimit] = useState(DEFAULT_MATCH_SLOT_LIMIT);
+  const [matchSlotsLoading, setMatchSlotsLoading] = useState(true);
   const [photoCount, setPhotoCount] = useState<number | null>(null); // User's photo count (for 5-photo minimum)
   const [photoCountLoading, setPhotoCountLoading] = useState(false); // True while fetching count so we don't briefly show wrong state
   const [enhancementDismissed, setEnhancementDismissed] = useState(false);
@@ -330,8 +338,13 @@ export default function BrowseScreen() {
     if (!isAuthenticated) {
       setCanClaimTokens(false);
       setAvailableTokens(0);
+      setActiveMatches(0);
+      setSlotLimit(DEFAULT_MATCH_SLOT_LIMIT);
+      setMatchSlotsLoading(false);
+      setNextRefillDate(null);
       return;
     }
+    setMatchSlotsLoading(true);
     try {
       api.clearCache('/tokens');
       const tokenData = await api.get<{
@@ -342,11 +355,25 @@ export default function BrowseScreen() {
       const balance = tokenData.availableTokens ?? 0;
       setAvailableTokens(balance);
       setCanClaimTokens(!!tokenData.canClaimWeeklyToken);
+      setNextRefillDate(tokenData.nextRefillDate ?? null);
     } catch {
       setCanClaimTokens(false);
       setAvailableTokens(0);
+      setNextRefillDate(null);
+    }
+    try {
+      const slots = await fetchMatchSlotStatus();
+      setActiveMatches(slots.count);
+      setSlotLimit(slots.slotLimit);
+    } catch {
+      setActiveMatches(0);
+      setSlotLimit(DEFAULT_MATCH_SLOT_LIMIT);
+    } finally {
+      setMatchSlotsLoading(false);
     }
   }, [isAuthenticated]);
+
+  const isAtMatchCapacity = activeMatches >= slotLimit;
 
   const checkBrowseUnlocked = async () => {
     try {
@@ -1635,6 +1662,11 @@ export default function BrowseScreen() {
       setMatchmakingPausedModalVisible(true);
       return;
     }
+    if (isAtMatchCapacity) {
+      setMatchLimitCurrent(slotLimit);
+      setShowMatchLimitModal(true);
+      return;
+    }
     setError('');
     setConnecting(true);
     connectRequestedRef.current = true;
@@ -1697,6 +1729,7 @@ export default function BrowseScreen() {
         matchIdFromConnectRef.current = result.matchId;
         initiatorMatchIdRef.current = result.matchId; // So AuthContext skips in-app match notification (celebration only for User A)
         setMatchExplanation(result.explanation ?? null);
+        void refreshConnectLandingEconomy();
         // If profile has no photo (e.g. browse fast path didn't include it), fetch so celebration shows User B's picture
         const hasPhoto = profile.photoUrl || (profile.photos && profile.photos.length > 0);
         if (!hasPhoto && profile.id) {
@@ -1753,8 +1786,20 @@ export default function BrowseScreen() {
           }
           if (apiErr.status === 400 && apiErr.code === 'AT_MATCH_LIMIT') {
             setMatchLimitCanExpand(!!apiErr.canExpand);
+            setMatchLimitCurrent(
+              typeof apiErr.currentLimit === 'number' ? apiErr.currentLimit : DEFAULT_MATCH_SLOT_LIMIT,
+            );
             setMatchLimitProfile(profile);
             setShowMatchLimitModal(true);
+            void refreshConnectLandingEconomy();
+            return;
+          }
+          if (apiErr.status === 400 && apiErr.code === 'TARGET_AT_MATCH_LIMIT') {
+            Alert.alert(
+              'At connection limit',
+              err.message ||
+                'This person has the maximum number of active connections right now. Try someone else or check back later.',
+            );
             return;
           }
           if (
@@ -1808,7 +1853,15 @@ export default function BrowseScreen() {
           setBrowseUnlocked(true);
         }
       });
-  }, [isAutoMatching, user, refreshProfile, navigation]);
+  }, [
+    isAutoMatching,
+    user,
+    refreshProfile,
+    navigation,
+    isAtMatchCapacity,
+    slotLimit,
+    refreshConnectLandingEconomy,
+  ]);
 
   const handleCelebrationClose = useCallback(() => {
     clearCelebrationAndConnectingState();
@@ -1966,6 +2019,12 @@ export default function BrowseScreen() {
                   performClaimRef={performClaimRef}
                   onTokensUpdated={refreshConnectLandingEconomy}
                 />
+                {isAtMatchCapacity ? (
+                  <MatchCapacityBanner
+                    slotLimit={slotLimit}
+                    onViewMatches={() => navigation.navigate('Matches' as never)}
+                  />
+                ) : null}
               </View>
 
               {Platform.OS === 'android' && (
@@ -2226,6 +2285,14 @@ export default function BrowseScreen() {
       {/* Other states - only show when not on landing page */}
       {!showLandingPage && (
         <>
+          {isAtMatchCapacity ? (
+            <View style={styles.matchCapacityBrowseWrap}>
+              <MatchCapacityBanner
+                slotLimit={slotLimit}
+                onViewMatches={() => navigation.navigate('Matches' as never)}
+              />
+            </View>
+          ) : null}
           {needsProfile ? (
         <View style={styles.noProfileContainer}>
           <Text style={styles.noProfileEmoji}>🚀</Text>
@@ -2514,7 +2581,7 @@ export default function BrowseScreen() {
             <Text style={styles.matchLimitEmoji}>🎯</Text>
             <Text style={styles.matchLimitTitle}>Match limit reached</Text>
             <Text style={styles.matchLimitBody}>
-              You've reached your limit of 20 matches. To connect with more people:
+              You've reached your limit of {matchLimitCurrent} active connections. To connect with more people:
             </Text>
             <View style={styles.matchLimitBullets}>
               <Text style={styles.matchLimitBullet}>• Unmatch with someone to free a slot</Text>
@@ -3054,6 +3121,14 @@ const styles = StyleSheet.create({
     overflow: 'visible',
   },
   /** Column shell for Connect landing (tokens strip + hero card); mirrors web `.connect-landing`. */
+  matchCapacityBrowseWrap: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 4,
+    width: '100%',
+    maxWidth: 434,
+    alignSelf: 'center',
+  },
   landingColumn: {
     position: 'relative',
     alignSelf: 'center',

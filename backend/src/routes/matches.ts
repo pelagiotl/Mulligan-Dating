@@ -15,6 +15,8 @@ import {
   getConnectSetupViolationsForUser,
 } from "../utils/connectRequirements.js";
 import { checkDealbreakers } from "../utils/dealbreakers.js";
+import { DEFAULT_MATCH_SLOT_LIMIT } from "../config/matchSlots.js";
+import { getActiveMatchCount, getUserSlotLimit } from "../utils/matchSlotLimits.js";
 import { uploadChatImage, uploadChatVideo, uploadChatAudio } from "../middleware/upload.js";
 import { uploadToCloudinary, uploadToCloudinaryMedia, isCloudinaryConfigured } from "../services/cloudinary.js";
 
@@ -89,25 +91,13 @@ function bothUsersMetTruthOrDareThreshold(user1Count: number, user2Count: number
 matchesRouter.get("/count", authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
-    const countResult = db
-      .prepare(
-        `SELECT COUNT(*) as count FROM matches 
-         WHERE (user1_id = ? OR user2_id = ?) AND stage != 'expired'`
-      )
-      .get([userId, userId]);
-    const countRow = (countResult instanceof Promise ? await countResult : countResult) as { count: number | string };
-    const count = Math.floor(Number(countRow?.count ?? 0));
-
-    const limitResult = db
-      .prepare("SELECT COALESCE(match_slot_limit, 50) as slot_limit FROM users WHERE id = ?")
-      .get([userId]);
-    const limitRow = (limitResult instanceof Promise ? await limitResult : limitResult) as { slot_limit: number | string } | undefined;
-    const slotLimit = Math.floor(Number(limitRow?.slot_limit ?? 50));
+    const count = await getActiveMatchCount(userId);
+    const slotLimit = await getUserSlotLimit(userId);
 
     res.json({ count, slotLimit });
   } catch (error) {
     console.error('Matches count error:', error);
-    res.status(500).json({ error: 'Failed to get match count', count: 0, slotLimit: 50 });
+    res.status(500).json({ error: 'Failed to get match count', count: 0, slotLimit: DEFAULT_MATCH_SLOT_LIMIT });
   }
 });
 
@@ -508,7 +498,7 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
 });
 
 // Send a match request (use a token) - AUTOMATIC MATCH
-// Match limit: default 50 per user. Tokens stay at 7 (weekly claim, max 7).
+// Match limit: default 10 active matches per user (see matchSlots config). Tokens stay at 7 (weekly claim, max 7).
 matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
   const userId = req.userId!;
   const { targetUserId, expandSlot } = req.body;
@@ -752,39 +742,27 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
       }
     }
 
-    // Match limit: 50 per user (no expansion beyond 50).
-    const activeMatchCountResult = db
-      .prepare(
-        `SELECT COUNT(*) as count FROM matches 
-         WHERE (user1_id = ? OR user2_id = ?) AND stage != 'expired'`
-      )
-      .get([userId, userId]);
-    const activeMatchCount = (activeMatchCountResult instanceof Promise
-      ? await activeMatchCountResult
-      : activeMatchCountResult) as { count: number | string };
-    const count = Math.floor(Number(activeMatchCount?.count ?? 0));
+    const count = await getActiveMatchCount(userId);
+    const slotLimit = await getUserSlotLimit(userId);
 
-    const userRowResult = db
-      .prepare("SELECT COALESCE(match_slot_limit, 50) as slot_limit FROM users WHERE id = ?")
-      .get([userId]);
-    const userRow = (userRowResult instanceof Promise ? await userRowResult : userRowResult) as { slot_limit: number | string } | undefined;
-    const slotLimit = Math.floor(Number(userRow?.slot_limit ?? 50));
-
-    if (count >= 50) {
+    if (count >= slotLimit) {
       return res.status(400).json({
-        error: "You've reached the maximum of 50 matches. Unmatch with someone to free up a slot.",
-        code: "MAX_MATCHES_REACHED",
-      });
-    }
-
-    if (count >= slotLimit && !expandSlot) {
-      return res.status(400).json({
-        error: `You've reached your match limit (${slotLimit}). Unmatch with someone or wait for a match to expire to free a slot.`,
+        error: `You've reached your limit of ${slotLimit} active connections. Unmatch with someone or wait for a match to expire to free a slot.`,
         code: "AT_MATCH_LIMIT",
         canExpand: false,
         currentLimit: slotLimit,
         newLimit: slotLimit,
         tokensNeeded: 1,
+      });
+    }
+
+    const targetCount = await getActiveMatchCount(targetUserId);
+    const targetSlotLimit = await getUserSlotLimit(targetUserId);
+    if (targetCount >= targetSlotLimit) {
+      return res.status(400).json({
+        error: `This person is at their limit of ${targetSlotLimit} active connections right now. Try again later or connect with someone else.`,
+        code: "TARGET_AT_MATCH_LIMIT",
+        theirLimit: targetSlotLimit,
       });
     }
 
@@ -838,23 +816,24 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
       });
     }
 
-    // Final safety check: re-verify count before creating match (prevents race conditions)
-    const recheckCountResult = db
-      .prepare(
-        `SELECT COUNT(*) as count FROM matches 
-         WHERE (user1_id = ? OR user2_id = ?) AND stage != 'expired'`
-      )
-      .get([userId, userId]);
-    const recheckRow = (recheckCountResult instanceof Promise ? await recheckCountResult : recheckCountResult) as { count: number | string };
-    const recheckCount = Math.floor(Number(recheckRow?.count ?? 0));
+    // Final safety check: re-verify both users' counts before creating match (prevents race conditions)
+    const recheckCount = await getActiveMatchCount(userId);
     if (recheckCount >= slotLimit) {
       return res.status(400).json({
-        error: `You've reached your match limit (${slotLimit}). Unmatch with someone or wait for a match to expire to connect.`,
+        error: `You've reached your limit of ${slotLimit} active connections. Unmatch with someone or wait for a match to expire to connect.`,
         code: "AT_MATCH_LIMIT",
         canExpand: false,
         currentLimit: slotLimit,
         newLimit: slotLimit,
         tokensNeeded: 1,
+      });
+    }
+    const recheckTargetCount = await getActiveMatchCount(targetUserId);
+    if (recheckTargetCount >= targetSlotLimit) {
+      return res.status(400).json({
+        error: `This person is at their limit of ${targetSlotLimit} active connections right now. Try again later or connect with someone else.`,
+        code: "TARGET_AT_MATCH_LIMIT",
+        theirLimit: targetSlotLimit,
       });
     }
 

@@ -1040,12 +1040,23 @@ export default function MyProfile() {
             />
           </button>
         )}
-        <div className="my-profile-info">
-          <h1 className="my-profile-name">{profile.display_name}</h1>
+        <div className="my-profile-info my-profile-identity">
+          <button
+            type="button"
+            className="my-profile-name-edit"
+            onClick={() => {
+              captureProfileScrollAnchor("my-profile-display-name");
+              setEditDisplayName(profile.display_name || "");
+              setShowNameModal(true);
+            }}
+          >
+            <h1 className="my-profile-name">{profile.display_name}</h1>
+            <span className="my-profile-name-edit-hint">Tap to edit name</span>
+          </button>
 
-          {settings && (
-            <div className="my-profile-stats-row">
-              <ProfilePerimeterBorder delay={0} variant="stat">
+          {settings ? (
+            <div className="my-profile-hero-row">
+              <div className="my-profile-stats-row">
                 <div className="my-profile-stat-card my-profile-stat-card--member">
                   <span className="my-profile-stat-emoji">🎉</span>
                   <span className="my-profile-stat-label">Member Since</span>
@@ -1058,8 +1069,6 @@ export default function MyProfile() {
                       : "—"}
                   </span>
                 </div>
-              </ProfilePerimeterBorder>
-              <ProfilePerimeterBorder delay={180} variant="stat">
                 <button
                   type="button"
                   className="my-profile-stat-card my-profile-stat-card--active"
@@ -1081,58 +1090,50 @@ export default function MyProfile() {
                   </span>
                   <span className="my-profile-stat-hint">Tap to toggle</span>
                 </button>
-              </ProfilePerimeterBorder>
-            </div>
-          )}
-
-          <button
-            type="button"
-            className="my-profile-preview-btn"
-            onClick={() => setShowProfilePreview(true)}
-            aria-label="View how your profile appears to others"
-          >
-            <span className="my-profile-preview-btn__icon" aria-hidden>
-              👁
-            </span>
-            <span className="my-profile-preview-btn__copy">
-              <span className="my-profile-preview-btn__title">View my profile</span>
-              <span className="my-profile-preview-btn__sub">Preview as matches see you</span>
-            </span>
-            <span className="my-profile-preview-btn__chevron" aria-hidden>
-              ›
-            </span>
-          </button>
-
-          <ProfilePerimeterBorder delay={180}>
-            <button
-              type="button"
-              id="my-profile-display-name"
-              className="my-profile-full-card my-profile-full-card--name"
-              onClick={() => {
-                captureProfileScrollAnchor("my-profile-display-name");
-                setEditDisplayName(profile.display_name || "");
-                setShowNameModal(true);
-              }}
-            >
-              <span className="my-profile-full-card-shine" aria-hidden />
-              <span className="my-profile-full-card-inner">
-                <span className="my-profile-full-card-icon-tile" aria-hidden>
-                  ✨
+              </div>
+              <button
+                type="button"
+                className="my-profile-preview-btn"
+                onClick={() => setShowProfilePreview(true)}
+                aria-label="View how your profile appears to others"
+              >
+                <span className="my-profile-preview-btn__icon" aria-hidden>
+                  👁
                 </span>
-                <span className="my-profile-full-card-main">
-                  <span className="my-profile-full-card-label">Display name</span>
-                  <span className="my-profile-full-card-value">{profile.display_name}</span>
-                  <span className="my-profile-full-card-hint">Tap to update</span>
+                <span className="my-profile-preview-btn__copy">
+                  <span className="my-profile-preview-btn__title">View my profile</span>
+                  <span className="my-profile-preview-btn__sub">Preview as matches see you</span>
                 </span>
-                <span className="my-profile-full-card-chevron" aria-hidden>
+                <span className="my-profile-preview-btn__chevron" aria-hidden>
                   ›
                 </span>
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="my-profile-preview-btn my-profile-preview-btn--solo"
+              onClick={() => setShowProfilePreview(true)}
+              aria-label="View how your profile appears to others"
+            >
+              <span className="my-profile-preview-btn__icon" aria-hidden>
+                👁
+              </span>
+              <span className="my-profile-preview-btn__copy">
+                <span className="my-profile-preview-btn__title">View my profile</span>
+                <span className="my-profile-preview-btn__sub">Preview as matches see you</span>
+              </span>
+              <span className="my-profile-preview-btn__chevron" aria-hidden>
+                ›
               </span>
             </button>
-          </ProfilePerimeterBorder>
+          )}
 
-          <div className="my-profile-info-grid">
-            <ProfilePerimeterBorder delay={360} variant="mini">
+          <section className="my-profile-identity-section" aria-labelledby="my-profile-basics-heading">
+            <h2 id="my-profile-basics-heading" className="my-profile-identity-section-title">
+              Basics
+            </h2>
+            <div className="my-profile-info-grid">
               <button
                 type="button"
                 className="my-profile-mini-card my-profile-mini-card--age"
@@ -1146,8 +1147,6 @@ export default function MyProfile() {
                 <span className="my-profile-mini-value">{profile.age}</span>
                 <span className="my-profile-mini-hint">Tap to update</span>
               </button>
-            </ProfilePerimeterBorder>
-            <ProfilePerimeterBorder delay={520} variant="mini">
               <button
                 type="button"
                 className="my-profile-mini-card my-profile-mini-card--gender"
@@ -1161,138 +1160,140 @@ export default function MyProfile() {
                 <span className="my-profile-mini-value">{displayProfileGender(profile.gender)}</span>
                 <span className="my-profile-mini-hint">Tap to update</span>
               </button>
-            </ProfilePerimeterBorder>
-          </div>
+            </div>
+          </section>
 
-          <ProfilePerimeterBorder delay={0}>
-            <button
-              type="button"
-              id="my-profile-location"
-              className="my-profile-full-card my-profile-full-card--location"
-              onClick={() => {
-                captureProfileScrollAnchor("my-profile-location");
-                setEditLocation(profile.location || "");
-                setShowLocationModal(true);
-              }}
-            >
-              <span className="my-profile-full-card-shine" aria-hidden />
-            <span className="my-profile-full-card-inner">
-              <span className="my-profile-full-card-icon-tile" aria-hidden>
-                📍
-              </span>
-              <span className="my-profile-full-card-main">
-                <span className="my-profile-full-card-label">Location</span>
-                <span className="my-profile-full-card-value">
-                  {profile.location || "Not set yet"}
+          <section
+            className="my-profile-identity-section"
+            aria-labelledby="my-profile-matching-heading"
+          >
+            <h2 id="my-profile-matching-heading" className="my-profile-identity-section-title">
+              Matching preferences
+            </h2>
+            <div className="my-profile-prefs-grid">
+              <button
+                type="button"
+                id="my-profile-location"
+                className="my-profile-pref-field my-profile-pref-field--location"
+                onClick={() => {
+                  captureProfileScrollAnchor("my-profile-location");
+                  setEditLocation(profile.location || "");
+                  setShowLocationModal(true);
+                }}
+              >
+                <span className="my-profile-pref-field-emoji" aria-hidden>
+                  📍
                 </span>
-                <span className="my-profile-full-card-hint">Tap to update</span>
-              </span>
-              <span className="my-profile-full-card-chevron" aria-hidden>
-                ›
-              </span>
-            </span>
-            </button>
-          </ProfilePerimeterBorder>
+                <span className="my-profile-pref-field-body">
+                  <span className="my-profile-pref-field-label">Location</span>
+                  <span className="my-profile-pref-field-value">
+                    {profile.location || "Not set yet"}
+                  </span>
+                </span>
+                <span className="my-profile-pref-field-chevron" aria-hidden>
+                  ›
+                </span>
+              </button>
+              <button
+                type="button"
+                id="my-profile-max-distance"
+                className="my-profile-pref-field my-profile-pref-field--distance"
+                onClick={() => {
+                  captureProfileScrollAnchor("my-profile-max-distance");
+                  setEditMaxDistance(data.preferences?.max_distance ?? 50);
+                  setShowDistanceModal(true);
+                }}
+              >
+                <span className="my-profile-pref-field-emoji" aria-hidden>
+                  📏
+                </span>
+                <span className="my-profile-pref-field-body">
+                  <span className="my-profile-pref-field-label">Max distance</span>
+                  <span className="my-profile-pref-field-value">
+                    {data.preferences?.max_distance == null
+                      ? "Any distance"
+                      : `${data.preferences.max_distance} mi`}
+                  </span>
+                </span>
+                <span className="my-profile-pref-field-chevron" aria-hidden>
+                  ›
+                </span>
+              </button>
+              <button
+                type="button"
+                id="my-profile-preferred-matches"
+                className="my-profile-pref-field my-profile-pref-field--preferred"
+                onClick={() => {
+                  captureProfileScrollAnchor("my-profile-preferred-matches");
+                  setEditPreferredGenders(parsePreferredGendersInitial(data.preferences?.preferred_genders));
+                  setShowPreferredModal(true);
+                }}
+              >
+                <span className="my-profile-pref-field-emoji" aria-hidden>
+                  💕
+                </span>
+                <span className="my-profile-pref-field-body">
+                  <span className="my-profile-pref-field-label">Preferred matches</span>
+                  <span className="my-profile-pref-field-value">
+                    {formatPreferredMatchesLabel(data.preferences?.preferred_genders ?? null)}
+                  </span>
+                </span>
+                <span className="my-profile-pref-field-chevron" aria-hidden>
+                  ›
+                </span>
+              </button>
+              <button
+                type="button"
+                id="my-profile-looking-for"
+                className="my-profile-pref-field my-profile-pref-field--looking"
+                onClick={() => {
+                  captureProfileScrollAnchor("my-profile-looking-for");
+                  const cur = profile.looking_for ?? "";
+                  setEditLookingFor(isCanonicalLookingFor(cur) ? cur : "");
+                  setShowLookingForModal(true);
+                }}
+              >
+                <span className="my-profile-pref-field-emoji" aria-hidden>
+                  ❤️
+                </span>
+                <span className="my-profile-pref-field-body">
+                  <span className="my-profile-pref-field-label">Looking for</span>
+                  <span className="my-profile-pref-field-value">
+                    {profile.looking_for?.trim() ? profile.looking_for : "Tap to choose"}
+                  </span>
+                </span>
+                <span className="my-profile-pref-field-chevron" aria-hidden>
+                  ›
+                </span>
+              </button>
+            </div>
+          </section>
 
-          <ProfilePerimeterBorder delay={200}>
+          <section className="my-profile-identity-section" aria-labelledby="my-profile-about-heading">
+            <h2 id="my-profile-about-heading" className="my-profile-identity-section-title">
+              About me
+            </h2>
             <button
               type="button"
-              id="my-profile-max-distance"
-              className="my-profile-full-card my-profile-full-card--distance"
-            onClick={() => {
-              captureProfileScrollAnchor("my-profile-max-distance");
-              setEditMaxDistance(data.preferences?.max_distance ?? 50);
-              setShowDistanceModal(true);
-            }}
-          >
-            <span className="my-profile-full-card-emoji">📏</span>
-            <span className="my-profile-full-card-label">Max distance</span>
-            <span className="my-profile-full-card-value">
-              {data.preferences?.max_distance == null
-                ? "Any distance"
-                : `${data.preferences.max_distance} mi`}
-            </span>
-            </button>
-          </ProfilePerimeterBorder>
-
-          <ProfilePerimeterBorder delay={400}>
-            <button
-              type="button"
-              id="my-profile-preferred-matches"
-              className="my-profile-full-card my-profile-full-card--preferred"
+              className="my-profile-bio-block my-profile-bio-block--compact"
               onClick={() => {
-                captureProfileScrollAnchor("my-profile-preferred-matches");
-                setEditPreferredGenders(parsePreferredGendersInitial(data.preferences?.preferred_genders));
-                setShowPreferredModal(true);
+                setEditBio(profile.bio || "");
+                setShowBioModal(true);
               }}
             >
-              <span className="my-profile-full-card-emoji">💕</span>
-              <span className="my-profile-full-card-label">Preferred matches</span>
-              <span className="my-profile-full-card-value">
-                {formatPreferredMatchesLabel(data.preferences?.preferred_genders ?? null)}
-              </span>
+              <p
+                className={
+                  profile.bio
+                    ? "my-profile-bio-text"
+                    : "my-profile-bio-text my-profile-bio-placeholder"
+                }
+              >
+                {profile.bio ||
+                  "Share what makes you you — interests, humor, what you are looking for."}
+              </p>
+              <span className="my-profile-bio-block-hint">Tap to edit</span>
             </button>
-          </ProfilePerimeterBorder>
-
-          <ProfilePerimeterBorder delay={600}>
-            <button
-              type="button"
-              id="my-profile-looking-for"
-              className="my-profile-full-card my-profile-full-card--looking"
-              onClick={() => {
-                captureProfileScrollAnchor("my-profile-looking-for");
-                const cur = profile.looking_for ?? "";
-                setEditLookingFor(isCanonicalLookingFor(cur) ? cur : "");
-                setShowLookingForModal(true);
-              }}
-            >
-              <span className="my-profile-full-card-emoji">❤️</span>
-              <span className="my-profile-full-card-label">Looking for</span>
-              <span className="my-profile-full-card-value">
-                {profile.looking_for?.trim()
-                  ? profile.looking_for
-                  : "Tap to choose"}
-              </span>
-            </button>
-          </ProfilePerimeterBorder>
-
-          <ProfilePerimeterBorder delay={800}>
-            <button
-              type="button"
-              className="my-profile-bio-block"
-            onClick={() => {
-              setEditBio(profile.bio || "");
-              setShowBioModal(true);
-            }}
-          >
-            <span className="my-profile-bio-block-accent" aria-hidden />
-            <span className="my-profile-bio-block-inner">
-              <span className="my-profile-bio-block-icon-tile" aria-hidden>
-                💬
-              </span>
-              <span className="my-profile-bio-block-main">
-                <span className="my-profile-bio-block-kicker">About me</span>
-                <div className="my-profile-bio-body">
-                  <p
-                    className={
-                      profile.bio
-                        ? "my-profile-bio-text"
-                        : "my-profile-bio-text my-profile-bio-placeholder"
-                    }
-                  >
-                    {profile.bio ||
-                      "Share what makes you you — interests, humor, what you are looking for."}
-                  </p>
-                </div>
-                <span className="my-profile-bio-block-hint">Tap to edit</span>
-              </span>
-              <span className="my-profile-bio-block-chevron" aria-hidden>
-                ›
-              </span>
-            </span>
-            </button>
-          </ProfilePerimeterBorder>
-
+          </section>
         </div>
       </div>
 

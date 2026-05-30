@@ -59,6 +59,8 @@ import GameRequestModal from '../components/GameRequestModal';
 import MatchCelebration from '../components/MatchCelebration';
 import PhotoUnlockExplainerModal from '../components/PhotoUnlockExplainerModal';
 import MatchPartnerProfileModal from '../components/MatchPartnerProfileModal';
+import ConnectLandingScarcity from '../components/ConnectLandingScarcity';
+import { fetchMatchSlotStatus, type MatchSlotStatus } from '../utils/matchSlotStatus';
 
 /** Set to true to show the Never Have I Ever game card in match detail. */
 const SHOW_NEVER_HAVE_I_EVER = true;
@@ -1211,6 +1213,11 @@ export default function MatchesScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
+  const [matchSlotStatus, setMatchSlotStatus] = useState<MatchSlotStatus | null>(null);
+  const [limitsLoading, setLimitsLoading] = useState(true);
+  const [availableTokens, setAvailableTokens] = useState(0);
+  const [canClaimTokens, setCanClaimTokens] = useState(false);
+  const [nextRefillDate, setNextRefillDate] = useState<string | null>(null);
   const [sendingMessage, setSendingMessage] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadingVideo, setUploadingVideo] = useState(false);
@@ -2191,6 +2198,34 @@ export default function MatchesScreen() {
     [clearOpenMatchRouteParams]
   );
 
+  const refreshConnectionLimits = useCallback(async () => {
+    if (!isAuthenticated) {
+      setMatchSlotStatus(null);
+      setLimitsLoading(false);
+      return;
+    }
+    setLimitsLoading(true);
+    try {
+      api.clearCache('/tokens');
+      const [tokenData, slots] = await Promise.all([
+        api.get<{
+          availableTokens: number;
+          canClaimWeeklyToken: boolean;
+          nextRefillDate?: string | null;
+        }>('/tokens', false),
+        fetchMatchSlotStatus(),
+      ]);
+      setAvailableTokens(tokenData.availableTokens ?? 0);
+      setCanClaimTokens(!!tokenData.canClaimWeeklyToken);
+      setNextRefillDate(tokenData.nextRefillDate ?? null);
+      setMatchSlotStatus(slots);
+    } catch {
+      setMatchSlotStatus(null);
+    } finally {
+      setLimitsLoading(false);
+    }
+  }, [isAuthenticated]);
+
   const fetchMatches = useCallback(async () => {
     try {
       setLoading(true);
@@ -2335,6 +2370,25 @@ export default function MatchesScreen() {
     registerMatchListRefresh(() => fetchMatches());
     return () => registerMatchListRefresh(null);
   }, [registerMatchListRefresh, fetchMatches]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void refreshConnectionLimits();
+    }, [refreshConnectionLimits])
+  );
+
+  const connectionLimitsHeader = (
+    <View style={styles.connectionLimitsHeader}>
+      <ConnectLandingScarcity
+        loading={limitsLoading}
+        availableTokens={availableTokens}
+        canClaimWeeklyToken={canClaimTokens}
+        nextRefillDate={nextRefillDate}
+        activeMatches={matchSlotStatus?.count ?? 0}
+        slotLimit={matchSlotStatus?.slotLimit ?? 10}
+      />
+    </View>
+  );
 
   // When we landed with showMatchCelebration (e.g. User B opened app from "matched with you" push), force refresh
   // so the new match is in the list. useFocusEffect may not run if the tab was already focused.
@@ -2846,7 +2900,7 @@ export default function MatchesScreen() {
                 setSelectedMatch(null);
                 setMessages([]);
               }
-              
+              void refreshConnectionLimits();
             } catch (error: any) {
               Alert.alert('Error', error?.message || 'Failed to unmatch');
             }
@@ -2854,7 +2908,7 @@ export default function MatchesScreen() {
         },
       ]
     );
-  }, [selectedMatch]);
+  }, [selectedMatch, refreshConnectionLimits]);
 
   const handleReportMatch = useCallback(() => {
     if (!selectedMatch) return;
@@ -3072,6 +3126,7 @@ export default function MatchesScreen() {
             </View>
           </View>
         </AnimatedHeaderGradient>
+        <View style={styles.connectionLimitsHeaderWrap}>{connectionLimitsHeader}</View>
         {visibleMatches.length === 0 ? (
           <EmptyStateAnimated
             navigation={navigation}
@@ -4300,6 +4355,14 @@ const styles = StyleSheet.create({
   matchesList: {
     padding: 16,
     paddingTop: 20,
+  },
+  connectionLimitsHeaderWrap: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  connectionLimitsHeader: {
+    marginBottom: 0,
   },
   matchCardWrapper: {
     marginBottom: 12,

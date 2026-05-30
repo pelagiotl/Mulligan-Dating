@@ -102,15 +102,16 @@ const ConnectLandingScarcity = memo(function ConnectLandingScarcity({
 
         <View style={styles.headerBlock}>
           <View style={styles.eyebrowPill}>
-            <Text style={styles.eyebrow}>Limited supply</Text>
+            <Text style={styles.eyebrow}>Your limits</Text>
           </View>
           <Text style={styles.tagline}>
-            <Text style={styles.taglineLead}>Every Connect uses one Mulligan.</Text>
+            <Text style={styles.taglineLead}>
+              {MAX_MULLIGANS} Mulligans/week to send Connects · {slotLimit} active connections max.
+            </Text>
             {'\n'}
-            <Text style={styles.taglineSoft}>You have </Text>
+            <Text style={styles.taglineSoft}>Mulligans ready: </Text>
             <Text style={styles.taglineFraction}>{tokensCapped}</Text>
             <Text style={styles.taglineFractionMuted}>/{MAX_MULLIGANS}</Text>
-            <Text style={styles.taglineSoft}> left this week.</Text>
           </Text>
           {showRefillCountdown ? (
             <View style={styles.countdownRibbon} accessibilityLiveRegion="polite">
@@ -146,9 +147,9 @@ const ConnectLandingScarcity = memo(function ConnectLandingScarcity({
               slotScarce ? styles.statTileCool : styles.statTileNeutral,
             ]}
           >
-            <Text style={styles.cellLabelSecondary}>Open connections</Text>
+            <Text style={styles.cellLabelSecondary}>Active connections</Text>
             <Text style={[styles.cellValueSlot, slotScarce && styles.cellValueCool]}>
-              {slotsOpen}
+              {activeMatches}
               <Text style={styles.cellValueSlotSuffix}> / {slotLimit}</Text>
             </Text>
           </View>
@@ -158,6 +159,14 @@ const ConnectLandingScarcity = memo(function ConnectLandingScarcity({
           <View style={styles.footerInset}>
             <Text style={styles.countdownTextMuted}>
               Weekly Mulligans are available — tap Claim above when you’re ready.
+            </Text>
+          </View>
+        ) : slotsOpen === 0 ? (
+          <View style={[styles.footerInset, styles.capacityInset]}>
+            <Text style={styles.capacityTitle}>You&apos;re at capacity</Text>
+            <Text style={styles.capacityBody}>
+              You have {slotLimit} active connections — the maximum right now. Unmatch or wait for
+              a 7-day expiry to connect with someone new.
             </Text>
           </View>
         ) : tokensCapped >= MAX_MULLIGANS ? (
@@ -390,6 +399,24 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
     lineHeight: 17,
+  },
+  capacityInset: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    backgroundColor: BURGUNDY_SOFT,
+    borderColor: 'rgba(139, 21, 56, 0.22)',
+  },
+  capacityTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: BURGUNDY,
+    marginBottom: 4,
+  },
+  capacityBody: {
+    fontSize: 13,
+    color: 'rgba(26, 26, 46, 0.62)',
+    lineHeight: 18,
+    fontWeight: '500',
   },
 });
 

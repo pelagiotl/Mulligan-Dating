@@ -305,13 +305,13 @@ export async function initDatabase() {
     // Column already exists, ignore
   }
   try {
-    await execSQL(`ALTER TABLE users ADD COLUMN match_slot_limit ${usePostgres ? 'INT' : 'INTEGER'} DEFAULT 50`);
+    await execSQL(`ALTER TABLE users ADD COLUMN match_slot_limit ${usePostgres ? 'INT' : 'INTEGER'} DEFAULT 10`);
   } catch (e) {
     // Column already exists, ignore
   }
-  // Ensure all users have at least 50 match slots (bump from previous 20 default)
+  // Launch cap: 10 active matches per user (override via MATCH_SLOT_LIMIT env on server)
   try {
-    await execSQL(`UPDATE users SET match_slot_limit = 50 WHERE match_slot_limit IS NULL OR match_slot_limit < 50`);
+    await execSQL(`UPDATE users SET match_slot_limit = 10 WHERE match_slot_limit IS NULL OR match_slot_limit > 10`);
   } catch (e) {
     // Non-fatal; column might not exist on first run
   }

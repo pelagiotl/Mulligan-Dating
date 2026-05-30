@@ -22,6 +22,9 @@ import InterestCompatibilityModal from "../components/InterestCompatibilityModal
 import CompatibilityPulseModal from "../components/CompatibilityPulseModal";
 import MatchPartnerProfileSheet from "../components/MatchPartnerProfileSheet";
 import { releaseAllBodyScrollLocks, useBodyScrollLock } from "../utils/bodyScrollLock";
+import { useConnectionLimits } from "../hooks/useConnectionLimits";
+import ConnectionLimitsPanel from "../components/ConnectionLimitsPanel";
+import { emitMatchSlotsUpdated } from "../lib/matchSlotEvents";
 
 interface Photo {
   id: string;
@@ -201,6 +204,7 @@ export default function Matches() {
   const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const connectionLimits = useConnectionLimits(!!user);
   const [matches, setMatches] = useState<Match[]>([]);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -1825,6 +1829,7 @@ export default function Matches() {
       await api.delete(`/matches/${selectedMatch.id}`);
       setSelectedMatch(null);
       await fetchMatches();
+      emitMatchSlotsUpdated();
       setNotification({
         message: `You removed the chat with ${matchName}`,
         type: "info"
@@ -2119,6 +2124,15 @@ export default function Matches() {
       />
       <div className="matches-sidebar">
         <h2 className="matches-title">Your Matches</h2>
+
+        <ConnectionLimitsPanel
+          loading={connectionLimits.loading}
+          availableTokens={connectionLimits.availableTokens}
+          canClaimWeeklyToken={connectionLimits.canClaimWeeklyToken}
+          nextRefillDate={connectionLimits.nextRefillDate}
+          activeMatches={connectionLimits.activeMatches}
+          slotLimit={connectionLimits.slotLimit}
+        />
 
         {matches.length === 0 ? (
           <div className="no-matches">
