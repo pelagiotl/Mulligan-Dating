@@ -46,9 +46,8 @@ type Props = {
   onReport: () => void;
 };
 
-function hasProfileDetails(ou: MatchPartnerProfileUser): boolean {
+function hasProfileDetailsBeyondBio(ou: MatchPartnerProfileUser): boolean {
   return !!(
-    ou.bio ||
     ou.lookingFor ||
     (ou.partnerQualities?.length ?? 0) > 0 ||
     (ou.interests?.length ?? 0) > 0 ||
@@ -91,12 +90,6 @@ function PartnerProfileDetails({ otherUser }: { otherUser: MatchPartnerProfileUs
           <span className="my-profile-preview-highlight-pill">
             {preferredMatchesEmoji(preferredLabel)} {preferredLabel}
           </span>
-        </PreviewDetailSection>
-      ) : null}
-
-      {otherUser.bio ? (
-        <PreviewDetailSection title="About">
-          <p className="my-profile-preview-text">{otherUser.bio}</p>
         </PreviewDetailSection>
       ) : null}
 
@@ -184,7 +177,7 @@ export default function MatchPartnerProfileSheet({
 
   const primaryPhoto = sortedPhotos.find((p) => p.isPrimary) || sortedPhotos[0];
   const primaryPhotoUrl = primaryPhoto ? getPhotoUrl(primaryPhoto.url) : null;
-  const hasDetails = hasProfileDetails(otherUser);
+  const hasDetailsBeyondBio = hasProfileDetailsBeyondBio(otherUser);
 
   useEffect(() => {
     if (!open) return;
@@ -293,6 +286,13 @@ export default function MatchPartnerProfileSheet({
               ) : null}
             </div>
 
+            {otherUser.bio ? (
+              <div className="match-partner-preview-hero-about">
+                <p className="match-partner-preview-hero-about-label">About</p>
+                <p className="match-partner-preview-hero-about-text">{otherUser.bio}</p>
+              </div>
+            ) : null}
+
             <p className="my-profile-preview-tagline">
               Tap their photo or gallery to view full size
             </p>
@@ -385,7 +385,7 @@ export default function MatchPartnerProfileSheet({
             </section>
           )}
 
-          {hasDetails ? (
+          {hasDetailsBeyondBio ? (
             <section className="my-profile-preview-card my-profile-preview-card--details">
               <div className="my-profile-preview-card__head my-profile-preview-card__head--solo">
                 <div>

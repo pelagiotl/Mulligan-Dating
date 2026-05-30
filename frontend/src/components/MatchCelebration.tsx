@@ -102,6 +102,11 @@ function MatchCelebrationPartnerSections({
       </header>
 
       <div className="match-celebration-about-sections">
+        {detail.bio ? (
+          <AboutSection icon="📝" label="About">
+            <p className="match-celebration-about-text match-celebration-about-text--bio">{detail.bio}</p>
+          </AboutSection>
+        ) : null}
         {detail.lookingFor ? (
           <AboutSection icon="💫" label="Looking for">
             <p className="match-celebration-about-text">{detail.lookingFor}</p>
@@ -112,11 +117,6 @@ function MatchCelebrationPartnerSections({
             <p className="match-celebration-about-highlight">
               {formatPreferredMatchesFromGenders(detail.preferredGenders)}
             </p>
-          </AboutSection>
-        ) : null}
-        {detail.bio ? (
-          <AboutSection icon="📝" label="Bio">
-            <p className="match-celebration-about-text match-celebration-about-text--bio">{detail.bio}</p>
           </AboutSection>
         ) : null}
         {(detail.partnerQualities?.length ?? 0) > 0 ? (
