@@ -10174,6 +10174,23 @@ button.my-profile-mini-card:focus-visible {
   margin-top: 0;
 }
 
+/* Match list cards: emoji + value only — no pill background */
+.match-item-signals .match-compat-badge {
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  gap: 0.15rem;
+}
+
+.match-item-signals .match-compat-badge--interest,
+.match-item-signals .match-compat-badge--pulse {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
 .match-item-signals .match-compat-badge--pulse {
   animation: none;
 }

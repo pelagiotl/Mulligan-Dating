@@ -1186,20 +1186,20 @@ html[data-connect-shell="midnight"] .matches-page.native-app-screen .stage-badge
   animation: none;
 }
 
-html[data-connect-shell="midnight"] .matches-page.native-app-screen .match-compat-badge--interest,
-.app-layout.connect-shell--midnight .matches-page.native-app-screen .match-compat-badge--interest {
-  background: linear-gradient(135deg, rgba(129, 140, 248, 0.35), rgba(167, 139, 250, 0.28));
-  color: #ede9fe;
-  border-color: rgba(196, 181, 253, 0.55);
-  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.22);
+html[data-connect-shell="midnight"] .matches-page.native-app-screen .match-item-signals .match-compat-badge--interest,
+.app-layout.connect-shell--midnight .matches-page.native-app-screen .match-item-signals .match-compat-badge--interest {
+  background: transparent;
+  color: #c4b5fd;
+  border: none;
+  box-shadow: none;
 }
 
-html[data-connect-shell="midnight"] .matches-page.native-app-screen .match-compat-badge--pulse,
-.app-layout.connect-shell--midnight .matches-page.native-app-screen .match-compat-badge--pulse {
-  background: linear-gradient(135deg, rgba(244, 63, 94, 0.28), rgba(192, 38, 211, 0.24));
-  color: #fce7f3;
-  border-color: rgba(244, 114, 182, 0.5);
-  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.22);
+html[data-connect-shell="midnight"] .matches-page.native-app-screen .match-item-signals .match-compat-badge--pulse,
+.app-layout.connect-shell--midnight .matches-page.native-app-screen .match-item-signals .match-compat-badge--pulse {
+  background: transparent;
+  color: #fda4af;
+  border: none;
+  box-shadow: none;
   animation: none;
 }
 

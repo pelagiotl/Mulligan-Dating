@@ -912,21 +912,21 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
             ) : null}
             <View style={styles.badgesRow}>
               {item.profileCompatibility != null && item.stage !== 'pending' && (
-                <View
-                  style={[
-                    styles.matchCardCompatibilityBadge,
-                    {
-                      backgroundColor: cardColors.compatBg,
-                      borderColor: cardColors.compatBorder,
-                    },
-                  ]}
-                >
+                <View style={styles.matchCardCompatibilityInline}>
                   <Text style={styles.matchCardCompatibilityIcon}>🎯</Text>
                   <Text style={[styles.matchCardCompatibilityText, { color: cardColors.compatText }]}>
                     {item.profileCompatibility}%
                   </Text>
                 </View>
               )}
+              {item.compatibilityScore != null && item.stage !== 'pending' ? (
+                <View style={styles.matchCardCompatibilityInline}>
+                  <Text style={styles.matchCardCompatibilityIcon}>💫</Text>
+                  <Text style={[styles.matchCardCompatibilityText, { color: cardColors.compatText }]}>
+                    {Math.round(item.compatibilityScore)}
+                  </Text>
+                </View>
+              ) : null}
               {item.stage === 'pending' ? (
                 <View style={styles.stageContainer}>
                   <LinearGradient
@@ -976,6 +976,7 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
     prevProps.item.stage === nextProps.item.stage &&
     prevProps.item.expiresAt === nextProps.item.expiresAt &&
     prevProps.item.profileCompatibility === nextProps.item.profileCompatibility &&
+    prevProps.item.compatibilityScore === nextProps.item.compatibilityScore &&
     prevProps.photoUrl === nextProps.photoUrl &&
     prevProps.cardColors.perimeterGlow === nextProps.cardColors.perimeterGlow
   );
@@ -4605,15 +4606,10 @@ const styles = StyleSheet.create({
     marginTop: 6,
     gap: 6,
   },
-  matchCardCompatibilityBadge: {
+  matchCardCompatibilityInline: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 14,
-    backgroundColor: 'rgba(139, 21, 56, 0.08)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(139, 21, 56, 0.25)',
+    gap: 2,
   },
   matchCardCompatibilityIcon: {
     fontSize: 12,
