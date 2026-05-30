@@ -14158,7 +14158,7 @@ button.chat-avatar-btn .chat-avatar img {
   transform: scale(1.1);
 }
 
-/* Full-screen tap to close — stage2 match photos */
+/* Full-screen tap to close — stage2 match photos (portaled to body) */
 .match-photo-lightbox {
   position: fixed;
   inset: 0;
@@ -14169,6 +14169,11 @@ button.chat-avatar-btn .chat-avatar img {
   padding: var(--space-4);
   background: rgba(0, 0, 0, 0.88);
   cursor: zoom-out;
+}
+
+/* Above partner profile preview sheet (9500); below global toasts (~11050). */
+.match-photo-lightbox--over-sheet {
+  z-index: 10050;
 }
 
 /* Above match celebration overlay (10001); below global toasts e.g. new match (11050). */

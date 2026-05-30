@@ -438,8 +438,11 @@ export default function Matches() {
   }, []);
 
   const openPhotoLightbox = useCallback((photos: Photo[], startPhoto: Photo) => {
-    const sorted = [...photos].sort((a, b) => a.displayOrder - b.displayOrder);
-    const urls = sorted.map((p) => getPhotoUrl(p.url));
+    const sorted = [...photos].sort(
+      (a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0)
+    );
+    const urls = sorted.map((p) => getPhotoUrl(p.url)).filter(Boolean);
+    if (urls.length === 0) return;
     const idx = sorted.findIndex((p) => p.id === startPhoto.id);
     setPhotoLightbox({ urls, index: idx >= 0 ? idx : 0 });
   }, []);
@@ -1999,84 +2002,90 @@ export default function Matches() {
         }}
       />
 
-      {photoLightbox && photoLightbox.urls.length > 0 && (
-        <div
-          className="match-photo-lightbox"
-          role="dialog"
-          aria-modal="true"
-          aria-label={`Photo ${photoLightbox.index + 1} of ${photoLightbox.urls.length}`}
-          onClick={closeLightbox}
-        >
-          <button
-            type="button"
-            className="match-photo-lightbox-close"
-            aria-label="Close"
-            onClick={(e) => {
-              e.stopPropagation();
-              closeLightbox();
-            }}
-          >
-            ×
-          </button>
-          {photoLightbox.urls.length > 1 && (
-            <button
-              type="button"
-              className="match-photo-lightbox-nav match-photo-lightbox-nav--prev"
-              aria-label="Previous photo"
-              onClick={(e) => {
-                e.stopPropagation();
-                stepLightbox(-1);
-              }}
-            >
-              ‹
-            </button>
-          )}
-          {photoLightbox.urls.length > 1 && (
-            <button
-              type="button"
-              className="match-photo-lightbox-nav match-photo-lightbox-nav--next"
-              aria-label="Next photo"
-              onClick={(e) => {
-                e.stopPropagation();
-                stepLightbox(1);
-              }}
-            >
-              ›
-            </button>
-          )}
+      {photoLightbox &&
+        photoLightbox.urls.length > 0 &&
+        typeof document !== "undefined" &&
+        createPortal(
           <div
-            className="match-photo-lightbox-center"
-            onClick={(e) => e.stopPropagation()}
-            onTouchStart={(e) => {
-              lightboxTouchX.current = e.changedTouches[0].clientX;
-            }}
-            onTouchEnd={(e) => {
-              const start = lightboxTouchX.current;
-              lightboxTouchX.current = null;
-              if (start == null) return;
-              const dx = e.changedTouches[0].clientX - start;
-              if (dx > 56) stepLightbox(-1);
-              else if (dx < -56) stepLightbox(1);
-            }}
+            className={`match-photo-lightbox${
+              partnerDrawerOpen ? " match-photo-lightbox--over-sheet" : ""
+            }`}
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Photo ${photoLightbox.index + 1} of ${photoLightbox.urls.length}`}
+            onClick={closeLightbox}
           >
-            <img
-              src={photoLightbox.urls[photoLightbox.index]}
-              alt=""
-              className="match-photo-lightbox-img"
-            />
+            <button
+              type="button"
+              className="match-photo-lightbox-close"
+              aria-label="Close"
+              onClick={(e) => {
+                e.stopPropagation();
+                closeLightbox();
+              }}
+            >
+              ×
+            </button>
             {photoLightbox.urls.length > 1 && (
-              <div className="match-photo-lightbox-counter">
-                {photoLightbox.index + 1} / {photoLightbox.urls.length}
-              </div>
+              <button
+                type="button"
+                className="match-photo-lightbox-nav match-photo-lightbox-nav--prev"
+                aria-label="Previous photo"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  stepLightbox(-1);
+                }}
+              >
+                ‹
+              </button>
             )}
-            {photoLightbox.urls.length > 1 ? (
-              <p className="match-photo-lightbox-browse-hint">
-                Swipe or tap ‹ › · cycles through every unlocked photo
-              </p>
-            ) : null}
-          </div>
-        </div>
-      )}
+            {photoLightbox.urls.length > 1 && (
+              <button
+                type="button"
+                className="match-photo-lightbox-nav match-photo-lightbox-nav--next"
+                aria-label="Next photo"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  stepLightbox(1);
+                }}
+              >
+                ›
+              </button>
+            )}
+            <div
+              className="match-photo-lightbox-center"
+              onClick={(e) => e.stopPropagation()}
+              onTouchStart={(e) => {
+                lightboxTouchX.current = e.changedTouches[0].clientX;
+              }}
+              onTouchEnd={(e) => {
+                const start = lightboxTouchX.current;
+                lightboxTouchX.current = null;
+                if (start == null) return;
+                const dx = e.changedTouches[0].clientX - start;
+                if (dx > 56) stepLightbox(-1);
+                else if (dx < -56) stepLightbox(1);
+              }}
+            >
+              <img
+                src={photoLightbox.urls[photoLightbox.index]}
+                alt=""
+                className="match-photo-lightbox-img"
+              />
+              {photoLightbox.urls.length > 1 && (
+                <div className="match-photo-lightbox-counter">
+                  {photoLightbox.index + 1} / {photoLightbox.urls.length}
+                </div>
+              )}
+              {photoLightbox.urls.length > 1 ? (
+                <p className="match-photo-lightbox-browse-hint">
+                  Swipe or tap ‹ › · cycles through every unlocked photo
+                </p>
+              ) : null}
+            </div>
+          </div>,
+          document.body
+        )}
       <MatchPartnerProfileSheet
         open={
           partnerDrawerOpen &&
