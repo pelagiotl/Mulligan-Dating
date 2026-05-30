@@ -33,12 +33,19 @@
 @keyframes connectEnhancementIconPulse {
   0%,
   100% {
-    transform: scale(1) rotate(0deg);
+    transform: scale(1) rotate(-6deg);
+    opacity: 0.92;
     filter: drop-shadow(0 0 0 rgba(167, 139, 250, 0));
   }
-  50% {
-    transform: scale(1.12) rotate(8deg);
-    filter: drop-shadow(0 0 6px rgba(167, 139, 250, 0.55));
+  35% {
+    transform: scale(1.14) rotate(8deg);
+    opacity: 1;
+    filter: drop-shadow(0 0 8px rgba(167, 139, 250, 0.6));
+  }
+  65% {
+    transform: scale(1.06) rotate(-4deg);
+    opacity: 0.96;
+    filter: drop-shadow(0 0 4px rgba(244, 114, 182, 0.35));
   }
 }
 
@@ -395,6 +402,7 @@
   .connect-enhancement__glow,
   .connect-enhancement__accent--animated,
   .connect-enhancement__icon--pulse,
+  .connect-enhancement-restore__icon.connect-enhancement__icon--pulse,
   .connect-enhancement__progress--pop,
   .connect-enhancement__progress-fill--animated,
   .connect-enhancement__lead--fade,
@@ -647,8 +655,13 @@ html[data-connect-shell="soft"] .connect-enhancement__glow,
 }
 
 .connect-enhancement-restore__icon {
+  display: inline-block;
   font-size: 1rem;
   line-height: 1;
+}
+
+.connect-enhancement-restore__icon.connect-enhancement__icon--pulse {
+  animation: connectEnhancementIconPulse 2.8s ease-in-out infinite;
 }
 
 .connect-enhancement-restore__copy {

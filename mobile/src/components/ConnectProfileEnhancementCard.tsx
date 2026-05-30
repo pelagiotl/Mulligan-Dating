@@ -12,6 +12,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useIsFocused } from '@react-navigation/native';
 import type { ProfileEnhancementItem } from '../utils/profileEnhancementChecklist';
+import ProfileCardAnimatedEmoji from './ProfileCardAnimatedEmoji';
 
 export type ConnectEnhancementShell = 'midnight' | 'sunny' | 'soft';
 
@@ -55,9 +56,7 @@ export function ConnectProfileEnhancementRestoreLink({
         end={{ x: 1, y: 0 }}
         style={styles.accent}
       />
-      <Text style={styles.restoreIcon} allowFontScaling={false}>
-        ✨
-      </Text>
+      <ProfileCardAnimatedEmoji emoji="✨" variant="shimmer" fontSize={16} delay={0} />
       <View style={styles.restoreCopy}>
         <Text style={[styles.restoreTitle, { color: palette.eyebrow }]}>Show Better matches tips</Text>
         <Text style={[styles.restoreMeta, { color: palette.lead }]}>
@@ -208,7 +207,6 @@ export default function ConnectProfileEnhancementCard({
 }: Props) {
   const cardOpacity = useRef(new Animated.Value(Platform.OS === 'android' ? 1 : 0)).current;
   const cardTranslateY = useRef(new Animated.Value(Platform.OS === 'android' ? 0 : 16)).current;
-  const iconScale = useRef(new Animated.Value(1)).current;
   const progressWidth = useRef(new Animated.Value(0)).current;
   const contentOpacity = useRef(new Animated.Value(Platform.OS === 'android' ? 1 : 0)).current;
 
@@ -228,7 +226,6 @@ export default function ConnectProfileEnhancementCard({
     }
 
     if (!isFocused) {
-      iconScale.setValue(1);
       return;
     }
 
@@ -259,26 +256,7 @@ export default function ConnectProfileEnhancementCard({
         useNativeDriver: true,
       }),
     ]).start();
-
-    const iconLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(iconScale, {
-          toValue: 1.14,
-          duration: 900,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(iconScale, {
-          toValue: 1,
-          duration: 900,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-    iconLoop.start();
-    return () => iconLoop.stop();
-  }, [cardOpacity, cardTranslateY, contentOpacity, iconScale, progressPct, progressWidth, isFocused]);
+  }, [cardOpacity, cardTranslateY, contentOpacity, progressPct, progressWidth, isFocused]);
 
   const progressAnimWidth = progressWidth.interpolate({
     inputRange: [0, 1],
@@ -306,12 +284,7 @@ export default function ConnectProfileEnhancementCard({
       />
       <View style={styles.head}>
         <View style={styles.titleWrap}>
-          <Animated.Text
-            style={[styles.icon, { transform: [{ scale: iconScale }] }]}
-            allowFontScaling={false}
-          >
-            ✨
-          </Animated.Text>
+          <ProfileCardAnimatedEmoji emoji="✨" variant="shimmer" fontSize={14} delay={0} />
           <Text style={[styles.eyebrow, { color: palette.eyebrow }]}>Better matches</Text>
         </View>
         <Text style={[styles.progressBadge, { color: palette.progress, borderColor: palette.rowBorder }]}>

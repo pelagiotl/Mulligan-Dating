@@ -27,7 +27,10 @@ export function ConnectProfileEnhancementRestoreLink({
       onClick={onRestore}
       aria-label={`Show Better matches profile tips, ${incompleteCount} items remaining`}
     >
-      <span className="connect-enhancement-restore__icon" aria-hidden>
+      <span
+        className="connect-enhancement-restore__icon connect-enhancement__icon--pulse"
+        aria-hidden
+      >
         ✨
       </span>
       <span className="connect-enhancement-restore__copy">
