@@ -288,8 +288,15 @@ export default function MatchPartnerProfileSheet({
 
             {otherUser.bio ? (
               <div className="match-partner-preview-hero-about">
-                <p className="match-partner-preview-hero-about-label">About</p>
-                <p className="match-partner-preview-hero-about-text">{otherUser.bio}</p>
+                <div className="match-partner-preview-hero-about-inner">
+                  <div className="match-partner-preview-hero-about-head">
+                    <span className="match-partner-preview-hero-about-icon" aria-hidden>
+                      💬
+                    </span>
+                    <p className="match-partner-preview-hero-about-label">About</p>
+                  </div>
+                  <p className="match-partner-preview-hero-about-text">{otherUser.bio}</p>
+                </div>
               </div>
             ) : null}
 

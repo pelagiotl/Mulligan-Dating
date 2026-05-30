@@ -5818,30 +5818,70 @@ button.my-profile-avatar:focus-visible {
 .match-partner-preview-hero-about {
   width: 100%;
   max-width: 22rem;
-  margin: 0.75rem auto 0;
-  padding: 0.75rem 1rem;
+  margin: 0.85rem auto 0;
+  padding: 1.5px;
   text-align: left;
-  border-radius: 1rem;
-  background: rgba(255, 255, 255, 0.14);
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  border-radius: 1.125rem;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.75) 0%,
+    rgba(255, 255, 255, 0.28) 45%,
+    rgba(236, 72, 153, 0.42) 100%
+  );
+  box-shadow:
+    0 8px 24px rgba(76, 29, 149, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.match-partner-preview-hero-about-inner {
+  border-radius: 1.05rem;
+  padding: 0.85rem 1rem 0.95rem;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.match-partner-preview-hero-about-head {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 0.65rem;
+}
+
+.match-partner-preview-hero-about-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 999px;
+  font-size: 1rem;
+  line-height: 1;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #ec4899 100%);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.35);
 }
 
 .match-partner-preview-hero-about-label {
-  margin: 0 0 0.35rem;
-  font-size: 0.65rem;
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-size: 1.05rem;
   font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.78);
+  letter-spacing: -0.02em;
+  color: #1e1b4b;
+  align-self: center;
 }
 
 .match-partner-preview-hero-about-text {
   margin: 0;
   font-size: 0.9rem;
   font-weight: 500;
-  line-height: 1.5;
-  color: rgba(255, 255, 255, 0.96);
+  line-height: 1.55;
+  color: #334155;
+}
+
+.my-profile-preview-hero:has(.match-partner-preview-hero-about) .my-profile-preview-tagline {
+  margin-top: 0.85rem;
 }
 
 .my-profile-preview-card--common {

@@ -205,8 +205,7 @@ export default function MatchPartnerProfileModal({
         )
       : null;
 
-  const hasDetails = !!(
-    otherUser.bio ||
+  const hasDetailsBeyondBio = !!(
     otherUser.lookingFor ||
     (otherUser.partnerQualities?.length ?? 0) > 0 ||
     matchInterests.length > 0 ||
@@ -308,7 +307,41 @@ export default function MatchPartnerProfileModal({
               ) : null}
             </View>
 
-            <Text style={styles.tagline}>Tap their photo or gallery to view full size</Text>
+            {otherUser.bio ? (
+              <View style={heroAboutStyles.outer}>
+                <LinearGradient
+                  colors={[
+                    'rgba(255, 255, 255, 0.72)',
+                    'rgba(255, 255, 255, 0.28)',
+                    'rgba(236, 72, 153, 0.45)',
+                  ]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={heroAboutStyles.rim}
+                >
+                  <View style={heroAboutStyles.inner}>
+                    <View style={heroAboutStyles.head}>
+                      <LinearGradient
+                        colors={['#667eea', '#764ba2', '#ec4899']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={heroAboutStyles.iconWrap}
+                      >
+                        <Text style={heroAboutStyles.icon} allowFontScaling={false}>
+                          💬
+                        </Text>
+                      </LinearGradient>
+                      <Text style={heroAboutStyles.title}>About</Text>
+                    </View>
+                    <Text style={heroAboutStyles.text}>{otherUser.bio}</Text>
+                  </View>
+                </LinearGradient>
+              </View>
+            ) : null}
+
+            <Text style={[styles.tagline, otherUser.bio ? heroAboutStyles.taglineAfterAbout : null]}>
+              Tap their photo or gallery to view full size
+            </Text>
           </View>
         </LinearGradient>
 
@@ -399,7 +432,7 @@ export default function MatchPartnerProfileModal({
             </View>
           )}
 
-          {hasDetails ? (
+          {hasDetailsBeyondBio ? (
             <View style={styles.detailsCard}>
               <View style={styles.detailsCardHeader}>
                 <Text style={styles.sectionEyebrow}>Their profile</Text>
@@ -419,12 +452,6 @@ export default function MatchPartnerProfileModal({
                       {preferredMatchesEmoji(preferredLabel)} {preferredLabel}
                     </Text>
                   </View>
-                </DetailSection>
-              ) : null}
-
-              {otherUser.bio ? (
-                <DetailSection title="About">
-                  <Text style={styles.blockBody}>{otherUser.bio}</Text>
                 </DetailSection>
               ) : null}
 
@@ -567,3 +594,62 @@ export default function MatchPartnerProfileModal({
     </Modal>
   );
 }
+
+const heroAboutStyles = StyleSheet.create({
+  outer: {
+    width: '100%',
+    marginTop: 14,
+    alignSelf: 'stretch',
+  },
+  rim: {
+    borderRadius: 18,
+    padding: 1.5,
+    ...Platform.select({
+      android: { elevation: 4 },
+      ios: {
+        shadowColor: '#4c1d95',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.22,
+        shadowRadius: 12,
+      },
+    }),
+  },
+  inner: {
+    borderRadius: 16.5,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+  },
+  head: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 10,
+  },
+  iconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  icon: {
+    fontSize: 18,
+  },
+  title: {
+    flex: 1,
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#1e1b4b',
+    letterSpacing: -0.2,
+  },
+  text: {
+    fontSize: 15,
+    fontWeight: '500',
+    lineHeight: 22,
+    color: '#334155',
+  },
+  taglineAfterAbout: {
+    marginTop: 14,
+  },
+});
