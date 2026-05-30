@@ -22,11 +22,16 @@ import MatchmakingPausedModalWeb from "../components/MatchmakingPausedModalWeb";
 import ConnectProfileEnhancementCard, {
   ConnectProfileEnhancementRestoreLink,
 } from "../components/ConnectProfileEnhancementCard";
+import BetterMatchesCompleteCelebration from "../components/BetterMatchesCompleteCelebration";
 import {
   clearProfileEnhancementDismiss,
+  clearProfileEnhancementCelebrationShown,
   dismissProfileEnhancement,
+  isProfileEnhancementCelebrationShown,
   isProfileEnhancementDismissed,
+  markProfileEnhancementCelebrationShown,
   profileEnhancementIncomplete,
+  profileEnhancementIsComplete,
   type ProfileEnhancementItem,
   type ProfileEnhancementSnapshot,
 } from "../utils/profileEnhancementChecklist";
@@ -228,6 +233,7 @@ export default function Browse() {
   const [enhancementDismissed, setEnhancementDismissed] = useState(() =>
     isProfileEnhancementDismissed()
   );
+  const [showEnhancementCelebration, setShowEnhancementCelebration] = useState(false);
   const [enhancementSnapshot, setEnhancementSnapshot] = useState<ProfileEnhancementSnapshot | null>(
     null
   );
@@ -896,6 +902,24 @@ export default function Browse() {
     return profileEnhancementIncomplete(enhancementSnapshot);
   }, [enhancementSnapshot]);
 
+  useEffect(() => {
+    if (!enhancementSnapshot || !showConnectGate) return;
+    const complete = profileEnhancementIsComplete(enhancementSnapshot);
+    if (!complete) {
+      clearProfileEnhancementCelebrationShown();
+      setShowEnhancementCelebration(false);
+      return;
+    }
+    if (!isProfileEnhancementCelebrationShown()) {
+      setShowEnhancementCelebration(true);
+    }
+  }, [enhancementSnapshot, showConnectGate]);
+
+  const handleEnhancementCelebrationClose = useCallback(() => {
+    markProfileEnhancementCelebrationShown();
+    setShowEnhancementCelebration(false);
+  }, []);
+
   const handleRestoreProfileEnhancement = useCallback(() => {
     clearProfileEnhancementDismiss();
     setEnhancementDismissed(false);
@@ -955,6 +979,10 @@ export default function Browse() {
         open={showMatchmakingPausedModal}
         message={user?.matchmakingDisabledMessage}
         onClose={() => setShowMatchmakingPausedModal(false)}
+      />
+      <BetterMatchesCompleteCelebration
+        open={showEnhancementCelebration}
+        onClose={handleEnhancementCelebrationClose}
       />
     </>
   );

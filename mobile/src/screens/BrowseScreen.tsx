@@ -40,11 +40,16 @@ import ConnectProfileEnhancementCard, {
   ConnectProfileEnhancementRestoreLink,
   type ConnectEnhancementShell,
 } from '../components/ConnectProfileEnhancementCard';
+import BetterMatchesCompleteCelebration from '../components/BetterMatchesCompleteCelebration';
 import {
   clearProfileEnhancementDismiss,
+  clearProfileEnhancementCelebrationShown,
   dismissProfileEnhancement,
+  isProfileEnhancementCelebrationShown,
   isProfileEnhancementDismissed,
+  markProfileEnhancementCelebrationShown,
   profileEnhancementIncomplete,
+  profileEnhancementIsComplete,
   type ProfileEnhancementItem,
   type ProfileEnhancementSnapshot,
 } from '../utils/profileEnhancementChecklist';
@@ -261,6 +266,7 @@ export default function BrowseScreen() {
   const [photoCount, setPhotoCount] = useState<number | null>(null); // User's photo count (for 5-photo minimum)
   const [photoCountLoading, setPhotoCountLoading] = useState(false); // True while fetching count so we don't briefly show wrong state
   const [enhancementDismissed, setEnhancementDismissed] = useState(false);
+  const [showEnhancementCelebration, setShowEnhancementCelebration] = useState(false);
   const [enhancementSnapshot, setEnhancementSnapshot] = useState<ProfileEnhancementSnapshot | null>(null);
   const profileConnectKey = `${(userProfile as { display_name?: string } | null)?.display_name ?? ''}|${userProfile?.displayName ?? ''}|${userProfile?.location ?? ''}`;
   const socketRef = useRef<Socket | null>(null);
@@ -1095,6 +1101,33 @@ export default function BrowseScreen() {
     if (!enhancementSnapshot) return [];
     return profileEnhancementIncomplete(enhancementSnapshot);
   }, [enhancementSnapshot]);
+
+  useEffect(() => {
+    if (!enhancementSnapshot || !user) return;
+    let cancelled = false;
+
+    void (async () => {
+      const complete = profileEnhancementIsComplete(enhancementSnapshot);
+      if (!complete) {
+        await clearProfileEnhancementCelebrationShown();
+        if (!cancelled) setShowEnhancementCelebration(false);
+        return;
+      }
+      const shown = await isProfileEnhancementCelebrationShown();
+      if (!cancelled && !shown) {
+        setShowEnhancementCelebration(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [enhancementSnapshot, user]);
+
+  const handleEnhancementCelebrationClose = useCallback(() => {
+    void markProfileEnhancementCelebrationShown();
+    setShowEnhancementCelebration(false);
+  }, []);
 
   const openProfileEnhancement = useCallback((item: ProfileEnhancementItem) => {
     const params =
@@ -2514,6 +2547,11 @@ export default function BrowseScreen() {
           });
         }}
         onPhotoUploaded={(uploaded) => void handleConnectPhotoUploaded(uploaded)}
+      />
+
+      <BetterMatchesCompleteCelebration
+        visible={showEnhancementCelebration}
+        onClose={handleEnhancementCelebrationClose}
       />
 
       {/* No Tokens Modal */}

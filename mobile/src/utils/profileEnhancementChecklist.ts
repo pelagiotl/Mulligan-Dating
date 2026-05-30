@@ -9,6 +9,9 @@ export const PROFILE_ENHANCEMENT_MIN_LIFESTYLE_FIELDS = 1;
 
 export const PROFILE_ENHANCEMENT_DISMISS_KEY = 'mulligan:connect-profile-enhancement-dismissed-until';
 
+export const PROFILE_ENHANCEMENT_CELEBRATION_KEY =
+  'mulligan:connect-profile-enhancement-celebrated';
+
 export const PROFILE_ENHANCEMENT_DISMISS_DAYS = 7;
 
 export type ProfileEnhancementSectionId =
@@ -142,6 +145,33 @@ export async function clearProfileEnhancementDismiss(): Promise<void> {
   try {
     const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
     await AsyncStorage.removeItem(PROFILE_ENHANCEMENT_DISMISS_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+export async function isProfileEnhancementCelebrationShown(): Promise<boolean> {
+  try {
+    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+    return (await AsyncStorage.getItem(PROFILE_ENHANCEMENT_CELEBRATION_KEY)) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export async function markProfileEnhancementCelebrationShown(): Promise<void> {
+  try {
+    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+    await AsyncStorage.setItem(PROFILE_ENHANCEMENT_CELEBRATION_KEY, '1');
+  } catch {
+    /* ignore */
+  }
+}
+
+export async function clearProfileEnhancementCelebrationShown(): Promise<void> {
+  try {
+    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+    await AsyncStorage.removeItem(PROFILE_ENHANCEMENT_CELEBRATION_KEY);
   } catch {
     /* ignore */
   }

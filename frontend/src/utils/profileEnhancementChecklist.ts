@@ -10,6 +10,9 @@ export const PROFILE_ENHANCEMENT_MIN_LIFESTYLE_FIELDS = 1;
 
 export const PROFILE_ENHANCEMENT_DISMISS_KEY = "mulligan:connect-profile-enhancement-dismissed-until";
 
+export const PROFILE_ENHANCEMENT_CELEBRATION_KEY =
+  "mulligan:connect-profile-enhancement-celebrated";
+
 export const PROFILE_ENHANCEMENT_DISMISS_DAYS = 7;
 
 export type ProfileEnhancementSectionId =
@@ -158,6 +161,30 @@ export function dismissProfileEnhancement(days = PROFILE_ENHANCEMENT_DISMISS_DAY
 export function clearProfileEnhancementDismiss(): void {
   try {
     localStorage.removeItem(PROFILE_ENHANCEMENT_DISMISS_KEY);
+  } catch {
+    /* private mode */
+  }
+}
+
+export function isProfileEnhancementCelebrationShown(): boolean {
+  try {
+    return localStorage.getItem(PROFILE_ENHANCEMENT_CELEBRATION_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function markProfileEnhancementCelebrationShown(): void {
+  try {
+    localStorage.setItem(PROFILE_ENHANCEMENT_CELEBRATION_KEY, "1");
+  } catch {
+    /* private mode */
+  }
+}
+
+export function clearProfileEnhancementCelebrationShown(): void {
+  try {
+    localStorage.removeItem(PROFILE_ENHANCEMENT_CELEBRATION_KEY);
   } catch {
     /* private mode */
   }
