@@ -2420,16 +2420,28 @@ export default function Matches() {
                         <div className="chat-header-actions-row">
                           <button
                             type="button"
-                            className="chat-partner-sheet-trigger btn btn-secondary btn-sm"
+                            className="chat-partner-sheet-trigger btn btn-secondary btn-sm matches-chat-toolbar-btn matches-chat-toolbar-btn--photos"
                             onClick={() => setPartnerDrawerOpen(true)}
                           >
+                            <span
+                              className="matches-chat-toolbar-emoji matches-chat-toolbar-emoji--photos"
+                              aria-hidden
+                            >
+                              📸
+                            </span>
                             {mobileChatOpen ? "Profile" : "Profile · photos"}
                           </button>
                           <button
                             type="button"
-                            className="btn btn-secondary btn-sm chat-header-report-btn"
+                            className="btn btn-secondary btn-sm chat-header-report-btn matches-chat-toolbar-btn matches-chat-toolbar-btn--report"
                             onClick={() => openReportForMatch(selectedMatch)}
                           >
+                            <span
+                              className="matches-chat-toolbar-emoji matches-chat-toolbar-emoji--report"
+                              aria-hidden
+                            >
+                              🚩
+                            </span>
                             Report
                           </button>
                         </div>
@@ -2449,7 +2461,12 @@ export default function Matches() {
                                 onClick={() => setShowInterestCompatModal(true)}
                                 title="Why you match"
                               >
-                                <span aria-hidden>🎯</span>{" "}
+                                <span
+                                  className="matches-chat-toolbar-emoji matches-chat-toolbar-emoji--compat"
+                                  aria-hidden
+                                >
+                                  🎯
+                                </span>{" "}
                                 {liveProfileCompatibility ?? selectedMatch.profileCompatibility}%
                               </button>
                             ) : null}
@@ -2460,7 +2477,7 @@ export default function Matches() {
                                 type="button"
                                 className={`compatibility-pulse-pill compatibility-pulse-pill--${
                                   pulseEngagement ?? "neutral"
-                                }`}
+                                } matches-chat-toolbar-btn--pulse`}
                                 title="Compatibility pulse — tap for details"
                                 aria-label="Compatibility pulse, open details"
                                 onClick={() => setShowPulseCompatModal(true)}

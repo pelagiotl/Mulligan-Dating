@@ -827,7 +827,7 @@ export default function TruthOrDareWeb({
       <div className="tod-web-wrap">
         <button
           type="button"
-          className="tod-web-header-btn"
+          className={`tod-web-header-btn${isUnlocked ? " tod-web-header-btn--live" : ""}`}
           onClick={() => void handleHeaderClick()}
           aria-label={isUnlocked ? "Open Truth or Dare" : "Unlock Truth or Dare"}
         >

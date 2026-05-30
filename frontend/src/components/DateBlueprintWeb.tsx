@@ -431,7 +431,7 @@ export default function DateBlueprintWeb({
     <div className="date-blueprint-web-wrap">
       <button
         type="button"
-        className="tod-web-header-btn"
+        className={`tod-web-header-btn${plan ? " date-blueprint-web-header-btn--live" : ""}`}
         title={plan ? "Hangout plan" : "Generate hangout plan"}
         aria-label={plan ? "Open hangout plan" : "Generate hangout plan"}
         disabled={loading}

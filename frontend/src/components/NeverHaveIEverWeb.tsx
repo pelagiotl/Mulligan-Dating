@@ -809,7 +809,7 @@ export default function NeverHaveIEverWeb({
       <div className="tod-web-wrap nhie-web-wrap">
         <button
           type="button"
-          className="tod-web-header-btn nhie-web-header-btn"
+          className={`tod-web-header-btn nhie-web-header-btn${isUnlocked ? " nhie-web-header-btn--live" : ""}`}
           onClick={() => void handleHeaderClick()}
           aria-label={isUnlocked ? "Open Never Have I Ever" : "Play Never Have I Ever"}
         >

@@ -17512,11 +17512,18 @@ button.match-celebration-photo-btn:disabled:focus-visible {
 .chat-media-modal-progress-count {
   font-weight: 800;
   font-variant-numeric: tabular-nums;
-  color: rgba(45, 17, 24, 0.45);
+  font-size: 0.9rem;
+  color: var(--color-wine-900, #431407);
+  padding: 0.1rem 0.45rem;
+  border-radius: 8px;
+  background: rgba(244, 63, 94, 0.08);
+  border: 1px solid rgba(244, 63, 94, 0.18);
 }
 
 .chat-media-modal-progress-count--done {
-  color: #059669 !important;
+  color: #047857 !important;
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.28);
 }
 
 .chat-media-modal-progress-track {
@@ -18239,6 +18246,111 @@ button.compatibility-pulse-pill:focus-visible {
 
 .chat-header-report-btn {
   font-size: 0.8rem !important;
+}
+
+/* Matches chat header toolbar — animated icons */
+.matches-chat-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.matches-chat-toolbar-emoji {
+  display: inline-block;
+  line-height: 1;
+  flex-shrink: 0;
+  transform-origin: center center;
+  will-change: transform;
+}
+
+.matches-chat-toolbar-emoji--photos {
+  animation: matches-toolbar-photos 2.6s ease-in-out infinite;
+  filter: drop-shadow(0 0 4px rgba(102, 126, 234, 0.35));
+}
+
+.matches-chat-toolbar-emoji--report {
+  animation: matches-toolbar-report 2.4s ease-in-out infinite;
+  filter: drop-shadow(0 0 4px rgba(239, 68, 68, 0.35));
+}
+
+.chat-header-interest-badge .matches-chat-toolbar-emoji--compat {
+  animation: matches-toolbar-compat 2.5s ease-in-out infinite;
+  filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.45));
+}
+
+button.compatibility-pulse-pill.matches-chat-toolbar-btn--pulse {
+  animation: matches-toolbar-pulse-pill 2.8s ease-in-out infinite;
+}
+
+button.compatibility-pulse-pill.matches-chat-toolbar-btn--pulse:hover {
+  animation: matches-toolbar-pulse-pill 1.6s ease-in-out infinite;
+}
+
+@keyframes matches-toolbar-photos {
+  0%,
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+  50% {
+    transform: scale(1.14) rotate(-8deg);
+  }
+}
+
+@keyframes matches-toolbar-report {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  40% {
+    transform: translateY(-2px) scale(1.1);
+  }
+  70% {
+    transform: translateY(0) scale(1.05) rotate(6deg);
+  }
+}
+
+@keyframes matches-toolbar-compat {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  30% {
+    transform: scale(1.12);
+  }
+  55% {
+    transform: scale(1.05) rotate(-10deg);
+  }
+  80% {
+    transform: scale(1.1) rotate(8deg);
+  }
+}
+
+@keyframes matches-toolbar-pulse-pill {
+  0%,
+  100% {
+    box-shadow: var(--shadow-sm);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow:
+      0 4px 14px rgba(244, 63, 94, 0.22),
+      0 0 0 1px rgba(244, 63, 94, 0.12);
+    transform: scale(1.03);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .matches-chat-toolbar-emoji--photos,
+  .matches-chat-toolbar-emoji--report,
+  .chat-header-interest-badge .matches-chat-toolbar-emoji--compat,
+  button.compatibility-pulse-pill.matches-chat-toolbar-btn--pulse {
+    animation: none !important;
+    filter: none;
+  }
+
+  button.compatibility-pulse-pill.matches-chat-toolbar-btn--pulse:hover {
+    animation: none !important;
+  }
 }
 
 .chat-header-toolbar {

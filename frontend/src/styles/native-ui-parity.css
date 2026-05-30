@@ -2411,9 +2411,26 @@ button.connect-landing__cta:disabled::before {
 @media (max-width: 900px) {
   /* Pulse scale must not clip inside horizontally scrollable game row on phones */
   .matches-page--mobile-conversation .tod-web-header-btn--live,
-  .matches-page--compact-chat.matches-page--mobile-conversation .tod-web-header-btn--live {
-    animation: none;
+  .matches-page--compact-chat.matches-page--mobile-conversation .tod-web-header-btn--live,
+  .matches-page--mobile-conversation .nhie-web-header-btn--live,
+  .matches-page--compact-chat.matches-page--mobile-conversation .nhie-web-header-btn--live,
+  .matches-page--mobile-conversation .date-blueprint-web-header-btn--live,
+  .matches-page--compact-chat.matches-page--mobile-conversation .date-blueprint-web-header-btn--live {
+    animation: matches-game-btn-glow 3.4s ease-in-out infinite;
     transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tod-web-wrap .tod-web-header-emoji,
+  .nhie-web-wrap .tod-web-header-emoji,
+  .date-blueprint-web-wrap .tod-web-header-emoji,
+  .tod-web-header-btn:not(:disabled),
+  .tod-web-header-btn--live,
+  .nhie-web-header-btn--live,
+  .date-blueprint-web-header-btn--live {
+    animation: none !important;
+    filter: none;
   }
 }
 
@@ -2428,8 +2445,93 @@ button.connect-landing__cta:disabled::before {
 }
 
 .tod-web-header-emoji {
+  display: inline-block;
   font-size: 1.35rem;
   line-height: 1;
+  transform-origin: center center;
+  will-change: transform;
+}
+
+/* Game launcher emojis — Truth or Dare, NHIE, Date plan */
+.tod-web-wrap:not(.nhie-web-wrap):not(.date-blueprint-web-wrap) .tod-web-header-emoji {
+  animation: matches-game-emoji-dice 2.5s ease-in-out infinite;
+  filter: drop-shadow(0 0 6px rgba(255, 0, 128, 0.35));
+}
+
+.nhie-web-wrap .tod-web-header-emoji {
+  animation: matches-game-emoji-nhie 2.8s ease-in-out infinite;
+  filter: drop-shadow(0 0 6px rgba(0, 206, 201, 0.35));
+}
+
+.date-blueprint-web-wrap .tod-web-header-emoji {
+  animation: matches-game-emoji-date 3s ease-in-out infinite;
+  filter: drop-shadow(0 0 6px rgba(102, 126, 234, 0.4));
+}
+
+.tod-web-header-btn:not(:disabled) {
+  animation: matches-game-btn-glow 3.4s ease-in-out infinite;
+}
+
+.tod-web-header-btn--live,
+.nhie-web-header-btn--live,
+.date-blueprint-web-header-btn--live {
+  animation:
+    matches-game-btn-glow 2.4s ease-in-out infinite,
+    tod-header-pulse 2.2s ease-in-out infinite;
+}
+
+@keyframes matches-game-emoji-dice {
+  0%,
+  100% {
+    transform: rotate(0deg) scale(1);
+  }
+  25% {
+    transform: rotate(-12deg) scale(1.08);
+  }
+  50% {
+    transform: rotate(10deg) scale(1.12);
+  }
+  75% {
+    transform: rotate(-6deg) scale(1.06);
+  }
+}
+
+@keyframes matches-game-emoji-nhie {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  35% {
+    transform: translateY(-4px) scale(1.1);
+  }
+  65% {
+    transform: translateY(-2px) scale(1.05) rotate(-6deg);
+  }
+}
+
+@keyframes matches-game-emoji-date {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  40% {
+    transform: translateY(-3px) rotate(-4deg);
+  }
+  70% {
+    transform: translateY(-1px) rotate(4deg);
+  }
+}
+
+@keyframes matches-game-btn-glow {
+  0%,
+  100% {
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  }
+  50% {
+    box-shadow:
+      0 4px 16px rgba(102, 126, 234, 0.28),
+      0 0 0 1px rgba(255, 255, 255, 0.25) inset;
+  }
 }
 
 .tod-web-timer-badge {
@@ -2452,6 +2554,9 @@ button.connect-landing__cta:disabled::before {
 .date-blueprint-web-header-btn--live {
   background: linear-gradient(135deg, #667eea, #764ba2);
   border-color: rgba(255, 255, 255, 0.35);
+  animation:
+    matches-game-btn-glow 2.4s ease-in-out infinite,
+    tod-header-pulse 2.2s ease-in-out infinite;
 }
 
 .date-blueprint-web-overlay {
@@ -3126,11 +3231,20 @@ button.connect-landing__cta:disabled::before {
 .tod-web-msg-gate-count {
   font-weight: 800;
   font-variant-numeric: tabular-nums;
-  color: rgba(255, 255, 255, 0.55);
+  font-size: 0.9rem;
+  letter-spacing: 0.02em;
+  color: #fff;
+  padding: 0.12rem 0.5rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
 }
 
 .tod-web-msg-gate-count--done {
-  color: #6ee7b7;
+  color: #ecfdf5;
+  background: rgba(16, 185, 129, 0.22);
+  border-color: rgba(110, 231, 183, 0.45);
 }
 
 .tod-web-msg-gate-track {
