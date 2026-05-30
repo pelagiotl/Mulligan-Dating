@@ -659,7 +659,13 @@ export default function AdminScreen() {
             end={{ x: 1, y: 1 }}
             style={styles.headerGradient}
           >
-            <Text style={styles.title}>👑 Admin Panel</Text>
+            <View style={styles.titleBlock}>
+              <Text style={styles.titleLine}>Admin</Text>
+              <Text style={[styles.titleLine, styles.titleLinePanel]}>Panel</Text>
+              <Text style={styles.titleCrown} accessibilityElementsHidden>
+                👑
+              </Text>
+            </View>
             <Text style={styles.subtitle}>Manage your app</Text>
           </LinearGradient>
         </View>
@@ -1462,16 +1468,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  title: {
+  titleBlock: {
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  titleLine: {
     fontSize: 40,
     fontWeight: '900',
     color: '#fff',
-    marginBottom: 10,
     letterSpacing: -1,
+    lineHeight: 44,
     textShadowColor: 'rgba(0, 0, 0, 0.3)',
     textShadowOffset: { width: 0, height: 3 },
     textShadowRadius: 8,
     textAlign: 'center',
+  },
+  titleLinePanel: {
+    marginBottom: 6,
+  },
+  titleCrown: {
+    fontSize: 30,
+    lineHeight: 34,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.25)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
   },
   subtitle: {
     fontSize: 18,
