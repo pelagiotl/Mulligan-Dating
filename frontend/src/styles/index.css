@@ -9909,6 +9909,154 @@ button.my-profile-mini-card:focus-visible {
   gap: var(--space-4);
 }
 
+/* Animated perimeter glow — match cards (web + native-app-screen via shell vars) */
+.match-item-perimeter {
+  --match-perimeter-delay: 0ms;
+  --match-perimeter-rotate-duration: 16s;
+  --match-perimeter-ring-a: rgba(251, 113, 133, 0.82);
+  --match-perimeter-ring-b: rgba(244, 63, 94, 0.78);
+  --match-perimeter-ring-c: rgba(129, 140, 248, 0.75);
+  --match-perimeter-glow: rgba(244, 63, 94, 0.22);
+  --match-perimeter-glow-strong: rgba(225, 29, 72, 0.34);
+  position: relative;
+  padding: 2px;
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.25s ease;
+}
+
+.match-item-perimeter::before {
+  content: "";
+  position: absolute;
+  inset: -45%;
+  z-index: 0;
+  pointer-events: none;
+  background: conic-gradient(
+    from 0deg,
+    rgba(255, 255, 255, 0.55),
+    var(--match-perimeter-ring-a),
+    var(--match-perimeter-ring-b),
+    var(--match-perimeter-ring-c),
+    rgba(255, 255, 255, 0.55),
+    var(--match-perimeter-ring-a)
+  );
+  animation:
+    matchItemPerimeterRotate var(--match-perimeter-rotate-duration) linear infinite,
+    matchItemPerimeterPulse 5s ease-in-out infinite;
+  animation-delay: var(--match-perimeter-delay), var(--match-perimeter-delay);
+}
+
+.match-item-perimeter::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.35),
+    0 0 18px var(--match-perimeter-glow);
+  animation: matchItemPerimeterHalo 5s ease-in-out infinite;
+  animation-delay: var(--match-perimeter-delay);
+}
+
+.match-item-perimeter:hover {
+  transform: translateY(-2px);
+}
+
+.match-item-perimeter:hover::after {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.45),
+    0 0 26px var(--match-perimeter-glow-strong);
+}
+
+.match-item-perimeter--unread::after {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.4),
+    0 0 22px var(--match-perimeter-glow-strong);
+}
+
+.match-item-perimeter--active::before {
+  animation-duration: 12s, 3.5s;
+}
+
+.match-item-perimeter--active::after {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.5),
+    0 0 32px var(--match-perimeter-glow-strong);
+}
+
+.match-item-perimeter:focus-visible {
+  outline: none;
+}
+
+.match-item-perimeter:focus-visible::after {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.55),
+    0 0 0 3px var(--match-perimeter-glow-strong),
+    0 0 28px var(--match-perimeter-glow-strong);
+}
+
+.match-item-perimeter .match-item {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  border-radius: calc(var(--radius-xl) - 2px);
+  cursor: inherit;
+}
+
+.match-item-perimeter .match-item:hover,
+.match-item-perimeter .match-item.active {
+  transform: none;
+}
+
+.match-item-perimeter .match-item:focus-visible {
+  outline: none;
+  box-shadow: inherit;
+}
+
+@keyframes matchItemPerimeterRotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes matchItemPerimeterPulse {
+  0%,
+  100% {
+    opacity: 0.48;
+  }
+  50% {
+    opacity: 0.82;
+  }
+}
+
+@keyframes matchItemPerimeterHalo {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.92;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .match-item-perimeter::before,
+  .match-item-perimeter::after {
+    animation: none;
+    opacity: 0.65;
+  }
+
+  .match-item-perimeter:hover {
+    transform: none;
+  }
+}
+
 .match-item {
   display: flex;
   flex-direction: column;

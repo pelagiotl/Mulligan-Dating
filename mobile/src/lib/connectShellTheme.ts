@@ -49,6 +49,8 @@ export type MatchListCardColors = {
   border: string;
   shadowColor: string;
   shadowOpacity: number;
+  perimeterGradient: readonly [string, string, ...string[]];
+  perimeterGlow: string;
   shimmer: string;
   name: string;
   nameUnread: string;
@@ -71,6 +73,8 @@ export function matchListCardColors(mode: ConnectShellMode): MatchListCardColors
         border: 'rgba(244, 114, 182, 0.22)',
         shadowColor: '#000',
         shadowOpacity: 0.35,
+        perimeterGradient: ['#a78bfa', '#f472b6', '#ec4899', '#a78bfa'] as const,
+        perimeterGlow: 'rgba(167, 139, 250, 0.55)',
         shimmer: 'rgba(255, 255, 255, 0.12)',
         name: '#f1f5f9',
         nameUnread: '#fda4af',
@@ -90,6 +94,8 @@ export function matchListCardColors(mode: ConnectShellMode): MatchListCardColors
         border: 'rgba(251, 191, 36, 0.38)',
         shadowColor: '#fb923c',
         shadowOpacity: 0.16,
+        perimeterGradient: ['#fcd34d', '#fb923c', '#ea580c', '#fcd34d'] as const,
+        perimeterGlow: 'rgba(251, 146, 60, 0.5)',
         shimmer: 'rgba(255, 255, 255, 0.5)',
         name: '#431407',
         nameUnread: '#be123c',
@@ -109,6 +115,8 @@ export function matchListCardColors(mode: ConnectShellMode): MatchListCardColors
         border: 'rgba(102, 126, 234, 0.18)',
         shadowColor: '#667eea',
         shadowOpacity: 0.14,
+        perimeterGradient: ['#818cf8', '#f472b6', '#667eea', '#818cf8'] as const,
+        perimeterGlow: 'rgba(102, 126, 234, 0.45)',
         shimmer: 'rgba(255, 255, 255, 0.45)',
         name: '#4c1d95',
         nameUnread: '#7f1d1d',
@@ -160,7 +168,7 @@ export function connectShellGradientStops(mode: ConnectShellMode): readonly stri
   }
 }
 
-/** Matches tab “Your limits” card — aligned with web `--limits-*` per shell. */
+/** Matches tab Limits card — aligned with web `--limits-*` per shell. */
 export type ConnectionLimitsPanelColors = {
   shellGradient: readonly [string, string, ...string[]];
   accentGradient: readonly [string, string, ...string[]];

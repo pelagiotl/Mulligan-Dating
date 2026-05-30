@@ -49,6 +49,11 @@ html[data-connect-shell="midnight"],
   --matches-empty-cta-shadow-hover: 0 8px 26px rgba(219, 39, 119, 0.4);
   --match-item-name-color: #f1f5f9;
   --match-item-unread-name-color: #fda4af;
+  --match-perimeter-ring-a: rgba(196, 181, 253, 0.9);
+  --match-perimeter-ring-b: rgba(244, 114, 182, 0.88);
+  --match-perimeter-ring-c: rgba(129, 140, 248, 0.85);
+  --match-perimeter-glow: rgba(167, 139, 250, 0.38);
+  --match-perimeter-glow-strong: rgba(244, 114, 182, 0.48);
   --matches-empty-text: #e2e8f0;
   --matches-empty-hint: #94a3b8;
   --create-profile-hint-text: #e2e8f0;
@@ -160,6 +165,11 @@ html[data-connect-shell="sunny"],
   --matches-empty-cta-shadow-hover: 0 8px 26px rgba(234, 88, 12, 0.38);
   --match-item-name-color: #431407;
   --match-item-unread-name-color: #be123c;
+  --match-perimeter-ring-a: rgba(251, 191, 36, 0.92);
+  --match-perimeter-ring-b: rgba(251, 146, 60, 0.9);
+  --match-perimeter-ring-c: rgba(234, 88, 12, 0.82);
+  --match-perimeter-glow: rgba(251, 146, 60, 0.32);
+  --match-perimeter-glow-strong: rgba(234, 88, 12, 0.42);
   --matches-empty-text: #7c2d12;
   --matches-empty-hint: #9a3412;
   --create-profile-hint-text: #431407;
@@ -271,6 +281,11 @@ html[data-connect-shell="soft"],
   --matches-empty-cta-shadow-hover: 0 8px 26px rgba(102, 126, 234, 0.42);
   --match-item-name-color: #4c1d95;
   --match-item-unread-name-color: #7f1d1d;
+  --match-perimeter-ring-a: rgba(129, 140, 248, 0.88);
+  --match-perimeter-ring-b: rgba(244, 114, 182, 0.85);
+  --match-perimeter-ring-c: rgba(102, 126, 234, 0.9);
+  --match-perimeter-glow: rgba(102, 126, 234, 0.28);
+  --match-perimeter-glow-strong: rgba(244, 63, 94, 0.32);
   --matches-empty-text: #475569;
   --matches-empty-hint: #64748b;
   --create-profile-hint-text: #312e81;

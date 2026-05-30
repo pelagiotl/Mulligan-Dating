@@ -2151,14 +2151,17 @@ export default function Matches() {
           </div>
         ) : (
           <div className="matches-list" role="list">
-            {matches.map((match) => (
+            {matches.map((match, index) => (
               <div
                 key={match.id}
                 role="listitem"
                 tabIndex={0}
-                className={`match-item ${selectedMatch?.id === match.id ? "active" : ""} ${
-                  (match.unreadCount || 0) > 0 ? "match-item--unread" : ""
-                }`}
+                className={`match-item-perimeter${
+                  selectedMatch?.id === match.id ? " match-item-perimeter--active" : ""
+                }${(match.unreadCount || 0) > 0 ? " match-item-perimeter--unread" : ""}`}
+                style={
+                  { "--match-perimeter-delay": `${(index % 10) * 140}ms` } as React.CSSProperties
+                }
                 aria-label={`${match.otherUser.displayName}, ${getStageLabel(match.stage)}${
                   (match.unreadCount || 0) > 0
                     ? `, ${match.unreadCount} unread ${match.unreadCount === 1 ? "message" : "messages"}`
@@ -2172,6 +2175,11 @@ export default function Matches() {
                   }
                 }}
               >
+                <div
+                  className={`match-item ${selectedMatch?.id === match.id ? "active" : ""} ${
+                    (match.unreadCount || 0) > 0 ? "match-item--unread" : ""
+                  }`}
+                >
                 <div className="match-item-inner">
                   <div className="match-avatar">
                     {(() => {
@@ -2309,6 +2317,7 @@ export default function Matches() {
                     )}
                   </div>
                 )}
+                </div>
               </div>
             ))}
           </div>

@@ -682,7 +682,8 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
   const photoScaleAnim = useRef(new Animated.Value(0.95)).current;
   const shimmerAnim = useRef(new Animated.Value(0)).current;
   const glowAnim = useRef(new Animated.Value(0.3)).current;
-  
+  const perimeterRotate = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -738,11 +739,34 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
         }),
       ])
     ).start();
+
+    Animated.loop(
+      Animated.timing(perimeterRotate, {
+        toValue: 1,
+        duration: 16000,
+        useNativeDriver: true,
+      })
+    ).start();
   }, []);
   
   const shimmerTranslate = shimmerAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [-100, 100],
+  });
+
+  const perimeterGlowOpacity = glowAnim.interpolate({
+    inputRange: [0.3, 0.5],
+    outputRange: [0.5, 0.88],
+  });
+
+  const perimeterShadowRadius = glowAnim.interpolate({
+    inputRange: [0.3, 0.5],
+    outputRange: [12, 20],
+  });
+
+  const perimeterSpin = perimeterRotate.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
   });
 
   return (
@@ -752,22 +776,42 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
         {
           opacity: fadeAnim,
           transform: [{ scale: scaleAnim }],
+          shadowColor: cardColors.perimeterGlow,
+          shadowRadius: perimeterShadowRadius,
+          shadowOpacity: glowAnim,
+          shadowOffset: { width: 0, height: 0 },
         },
       ]}
     >
-      <TouchableOpacity
-        style={[
-          styles.matchCard,
-          {
-            backgroundColor: cardColors.background,
-            borderColor: cardColors.border,
-            shadowColor: cardColors.shadowColor,
-            shadowOpacity: cardColors.shadowOpacity,
-          },
-        ]}
-        onPress={onPress}
-        activeOpacity={0.85}
-      >
+      <View style={styles.matchCardPerimeter}>
+        <Animated.View
+          style={[
+            styles.matchCardPerimeterRing,
+            {
+              opacity: perimeterGlowOpacity,
+              transform: [{ rotate: perimeterSpin }],
+            },
+          ]}
+          pointerEvents="none"
+        >
+          <LinearGradient
+            colors={[...cardColors.perimeterGradient]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+        </Animated.View>
+        <TouchableOpacity
+          style={[
+            styles.matchCard,
+            {
+              backgroundColor: cardColors.background,
+              borderColor: cardColors.border,
+            },
+          ]}
+          onPress={onPress}
+          activeOpacity={0.85}
+        >
         {/* Subtle shimmer overlay */}
         <Animated.View
           style={[
@@ -915,7 +959,8 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
             <Text style={styles.unmatchButtonText}>✕</Text>
           </TouchableOpacity>
         </View>
-      </TouchableOpacity>
+        </TouchableOpacity>
+      </View>
     </Animated.View>
   );
 }, (prevProps, nextProps) => {
@@ -927,7 +972,8 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
     prevProps.item.stage === nextProps.item.stage &&
     prevProps.item.expiresAt === nextProps.item.expiresAt &&
     prevProps.item.profileCompatibility === nextProps.item.profileCompatibility &&
-    prevProps.photoUrl === nextProps.photoUrl
+    prevProps.photoUrl === nextProps.photoUrl &&
+    prevProps.cardColors.perimeterGlow === nextProps.cardColors.perimeterGlow
   );
 });
 
@@ -4391,10 +4437,22 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     marginHorizontal: 4,
   },
-  matchCard: {
+  matchCardPerimeter: {
     borderRadius: 20,
+    padding: 2,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  matchCardPerimeterRing: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 20,
+  },
+  matchCard: {
+    borderRadius: 18,
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 12,
+    shadowColor: '#667eea',
+    shadowOpacity: 0.14,
     elevation: 8,
     overflow: 'hidden',
     borderWidth: 1.5,
