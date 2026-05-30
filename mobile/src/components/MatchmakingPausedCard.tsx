@@ -1,8 +1,17 @@
-import React, { memo, useMemo } from 'react';
-import { View, Text, StyleSheet, Platform } from 'react-native';
+import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Platform,
+  Animated,
+  Easing,
+  AccessibilityInfo,
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { ConnectShellMode } from '../lib/connectShellTheme';
 import { launchCountdownTheme } from '../lib/launchCountdownTheme';
+import AnimatedLaunchHourglass from './AnimatedLaunchHourglass';
 
 export const DEFAULT_MATCHMAKING_PAUSED_MESSAGE =
   "Matching isn't open yet. Check back on launch day!";
@@ -94,9 +103,128 @@ const MatchmakingPausedCard = memo(function MatchmakingPausedCard({
     [message],
   );
 
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const rimPulse = useRef(new Animated.Value(0)).current;
+  const shimmer = useRef(new Animated.Value(0)).current;
+  const dotPulse = useRef(new Animated.Value(0)).current;
+  const chipPulse = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled().then((v) => setReduceMotion(!!v));
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', (v) =>
+      setReduceMotion(!!v),
+    );
+    return () => sub.remove();
+  }, []);
+
+  useEffect(() => {
+    if (reduceMotion) {
+      rimPulse.setValue(0);
+      shimmer.setValue(0);
+      dotPulse.setValue(0.5);
+      chipPulse.setValue(0);
+      return;
+    }
+
+    const rimLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(rimPulse, {
+          toValue: 1,
+          duration: 2100,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: false,
+        }),
+        Animated.timing(rimPulse, {
+          toValue: 0,
+          duration: 2100,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: false,
+        }),
+      ]),
+    );
+
+    const shimmerLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmer, {
+          toValue: 1,
+          duration: 5500,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(shimmer, { toValue: 0, duration: 0, useNativeDriver: true }),
+      ]),
+    );
+
+    const dotLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(dotPulse, {
+          toValue: 1,
+          duration: 1200,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(dotPulse, {
+          toValue: 0,
+          duration: 1200,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+
+    const chipLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(chipPulse, {
+          toValue: 1,
+          duration: 1800,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(chipPulse, {
+          toValue: 0,
+          duration: 1800,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+
+    rimLoop.start();
+    shimmerLoop.start();
+    dotLoop.start();
+    chipLoop.start();
+    return () => {
+      rimLoop.stop();
+      shimmerLoop.stop();
+      dotLoop.stop();
+      chipLoop.stop();
+    };
+  }, [reduceMotion, rimPulse, shimmer, dotPulse, chipPulse]);
+
+  const rimShadowOpacity = rimPulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.22, 0.42],
+  });
+  const shimmerTranslateX = shimmer.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-120, 320],
+  });
+  const dotScale = dotPulse.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1.2] });
+  const dotOpacity = dotPulse.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] });
+  const chipScale = chipPulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.04] });
+
   return (
-    <View
-      style={[styles.wrap, Platform.OS === 'android' ? styles.wrapAndroid : styles.wrapIos]}
+    <Animated.View
+      style={[
+        styles.wrap,
+        Platform.OS === 'android' ? styles.wrapAndroid : styles.wrapIos,
+        !reduceMotion && Platform.OS === 'ios'
+          ? {
+              shadowOpacity: rimShadowOpacity,
+              shadowRadius: rimPulse.interpolate({ inputRange: [0, 1], outputRange: [16, 24] }),
+            }
+          : null,
+      ]}
       accessibilityRole="summary"
       accessibilityLabel={`${title} ${body}`}
     >
@@ -119,6 +247,19 @@ const MatchmakingPausedCard = memo(function MatchmakingPausedCard({
             style={styles.sheen}
             pointerEvents="none"
           />
+          {!reduceMotion ? (
+            <Animated.View
+              pointerEvents="none"
+              style={[styles.shimmerSweep, { transform: [{ translateX: shimmerTranslateX }] }]}
+            >
+              <LinearGradient
+                colors={['transparent', 'rgba(255,255,255,0.35)', 'transparent']}
+                start={{ x: 0, y: 0.5 }}
+                end={{ x: 1, y: 0.5 }}
+                style={StyleSheet.absoluteFill}
+              />
+            </Animated.View>
+          ) : null}
 
           <View style={styles.badgeRow}>
             <LinearGradient
@@ -127,34 +268,39 @@ const MatchmakingPausedCard = memo(function MatchmakingPausedCard({
               end={{ x: 1, y: 1 }}
               style={styles.iconBadge}
             >
-              <Text style={styles.iconEmoji} allowFontScaling={false}>
-                ⏳
-              </Text>
+              <AnimatedLaunchHourglass size="lg" />
             </LinearGradient>
-            <View
+            <Animated.View
               style={[
                 styles.chip,
                 { backgroundColor: chrome.chipBg, borderColor: chrome.chipBorder },
+                !reduceMotion ? { transform: [{ scale: chipScale }] } : null,
               ]}
             >
               <Text style={[styles.chipText, { color: chrome.chipText }]}>June 6 launch</Text>
-            </View>
+            </Animated.View>
           </View>
 
           <Text style={[styles.title, { color: chrome.title }]}>{title}</Text>
           <Text style={[styles.body, { color: chrome.body }]}>{body}</Text>
 
           <View style={styles.footerRow}>
-            <Text style={[styles.footerDot, { color: chrome.accentGradient[0] }]}>
+            <Animated.Text
+              style={[
+                styles.footerDot,
+                { color: chrome.accentGradient[0] },
+                !reduceMotion ? { opacity: dotOpacity, transform: [{ scale: dotScale }] } : null,
+              ]}
+            >
               ●
-            </Text>
+            </Animated.Text>
             <Text style={[styles.footer, { color: chrome.body }]}>
               Your profile & tokens are ready — matching unlocks at launch
             </Text>
           </View>
         </LinearGradient>
       </LinearGradient>
-    </View>
+    </Animated.View>
   );
 });
 
@@ -190,6 +336,14 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     height: '42%',
   },
+  shimmerSweep: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 72,
+    opacity: 0.55,
+    zIndex: 2,
+  },
   badgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -211,9 +365,6 @@ const styles = StyleSheet.create({
         shadowRadius: 8,
       },
     }),
-  },
-  iconEmoji: {
-    fontSize: 26,
   },
   chip: {
     paddingHorizontal: 12,

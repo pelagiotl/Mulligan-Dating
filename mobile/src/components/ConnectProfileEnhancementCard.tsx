@@ -205,11 +205,11 @@ export default function ConnectProfileEnhancementCard({
   onDismiss,
   style,
 }: Props) {
-  const cardOpacity = useRef(new Animated.Value(0)).current;
-  const cardTranslateY = useRef(new Animated.Value(16)).current;
+  const cardOpacity = useRef(new Animated.Value(Platform.OS === 'android' ? 1 : 0)).current;
+  const cardTranslateY = useRef(new Animated.Value(Platform.OS === 'android' ? 0 : 16)).current;
   const iconScale = useRef(new Animated.Value(1)).current;
   const progressWidth = useRef(new Animated.Value(0)).current;
-  const contentOpacity = useRef(new Animated.Value(0)).current;
+  const contentOpacity = useRef(new Animated.Value(Platform.OS === 'android' ? 1 : 0)).current;
 
   const palette = SHELL_STYLES[shell];
   const total = 5;
@@ -217,6 +217,14 @@ export default function ConnectProfileEnhancementCard({
   const progressPct = done / total;
 
   useEffect(() => {
+    if (Platform.OS === 'android') {
+      cardOpacity.setValue(1);
+      cardTranslateY.setValue(0);
+      contentOpacity.setValue(1);
+      progressWidth.setValue(progressPct);
+      return;
+    }
+
     Animated.parallel([
       Animated.timing(cardOpacity, {
         toValue: 1,

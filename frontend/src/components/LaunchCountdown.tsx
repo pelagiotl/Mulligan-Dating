@@ -401,8 +401,13 @@ export default function LaunchCountdown() {
             (isVerticalDock ? " launch-countdown-bubble-collapsed-inner--vertical" : "")
           }
         >
-          <span className="launch-countdown-bubble-collapsed-emoji" aria-hidden>
-            ⏳
+          <span
+            className="launch-countdown__hourglass launch-countdown-bubble-collapsed-hourglass"
+            aria-hidden
+          >
+            <span className="launch-countdown__hourglass-glow" />
+            <span className="launch-countdown__hourglass-emoji">⏳</span>
+            <span className="launch-countdown__hourglass-sand" />
           </span>
           <span className="launch-countdown-bubble-collapsed-label">
             {state.live ? "Live" : `${state.days}d`}

@@ -187,9 +187,9 @@ function BrowseConnectLandingChrome({
             </div>
           )}
 
-          {enhancementSlot}
-
           <p className="connect-landing__hint">⛳ Use a Mulligan</p>
+
+          {enhancementSlot}
         </div>
       </div>
     </div>

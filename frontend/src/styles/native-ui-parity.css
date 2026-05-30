@@ -983,6 +983,16 @@
   gap: 0.08rem;
 }
 
+.launch-countdown-bubble-collapsed-hourglass {
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 8px;
+}
+
+.launch-countdown-bubble-collapsed-hourglass .launch-countdown__hourglass-emoji {
+  font-size: 0.72rem;
+}
+
 .launch-countdown-bubble-collapsed-emoji {
   font-size: 0.72rem;
   line-height: 1;
@@ -1151,7 +1161,10 @@
   .launch-countdown-bubble .launch-countdown::after,
   .launch-countdown__hourglass-glow,
   .launch-countdown__hourglass-emoji,
-  .launch-countdown__hourglass-sand {
+  .launch-countdown__hourglass-sand,
+  .launch-countdown-bubble-collapsed-hourglass .launch-countdown__hourglass-glow,
+  .launch-countdown-bubble-collapsed-hourglass .launch-countdown__hourglass-emoji,
+  .launch-countdown-bubble-collapsed-hourglass .launch-countdown__hourglass-sand {
     animation: none;
   }
 

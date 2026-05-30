@@ -260,7 +260,7 @@ export default function BrowseScreen() {
   const [availableTokens, setAvailableTokens] = useState<number>(0);
   const [photoCount, setPhotoCount] = useState<number | null>(null); // User's photo count (for 5-photo minimum)
   const [photoCountLoading, setPhotoCountLoading] = useState(false); // True while fetching count so we don't briefly show wrong state
-  const [enhancementDismissed, setEnhancementDismissed] = useState(true);
+  const [enhancementDismissed, setEnhancementDismissed] = useState(false);
   const [enhancementSnapshot, setEnhancementSnapshot] = useState<ProfileEnhancementSnapshot | null>(null);
   const profileConnectKey = `${(userProfile as { display_name?: string } | null)?.display_name ?? ''}|${userProfile?.displayName ?? ''}|${userProfile?.location ?? ''}`;
   const socketRef = useRef<Socket | null>(null);
@@ -283,9 +283,6 @@ export default function BrowseScreen() {
   const titleScale = useRef(new Animated.Value(0.9)).current;
   const titleOpacity = useRef(new Animated.Value(0)).current;
   const titleTranslateY = useRef(new Animated.Value(20)).current;
-
-  // "Use a Mulligan" hint fade-in when landing page is shown
-  const landingHintOpacity = useRef(new Animated.Value(0)).current;
 
   // Claim banner animations (pulse + shimmer feel)
   const claimBannerPulse = useRef(new Animated.Value(1)).current;
@@ -1042,33 +1039,49 @@ export default function BrowseScreen() {
     }, [])
   );
 
-  useEffect(() => {
-    if (!showLandingPage || !isAuthenticated || !isFocused) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const data = await api.get<{
-          profile: { looking_for: string | null };
-          interests: unknown[];
-          dealbreakers: unknown[];
-          lifestyle: ProfileEnhancementSnapshot['lifestyle'];
-        }>('/profile');
-        if (cancelled) return;
-        setEnhancementSnapshot({
-          photoCount: photoCount ?? 0,
-          interestsCount: data.interests?.length ?? 0,
-          lookingFor: data.profile?.looking_for,
-          lifestyle: data.lifestyle ?? null,
-          dealbreakersCount: data.dealbreakers?.length ?? 0,
-        });
-      } catch {
-        if (!cancelled) setEnhancementSnapshot(null);
+  const loadEnhancementSnapshot = useCallback(async () => {
+    let resolvedPhotoCount = photoCount ?? 0;
+    try {
+      api.clearCache('/photos/me');
+      const photosData = await api.get<{ photos?: unknown[] }>('/photos/me', false);
+      if (Array.isArray(photosData.photos)) {
+        resolvedPhotoCount = photosData.photos.length;
+        setPhotoCount(resolvedPhotoCount);
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [showLandingPage, isAuthenticated, isFocused, photoCount, profileConnectKey]);
+    } catch {
+      /* keep cached count */
+    }
+
+    try {
+      const data = await api.get<{
+        profile: { looking_for?: string | null; lookingFor?: string | null };
+        interests: unknown[];
+        dealbreakers: unknown[];
+        lifestyle: ProfileEnhancementSnapshot['lifestyle'];
+      }>('/profile');
+      const profileRow = data.profile;
+      setEnhancementSnapshot({
+        photoCount: resolvedPhotoCount,
+        interestsCount: data.interests?.length ?? 0,
+        lookingFor: profileRow?.looking_for ?? profileRow?.lookingFor ?? null,
+        lifestyle: data.lifestyle ?? null,
+        dealbreakersCount: data.dealbreakers?.length ?? 0,
+      });
+    } catch {
+      setEnhancementSnapshot({
+        photoCount: resolvedPhotoCount,
+        interestsCount: 0,
+        lookingFor: null,
+        lifestyle: null,
+        dealbreakersCount: 0,
+      });
+    }
+  }, [photoCount]);
+
+  useEffect(() => {
+    if (!showLandingPage || !user) return;
+    void loadEnhancementSnapshot();
+  }, [showLandingPage, user, photoCount, profileConnectKey, loadEnhancementSnapshot]);
 
   const enhancementIncompleteItems = useMemo(() => {
     if (!enhancementSnapshot) return [];
@@ -1301,13 +1314,6 @@ export default function BrowseScreen() {
         Animated.timing(titleTranslateY, { toValue: 0, duration: 800, useNativeDriver: true }),
       ]).start();
 
-      // "Use a Mulligan" hint: gentle fade-in after a short delay
-      landingHintOpacity.setValue(0);
-      Animated.sequence([
-        Animated.delay(350),
-        Animated.timing(landingHintOpacity, { toValue: 1, duration: 550, useNativeDriver: true }),
-      ]).start();
-
       buttonLoop = Animated.loop(
         Animated.sequence([
           Animated.timing(buttonPulse, { toValue: 1.05, duration: 1500, useNativeDriver: true }),
@@ -1325,7 +1331,6 @@ export default function BrowseScreen() {
       titleScale.setValue(0.9);
       titleOpacity.setValue(0);
       titleTranslateY.setValue(20);
-      landingHintOpacity.setValue(0);
     }
     return () => {
       buttonLoop?.stop();
@@ -1334,7 +1339,6 @@ export default function BrowseScreen() {
   }, [
     showLandingPage,
     unlocking,
-    landingHintOpacity,
     connectShellMode,
     startLandingShimmerLoop,
     stopLandingShimmerLoop,
@@ -1509,9 +1513,7 @@ export default function BrowseScreen() {
       </Text>
     );
 
-  const landingConnectHint = matchmakingPaused
-    ? 'Tap Connect — matching opens at launch day'
-    : '⛳ Use a Mulligan';
+  const landingConnectHint = '⛳ Use a Mulligan';
 
   // Tab blur hides this screen (opacity 0); Android pauses native-driver loops. Stop on blur, restart after focus when visible again.
   useFocusEffect(
@@ -1823,12 +1825,14 @@ export default function BrowseScreen() {
         style={[styles.scrollView, showLandingPage && styles.scrollViewLanding]}
         contentContainerStyle={[
           styles.contentContainer,
+          showLandingPage && styles.contentContainerLanding,
           showLandingPage && {
             paddingBottom: landingTabBarClearancePx(insets.bottom),
           },
           !showLandingPage && !needsProfile && hasActiveProfile && !loading && { paddingBottom: 100 },
         ]}
         showsVerticalScrollIndicator={false}
+        nestedScrollEnabled
         keyboardShouldPersistTaps="handled"
         scrollEventThrottle={16}
       >
@@ -1990,11 +1994,11 @@ export default function BrowseScreen() {
                 </TouchableOpacity>
               </Animated.View>
 
-              <Animated.View style={[styles.landingHintWrap, { opacity: landingHintOpacity }]}>
+              <View style={styles.landingHintWrap}>
                 <Text style={styles.midnightHint}>{landingConnectHint}</Text>
-              </Animated.View>
+              </View>
 
-              {isAuthenticated ? renderProfileEnhancement('midnight') : null}
+              {renderProfileEnhancement('midnight')}
               </View>
               </View>
             </LinearGradient>
@@ -2101,11 +2105,11 @@ export default function BrowseScreen() {
                       </TouchableOpacity>
                     </Animated.View>
 
-                    <Animated.View style={[styles.landingHintWrap, { opacity: landingHintOpacity }]}>
+                    <View style={styles.landingHintWrap}>
                       <Text style={styles.sunnyHint}>{landingConnectHint}</Text>
-                    </Animated.View>
+                    </View>
 
-                    {isAuthenticated ? renderProfileEnhancement('sunny') : null}
+                    {renderProfileEnhancement('sunny')}
                   </View>
                 </View>
               ) : (
@@ -2211,11 +2215,11 @@ export default function BrowseScreen() {
                       </TouchableOpacity>
                     </Animated.View>
 
-                    <Animated.View style={[styles.landingHintWrap, { opacity: landingHintOpacity }]}>
+                    <View style={styles.landingHintWrap}>
                       <Text style={styles.softHint}>{landingConnectHint}</Text>
-                    </Animated.View>
+                    </View>
 
-                    {isAuthenticated ? renderProfileEnhancement('soft') : null}
+                    {renderProfileEnhancement('soft')}
                   </View>
                 </View>
               )}
@@ -2876,6 +2880,10 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
     flexGrow: 1,
   },
+  /** Landing uses natural content height so hint + Better matches aren't clipped on Android ScrollView. */
+  contentContainerLanding: {
+    flexGrow: 0,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -3065,15 +3073,12 @@ const styles = StyleSheet.create({
   },
   // Landing page styles (when browsing is locked)
   landingPageWrapper: {
-    flex: 1,
-    minHeight: Dimensions.get('window').height - 140,
     alignSelf: 'stretch',
     paddingLeft: 22,
     paddingRight: 22,
-    paddingTop: 74,
+    paddingTop: Platform.OS === 'android' ? 52 : 74,
     paddingBottom: 36,
     position: 'relative',
-    justifyContent: 'flex-start',
   },
   landingTokenContainer: {
     position: 'absolute',
@@ -3259,7 +3264,10 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 14 },
     shadowOpacity: 0.5,
     shadowRadius: 28,
-    elevation: 18,
+    ...Platform.select({
+      android: { elevation: 8 },
+      default: { elevation: 18 },
+    }),
   },
   midnightConnectLabel: {
     letterSpacing: 3,
@@ -3382,7 +3390,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.35,
     color: '#78716c',
     textAlign: 'center',
-    lineHeight: 19,
+    lineHeight: 20,
+    includeFontPadding: false,
   },
   softConnectLabel: {
     letterSpacing: 0.45,
@@ -3499,7 +3508,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.35,
     color: '#666',
     textAlign: 'center',
-    lineHeight: 19,
+    lineHeight: 20,
+    includeFontPadding: false,
   },
   midnightHint: {
     fontSize: 14,
@@ -3507,9 +3517,16 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     color: 'rgba(251, 113, 133, 0.92)',
     textAlign: 'center',
-    textShadowColor: 'rgba(0, 0, 0, 0.5)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    lineHeight: 20,
+    includeFontPadding: false,
+    ...Platform.select({
+      android: {},
+      ios: {
+        textShadowColor: 'rgba(0, 0, 0, 0.5)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 2,
+      },
+    }),
   },
   landingTitle: {
     fontSize: 40,
@@ -3536,12 +3553,13 @@ const styles = StyleSheet.create({
   landingButtonContainer: {
     width: '100%',
     marginTop: 14,
-    marginBottom: 2,
+    marginBottom: Platform.OS === 'android' ? 6 : 2,
+    zIndex: 1,
   },
   landingButtonTouchable: {
     width: '100%',
     borderRadius: 16,
-    overflow: 'visible',
+    overflow: 'hidden',
   },
   landingButton: {
     paddingHorizontal: 36,
@@ -3554,10 +3572,13 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.55,
     shadowRadius: 20,
-    elevation: 16,
+    ...Platform.select({
+      android: { elevation: 6 },
+      default: { elevation: 16 },
+    }),
     borderWidth: 3,
     borderColor: 'rgba(255, 255, 255, 0.5)',
-    overflow: 'visible',
+    overflow: 'hidden',
     position: 'relative',
     minHeight: 58,
   },
@@ -3583,10 +3604,16 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   landingHintWrap: {
-    alignSelf: 'center',
-    marginTop: 12,
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 6,
     paddingHorizontal: 8,
-    paddingBottom: 0,
+    zIndex: 12,
+    ...Platform.select({
+      android: { elevation: 12 },
+      default: {},
+    }),
   },
   landingHint: {
     fontSize: 13,

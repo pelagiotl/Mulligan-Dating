@@ -21,6 +21,7 @@ import {
   type LaunchDockInsets,
   type LaunchDockPersisted,
 } from '../utils/launchCountdownDock';
+import AnimatedLaunchHourglass from './AnimatedLaunchHourglass';
 
 /** Same launch instant as web `frontend/src/components/LaunchCountdown.tsx` */
 const LAUNCH_MS = new Date(2026, 5, 6, 0, 0, 0, 0).getTime();
@@ -269,9 +270,7 @@ export default function LaunchCountdownBubble({
               isVerticalDock ? styles.collapsedVertical : styles.collapsedHorizontal,
             ]}
           >
-            <Text style={styles.collapsedEmoji} allowFontScaling={false}>
-              ⏳
-            </Text>
+            <AnimatedLaunchHourglass size="xs" />
             <Text style={[styles.collapsedLabel, { color: theme.collapsedLabel }]} numberOfLines={1}>
               {remaining.live ? 'Live' : `${remaining.days}d`}
             </Text>
@@ -332,9 +331,7 @@ export default function LaunchCountdownBubble({
                         },
                       ]}
                     >
-                      <Text style={styles.hourglass} allowFontScaling={false}>
-                        ⏳
-                      </Text>
+                      <AnimatedLaunchHourglass size="sm" />
                     </View>
                     <Text style={[styles.heading, { color: theme.heading }]}>June 6 launch</Text>
                   </View>
@@ -354,9 +351,7 @@ export default function LaunchCountdownBubble({
                         },
                       ]}
                     >
-                      <Text style={styles.hourglass} allowFontScaling={false}>
-                        ⏳
-                      </Text>
+                      <AnimatedLaunchHourglass size="sm" />
                     </View>
                     <View style={styles.headerCopy}>
                       <Text style={[styles.heading, { color: theme.heading }]}>June 6 launch</Text>
@@ -452,9 +447,6 @@ const styles = StyleSheet.create({
     gap: 1,
     minHeight: 52,
   },
-  collapsedEmoji: {
-    fontSize: 11,
-  },
   collapsedLabel: {
     fontSize: 10,
     fontWeight: '700',
@@ -538,9 +530,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-  },
-  hourglass: {
-    fontSize: 16,
+    overflow: 'visible',
   },
   heading: {
     fontSize: 14,

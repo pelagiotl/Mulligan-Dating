@@ -35,10 +35,17 @@ export default function MatchmakingPausedModalWeb({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="matchmaking-paused-modal-rim">
+          <span className="matchmaking-paused-modal-rim-shimmer" aria-hidden />
           <div className="matchmaking-paused-modal-inner">
+            <span className="matchmaking-paused-modal-inner-shimmer" aria-hidden />
             <header className="matchmaking-paused-modal-header">
-              <span className="matchmaking-paused-modal-hourglass" aria-hidden>
-                ⏳
+              <span
+                className="launch-countdown__hourglass matchmaking-paused-modal-hourglass"
+                aria-hidden
+              >
+                <span className="launch-countdown__hourglass-glow" />
+                <span className="launch-countdown__hourglass-emoji">⏳</span>
+                <span className="launch-countdown__hourglass-sand" />
               </span>
               <div>
                 <p className="matchmaking-paused-modal-kicker">Launch countdown</p>
