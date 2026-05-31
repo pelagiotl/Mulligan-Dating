@@ -10,7 +10,10 @@ export function matchSoundPublicUrl(): string {
   return `${base}match-sound.wav`;
 }
 
-let preloadedAudio: HTMLAudioElement | null = null;
+/** Playback instance — never used for silent unlock (avoids pause() racing celebration). */
+let celebrationAudio: HTMLAudioElement | null = null;
+/** Separate instance for gesture unlock only. */
+let unlockAudio: HTMLAudioElement | null = null;
 let audioContext: AudioContext | null = null;
 let suppressMatchSoundUntil = 0;
 
@@ -30,16 +33,25 @@ function ensureAudioContext(): AudioContext {
   return audioContext;
 }
 
-function getPreloadedAudio(): HTMLAudioElement {
-  if (!preloadedAudio) {
-    preloadedAudio = new Audio(matchSoundPublicUrl());
-    preloadedAudio.preload = "auto";
-    preloadedAudio.load();
+function getCelebrationAudio(): HTMLAudioElement {
+  if (!celebrationAudio) {
+    celebrationAudio = new Audio(matchSoundPublicUrl());
+    celebrationAudio.preload = "auto";
+    celebrationAudio.load();
   }
-  return preloadedAudio;
+  return celebrationAudio;
 }
 
-/** Call on Connect / any tap so delayed celebration playback is allowed (~7s reveal). */
+function getUnlockAudio(): HTMLAudioElement {
+  if (!unlockAudio) {
+    unlockAudio = new Audio(matchSoundPublicUrl());
+    unlockAudio.preload = "auto";
+    unlockAudio.load();
+  }
+  return unlockAudio;
+}
+
+/** Call on Connect / Complete Profile tap so delayed celebration playback is allowed. */
 export function unlockMatchAudio(): void {
   if (typeof window === "undefined") return;
 
@@ -47,9 +59,8 @@ export function unlockMatchAudio(): void {
 
   void ensureAudioContext().resume().catch(() => {});
 
-  const audio = getPreloadedAudio();
+  const audio = getUnlockAudio();
   const previousVolume = audio.volume;
-  const wasMuted = audio.muted;
   audio.muted = true;
   audio.volume = 0;
   void audio
@@ -57,11 +68,11 @@ export function unlockMatchAudio(): void {
     .then(() => {
       audio.pause();
       audio.currentTime = 0;
-      audio.muted = wasMuted;
+      audio.muted = false;
       audio.volume = previousVolume > 0 ? previousVolume : 0.55;
     })
     .catch(() => {
-      audio.muted = wasMuted;
+      audio.muted = false;
       audio.volume = previousVolume > 0 ? previousVolume : 0.55;
     });
 }
@@ -114,9 +125,11 @@ export function playMatchSound(volume = 0.45): void {
   if (typeof window === "undefined") return;
   if (isMatchSoundSuppressed()) return;
 
-  const audio = getPreloadedAudio();
-  audio.volume = volume;
+  const audio = getCelebrationAudio();
+  audio.pause();
   audio.currentTime = 0;
+  audio.muted = false;
+  audio.volume = volume;
 
   void ensureAudioContext()
     .resume()
