@@ -6,6 +6,7 @@ import {
   detectAddToHomePlatform,
   dismissAddToHomePrompt,
   isAddToHomeDismissed,
+  isInstagramInAppBrowser,
   isLikelyMobileBrowser,
   shouldShowLandingAddToHomePrompt,
 } from '../lib/addToHomeScreen';
@@ -21,8 +22,37 @@ type StepItem = { title: string; detail?: string };
 function stepsForPlatform(
   platform: 'ios' | 'android' | 'other',
   mobile: boolean,
-  canNativeInstall: boolean
+  canNativeInstall: boolean,
+  fromInstagram: boolean
 ): StepItem[] {
+  if (mobile && fromInstagram && platform === 'ios') {
+    return [
+      {
+        title: 'Tap ⋯ (top right) → Open in external browser',
+        detail: 'Leave Instagram’s in-app browser first',
+      },
+      {
+        title: 'Tap ⋯ on the bottom bar → swipe up',
+        detail: 'In Safari (or Chrome) after the page reloads',
+      },
+      {
+        title: 'Add to Home Screen → tap Add',
+        detail: 'Then open Mulligan from your home screen like an app',
+      },
+    ];
+  }
+  if (mobile && fromInstagram && platform === 'android') {
+    return [
+      {
+        title: 'Tap ⋮ (top) → Open in browser',
+        detail: 'Chrome or your default browser — not Instagram’s viewer',
+      },
+      {
+        title: 'Tap ⋮ → Install app or Add to Home screen',
+        detail: 'Confirm when your browser prompts you',
+      },
+    ];
+  }
   if (mobile && platform === 'ios') {
     return [
       { title: 'Tap ⋯ → Share 📤', detail: 'Bottom bar in Safari' },
@@ -71,6 +101,7 @@ export default function LandingAddToHomePrompt({ variant = 'default' }: LandingA
   const [showRestoreLink, setShowRestoreLink] = useState(false);
   const [mobile, setMobile] = useState(true);
   const [platform, setPlatform] = useState<'ios' | 'android' | 'other'>('other');
+  const [fromInstagram, setFromInstagram] = useState(false);
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const [installing, setInstalling] = useState(false);
 
@@ -96,6 +127,7 @@ export default function LandingAddToHomePrompt({ variant = 'default' }: LandingA
   useEffect(() => {
     setMobile(isLikelyMobileBrowser());
     setPlatform(detectAddToHomePlatform());
+    setFromInstagram(isInstagramInAppBrowser());
     syncVisibility();
 
     const onBeforeInstall = (e: Event) => {
@@ -117,6 +149,7 @@ export default function LandingAddToHomePrompt({ variant = 'default' }: LandingA
     clearAddToHomeDismiss();
     setMobile(isLikelyMobileBrowser());
     setPlatform(detectAddToHomePlatform());
+    setFromInstagram(isInstagramInAppBrowser());
     syncVisibility(true);
   }, [syncVisibility]);
 
@@ -152,7 +185,8 @@ export default function LandingAddToHomePrompt({ variant = 'default' }: LandingA
 
   const canNativeInstall = mobile && platform === 'android' && installEvent != null;
   const featured = variant === 'featured';
-  const steps = stepsForPlatform(platform, mobile, canNativeInstall);
+  const steps = stepsForPlatform(platform, mobile, canNativeInstall, fromInstagram);
+  const instagramFlow = mobile && fromInstagram;
 
   return (
     <aside
@@ -180,14 +214,22 @@ export default function LandingAddToHomePrompt({ variant = 'default' }: LandingA
           <span className="landing-a2hs__icon-emoji">📲</span>
         </div>
         <div className="landing-a2hs__copy">
-          <p className="landing-a2hs__kicker">{featured && mobile ? 'Do this first' : 'Pro tip'}</p>
+          <p className="landing-a2hs__kicker">
+            {instagramFlow
+              ? 'Opened from Instagram'
+              : featured && mobile
+                ? 'Do this first'
+                : 'Pro tip'}
+          </p>
           <h2 id="landing-a2hs-title" className="landing-a2hs__title">
             Add Mulligan to your home screen
           </h2>
           <p className="landing-a2hs__body">
-            {featured && mobile
-              ? 'Takes about 10 seconds — then open Mulligan like an app from your home screen.'
-              : 'Install Mulligan on your home screen for a faster, app-like experience.'}
+            {instagramFlow
+              ? 'Instagram’s browser can’t add apps to your home screen — open Mulligan in Safari (or Chrome) first, then follow the steps below.'
+              : featured && mobile
+                ? 'Takes about 10 seconds — then open Mulligan like an app from your home screen.'
+                : 'Install Mulligan on your home screen for a faster, app-like experience.'}
           </p>
 
           {steps.length > 0 ? <AddToHomeSteps steps={steps} /> : null}

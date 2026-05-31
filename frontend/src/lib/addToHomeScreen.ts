@@ -27,6 +27,22 @@ export function detectAddToHomePlatform(): AddToHomePlatform {
   return 'other';
 }
 
+/** Instagram (and similar Meta) in-app browsers block Add to Home Screen until opened externally. */
+export function isInstagramInAppBrowser(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent;
+  if (/Instagram/i.test(ua)) return true;
+  if (typeof document !== 'undefined') {
+    try {
+      const ref = document.referrer;
+      if (ref && /instagram\.com/i.test(ref)) return true;
+    } catch {
+      /* ignore */
+    }
+  }
+  return false;
+}
+
 export function isAddToHomeDismissed(): boolean {
   if (typeof localStorage === 'undefined') return false;
   try {
