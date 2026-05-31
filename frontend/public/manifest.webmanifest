@@ -5,13 +5,19 @@
   "start_url": "/",
   "display": "standalone",
   "background_color": "#15102a",
-  "theme_color": "#8b1538",
+  "theme_color": "#764ba2",
   "icons": [
     {
-      "src": "/app-icon.png?v=20260411",
+      "src": "/app-icon.png?v=20260530",
       "sizes": "1024x1024",
       "type": "image/png",
       "purpose": "any"
+    },
+    {
+      "src": "/app-icon.png?v=20260530",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
