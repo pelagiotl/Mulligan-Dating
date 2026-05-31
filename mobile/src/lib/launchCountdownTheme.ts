@@ -27,6 +27,8 @@ export type LaunchCountdownTheme = {
   minimizeBg: string;
   minimizeBorder: string;
   minimizeText: string;
+  /** Rotating perimeter ring (expanded + collapsed). */
+  perimeterGlow: readonly [string, string, ...string[]];
 };
 
 const midnight: LaunchCountdownTheme = {
@@ -55,6 +57,12 @@ const midnight: LaunchCountdownTheme = {
   minimizeBg: 'rgba(30, 27, 46, 0.85)',
   minimizeBorder: 'rgba(167, 139, 250, 0.4)',
   minimizeText: '#e9d5ff',
+  perimeterGlow: [
+    'rgba(167, 139, 250, 0.95)',
+    'rgba(244, 114, 182, 0.88)',
+    'rgba(56, 189, 248, 0.82)',
+    'rgba(129, 140, 248, 0.92)',
+  ],
 };
 
 const sunny: LaunchCountdownTheme = {
@@ -83,6 +91,12 @@ const sunny: LaunchCountdownTheme = {
   minimizeBg: 'rgba(255, 255, 255, 0.88)',
   minimizeBorder: 'rgba(234, 88, 12, 0.35)',
   minimizeText: '#c2410c',
+  perimeterGlow: [
+    'rgba(251, 191, 36, 0.95)',
+    'rgba(251, 146, 60, 0.9)',
+    'rgba(56, 189, 248, 0.75)',
+    'rgba(244, 114, 182, 0.8)',
+  ],
 };
 
 const soft: LaunchCountdownTheme = {
@@ -111,6 +125,12 @@ const soft: LaunchCountdownTheme = {
   minimizeBg: 'rgba(255, 255, 255, 0.85)',
   minimizeBorder: 'rgba(102, 126, 234, 0.3)',
   minimizeText: '#5b21b6',
+  perimeterGlow: [
+    'rgba(102, 126, 234, 0.92)',
+    'rgba(167, 139, 250, 0.88)',
+    'rgba(240, 147, 251, 0.8)',
+    'rgba(118, 75, 162, 0.9)',
+  ],
 };
 
 export function launchCountdownTheme(shell: ConnectShellMode): LaunchCountdownTheme {

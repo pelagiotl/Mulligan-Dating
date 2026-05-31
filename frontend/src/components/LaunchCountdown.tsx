@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import {
   computeLaunchRemaining,
   LAUNCH_LABEL,
+  launchHourUnit,
   type LaunchRemaining,
 } from "../constants/launchSchedule";
 import {
@@ -362,7 +363,7 @@ export default function LaunchCountdown() {
         </div>
         <div className="launch-countdown__cell">
           <span className="launch-countdown__value">{state.hours}</span>
-          <span className="launch-countdown__unit">Hours</span>
+          <span className="launch-countdown__unit">{launchHourUnit(state.hours)}</span>
         </div>
       </div>
     </section>
@@ -387,9 +388,11 @@ export default function LaunchCountdown() {
       role="group"
       aria-label="Launch countdown widget"
     >
+      <span className="launch-countdown-bubble__perimeter-glow" aria-hidden />
       {!state.live ? <span className="launch-countdown-bubble__pin" aria-hidden /> : null}
 
       {collapsed ? (
+        <div className="launch-countdown-bubble-collapsed-frame">
         <div
           className={
             "launch-countdown-bubble-collapsed-inner" +
@@ -410,6 +413,7 @@ export default function LaunchCountdown() {
           <span className="launch-countdown-bubble-collapsed-cue" aria-hidden>
             {expandCue}
           </span>
+        </div>
         </div>
       ) : (
         <div

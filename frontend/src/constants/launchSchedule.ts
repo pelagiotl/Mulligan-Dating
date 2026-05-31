@@ -3,6 +3,10 @@ export const LAUNCH_INSTANT_ISO = '2026-06-06T15:00:00-07:00';
 
 export const LAUNCH_LABEL = 'June 6 · 3pm PT';
 
+export function launchHourUnit(hours: number): string {
+  return hours === 1 ? 'Hour' : 'Hours';
+}
+
 export type LaunchRemaining = { live: true } | { live: false; days: number; hours: number };
 
 export function getLaunchInstantMs(): number {

@@ -22,9 +22,11 @@ import {
   type LaunchDockPersisted,
 } from '../utils/launchCountdownDock';
 import AnimatedLaunchHourglass from './AnimatedLaunchHourglass';
+import LaunchCountdownPerimeterGlow from './LaunchCountdownPerimeterGlow';
 import {
   computeLaunchRemaining,
   LAUNCH_LABEL,
+  launchHourUnit,
   type LaunchRemaining,
 } from '../constants/launchSchedule';
 
@@ -53,7 +55,7 @@ export default function LaunchCountdownBubble({
 }: LaunchCountdownBubbleProps) {
   const theme = useMemo(() => launchCountdownTheme(connectShell), [connectShell]);
   const { width: vw, height: vh } = useWindowDimensions();
-  const [remaining, setRemaining] = useState<Remaining>(() => computeRemaining());
+  const [remaining, setRemaining] = useState<LaunchRemaining>(() => computeRemaining());
   const [edge, setEdge] = useState<LaunchDockEdge>('top');
   const [along, setAlong] = useState(0.5);
   const [collapsed, setCollapsed] = useState(false);
@@ -256,38 +258,41 @@ export default function LaunchCountdownBubble({
         accessibilityHint="Drag to any position along an edge to dock. Tap collapsed chip to expand. Hold collapsed chip to reset."
       >
         {collapsed ? (
-          <LinearGradient
-            colors={theme.collapsedGradient}
-            locations={theme.collapsedGradientLocations}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={[
-              styles.collapsedGradient,
-              { borderColor: theme.collapsedBorder },
-              isVerticalDock ? styles.collapsedVertical : styles.collapsedHorizontal,
-            ]}
-          >
-            <AnimatedLaunchHourglass size="xs" />
-            <Text style={[styles.collapsedLabel, { color: theme.collapsedLabel }]} numberOfLines={1}>
-              {remaining.live ? 'Live' : `${remaining.days}d ${remaining.hours}h`}
-            </Text>
-            <Text
-              style={[styles.collapsedChevron, { color: theme.collapsedCue }]}
-              allowFontScaling={false}
+          <LaunchCountdownPerimeterGlow borderRadius={11} colors={theme.perimeterGlow}>
+            <LinearGradient
+              colors={theme.collapsedGradient}
+              locations={theme.collapsedGradientLocations}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={[
+                styles.collapsedGradient,
+                { borderColor: theme.collapsedBorder },
+                isVerticalDock ? styles.collapsedVertical : styles.collapsedHorizontal,
+              ]}
             >
-              {expandCue}
-            </Text>
-          </LinearGradient>
+              <AnimatedLaunchHourglass size="xs" />
+              <Text style={[styles.collapsedLabel, { color: theme.collapsedLabel }]} numberOfLines={1}>
+                {remaining.live ? 'Live' : `${remaining.days}d ${remaining.hours}h`}
+              </Text>
+              <Text
+                style={[styles.collapsedChevron, { color: theme.collapsedCue }]}
+                allowFontScaling={false}
+              >
+                {expandCue}
+              </Text>
+            </LinearGradient>
+          </LaunchCountdownPerimeterGlow>
         ) : (
-          <View
-            style={[
-              styles.expandedOuter,
-              {
-                borderColor: theme.expandedBorder,
-                shadowColor: theme.expandedShadowColor,
-              },
-            ]}
-          >
+          <LaunchCountdownPerimeterGlow borderRadius={16} colors={theme.perimeterGlow}>
+            <View
+              style={[
+                styles.expandedOuter,
+                {
+                  borderColor: theme.expandedBorder,
+                  shadowColor: theme.expandedShadowColor,
+                },
+              ]}
+            >
             <LinearGradient
               colors={theme.expandedGradient}
               locations={theme.expandedGradientLocations}
@@ -377,7 +382,7 @@ export default function LaunchCountdownBubble({
                       style={[styles.cellGradient, { borderColor: theme.cellBorder }]}
                     >
                       <Text style={[styles.value, { color: theme.value }]}>{remaining.hours}</Text>
-                      <Text style={[styles.unit, { color: theme.unit }]}>Hours</Text>
+                      <Text style={[styles.unit, { color: theme.unit }]}>{launchHourUnit(remaining.hours)}</Text>
                     </LinearGradient>
                   </View>
                 </>
@@ -399,7 +404,8 @@ export default function LaunchCountdownBubble({
                 <Text style={[styles.collapseBtnText, { color: theme.minimizeText }]}>Minimize</Text>
               </Pressable>
             </LinearGradient>
-          </View>
+            </View>
+          </LaunchCountdownPerimeterGlow>
         )}
       </View>
     </View>
@@ -469,6 +475,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
+    backgroundColor: 'transparent',
     ...Platform.select({
       ios: {
         shadowOffset: { width: 0, height: 8 },

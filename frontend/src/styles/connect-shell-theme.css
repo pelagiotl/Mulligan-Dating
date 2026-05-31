@@ -1238,7 +1238,27 @@ html[data-connect-shell="midnight"] .launch-countdown-bubble.launch-countdown-bu
 }
 
 /* Midnight — docked chip + expanded shell (hero card graphite / violet chrome) */
-html[data-connect-shell="midnight"] .launch-countdown-bubble.launch-countdown-bubble--collapsed {
+html[data-connect-shell="midnight"] .launch-countdown-bubble__perimeter-glow::before {
+  background: conic-gradient(
+    from 0deg,
+    rgba(167, 139, 250, 0.95) 0deg,
+    rgba(244, 114, 182, 0.88) 90deg,
+    rgba(56, 189, 248, 0.82) 180deg,
+    rgba(129, 140, 248, 0.9) 270deg,
+    rgba(167, 139, 250, 0.95) 360deg
+  );
+}
+
+html[data-connect-shell="midnight"] .launch-countdown-bubble__perimeter-glow::after {
+  background: radial-gradient(
+    ellipse at 50% 50%,
+    rgba(129, 140, 248, 0.42) 0%,
+    rgba(167, 139, 250, 0.2) 45%,
+    transparent 72%
+  );
+}
+
+html[data-connect-shell="midnight"] .launch-countdown-bubble-collapsed-inner {
   background: linear-gradient(
     135deg,
     #2d2648 0%,
@@ -1822,7 +1842,27 @@ html[data-connect-shell="midnight"] .matches-page .no-messages__cta,
 }
 
 /* Sunny — warm cream / amber (hero sunny card) */
-html[data-connect-shell="sunny"] .launch-countdown-bubble.launch-countdown-bubble--collapsed {
+html[data-connect-shell="sunny"] .launch-countdown-bubble__perimeter-glow::before {
+  background: conic-gradient(
+    from 0deg,
+    rgba(251, 191, 36, 0.95) 0deg,
+    rgba(251, 146, 60, 0.9) 90deg,
+    rgba(56, 189, 248, 0.78) 180deg,
+    rgba(244, 114, 182, 0.82) 270deg,
+    rgba(251, 191, 36, 0.95) 360deg
+  );
+}
+
+html[data-connect-shell="sunny"] .launch-countdown-bubble__perimeter-glow::after {
+  background: radial-gradient(
+    ellipse at 50% 50%,
+    rgba(251, 191, 36, 0.35) 0%,
+    rgba(251, 146, 60, 0.16) 45%,
+    transparent 72%
+  );
+}
+
+html[data-connect-shell="sunny"] .launch-countdown-bubble-collapsed-inner {
   background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 35%, #fde68a 65%, #fff7ed 100%);
   border: 1px solid rgba(251, 191, 36, 0.35);
   box-shadow:
@@ -1881,7 +1921,27 @@ html[data-connect-shell="sunny"] .launch-countdown-bubble__minimize:hover {
 }
 
 /* Soft — white / lavender (hero soft card + purple chrome) */
-html[data-connect-shell="soft"] .launch-countdown-bubble.launch-countdown-bubble--collapsed {
+html[data-connect-shell="soft"] .launch-countdown-bubble__perimeter-glow::before {
+  background: conic-gradient(
+    from 0deg,
+    rgba(102, 126, 234, 0.92) 0deg,
+    rgba(167, 139, 250, 0.88) 90deg,
+    rgba(240, 147, 251, 0.8) 180deg,
+    rgba(118, 75, 162, 0.9) 270deg,
+    rgba(102, 126, 234, 0.92) 360deg
+  );
+}
+
+html[data-connect-shell="soft"] .launch-countdown-bubble__perimeter-glow::after {
+  background: radial-gradient(
+    ellipse at 50% 50%,
+    rgba(102, 126, 234, 0.32) 0%,
+    rgba(167, 139, 250, 0.15) 45%,
+    transparent 72%
+  );
+}
+
+html[data-connect-shell="soft"] .launch-countdown-bubble-collapsed-inner {
   background: linear-gradient(135deg, #ffffff 0%, #f5f3ff 35%, #ede9fe 65%, #faf5ff 100%);
   border: 1px solid rgba(148, 163, 184, 0.32);
   box-shadow:

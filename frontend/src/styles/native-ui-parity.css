@@ -953,6 +953,24 @@
   animation: none;
 }
 
+@keyframes launchCountdownRingRotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes launchCountdownGlowPulse {
+  0%,
+  100% {
+    opacity: 0.42;
+    filter: blur(6px);
+  }
+  50% {
+    opacity: 0.92;
+    filter: blur(10px);
+  }
+}
+
 /* Docked / parity with mobile: edge snap + collapsed chip */
 .launch-countdown-bubble--docked.launch-countdown-bubble--expanded-shell {
   padding: 0;
@@ -961,6 +979,74 @@
   animation: none;
   border-radius: 18px;
   max-width: min(268px, calc(100vw - 24px));
+  overflow: visible;
+}
+
+.launch-countdown-bubble--docked {
+  overflow: visible;
+}
+
+.launch-countdown-bubble--docked > :not(.launch-countdown-bubble__perimeter-glow) {
+  position: relative;
+  z-index: 1;
+}
+
+.launch-countdown-bubble__perimeter-glow {
+  position: absolute;
+  inset: -3px;
+  border-radius: 18px;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.launch-countdown-bubble--collapsed .launch-countdown-bubble__perimeter-glow {
+  inset: -2px;
+  border-radius: 13px;
+}
+
+.launch-countdown-bubble__perimeter-glow::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 2px;
+  background: conic-gradient(
+    from 0deg,
+    rgba(167, 139, 250, 0.95) 0deg,
+    rgba(244, 114, 182, 0.88) 90deg,
+    rgba(56, 189, 248, 0.82) 180deg,
+    rgba(129, 140, 248, 0.9) 270deg,
+    rgba(167, 139, 250, 0.95) 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  animation: launchCountdownRingRotate 5.5s linear infinite;
+}
+
+.launch-countdown-bubble__perimeter-glow::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border-radius: inherit;
+  background: radial-gradient(
+    ellipse at 50% 50%,
+    rgba(129, 140, 248, 0.38) 0%,
+    rgba(167, 139, 250, 0.18) 42%,
+    transparent 72%
+  );
+  animation: launchCountdownGlowPulse 3.2s ease-in-out infinite;
+}
+
+.launch-countdown-bubble--dragging .launch-countdown-bubble__perimeter-glow::before,
+.launch-countdown-bubble--dragging .launch-countdown-bubble__perimeter-glow::after {
+  animation-play-state: paused;
 }
 
 .launch-countdown-bubble--docked.launch-countdown-bubble--collapsed {
@@ -968,11 +1054,14 @@
   animation: none;
   border-radius: 11px;
   max-width: min(168px, calc(100vw - 24px));
-  background: linear-gradient(135deg, #fdf4ff 0%, #ede9fe 35%, #fce7f3 65%, #fff7ed 100%);
-  border: 1px solid rgba(167, 139, 250, 0.28);
-  box-shadow:
-    0 4px 14px rgba(15, 23, 42, 0.1),
-    0 0 0 1px rgba(167, 139, 250, 0.08) inset;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.launch-countdown-bubble-collapsed-frame {
+  position: relative;
+  border-radius: 11px;
 }
 
 .launch-countdown-bubble-collapsed-inner {
@@ -983,6 +1072,12 @@
   gap: 0.25rem;
   padding: 0.28rem 0.5rem;
   min-width: 6.5rem;
+  border-radius: 11px;
+  background: linear-gradient(135deg, #fdf4ff 0%, #ede9fe 35%, #fce7f3 65%, #fff7ed 100%);
+  border: 1px solid rgba(167, 139, 250, 0.28);
+  box-shadow:
+    0 4px 14px rgba(15, 23, 42, 0.1),
+    0 0 0 1px rgba(167, 139, 250, 0.08) inset;
 }
 
 .launch-countdown-bubble-collapsed-inner--vertical {
@@ -1166,6 +1261,15 @@
 @media (prefers-reduced-motion: reduce) {
   .launch-countdown-bubble {
     animation: none;
+  }
+
+  .launch-countdown-bubble__perimeter-glow::before,
+  .launch-countdown-bubble__perimeter-glow::after {
+    animation: none;
+  }
+
+  .launch-countdown-bubble__perimeter-glow::after {
+    opacity: 0.55;
   }
 
   .launch-countdown-bubble .launch-countdown::after,
