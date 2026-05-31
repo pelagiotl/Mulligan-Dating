@@ -1025,14 +1025,19 @@ export default function CreateProfile() {
 
   const focusCard = (
     gradientClass: string,
+    stepLabel: string,
     emoji: string,
     title: string,
     subtitle: string,
     children: ReactNode,
     hint?: ReactNode
   ) => (
-    <div className={`create-profile-focus create-profile-focus--${gradientClass}`}>
+    <section
+      className={`create-profile-focus create-profile-focus--${gradientClass}`}
+      aria-label={stepLabel}
+    >
       <div className="create-profile-focus-inner">
+        <p className="create-profile-focus-step-pill">{stepLabel}</p>
         <span className="create-profile-focus-emoji" aria-hidden>
           {emoji}
         </span>
@@ -1041,7 +1046,7 @@ export default function CreateProfile() {
         {children}
         {hint ? <div className="create-profile-focus-hint">{hint}</div> : null}
       </div>
-    </div>
+    </section>
   );
 
   return (
@@ -1063,35 +1068,38 @@ export default function CreateProfile() {
           </button>
         </div>
         <h1 className="create-profile-hero-title">Set up your profile</h1>
-        <p className="create-profile-hero-hint">
-          Add photos on your Profile before you Connect. Age, interests, and match preferences are in Settings.
-        </p>
+        <p className="create-profile-hero-hint">Two quick steps below — then you&apos;re ready to browse.</p>
       </header>
 
       {error ? <div className="auth-error create-profile-error">{error}</div> : null}
 
       <div className="create-profile-body">
-        {step === 1 &&
-          focusCard(
-            "violet",
-            "👋",
-            "Welcome to Mulligan!",
-            "Let's start with your first name",
-            <>
+        {step === 1 ? (
+          <div className="create-profile-onboarding-stack">
+            {focusCard(
+              "violet",
+              "Step 1 · Your name",
+              "👋",
+              "Welcome to Mulligan!",
+              "Let's start with your first name",
               <input
                 type="text"
-                className="create-profile-focus-input"
+                className="create-profile-focus-input create-profile-focus-input--center"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder="Your first name"
                 autoComplete="given-name"
                 maxLength={50}
-              />
-              <div className="create-profile-focus-location-block">
-                <p className="create-profile-focus-location-label">Where do you live?</p>
-                <p className="create-profile-focus-location-sub">
-                  Southern Oregon for now — use city and state (e.g. Medford, OR).
-                </p>
+              />,
+              nameValid ? <span>✓ Looks good</span> : null
+            )}
+            {focusCard(
+              "coral",
+              "Step 2 · Your location",
+              "📍",
+              "Where do you live?",
+              "Southern Oregon for now — we use this to show you people nearby.",
+              <>
                 <input
                   type="text"
                   className="create-profile-focus-input create-profile-focus-input--location"
@@ -1110,14 +1118,15 @@ export default function CreateProfile() {
                 >
                   {detectingLocation ? "Detecting…" : "📍 Use My Location"}
                 </button>
-              </div>
-            </>,
-            nameValid && locationValid ? (
-              <span>✓ Ready — tap Complete Profile</span>
-            ) : nameValid ? (
-              <span>✓ Add your city and state to finish</span>
-            ) : null
-          )}
+              </>,
+              locationValid ? <span>✓ Location set</span> : null
+            )}
+            <p className="create-profile-onboarding-footnote">
+              Add a photo on your Profile before you Connect. Age, interests, and match preferences
+              are in Settings.
+            </p>
+          </div>
+        ) : null}
       </div>
 
       <div className="create-profile-actions">

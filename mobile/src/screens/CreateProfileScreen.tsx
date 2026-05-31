@@ -1464,8 +1464,14 @@ export default function CreateProfileScreen() {
     keyboardVisible && styles.onboardingFieldWrapKeyboard,
     { paddingHorizontal: rs.sectionPaddingH },
   ];
+  const renderOnboardingStepPill = (label: string) => (
+    <View style={styles.onboardingStepPill}>
+      <Text style={styles.onboardingStepPillText}>{label}</Text>
+    </View>
+  );
+
   const renderStep1DisplayName = () => onboardingStepWrapper(
-    <View style={onboardingFieldWrapStyle}>
+    <View style={[onboardingFieldWrapStyle, styles.onboardingSectionsWrap]}>
       <Animated.View style={[{ transform: [{ scale: firstNameScale }], opacity: firstNameOpacity }]}>
         <LinearGradient
           colors={['#667eea', '#764ba2', '#f093fb']}
@@ -1477,11 +1483,12 @@ export default function CreateProfileScreen() {
             { padding: keyboardVisible ? rs.cardPaddingKeyboard : rs.cardPaddingFirst },
           ]}
         >
+          {renderOnboardingStepPill('Step 1 · Your name')}
           <Text
             style={[
               styles.focusedEmoji,
               keyboardVisible && styles.focusedEmojiSmall,
-              { fontSize: keyboardVisible ? rs.emojiSizeSmall : rs.emojiSize, marginBottom: keyboardVisible ? 8 : 20 },
+              { fontSize: keyboardVisible ? rs.emojiSizeSmall : rs.emojiSize, marginBottom: keyboardVisible ? 8 : 16 },
             ]}
           >
             👋
@@ -1504,7 +1511,7 @@ export default function CreateProfileScreen() {
               keyboardVisible && styles.focusedSubtitleCompact,
               {
                 fontSize: keyboardVisible ? rs.subtitleSizeCompact : 10,
-                marginBottom: keyboardVisible ? 16 : rs.subtitleMargin,
+                marginBottom: keyboardVisible ? 14 : rs.subtitleMargin,
                 maxWidth: '100%',
               },
             ]}
@@ -1533,97 +1540,116 @@ export default function CreateProfileScreen() {
               onSubmitEditing={() => locationInputRef.current?.focus()}
             />
           </Animated.View>
-
-          <View style={styles.onboardingLocationDivider} />
-
-          <Animated.View style={[{ transform: [{ scale: locationScale }], opacity: locationOpacity }]}>
-            <Text
-              style={[
-                styles.focusedTitle,
-                keyboardVisible && styles.focusedTitleSmall,
-                { fontSize: rs.titleSizeSmall, marginBottom: keyboardVisible ? 6 : rs.titleMargin },
-              ]}
-            >
-              Where do you live?
-            </Text>
-            <Text
-              style={[
-                styles.focusedSubtitle,
-                keyboardVisible && styles.focusedSubtitleSmall,
-                {
-                  fontSize: rs.subtitleSizeSmall * 0.92,
-                  marginBottom: keyboardVisible ? 12 : rs.subtitleMargin,
-                  opacity: 0.88,
-                },
-              ]}
-            >
-              Southern Oregon for now — city and state (e.g. Medford, OR).
-            </Text>
-            <Animated.View
-              style={[
-                styles.focusedInputWrapper,
-                {
-                  shadowOpacity: locationGlow.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.6] }),
-                  shadowRadius: locationGlow.interpolate({ inputRange: [0, 1], outputRange: [8, 20] }),
-                },
-              ]}
-            >
-              <TextInput
-                ref={locationInputRef}
-                style={[
-                  styles.focusedLocationInput,
-                  location.length > 28 && styles.focusedLocationInputLong,
-                ]}
-                value={location}
-                onChangeText={(t) => handleLocationChange(t, setLocation)}
-                onBlur={() => setLocation((prev) => compactCityState(prev))}
-                placeholder="City, State"
-                placeholderTextColor="#4a5568"
-                editable={!detectingLocation}
-                returnKeyType="done"
-                multiline
-                numberOfLines={2}
-                textAlign="center"
-                textAlignVertical="center"
-                {...(Platform.OS === 'ios'
-                  ? { adjustsFontSizeToFit: true, minimumFontScale: 0.72 }
-                  : {})}
-              />
-            </Animated.View>
-            <TouchableOpacity
-              style={styles.focusedLocationButton}
-              onPress={detectLocation}
-              disabled={detectingLocation}
-            >
-              {detectingLocation ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.focusedLocationButtonText}>📍 Use My Location</Text>
-              )}
-            </TouchableOpacity>
-          </Animated.View>
-
-          {nameValid && locationValid ? (
-            <Animated.View style={[styles.successIndicator, { opacity: locationOpacity }]}>
-              <Text style={styles.successText}>✓ Ready — tap Complete Profile</Text>
-            </Animated.View>
-          ) : nameValid ? (
+          {nameValid ? (
             <Animated.View style={[styles.successIndicator, { opacity: firstNameOpacity }]}>
-              <Text style={styles.successText}>✓ Add your city and state to finish</Text>
+              <Text style={styles.successText}>✓ Looks good</Text>
             </Animated.View>
           ) : null}
+        </LinearGradient>
+      </Animated.View>
 
+      <Animated.View
+        style={[
+          { transform: [{ scale: locationScale }], opacity: locationOpacity },
+          styles.onboardingSectionCardWrap,
+        ]}
+      >
+        <LinearGradient
+          colors={['#f5576c', '#4facfe', '#00f2fe']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[
+            styles.focusedFieldCard,
+            keyboardVisible && styles.focusedCardWithKeyboard,
+            { padding: keyboardVisible ? rs.cardPaddingKeyboard : rs.cardPadding },
+          ]}
+        >
+          {renderOnboardingStepPill('Step 2 · Your location')}
+          <Text
+            style={[
+              styles.focusedEmoji,
+              keyboardVisible && styles.focusedEmojiSmall,
+              { fontSize: keyboardVisible ? rs.emojiSizeSmall : rs.emojiSize, marginBottom: keyboardVisible ? 8 : 16 },
+            ]}
+          >
+            📍
+          </Text>
+          <Text
+            style={[
+              styles.focusedTitle,
+              keyboardVisible && styles.focusedTitleSmall,
+              { fontSize: rs.titleSizeSmall, marginBottom: keyboardVisible ? 6 : rs.titleMargin },
+            ]}
+          >
+            Where do you live?
+          </Text>
           <Text
             style={[
               styles.focusedSubtitle,
               keyboardVisible && styles.focusedSubtitleSmall,
-              { fontSize: rs.subtitleSizeSmall * 0.92, marginTop: 12, marginBottom: 0, opacity: 0.88 },
+              {
+                fontSize: rs.subtitleSizeSmall,
+                marginBottom: keyboardVisible ? 12 : rs.subtitleMargin,
+                opacity: 0.92,
+              },
             ]}
           >
-            Add a photo on your Profile tab before you tap Connect to match.
+            Southern Oregon for now — we use this to show you people nearby.
           </Text>
+          <Animated.View
+            style={[
+              styles.focusedInputWrapper,
+              {
+                shadowOpacity: locationGlow.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.6] }),
+                shadowRadius: locationGlow.interpolate({ inputRange: [0, 1], outputRange: [8, 20] }),
+              },
+            ]}
+          >
+            <TextInput
+              ref={locationInputRef}
+              style={[
+                styles.focusedLocationInput,
+                location.length > 28 && styles.focusedLocationInputLong,
+              ]}
+              value={location}
+              onChangeText={(t) => handleLocationChange(t, setLocation)}
+              onBlur={() => setLocation((prev) => compactCityState(prev))}
+              placeholder="City, State"
+              placeholderTextColor="#4a5568"
+              editable={!detectingLocation}
+              returnKeyType="done"
+              multiline
+              numberOfLines={2}
+              textAlign="center"
+              textAlignVertical="center"
+              {...(Platform.OS === 'ios'
+                ? { adjustsFontSizeToFit: true, minimumFontScale: 0.72 }
+                : {})}
+            />
+          </Animated.View>
+          <TouchableOpacity
+            style={styles.focusedLocationButton}
+            onPress={detectLocation}
+            disabled={detectingLocation}
+          >
+            {detectingLocation ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.focusedLocationButtonText}>📍 Use My Location</Text>
+            )}
+          </TouchableOpacity>
+          {locationValid ? (
+            <Animated.View style={[styles.successIndicator, { opacity: locationOpacity }]}>
+              <Text style={styles.successText}>✓ Location set</Text>
+            </Animated.View>
+          ) : null}
         </LinearGradient>
       </Animated.View>
+
+      <Text style={styles.onboardingFootnote}>
+        Add a photo on your Profile before you Connect. Age, interests, and match preferences are in
+        Settings.
+      </Text>
     </View>
   );
 
@@ -4241,12 +4267,37 @@ const styles = StyleSheet.create({
   onboardingFieldWrapKeyboard: {
     paddingVertical: 4,
   },
-  onboardingLocationDivider: {
-    width: '100%',
-    height: 1,
-    marginTop: 18,
-    marginBottom: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+  onboardingSectionsWrap: {
+    gap: 14,
+    paddingBottom: 4,
+  },
+  onboardingSectionCardWrap: {
+    marginTop: 0,
+  },
+  onboardingStepPill: {
+    alignSelf: 'center',
+    marginBottom: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.28)',
+  },
+  onboardingStepPillText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    color: '#fff',
+  },
+  onboardingFootnote: {
+    marginTop: 4,
+    paddingHorizontal: 8,
+    fontSize: 12,
+    lineHeight: 17,
+    color: '#64748b',
+    textAlign: 'center',
   },
   actionsFooter: {
     flexShrink: 0,

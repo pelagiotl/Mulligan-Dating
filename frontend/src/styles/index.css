@@ -2790,10 +2790,26 @@ img {
   -webkit-overflow-scrolling: touch;
 }
 
+.create-profile-onboarding-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-bottom: var(--space-2);
+}
+
+.create-profile-onboarding-footnote {
+  margin: 0;
+  padding: 0 var(--space-2) var(--space-3);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
 .create-profile-focus {
   border-radius: var(--radius-xl);
   padding: var(--space-2);
-  margin: var(--space-2) 0 var(--space-4);
+  margin: 0;
   box-shadow: 0 12px 40px rgba(102, 126, 234, 0.25);
 }
 
@@ -2827,8 +2843,21 @@ img {
 
 .create-profile-focus-inner {
   color: #fff;
-  padding: var(--space-6) var(--space-5);
+  padding: var(--space-5) var(--space-5) var(--space-6);
   text-align: center;
+}
+
+.create-profile-focus-step-pill {
+  display: inline-block;
+  margin: 0 0 var(--space-3);
+  padding: 0.28rem 0.65rem;
+  border-radius: var(--radius-full);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.28);
 }
 
 .create-profile-focus-emoji {
@@ -2903,27 +2932,6 @@ img {
   font-size: 0.9rem;
   font-weight: 600;
   opacity: 0.95;
-}
-
-.create-profile-focus-location-block {
-  margin-top: var(--space-5);
-  padding-top: var(--space-4);
-  border-top: 1px solid rgba(255, 255, 255, 0.22);
-  text-align: left;
-}
-
-.create-profile-focus-location-label {
-  margin: 0 0 0.2rem;
-  font-size: 1rem;
-  font-weight: 800;
-  line-height: 1.2;
-}
-
-.create-profile-focus-location-sub {
-  margin: 0 0 var(--space-3);
-  font-size: 0.82rem;
-  opacity: 0.88;
-  line-height: 1.4;
 }
 
 .create-profile-char-count {
