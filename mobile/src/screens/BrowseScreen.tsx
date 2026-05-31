@@ -2166,15 +2166,15 @@ export default function BrowseScreen() {
                     {isAuthenticated ? (
                       <View style={styles.sunnyFeaturesRow} accessibilityRole="summary">
                         <View style={styles.sunnyFeature}>
-                          <ConnectLandingFeatureEmoji emoji="✨" delay={0} fontSize={26} />
+                          <ConnectLandingFeatureEmoji emoji="✨" fontSize={26} />
                           <ConnectFeatureLabel lines={['Quality', 'Matches']} style={styles.sunnyFeatureText} />
                         </View>
                         <View style={styles.sunnyFeature}>
-                          <ConnectLandingFeatureEmoji emoji="🎯" delay={700} fontSize={26} />
+                          <ConnectLandingFeatureEmoji emoji="🎯" fontSize={26} />
                           <ConnectFeatureLabel lines={['Shared', 'Interests']} style={styles.sunnyFeatureText} />
                         </View>
                         <View style={styles.sunnyFeature}>
-                          <ConnectLandingFeatureEmoji emoji="💝" delay={1400} fontSize={26} />
+                          <ConnectLandingFeatureEmoji emoji="💝" fontSize={26} />
                           <ConnectFeatureLabel lines={['Meaningful', 'Connections']} style={styles.sunnyFeatureText} />
                         </View>
                       </View>
@@ -2227,15 +2227,15 @@ export default function BrowseScreen() {
                     {isAuthenticated ? (
                       <View style={styles.softFeaturesRow} accessibilityRole="summary">
                         <View style={styles.softFeature}>
-                          <ConnectLandingFeatureEmoji emoji="✨" delay={0} fontSize={26} />
+                          <ConnectLandingFeatureEmoji emoji="✨" fontSize={26} />
                           <ConnectFeatureLabel lines={['Quality', 'Matches']} style={styles.softFeatureText} />
                         </View>
                         <View style={styles.softFeature}>
-                          <ConnectLandingFeatureEmoji emoji="🎯" delay={700} fontSize={26} />
+                          <ConnectLandingFeatureEmoji emoji="🎯" fontSize={26} />
                           <ConnectFeatureLabel lines={['Shared', 'Interests']} style={styles.softFeatureText} />
                         </View>
                         <View style={styles.softFeature}>
-                          <ConnectLandingFeatureEmoji emoji="💝" delay={1400} fontSize={26} />
+                          <ConnectLandingFeatureEmoji emoji="💝" fontSize={26} />
                           <ConnectFeatureLabel lines={['Meaningful', 'Connections']} style={styles.softFeatureText} />
                         </View>
                       </View>

@@ -2,7 +2,6 @@ import React, { memo } from 'react';
 import { View, Text, StyleSheet, Platform, type TextStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import ConnectLandingTagline from './ConnectLandingTagline';
-import SmoothPulsingEmoji from './SmoothPulsingEmoji';
 
 const INK = '#1a1a2e';
 const BURGUNDY = '#8B1538';
@@ -49,11 +48,7 @@ const featureLabelStyles = StyleSheet.create({
   },
 });
 
-const LANDING_FEATURE_TILES = [
-  { emoji: '✨', delay: 0 },
-  { emoji: '🎯', delay: 700 },
-  { emoji: '💝', delay: 1400 },
-] as const;
+const LANDING_FEATURE_TILES = ['✨', '🎯', '💝'] as const;
 
 const LANDING_FEATURE_LABELS: readonly [readonly [string, string], readonly [string, string], readonly [string, string]] = [
   ['Quality', 'Matches'],
@@ -67,25 +62,20 @@ const landingFeatureEmojiWrap = {
   justifyContent: 'center' as const,
 };
 
-/** Staggered smooth pulse for Connect landing feature row (BrowseScreen + value props card). */
+/** Static emoji for Connect landing feature row (BrowseScreen + value props card). */
 export function ConnectLandingFeatureEmoji({
   emoji,
-  delay = 0,
   fontSize = 28,
 }: {
   emoji: string;
-  delay?: number;
-  /** Ignored — kept for call-site compatibility with older animated variants. */
-  variant?: string;
   fontSize?: number;
 }) {
   return (
-    <SmoothPulsingEmoji
-      emoji={emoji}
-      fontSize={fontSize}
-      delay={delay}
-      containerStyle={landingFeatureEmojiWrap}
-    />
+    <View style={landingFeatureEmojiWrap}>
+      <Text style={{ fontSize, textAlign: 'center' }} allowFontScaling={false}>
+        {emoji}
+      </Text>
+    </View>
   );
 }
 
@@ -98,9 +88,9 @@ interface ConnectLandingValuePropsProps {
 function MidnightFeaturesRow() {
   return (
     <View style={midnightStyles.featuresRow} accessibilityRole="summary">
-      {LANDING_FEATURE_TILES.map((tile, index) => (
-        <View key={tile.emoji} style={midnightStyles.feature}>
-          <ConnectLandingFeatureEmoji emoji={tile.emoji} delay={tile.delay} fontSize={26} />
+      {LANDING_FEATURE_TILES.map((emoji, index) => (
+        <View key={emoji} style={midnightStyles.feature}>
+          <ConnectLandingFeatureEmoji emoji={emoji} fontSize={26} />
           <ConnectFeatureLabel lines={LANDING_FEATURE_LABELS[index]} style={midnightStyles.featureText} />
         </View>
       ))}
@@ -140,9 +130,9 @@ const ConnectLandingValueProps = memo(function ConnectLandingValueProps({
           </>
         ) : null}
         <View style={[styles.row, featuresOnly && styles.rowFeaturesOnly]}>
-          {LANDING_FEATURE_TILES.map((tile, index) => (
-            <View key={tile.emoji} style={styles.feature}>
-              <ConnectLandingFeatureEmoji emoji={tile.emoji} delay={tile.delay} />
+          {LANDING_FEATURE_TILES.map((emoji, index) => (
+            <View key={emoji} style={styles.feature}>
+              <ConnectLandingFeatureEmoji emoji={emoji} />
               <ConnectFeatureLabel lines={LANDING_FEATURE_LABELS[index]} style={styles.featureText} />
             </View>
           ))}
