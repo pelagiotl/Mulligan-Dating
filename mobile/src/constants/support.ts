@@ -4,6 +4,7 @@ export const SUPPORT_EMAIL = 'Mulligandating@gmail.com';
 
 const CREATE_PROFILE_SUPPORT_SUBJECT = 'Mulligan — help creating my profile';
 const MATCHES_SUPPORT_SUBJECT = 'Mulligan — question from Matches';
+const LOGIN_SUPPORT_SUBJECT = 'Mulligan — help signing in';
 
 export type MatchesSupportContext = {
   userId?: string | null;
@@ -66,4 +67,35 @@ export function openCreateProfileSupportEmail(): void {
 
 export function openMatchesSupportEmail(ctx: MatchesSupportContext): void {
   void Linking.openURL(getMatchesSupportMailtoUrl(ctx));
+}
+
+export type LoginSupportContext = {
+  phoneNumber?: string | null;
+  surface?: 'android' | 'ios';
+  step?: 'phone' | 'verify';
+};
+
+function buildLoginSupportBodyLines(ctx: LoginSupportContext): string[] {
+  const surface = ctx.surface ?? matchesSupportSurface();
+  const stepLabel = ctx.step === 'verify' ? 'Verifying code' : 'Entering phone number';
+  return [
+    'Hi Mulligan team,',
+    '',
+    'I need help signing in to Mulligan.',
+    '',
+    supportFieldLine('Phone', ctx.phoneNumber),
+    supportFieldLine('App', surface),
+    `Step: ${stepLabel}`,
+    '',
+    'Thanks!',
+  ];
+}
+
+export function getLoginSupportMailtoUrl(ctx: LoginSupportContext): string {
+  const body = encodeMailtoBody(buildLoginSupportBodyLines(ctx));
+  return `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(LOGIN_SUPPORT_SUBJECT)}&body=${body}`;
+}
+
+export function openLoginSupportEmail(ctx: LoginSupportContext): void {
+  void Linking.openURL(getLoginSupportMailtoUrl(ctx));
 }

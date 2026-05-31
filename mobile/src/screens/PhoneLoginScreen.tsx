@@ -23,6 +23,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { G, Path, Circle, Defs, LinearGradient as SvgLinearGradient, Stop, ClipPath, Rect } from 'react-native-svg';
 import { useNavigation } from '@react-navigation/native';
 import { api } from '../utils/api';
+import LoginSupportNote from '../components/LoginSupportNote';
 import { useAuth } from '../context/AuthContext';
 
 const LOGIN_BG_GRADIENT_ID = 'loginScreenBgGradient';
@@ -663,6 +664,7 @@ const PhoneForm = memo(function PhoneForm({
           Privacy Policy
         </Text>
       </Text>
+      <LoginSupportNote phoneNumber={phoneValue} step="phone" />
     </View>
   );
 });
@@ -907,6 +909,8 @@ export default function PhoneLoginScreen() {
               <Text style={[styles.buttonText, styles.secondaryButtonText]}>Change Phone</Text>
             </TouchableOpacity>
           </View>
+
+          <LoginSupportNote phoneNumber={submittedPhone} step="verify" />
         </View>
         </ScrollView>
       </KeyboardAvoidingView>

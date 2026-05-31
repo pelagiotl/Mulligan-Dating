@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import BrandMark from '../components/BrandMark'
 import LandingAddToHomePrompt from '../components/LandingAddToHomePrompt'
 import { isAgeGateAccepted } from '../lib/ageGate'
+import LoginSupportNote from '../components/LoginSupportNote'
 
 export default function PhoneLogin() {
   const [phoneNumber, setPhoneNumber] = useState('')
@@ -279,6 +280,7 @@ export default function PhoneLogin() {
               <Link to="/terms" className="auth-link-enhanced">Terms of Service</Link> and{' '}
               <Link to="/privacy" className="auth-link-enhanced">Privacy Policy</Link>
             </p>
+            <LoginSupportNote phoneNumber={phoneNumber || submittedPhone} step="phone" />
           </div>
         </div>
       </div>
@@ -412,6 +414,8 @@ export default function PhoneLogin() {
               Change Phone Number
             </button>
           </form>
+
+          <LoginSupportNote phoneNumber={submittedPhone || phoneNumber} step="verify" />
         </div>
       </div>
     </div>
