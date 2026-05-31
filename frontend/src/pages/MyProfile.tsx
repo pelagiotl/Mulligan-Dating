@@ -1509,7 +1509,11 @@ export default function MyProfile() {
               const raw = lifestyle[apiField];
               if (!raw || typeof raw !== "string") return null;
               return (
-                <div key={key} className="my-profile-lifestyle-summary-card">
+                <div
+                  key={key}
+                  className="my-profile-lifestyle-summary-card"
+                  data-lifestyle-field={key}
+                >
                   <span className="my-profile-lifestyle-summary-card__kicker">
                     <span className="my-profile-lifestyle-summary-card__kicker-emoji" aria-hidden>
                       {LIFESTYLE_SECTION_EMOJI[key]}
@@ -2306,15 +2310,30 @@ export default function MyProfile() {
       {showLifestyleModal && (
         <div className="my-profile-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="lifestyle-modal-title">
           <div className="my-profile-modal-backdrop" onClick={() => setShowLifestyleModal(false)} />
-          <div className="my-profile-modal-card my-profile-modal-card--scroll my-profile-modal-card--lifestyle">
+          <div className="my-profile-modal-card my-profile-modal-card--scroll my-profile-modal-card--lifestyle" role="document">
+            <span className="my-profile-lifestyle-modal-aurora my-profile-lifestyle-modal-aurora--primary" aria-hidden />
+            <span className="my-profile-lifestyle-modal-aurora my-profile-lifestyle-modal-aurora--secondary" aria-hidden />
+            <button
+              type="button"
+              className="my-profile-modal-close"
+              aria-label="Close"
+              onClick={() => setShowLifestyleModal(false)}
+            >
+              ×
+            </button>
             <div className="my-profile-lifestyle-modal-hero">
-              <div className="my-profile-lifestyle-modal-hero-icon" aria-hidden>
-                🌱
-              </div>
+              <span className="my-profile-lifestyle-modal-hero-icon-wrap" aria-hidden>
+                <span className="my-profile-lifestyle-modal-hero-glow" />
+                <span className="my-profile-lifestyle-modal-hero-icon">🌱</span>
+              </span>
               <div className="my-profile-lifestyle-modal-hero-text">
+                <p className="my-profile-lifestyle-modal-kicker">Day to day</p>
                 <h3 id="lifestyle-modal-title">Lifestyle</h3>
                 <p className="my-profile-modal-sub my-profile-lifestyle-modal-tagline">
                   Quick snapshot of your day-to-day — leave anything blank if you&apos;d rather not say.
+                </p>
+                <p className="my-profile-lifestyle-progress" aria-live="polite">
+                  {Object.values(editLifestyle).filter((v) => v.trim().length > 0).length} of 8 filled
                 </p>
               </div>
             </div>
@@ -2339,34 +2358,42 @@ export default function MyProfile() {
                   current === ""
                     ? LIFESTYLE_OPTION_EMOJI[fieldKey][""] ?? "◻️"
                     : LIFESTYLE_OPTION_EMOJI[fieldKey][current] ?? "✓";
+                const isFilled = current.trim().length > 0;
                 return (
-                  <div key={key} className="my-profile-lifestyle-card">
+                  <div
+                    key={key}
+                    className="my-profile-lifestyle-card"
+                    data-lifestyle-field={key}
+                    data-filled={isFilled ? "true" : undefined}
+                  >
                     <div className="my-profile-lifestyle-card-top">
-                      <span className="my-profile-lifestyle-section-emoji" aria-hidden>
+                      <span className="my-profile-lifestyle-section-emoji-tile" aria-hidden>
                         {sectionEmoji}
                       </span>
                       <label className="my-profile-lifestyle-card-label" htmlFor={`lifestyle-select-${key}`}>
                         {label}
                       </label>
                     </div>
-                    <div className="my-profile-lifestyle-select-wrap">
-                      <span className="my-profile-lifestyle-value-emoji" aria-hidden>
-                        {currentEmoji}
-                      </span>
-                      <select
-                        id={`lifestyle-select-${key}`}
-                        className="my-profile-lifestyle-select"
-                        value={editLifestyle[key]}
-                        onChange={(e) =>
-                          setEditLifestyle((prev) => ({ ...prev, [key]: e.target.value }))
-                        }
-                      >
-                        {LIFESTYLE_FIELD_OPTIONS[fieldKey].map((opt) => (
-                          <option key={opt || "unset"} value={opt}>
-                            {lifestyleSelectOptionLabel(fieldKey, opt)}
-                          </option>
-                        ))}
-                      </select>
+                    <div className="my-profile-lifestyle-select-ring">
+                      <div className="my-profile-lifestyle-select-wrap">
+                        <span className="my-profile-lifestyle-value-emoji" aria-hidden>
+                          {currentEmoji}
+                        </span>
+                        <select
+                          id={`lifestyle-select-${key}`}
+                          className="my-profile-lifestyle-select"
+                          value={editLifestyle[key]}
+                          onChange={(e) =>
+                            setEditLifestyle((prev) => ({ ...prev, [key]: e.target.value }))
+                          }
+                        >
+                          {LIFESTYLE_FIELD_OPTIONS[fieldKey].map((opt) => (
+                            <option key={opt || "unset"} value={opt}>
+                              {lifestyleSelectOptionLabel(fieldKey, opt)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                   </div>
                 );
@@ -2374,11 +2401,16 @@ export default function MyProfile() {
             </div>
 
             <div className="my-profile-modal-actions my-profile-lifestyle-modal-actions">
-              <button type="button" className="btn btn-primary" onClick={() => void saveLifestyle()} disabled={updatingField}>
-                Save
-              </button>
               <button type="button" className="btn btn-ghost" onClick={() => setShowLifestyleModal(false)}>
                 Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary my-profile-lifestyle-save-btn"
+                onClick={() => void saveLifestyle()}
+                disabled={updatingField}
+              >
+                Save
               </button>
             </div>
           </div>
