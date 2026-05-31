@@ -14,6 +14,7 @@ import {
 } from "../lib/revenuecatWeb";
 import { emitTokenBalanceUpdated } from "../lib/tokenBalanceEvents";
 import { syncTokenBalanceAfterPurchase } from "../utils/syncTokenBalanceAfterPurchase";
+import TokenReupCelebrationModal from "./TokenReupCelebrationModal";
 
 export type WebTokenPurchaseVariant = "settings" | "landing";
 
@@ -70,7 +71,12 @@ export default function WebTokenPurchase({ variant, customerEmail }: WebTokenPur
   const revenueCatByProductId = useRef<Record<string, Package>>({});
   const [tokenError, setTokenError] = useState("");
   const [tokenSuccess, setTokenSuccess] = useState("");
+  const [purchaseReupVisible, setPurchaseReupVisible] = useState(false);
   const [expanded, setExpanded] = useState(variant === "settings");
+
+  const showPurchaseReupCelebration = useCallback(() => {
+    setPurchaseReupVisible(true);
+  }, []);
 
   const balanceBeforePurchaseRef = useRef<number | null>(null);
 
@@ -270,14 +276,7 @@ export default function WebTokenPurchase({ variant, customerEmail }: WebTokenPur
                 balanceBeforePurchaseRef.current ?? undefined
               );
               if (synced != null) setAvailableTokens(synced);
-              setTokenSuccess(
-                n > 0
-                  ? synced != null
-                    ? `${n} token(s) added! You now have ${synced} token(s).`
-                    : `${n} token(s) added to your account.`
-                  : "Payment recorded. You may already be at the token cap."
-              );
-              setTimeout(() => setTokenSuccess(""), 8000);
+              if (n > 0) showPurchaseReupCelebration();
               await fetchPackages();
               await refreshProfile();
             } catch (e: unknown) {
@@ -529,8 +528,7 @@ export default function WebTokenPurchase({ variant, customerEmail }: WebTokenPur
                             balanceBeforePurchaseRef.current ?? undefined
                           );
                           if (synced != null) setAvailableTokens(synced);
-                          setTokenSuccess(msg);
-                          setTimeout(() => setTokenSuccess(""), 8000);
+                          showPurchaseReupCelebration();
                           await fetchPackages();
                           await refreshProfile();
                         })();
@@ -659,6 +657,11 @@ export default function WebTokenPurchase({ variant, customerEmail }: WebTokenPur
             </div>
           </div>
         )}
+
+        <TokenReupCelebrationModal
+          visible={purchaseReupVisible}
+          onDismiss={() => setPurchaseReupVisible(false)}
+        />
       </>
     );
   }
@@ -728,6 +731,11 @@ export default function WebTokenPurchase({ variant, customerEmail }: WebTokenPur
           </div>
         </div>
       )}
+
+      <TokenReupCelebrationModal
+        visible={purchaseReupVisible}
+        onDismiss={() => setPurchaseReupVisible(false)}
+      />
     </>
   );
 }

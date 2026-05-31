@@ -804,10 +804,11 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
         ? await allTokensResult
         : allTokensResult) as any[];
 
-      const weeklyTokens = allTokens.filter((t: any) => !t.source || t.source === 'weekly');
-      const lastWeeklyToken = weeklyTokens.length > 0 ? weeklyTokens[0] : null;
-      const { canClaimWeekly } = await import("../utils/weeklyTokens.js");
-      const canClaimWeeklyToken = canClaimWeekly(lastWeeklyToken?.granted_at ?? null);
+      const { computeWeeklyClaimEligibility } = await import("../utils/weeklyTokens.js");
+      const availableCount = allTokens.filter(
+        (t: { used_at: string | null; returned_at: string | null }) => !t.used_at && !t.returned_at
+      ).length;
+      const { canClaimWeeklyToken } = computeWeeklyClaimEligibility(allTokens, availableCount);
 
       return res.status(400).json({ 
         error: "No tokens available. Claim your weekly token!",

@@ -187,7 +187,14 @@ export default function BrowseScreen() {
     };
   }, [connectLandingFillTablet, windowHeight, insets.top, insets.bottom, insets.left, insets.right]);
   const isFocused = useIsFocused();
-  const { profile: userProfile, user, isAuthenticated, refreshProfile } = useAuth();
+  const {
+    profile: userProfile,
+    user,
+    isAuthenticated,
+    refreshProfile,
+    loading: authLoading,
+    connectSetupComplete,
+  } = useAuth();
   const { mode: connectShellMode } = useConnectShellTheme();
   const landingGradientColors = useMemo(
     () => [...connectShellGradientStops(connectShellMode)] as [string, string, ...string[]],
@@ -1296,7 +1303,8 @@ export default function BrowseScreen() {
     }, [isAuthenticated, refreshProfile]),
   );
 
-  const needsProfile = !userProfile && !loading;
+  const needsProfile =
+    !userProfile && !loading && !authLoading && !connectSetupComplete;
   const matchmakingPaused = !!(user && user.matchmakingEnabled === false);
   const matchmakingPausedMessage =
     (user?.matchmakingDisabledMessage && String(user.matchmakingDisabledMessage).trim()) || undefined;
@@ -1911,7 +1919,9 @@ export default function BrowseScreen() {
     );
   }
 
-  const showClaimTokenBanner = canClaimTokens && availableTokens <= 0;
+  /** Red refill pill: only after first allotment was claimed and the 7-day window has elapsed (nextRefillDate set). */
+  const showClaimTokenBanner =
+    canClaimTokens && availableTokens <= 0 && nextRefillDate != null;
 
   const claimTokenBannerEl =
     showClaimTokenBanner ? (

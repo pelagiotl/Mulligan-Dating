@@ -9911,6 +9911,84 @@ button.my-profile-mini-card:focus-visible {
   line-height: 1.45;
 }
 
+.token-reup-celebration-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+}
+
+.token-reup-celebration-backdrop {
+  position: absolute;
+  inset: 0;
+  border: none;
+  margin: 0;
+  padding: 0;
+  background: rgba(0, 0, 0, 0.55);
+  cursor: pointer;
+}
+
+.token-reup-celebration-card {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 340px);
+  padding: var(--space-8) var(--space-6);
+  border-radius: var(--radius-2xl);
+  text-align: center;
+  background: linear-gradient(145deg, #10b981 0%, #059669 35%, #047857 70%, #065f46 100%);
+  box-shadow:
+    0 24px 48px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(255, 255, 255, 0.12) inset;
+  animation: weeklyTokenCelebrationIn 0.45s ease-out;
+}
+
+.token-reup-celebration-emoji {
+  display: block;
+  font-size: 2.5rem;
+  line-height: 1;
+  margin-bottom: var(--space-3);
+}
+
+.token-reup-celebration-title {
+  margin: 0 0 var(--space-3);
+  font-size: 1.35rem;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: -0.02em;
+}
+
+.token-reup-celebration-message {
+  margin: 0 0 var(--space-6);
+  font-size: 1rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+  line-height: 1.45;
+}
+
+.token-reup-celebration-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 120px;
+  padding: 0.75rem 1.75rem;
+  border: none;
+  border-radius: 999px;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #047857;
+  background: linear-gradient(180deg, #fff 0%, #f0fdf4 100%);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+}
+
+.token-reup-celebration-cta:hover {
+  filter: brightness(1.03);
+  transform: translateY(-1px);
+}
+
 /* Legacy class names kept for other pages if referenced */
 .token-count {
   display: flex;

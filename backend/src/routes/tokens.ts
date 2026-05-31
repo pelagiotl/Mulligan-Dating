@@ -2,7 +2,7 @@ import { Router } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { db } from "../database.js";
 import { authenticateToken, AuthRequest } from "../middleware/auth.js";
-import { canClaimWeekly, getNextRefillDate } from "../utils/weeklyTokens.js";
+import { computeWeeklyClaimEligibility } from "../utils/weeklyTokens.js";
 
 export const tokensRouter = Router();
 
@@ -63,18 +63,10 @@ tokensRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
     const rawAvailable = tokens.filter((t: TokenRow) => !t.used_at && !t.returned_at).length;
     const availableTokens = Math.min(rawAvailable, 7);
 
-    // Check if user can claim weekly (7 days since last weekly claim)
-    const weeklyTokens = tokens.filter((t: TokenRow) => !t.source || t.source === 'weekly');
-    const lastWeeklyToken = weeklyTokens.length > 0 ? weeklyTokens[0] : null;
-    let canClaimWeeklyToken = canClaimWeekly(lastWeeklyToken ? lastWeeklyToken.granted_at : null);
-
-    // Can't claim if already at max (7 tokens)
-    if (availableTokens >= 7) {
-      canClaimWeeklyToken = false;
-    }
-
-    // Next refill = 7 days after last weekly claim (or null if never claimed)
-    const nextRefillDate = getNextRefillDate(lastWeeklyToken?.granted_at ?? null);
+    const { canClaimWeeklyToken, nextRefillDate } = computeWeeklyClaimEligibility(
+      tokens,
+      availableTokens
+    );
 
     console.log('✅ Tokens fetched:', { availableTokens, canClaimWeeklyToken, totalTokens: tokens.length });
     res.json({
@@ -117,10 +109,8 @@ tokensRouter.post("/claim", authenticateToken, async (req: AuthRequest, res) => 
     });
   }
 
-  // Check if user can claim weekly tokens (7 days since last claim)
-  const weeklyTokens = allTokens.filter((t: TokenRow) => !t.source || t.source === 'weekly');
-  const lastWeeklyToken = weeklyTokens.length > 0 ? weeklyTokens[0] : null;
-  if (lastWeeklyToken && !canClaimWeekly(lastWeeklyToken.granted_at)) {
+  const { canClaimWeeklyToken } = computeWeeklyClaimEligibility(allTokens, availableTokens);
+  if (!canClaimWeeklyToken) {
     return res
       .status(400)
       .json({ error: "You can only claim weekly tokens once per week. Wait until next week!" });

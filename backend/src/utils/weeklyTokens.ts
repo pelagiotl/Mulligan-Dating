@@ -1,26 +1,71 @@
 /**
  * Weekly token refill: rolling 7-day window per user.
- * Each user can claim again 7 days after their last weekly claim (or anytime if they've never claimed weekly).
- * Fair and simple: no fixed calendar day, no loopholes.
+ * First allotment (claim on Connect) is available immediately; later refills unlock
+ * 7 days after the last allotment grant (initial or weekly).
  */
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
+export type TokenAllotmentRow = {
+  source?: string | null;
+  granted_at: string;
+};
+
+/** Free weekly / signup allotment sources (excludes IAP, admin, dev, etc.). */
+export function isAllotmentSource(source: string | null | undefined): boolean {
+  return !source || source === "weekly" || source === "initial";
+}
+
+export function hasReceivedTokenAllotment(tokens: TokenAllotmentRow[]): boolean {
+  return tokens.some((t) => isAllotmentSource(t.source));
+}
+
+/** Most recent allotment grant (tokens should be ordered by granted_at DESC). */
+export function getLastAllotmentGrantedAt(tokens: TokenAllotmentRow[]): string | null {
+  const allotment = tokens.filter((t) => isAllotmentSource(t.source));
+  if (allotment.length === 0) return null;
+  return allotment[0].granted_at;
+}
+
 /**
- * True if the user can claim weekly tokens: they have never claimed weekly, or their last weekly claim was 7+ days ago.
+ * True if the user can claim another free allotment now (7 days after last grant, or first claim ever).
  */
-export function canClaimWeekly(lastWeeklyGrantedAt: Date | string | null | undefined): boolean {
-  if (lastWeeklyGrantedAt == null) return true;
-  const last = new Date(lastWeeklyGrantedAt);
+export function canClaimWeekly(lastAllotmentGrantedAt: Date | string | null | undefined): boolean {
+  if (lastAllotmentGrantedAt == null) return true;
+  const last = new Date(lastAllotmentGrantedAt);
   return last.getTime() <= Date.now() - SEVEN_DAYS_MS;
 }
 
 /**
- * Next date when the user can claim (7 days after last weekly claim). Null if they've never claimed weekly.
+ * Next date when the user can claim (7 days after last allotment grant). Null if never granted.
  */
-export function getNextRefillDate(lastWeeklyGrantedAt: Date | string | null | undefined): string | null {
-  if (lastWeeklyGrantedAt == null) return null;
-  const d = new Date(lastWeeklyGrantedAt);
+export function getNextRefillDate(lastAllotmentGrantedAt: Date | string | null | undefined): string | null {
+  if (lastAllotmentGrantedAt == null) return null;
+  const d = new Date(lastAllotmentGrantedAt);
   d.setTime(d.getTime() + SEVEN_DAYS_MS);
   return d.toISOString();
+}
+
+export function computeWeeklyClaimEligibility(
+  tokens: TokenAllotmentRow[],
+  availableTokens: number
+): { canClaimWeeklyToken: boolean; nextRefillDate: string | null } {
+  const lastGrant = getLastAllotmentGrantedAt(tokens);
+
+  if (availableTokens >= 7) {
+    return {
+      canClaimWeeklyToken: false,
+      nextRefillDate: getNextRefillDate(lastGrant),
+    };
+  }
+
+  if (!hasReceivedTokenAllotment(tokens)) {
+    return { canClaimWeeklyToken: true, nextRefillDate: null };
+  }
+
+  const canClaim = canClaimWeekly(lastGrant);
+  return {
+    canClaimWeeklyToken: canClaim,
+    nextRefillDate: getNextRefillDate(lastGrant),
+  };
 }

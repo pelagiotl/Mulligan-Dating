@@ -38,6 +38,7 @@ import BrowseConnectLandingTokenStrip from './BrowseConnectLandingTokenStrip';
 import WeeklyTokenClaimCelebration from './WeeklyTokenClaimCelebration';
 import type { ConnectShellMode } from '../lib/connectShellTheme';
 import ProfileCardAnimatedEmoji from './ProfileCardAnimatedEmoji';
+import { TOKEN_PURCHASE_REUP_MESSAGE } from '../constants/tokenCelebration';
 
 interface TokenData {
   availableTokens: number;
@@ -776,7 +777,6 @@ export default function TokenDisplay({
   const [loadingPackages, setLoadingPackages] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
   const [reupCelebration, setReupCelebration] = useState<{ message: string; onSuccess?: () => void } | null>(null);
-  const [purchaseSuccess, setPurchaseSuccess] = useState<{ tokensGranted: number } | null>(null);
   const [weeklyClaimCelebration, setWeeklyClaimCelebration] = useState<number | null>(null);
 
   const balanceRef = useRef(0);
@@ -970,7 +970,7 @@ export default function TokenDisplay({
         });
         await syncTokensAfterPurchase();
         await fetchPackages();
-        setPurchaseSuccess({ tokensGranted: result.tokens_granted ?? pkg.tokens });
+        setReupCelebration({ message: TOKEN_PURCHASE_REUP_MESSAGE });
       } catch (err: any) {
         const msg = err?.message || 'Google Pay purchase failed. Please try again.';
         Alert.alert('Purchase failed', msg);
@@ -1005,7 +1005,7 @@ export default function TokenDisplay({
       await Purchases.purchasePackage(rcPkg);
       await syncTokensAfterPurchase();
       await fetchPackages();
-      Alert.alert('Success', `${pkg.tokens} token(s) added!`);
+      setReupCelebration({ message: TOKEN_PURCHASE_REUP_MESSAGE });
     } catch (err: unknown) {
       const e = err as { userCancelled?: boolean };
       if (e?.userCancelled) return;
@@ -1265,12 +1265,6 @@ export default function TokenDisplay({
             message={reupCelebration?.message ?? ''}
             onLetsGo={() => reupCelebration?.onSuccess?.()}
             onRequestClose={() => setReupCelebration(null)}
-          />
-
-          <PurchaseSuccessModal
-            visible={!!purchaseSuccess}
-            tokensGranted={purchaseSuccess?.tokensGranted ?? 0}
-            onDismiss={() => setPurchaseSuccess(null)}
           />
 
           {/* Purchase Modal - Also available in compact/premium mode */}
@@ -1569,12 +1563,6 @@ export default function TokenDisplay({
           <Text style={styles.claimButtonText}>💳 Cop some more</Text>
         </TouchableOpacity>
       )}
-
-      <PurchaseSuccessModal
-        visible={!!purchaseSuccess}
-        tokensGranted={purchaseSuccess?.tokensGranted ?? 0}
-        onDismiss={() => setPurchaseSuccess(null)}
-      />
 
       {/* Purchase Modal */}
       <Modal
