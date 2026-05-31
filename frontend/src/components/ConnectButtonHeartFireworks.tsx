@@ -4,7 +4,7 @@ type ConnectButtonHeartFireworksProps = {
   active?: boolean;
 };
 
-/** Shooting hearts/sparkles that arc onto the Connect CTA from above (no center burst on web). */
+/** Feature-aligned particles (✨ 🎯 💝) that arc onto the Connect CTA from above (no center burst on web). */
 export default function ConnectButtonHeartFireworks({
   active = true,
 }: ConnectButtonHeartFireworksProps) {
