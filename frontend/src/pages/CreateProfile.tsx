@@ -1122,8 +1122,7 @@ export default function CreateProfile() {
               locationValid ? <span>✓ Location set</span> : null
             )}
             <p className="create-profile-onboarding-footnote">
-              Add a photo on your Profile before you Connect. Age, interests, and match preferences
-              are in Settings.
+              Add a photo on Profile before you Connect.
             </p>
           </div>
         ) : null}

@@ -2686,6 +2686,20 @@ img {
   box-shadow: 0 8px 32px rgba(102, 126, 234, 0.35);
 }
 
+.create-profile-wizard .create-profile-hero {
+  padding-bottom: var(--space-4);
+}
+
+.create-profile-wizard .create-profile-hero-title {
+  font-size: clamp(1.15rem, 4vw, 1.4rem);
+  margin-bottom: 0.15rem;
+}
+
+.create-profile-wizard .create-profile-hero-hint {
+  font-size: 0.78rem;
+  margin-top: 0.15rem;
+}
+
 .create-profile-hero-top {
   display: flex;
   justify-content: space-between;
@@ -2793,17 +2807,78 @@ img {
 .create-profile-onboarding-stack {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  padding-bottom: var(--space-2);
+  gap: var(--space-2);
+  padding-bottom: 0;
 }
 
 .create-profile-onboarding-footnote {
   margin: 0;
-  padding: 0 var(--space-2) var(--space-3);
-  font-size: 0.82rem;
-  line-height: 1.5;
+  padding: var(--space-1) var(--space-2) var(--space-2);
+  font-size: 0.72rem;
+  line-height: 1.4;
   color: var(--text-secondary);
   text-align: center;
+}
+
+.create-profile-onboarding-stack .create-profile-focus {
+  border-radius: var(--radius-lg);
+  padding: 2px;
+  box-shadow: 0 8px 22px rgba(102, 126, 234, 0.22);
+}
+
+.create-profile-onboarding-stack .create-profile-focus-inner {
+  padding: var(--space-3) var(--space-4);
+}
+
+.create-profile-onboarding-stack .create-profile-focus-step-pill {
+  margin-bottom: var(--space-2);
+  padding: 0.18rem 0.5rem;
+  font-size: 0.6rem;
+}
+
+.create-profile-onboarding-stack .create-profile-focus-emoji {
+  font-size: clamp(1.65rem, 6.5vw, 2.1rem);
+  margin-bottom: var(--space-1);
+}
+
+.create-profile-onboarding-stack .create-profile-focus-title {
+  font-size: clamp(1.02rem, 3.4vw, 1.18rem);
+  margin-bottom: 0.1rem;
+}
+
+.create-profile-onboarding-stack .create-profile-focus-sub {
+  font-size: 0.76rem;
+  margin-bottom: var(--space-3);
+  line-height: 1.32;
+}
+
+.create-profile-onboarding-stack .create-profile-focus-input {
+  padding: 0.6rem 0.75rem;
+  font-size: 0.92rem;
+  border-radius: var(--radius-md);
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.1);
+}
+
+.create-profile-onboarding-stack .create-profile-focus-input--center {
+  font-size: 1.1rem;
+}
+
+.create-profile-onboarding-stack .create-profile-focus-input--location {
+  min-height: 2.45rem;
+  padding: 0.5rem 0.55rem;
+  font-size: 0.88rem;
+}
+
+.create-profile-onboarding-stack .create-profile-loc-btn {
+  margin-top: var(--space-2);
+  padding: 0.55rem 0.65rem;
+  font-size: 0.82rem;
+  border-radius: var(--radius-md);
+}
+
+.create-profile-onboarding-stack .create-profile-focus-hint {
+  margin-top: var(--space-2);
+  font-size: 0.76rem;
 }
 
 .create-profile-focus {

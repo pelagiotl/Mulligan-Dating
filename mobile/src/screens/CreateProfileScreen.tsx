@@ -405,15 +405,23 @@ export default function CreateProfileScreen() {
       sectionPaddingV: Math.round(36 * scaleH),
       cardPadding: Math.round(36 * scaleW),
       cardPaddingFirst: Math.round(44 * scaleW),
+      onboardingCardPadding: Math.round(24 * scaleW),
       cardPaddingKeyboard: Math.round(22 * scaleW),
       emojiSize: Math.round(72 * scaleW),
       emojiSizeSmall: Math.round(42 * scaleW),
+      onboardingEmojiSize: Math.round(44 * scaleW),
+      onboardingEmojiSizeKeyboard: Math.round(34 * scaleW),
       titleSize: Math.round(32 * scaleW),
       titleSizeSmall: Math.round(22 * scaleW),
       titleSizeCompact: Math.round(28 * scaleW),
+      onboardingTitleSize: Math.round(22 * scaleW),
+      onboardingTitleSizeSmall: Math.round(18 * scaleW),
       titleMargin: Math.round(12 * scaleH),
+      onboardingTitleMargin: Math.round(6 * scaleH),
       subtitleSize: Math.round(18 * scaleW),
       subtitleSizeSmall: Math.round(13 * scaleW),
+      onboardingSubtitleSize: Math.round(12 * scaleW),
+      onboardingSubtitleMargin: Math.round(10 * scaleH),
       subtitleSizeTiny: Math.max(9, Math.round(10 * scaleW)),
       subtitleSizeCompact: Math.round(16 * scaleW),
       subtitleMargin: Math.round(32 * scaleH),
@@ -1479,8 +1487,9 @@ export default function CreateProfileScreen() {
           end={{ x: 1, y: 1 }}
           style={[
             styles.focusedFirstNameCard,
+            styles.onboardingCompactCard,
             keyboardVisible && styles.focusedCardWithKeyboard,
-            { padding: keyboardVisible ? rs.cardPaddingKeyboard : rs.cardPaddingFirst },
+            { padding: keyboardVisible ? rs.cardPaddingKeyboard : rs.onboardingCardPadding },
           ]}
         >
           {renderOnboardingStepPill('Step 1 · Your name')}
@@ -1488,7 +1497,10 @@ export default function CreateProfileScreen() {
             style={[
               styles.focusedEmoji,
               keyboardVisible && styles.focusedEmojiSmall,
-              { fontSize: keyboardVisible ? rs.emojiSizeSmall : rs.emojiSize, marginBottom: keyboardVisible ? 8 : 16 },
+              {
+                fontSize: keyboardVisible ? rs.onboardingEmojiSizeKeyboard : rs.onboardingEmojiSize,
+                marginBottom: keyboardVisible ? 6 : 10,
+              },
             ]}
           >
             👋
@@ -1498,8 +1510,8 @@ export default function CreateProfileScreen() {
               styles.focusedTitle,
               keyboardVisible && styles.focusedTitleCompact,
               {
-                fontSize: keyboardVisible ? rs.titleSizeCompact : rs.titleSize,
-                marginBottom: keyboardVisible ? 8 : rs.titleMargin,
+                fontSize: keyboardVisible ? rs.onboardingTitleSizeSmall : rs.onboardingTitleSize,
+                marginBottom: keyboardVisible ? 4 : rs.onboardingTitleMargin,
               },
             ]}
           >
@@ -1510,8 +1522,8 @@ export default function CreateProfileScreen() {
               styles.focusedSubtitle,
               keyboardVisible && styles.focusedSubtitleCompact,
               {
-                fontSize: keyboardVisible ? rs.subtitleSizeCompact : 10,
-                marginBottom: keyboardVisible ? 14 : rs.subtitleMargin,
+                fontSize: keyboardVisible ? rs.subtitleSizeCompact : rs.onboardingSubtitleSize,
+                marginBottom: keyboardVisible ? 8 : rs.onboardingSubtitleMargin,
                 maxWidth: '100%',
               },
             ]}
@@ -1530,7 +1542,11 @@ export default function CreateProfileScreen() {
           >
             <TextInput
               ref={displayNameInputRef}
-              style={[styles.focusedFirstNameInput, keyboardVisible && styles.focusedFirstNameInputKeyboard]}
+              style={[
+                styles.focusedFirstNameInput,
+                styles.onboardingCompactNameInput,
+                keyboardVisible && styles.focusedFirstNameInputKeyboard,
+              ]}
               value={displayName}
               onChangeText={setDisplayName}
               placeholder="Your first name"
@@ -1541,7 +1557,9 @@ export default function CreateProfileScreen() {
             />
           </Animated.View>
           {nameValid ? (
-            <Animated.View style={[styles.successIndicator, { opacity: firstNameOpacity }]}>
+            <Animated.View
+              style={[styles.successIndicator, styles.onboardingCompactSuccess, { opacity: firstNameOpacity }]}
+            >
               <Text style={styles.successText}>✓ Looks good</Text>
             </Animated.View>
           ) : null}
@@ -1560,8 +1578,9 @@ export default function CreateProfileScreen() {
           end={{ x: 1, y: 1 }}
           style={[
             styles.focusedFieldCard,
+            styles.onboardingCompactCard,
             keyboardVisible && styles.focusedCardWithKeyboard,
-            { padding: keyboardVisible ? rs.cardPaddingKeyboard : rs.cardPadding },
+            { padding: keyboardVisible ? rs.cardPaddingKeyboard : rs.onboardingCardPadding },
           ]}
         >
           {renderOnboardingStepPill('Step 2 · Your location')}
@@ -1569,7 +1588,10 @@ export default function CreateProfileScreen() {
             style={[
               styles.focusedEmoji,
               keyboardVisible && styles.focusedEmojiSmall,
-              { fontSize: keyboardVisible ? rs.emojiSizeSmall : rs.emojiSize, marginBottom: keyboardVisible ? 8 : 16 },
+              {
+                fontSize: keyboardVisible ? rs.onboardingEmojiSizeKeyboard : rs.onboardingEmojiSize,
+                marginBottom: keyboardVisible ? 6 : 10,
+              },
             ]}
           >
             📍
@@ -1578,7 +1600,10 @@ export default function CreateProfileScreen() {
             style={[
               styles.focusedTitle,
               keyboardVisible && styles.focusedTitleSmall,
-              { fontSize: rs.titleSizeSmall, marginBottom: keyboardVisible ? 6 : rs.titleMargin },
+              {
+                fontSize: rs.onboardingTitleSizeSmall,
+                marginBottom: keyboardVisible ? 4 : rs.onboardingTitleMargin,
+              },
             ]}
           >
             Where do you live?
@@ -1588,8 +1613,8 @@ export default function CreateProfileScreen() {
               styles.focusedSubtitle,
               keyboardVisible && styles.focusedSubtitleSmall,
               {
-                fontSize: rs.subtitleSizeSmall,
-                marginBottom: keyboardVisible ? 12 : rs.subtitleMargin,
+                fontSize: rs.onboardingSubtitleSize,
+                marginBottom: keyboardVisible ? 8 : rs.onboardingSubtitleMargin,
                 opacity: 0.92,
               },
             ]}
@@ -1609,6 +1634,7 @@ export default function CreateProfileScreen() {
               ref={locationInputRef}
               style={[
                 styles.focusedLocationInput,
+                styles.onboardingCompactLocationInput,
                 location.length > 28 && styles.focusedLocationInputLong,
               ]}
               value={location}
@@ -1628,7 +1654,7 @@ export default function CreateProfileScreen() {
             />
           </Animated.View>
           <TouchableOpacity
-            style={styles.focusedLocationButton}
+            style={[styles.focusedLocationButton, styles.onboardingCompactLocButton]}
             onPress={detectLocation}
             disabled={detectingLocation}
           >
@@ -1639,17 +1665,16 @@ export default function CreateProfileScreen() {
             )}
           </TouchableOpacity>
           {locationValid ? (
-            <Animated.View style={[styles.successIndicator, { opacity: locationOpacity }]}>
+            <Animated.View
+              style={[styles.successIndicator, styles.onboardingCompactSuccess, { opacity: locationOpacity }]}
+            >
               <Text style={styles.successText}>✓ Location set</Text>
             </Animated.View>
           ) : null}
         </LinearGradient>
       </Animated.View>
 
-      <Text style={styles.onboardingFootnote}>
-        Add a photo on your Profile before you Connect. Age, interests, and match preferences are in
-        Settings.
-      </Text>
+      <Text style={styles.onboardingFootnote}>Add a photo on Profile before you Connect.</Text>
     </View>
   );
 
@@ -2445,18 +2470,15 @@ export default function CreateProfileScreen() {
       enabled={Platform.OS === 'ios'}
     >
       <View style={styles.createProfileBody}>
-      {!connectSetupComplete ? (
-        <View style={styles.onboardingReminderStrip}>
-          <Text style={styles.onboardingReminderText}>
-            Finish setup: name and city & state — then tap Complete Profile. Add a photo on Profile before you Connect.
-          </Text>
-        </View>
-      ) : null}
       <LinearGradient
         colors={['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={[styles.header, { position: 'relative' }]}
+        style={[
+          styles.header,
+          !connectSetupComplete && styles.headerOnboardingCompact,
+          { position: 'relative' },
+        ]}
       >
         {connectSetupComplete && existingProfile && !startFromBeginning ? (
           <View style={styles.exitSaveRow}>
@@ -2501,7 +2523,14 @@ export default function CreateProfileScreen() {
             </TouchableOpacity>
           </View>
         )}
-        <Text style={styles.title}>Set up your profile</Text>
+        <Text style={[styles.title, !connectSetupComplete && styles.headerOnboardingCompactTitle]}>
+          Set up your profile
+        </Text>
+        {!connectSetupComplete ? (
+          <Text style={[styles.subtitle, styles.headerOnboardingCompactSubtitle]}>
+            Two quick steps below — then you&apos;re ready to browse.
+          </Text>
+        ) : null}
         {connectSetupComplete && existingProfile && !startFromBeginning ? (
           <TouchableOpacity
             style={styles.emailSupportLink}
@@ -4249,10 +4278,10 @@ const styles = StyleSheet.create({
   },
   onboardingStepScrollContent: {
     flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 12,
-    paddingTop: 4,
-    paddingBottom: 8,
+    justifyContent: 'flex-start',
+    paddingHorizontal: 10,
+    paddingTop: 2,
+    paddingBottom: 4,
   },
   onboardingStepScrollContentKeyboard: {
     justifyContent: 'flex-start',
@@ -4261,24 +4290,63 @@ const styles = StyleSheet.create({
   },
   onboardingFieldWrap: {
     width: '100%',
-    justifyContent: 'center',
-    paddingVertical: Platform.OS === 'android' ? 8 : 16,
+    justifyContent: 'flex-start',
+    paddingVertical: Platform.OS === 'android' ? 2 : 6,
   },
   onboardingFieldWrapKeyboard: {
     paddingVertical: 4,
   },
   onboardingSectionsWrap: {
-    gap: 14,
-    paddingBottom: 4,
+    gap: 8,
+    paddingBottom: 2,
   },
   onboardingSectionCardWrap: {
     marginTop: 0,
   },
+  headerOnboardingCompact: {
+    paddingBottom: 14,
+  },
+  headerOnboardingCompactTitle: {
+    fontSize: 26,
+    marginBottom: 2,
+  },
+  headerOnboardingCompactSubtitle: {
+    fontSize: 13,
+  },
+  onboardingCompactCard: {
+    borderRadius: 22,
+  },
+  onboardingCompactNameInput: {
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    fontSize: 16,
+    borderRadius: 14,
+  },
+  onboardingCompactLocationInput: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    fontSize: 15,
+    minHeight: 46,
+    maxHeight: 58,
+    borderRadius: 14,
+  },
+  onboardingCompactLocButton: {
+    marginTop: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 14,
+  },
+  onboardingCompactSuccess: {
+    marginTop: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+  },
   onboardingStepPill: {
     alignSelf: 'center',
-    marginBottom: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    marginBottom: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: 999,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     borderWidth: 1,
@@ -4292,10 +4360,10 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   onboardingFootnote: {
-    marginTop: 4,
-    paddingHorizontal: 8,
-    fontSize: 12,
-    lineHeight: 17,
+    marginTop: 2,
+    paddingHorizontal: 6,
+    fontSize: 11,
+    lineHeight: 15,
     color: '#64748b',
     textAlign: 'center',
   },
