@@ -25,29 +25,22 @@ function stepsForPlatform(
 ): StepItem[] {
   if (mobile && platform === 'ios') {
     return [
-      { title: 'Tap ⋯ at the bottom of Safari', detail: 'Then choose Share 📤' },
-      { title: 'Swipe up on the share sheet', detail: 'Select Add to Home Screen' },
-      { title: 'Tap Add', detail: 'Mulligan appears on your home screen' },
+      { title: 'Tap ⋯ → Share 📤', detail: 'Bottom bar in Safari' },
+      { title: 'Add to Home Screen → tap Add', detail: 'Swipe up the share sheet if you don’t see it' },
     ];
   }
   if (mobile && canNativeInstall) {
-    return [
-      { title: 'Tap Add to home screen below', detail: 'Chrome will guide you through install' },
-      { title: 'Confirm when prompted', detail: 'The Mulligan icon lands on your home screen' },
-      { title: 'Open from your home screen', detail: 'Feels like the app — faster every time' },
-    ];
+    return [];
   }
   if (mobile) {
     return [
-      { title: 'Open Chrome menu ⋮', detail: 'Top-right on Android' },
-      { title: 'Choose Install app or Add to Home screen', detail: 'Wording varies by browser' },
-      { title: 'Confirm Add', detail: 'Then open Mulligan from your home screen' },
+      { title: 'Tap ⋮ in Chrome', detail: 'Top-right menu' },
+      { title: 'Install app or Add to Home screen', detail: 'Confirm when your browser prompts you' },
     ];
   }
   return [
-    { title: 'Open Mulligan on your phone', detail: 'Safari on iPhone works best' },
-    { title: 'Tap ⋯ → Share → Add to Home Screen', detail: 'Swipe up on the share sheet if needed' },
-    { title: 'Tap Add', detail: 'Use the home screen icon to sign in faster' },
+    { title: 'In Safari: ⋯ → Share', detail: 'On your phone' },
+    { title: 'Add to Home Screen → tap Add', detail: 'Swipe up the share sheet if you don’t see it' },
   ];
 }
 
@@ -197,7 +190,7 @@ export default function LandingAddToHomePrompt({ variant = 'default' }: LandingA
               : 'Install Mulligan on your home screen for a faster, app-like experience.'}
           </p>
 
-          <AddToHomeSteps steps={steps} />
+          {steps.length > 0 ? <AddToHomeSteps steps={steps} /> : null}
 
           {canNativeInstall ? (
             <button
