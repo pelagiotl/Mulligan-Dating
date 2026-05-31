@@ -28,7 +28,7 @@ function stepsForPlatform(
   if (mobile && fromInstagram && platform === 'ios') {
     return [
       { title: 'Tap ⋯ (top right) → Open in external browser' },
-      { title: 'Tap ⋯ on the bottom bar → swipe up' },
+      { title: 'Tap ⋯ on the bottom bar → Share → swipe up' },
       { title: 'Add to Home Screen → tap Add' },
     ];
   }
