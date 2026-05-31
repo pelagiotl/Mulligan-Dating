@@ -8,6 +8,7 @@ import {
   isAddToHomeDismissed,
   isInstagramInAppBrowser,
   isLikelyMobileBrowser,
+  isSafariBrowser,
   shouldShowLandingAddToHomePrompt,
 } from '../lib/addToHomeScreen';
 import './LandingAddToHomePrompt.css';
@@ -19,30 +20,34 @@ type LandingAddToHomePromptProps = {
 
 type StepItem = { title: string; detail?: string };
 
+/** Same copy as iPhone Safari (direct, not Instagram). */
+const SAFARI_ADD_TO_HOME_STEPS: StepItem[] = [
+  { title: 'Tap ⋯ on the bottom bar → Share → swipe up' },
+  { title: 'Add to Home Screen → tap Add' },
+];
+
 function stepsForPlatform(
   platform: 'ios' | 'android' | 'other',
   mobile: boolean,
   canNativeInstall: boolean,
-  fromInstagram: boolean
+  fromInstagram: boolean,
+  safari: boolean
 ): StepItem[] {
-  if (mobile && fromInstagram && platform === 'ios') {
+  if (fromInstagram && platform === 'ios') {
     return [
       { title: 'Tap ⋯ (top right) → Open in external browser' },
       { title: 'Tap ⋯ on the bottom bar → Share → swipe up' },
       { title: 'Add to Home Screen → tap Add' },
     ];
   }
-  if (mobile && fromInstagram && platform === 'android') {
+  if (fromInstagram && platform === 'android') {
     return [
       { title: 'Tap ⋮ (top) → Open in browser' },
       { title: 'Tap ⋮ → Install app or Add to Home screen' },
     ];
   }
-  if (mobile && platform === 'ios') {
-    return [
-      { title: 'Tap ⋯ on the bottom bar → Share → swipe up' },
-      { title: 'Add to Home Screen → tap Add' },
-    ];
+  if (platform === 'ios' || (safari && platform !== 'android')) {
+    return SAFARI_ADD_TO_HOME_STEPS;
   }
   if (mobile && canNativeInstall) {
     return [];
@@ -54,8 +59,8 @@ function stepsForPlatform(
     ];
   }
   return [
-    { title: 'In Safari: ⋯ → Share', detail: 'On your phone' },
-    { title: 'Add to Home Screen → tap Add', detail: 'Swipe up the share sheet if you don’t see it' },
+    { title: 'Tap ⋮ in Chrome', detail: 'Top-right menu' },
+    { title: 'Install app or Add to Home screen', detail: 'Confirm when your browser prompts you' },
   ];
 }
 
@@ -87,6 +92,7 @@ export default function LandingAddToHomePrompt({ variant = 'default' }: LandingA
   const [mobile, setMobile] = useState(true);
   const [platform, setPlatform] = useState<'ios' | 'android' | 'other'>('other');
   const [fromInstagram, setFromInstagram] = useState(false);
+  const [safari, setSafari] = useState(false);
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const [installing, setInstalling] = useState(false);
 
@@ -113,6 +119,7 @@ export default function LandingAddToHomePrompt({ variant = 'default' }: LandingA
     setMobile(isLikelyMobileBrowser());
     setPlatform(detectAddToHomePlatform());
     setFromInstagram(isInstagramInAppBrowser());
+    setSafari(isSafariBrowser());
     syncVisibility();
 
     const onBeforeInstall = (e: Event) => {
@@ -135,6 +142,7 @@ export default function LandingAddToHomePrompt({ variant = 'default' }: LandingA
     setMobile(isLikelyMobileBrowser());
     setPlatform(detectAddToHomePlatform());
     setFromInstagram(isInstagramInAppBrowser());
+    setSafari(isSafariBrowser());
     syncVisibility(true);
   }, [syncVisibility]);
 
@@ -170,7 +178,7 @@ export default function LandingAddToHomePrompt({ variant = 'default' }: LandingA
 
   const canNativeInstall = mobile && platform === 'android' && installEvent != null;
   const featured = variant === 'featured';
-  const steps = stepsForPlatform(platform, mobile, canNativeInstall, fromInstagram);
+  const steps = stepsForPlatform(platform, mobile, canNativeInstall, fromInstagram, safari);
   const instagramFlow = mobile && fromInstagram;
 
   return (
