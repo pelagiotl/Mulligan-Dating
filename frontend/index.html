@@ -29,17 +29,20 @@
     <meta charset="UTF-8" />
     <!-- Google Search Console: paste the verification meta tag here when you have it -->
     <!-- Bump ?v= when replacing public/favicon.png or app-icon.png (browsers cache favicons hard). -->
-    <link rel="icon" type="image/png" href="/favicon.png?v=20260530" sizes="1024x1024" />
-    <link rel="apple-touch-icon" href="/app-icon.png?v=20260530" />
+    <link rel="icon" type="image/png" href="/favicon.png?v=20260601" sizes="1024x1024" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/app-icon.png?v=20260601" />
+    <link rel="apple-touch-icon" href="/app-icon.png?v=20260601" />
+    <link rel="preload" href="/app-icon.png?v=20260601" as="image" type="image/png" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content"
     />
-    <!-- Match app-icon gradient (#764ba2), not burgundy UI accent — avoids red flash on Add to Home Screen -->
-    <meta name="theme-color" content="#764ba2" />
+    <!-- Match app-icon gradient start (#667eea), not burgundy UI accent — Add to Home Screen splash -->
+    <meta name="theme-color" content="#667eea" />
+    <meta name="msapplication-TileColor" content="#667eea" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="manifest" href="/manifest.webmanifest?v=20260601" />
     <meta name="description" content="Mulligan — Meet cool people. Actually hangout." />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

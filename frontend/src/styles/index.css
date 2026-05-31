@@ -3936,7 +3936,7 @@ img {
   position: absolute;
   top: -8%;
   left: calc(4% + (var(--confetti-i, 0) * 8.2%));
-  font-size: calc(1.1rem + (var(--confetti-i, 0) % 4) * 0.35rem);
+  font-size: calc(1.65rem + (var(--confetti-i, 0) % 4) * 0.45rem);
   opacity: 0;
   animation: readyConfettiFall calc(3.2s + (var(--confetti-i, 0) * 0.15s)) linear infinite;
   animation-delay: calc(var(--confetti-i, 0) * 0.22s);
