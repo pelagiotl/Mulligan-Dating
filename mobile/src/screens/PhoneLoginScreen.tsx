@@ -461,11 +461,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   subtitle: {
-    fontSize: 18,
-    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.88)',
     textAlign: 'center',
-    lineHeight: 26,
-    paddingHorizontal: 8,
+    lineHeight: 21,
+    paddingHorizontal: 12,
   },
   subtitleVerify: {
     fontSize: 17,

@@ -1006,7 +1006,6 @@ export default function SettingsScreen() {
       <Animated.View
         style={[
           styles.section,
-          styles.dangerSection,
           {
             opacity: sectionAnimations[4] ?? sectionFallbackAnim,
             transform: [
@@ -1020,6 +1019,12 @@ export default function SettingsScreen() {
           },
         ]}
       >
+        <LinearGradient
+          colors={['rgba(239, 68, 68, 0.28)', 'rgba(127, 29, 29, 0.22)']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.dangerSection}
+        >
         <View style={styles.sectionTitleContainer}>
           <ProfileCardAnimatedEmoji
             emoji="⚠️"
@@ -1034,12 +1039,22 @@ export default function SettingsScreen() {
           Deleting your account permanently removes your profile, matches, messages, and tokens. This cannot be undone.
         </Text>
         <TouchableOpacity
-          style={[styles.button, styles.dangerButton]}
+          style={styles.button}
           onPress={() => setShowDeleteAccountModal(true)}
-          activeOpacity={0.85}
+          activeOpacity={0.88}
+          accessibilityRole="button"
+          accessibilityLabel="Delete account"
         >
-          <Text style={[styles.buttonText, styles.dangerButtonText]}>Delete Account</Text>
+          <LinearGradient
+            colors={['#fb7185', '#ef4444', '#dc2626']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.dangerButton}
+          >
+            <Text style={[styles.buttonText, styles.dangerButtonText]}>Delete Account</Text>
+          </LinearGradient>
         </TouchableOpacity>
+        </LinearGradient>
       </Animated.View>
 
       {/* Help & Support */}
@@ -1070,16 +1085,24 @@ export default function SettingsScreen() {
           <Text style={styles.sectionTitle}>Help & Support</Text>
         </View>
         <TouchableOpacity
-          style={styles.supportRow}
+          style={styles.settingsActionButton}
           onPress={() => Linking.openURL('mailto:mulligandating@gmail.com')}
-          activeOpacity={0.7}
+          activeOpacity={0.88}
+          accessibilityRole="button"
+          accessibilityLabel="Contact us"
         >
-          <Text style={styles.supportRowText}>Contact us</Text>
-          <Text style={styles.supportRowChevron}>›</Text>
+          <LinearGradient
+            colors={['#ffffff', '#f0f1ff']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.settingsActionButtonGradient}
+          >
+            <Text style={styles.settingsActionButtonText}>Contact us</Text>
+          </LinearGradient>
         </TouchableOpacity>
       </Animated.View>
 
-      {/* Logout */}
+      {/* Session / Log out */}
       <Animated.View
         style={[
           styles.section,
@@ -1096,16 +1119,42 @@ export default function SettingsScreen() {
           },
         ]}
       >
-        <TouchableOpacity
-          style={[styles.button, styles.logoutButton]}
-          onPress={() => setShowLogoutModal(true)}
-          activeOpacity={0.85}
+        <LinearGradient
+          colors={['rgba(255, 255, 255, 0.16)', 'rgba(255, 255, 255, 0.07)']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.sessionCard}
         >
-          <View style={styles.buttonTextRow}>
-            <ProfileCardAnimatedEmoji emoji="🚪" variant="peek" fontSize={20} delay={0} />
-            <Text style={[styles.buttonText, styles.logoutButtonText]}>Logout</Text>
+          <View style={styles.sectionTitleContainer}>
+            <ProfileCardAnimatedEmoji
+              emoji="🚪"
+              variant="peek"
+              fontSize={26}
+              delay={0}
+              containerStyle={styles.sectionEmojiWrap}
+            />
+            <Text style={styles.sectionTitle}>Session</Text>
           </View>
-        </TouchableOpacity>
+          <Text style={styles.sessionHint}>
+            Log out of this device and return to the phone number login screen.
+          </Text>
+          <TouchableOpacity
+            style={styles.settingsActionButton}
+            onPress={() => setShowLogoutModal(true)}
+            activeOpacity={0.88}
+            accessibilityRole="button"
+            accessibilityLabel="Log out"
+          >
+            <LinearGradient
+              colors={['#ffffff', '#f0f1ff']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.settingsActionButtonGradient}
+            >
+              <Text style={styles.settingsActionButtonText}>Log out</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </LinearGradient>
       </Animated.View>
 
       {/* Legal Footer */}
@@ -1758,16 +1807,12 @@ const styles = StyleSheet.create({
     elevation: E(3),
   },
   dangerButton: {
-    backgroundColor: '#ef4444',
     paddingVertical: 16,
+    paddingHorizontal: 24,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 20,
-    shadowColor: '#ef4444',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: SO(0.4),
-    shadowRadius: 12,
-    elevation: E(8),
+    minHeight: 52,
   },
   pushNotificationsRowWrap: {
     marginTop: 24,
@@ -1861,15 +1906,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: 'rgba(255, 255, 255, 0.75)',
   },
-  supportRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 16,
-  },
   supportRowText: {
     fontSize: 16,
     fontWeight: '600',
@@ -1877,20 +1913,40 @@ const styles = StyleSheet.create({
   },
   supportRowChevron: {
     fontSize: 20,
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: 'rgba(255, 255, 255, 0.85)',
     fontWeight: '300',
   },
-  logoutButton: {
-    backgroundColor: 'rgba(102, 102, 102, 0.9)',
+  sessionCard: {
+    borderRadius: 24,
+    padding: 24,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.22)',
+  },
+  sessionHint: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: 'rgba(255, 255, 255, 0.88)',
+    marginBottom: 16,
+  },
+  settingsActionButton: {
+    alignSelf: 'stretch',
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.55)',
+  },
+  settingsActionButtonGradient: {
     paddingVertical: 16,
+    paddingHorizontal: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 20,
-    shadowColor: '#666',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: SO(0.3),
-    shadowRadius: 12,
-    elevation: E(8),
+    minHeight: 52,
+  },
+  settingsActionButtonText: {
+    color: '#4338ca',
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: 0.2,
   },
   buttonDisabled: {
     opacity: 0.5,
@@ -1910,9 +1966,6 @@ const styles = StyleSheet.create({
   dangerButtonText: {
     color: '#fff',
   },
-  logoutButtonText: {
-    color: '#fff',
-  },
   versionText: {
     fontSize: 13,
     color: 'rgba(255, 255, 255, 0.5)',
@@ -1921,20 +1974,14 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   dangerSection: {
-    backgroundColor: 'rgba(239, 68, 68, 0.08)',
     borderRadius: 24,
     padding: 24,
     borderWidth: 2,
-    borderColor: 'rgba(239, 68, 68, 0.25)',
-    shadowColor: '#ef4444',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: SO(0.2),
-    shadowRadius: 16,
-    elevation: E(8),
+    borderColor: 'rgba(252, 165, 165, 0.45)',
   },
   dangerText: {
     fontSize: 15,
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: 'rgba(255, 255, 255, 0.95)',
     marginBottom: 20,
     lineHeight: 22,
     fontWeight: '500',
