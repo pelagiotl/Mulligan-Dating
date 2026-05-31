@@ -210,11 +210,9 @@ export default function LandingAddToHomePrompt({ variant = 'default' }: LandingA
             Add Mulligan to your home screen
           </h2>
           <p className="landing-a2hs__body">
-            {instagramFlow
-              ? 'Instagram’s browser can’t add apps to your home screen — open Mulligan in Safari (or Chrome) first, then follow the steps below.'
-              : featured && mobile
-                ? 'Takes about 10 seconds — then open Mulligan like an app from your home screen.'
-                : 'Install Mulligan on your home screen for a faster, app-like experience.'}
+            {featured && mobile
+              ? 'Takes about 10 seconds — then open Mulligan like an app from your home screen.'
+              : 'Install Mulligan on your home screen for a faster, app-like experience.'}
           </p>
 
           {steps.length > 0 ? <AddToHomeSteps steps={steps} /> : null}
