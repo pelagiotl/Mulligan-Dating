@@ -60,6 +60,7 @@ import MatchCelebration from '../components/MatchCelebration';
 import PhotoUnlockExplainerModal from '../components/PhotoUnlockExplainerModal';
 import MatchPartnerProfileModal from '../components/MatchPartnerProfileModal';
 import ConnectLandingScarcity from '../components/ConnectLandingScarcity';
+import MatchesSupportNote from '../components/MatchesSupportNote';
 import AnimatedLaunchHourglass from '../components/AnimatedLaunchHourglass';
 import ProfileCardAnimatedEmoji from '../components/ProfileCardAnimatedEmoji';
 import { fetchMatchSlotStatus, type MatchSlotStatus } from '../utils/matchSlotStatus';
@@ -988,10 +989,20 @@ function EmptyStateAnimated({
   navigation,
   shellBackdropColors,
   shellIsMidnightAndroid,
+  supportHintColor,
+  supportUserId,
+  supportAvailableTokens,
+  supportActiveMatches,
+  supportSlotLimit,
 }: {
   navigation: any;
   shellBackdropColors: readonly [string, string, ...string[]];
   shellIsMidnightAndroid?: boolean;
+  supportHintColor?: string;
+  supportUserId?: string | null;
+  supportAvailableTokens?: number;
+  supportActiveMatches?: number;
+  supportSlotLimit?: number;
 }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
@@ -1128,6 +1139,13 @@ function EmptyStateAnimated({
           </View>
         </Animated.View>
       </TouchableOpacity>
+      <MatchesSupportNote
+        userId={supportUserId}
+        availableTokens={supportAvailableTokens}
+        activeMatches={supportActiveMatches}
+        slotLimit={supportSlotLimit}
+        hintColor={supportHintColor}
+      />
       <LegalFooter />
     </View>
   );
@@ -2457,6 +2475,13 @@ export default function MatchesScreen() {
     }, [refreshConnectionLimits])
   );
 
+  const matchesSupportHintColor =
+    connectShellMode === 'midnight'
+      ? '#94a3b8'
+      : connectShellMode === 'sunny'
+        ? '#9a3412'
+        : '#64748b';
+
   const connectionLimitsHeader = (
     <View style={styles.connectionLimitsHeader}>
       <ConnectLandingScarcity
@@ -2468,6 +2493,13 @@ export default function MatchesScreen() {
         nextRefillDate={nextRefillDate}
         activeMatches={matchSlotStatus?.count ?? 0}
         slotLimit={matchSlotStatus?.slotLimit ?? 10}
+      />
+      <MatchesSupportNote
+        userId={user?.id}
+        availableTokens={availableTokens}
+        activeMatches={matchSlotStatus?.count ?? 0}
+        slotLimit={matchSlotStatus?.slotLimit ?? 10}
+        hintColor={matchesSupportHintColor}
       />
     </View>
   );
@@ -3224,6 +3256,11 @@ export default function MatchesScreen() {
             navigation={navigation}
             shellBackdropColors={shellBackdropColors}
             shellIsMidnightAndroid={Platform.OS === 'android' && connectShellMode === 'midnight'}
+            supportHintColor={matchesSupportHintColor}
+            supportUserId={user?.id}
+            supportAvailableTokens={availableTokens}
+            supportActiveMatches={matchSlotStatus?.count ?? 0}
+            supportSlotLimit={matchSlotStatus?.slotLimit ?? 10}
           />
         ) : (
           <FlatList

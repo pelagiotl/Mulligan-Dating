@@ -9864,6 +9864,29 @@ button.my-profile-mini-card:focus-visible {
   margin-bottom: 0;
 }
 
+.matches-support-note {
+  margin: var(--space-2) 0 0;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: var(--matches-empty-hint, var(--text-secondary));
+  text-align: center;
+}
+
+.matches-support-note--empty {
+  margin-top: var(--space-4);
+}
+
+.matches-support-note__link {
+  color: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.matches-support-note__link:hover {
+  opacity: 0.88;
+}
+
 /* Animated heart beside “Your Matches” (Android header parity) */
 .matches-header-heart {
   position: relative;

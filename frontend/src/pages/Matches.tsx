@@ -24,6 +24,7 @@ import MatchPartnerProfileSheet from "../components/MatchPartnerProfileSheet";
 import { releaseAllBodyScrollLocks, useBodyScrollLock } from "../utils/bodyScrollLock";
 import { useConnectionLimits } from "../hooks/useConnectionLimits";
 import ConnectionLimitsPanel from "../components/ConnectionLimitsPanel";
+import MatchesSupportNote from "../components/MatchesSupportNote";
 import MatchExpiryHourglass from "../components/MatchExpiryHourglass";
 import MatchesHeaderHeartIcon from "../components/MatchesHeaderHeartIcon";
 import { useConnectShellTheme } from "../context/ConnectShellThemeContext";
@@ -2142,6 +2143,12 @@ export default function Matches() {
             activeMatches={connectionLimits.activeMatches}
             slotLimit={connectionLimits.slotLimit}
           />
+          <MatchesSupportNote
+            userId={user?.id}
+            availableTokens={connectionLimits.availableTokens}
+            activeMatches={connectionLimits.activeMatches}
+            slotLimit={connectionLimits.slotLimit}
+          />
         </header>
 
         {matches.length === 0 ? (
@@ -2151,6 +2158,13 @@ export default function Matches() {
             <Link to="/browse" className="matches-empty-cta">
               ✨ Browse People
             </Link>
+            <MatchesSupportNote
+              className="matches-support-note--empty"
+              userId={user?.id}
+              availableTokens={connectionLimits.availableTokens}
+              activeMatches={connectionLimits.activeMatches}
+              slotLimit={connectionLimits.slotLimit}
+            />
           </div>
         ) : (
           <div className="matches-list" role="list">
