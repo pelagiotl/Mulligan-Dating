@@ -3,6 +3,7 @@ import { api } from "../utils/api";
 import { TOKEN_MAX } from "../constants/tokens";
 import { emitTokenBalanceUpdated } from "../lib/tokenBalanceEvents";
 import WeeklyTokenClaimCelebration from "./WeeklyTokenClaimCelebration";
+import { playTokenClaimSound, unlockTokenClaimAudio } from "../utils/tokenClaimSound";
 
 interface TokenData {
   availableTokens: number;
@@ -96,6 +97,7 @@ export default function TokenDisplay({ variant = "default" }: TokenDisplayProps)
       const granted = result.tokensGranted ?? 0;
       setSuccess(result.message || `${granted} token(s) claimed successfully!`);
       if (granted > 0) {
+        playTokenClaimSound();
         setClaimCelebration({ tokensGranted: granted });
       }
 
@@ -213,6 +215,7 @@ export default function TokenDisplay({ variant = "default" }: TokenDisplayProps)
         {data.canClaimWeeklyToken ? (
           <button
             className="btn btn-primary btn-sm claim-btn token-display-claim-gradient"
+            onPointerDown={unlockTokenClaimAudio}
             onClick={handleClaim}
             disabled={claiming}
             type="button"

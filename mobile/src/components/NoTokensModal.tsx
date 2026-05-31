@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { api } from '../utils/api';
+import { playTokenClaimSound } from '../utils/sounds';
 
 interface TokenData {
   availableTokens: number;
@@ -54,7 +55,11 @@ export default function NoTokensModal({ visible, onClose, onTokenClaimed }: NoTo
     setClaiming(true);
     try {
       const result = await api.post<{ message: string; tokensGranted: number }>('/tokens/claim', {});
-      Alert.alert('Success!', result.message || `${result.tokensGranted} token(s) claimed!`);
+      const granted = result.tokensGranted ?? 0;
+      if (granted > 0) {
+        void playTokenClaimSound();
+      }
+      Alert.alert('Success!', result.message || `${granted} token(s) claimed!`);
       await fetchData();
       if (onTokenClaimed) {
         onTokenClaimed();

@@ -4,6 +4,7 @@ import Constants from 'expo-constants';
 
 let matchSoundModule: number | null = null;
 let messageSoundModule: number | null = null;
+let tokenClaimSoundModule: number | null = null;
 
 const isExpoGo =
   typeof Constants !== 'undefined' && Constants?.executionEnvironment === 'storeClient';
@@ -29,6 +30,15 @@ try {
     messageSoundModule = require('../../assets/message-sound.wav');
   } catch {
     messageSoundModule = null;
+  }
+}
+
+try {
+  tokenClaimSoundModule = require('../../assets/token-claim-sound.wav');
+} catch {
+  tokenClaimSoundModule = null;
+  if (!isExpoGo) {
+    console.warn('🎵 Token claim sound not found — run: node scripts/generate-token-claim-sound.js');
   }
 }
 
@@ -134,6 +144,7 @@ async function playBundledSound(
 
 const matchSoundHolder: SoundHolder = { sound: null };
 const messageSoundHolder: SoundHolder = { sound: null };
+const tokenClaimSoundHolder: SoundHolder = { sound: null };
 
 export async function playMatchSound(): Promise<void> {
   await playBundledSound(matchSoundModule, matchSoundHolder, 'match');
@@ -141,4 +152,9 @@ export async function playMatchSound(): Promise<void> {
 
 export async function playMessageSound(): Promise<void> {
   await playBundledSound(messageSoundModule, messageSoundHolder, 'message');
+}
+
+/** Cash-register cha-ching when weekly tokens are claimed. */
+export async function playTokenClaimSound(): Promise<void> {
+  await playBundledSound(tokenClaimSoundModule, tokenClaimSoundHolder, 'token-claim');
 }

@@ -36,6 +36,7 @@ import { purchaseTokensWithGooglePay } from '../utils/googlePay';
 import { formatPackagePerTokenLine, normalizePackageFormattedPrice } from '../utils/formatPackagePrice';
 import BrowseConnectLandingTokenStrip from './BrowseConnectLandingTokenStrip';
 import WeeklyTokenClaimCelebration from './WeeklyTokenClaimCelebration';
+import { playTokenClaimSound } from '../utils/sounds';
 import type { ConnectShellMode } from '../lib/connectShellTheme';
 import { TOKEN_PURCHASE_REUP_MESSAGE } from '../constants/tokenCelebration';
 import SmoothPulsingEmoji from './SmoothPulsingEmoji';
@@ -810,6 +811,10 @@ export default function TokenDisplay({
         setSuccess('');
         try {
           const result = await api.post<{ message: string; tokensGranted: number }>('/tokens/claim', {});
+          const granted = result.tokensGranted ?? 0;
+          if (granted > 0) {
+            void playTokenClaimSound();
+          }
           api.clearCache('/tokens');
           await fetchTokens();
           const msg = opts?.successMessage ?? `You've been reupped. Cool 🤑`;
@@ -1029,6 +1034,7 @@ export default function TokenDisplay({
       const granted = result.tokensGranted ?? 0;
       setSuccess(result.message || `${granted} token(s) claimed successfully!`);
       if (granted > 0) {
+        void playTokenClaimSound();
         setWeeklyClaimCelebration(granted);
       }
       setTimeout(() => setSuccess(''), 3000);
