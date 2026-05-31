@@ -27,30 +27,15 @@ function stepsForPlatform(
 ): StepItem[] {
   if (mobile && fromInstagram && platform === 'ios') {
     return [
-      {
-        title: 'Tap ⋯ (top right) → Open in external browser',
-        detail: 'Leave Instagram’s in-app browser first',
-      },
-      {
-        title: 'Tap ⋯ on the bottom bar → swipe up',
-        detail: 'In Safari (or Chrome) after the page reloads',
-      },
-      {
-        title: 'Add to Home Screen → tap Add',
-        detail: 'Then open Mulligan from your home screen like an app',
-      },
+      { title: 'Tap ⋯ (top right) → Open in external browser' },
+      { title: 'Tap ⋯ on the bottom bar → swipe up' },
+      { title: 'Add to Home Screen → tap Add' },
     ];
   }
   if (mobile && fromInstagram && platform === 'android') {
     return [
-      {
-        title: 'Tap ⋮ (top) → Open in browser',
-        detail: 'Chrome or your default browser — not Instagram’s viewer',
-      },
-      {
-        title: 'Tap ⋮ → Install app or Add to Home screen',
-        detail: 'Confirm when your browser prompts you',
-      },
+      { title: 'Tap ⋮ (top) → Open in browser' },
+      { title: 'Tap ⋮ → Install app or Add to Home screen' },
     ];
   }
   if (mobile && platform === 'ios') {
