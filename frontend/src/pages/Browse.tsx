@@ -18,6 +18,7 @@ import { useMatchSlotStatus } from "../hooks/useMatchSlotStatus";
 import MatchCapacityBanner from "../components/MatchCapacityBanner";
 import MatchLimitModalWeb from "../components/MatchLimitModalWeb";
 import ConnectLandingTagline from "../components/ConnectLandingTagline";
+import LandingAddToHomePrompt from "../components/LandingAddToHomePrompt";
 import { unlockMatchAudio } from "../utils/matchSound";
 import WebPushOnboardingPrompt from "../components/WebPushOnboardingPrompt";
 import { shouldShowWebPushPromptAfterProfile } from "../constants/webPushPrompt";
@@ -121,6 +122,8 @@ function BrowseConnectLandingChrome({
             <ConnectLandingMark />
             <span className="connect-landing__brand">Mulligan</span>
           </div>
+
+          {isGate ? <LandingAddToHomePrompt variant="featured" /> : null}
 
           <h1 className="connect-landing__title">Discover People</h1>
           <ConnectLandingTagline />

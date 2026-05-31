@@ -102,6 +102,10 @@
   margin-right: auto;
 }
 
+.connect-landing__card .landing-a2hs--featured {
+  margin: 0 0 1rem;
+}
+
 @keyframes landing-a2hs-enter {
   from {
     opacity: 0;
