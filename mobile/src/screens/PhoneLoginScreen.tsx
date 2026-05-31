@@ -77,6 +77,44 @@ const AnimatedPhoneInputIcon = memo(function AnimatedPhoneInputIcon() {
   );
 });
 
+/** Gentle pulse + wiggle on the verify-step lock — Android (matches phone field energy). */
+const AnimatedLockInputIcon = memo(function AnimatedLockInputIcon() {
+  const scale = useRef(new Animated.Value(1)).current;
+  const wiggle = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(scale, { toValue: 1.1, duration: 680, useNativeDriver: true }),
+          Animated.timing(wiggle, { toValue: 1, duration: 680, useNativeDriver: true }),
+        ]),
+        Animated.parallel([
+          Animated.timing(scale, { toValue: 1, duration: 680, useNativeDriver: true }),
+          Animated.timing(wiggle, { toValue: 0, duration: 680, useNativeDriver: true }),
+        ]),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [scale, wiggle]);
+
+  const rotate = wiggle.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: ['-5deg', '5deg', '-5deg'],
+  });
+
+  return (
+    <Animated.Text
+      style={[styles.inputIcon, { transform: [{ scale }, { rotate }] }]}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
+      🔒
+    </Animated.Text>
+  );
+});
+
 // Lightweight form - local state only, so keystrokes don't trigger parent header re-renders.
 // This makes the "Send Verification Code" button enable immediately when the 10th digit is typed.
 const PhoneForm = memo(function PhoneForm({
@@ -352,7 +390,11 @@ export default function PhoneLoginScreen() {
           <View style={styles.formGroup}>
             <Text style={styles.label}>Verification Code</Text>
             <View style={styles.inputWrapper}>
-              <Text style={styles.inputIcon}>🔒</Text>
+              {Platform.OS === 'android' ? (
+                <AnimatedLockInputIcon />
+              ) : (
+                <Text style={styles.inputIcon}>🔒</Text>
+              )}
               <TextInput
                 ref={codeInputRef}
                 style={[styles.input, styles.codeInput]}
@@ -443,7 +485,7 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: Platform.OS === 'android' ? 28 : 40,
   },
   title: {
     fontSize: 28,
@@ -476,8 +518,8 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 24,
-    padding: 40,
+    borderRadius: Platform.OS === 'android' ? 20 : 24,
+    padding: Platform.OS === 'android' ? 24 : 40,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.3)',
     shadowColor: '#000',
@@ -488,7 +530,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   formGroup: {
-    marginBottom: 24,
+    marginBottom: Platform.OS === 'android' ? 16 : 24,
   },
   label: {
     fontSize: 15,
@@ -524,7 +566,7 @@ const styles = StyleSheet.create({
   },
   button: {
     borderRadius: 12,
-    paddingVertical: 16,
+    paddingVertical: Platform.OS === 'android' ? 14 : 16,
     alignItems: 'center',
     marginBottom: 12,
   },
@@ -579,7 +621,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: 'rgba(45, 17, 24, 0.85)',
     textAlign: 'center',
-    marginTop: 32,
+    marginTop: Platform.OS === 'android' ? 20 : 32,
     lineHeight: 20,
   },
   footerLink: {

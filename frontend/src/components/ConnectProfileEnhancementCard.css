@@ -358,6 +358,25 @@
   animation: connectEnhancementFadeUp 0.45s ease 0.45s both;
 }
 
+@keyframes connectEnhancementProfileBtnBreathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  38%,
+  62% {
+    transform: scale(1.035);
+  }
+}
+
+.connect-enhancement__profile-btn-pulse {
+  flex: 1;
+  display: flex;
+  min-width: 0;
+  transform-origin: center;
+  animation: connectEnhancementProfileBtnBreathe 5.2s cubic-bezier(0.42, 0, 0.58, 1) infinite;
+}
+
 .connect-enhancement__profile-btn {
   flex: 1;
   min-width: 8.5rem;
@@ -409,7 +428,8 @@
   .connect-enhancement__list-item,
   .connect-enhancement__dot--pulse,
   .connect-enhancement__chev--nudge,
-  .connect-enhancement__actions--fade {
+  .connect-enhancement__actions--fade,
+  .connect-enhancement__profile-btn-pulse {
     animation: none !important;
   }
 

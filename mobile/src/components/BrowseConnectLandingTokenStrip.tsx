@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { ConnectShellMode } from '../lib/connectShellTheme';
-import ProfileCardAnimatedEmoji from './ProfileCardAnimatedEmoji';
+import SmoothPulsingEmoji from './SmoothPulsingEmoji';
 
 const TOKEN_MAX = 7;
 
@@ -85,13 +85,7 @@ export default function BrowseConnectLandingTokenStrip({
       accessibilityLabel="Mulligan tokens"
     >
       <LinearGradient colors={headerColors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.header}>
-        <ProfileCardAnimatedEmoji
-          emoji="🎟️"
-          variant="celebrate"
-          fontSize={22}
-          delay={0}
-          containerStyle={styles.headerEmojiWrap}
-        />
+        <SmoothPulsingEmoji emoji="🎟️" fontSize={22} containerStyle={styles.headerEmojiWrap} />
         <View style={styles.countRow}>
           <Text style={styles.headerNumber}>{availableTokens}</Text>
           <Text style={styles.headerCap}>/ {TOKEN_MAX}</Text>
@@ -201,6 +195,7 @@ const styles = StyleSheet.create({
   headerEmojiWrap: {
     marginBottom: 4,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   countRow: {
     flexDirection: 'row',

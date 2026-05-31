@@ -11,7 +11,49 @@ import {
   Vibration,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { AUTH_PAGE_GRADIENT_FALLBACK } from '../constants/authLoginTheme';
+import { connectionLimitsPanelColors } from '../lib/connectShellTheme';
+import ProfileCardAnimatedEmoji from './ProfileCardAnimatedEmoji';
 import { playMatchSound } from '../utils/sounds';
+
+const isAndroidMidnightCelebration = Platform.OS === 'android';
+const midnightPanel = connectionLimitsPanelColors('midnight');
+
+const CELEBRATION_THEME = isAndroidMidnightCelebration
+  ? {
+      overlaySolid: AUTH_PAGE_GRADIENT_FALLBACK,
+      overlayGradient: null as string[] | null,
+      overlayGradientLocations: null as number[] | null,
+      overlayGradientStart: null,
+      overlayGradientEnd: null,
+      overlayTint: null as string | null,
+      cardGradient: ['#211d33', '#16122a', '#121018'],
+      cardBorder: midnightPanel.shellBorder,
+      cardShadow: '#a78bfa',
+      buttonGradient: [...midnightPanel.accentGradient],
+      buttonBorder: 'rgba(196, 181, 253, 0.5)',
+      buttonShadow: '#8b5cf6',
+      buttonShimmer: 'rgba(196, 181, 253, 0.45)',
+      titleColor: '#f8fafc',
+      subtitleColor: '#c4b5fd',
+    }
+  : {
+      overlaySolid: null as string | null,
+      overlayGradient: null as string[] | null,
+      overlayGradientLocations: null as number[] | null,
+      overlayGradientStart: null,
+      overlayGradientEnd: null,
+      overlayTint: 'rgba(0, 0, 0, 0.7)',
+      cardGradient: ['#667eea', '#764ba2', '#f093fb', '#f5576c'],
+      cardBorder: 'rgba(255, 255, 255, 0.25)',
+      cardShadow: '#000',
+      buttonGradient: ['#667eea', '#764ba2', '#f093fb', '#f5576c'],
+      buttonBorder: 'rgba(255, 255, 255, 0.3)',
+      buttonShadow: '#667eea',
+      buttonShimmer: 'rgba(255, 255, 255, 0.4)',
+      titleColor: '#fff',
+      subtitleColor: 'rgba(255, 255, 255, 0.95)',
+    };
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -20,7 +62,7 @@ interface ProfileCompleteCelebrationProps {
   onClose: () => void;
 }
 
-/** Mix of flames, sparks, bursts, and fireworks — 🔥 weighted heavier */
+/** iOS: mixed celebration particles. Android: 💰 only — matches the 🤑 hero on the card. */
 const FIRE_RELATED_EMOJIS = [
   '🔥',
   '🔥',
@@ -37,13 +79,15 @@ const FIRE_RELATED_EMOJIS = [
   '⭐',
 ];
 
+const FALLING_EMOJI_POOL = isAndroidMidnightCelebration ? ['💰'] : FIRE_RELATED_EMOJIS;
+
 // Single emoji that falls continuously in a loop (resets to top when it reaches bottom)
 function FallingFire({ index, visible }: { index: number; visible: boolean }) {
   const translateY = useRef(new Animated.Value(0)).current;
   const leftPercent = useRef(5 + Math.random() * 90).current;
   const duration = useRef(3500 + Math.random() * 2500).current;
   const fireEmoji = useRef(
-    FIRE_RELATED_EMOJIS[Math.floor(Math.random() * FIRE_RELATED_EMOJIS.length)]
+    FALLING_EMOJI_POOL[Math.floor(Math.random() * FALLING_EMOJI_POOL.length)]
   ).current;
   const delay = useRef(Math.random() * 2000).current;
   const fontSize = useRef(22 + (index % 7) * 4).current; // 22–46px variety
@@ -243,12 +287,35 @@ export default function ProfileCompleteCelebration({
   return (
     <Modal
       visible={visible}
-      transparent
+      transparent={!isAndroidMidnightCelebration}
       animationType="none"
+      statusBarTranslucent={isAndroidMidnightCelebration}
       onRequestClose={handleContinue}
     >
       <View style={styles.overlay}>
-        {/* Falling fire emojis - loop until user taps "Start Connecting" */}
+        {CELEBRATION_THEME.overlaySolid ? (
+          <View
+            style={[StyleSheet.absoluteFill, { backgroundColor: CELEBRATION_THEME.overlaySolid }]}
+          />
+        ) : CELEBRATION_THEME.overlayGradient ? (
+          <LinearGradient
+            colors={CELEBRATION_THEME.overlayGradient}
+            locations={CELEBRATION_THEME.overlayGradientLocations ?? undefined}
+            start={CELEBRATION_THEME.overlayGradientStart ?? { x: 0, y: 0 }}
+            end={CELEBRATION_THEME.overlayGradientEnd ?? { x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+        ) : null}
+        {CELEBRATION_THEME.overlayTint ? (
+          <View
+            style={[
+              StyleSheet.absoluteFill,
+              { backgroundColor: CELEBRATION_THEME.overlayTint },
+            ]}
+            pointerEvents="none"
+          />
+        ) : null}
+        {/* Falling celebration emojis — loop until user taps continue */}
         {showFloatingFires && (
           <View style={styles.firesContainer} pointerEvents="none">
             {Array.from({ length: FIRE_COUNT }, (_, i) => (
@@ -269,10 +336,17 @@ export default function ProfileCompleteCelebration({
             ]}
           >
             <LinearGradient
-              colors={['#667eea', '#764ba2', '#f093fb', '#f5576c']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.card}
+              colors={CELEBRATION_THEME.cardGradient}
+              start={{ x: 0.15, y: 0 }}
+              end={{ x: 0.85, y: 1 }}
+              style={[
+                styles.card,
+                {
+                  borderWidth: 2,
+                  borderColor: CELEBRATION_THEME.cardBorder,
+                  shadowColor: CELEBRATION_THEME.cardShadow,
+                },
+              ]}
             >
               {/* Emoji */}
               <Animated.View
@@ -283,17 +357,27 @@ export default function ProfileCompleteCelebration({
                   },
                 ]}
               >
-                <Text style={styles.emoji}>🤑</Text>
+                {isAndroidMidnightCelebration ? (
+                  <ProfileCardAnimatedEmoji
+                    emoji="🤑"
+                    variant="celebrate"
+                    fontSize={80}
+                    containerStyle={styles.emojiAnimatedWrap}
+                    style={styles.emoji}
+                  />
+                ) : (
+                  <Text style={styles.emoji}>🤑</Text>
+                )}
               </Animated.View>
 
               {/* Title */}
               <Animated.View style={{ opacity: titleOpacity }}>
-                <Text style={styles.title}>Nice work.</Text>
+                <Text style={[styles.title, { color: CELEBRATION_THEME.titleColor }]}>Nice work.</Text>
               </Animated.View>
 
               {/* Subtitle */}
               <Animated.View style={{ opacity: subtitleOpacity }}>
-                <Text style={styles.subtitle}>
+                <Text style={[styles.subtitle, { color: CELEBRATION_THEME.subtitleColor }]}>
                   Have fun & be cool.
                 </Text>
               </Animated.View>
@@ -301,7 +385,10 @@ export default function ProfileCompleteCelebration({
               {/* Continue button - pulse + shimmer like Connect button */}
               {showButton && (
                 <TouchableOpacity
-                  style={styles.button}
+                  style={[
+                    styles.button,
+                    { shadowColor: CELEBRATION_THEME.buttonShadow },
+                  ]}
                   onPress={handleContinue}
                   activeOpacity={0.9}
                   onPressIn={() => {
@@ -313,15 +400,19 @@ export default function ProfileCompleteCelebration({
                 >
                   <Animated.View style={{ transform: [{ scale: Animated.multiply(buttonPulse, buttonScale) }] }}>
                     <LinearGradient
-                      colors={['#667eea', '#764ba2', '#f093fb', '#f5576c']}
+                      colors={CELEBRATION_THEME.buttonGradient}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
-                      style={styles.buttonGradient}
+                      style={[
+                        styles.buttonGradient,
+                        { borderColor: CELEBRATION_THEME.buttonBorder },
+                      ]}
                     >
                       <Animated.View
                         style={[
                           styles.buttonShimmer,
                           {
+                            backgroundColor: CELEBRATION_THEME.buttonShimmer,
                             transform: [
                               { translateX: buttonShimmer.interpolate({ inputRange: [0, 1], outputRange: [-200, 400] }) },
                               { rotate: buttonShimmer.interpolate({ inputRange: [0, 1], outputRange: ['-20deg', '-20deg'] }) },
@@ -330,7 +421,9 @@ export default function ProfileCompleteCelebration({
                         ]}
                         pointerEvents="none"
                       />
-                      <Text style={styles.buttonText}>Start Connecting →</Text>
+                      <Text style={styles.buttonText}>
+                        {isAndroidMidnightCelebration ? "Let's get it" : 'Start Connecting →'}
+                      </Text>
                     </LinearGradient>
                   </Animated.View>
                 </TouchableOpacity>
@@ -346,7 +439,7 @@ export default function ProfileCompleteCelebration({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: isAndroidMidnightCelebration ? '#0c0a12' : 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -383,6 +476,10 @@ const styles = StyleSheet.create({
   },
   emojiContainer: {
     marginBottom: 20,
+  },
+  emojiAnimatedWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   emoji: {
     fontSize: 80,

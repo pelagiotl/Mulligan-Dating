@@ -12,7 +12,12 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useIsFocused } from '@react-navigation/native';
 import type { ProfileEnhancementItem } from '../utils/profileEnhancementChecklist';
-import ProfileCardAnimatedEmoji from './ProfileCardAnimatedEmoji';
+import SmoothPulsingEmoji from './SmoothPulsingEmoji';
+import {
+  SMOOTH_BREATHE_CYCLE_MS,
+  SMOOTH_BREATHE_PEAK_SCALE,
+  useSmoothBreathePulse,
+} from '../hooks/useSmoothBreathePulse';
 
 export type ConnectEnhancementShell = 'midnight' | 'sunny' | 'soft';
 
@@ -56,7 +61,7 @@ export function ConnectProfileEnhancementRestoreLink({
         end={{ x: 1, y: 0 }}
         style={styles.accent}
       />
-      <ProfileCardAnimatedEmoji emoji="✨" variant="shimmer" fontSize={16} delay={0} />
+      <SmoothPulsingEmoji emoji="✨" fontSize={16} />
       <View style={styles.restoreCopy}>
         <Text style={[styles.restoreTitle, { color: palette.eyebrow }]}>Show Better matches tips</Text>
         <Text style={[styles.restoreMeta, { color: palette.lead }]}>
@@ -197,6 +202,43 @@ function AnimatedRow({
   );
 }
 
+function GoToProfileButton({
+  colors,
+  onPress,
+}: {
+  colors: readonly [string, string, ...string[]];
+  onPress: () => void;
+}) {
+  const { scale, motionEnabled } = useSmoothBreathePulse({
+    cycleMs: SMOOTH_BREATHE_CYCLE_MS,
+    peakScale: SMOOTH_BREATHE_PEAK_SCALE,
+  });
+
+  const button = (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.85}
+      style={styles.profileBtnWrap}
+      accessibilityRole="button"
+      accessibilityLabel="Go to Profile"
+    >
+      <LinearGradient colors={colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.profileBtn}>
+        <Text style={styles.profileBtnText}>Go to Profile</Text>
+      </LinearGradient>
+    </TouchableOpacity>
+  );
+
+  if (!motionEnabled) {
+    return button;
+  }
+
+  return (
+    <Animated.View style={[styles.profileBtnPulseWrap, { transform: [{ scale }] }]}>
+      {button}
+    </Animated.View>
+  );
+}
+
 export default function ConnectProfileEnhancementCard({
   items,
   shell,
@@ -284,7 +326,7 @@ export default function ConnectProfileEnhancementCard({
       />
       <View style={styles.head}>
         <View style={styles.titleWrap}>
-          <ProfileCardAnimatedEmoji emoji="✨" variant="shimmer" fontSize={14} delay={0} />
+          <SmoothPulsingEmoji emoji="✨" fontSize={14} />
           <Text style={[styles.eyebrow, { color: palette.eyebrow }]}>Better matches</Text>
         </View>
         <Text style={[styles.progressBadge, { color: palette.progress, borderColor: palette.rowBorder }]}>
@@ -314,16 +356,7 @@ export default function ConnectProfileEnhancementCard({
         />
       ))}
       <Animated.View style={[styles.actions, { borderTopColor: palette.rowBorder, opacity: contentOpacity }]}>
-        <TouchableOpacity onPress={onOpenProfile} activeOpacity={0.85} style={styles.profileBtnWrap}>
-          <LinearGradient
-            colors={palette.profileBtn}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.profileBtn}
-          >
-            <Text style={styles.profileBtnText}>Go to Profile</Text>
-          </LinearGradient>
-        </TouchableOpacity>
+        <GoToProfileButton colors={palette.profileBtn} onPress={onOpenProfile} />
         <TouchableOpacity onPress={onDismiss} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <Text style={[styles.dismiss, { color: palette.dismiss }]}>Not now</Text>
         </TouchableOpacity>
@@ -438,6 +471,9 @@ const styles = StyleSheet.create({
     marginTop: 6,
     paddingTop: 12,
     borderTopWidth: 1,
+  },
+  profileBtnPulseWrap: {
+    flex: 1,
   },
   profileBtnWrap: {
     flex: 1,

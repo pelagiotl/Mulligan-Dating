@@ -405,6 +405,7 @@ export default function CreateProfileScreen() {
   const rs = React.useMemo(() => {
     const w = screenWidth;
     const h = screenHeight;
+    const isAndroid = Platform.OS === 'android';
     const scaleW = Math.min(Math.max(w / 375, 0.9), 1.15);
     const scaleH = Math.min(Math.max(h / 812, 0.85), 1.1);
     return {
@@ -413,11 +414,11 @@ export default function CreateProfileScreen() {
       sectionPaddingV: Math.round(36 * scaleH),
       cardPadding: Math.round(36 * scaleW),
       cardPaddingFirst: Math.round(44 * scaleW),
-      onboardingCardPadding: Math.round(24 * scaleW),
+      onboardingCardPadding: Math.round((isAndroid ? 18 : 24) * scaleW),
       cardPaddingKeyboard: Math.round(22 * scaleW),
       emojiSize: Math.round(72 * scaleW),
       emojiSizeSmall: Math.round(42 * scaleW),
-      onboardingEmojiSize: Math.round(44 * scaleW),
+      onboardingEmojiSize: Math.round((isAndroid ? 38 : 44) * scaleW),
       onboardingEmojiSizeKeyboard: Math.round(34 * scaleW),
       titleSize: Math.round(32 * scaleW),
       titleSizeSmall: Math.round(22 * scaleW),
@@ -425,11 +426,13 @@ export default function CreateProfileScreen() {
       onboardingTitleSize: Math.round(22 * scaleW),
       onboardingTitleSizeSmall: Math.round(18 * scaleW),
       titleMargin: Math.round(12 * scaleH),
-      onboardingTitleMargin: Math.round(6 * scaleH),
+      onboardingTitleMargin: Math.round((isAndroid ? 4 : 6) * scaleH),
       subtitleSize: Math.round(18 * scaleW),
       subtitleSizeSmall: Math.round(13 * scaleW),
-      onboardingSubtitleSize: Math.round(12 * scaleW),
-      onboardingSubtitleMargin: Math.round(10 * scaleH),
+      onboardingSubtitleSize: Math.round((isAndroid ? 11 : 12) * scaleW),
+      onboardingSubtitleLineHeight: Math.round((isAndroid ? 15 : 17) * scaleW),
+      onboardingSubtitleMargin: Math.round((isAndroid ? 6 : 10) * scaleH),
+      onboardingSectionsGap: isAndroid ? 10 : 12,
       subtitleSizeTiny: Math.max(9, Math.round(10 * scaleW)),
       subtitleSizeCompact: Math.round(16 * scaleW),
       subtitleMargin: Math.round(32 * scaleH),
@@ -1339,10 +1342,13 @@ export default function CreateProfileScreen() {
       await api.post('/profile/activate');
 
       await clearMobileCreateProfileDraft();
-      markConnectSetupComplete();
 
-      // Celebration first; refresh after dismiss so AppNavigator does not bounce back to the wizard.
+      // Show celebration before connectSetupComplete — otherwise AppNavigator resets to Browse
+      // while isProfileCompletionCelebrationVisible() is still false (useEffect runs one frame late).
+      setProfileCompletionCelebrationVisible(true);
       setShowCelebration(true);
+      markConnectSetupComplete();
+      void refreshProfile();
     } catch (err: any) {
       setError(err?.message || 'Failed to create profile');
     } finally {
@@ -1462,15 +1468,21 @@ export default function CreateProfileScreen() {
   };
 
   // Steps 1–2: compact onboarding layout (name, location)
+  const androidOnboardingIdle = Platform.OS === 'android' && !keyboardVisible;
+  const onboardingStepContentStyle = [
+    styles.onboardingStepScrollContent,
+    keyboardVisible && styles.onboardingStepScrollContentKeyboard,
+    androidOnboardingIdle && styles.onboardingStepScrollContentAndroidIdle,
+  ];
   const onboardingStepWrapper = (content: React.ReactNode) => (
     <ScrollView
       style={styles.onboardingStepScroll}
-      contentContainerStyle={[
-        styles.onboardingStepScrollContent,
-        keyboardVisible && styles.onboardingStepScrollContentKeyboard,
-      ]}
+      contentContainerStyle={onboardingStepContentStyle}
       showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
+      keyboardShouldPersistTaps="always"
+      scrollEnabled={!androidOnboardingIdle}
+      bounces={!androidOnboardingIdle}
+      nestedScrollEnabled
     >
       {content}
     </ScrollView>
@@ -1487,12 +1499,16 @@ export default function CreateProfileScreen() {
   );
 
   const renderStep1DisplayName = () => onboardingStepWrapper(
-    <View style={[onboardingFieldWrapStyle, styles.onboardingSectionsWrap]}>
-      <Animated.View style={[{ transform: [{ scale: firstNameScale }], opacity: firstNameOpacity }]}>
+    <View style={[onboardingFieldWrapStyle, styles.onboardingSectionsWrap, { gap: rs.onboardingSectionsGap }]}>
+      <Animated.View
+        style={[{ transform: [{ scale: firstNameScale }], opacity: firstNameOpacity }]}
+        pointerEvents="box-none"
+      >
         <LinearGradient
           colors={['#667eea', '#764ba2', '#f093fb']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
+          pointerEvents="box-none"
           style={[
             styles.focusedFirstNameCard,
             styles.onboardingCompactCard,
@@ -1507,7 +1523,7 @@ export default function CreateProfileScreen() {
               keyboardVisible && styles.focusedEmojiSmall,
               {
                 fontSize: keyboardVisible ? rs.onboardingEmojiSizeKeyboard : rs.onboardingEmojiSize,
-                marginBottom: keyboardVisible ? 6 : 10,
+                marginBottom: keyboardVisible ? 6 : Platform.OS === 'android' ? 6 : 10,
               },
             ]}
           >
@@ -1531,6 +1547,7 @@ export default function CreateProfileScreen() {
               keyboardVisible && styles.focusedSubtitleCompact,
               {
                 fontSize: keyboardVisible ? rs.subtitleSizeCompact : rs.onboardingSubtitleSize,
+                lineHeight: rs.onboardingSubtitleLineHeight,
                 marginBottom: keyboardVisible ? 8 : rs.onboardingSubtitleMargin,
                 maxWidth: '100%',
               },
@@ -1540,8 +1557,10 @@ export default function CreateProfileScreen() {
             Let&apos;s start with your first name
           </Text>
           <Animated.View
+            pointerEvents="box-none"
             style={[
               styles.focusedInputWrapper,
+              styles.onboardingInputWrapper,
               {
                 shadowOpacity: firstNameGlow.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.6] }),
                 shadowRadius: firstNameGlow.interpolate({ inputRange: [0, 1], outputRange: [8, 20] }),
@@ -1575,6 +1594,7 @@ export default function CreateProfileScreen() {
       </Animated.View>
 
       <Animated.View
+        pointerEvents="box-none"
         style={[
           { transform: [{ scale: locationScale }], opacity: locationOpacity },
           styles.onboardingSectionCardWrap,
@@ -1584,6 +1604,7 @@ export default function CreateProfileScreen() {
           colors={['#f5576c', '#4facfe', '#00f2fe']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
+          pointerEvents="box-none"
           style={[
             styles.focusedFieldCard,
             styles.onboardingCompactCard,
@@ -1598,7 +1619,7 @@ export default function CreateProfileScreen() {
               keyboardVisible && styles.focusedEmojiSmall,
               {
                 fontSize: keyboardVisible ? rs.onboardingEmojiSizeKeyboard : rs.onboardingEmojiSize,
-                marginBottom: keyboardVisible ? 6 : 10,
+                marginBottom: keyboardVisible ? 6 : Platform.OS === 'android' ? 6 : 10,
               },
             ]}
           >
@@ -1622,16 +1643,20 @@ export default function CreateProfileScreen() {
               keyboardVisible && styles.focusedSubtitleSmall,
               {
                 fontSize: rs.onboardingSubtitleSize,
+                lineHeight: rs.onboardingSubtitleLineHeight,
                 marginBottom: keyboardVisible ? 8 : rs.onboardingSubtitleMargin,
                 opacity: 0.92,
               },
             ]}
+            numberOfLines={2}
           >
             Southern Oregon and nearby — we show people within about 100 miles.
           </Text>
           <Animated.View
+            pointerEvents="box-none"
             style={[
               styles.focusedInputWrapper,
+              styles.onboardingInputWrapper,
               {
                 shadowOpacity: locationGlow.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.6] }),
                 shadowRadius: locationGlow.interpolate({ inputRange: [0, 1], outputRange: [8, 20] }),
@@ -2482,11 +2507,15 @@ export default function CreateProfileScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={[
         styles.container,
-        isOnboardingWizard && { backgroundColor: onboardingChrome.screenBg },
+        (isOnboardingWizard || showCelebration) && {
+          backgroundColor: showCelebration ? '#0c0a12' : onboardingChrome.screenBg,
+        },
       ]}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       enabled={Platform.OS === 'ios'}
     >
+      {!showCelebration ? (
+      <>
       <View style={styles.createProfileBody}>
       <LinearGradient
         colors={['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe']}
@@ -2519,7 +2548,12 @@ export default function CreateProfileScreen() {
             </TouchableOpacity>
           </View>
         ) : (
-          <View style={styles.exitSaveRow}>
+          <View
+            style={[
+              styles.headerActionRow,
+              { paddingTop: Math.max(insets.top, Platform.OS === 'android' ? 12 : 8) },
+            ]}
+          >
             <TouchableOpacity
               style={styles.emailSupportHeaderLink}
               onPress={openCreateProfileSupportEmail}
@@ -2544,11 +2578,6 @@ export default function CreateProfileScreen() {
         <Text style={[styles.title, !connectSetupComplete && styles.headerOnboardingCompactTitle]}>
           Set up your profile
         </Text>
-        {!connectSetupComplete ? (
-          <Text style={[styles.subtitle, styles.headerOnboardingCompactSubtitle]}>
-            Two quick steps below — then you&apos;re ready to browse.
-          </Text>
-        ) : null}
         {connectSetupComplete && existingProfile && !startFromBeginning ? (
           <TouchableOpacity
             style={styles.emailSupportLink}
@@ -2594,6 +2623,10 @@ export default function CreateProfileScreen() {
             backgroundColor: onboardingChrome.actionsBg,
             borderTopColor: onboardingChrome.actionsBorder,
           },
+          isOnboardingWizard &&
+            Platform.OS === 'android' &&
+            !keyboardVisible &&
+            styles.actionsFooterAndroidAnchored,
           { paddingBottom: Platform.OS === 'android' ? Math.max(insets.bottom, 8) : Math.max(insets.bottom, 12) },
         ]}
       >
@@ -2632,12 +2665,17 @@ export default function CreateProfileScreen() {
             </TouchableOpacity>
         </View>
       </View>
+      </>
+      ) : null}
       <ProfileCompleteCelebration
         visible={showCelebration}
         onClose={async () => {
-          setShowCelebration(false);
           markConnectSetupComplete();
-          await refreshProfile();
+          try {
+            await refreshProfile();
+          } catch {
+            /* still navigate — latch keeps user off the wizard */
+          }
           if (navigationRef.current?.isReady()) {
             navigationRef.current.reset({
               index: 0,
@@ -2697,6 +2735,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     zIndex: 10,
+  },
+  headerActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 10,
+    marginBottom: 8,
   },
   exitButton: {
     paddingVertical: 8,
@@ -4309,8 +4354,17 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'flex-start',
     paddingHorizontal: 10,
-    paddingTop: 14,
-    paddingBottom: 4,
+    paddingTop: Platform.OS === 'android' ? 6 : 14,
+    paddingBottom: Platform.OS === 'android' ? 0 : 4,
+  },
+  onboardingStepScrollContentAndroidIdle: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingTop: 10,
+    paddingBottom: 28,
+  },
+  onboardingInputWrapper: {
+    ...(Platform.OS === 'android' ? { elevation: 0 } : {}),
   },
   onboardingStepScrollContentKeyboard: {
     justifyContent: 'flex-start',
@@ -4326,43 +4380,43 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   onboardingSectionsWrap: {
-    gap: 10,
-    paddingTop: 4,
-    paddingBottom: 2,
+    paddingTop: Platform.OS === 'android' ? 0 : 4,
+    paddingBottom: Platform.OS === 'android' ? 0 : 2,
   },
   onboardingSectionCardWrap: {
     marginTop: 0,
   },
   headerOnboardingCompact: {
-    paddingBottom: 20,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === 'android' ? 14 : 20,
   },
   headerOnboardingCompactTitle: {
     fontSize: 26,
-    marginBottom: 2,
-  },
-  headerOnboardingCompactSubtitle: {
-    fontSize: 13,
+    marginBottom: 0,
   },
   onboardingCompactCard: {
     borderRadius: 22,
+    ...(Platform.OS === 'android'
+      ? { elevation: 4, shadowOpacity: 0, shadowRadius: 0 }
+      : {}),
   },
   onboardingCompactNameInput: {
-    paddingVertical: 12,
+    paddingVertical: Platform.OS === 'android' ? 10 : 12,
     paddingHorizontal: 14,
     fontSize: 16,
     borderRadius: 14,
   },
   onboardingCompactLocationInput: {
-    paddingVertical: 10,
+    paddingVertical: Platform.OS === 'android' ? 8 : 10,
     paddingHorizontal: 12,
     fontSize: 15,
-    minHeight: 46,
-    maxHeight: 58,
+    minHeight: Platform.OS === 'android' ? 40 : 46,
+    maxHeight: Platform.OS === 'android' ? 52 : 58,
     borderRadius: 14,
   },
   onboardingCompactLocButton: {
-    marginTop: 8,
-    paddingVertical: 10,
+    marginTop: Platform.OS === 'android' ? 6 : 8,
+    paddingVertical: Platform.OS === 'android' ? 8 : 10,
     paddingHorizontal: 20,
     borderRadius: 14,
   },
@@ -4374,9 +4428,9 @@ const styles = StyleSheet.create({
   },
   onboardingStepPill: {
     alignSelf: 'center',
-    marginBottom: 6,
+    marginBottom: Platform.OS === 'android' ? 4 : 6,
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: Platform.OS === 'android' ? 2 : 3,
     borderRadius: 999,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     borderWidth: 1,
@@ -4390,12 +4444,15 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   onboardingFootnote: {
-    marginTop: 2,
+    marginTop: Platform.OS === 'android' ? 4 : 2,
     paddingHorizontal: 6,
-    fontSize: 11,
-    lineHeight: 15,
+    fontSize: Platform.OS === 'android' ? 10 : 11,
+    lineHeight: Platform.OS === 'android' ? 13 : 15,
     color: '#64748b',
     textAlign: 'center',
+  },
+  actionsFooterAndroidAnchored: {
+    marginTop: 'auto',
   },
   actionsFooter: {
     flexShrink: 0,

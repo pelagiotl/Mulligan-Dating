@@ -108,9 +108,11 @@ export default function ConnectProfileEnhancementCard({
         ))}
       </ul>
       <div className="connect-enhancement__actions connect-enhancement__actions--fade">
-        <button type="button" className="connect-enhancement__profile-btn" onClick={onOpenProfile}>
-          Go to Profile
-        </button>
+        <span className="connect-enhancement__profile-btn-pulse">
+          <button type="button" className="connect-enhancement__profile-btn" onClick={onOpenProfile}>
+            Go to Profile
+          </button>
+        </span>
         <button type="button" className="connect-enhancement__dismiss" onClick={onDismiss}>
           Not now
         </button>

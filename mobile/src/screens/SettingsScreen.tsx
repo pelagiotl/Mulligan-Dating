@@ -144,13 +144,16 @@ export default function SettingsScreen() {
     ]).start();
 
     for (let i = 0; i < 10; i++) {
-      sectionAnimations[i] = new Animated.Value(0);
-      Animated.timing(sectionAnimations[i], {
-        toValue: 1,
-        duration: 500,
-        delay: i * 80,
-        useNativeDriver: true,
-      }).start();
+      const skipFade = Platform.OS === 'android' && i >= 4;
+      sectionAnimations[i] = new Animated.Value(skipFade ? 1 : 0);
+      if (!skipFade) {
+        Animated.timing(sectionAnimations[i], {
+          toValue: 1,
+          duration: 500,
+          delay: i * 80,
+          useNativeDriver: true,
+        }).start();
+      }
     }
 
     for (let i = 0; i < 2; i++) {
@@ -515,6 +518,24 @@ export default function SettingsScreen() {
       routes: [{ name: 'PhoneLogin' as never }],
     });
   }, [logout, navigation]);
+
+  const getSectionEntranceStyle = (index: number) => {
+    const anim = sectionAnimations[index] ?? sectionFallbackAnim;
+    if (Platform.OS === 'android' && index >= 4) {
+      return {};
+    }
+    return {
+      opacity: anim,
+      transform: [
+        {
+          translateY: anim.interpolate({
+            inputRange: [0, 1],
+            outputRange: [30, 0],
+          }),
+        },
+      ],
+    };
+  };
 
   if (loading) {
     return (
@@ -1003,24 +1024,9 @@ export default function SettingsScreen() {
       </Animated.View>
 
       {/* Delete Account */}
-      <Animated.View
-        style={[
-          styles.section,
-          {
-            opacity: sectionAnimations[4] ?? sectionFallbackAnim,
-            transform: [
-              {
-                translateY: (sectionAnimations[4] ?? sectionFallbackAnim).interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [30, 0],
-                }),
-              },
-            ],
-          },
-        ]}
-      >
+      <Animated.View style={[styles.section, getSectionEntranceStyle(4)]}>
         <LinearGradient
-          colors={['rgba(239, 68, 68, 0.28)', 'rgba(127, 29, 29, 0.22)']}
+          colors={['rgba(251, 113, 133, 0.52)', 'rgba(185, 28, 28, 0.48)']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.dangerSection}
@@ -1058,69 +1064,49 @@ export default function SettingsScreen() {
       </Animated.View>
 
       {/* Help & Support */}
-      <Animated.View
-        style={[
-          styles.section,
-          {
-            opacity: sectionAnimations[5] ?? sectionFallbackAnim,
-            transform: [
-              {
-                translateY: (sectionAnimations[5] ?? sectionFallbackAnim).interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [30, 0],
-                }),
-              },
-            ],
-          },
-        ]}
-      >
-        <View style={styles.sectionTitleContainer}>
-          <ProfileCardAnimatedEmoji
-            emoji="💬"
-            variant="glow"
-            fontSize={26}
-            delay={80}
-            containerStyle={styles.sectionEmojiWrap}
-          />
-          <Text style={styles.sectionTitle}>Help & Support</Text>
-        </View>
-        <TouchableOpacity
-          style={styles.settingsActionButton}
-          onPress={() => Linking.openURL('mailto:mulligandating@gmail.com')}
-          activeOpacity={0.88}
-          accessibilityRole="button"
-          accessibilityLabel="Contact us"
+      <Animated.View style={[styles.section, getSectionEntranceStyle(5)]}>
+        <LinearGradient
+          colors={['rgba(255, 255, 255, 0.32)', 'rgba(255, 255, 255, 0.16)']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.helpSupportCard}
         >
-          <LinearGradient
-            colors={['#ffffff', '#f0f1ff']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.settingsActionButtonGradient}
+          <View style={styles.sectionTitleContainer}>
+            <ProfileCardAnimatedEmoji
+              emoji="💬"
+              variant="glow"
+              fontSize={26}
+              delay={80}
+              containerStyle={styles.sectionEmojiWrap}
+            />
+            <Text style={styles.sectionTitle}>Help & Support</Text>
+          </View>
+          <Text style={styles.helpSupportHint}>
+            Questions about your account, tokens, or the app? We&apos;re here to help.
+          </Text>
+          <TouchableOpacity
+            style={styles.settingsActionButton}
+            onPress={() => Linking.openURL('mailto:mulligandating@gmail.com')}
+            activeOpacity={0.88}
+            accessibilityRole="button"
+            accessibilityLabel="Contact us"
           >
-            <Text style={styles.settingsActionButtonText}>Contact us</Text>
-          </LinearGradient>
-        </TouchableOpacity>
+            <LinearGradient
+              colors={['#ffffff', '#f8f9ff']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.settingsActionButtonGradient}
+            >
+              <Text style={styles.settingsActionButtonText}>Contact us</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </LinearGradient>
       </Animated.View>
 
       {/* Session / Log out */}
-      <Animated.View
-        style={[
-          styles.section,
-          {
-            opacity: sectionAnimations[6] ?? sectionFallbackAnim,
-            transform: [
-              {
-                translateY: (sectionAnimations[6] ?? sectionFallbackAnim).interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [30, 0],
-                }),
-              },
-            ],
-          },
-        ]}
-      >
+      <Animated.View style={[styles.section, getSectionEntranceStyle(6)]}>
         <LinearGradient
-          colors={['rgba(255, 255, 255, 0.16)', 'rgba(255, 255, 255, 0.07)']}
+          colors={['rgba(255, 255, 255, 0.34)', 'rgba(255, 255, 255, 0.18)']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.sessionCard}
@@ -1916,24 +1902,38 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.85)',
     fontWeight: '300',
   },
+  helpSupportCard: {
+    borderRadius: 24,
+    padding: 24,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.42)',
+  },
+  helpSupportHint: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: 'rgba(255, 255, 255, 0.96)',
+    marginBottom: 16,
+    fontWeight: '500',
+  },
   sessionCard: {
     borderRadius: 24,
     padding: 24,
     borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.22)',
+    borderColor: 'rgba(255, 255, 255, 0.42)',
   },
   sessionHint: {
     fontSize: 14,
     lineHeight: 20,
-    color: 'rgba(255, 255, 255, 0.88)',
+    color: 'rgba(255, 255, 255, 0.96)',
     marginBottom: 16,
+    fontWeight: '500',
   },
   settingsActionButton: {
     alignSelf: 'stretch',
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.55)',
+    borderColor: 'rgba(255, 255, 255, 0.72)',
   },
   settingsActionButtonGradient: {
     paddingVertical: 16,
@@ -1977,14 +1977,14 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 24,
     borderWidth: 2,
-    borderColor: 'rgba(252, 165, 165, 0.45)',
+    borderColor: 'rgba(254, 202, 202, 0.72)',
   },
   dangerText: {
     fontSize: 15,
-    color: 'rgba(255, 255, 255, 0.95)',
+    color: '#fff',
     marginBottom: 20,
     lineHeight: 22,
-    fontWeight: '500',
+    fontWeight: '600',
     letterSpacing: 0.1,
   },
   deleteActions: {

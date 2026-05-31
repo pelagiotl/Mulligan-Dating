@@ -37,8 +37,8 @@ import { formatPackagePerTokenLine, normalizePackageFormattedPrice } from '../ut
 import BrowseConnectLandingTokenStrip from './BrowseConnectLandingTokenStrip';
 import WeeklyTokenClaimCelebration from './WeeklyTokenClaimCelebration';
 import type { ConnectShellMode } from '../lib/connectShellTheme';
-import ProfileCardAnimatedEmoji from './ProfileCardAnimatedEmoji';
 import { TOKEN_PURCHASE_REUP_MESSAGE } from '../constants/tokenCelebration';
+import SmoothPulsingEmoji from './SmoothPulsingEmoji';
 
 interface TokenData {
   availableTokens: number;
@@ -362,7 +362,8 @@ function WebNavbarTokenBadge({
     shimmerLoopRef.current?.stop();
     badgeScaleLoopRef.current?.stop();
 
-    if (reduceMotion || loading) {
+    // Android: static navbar badge (no scale loop — avoids flicker with emoji).
+    if (reduceMotion || loading || Platform.OS === 'android') {
       pulse.setValue(0);
       shimmer.setValue(0);
       badgeScale.setValue(1);
@@ -528,12 +529,7 @@ function WebNavbarTokenBadge({
           <ActivityIndicator size="small" color={textColor} />
         ) : (
           <>
-            <ProfileCardAnimatedEmoji
-              emoji="🎟️"
-              variant="celebrate"
-              fontSize={16}
-              delay={0}
-            />
+            <SmoothPulsingEmoji emoji="🎟️" fontSize={16} />
             <Text
               style={[
                 {

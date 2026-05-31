@@ -4,15 +4,50 @@
  */
 
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Platform } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/navigationRef';
 import { useAuth } from '../context/AuthContext';
+import {
+  CONNECT_SHELL_MIDNIGHT_GRADIENT,
+  connectionLimitsPanelColors,
+} from '../lib/connectShellTheme';
 
 const AGE_GATE_STORAGE_KEY = 'AGE_GATE_ACCEPTED';
+
+const isAndroidMidnight = Platform.OS === 'android';
+const midnightPanel = connectionLimitsPanelColors('midnight');
+
+const THEME = isAndroidMidnight
+  ? {
+      screenGradient: [...CONNECT_SHELL_MIDNIGHT_GRADIENT] as string[],
+      cardGradient: [...midnightPanel.shellGradient] as string[],
+      cardBorder: midnightPanel.shellBorder,
+      cardShadow: '#a78bfa',
+      accentGradient: [...midnightPanel.accentGradient] as string[],
+      title: '#f8fafc',
+      lead: '#c4b5fd',
+      body: '#94a3b8',
+      secondaryText: '#94a3b8',
+      secondaryBorder: 'rgba(167, 139, 250, 0.35)',
+      secondaryBg: 'rgba(38, 32, 52, 0.65)',
+    }
+  : {
+      screenGradient: ['#f8f9ff', '#eef0fa', '#f8f9ff'],
+      cardGradient: null as string[] | null,
+      cardBorder: 'rgba(255, 255, 255, 0.9)',
+      cardShadow: '#764ba2',
+      accentGradient: ['#667eea', '#764ba2', '#f093fb'],
+      title: '#1a1a2e',
+      lead: '#5b6478',
+      body: '#64748b',
+      secondaryText: '#718096',
+      secondaryBorder: 'transparent',
+      secondaryBg: 'transparent',
+    };
 
 type AgeGateRouteProp = RouteProp<RootStackParamList, 'AgeGate'>;
 type AgeGateNavProp = StackNavigationProp<RootStackParamList, 'AgeGate'>;
@@ -57,45 +92,88 @@ export default function AgeGateScreen() {
     });
   };
 
-  return (
-    <LinearGradient
-      colors={['#f8f9ff', '#eef0fa', '#f8f9ff']}
-      style={styles.container}
-    >
-      <View style={styles.card}>
+  const cardContent = (
+    <>
+      <LinearGradient
+        colors={THEME.accentGradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.accentBar}
+      />
+      <LinearGradient
+        colors={THEME.accentGradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.iconBadge}
+      >
+        <Text style={styles.iconBadgeText}>18+</Text>
+      </LinearGradient>
+      <Text style={[styles.title, { color: THEME.title }]}>Age requirement</Text>
+      <Text style={[styles.lead, { color: THEME.lead }]}>Mulligan is for adults only.</Text>
+      <Text style={[styles.body, { color: THEME.body }]}>
+        By continuing, you confirm that you are at least 18 years of age.
+      </Text>
+      <TouchableOpacity onPress={handleConfirm} activeOpacity={0.85}>
         <LinearGradient
-          colors={['#667eea', '#764ba2', '#f093fb']}
+          colors={THEME.accentGradient}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={styles.accentBar}
-        />
-        <LinearGradient
-          colors={['#667eea', '#764ba2', '#f093fb']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.iconBadge}
+          style={styles.primaryButton}
         >
-          <Text style={styles.iconBadgeText}>18+</Text>
+          <Text style={styles.primaryButtonText}>I am 18 or older</Text>
         </LinearGradient>
-        <Text style={styles.title}>Age requirement</Text>
-        <Text style={styles.lead}>Mulligan is for adults only.</Text>
-        <Text style={styles.body}>
-          By continuing, you confirm that you are at least 18 years of age.
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[
+          styles.secondaryButton,
+          isAndroidMidnight && {
+            borderWidth: 1,
+            borderColor: THEME.secondaryBorder,
+            backgroundColor: THEME.secondaryBg,
+            borderRadius: 12,
+          },
+        ]}
+        onPress={handleUnderAge}
+        activeOpacity={0.8}
+      >
+        <Text style={[styles.secondaryButtonText, { color: THEME.secondaryText }]}>
+          I&apos;m not 18 yet
         </Text>
-        <TouchableOpacity onPress={handleConfirm} activeOpacity={0.85}>
-          <LinearGradient
-            colors={['#667eea', '#764ba2', '#f093fb']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.primaryButton}
-          >
-            <Text style={styles.primaryButtonText}>I am 18 or older</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.secondaryButton} onPress={handleUnderAge} activeOpacity={0.8}>
-          <Text style={styles.secondaryButtonText}>I'm not 18 yet</Text>
-        </TouchableOpacity>
-      </View>
+      </TouchableOpacity>
+    </>
+  );
+
+  return (
+    <LinearGradient colors={THEME.screenGradient} style={styles.container}>
+      {THEME.cardGradient ? (
+        <LinearGradient
+          colors={THEME.cardGradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[
+            styles.card,
+            {
+              borderColor: THEME.cardBorder,
+              shadowColor: THEME.cardShadow,
+              backgroundColor: 'transparent',
+            },
+          ]}
+        >
+          {cardContent}
+        </LinearGradient>
+      ) : (
+        <View
+          style={[
+            styles.card,
+            {
+              borderColor: THEME.cardBorder,
+              shadowColor: THEME.cardShadow,
+            },
+          ]}
+        >
+          {cardContent}
+        </View>
+      )}
     </LinearGradient>
   );
 }
@@ -116,13 +194,11 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 380,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.9)',
-    shadowColor: '#764ba2',
+    borderWidth: isAndroidMidnight ? 2 : 1,
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.14,
-    shadowRadius: 20,
-    elevation: 6,
+    shadowOpacity: isAndroidMidnight ? 0.35 : 0.14,
+    shadowRadius: isAndroidMidnight ? 24 : 20,
+    elevation: isAndroidMidnight ? 10 : 6,
   },
   accentBar: {
     height: 4,
@@ -148,21 +224,18 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#1a1a2e',
     marginBottom: 6,
     textAlign: 'center',
   },
   lead: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#5b6478',
     marginBottom: 8,
     textAlign: 'center',
   },
   body: {
     fontSize: 15,
     lineHeight: 22,
-    color: '#64748b',
     marginBottom: 24,
     textAlign: 'center',
   },
@@ -182,7 +255,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   secondaryButtonText: {
-    color: '#718096',
     fontSize: 15,
+    fontWeight: '600',
   },
 });
