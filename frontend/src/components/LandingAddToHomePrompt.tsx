@@ -40,8 +40,8 @@ function stepsForPlatform(
   }
   if (mobile && platform === 'ios') {
     return [
-      { title: 'Tap ⋯ → Share 📤', detail: 'Bottom bar in Safari' },
-      { title: 'Add to Home Screen → tap Add', detail: 'Swipe up the share sheet if you don’t see it' },
+      { title: 'Tap ⋯ on the bottom bar → Share → swipe up' },
+      { title: 'Add to Home Screen → tap Add' },
     ];
   }
   if (mobile && canNativeInstall) {
