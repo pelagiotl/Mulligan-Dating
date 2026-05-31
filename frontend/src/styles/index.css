@@ -2660,6 +2660,7 @@ img {
 
 .app-layout:has(.create-profile-wizard) {
   min-height: 100dvh;
+  background: var(--create-profile-content-bg, var(--native-gradient-screen));
 }
 
 .app-layout:has(.create-profile-wizard) .app-footer-global {
@@ -2693,7 +2694,7 @@ img {
 
 .create-profile-wizard .create-profile-body {
   padding-top: var(--space-5);
-  background: #f8f9fa;
+  background: transparent;
 }
 
 .create-profile-wizard .create-profile-hero-title {
@@ -2823,7 +2824,7 @@ img {
   padding: var(--space-1) var(--space-2) var(--space-2);
   font-size: 0.72rem;
   line-height: 1.4;
-  color: var(--text-secondary);
+  color: var(--create-profile-footnote-text, var(--matches-empty-hint));
   text-align: center;
 }
 
@@ -3620,8 +3621,8 @@ img {
   padding: var(--space-4);
   padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
   margin-top: auto;
-  border-top: none;
-  background: transparent;
+  border-top: 1px solid var(--create-profile-actions-border, transparent);
+  background: var(--create-profile-actions-bg, transparent);
   box-shadow: none;
   position: sticky;
   bottom: 0;

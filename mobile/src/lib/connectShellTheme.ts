@@ -652,3 +652,37 @@ export async function saveConnectShellMode(
 export async function resetConnectShellModeForNewUser(userId: string): Promise<void> {
   await saveConnectShellMode(DEFAULT_CONNECT_SHELL_MODE, userId);
 }
+
+/** Profile setup wizard chrome — aligned with Connect shell tokens per mode. */
+export type CreateProfileChromeColors = {
+  screenBg: string;
+  actionsBg: string;
+  actionsBorder: string;
+  footnote: string;
+};
+
+export function createProfileChromeColors(mode: ConnectShellMode): CreateProfileChromeColors {
+  switch (mode) {
+    case 'midnight':
+      return {
+        screenBg: '#0c0a12',
+        actionsBg: 'rgba(22, 18, 34, 0.98)',
+        actionsBorder: 'rgba(167, 139, 250, 0.2)',
+        footnote: '#94a3b8',
+      };
+    case 'sunny':
+      return {
+        screenBg: '#fff7ed',
+        actionsBg: 'rgba(255, 253, 245, 0.98)',
+        actionsBorder: 'rgba(251, 146, 60, 0.22)',
+        footnote: '#9a3412',
+      };
+    case 'soft':
+      return {
+        screenBg: '#f4f6ff',
+        actionsBg: 'rgba(252, 248, 255, 0.98)',
+        actionsBorder: 'rgba(102, 126, 234, 0.18)',
+        footnote: '#64748b',
+      };
+  }
+}

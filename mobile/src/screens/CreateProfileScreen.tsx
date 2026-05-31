@@ -4,7 +4,7 @@
  * Converted from web version to React Native
  */
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -63,6 +63,8 @@ import {
 } from '../utils/connectSetup';
 import { setProfileCompletionCelebrationVisible } from '../utils/profileCompletionCelebration';
 import { useAuth } from '../context/AuthContext';
+import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
+import { createProfileChromeColors } from '../lib/connectShellTheme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import OptimizedImage from '../components/OptimizedImage';
 import {
@@ -257,6 +259,12 @@ export default function CreateProfileScreen() {
   const fromPostAuthLogin = routeParams?.fromPostAuthLogin === true;
   const initialStep = routeParams?.initialStep;
   const { refreshProfile, markConnectSetupComplete, profile: existingProfile, connectSetupComplete, user, logout } = useAuth();
+  const { mode: connectShellMode } = useConnectShellTheme();
+  const isOnboardingWizard = !connectSetupComplete;
+  const onboardingChrome = useMemo(
+    () => createProfileChromeColors(connectShellMode),
+    [connectShellMode]
+  );
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [savingInCreateProfile, setSavingInCreateProfile] = useState(false);
@@ -1674,7 +1682,14 @@ export default function CreateProfileScreen() {
         </LinearGradient>
       </Animated.View>
 
-      <Text style={styles.onboardingFootnote}>Add a photo on Profile before you Connect.</Text>
+      <Text
+        style={[
+          styles.onboardingFootnote,
+          isOnboardingWizard && { color: onboardingChrome.footnote },
+        ]}
+      >
+        Add a photo on Profile before you Connect.
+      </Text>
     </View>
   );
 
@@ -2465,7 +2480,10 @@ export default function CreateProfileScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={styles.container}
+      style={[
+        styles.container,
+        isOnboardingWizard && { backgroundColor: onboardingChrome.screenBg },
+      ]}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       enabled={Platform.OS === 'ios'}
     >
@@ -2572,11 +2590,22 @@ export default function CreateProfileScreen() {
       <View
         style={[
           styles.actionsFooter,
+          isOnboardingWizard && {
+            backgroundColor: onboardingChrome.actionsBg,
+            borderTopColor: onboardingChrome.actionsBorder,
+          },
           { paddingBottom: Platform.OS === 'android' ? Math.max(insets.bottom, 8) : Math.max(insets.bottom, 12) },
         ]}
       >
         {!locationValid ? (
-          <Text style={styles.actionsHint}>Enter city and state (e.g. Medford, Oregon) to finish</Text>
+          <Text
+            style={[
+              styles.actionsHint,
+              isOnboardingWizard && { color: onboardingChrome.footnote },
+            ]}
+          >
+            Enter city and state (e.g. Medford, Oregon) to finish
+          </Text>
         ) : null}
         <View style={styles.actions}>
             <TouchableOpacity
