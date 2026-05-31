@@ -914,17 +914,11 @@ export default function Browse() {
   const handleConnectPhotoUploaded = useCallback((uploaded: { id: string; url: string }[]) => {
     const optimistic = connectPhotosModalCount + uploaded.length;
     setConnectPhotosModalCount(optimistic);
-    if (optimistic >= MIN_PHOTOS_TO_CONNECT) {
-      setShowConnectPhotosModal(false);
-    }
     void (async () => {
       try {
         await refreshProfile({ silent: true });
         const count = await resolveReadyPhotoCount({ force: true });
         setConnectPhotosModalCount(count);
-        if (count >= MIN_PHOTOS_TO_CONNECT) {
-          setShowConnectPhotosModal(false);
-        }
       } catch {
         /* optimistic state already applied */
       }

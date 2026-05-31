@@ -16,6 +16,59 @@ type LandingAddToHomePromptProps = {
   variant?: 'default' | 'featured';
 };
 
+type StepItem = { title: string; detail?: string };
+
+function stepsForPlatform(
+  platform: 'ios' | 'android' | 'other',
+  mobile: boolean,
+  canNativeInstall: boolean
+): StepItem[] {
+  if (mobile && platform === 'ios') {
+    return [
+      { title: 'Tap ⋯ at the bottom of Safari', detail: 'Then choose Share 📤' },
+      { title: 'Swipe up on the share sheet', detail: 'Select Add to Home Screen' },
+      { title: 'Tap Add', detail: 'Mulligan appears on your home screen' },
+    ];
+  }
+  if (mobile && canNativeInstall) {
+    return [
+      { title: 'Tap Add to home screen below', detail: 'Chrome will guide you through install' },
+      { title: 'Confirm when prompted', detail: 'The Mulligan icon lands on your home screen' },
+      { title: 'Open from your home screen', detail: 'Feels like the app — faster every time' },
+    ];
+  }
+  if (mobile) {
+    return [
+      { title: 'Open Chrome menu ⋮', detail: 'Top-right on Android' },
+      { title: 'Choose Install app or Add to Home screen', detail: 'Wording varies by browser' },
+      { title: 'Confirm Add', detail: 'Then open Mulligan from your home screen' },
+    ];
+  }
+  return [
+    { title: 'Open Mulligan on your phone', detail: 'Safari on iPhone works best' },
+    { title: 'Tap ⋯ → Share → Add to Home Screen', detail: 'Swipe up on the share sheet if needed' },
+    { title: 'Tap Add', detail: 'Use the home screen icon to sign in faster' },
+  ];
+}
+
+function AddToHomeSteps({ steps }: { steps: StepItem[] }) {
+  return (
+    <ol className="landing-a2hs__steps">
+      {steps.map((step, index) => (
+        <li key={step.title} className="landing-a2hs__step">
+          <span className="landing-a2hs__step-num" aria-hidden="true">
+            {index + 1}
+          </span>
+          <span className="landing-a2hs__step-copy">
+            <span className="landing-a2hs__step-title">{step.title}</span>
+            {step.detail ? <span className="landing-a2hs__step-detail">{step.detail}</span> : null}
+          </span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 /**
  * “Add to home screen” hint on public entry points (`/`, `/login`).
  * Offers “Show home screen tip” when dismissed via Not now.
@@ -105,8 +158,8 @@ export default function LandingAddToHomePrompt({ variant = 'default' }: LandingA
   if (!showCard) return null;
 
   const canNativeInstall = mobile && platform === 'android' && installEvent != null;
-
   const featured = variant === 'featured';
+  const steps = stepsForPlatform(platform, mobile, canNativeInstall);
 
   return (
     <aside
@@ -139,28 +192,14 @@ export default function LandingAddToHomePrompt({ variant = 'default' }: LandingA
             Add Mulligan to your home screen
           </h2>
           <p className="landing-a2hs__body">
-            {mobile
-              ? featured
-                ? 'Takes 10 seconds in Safari — then tap the Mulligan icon on your home screen anytime. Best before you sign up.'
-                : 'Feels like the app — faster to open, smoother on your phone. Do it before you sign up or after, your call.'
-              : 'Open Mulligan on your phone, then add it to your home screen (Safari ⋯ → Share → swipe up → Add to Home Screen).'}
+            {featured && mobile
+              ? 'Takes about 10 seconds — then open Mulligan like an app from your home screen.'
+              : 'Install Mulligan on your home screen for a faster, app-like experience.'}
           </p>
 
-          {mobile && platform === 'ios' ? (
-            <ol className="landing-a2hs__steps">
-              <li>
-                Tap <strong>⋯</strong> (three dots), then <strong>Share</strong>{' '}
-                <span className="landing-a2hs__share-icon" aria-hidden="true">
-                  📤
-                </span>{' '}
-                at the bottom of Safari
-              </li>
-              <li>
-                Swipe up on the share sheet, then choose <strong>Add to Home Screen</strong>
-              </li>
-              <li>Tap <strong>Add</strong> — you&apos;re set</li>
-            </ol>
-          ) : mobile && canNativeInstall ? (
+          <AddToHomeSteps steps={steps} />
+
+          {canNativeInstall ? (
             <button
               type="button"
               className="landing-a2hs__install"
@@ -169,10 +208,6 @@ export default function LandingAddToHomePrompt({ variant = 'default' }: LandingA
             >
               {installing ? 'Opening…' : 'Add to home screen'}
             </button>
-          ) : mobile ? (
-            <p className="landing-a2hs__hint">
-              In Chrome: menu <strong>⋮</strong> → <strong>Install app</strong> or <strong>Add to Home screen</strong>
-            </p>
           ) : null}
         </div>
         <button type="button" className="landing-a2hs__dismiss" onClick={handleDismiss} aria-label="Dismiss">

@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { api } from "../utils/api";
 import { MIN_PHOTOS_TO_CONNECT, minPhotosToConnectLabel } from "../utils/connectProfileEligibility";
 import { uploadPhotoFiles, type UploadedPhoto } from "../utils/photoBatchUpload";
+
+type SlotPhoto = { id: string; url: string };
 
 export default function ConnectPhotosRequiredModalWeb({
   open,
@@ -14,33 +16,57 @@ export default function ConnectPhotosRequiredModalWeb({
   photoCount: number;
   onPhotoUploaded?: (uploaded: UploadedPhoto[]) => void;
 }) {
-  const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
-  const [optimisticCount, setOptimisticCount] = useState(0);
+  const [slotPhotos, setSlotPhotos] = useState<(SlotPhoto | null)[]>(
+    Array.from({ length: MIN_PHOTOS_TO_CONNECT }, () => null)
+  );
 
   useEffect(() => {
     if (!open) return;
     setUploadError("");
-    setOptimisticCount(0);
+    setUploading(false);
+
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !uploading) onClose();
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const data = await api.get<{ photos?: SlotPhoto[] }>(`/photos/me?_=${Date.now()}`);
+        if (cancelled) return;
+        const sorted = [...(data.photos ?? [])].sort(
+          (a, b) =>
+            ((a as { displayOrder?: number }).displayOrder ?? 0) -
+            ((b as { displayOrder?: number }).displayOrder ?? 0)
+        );
+        const next = Array.from({ length: MIN_PHOTOS_TO_CONNECT }, () => null) as (SlotPhoto | null)[];
+        sorted.slice(0, MIN_PHOTOS_TO_CONNECT).forEach((ph, i) => {
+          next[i] = { id: ph.id, url: ph.url };
+        });
+        setSlotPhotos(next);
+      } catch {
+        if (!cancelled) {
+          setSlotPhotos(Array.from({ length: MIN_PHOTOS_TO_CONNECT }, () => null));
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener("keydown", onKey);
+    };
   }, [open, onClose, uploading]);
 
   if (!open) return null;
 
-  const displayCount = Math.max(photoCount, optimisticCount);
+  const filledCount = slotPhotos.filter(Boolean).length;
+  const displayCount = Math.max(photoCount, filledCount);
   const hasPhoto = displayCount >= MIN_PHOTOS_TO_CONNECT;
-
-  const goToPhotos = () => {
-    if (uploading) return;
-    onClose();
-    navigate("/profile#my-photos");
-  };
+  const showReturnCta = hasPhoto && !uploading;
 
   const openFilePicker = () => {
     if (uploading || hasPhoto) return;
@@ -64,8 +90,16 @@ export default function ConnectPhotosRequiredModalWeb({
     try {
       const uploaded = await uploadPhotoFiles([file]);
       e.target.value = "";
-      const newCount = photoCount + uploaded.length;
-      setOptimisticCount(newCount);
+      const first = uploaded[0];
+      if (first) {
+        setSlotPhotos((prev) => {
+          const next = [...prev];
+          const emptyIdx = next.findIndex((s) => s == null);
+          const idx = emptyIdx >= 0 ? emptyIdx : 0;
+          next[idx] = { id: first.id, url: first.url };
+          return next;
+        });
+      }
       onPhotoUploaded?.(uploaded);
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : "Upload failed. Try again.");
@@ -112,8 +146,14 @@ export default function ConnectPhotosRequiredModalWeb({
 
             <div className="connect-photos-modal-body">
               <p className="connect-photos-modal-lead">
-                You&apos;re set up with name and location — now show people who you are. Upload{" "}
-                <strong>one clear photo</strong> and you&apos;ll be ready to match.
+                {showReturnCta
+                  ? "Looking good — your photo is saved. Head back to Connect when you’re ready to match."
+                  : (
+                    <>
+                      You&apos;re set up with name and location — now show people who you are. Upload{" "}
+                      <strong>one clear photo</strong> and you&apos;ll be ready to match.
+                    </>
+                  )}
               </p>
 
               <input
@@ -130,32 +170,35 @@ export default function ConnectPhotosRequiredModalWeb({
                 className="connect-photos-modal-slots"
                 aria-label={`${displayCount} of ${MIN_PHOTOS_TO_CONNECT} photo uploaded`}
               >
-                {Array.from({ length: MIN_PHOTOS_TO_CONNECT }, (_, i) => {
-                  const filled = i < displayCount;
-                  if (filled) {
+                {slotPhotos.map((slot, i) => {
+                  if (slot) {
                     return (
-                      <div key={i} className="connect-photos-modal-slot is-filled">
-                        <span className="connect-photos-modal-slot-emoji" aria-hidden>
-                          📷
-                        </span>
+                      <div key={slot.id} className="connect-photos-modal-slot is-filled has-preview">
+                        <img
+                          src={slot.url}
+                          alt="Your uploaded profile photo"
+                          className="connect-photos-modal-slot-img"
+                        />
                         <span className="connect-photos-modal-slot-check" aria-hidden>
                           ✓
                         </span>
                       </div>
                     );
                   }
+                  const isTargetSlot = i === slotPhotos.findIndex((s) => s == null);
+                  const showSpinner = uploading && isTargetSlot;
                   return (
                     <button
-                      key={i}
+                      key={`empty-${i}`}
                       type="button"
                       className={`connect-photos-modal-slot connect-photos-modal-slot-btn is-empty ${
-                        uploading ? "is-uploading" : ""
+                        showSpinner ? "is-uploading" : ""
                       }`}
                       onClick={openFilePicker}
-                      disabled={uploading}
-                      aria-label={uploading ? "Uploading photo…" : "Upload a photo"}
+                      disabled={uploading || hasPhoto}
+                      aria-label={showSpinner ? "Uploading photo…" : "Upload a photo"}
                     >
-                      {uploading ? (
+                      {showSpinner ? (
                         <span className="connect-photos-modal-slot-spinner" aria-hidden />
                       ) : (
                         <span className="connect-photos-modal-slot-plus" aria-hidden>
@@ -170,11 +213,11 @@ export default function ConnectPhotosRequiredModalWeb({
               <p className="connect-photos-modal-progress">
                 {uploading ? (
                   <>Uploading your photo…</>
-                ) : hasPhoto ? (
-                  <>Photo added — you&apos;re ready</>
+                ) : showReturnCta ? (
+                  <>Photo added — tap below to return to Connect</>
                 ) : (
                   <span className="connect-photos-modal-progress-need">
-                    Tap + to upload, or use the button below
+                    Tap + to choose a photo from your device
                   </span>
                 )}
               </p>
@@ -185,22 +228,30 @@ export default function ConnectPhotosRequiredModalWeb({
                 </p>
               ) : null}
 
-              <div className="connect-photos-modal-chips">
-                <span className="connect-photos-modal-chip">😊 Face visible</span>
-                <span className="connect-photos-modal-chip">☀️ Recent pics</span>
-                <span className="connect-photos-modal-chip">✨ Show personality</span>
-              </div>
+              {!showReturnCta ? (
+                <div className="connect-photos-modal-chips">
+                  <span className="connect-photos-modal-chip">😊 Face visible</span>
+                  <span className="connect-photos-modal-chip">☀️ Recent pics</span>
+                  <span className="connect-photos-modal-chip">✨ Show personality</span>
+                </div>
+              ) : null}
             </div>
 
             <footer className="connect-photos-modal-actions">
-              <button
-                type="button"
-                className="connect-photos-modal-primary"
-                onClick={goToPhotos}
-                disabled={uploading}
-              >
-                {hasPhoto ? "View on Profile →" : "Add my photo →"}
-              </button>
+              {showReturnCta ? (
+                <button type="button" className="connect-photos-modal-primary" onClick={onClose}>
+                  Back to Connect
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="connect-photos-modal-primary"
+                  onClick={openFilePicker}
+                  disabled={uploading}
+                >
+                  {uploading ? "Uploading…" : "Choose photo"}
+                </button>
+              )}
               <button
                 type="button"
                 className="connect-photos-modal-secondary"
