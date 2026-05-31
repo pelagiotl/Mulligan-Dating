@@ -10,12 +10,13 @@ export function matchSoundPublicUrl(): string {
   return `${base}match-sound.wav`;
 }
 
-/** Playback instance — never used for silent unlock (avoids pause() racing celebration). */
+/** Playback instance — primed on unlock, used for celebrations. */
 let celebrationAudio: HTMLAudioElement | null = null;
-/** Separate instance for gesture unlock only. */
-let unlockAudio: HTMLAudioElement | null = null;
 let audioContext: AudioContext | null = null;
 let suppressMatchSoundUntil = 0;
+let lastCelebrationPlayedAt = 0;
+
+const CELEBRATION_COOLDOWN_MS = 3000;
 
 /** Skip match audio briefly after login / session restore (not live Connect celebrations). */
 export function suppressMatchSoundFor(ms: number): void {
@@ -42,13 +43,22 @@ function getCelebrationAudio(): HTMLAudioElement {
   return celebrationAudio;
 }
 
-function getUnlockAudio(): HTMLAudioElement {
-  if (!unlockAudio) {
-    unlockAudio = new Audio(matchSoundPublicUrl());
-    unlockAudio.preload = "auto";
-    unlockAudio.load();
+/** Inaudible Web Audio tick — unlocks autoplay without playing match-sound.wav. */
+function playSilentUnlockTick(): void {
+  try {
+    const ctx = ensureAudioContext();
+    const buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    const gain = ctx.createGain();
+    gain.gain.value = 0;
+    source.connect(gain);
+    gain.connect(ctx.destination);
+    source.start();
+    source.stop(ctx.currentTime + 0.001);
+  } catch {
+    /* ignore */
   }
-  return unlockAudio;
 }
 
 /** Call on Connect / Complete Profile tap so delayed celebration playback is allowed. */
@@ -56,10 +66,10 @@ export function unlockMatchAudio(): void {
   if (typeof window === "undefined") return;
 
   clearMatchSoundSuppression();
-
   void ensureAudioContext().resume().catch(() => {});
+  playSilentUnlockTick();
 
-  const audio = getUnlockAudio();
+  const audio = getCelebrationAudio();
   const previousVolume = audio.volume;
   audio.muted = true;
   audio.volume = 0;
@@ -140,8 +150,12 @@ export function playMatchSound(volume = 0.45): void {
     });
 }
 
-/** Same asset as mobile `match-sound.wav`; used when celebration card is revealed. */
+/** Same asset as mobile `match-sound.wav`; deduped to avoid double fire on profile complete. */
 export function playMatchCelebrationSound(): void {
+  if (typeof window === "undefined") return;
+  const now = Date.now();
+  if (now - lastCelebrationPlayedAt < CELEBRATION_COOLDOWN_MS) return;
+  lastCelebrationPlayedAt = now;
   clearMatchSoundSuppression();
   playMatchSound(0.55);
 }

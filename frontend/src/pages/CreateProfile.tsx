@@ -304,15 +304,12 @@ export default function CreateProfile() {
   const [draggingPhotoId, setDraggingPhotoId] = useState<string | null>(null);
   const [dragOverSlot, setDragOverSlot] = useState<number | null>(null);
   const [showProfileReadySplash, setShowProfileReadySplash] = useState(false);
-  const profileCelebrationSoundTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    return () => {
-      if (profileCelebrationSoundTimerRef.current != null) {
-        clearTimeout(profileCelebrationSoundTimerRef.current);
-      }
-    };
-  }, []);
+    if (!showProfileReadySplash) return;
+    const timer = window.setTimeout(() => playMatchCelebrationSound(), 180);
+    return () => clearTimeout(timer);
+  }, [showProfileReadySplash]);
 
   const [displayName, setDisplayName] = useState("");
   const [age, setAge] = useState("");
@@ -994,13 +991,6 @@ export default function CreateProfile() {
       markWebPushPromptAfterProfile();
       await refreshProfile({ silent: true });
       setShowProfileReadySplash(true);
-      if (profileCelebrationSoundTimerRef.current != null) {
-        clearTimeout(profileCelebrationSoundTimerRef.current);
-      }
-      profileCelebrationSoundTimerRef.current = window.setTimeout(() => {
-        profileCelebrationSoundTimerRef.current = null;
-        playMatchCelebrationSound();
-      }, 180);
     } catch (err) {
       const msg = apiErrorMessage(err, "Failed to create profile");
       const low = msg.toLowerCase();

@@ -3801,8 +3801,8 @@ img {
   }
   50% {
     transform: scale(1.12);
-    filter: drop-shadow(0 0 22px rgba(255, 215, 0, 0.55))
-      drop-shadow(0 0 32px rgba(240, 147, 251, 0.35));
+    filter: drop-shadow(0 0 22px rgba(251, 191, 36, 0.5))
+      drop-shadow(0 0 28px rgba(167, 139, 250, 0.45));
   }
 }
 
@@ -3876,7 +3876,7 @@ img {
   align-items: center;
   justify-content: center;
   padding: var(--space-4);
-  background: rgba(15, 23, 42, 0.72);
+  background: linear-gradient(145deg, rgba(21, 16, 42, 0.92) 0%, rgba(34, 26, 50, 0.88) 50%, rgba(15, 23, 42, 0.9) 100%);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   animation: readySplashIn 0.35s ease-out forwards;
@@ -3903,7 +3903,7 @@ img {
   height: 220px;
   top: 8%;
   left: -4%;
-  background: #667eea;
+  background: #6366f1;
   animation-delay: 0s;
 }
 
@@ -3912,7 +3912,7 @@ img {
   height: 280px;
   bottom: 10%;
   right: -8%;
-  background: #f093fb;
+  background: #a78bfa;
   animation-delay: -2.5s;
 }
 
@@ -3921,7 +3921,7 @@ img {
   height: 160px;
   top: 42%;
   right: 18%;
-  background: #764ba2;
+  background: #7c3aed;
   animation-delay: -4s;
 }
 
@@ -3950,11 +3950,13 @@ img {
   padding: var(--space-8) var(--space-6) var(--space-6);
   border-radius: 1.75rem;
   text-align: center;
-  color: #fff;
-  background: linear-gradient(145deg, #667eea 0%, #764ba2 42%, #f093fb 78%, #f5576c 100%);
+  color: #f8fafc;
+  background: linear-gradient(165deg, #211d33 0%, #16122a 52%, #121018 100%);
+  border: 2px solid rgba(196, 181, 253, 0.35);
   box-shadow:
-    0 24px 56px rgba(102, 126, 234, 0.45),
-    0 0 0 1px rgba(255, 255, 255, 0.15) inset;
+    0 24px 56px rgba(15, 10, 30, 0.55),
+    0 0 32px rgba(167, 139, 250, 0.22),
+    0 0 0 1px rgba(255, 255, 255, 0.08) inset;
   animation: readyCardIn 0.65s cubic-bezier(0.34, 1.4, 0.64, 1) 0.08s both;
 }
 
@@ -3987,7 +3989,7 @@ img {
   font-size: 0.98rem;
   line-height: 1.55;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.92);
+  color: #c4b5fd;
   animation: readySubIn 0.45s ease-out 0.58s both;
 }
 
@@ -3995,7 +3997,7 @@ img {
   position: relative;
   width: 100%;
   overflow: hidden;
-  border: 2px solid rgba(255, 255, 255, 0.35);
+  border: 2px solid rgba(196, 181, 253, 0.5);
   border-radius: var(--radius-lg);
   padding: 0.95rem var(--space-5);
   font-size: 1.05rem;
@@ -4003,7 +4005,8 @@ img {
   letter-spacing: 0.02em;
   color: #fff;
   cursor: pointer;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.08) 100%);
+  background: linear-gradient(90deg, #a78bfa 0%, #c084fc 48%, #f472b6 100%);
+  box-shadow: 0 8px 24px rgba(139, 92, 246, 0.35);
   animation:
     readyCtaIn 0.45s ease-out 0.78s both,
     readyCtaPulse 2.4s ease-in-out 1.2s infinite;
