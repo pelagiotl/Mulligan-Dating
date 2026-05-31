@@ -2327,19 +2327,20 @@ img {
   margin: var(--space-4) 0 0;
   font-size: 0.8125rem;
   line-height: 1.45;
-  color: rgba(255, 255, 255, 0.88);
+  color: var(--color-wine-900);
   text-align: center;
+  opacity: 0.85;
 }
 
 .auth-support-note__link {
-  color: inherit;
+  color: var(--color-rose-600);
   font-weight: 700;
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
 .auth-support-note__link:hover {
-  opacity: 0.9;
+  color: var(--color-rose-700);
 }
 
 .auth-footer-enhanced {
