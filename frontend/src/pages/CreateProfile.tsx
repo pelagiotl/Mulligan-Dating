@@ -1098,7 +1098,7 @@ export default function CreateProfile() {
               "Step 2 · Your location",
               "📍",
               "Where do you live?",
-              "Southern Oregon for now — we use this to show you people nearby.",
+              "Southern Oregon and nearby — we show people within about 100 miles.",
               <>
                 <input
                   type="text"

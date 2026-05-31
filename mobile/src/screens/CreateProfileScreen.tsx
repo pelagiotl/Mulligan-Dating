@@ -1594,7 +1594,7 @@ export default function CreateProfileScreen() {
               },
             ]}
           >
-            Southern Oregon for now — we use this to show you people nearby.
+            Southern Oregon and nearby — we show people within about 100 miles.
           </Text>
           <Animated.View
             style={[
