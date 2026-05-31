@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
+  computeLaunchRemaining,
+  LAUNCH_LABEL,
+  type LaunchRemaining,
+} from "../constants/launchSchedule";
+import {
   launchDockFromRect,
   launchDockTopLeft,
   normalizeLaunchDockPersisted,
@@ -9,27 +14,13 @@ import {
   type LaunchDockPersisted,
 } from "../utils/launchCountdownDock";
 
-/** Local midnight at the start of launch day (June 6, 2026). */
-const LAUNCH_MS = new Date(2026, 5, 6, 0, 0, 0, 0).getTime();
-
 /** Same semantics as mobile `STORAGE_KEY` shape (`edge`, `along`, `collapsed`). Legacy `{ left, top }` is migrated. */
 const BUBBLE_POS_KEY = "mulligan-launch-bubble-pos";
 
 const MOVE_PX = 8;
 
-type Remaining =
-  | { live: true; days: 0 }
-  | { live: false; days: number };
-
-function computeRemaining(): Remaining {
-  const diff = LAUNCH_MS - Date.now();
-  if (diff <= 0) {
-    return { live: true, days: 0 };
-  }
-  return {
-    live: false,
-    days: Math.floor(diff / 86400000),
-  };
+function computeRemaining(): LaunchRemaining {
+  return computeLaunchRemaining();
 }
 
 function readBottomChromePx(): number {
@@ -79,7 +70,7 @@ function persistState(state: LaunchDockPersisted) {
 }
 
 export default function LaunchCountdown() {
-  const [state, setState] = useState<Remaining>(() => computeRemaining());
+  const [state, setState] = useState<LaunchRemaining>(() => computeRemaining());
   const [edge, setEdge] = useState<LaunchDockEdge>("top");
   const [along, setAlong] = useState(0.5);
   const [collapsed, setCollapsed] = useState(false);
@@ -338,7 +329,7 @@ export default function LaunchCountdown() {
           <span className="launch-countdown__hourglass-sand" />
         </span>
         <h2 id="launch-countdown-heading" className="launch-countdown__heading">
-          June 6 launch
+          {LAUNCH_LABEL}
         </h2>
       </div>
       <p className="launch-countdown__live-msg">We&apos;re live — welcome to Mulligan.</p>
@@ -353,21 +344,25 @@ export default function LaunchCountdown() {
         </span>
         <div className="launch-countdown__copy">
           <h2 id="launch-countdown-heading" className="launch-countdown__heading">
-            June 6 launch
+            {LAUNCH_LABEL}
           </h2>
-          <p className="launch-countdown__sub">Time until launch</p>
+          <p className="launch-countdown__sub">Time until launch (Pacific)</p>
         </div>
       </div>
       <div
-        className="launch-countdown__grid launch-countdown__grid--days-only"
+        className="launch-countdown__grid launch-countdown__grid--days-hours"
         role="timer"
         aria-live="polite"
         aria-atomic="true"
-        aria-label={`${state.days} days remaining`}
+        aria-label={`${state.days} days and ${state.hours} hours until launch`}
       >
         <div className="launch-countdown__cell">
           <span className="launch-countdown__value">{state.days}</span>
           <span className="launch-countdown__unit">Days</span>
+        </div>
+        <div className="launch-countdown__cell">
+          <span className="launch-countdown__value">{state.hours}</span>
+          <span className="launch-countdown__unit">Hours</span>
         </div>
       </div>
     </section>
@@ -410,7 +405,7 @@ export default function LaunchCountdown() {
             <span className="launch-countdown__hourglass-sand" />
           </span>
           <span className="launch-countdown-bubble-collapsed-label">
-            {state.live ? "Live" : `${state.days}d`}
+            {state.live ? "Live" : `${state.days}d ${state.hours}h`}
           </span>
           <span className="launch-countdown-bubble-collapsed-cue" aria-hidden>
             {expandCue}

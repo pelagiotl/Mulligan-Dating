@@ -1312,6 +1312,12 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
+.launch-countdown__grid--days-hours {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 11rem;
+  margin-inline: auto;
+}
+
 .launch-countdown__cell {
   display: flex;
   flex-direction: column;

@@ -32,7 +32,7 @@
     },
     "android": {
       "package": "app.mulligandating",
-      "versionCode": 75,
+      "versionCode": 76,
       "googleServicesFile": "./google-services.json",
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {

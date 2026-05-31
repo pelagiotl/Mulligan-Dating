@@ -22,19 +22,16 @@ import {
   type LaunchDockPersisted,
 } from '../utils/launchCountdownDock';
 import AnimatedLaunchHourglass from './AnimatedLaunchHourglass';
-
-/** Same launch instant as web `frontend/src/components/LaunchCountdown.tsx` */
-const LAUNCH_MS = new Date(2026, 5, 6, 0, 0, 0, 0).getTime();
+import {
+  computeLaunchRemaining,
+  LAUNCH_LABEL,
+  type LaunchRemaining,
+} from '../constants/launchSchedule';
 
 const STORAGE_KEY = 'mulligan-launch-bubble-mobile-v1';
 
-
-type Remaining = { live: true; days: 0 } | { live: false; days: number };
-
-function computeRemaining(): Remaining {
-  const diff = LAUNCH_MS - Date.now();
-  if (diff <= 0) return { live: true, days: 0 };
-  return { live: false, days: Math.floor(diff / 86400000) };
+function computeRemaining(): LaunchRemaining {
+  return computeLaunchRemaining();
 }
 
 export type LaunchCountdownBubbleProps = {
@@ -272,7 +269,7 @@ export default function LaunchCountdownBubble({
           >
             <AnimatedLaunchHourglass size="xs" />
             <Text style={[styles.collapsedLabel, { color: theme.collapsedLabel }]} numberOfLines={1}>
-              {remaining.live ? 'Live' : `${remaining.days}d`}
+              {remaining.live ? 'Live' : `${remaining.days}d ${remaining.hours}h`}
             </Text>
             <Text
               style={[styles.collapsedChevron, { color: theme.collapsedCue }]}
@@ -333,7 +330,7 @@ export default function LaunchCountdownBubble({
                     >
                       <AnimatedLaunchHourglass size="sm" />
                     </View>
-                    <Text style={[styles.heading, { color: theme.heading }]}>June 6 launch</Text>
+                    <Text style={[styles.heading, { color: theme.heading }]}>{LAUNCH_LABEL}</Text>
                   </View>
                   <Text style={[styles.liveMsg, { color: theme.liveMsg }]}>
                     {"We're live — welcome to Mulligan."}
@@ -354,11 +351,14 @@ export default function LaunchCountdownBubble({
                       <AnimatedLaunchHourglass size="sm" />
                     </View>
                     <View style={styles.headerCopy}>
-                      <Text style={[styles.heading, { color: theme.heading }]}>June 6 launch</Text>
-                      <Text style={[styles.sub, { color: theme.sub }]}>Time until launch</Text>
+                      <Text style={[styles.heading, { color: theme.heading }]}>{LAUNCH_LABEL}</Text>
+                      <Text style={[styles.sub, { color: theme.sub }]}>Time until launch (Pacific)</Text>
                     </View>
                   </View>
-                  <View style={styles.grid} accessibilityLabel={`${remaining.days} days until launch`}>
+                  <View
+                    style={styles.grid}
+                    accessibilityLabel={`${remaining.days} days and ${remaining.hours} hours until launch`}
+                  >
                     <LinearGradient
                       colors={theme.cellGradient}
                       locations={[0, 0.5, 1]}
@@ -368,6 +368,16 @@ export default function LaunchCountdownBubble({
                     >
                       <Text style={[styles.value, { color: theme.value }]}>{remaining.days}</Text>
                       <Text style={[styles.unit, { color: theme.unit }]}>Days</Text>
+                    </LinearGradient>
+                    <LinearGradient
+                      colors={theme.cellGradient}
+                      locations={[0, 0.5, 1]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={[styles.cellGradient, { borderColor: theme.cellBorder }]}
+                    >
+                      <Text style={[styles.value, { color: theme.value }]}>{remaining.hours}</Text>
+                      <Text style={[styles.unit, { color: theme.unit }]}>Hours</Text>
                     </LinearGradient>
                   </View>
                 </>
@@ -545,7 +555,10 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   grid: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
     marginBottom: 5,
   },
   cellGradient: {
