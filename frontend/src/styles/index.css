@@ -3792,26 +3792,17 @@ img {
   }
 }
 
-@keyframes readyEmojiGlow {
+/** Slow breathe pulse — matches Android profile-complete 🤑 celebrate. */
+@keyframes readyEmojiBreathe {
   0%,
   100% {
-    transform: scale(1) translateY(0);
-    filter: drop-shadow(0 4px 14px rgba(255, 255, 255, 0.35));
+    transform: scale(1);
+    filter: drop-shadow(0 4px 14px rgba(255, 215, 0, 0.35));
   }
   50% {
-    transform: scale(1.1) translateY(-4px);
-    filter: drop-shadow(0 0 22px rgba(255, 255, 255, 0.75))
-      drop-shadow(0 0 36px rgba(240, 147, 251, 0.45));
-  }
-}
-
-@keyframes readyEmojiShimmer {
-  0%,
-  100% {
-    opacity: 0.85;
-  }
-  50% {
-    opacity: 1;
+    transform: scale(1.12);
+    filter: drop-shadow(0 0 22px rgba(255, 215, 0, 0.55))
+      drop-shadow(0 0 32px rgba(240, 147, 251, 0.35));
   }
 }
 
@@ -3969,7 +3960,7 @@ img {
 
 .create-profile-ready-emoji {
   display: block;
-  font-size: 3.5rem;
+  font-size: 4rem;
   line-height: 1;
   margin-bottom: var(--space-3);
   animation: readyEmojiPop 0.65s cubic-bezier(0.34, 1.5, 0.64, 1) 0.28s both;
@@ -3977,9 +3968,8 @@ img {
 
 .create-profile-ready-emoji-mark {
   display: inline-block;
-  animation:
-    readyEmojiGlow 2.6s ease-in-out 0.85s infinite,
-    readyEmojiShimmer 2.2s ease-in-out 0.85s infinite;
+  transform-origin: center;
+  animation: readyEmojiBreathe 3.5s ease-in-out 0.85s infinite;
 }
 
 .create-profile-ready-title {

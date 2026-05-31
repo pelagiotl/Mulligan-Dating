@@ -1231,19 +1231,19 @@ export default function CreateProfile() {
             <span className="create-profile-ready-orb create-profile-ready-orb--3" />
           </div>
           <div className="create-profile-ready-confetti" aria-hidden>
-            {["✨", "💫", "⭐", "🔥", "💖", "✨", "💫", "⭐", "🔥", "✨", "💫", "⭐"].map((emoji, i) => (
+            {Array.from({ length: 12 }, (_, i) => (
               <span
                 key={i}
                 className="create-profile-ready-confetti-piece"
                 style={{ ["--confetti-i" as string]: i }}
               >
-                {emoji}
+                💰
               </span>
             ))}
           </div>
           <div className="create-profile-ready-card">
             <span className="create-profile-ready-emoji" aria-hidden>
-              <span className="create-profile-ready-emoji-mark">✨</span>
+              <span className="create-profile-ready-emoji-mark">🤑</span>
             </span>
             <h2 id="profile-ready-title" className="create-profile-ready-title">
               Nice — you&apos;re in.
