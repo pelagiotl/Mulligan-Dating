@@ -2114,27 +2114,62 @@ export default function MyProfile() {
       {showBioModal && (
         <div className="my-profile-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="bio-modal-title">
           <div className="my-profile-modal-backdrop" onClick={() => setShowBioModal(false)} />
-          <div className="my-profile-modal-card" role="document">
+          <div className="my-profile-modal-card my-profile-modal-card--bio" role="document">
+            <span className="my-profile-bio-modal-aurora my-profile-bio-modal-aurora--primary" aria-hidden />
+            <span className="my-profile-bio-modal-aurora my-profile-bio-modal-aurora--secondary" aria-hidden />
             <button type="button" className="my-profile-modal-close" aria-label="Close" onClick={() => setShowBioModal(false)}>
               ×
             </button>
-            <div className="my-profile-modal-head">
-              <span className="my-profile-modal-icon" aria-hidden>
-                💬
+            <div className="my-profile-bio-modal-hero">
+              <span className="my-profile-bio-modal-hero-icon-wrap" aria-hidden>
+                <span className="my-profile-bio-modal-hero-glow" />
+                <span className="my-profile-bio-modal-hero-icon">💬</span>
               </span>
-              <div>
+              <div className="my-profile-bio-modal-hero-text">
+                <p className="my-profile-bio-modal-kicker">Your story</p>
                 <h3 id="bio-modal-title">About me</h3>
-                <p className="my-profile-modal-sub">Up to 500 characters</p>
+                <p className="my-profile-modal-sub my-profile-bio-modal-tagline">
+                  Share what makes you you — a few honest lines go a long way. Up to 500 characters.
+                </p>
               </div>
             </div>
-            <div className="my-profile-modal-body">
-              <textarea className="form-input form-textarea" rows={5} maxLength={500} value={editBio} onChange={(e) => setEditBio(e.target.value)} />
+            <div className="my-profile-modal-body my-profile-modal-body--bio">
+              <label className="my-profile-modal-field-label" htmlFor="bio-modal-textarea">
+                Bio
+              </label>
+              <div className="my-profile-bio-input-ring">
+                <textarea
+                  id="bio-modal-textarea"
+                  className="my-profile-bio-input"
+                  rows={5}
+                  maxLength={500}
+                  value={editBio}
+                  onChange={(e) => setEditBio(e.target.value)}
+                  disabled={updatingField}
+                  autoFocus
+                  placeholder="What you're into, your vibe, or what you're open to…"
+                />
+              </div>
+              <p className="my-profile-bio-char-count">{editBio.length}/500</p>
+              {editBio.trim().length > 0 ? (
+                <div className="my-profile-bio-preview">
+                  <span className="my-profile-bio-preview-label">Preview</span>
+                  <p className="my-profile-bio-preview-text">{editBio.trim()}</p>
+                </div>
+              ) : (
+                <p className="my-profile-bio-hint">Tip: authenticity beats perfection — a line or two is plenty.</p>
+              )}
             </div>
             <div className="my-profile-modal-actions">
               <button type="button" className="btn btn-ghost" onClick={() => setShowBioModal(false)}>
                 Cancel
               </button>
-              <button type="button" className="btn btn-primary" onClick={() => void saveBio()} disabled={updatingField}>
+              <button
+                type="button"
+                className="btn btn-primary my-profile-bio-save-btn"
+                onClick={() => void saveBio()}
+                disabled={updatingField}
+              >
                 Save
               </button>
             </div>
