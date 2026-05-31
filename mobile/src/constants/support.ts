@@ -39,11 +39,8 @@ export function getCreateProfileSupportMailtoUrl(): string {
 }
 
 export function getMatchesSupportMailtoUrl(ctx: MatchesSupportContext): string {
-  const params = new URLSearchParams({
-    subject: MATCHES_SUPPORT_SUBJECT,
-    body: buildMatchesSupportBody(ctx),
-  });
-  return `mailto:${SUPPORT_EMAIL}?${params.toString()}`;
+  const body = buildMatchesSupportBody(ctx);
+  return `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(MATCHES_SUPPORT_SUBJECT)}&body=${encodeURIComponent(body)}`;
 }
 
 export function openCreateProfileSupportEmail(): void {
