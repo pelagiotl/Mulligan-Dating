@@ -46,9 +46,10 @@ const styles = StyleSheet.create({
     textDecorationLine: 'underline',
   },
   textOnCard: {
-    color: 'rgba(45, 17, 24, 0.75)',
+    color: '#4a1c2a',
   },
   linkOnCard: {
-    color: '#e11d48',
+    color: '#be123c',
+    textDecorationLine: 'underline',
   },
 });

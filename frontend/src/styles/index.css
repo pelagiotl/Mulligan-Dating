@@ -2325,22 +2325,22 @@ img {
 
 .auth-support-note {
   margin: var(--space-4) 0 0;
-  font-size: 0.8125rem;
-  line-height: 1.45;
-  color: var(--color-wine-900);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--color-wine-800);
   text-align: center;
-  opacity: 0.85;
 }
 
 .auth-support-note__link {
-  color: var(--color-rose-600);
+  color: var(--color-rose-700);
   font-weight: 700;
   text-decoration: underline;
-  text-underline-offset: 2px;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
 }
 
 .auth-support-note__link:hover {
-  color: var(--color-rose-700);
+  color: var(--color-wine-800);
 }
 
 .auth-footer-enhanced {
