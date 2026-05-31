@@ -19,9 +19,11 @@ function formatCountdown(ms: number): string {
 
 function readCollapsedPreference(): boolean {
   try {
-    return localStorage.getItem(COLLAPSED_STORAGE_KEY) === "1";
+    const v = localStorage.getItem(COLLAPSED_STORAGE_KEY);
+    if (v === "0") return false;
+    return true;
   } catch {
-    return false;
+    return true;
   }
 }
 

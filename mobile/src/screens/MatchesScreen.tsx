@@ -59,6 +59,8 @@ import GameRequestModal from '../components/GameRequestModal';
 import MatchCelebration from '../components/MatchCelebration';
 import PhotoUnlockExplainerModal from '../components/PhotoUnlockExplainerModal';
 import MatchPartnerProfileModal from '../components/MatchPartnerProfileModal';
+import BlockMatchConfirmModal from '../components/BlockMatchConfirmModal';
+import BlockMatchSuccessModal from '../components/BlockMatchSuccessModal';
 import ConnectLandingScarcity from '../components/ConnectLandingScarcity';
 import MatchesSupportNote from '../components/MatchesSupportNote';
 import AnimatedLaunchHourglass from '../components/AnimatedLaunchHourglass';
@@ -1335,6 +1337,10 @@ export default function MatchesScreen() {
   const SEND_SAFETY_MS = 40000; // Unstick send UI if request hangs (e.g. cold server, bad network)
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showBlockConfirmModal, setShowBlockConfirmModal] = useState(false);
+  const [showBlockSuccessModal, setShowBlockSuccessModal] = useState(false);
+  const [blockSuccessDisplayName, setBlockSuccessDisplayName] = useState('');
+  const [blockInProgress, setBlockInProgress] = useState(false);
   const [reportMatchId, setReportMatchId] = useState<string | null>(null);
   const [reportReportedUserId, setReportReportedUserId] = useState<string | null>(null);
   const [reportSelectedReasonIds, setReportSelectedReasonIds] = useState<string[]>([]);
@@ -1364,6 +1370,7 @@ export default function MatchesScreen() {
   /** Blocks Android multiline TextInput from echoing pre-send text after clear. */
   const suppressInputEchoRef = useRef(false);
   const mulliganDismissStarterRef = useRef<(() => void) | null>(null);
+  const [mulliganOpenerUsedByMatchId, setMulliganOpenerUsedByMatchId] = useState<Record<string, boolean>>({});
   const [currentTime, setCurrentTime] = useState(new Date());
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
@@ -3123,35 +3130,32 @@ export default function MatchesScreen() {
 
   const handleBlockMatch = useCallback(() => {
     if (!selectedMatch) return;
-    const name = selectedMatch.otherUser?.displayName || 'this user';
-    Alert.alert(
-      'Block',
-      `Block ${name}? They will be removed from your matches and won't see you in browse. You can unblock them later in Settings.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Block',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await api.post('/blocks', {
-                blockedUserId: selectedMatch.otherUser.userId,
-              });
-              api.clearCache('/matches');
-              setMatches((prev) => prev.filter((m) => m.id !== selectedMatch.id));
-              setSelectedMatch(null);
-              setShowProfileModal(false);
-              setFullScreenImageUrl(null);
-              setFullScreenPhotoList(null);
-              Alert.alert('Done', 'User has been blocked.');
-            } catch (e: any) {
-              Alert.alert('Error', e?.message || 'Failed to block user');
-            }
-          },
-        },
-      ]
-    );
+    setShowBlockConfirmModal(true);
   }, [selectedMatch]);
+
+  const confirmBlockMatch = useCallback(async () => {
+    if (!selectedMatch || blockInProgress) return;
+    setBlockInProgress(true);
+    try {
+      const blockedName = selectedMatch.otherUser.displayName?.trim() || 'This person';
+      await api.post('/blocks', {
+        blockedUserId: selectedMatch.otherUser.userId,
+      });
+      api.clearCache('/matches');
+      setMatches((prev) => prev.filter((m) => m.id !== selectedMatch.id));
+      setSelectedMatch(null);
+      setShowProfileModal(false);
+      setShowBlockConfirmModal(false);
+      setFullScreenImageUrl(null);
+      setFullScreenPhotoList(null);
+      setBlockSuccessDisplayName(blockedName);
+      setShowBlockSuccessModal(true);
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to block user');
+    } finally {
+      setBlockInProgress(false);
+    }
+  }, [selectedMatch, blockInProgress]);
 
   // Memoize getMatchPhoto to avoid recalculating
   const getMatchPhoto = useCallback((match: Match) => {
@@ -3904,6 +3908,27 @@ export default function MatchesScreen() {
         </TouchableOpacity>
       </Modal>
 
+      <BlockMatchConfirmModal
+        visible={showBlockConfirmModal}
+        displayName={selectedMatch?.otherUser?.displayName ?? 'this user'}
+        connectShell={connectShellMode}
+        blocking={blockInProgress}
+        onCancel={() => {
+          if (!blockInProgress) setShowBlockConfirmModal(false);
+        }}
+        onConfirm={() => void confirmBlockMatch()}
+      />
+
+      <BlockMatchSuccessModal
+        visible={showBlockSuccessModal}
+        displayName={blockSuccessDisplayName}
+        connectShell={connectShellMode}
+        onDismiss={() => {
+          setShowBlockSuccessModal(false);
+          setBlockSuccessDisplayName('');
+        }}
+      />
+
       {/* Game Request Modal - when User B receives invite */}
       <GameRequestModal
         visible={!!gameRequestToShow}
@@ -3955,10 +3980,24 @@ export default function MatchesScreen() {
             matchId={selectedMatch.id} 
             socket={socketRef.current}
             compact
+            openerUsed={!!mulliganOpenerUsedByMatchId[selectedMatch.id]}
+            messageActivityKey={messages.length}
+            onConversationActive={() => {
+              setMulliganOpenerUsedByMatchId((prev) => {
+                if (!selectedMatch?.id || !prev[selectedMatch.id]) return prev;
+                const next = { ...prev };
+                delete next[selectedMatch.id];
+                return next;
+              });
+            }}
             dismissStarterRef={mulliganDismissStarterRef}
             onStarterGenerated={(starter) => {
               if (selectedMatch?.id) {
                 messageDraftsRef.current[selectedMatch.id] = starter;
+                setMulliganOpenerUsedByMatchId((prev) => ({
+                  ...prev,
+                  [selectedMatch.id]: true,
+                }));
               }
               composerTextRef.current = starter;
               setNewMessage(starter);

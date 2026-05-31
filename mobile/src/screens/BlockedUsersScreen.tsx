@@ -13,6 +13,8 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { api } from '../utils/api';
+import UnblockConfirmModal from '../components/UnblockConfirmModal';
+import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
 
 interface BlockedUser {
   id: string;
@@ -30,8 +32,13 @@ interface BlockedPhone {
   blockedAt: string;
 }
 
+type UnblockPending =
+  | { variant: 'user'; user: BlockedUser; label: string }
+  | { variant: 'phone'; entry: BlockedPhone; label: string };
+
 export default function BlockedUsersScreen() {
   const navigation = useNavigation();
+  const { mode: connectShellMode } = useConnectShellTheme();
   const [loading, setLoading] = useState(true);
   const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
   const [blockedPhoneNumbers, setBlockedPhoneNumbers] = useState<BlockedPhone[]>([]);
@@ -85,64 +92,45 @@ export default function BlockedUsersScreen() {
     }
   }, [phoneInput, fetchBlocked]);
 
-  const handleUnblockUser = useCallback(
-    (user: BlockedUser) => {
-      const label = user.displayName || user.phoneDisplay || user.email || 'this user';
-      Alert.alert(
-        'Unblock',
-        `Unblock ${label}? They may appear in browse again and you could match with them.`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Unblock',
-            onPress: async () => {
-              try {
-                setUnblockingId(user.id);
-                if (user.phoneNational10) {
-                  await api.delete(`/blocks/by-phone/${encodeURIComponent(user.phoneNational10)}`);
-                } else {
-                  await api.delete(`/blocks/${user.id}`);
-                }
-                setBlockedUsers((prev) => prev.filter((u) => u.id !== user.id));
-                setBlockedPhoneNumbers((prev) =>
-                  prev.filter((p) => p.phoneNational10 !== user.phoneNational10)
-                );
-              } catch (e: any) {
-                Alert.alert('Error', e?.message || 'Failed to unblock');
-              } finally {
-                setUnblockingId(null);
-              }
-            },
-          },
-        ]
-      );
-    },
-    []
-  );
+  const handleUnblockUser = useCallback((user: BlockedUser) => {
+    const label = user.displayName || user.phoneDisplay || user.email || 'this user';
+    setUnblockPending({ variant: 'user', user, label });
+  }, []);
 
   const handleUnblockPhone = useCallback((entry: BlockedPhone) => {
-    Alert.alert(
-      'Unblock',
-      `Remove ${entry.phoneDisplay} from your block list?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Unblock',
-          onPress: async () => {
-            try {
-              setUnblockingId(entry.id);
-              await api.delete(`/blocks/by-phone/${encodeURIComponent(entry.phoneNational10)}`);
-              setBlockedPhoneNumbers((prev) => prev.filter((p) => p.id !== entry.id));
-            } catch (e: any) {
-              Alert.alert('Error', e?.message || 'Failed to unblock');
-            } finally {
-              setUnblockingId(null);
-            }
-          },
-        },
-      ]
-    );
+    setUnblockPending({ variant: 'phone', entry, label: entry.phoneDisplay });
   }, []);
+
+  const confirmUnblock = useCallback(async () => {
+    if (!unblockPending || unblockingId) return;
+    try {
+      if (unblockPending.variant === 'user') {
+        const { user } = unblockPending;
+        setUnblockingId(user.id);
+        if (user.phoneNational10) {
+          await api.delete(`/blocks/by-phone/${encodeURIComponent(user.phoneNational10)}`);
+        } else {
+          await api.delete(`/blocks/${user.id}`);
+        }
+        setBlockedUsers((prev) => prev.filter((u) => u.id !== user.id));
+        setBlockedPhoneNumbers((prev) =>
+          prev.filter((p) => p.phoneNational10 !== user.phoneNational10)
+        );
+        setSuccess('Unblocked.');
+      } else {
+        const { entry } = unblockPending;
+        setUnblockingId(entry.id);
+        await api.delete(`/blocks/by-phone/${encodeURIComponent(entry.phoneNational10)}`);
+        setBlockedPhoneNumbers((prev) => prev.filter((p) => p.id !== entry.id));
+        setSuccess('Number unblocked.');
+      }
+      setUnblockPending(null);
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to unblock');
+    } finally {
+      setUnblockingId(null);
+    }
+  }, [unblockPending, unblockingId]);
 
   const hasAnyBlocks = blockedUsers.length > 0 || blockedPhoneNumbers.length > 0;
 
@@ -284,6 +272,18 @@ export default function BlockedUsersScreen() {
           </View>
         )}
       </ScrollView>
+
+      <UnblockConfirmModal
+        visible={unblockPending != null}
+        label={unblockPending?.label ?? ''}
+        variant={unblockPending?.variant ?? 'user'}
+        connectShell={connectShellMode}
+        unblocking={unblockingId != null}
+        onCancel={() => {
+          if (!unblockingId) setUnblockPending(null);
+        }}
+        onConfirm={() => void confirmUnblock()}
+      />
     </View>
   );
 }

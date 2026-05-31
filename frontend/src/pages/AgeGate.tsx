@@ -36,10 +36,10 @@ export default function AgeGate() {
         </p>
         <div className="age-gate-actions">
           <button type="button" className="btn btn-primary age-gate-primary" onClick={handleConfirm}>
-            I am 18 or older
+            I am 18 or older 🔒
           </button>
           <button type="button" className="btn btn-ghost age-gate-secondary" onClick={handleUnderAge}>
-            I&apos;m not 18 yet
+            I&apos;m not 18 yet 😬
           </button>
         </div>
       </div>

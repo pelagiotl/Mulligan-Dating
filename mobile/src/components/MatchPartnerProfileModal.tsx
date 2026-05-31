@@ -72,6 +72,28 @@ const SECTION_ACCENTS: Record<string, SectionAccent> = {
   Dealbreakers: { emoji: '🚫', colors: ['#ef4444', '#f5576c', '#a78bfa'] },
 };
 
+/** Tighter hero on Android chat quick view (name, meta chips, avatar). */
+const androidCompactHero = Platform.select({
+  android: {
+    headerGradient: { paddingBottom: 14 },
+    headerTopRow: { paddingTop: 12 },
+    heroCenter: { paddingTop: 4 },
+    avatarRing: { marginBottom: 8, padding: 3 },
+    avatar: { width: 80, height: 80, borderRadius: 40 },
+    avatarPlaceholderText: { fontSize: 30 },
+    name: { fontSize: 20, marginBottom: 0 },
+    metaChips: { marginTop: 8, gap: 6 },
+    metaChip: { paddingHorizontal: 10, paddingVertical: 4 },
+    metaChipText: { fontSize: 11 },
+    closeBtn: { width: 36, height: 36, borderRadius: 18 },
+    closeBtnText: { fontSize: 16 },
+    tagline: { marginTop: 8, fontSize: 12, lineHeight: 16 },
+    previewBadge: { paddingVertical: 5, paddingHorizontal: 10 },
+    previewBadgeText: { fontSize: 10 },
+  },
+  default: {},
+}) as Record<string, object>;
+
 function preferredMatchesEmoji(label: string): string {
   if (label === 'Everyone') return '🌍';
   if (label === 'Men') return '👨';
@@ -239,21 +261,25 @@ export default function MatchPartnerProfileModal({
           colors={['#667eea', '#764ba2', '#a855f7', '#ec4899']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={styles.headerGradient}
+          style={[styles.headerGradient, androidCompactHero.headerGradient]}
         >
           <View style={styles.headerGlowOrb} pointerEvents="none" />
           <View style={styles.headerGlowOrbSecondary} pointerEvents="none" />
 
-          <View style={styles.headerTopRow}>
-            <View style={styles.previewBadge}>
-              <Text style={styles.previewBadgeText}>💬 Quick view</Text>
+          <View style={[styles.headerTopRow, androidCompactHero.headerTopRow]}>
+            <View style={[styles.previewBadge, androidCompactHero.previewBadge]}>
+              <Text style={[styles.previewBadgeText, androidCompactHero.previewBadgeText]}>💬 Quick view</Text>
             </View>
-            <TouchableOpacity style={styles.closeBtn} onPress={onClose} accessibilityLabel="Close profile">
-              <Text style={styles.closeBtnText}>✕</Text>
+            <TouchableOpacity
+              style={[styles.closeBtn, androidCompactHero.closeBtn]}
+              onPress={onClose}
+              accessibilityLabel="Close profile"
+            >
+              <Text style={[styles.closeBtnText, androidCompactHero.closeBtnText]}>✕</Text>
             </TouchableOpacity>
           </View>
 
-          <View style={styles.heroCenter}>
+          <View style={[styles.heroCenter, androidCompactHero.heroCenter]}>
             <TouchableOpacity
               activeOpacity={primaryPhotoUrl ? 0.88 : 1}
               disabled={!primaryPhotoUrl}
@@ -265,18 +291,18 @@ export default function MatchPartnerProfileModal({
                 colors={['rgba(255,255,255,0.95)', 'rgba(255,255,255,0.35)', 'rgba(255,255,255,0.9)']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
-                style={styles.avatarRing}
+                style={[styles.avatarRing, androidCompactHero.avatarRing]}
               >
                 {primaryPhotoUrl ? (
                   <OptimizedImage
                     source={primaryPhoto?.url ?? primaryPhotoUrl}
-                    style={styles.avatar}
+                    style={[styles.avatar, androidCompactHero.avatar]}
                     resizeMode="cover"
                     showLoadingIndicator={false}
                   />
                 ) : (
-                  <View style={[styles.avatar, styles.avatarPlaceholder]}>
-                    <Text style={styles.avatarPlaceholderText}>
+                  <View style={[styles.avatar, androidCompactHero.avatar, styles.avatarPlaceholder]}>
+                    <Text style={[styles.avatarPlaceholderText, androidCompactHero.avatarPlaceholderText]}>
                       {otherUser.displayName.charAt(0).toUpperCase()}
                     </Text>
                   </View>
@@ -284,25 +310,27 @@ export default function MatchPartnerProfileModal({
               </LinearGradient>
             </TouchableOpacity>
 
-            <Text style={styles.name}>
+            <Text style={[styles.name, androidCompactHero.name]}>
               {otherUser.displayName}
               {otherUser.age ? `, ${otherUser.age}` : ''}
             </Text>
 
-            <View style={styles.metaChips}>
+            <View style={[styles.metaChips, androidCompactHero.metaChips]}>
               {otherUser.gender ? (
-                <View style={styles.metaChip}>
-                  <Text style={styles.metaChipText}>⚧️ {otherUser.gender}</Text>
+                <View style={[styles.metaChip, androidCompactHero.metaChip]}>
+                  <Text style={[styles.metaChipText, androidCompactHero.metaChipText]}>⚧️ {otherUser.gender}</Text>
                 </View>
               ) : null}
               {otherUser.location ? (
-                <View style={styles.metaChip}>
-                  <Text style={styles.metaChipText}>📍 {otherUser.location}</Text>
+                <View style={[styles.metaChip, androidCompactHero.metaChip]}>
+                  <Text style={[styles.metaChipText, androidCompactHero.metaChipText]}>📍 {otherUser.location}</Text>
                 </View>
               ) : null}
               {otherUser.lastActiveLabel ? (
-                <View style={styles.metaChip}>
-                  <Text style={styles.metaChipText}>🟢 {otherUser.lastActiveLabel}</Text>
+                <View style={[styles.metaChip, androidCompactHero.metaChip]}>
+                  <Text style={[styles.metaChipText, androidCompactHero.metaChipText]}>
+                    🟢 {otherUser.lastActiveLabel}
+                  </Text>
                 </View>
               ) : null}
             </View>
@@ -339,7 +367,13 @@ export default function MatchPartnerProfileModal({
               </View>
             ) : null}
 
-            <Text style={[styles.tagline, otherUser.bio ? heroAboutStyles.taglineAfterAbout : null]}>
+            <Text
+              style={[
+                styles.tagline,
+                androidCompactHero.tagline,
+                otherUser.bio ? heroAboutStyles.taglineAfterAbout : null,
+              ]}
+            >
               Tap their photo or gallery to view full size
             </Text>
           </View>
@@ -598,7 +632,7 @@ export default function MatchPartnerProfileModal({
 const heroAboutStyles = StyleSheet.create({
   outer: {
     width: '100%',
-    marginTop: 14,
+    marginTop: Platform.OS === 'android' ? 10 : 14,
     alignSelf: 'stretch',
   },
   rim: {
@@ -616,20 +650,20 @@ const heroAboutStyles = StyleSheet.create({
   },
   inner: {
     borderRadius: 16.5,
-    paddingVertical: 14,
-    paddingHorizontal: 14,
+    paddingVertical: Platform.OS === 'android' ? 10 : 14,
+    paddingHorizontal: Platform.OS === 'android' ? 12 : 14,
     backgroundColor: 'rgba(255, 255, 255, 0.94)',
   },
   head: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    marginBottom: 10,
+    marginBottom: Platform.OS === 'android' ? 6 : 10,
   },
   iconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: Platform.OS === 'android' ? 32 : 38,
+    height: Platform.OS === 'android' ? 32 : 38,
+    borderRadius: Platform.OS === 'android' ? 16 : 19,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -650,6 +684,6 @@ const heroAboutStyles = StyleSheet.create({
     color: '#334155',
   },
   taglineAfterAbout: {
-    marginTop: 14,
+    marginTop: Platform.OS === 'android' ? 10 : 14,
   },
 });

@@ -6,6 +6,8 @@ import { api } from "../utils/api";
 import { Link, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import WebTokenPurchase from "../components/WebTokenPurchase";
 import SettingsSectionCard from "../components/SettingsSectionCard";
+import UnblockConfirmModal from "../components/UnblockConfirmModal";
+import NotificationPreferencesPanel from "../components/NotificationPreferencesPanel";
 import {
   browserSupportsWebPush,
   getVapidPublicKey,
@@ -36,6 +38,10 @@ interface BlockedPhone {
   phoneDisplay: string;
   blockedAt: string;
 }
+
+type UnblockPending =
+  | { variant: "user"; user: BlockedUser; label: string }
+  | { variant: "phone"; entry: BlockedPhone; label: string };
 
 export default function Settings() {
   const { logout, profile, refreshProfile, user, refreshSession, updateUserEmail } = useAuth();
@@ -73,6 +79,7 @@ export default function Settings() {
   const [blockPhoneInput, setBlockPhoneInput] = useState("");
   const [blockingPhone, setBlockingPhone] = useState(false);
   const [unblockingKey, setUnblockingKey] = useState<string | null>(null);
+  const [unblockPending, setUnblockPending] = useState<UnblockPending | null>(null);
 
   const fetchBlockList = async () => {
     try {
@@ -221,38 +228,40 @@ export default function Settings() {
     }
   };
 
-  const handleUnblockUser = async (user: BlockedUser) => {
+  const handleUnblockUser = (user: BlockedUser) => {
     const label = user.displayName || user.phoneDisplay || user.email || "this person";
-    if (!window.confirm(`Unblock ${label}? They may appear in browse again.`)) return;
-    setUnblockingKey(user.id);
-    setError("");
-    try {
-      if (user.phoneNational10) {
-        await api.delete(`/blocks/by-phone/${encodeURIComponent(user.phoneNational10)}`);
-      } else {
-        await api.delete(`/blocks/${user.id}`);
-      }
-      setBlockedUsers((prev) => prev.filter((u) => u.id !== user.id));
-      setBlockedPhoneNumbers((prev) =>
-        prev.filter((p) => p.phoneNational10 !== user.phoneNational10)
-      );
-      setSuccess("Unblocked.");
-      setTimeout(() => setSuccess(""), 4000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to unblock");
-    } finally {
-      setUnblockingKey(null);
-    }
+    setUnblockPending({ variant: "user", user, label });
   };
 
-  const handleUnblockPhone = async (entry: BlockedPhone) => {
-    if (!window.confirm(`Remove ${entry.phoneDisplay} from your block list?`)) return;
-    setUnblockingKey(entry.id);
+  const handleUnblockPhone = (entry: BlockedPhone) => {
+    setUnblockPending({ variant: "phone", entry, label: entry.phoneDisplay });
+  };
+
+  const confirmUnblock = async () => {
+    if (!unblockPending || unblockingKey) return;
     setError("");
     try {
-      await api.delete(`/blocks/by-phone/${encodeURIComponent(entry.phoneNational10)}`);
-      setBlockedPhoneNumbers((prev) => prev.filter((p) => p.id !== entry.id));
-      setSuccess("Unblocked.");
+      if (unblockPending.variant === "user") {
+        const { user } = unblockPending;
+        setUnblockingKey(user.id);
+        if (user.phoneNational10) {
+          await api.delete(`/blocks/by-phone/${encodeURIComponent(user.phoneNational10)}`);
+        } else {
+          await api.delete(`/blocks/${user.id}`);
+        }
+        setBlockedUsers((prev) => prev.filter((u) => u.id !== user.id));
+        setBlockedPhoneNumbers((prev) =>
+          prev.filter((p) => p.phoneNational10 !== user.phoneNational10)
+        );
+        setSuccess("Unblocked.");
+      } else {
+        const { entry } = unblockPending;
+        setUnblockingKey(entry.id);
+        await api.delete(`/blocks/by-phone/${encodeURIComponent(entry.phoneNational10)}`);
+        setBlockedPhoneNumbers((prev) => prev.filter((p) => p.id !== entry.id));
+        setSuccess("Number unblocked.");
+      }
+      setUnblockPending(null);
       setTimeout(() => setSuccess(""), 4000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to unblock");
@@ -428,6 +437,7 @@ export default function Settings() {
               )}
             </>
           )}
+          <NotificationPreferencesPanel />
         </SettingsSectionCard>
 
         <SettingsSectionCard variant="appearance" delay={140}>
@@ -635,7 +645,7 @@ export default function Settings() {
                     type="button"
                     className="btn btn-secondary btn-sm"
                     disabled={unblockingKey === user.id}
-                    onClick={() => void handleUnblockUser(user)}
+                    onClick={() => handleUnblockUser(user)}
                   >
                     {unblockingKey === user.id ? "…" : "Unblock"}
                   </button>
@@ -653,7 +663,7 @@ export default function Settings() {
                     type="button"
                     className="btn btn-secondary btn-sm"
                     disabled={unblockingKey === entry.id}
-                    onClick={() => void handleUnblockPhone(entry)}
+                    onClick={() => handleUnblockPhone(entry)}
                   >
                     {unblockingKey === entry.id ? "…" : "Unblock"}
                   </button>
@@ -747,6 +757,16 @@ export default function Settings() {
         </SettingsSectionCard>
       </div>
 
+      <UnblockConfirmModal
+        isOpen={unblockPending != null}
+        label={unblockPending?.label ?? ""}
+        variant={unblockPending?.variant ?? "user"}
+        confirming={unblockingKey != null}
+        onCancel={() => {
+          if (!unblockingKey) setUnblockPending(null);
+        }}
+        onConfirm={() => void confirmUnblock()}
+      />
     </div>
   );
 }

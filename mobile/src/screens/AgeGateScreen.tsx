@@ -3,8 +3,17 @@
  * Shown once after login; user must confirm they are 18+ to continue.
  */
 
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, Platform } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  Platform,
+  Animated,
+  AccessibilityInfo,
+} from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -58,6 +67,57 @@ export default function AgeGateScreen() {
   const { connectSetupComplete, profile, logout } = useAuth();
   const nextRoute =
     route.params?.nextRoute ?? (connectSetupComplete ? 'MainTabs' : 'CreateProfile');
+
+  const buttonPulse = useRef(new Animated.Value(1)).current;
+  const buttonScale = useRef(new Animated.Value(1)).current;
+  const pulseLoopRef = useRef<Animated.CompositeAnimation | null>(null);
+  const [reduceMotion, setReduceMotion] = useState(false);
+
+  useEffect(() => {
+    if (!isAndroidMidnight) return;
+    let cancelled = false;
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then((v) => {
+        if (!cancelled) setReduceMotion(v);
+      })
+      .catch(() => {});
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => {
+      cancelled = true;
+      sub.remove();
+    };
+  }, []);
+
+  const startButtonPulse = useCallback(() => {
+    pulseLoopRef.current?.stop();
+    buttonPulse.setValue(1);
+    if (reduceMotion) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(buttonPulse, { toValue: 1.04, duration: 1500, useNativeDriver: true }),
+        Animated.timing(buttonPulse, { toValue: 1, duration: 1500, useNativeDriver: true }),
+      ])
+    );
+    pulseLoopRef.current = loop;
+    loop.start();
+  }, [buttonPulse, reduceMotion]);
+
+  useEffect(() => {
+    if (!isAndroidMidnight) return;
+    startButtonPulse();
+    return () => {
+      pulseLoopRef.current?.stop();
+      pulseLoopRef.current = null;
+    };
+  }, [startButtonPulse]);
+
+  const handlePrimaryPressIn = useCallback(() => {
+    Animated.timing(buttonScale, { toValue: 0.97, duration: 50, useNativeDriver: true }).start();
+  }, [buttonScale]);
+
+  const handlePrimaryPressOut = useCallback(() => {
+    Animated.spring(buttonScale, { toValue: 1, friction: 6, tension: 300, useNativeDriver: true }).start();
+  }, [buttonScale]);
 
   const handleConfirm = async () => {
     try {
@@ -113,15 +173,42 @@ export default function AgeGateScreen() {
       <Text style={[styles.body, { color: THEME.body }]}>
         By continuing, you confirm that you are at least 18 years of age.
       </Text>
-      <TouchableOpacity onPress={handleConfirm} activeOpacity={0.85}>
-        <LinearGradient
-          colors={THEME.accentGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.primaryButton}
+      <TouchableOpacity
+        onPress={handleConfirm}
+        activeOpacity={0.9}
+        onPressIn={isAndroidMidnight ? handlePrimaryPressIn : undefined}
+        onPressOut={isAndroidMidnight ? handlePrimaryPressOut : undefined}
+        style={isAndroidMidnight ? styles.primaryButtonWrap : undefined}
+      >
+        <Animated.View
+          style={
+            isAndroidMidnight
+              ? { transform: [{ scale: Animated.multiply(buttonPulse, buttonScale) }] }
+              : undefined
+          }
         >
-          <Text style={styles.primaryButtonText}>I am 18 or older</Text>
-        </LinearGradient>
+          {isAndroidMidnight ? (
+            <View style={[styles.primaryButtonGlow, { shadowColor: THEME.cardShadow }]} />
+          ) : null}
+          <LinearGradient
+            colors={THEME.accentGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.primaryButton}
+          >
+            {isAndroidMidnight ? (
+              <LinearGradient
+                colors={['rgba(255,255,255,0.22)', 'rgba(255,255,255,0.06)', 'transparent']}
+                locations={[0, 0.4, 1]}
+                style={styles.primaryButtonGloss}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+                pointerEvents="none"
+              />
+            ) : null}
+            <Text style={styles.primaryButtonText}>I am 18 or older 🔒</Text>
+          </LinearGradient>
+        </Animated.View>
       </TouchableOpacity>
       <TouchableOpacity
         style={[
@@ -137,7 +224,7 @@ export default function AgeGateScreen() {
         activeOpacity={0.8}
       >
         <Text style={[styles.secondaryButtonText, { color: THEME.secondaryText }]}>
-          I&apos;m not 18 yet
+          I&apos;m not 18 yet 😬
         </Text>
       </TouchableOpacity>
     </>
@@ -239,11 +326,34 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     textAlign: 'center',
   },
+  primaryButtonWrap: {
+    marginBottom: 12,
+    position: 'relative',
+  },
+  primaryButtonGlow: {
+    position: 'absolute',
+    left: 4,
+    right: 4,
+    top: 4,
+    bottom: -2,
+    borderRadius: 14,
+    backgroundColor: 'transparent',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.45,
+    shadowRadius: 14,
+    elevation: 8,
+  },
   primaryButton: {
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
-    marginBottom: 12,
+    overflow: 'hidden',
+    marginBottom: isAndroidMidnight ? 0 : 12,
+  },
+  primaryButtonGloss: {
+    ...StyleSheet.absoluteFillObject,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
   },
   primaryButtonText: {
     color: '#fff',

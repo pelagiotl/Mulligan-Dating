@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { api } from '../utils/api';
@@ -9,12 +9,26 @@ interface MulliganMomentsProps {
   matchId: string;
   socket: Socket | null;
   onStarterGenerated?: (starter: string) => void;
+  /** Parent sets after opener is placed in composer — survives remounts so the CTA does not reappear. */
+  openerUsed?: boolean;
+  /** When messages change, re-check whether the thread is still "dead" (allows a future moment). */
+  messageActivityKey?: number;
+  onConversationActive?: () => void;
   /** Parent calls this ref after the opener is sent so the preview card can dismiss. */
   dismissStarterRef?: React.MutableRefObject<(() => void) | null>;
   compact?: boolean;
 }
 
-export default function MulliganMoments({ matchId, socket, onStarterGenerated, dismissStarterRef, compact }: MulliganMomentsProps) {
+export default function MulliganMoments({
+  matchId,
+  socket,
+  onStarterGenerated,
+  openerUsed,
+  messageActivityKey,
+  onConversationActive,
+  dismissStarterRef,
+  compact,
+}: MulliganMomentsProps) {
   const [canReset, setCanReset] = useState(false);
   const [checking, setChecking] = useState(false);
   const [resetting, setResetting] = useState(false);
@@ -24,7 +38,21 @@ export default function MulliganMoments({ matchId, socket, onStarterGenerated, d
 
   useEffect(() => {
     checkConversationStatus();
-  }, [matchId]);
+  }, [matchId, messageActivityKey]);
+
+  const applyGeneratedOpener = useCallback(
+    (text: string, expl: string | null) => {
+      setCanReset(false);
+      setModalVisible(false);
+      if (onStarterGenerated && text) {
+        onStarterGenerated(text);
+        return;
+      }
+      setStarter(text);
+      setExplanation(expl);
+    },
+    [onStarterGenerated]
+  );
 
   useEffect(() => {
     if (!dismissStarterRef) return;
@@ -41,14 +69,8 @@ export default function MulliganMoments({ matchId, socket, onStarterGenerated, d
     if (!socket) return;
 
     const handleReset = (data: { matchId: string; starter: string; explanation: string }) => {
-      if (data.matchId === matchId) {
-        setStarter(data.starter);
-        setExplanation(data.explanation);
-        setCanReset(false);
-        setModalVisible(false);
-        if (onStarterGenerated) {
-          onStarterGenerated(data.starter);
-        }
+      if (data.matchId === matchId && data.starter) {
+        applyGeneratedOpener(data.starter, data.explanation ?? null);
       }
     };
 
@@ -57,14 +79,24 @@ export default function MulliganMoments({ matchId, socket, onStarterGenerated, d
     return () => {
       socket.off('conversation_reset', handleReset);
     };
-  }, [socket, matchId, onStarterGenerated]);
+  }, [socket, matchId, applyGeneratedOpener]);
+
+  useEffect(() => {
+    if (!openerUsed) return;
+    setStarter(null);
+    setExplanation(null);
+  }, [openerUsed]);
 
   const checkConversationStatus = async () => {
     try {
       setChecking(true);
       const response = await api.get(`/matches/${matchId}/conversation-status`);
       if (response && typeof response.isDead === 'boolean') {
-        setCanReset(response.isDead || response.canReset || false);
+        const dead = response.isDead || response.canReset || false;
+        setCanReset(dead);
+        if (!dead && onConversationActive) {
+          onConversationActive();
+        }
       } else {
         setCanReset(false);
       }
@@ -83,15 +115,9 @@ export default function MulliganMoments({ matchId, socket, onStarterGenerated, d
         `/matches/${matchId}/reset-conversation`
       );
 
-      if (response?.success) {
-        setStarter(response.starter ?? null);
-        setExplanation(response.explanation ?? null);
-        setCanReset(false);
-        setModalVisible(false);
-
-        if (onStarterGenerated && response.starter) {
-          onStarterGenerated(response.starter);
-        }
+      const text = response?.starter?.trim();
+      if (response?.success && text) {
+        applyGeneratedOpener(text, response.explanation ?? null);
       }
     } catch (error: any) {
       setModalVisible(false);
@@ -101,7 +127,7 @@ export default function MulliganMoments({ matchId, socket, onStarterGenerated, d
     }
   };
 
-  if (checking) {
+  if (checking || openerUsed) {
     return null;
   }
 

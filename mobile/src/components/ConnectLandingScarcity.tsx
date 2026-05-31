@@ -34,9 +34,10 @@ function formatCountdown(ms: number): string {
 async function readCollapsedPreference(): Promise<boolean> {
   try {
     const v = await AsyncStorage.getItem(COLLAPSED_STORAGE_KEY);
-    return v === '1';
+    if (v === '0') return false;
+    return true;
   } catch {
-    return false;
+    return true;
   }
 }
 
@@ -65,7 +66,7 @@ const ConnectLandingScarcity = memo(function ConnectLandingScarcity({
   const colors = useMemo(() => connectionLimitsPanelColors(connectShell), [connectShell]);
   const connectionLimit = effectiveConnectionSlotLimit(slotLimit);
   const [now, setNow] = useState(() => Date.now());
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
 
   const slotsOpen = Math.max(0, connectionLimit - activeMatches);
