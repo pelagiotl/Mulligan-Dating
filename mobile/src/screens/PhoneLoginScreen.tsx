@@ -589,6 +589,39 @@ function formatPhoneFast(value: string): string {
   return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
 }
 
+/** Gentle pulse inside the phone field — matches web login phone icon animation. */
+const AnimatedPhoneInputIcon = memo(function AnimatedPhoneInputIcon() {
+  const scale = useRef(new Animated.Value(1)).current;
+  const translateY = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(scale, { toValue: 1.1, duration: 720, useNativeDriver: true }),
+          Animated.timing(translateY, { toValue: -2, duration: 720, useNativeDriver: true }),
+        ]),
+        Animated.parallel([
+          Animated.timing(scale, { toValue: 1, duration: 720, useNativeDriver: true }),
+          Animated.timing(translateY, { toValue: 0, duration: 720, useNativeDriver: true }),
+        ]),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [scale, translateY]);
+
+  return (
+    <Animated.Text
+      style={[styles.inputIcon, { transform: [{ scale }, { translateY }] }]}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
+      📱
+    </Animated.Text>
+  );
+});
+
 // Lightweight form - local state only, so keystrokes don't trigger parent (AnimatedLogo) re-renders.
 // This makes the "Send Verification Code" button enable immediately when the 10th digit is typed.
 const PhoneForm = memo(function PhoneForm({
@@ -621,7 +654,7 @@ const PhoneForm = memo(function PhoneForm({
       <View style={styles.formGroup}>
         <Text style={styles.label}>Phone Number</Text>
         <View style={styles.inputWrapper}>
-          <Text style={styles.inputIcon}>📱</Text>
+          <AnimatedPhoneInputIcon />
           <TextInput
             style={styles.input}
             placeholder="(555) 123-4567"

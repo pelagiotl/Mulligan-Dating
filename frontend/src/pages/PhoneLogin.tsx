@@ -227,7 +227,7 @@ export default function PhoneLogin() {
               <div className="form-group-enhanced">
                 <label htmlFor="phone" className="form-label-enhanced">Phone Number</label>
                 <div className="form-input-wrapper">
-                  <span className="form-icon">📱</span>
+                  <span className="form-icon form-icon--phone" aria-hidden="true">📱</span>
                   <input
                     type="tel"
                     id="phone"
