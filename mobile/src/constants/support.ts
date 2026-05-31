@@ -17,11 +17,18 @@ function matchesSupportSurface(): 'android' | 'ios' {
   return Platform.OS === 'android' ? 'android' : 'ios';
 }
 
-function buildMatchesSupportBody(ctx: MatchesSupportContext): string {
+/** Per-line encoding avoids `+` for spaces (URLSearchParams / form-style mailto bugs). */
+function encodeMailtoBody(lines: string[]): string {
+  return lines.map((line) => encodeURIComponent(line)).join('%0D%0A');
+}
+
+function buildMatchesSupportBodyLines(ctx: MatchesSupportContext): string[] {
   const surface = ctx.surface ?? matchesSupportSurface();
   const lines = [
+    'Hi Mulligan team,',
     '',
-    '---',
+    'I have a question about my Matches tab.',
+    '',
     `User ID: ${ctx.userId ?? 'unknown'}`,
     `App: ${surface}`,
   ];
@@ -31,7 +38,8 @@ function buildMatchesSupportBody(ctx: MatchesSupportContext): string {
   if (ctx.activeMatches != null && ctx.slotLimit != null) {
     lines.push(`Active connections: ${ctx.activeMatches} / ${ctx.slotLimit}`);
   }
-  return lines.join('\n');
+  lines.push('', 'Thanks!');
+  return lines;
 }
 
 export function getCreateProfileSupportMailtoUrl(): string {
@@ -39,8 +47,8 @@ export function getCreateProfileSupportMailtoUrl(): string {
 }
 
 export function getMatchesSupportMailtoUrl(ctx: MatchesSupportContext): string {
-  const body = buildMatchesSupportBody(ctx);
-  return `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(MATCHES_SUPPORT_SUBJECT)}&body=${encodeURIComponent(body)}`;
+  const body = encodeMailtoBody(buildMatchesSupportBodyLines(ctx));
+  return `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(MATCHES_SUPPORT_SUBJECT)}&body=${body}`;
 }
 
 export function openCreateProfileSupportEmail(): void {
