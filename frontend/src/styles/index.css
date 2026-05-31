@@ -2687,7 +2687,13 @@ img {
 }
 
 .create-profile-wizard .create-profile-hero {
-  padding-bottom: var(--space-4);
+  padding-bottom: var(--space-5);
+  margin-bottom: 0;
+}
+
+.create-profile-wizard .create-profile-body {
+  padding-top: var(--space-5);
+  background: #f8f9fa;
 }
 
 .create-profile-wizard .create-profile-hero-title {
@@ -2807,7 +2813,8 @@ img {
 .create-profile-onboarding-stack {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-3);
+  padding-top: var(--space-1);
   padding-bottom: 0;
 }
 

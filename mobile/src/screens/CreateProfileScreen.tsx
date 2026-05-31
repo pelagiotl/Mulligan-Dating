@@ -4280,7 +4280,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'flex-start',
     paddingHorizontal: 10,
-    paddingTop: 2,
+    paddingTop: 14,
     paddingBottom: 4,
   },
   onboardingStepScrollContentKeyboard: {
@@ -4291,20 +4291,21 @@ const styles = StyleSheet.create({
   onboardingFieldWrap: {
     width: '100%',
     justifyContent: 'flex-start',
-    paddingVertical: Platform.OS === 'android' ? 2 : 6,
+    paddingVertical: Platform.OS === 'android' ? 4 : 8,
   },
   onboardingFieldWrapKeyboard: {
     paddingVertical: 4,
   },
   onboardingSectionsWrap: {
-    gap: 8,
+    gap: 10,
+    paddingTop: 4,
     paddingBottom: 2,
   },
   onboardingSectionCardWrap: {
     marginTop: 0,
   },
   headerOnboardingCompact: {
-    paddingBottom: 14,
+    paddingBottom: 20,
   },
   headerOnboardingCompactTitle: {
     fontSize: 26,
