@@ -1,6 +1,4 @@
-import { hasCityAndState } from "./locationUtils";
-
-export const WEB_CREATE_PROFILE_STEPS = 2;
+export const WEB_CREATE_PROFILE_STEPS = 1;
 export const WEB_CREATE_PROFILE_DRAFT_KEY = "mulligan:create-profile:web";
 
 /** Placeholders for fields completed later in Settings (not shown in onboarding). */
@@ -57,10 +55,9 @@ export type WebProfileProgressInput = {
   location: string;
 };
 
-export function computeWebCreateProfileResumeStep(input: WebProfileProgressInput): number {
-  if (input.displayName.trim().length < 2) return 1;
-  if (!hasCityAndState(input.location)) return 2;
-  return WEB_CREATE_PROFILE_STEPS;
+/** Onboarding is a single screen (name + location); always resume on step 1 until Complete Profile. */
+export function computeWebCreateProfileResumeStep(_input: WebProfileProgressInput): number {
+  return 1;
 }
 
 export function readWebCreateProfileDraft(): WebCreateProfileDraft | null {

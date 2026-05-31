@@ -188,7 +188,7 @@ const INTEREST_EMOJIS: { [key: string]: string } = {
   'Education': '🎓',
 };
 
-const TOTAL_STEPS = 2; // 1 name, 2 location (photos on Profile before Connect)
+const TOTAL_STEPS = 1; // name + location on one screen (photos on Profile before Connect)
 const MIN_PHOTOS_REQUIRED = 3;
 const PHOTO_SLOT_COUNT = 6;
 
@@ -425,7 +425,7 @@ export default function CreateProfileScreen() {
     };
   }, [screenWidth, screenHeight]);
 
-  // Animate the active onboarding field (step 1: name, step 2: location)
+  // Animate name + location on the single onboarding screen
   useEffect(() => {
     const anim = (s: Animated.Value, o: Animated.Value, g: Animated.Value) => {
       Animated.parallel([
@@ -439,7 +439,6 @@ export default function CreateProfileScreen() {
     };
     if (step === 1) {
       anim(firstNameScale, firstNameOpacity, firstNameGlow);
-    } else if (step === 2) {
       anim(locationScale, locationOpacity, locationGlow);
     } else {
       [firstNameScale, locationScale].forEach(s => s.setValue(0.95));
@@ -800,9 +799,9 @@ export default function CreateProfileScreen() {
       displayName: dn,
       location: loc,
     });
-    const targetStep =
+    const rawInitial =
       initialStep != null && initialStep >= 1 && initialStep <= TOTAL_STEPS ? initialStep : resumeStep;
-    setStep(targetStep);
+    setStep(Math.min(rawInitial, TOTAL_STEPS));
   }, [initialStep, fromPostAuthLogin, navigation, refreshProfile, user]);
 
   // Load profile on mount and when edit params change (not when startFromBeginning = new account/delete)
@@ -816,9 +815,10 @@ export default function CreateProfileScreen() {
     ensureTokenPrefetched();
   }, []);
 
-  // Save profile when user reaches location step (step 2) so Complete Profile is fast.
+  // Pre-save profile once name + location are valid so Complete Profile is fast.
   useEffect(() => {
     if (step !== TOTAL_STEPS || profileSaveStartedRef.current) return;
+    if (displayName.trim().length < 2 || !hasCityAndState(location)) return;
     profileSaveStartedRef.current = true;
 
     const saveProfileOnLocationStep = async () => {
@@ -958,7 +958,7 @@ export default function CreateProfileScreen() {
     void profileSavePromiseRef.current.finally(() => {
       profileSavePromiseRef.current = null;
     });
-  }, [step]);
+  }, [step, displayName, location]);
 
   const detectLocation = async () => {
     setDetectingLocation(true);
@@ -972,58 +972,6 @@ export default function CreateProfileScreen() {
     } finally {
       setDetectingLocation(false);
     }
-  };
-
-  const handleNext = async () => {
-    if (step === 1) {
-      if (!displayName?.trim() || displayName.trim().length < 2) {
-        setError('Please enter at least 2 characters for your name');
-        return;
-      }
-    }
-    if (step === 2) {
-      if (!location?.trim()) {
-        setError('Please enter your location');
-        return;
-      }
-      if (!hasCityAndState(location)) {
-        setError('Please enter both city and state (e.g. Medford, Oregon)');
-        return;
-      }
-    }
-
-    const nextStep = step + 1;
-    if (nextStep > TOTAL_STEPS) {
-      setError('Invalid step number');
-      return;
-    }
-
-    Keyboard.dismiss();
-    if (Platform.OS === 'ios') Vibration.vibrate(50);
-    else Vibration.vibrate(50);
-
-    setSavingProgress(true);
-    setError('');
-    try {
-      if (step === 1) {
-        await api.put('/profile/basics', { displayName: displayName.trim() });
-      } else if (step === 2) {
-        await saveAllProfileProgress();
-        profileSavedRef.current = true;
-      }
-      await persistLocalDraft(nextStep);
-      setStep(nextStep);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to save progress';
-      setError(msg);
-    } finally {
-      setSavingProgress(false);
-    }
-  };
-
-  const handleBack = () => {
-    Keyboard.dismiss();
-    if (step > 1) setStep(step - 1);
   };
 
   const uploadPhotosBatch = async (uris: string[], targetSlot: number) => {
@@ -1519,14 +1467,161 @@ export default function CreateProfileScreen() {
   const renderStep1DisplayName = () => onboardingStepWrapper(
     <View style={onboardingFieldWrapStyle}>
       <Animated.View style={[{ transform: [{ scale: firstNameScale }], opacity: firstNameOpacity }]}>
-        <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.focusedFirstNameCard, keyboardVisible && styles.focusedCardWithKeyboard, { padding: keyboardVisible ? rs.cardPaddingKeyboard : rs.cardPaddingFirst }]}>
-          <Text style={[styles.focusedEmoji, keyboardVisible && styles.focusedEmojiSmall, { fontSize: keyboardVisible ? rs.emojiSizeSmall : rs.emojiSize, marginBottom: keyboardVisible ? 8 : 20 }]}>👋</Text>
-          <Text style={[styles.focusedTitle, keyboardVisible && styles.focusedTitleCompact, { fontSize: keyboardVisible ? rs.titleSizeCompact : rs.titleSize, marginBottom: keyboardVisible ? 8 : rs.titleMargin }]}>Welcome to Mulligan!</Text>
-          <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleCompact, { fontSize: keyboardVisible ? rs.subtitleSizeCompact : 10, marginBottom: keyboardVisible ? 20 : rs.subtitleMargin, maxWidth: '100%' }]} numberOfLines={2}>{"Let's start with your first name"}</Text>
-          <Animated.View style={[styles.focusedInputWrapper, { shadowOpacity: firstNameGlow.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.6] }), shadowRadius: firstNameGlow.interpolate({ inputRange: [0, 1], outputRange: [8, 20] }) }]}>
-            <TextInput ref={displayNameInputRef} style={[styles.focusedFirstNameInput, keyboardVisible && styles.focusedFirstNameInputKeyboard]} value={displayName} onChangeText={setDisplayName} placeholder="Your first name" placeholderTextColor="#4a5568" autoCapitalize="words" returnKeyType="next" />
+        <LinearGradient
+          colors={['#667eea', '#764ba2', '#f093fb']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[
+            styles.focusedFirstNameCard,
+            keyboardVisible && styles.focusedCardWithKeyboard,
+            { padding: keyboardVisible ? rs.cardPaddingKeyboard : rs.cardPaddingFirst },
+          ]}
+        >
+          <Text
+            style={[
+              styles.focusedEmoji,
+              keyboardVisible && styles.focusedEmojiSmall,
+              { fontSize: keyboardVisible ? rs.emojiSizeSmall : rs.emojiSize, marginBottom: keyboardVisible ? 8 : 20 },
+            ]}
+          >
+            👋
+          </Text>
+          <Text
+            style={[
+              styles.focusedTitle,
+              keyboardVisible && styles.focusedTitleCompact,
+              {
+                fontSize: keyboardVisible ? rs.titleSizeCompact : rs.titleSize,
+                marginBottom: keyboardVisible ? 8 : rs.titleMargin,
+              },
+            ]}
+          >
+            Welcome to Mulligan!
+          </Text>
+          <Text
+            style={[
+              styles.focusedSubtitle,
+              keyboardVisible && styles.focusedSubtitleCompact,
+              {
+                fontSize: keyboardVisible ? rs.subtitleSizeCompact : 10,
+                marginBottom: keyboardVisible ? 16 : rs.subtitleMargin,
+                maxWidth: '100%',
+              },
+            ]}
+            numberOfLines={2}
+          >
+            Let&apos;s start with your first name
+          </Text>
+          <Animated.View
+            style={[
+              styles.focusedInputWrapper,
+              {
+                shadowOpacity: firstNameGlow.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.6] }),
+                shadowRadius: firstNameGlow.interpolate({ inputRange: [0, 1], outputRange: [8, 20] }),
+              },
+            ]}
+          >
+            <TextInput
+              ref={displayNameInputRef}
+              style={[styles.focusedFirstNameInput, keyboardVisible && styles.focusedFirstNameInputKeyboard]}
+              value={displayName}
+              onChangeText={setDisplayName}
+              placeholder="Your first name"
+              placeholderTextColor="#4a5568"
+              autoCapitalize="words"
+              returnKeyType="next"
+              onSubmitEditing={() => locationInputRef.current?.focus()}
+            />
           </Animated.View>
-          {displayName.trim().length >= 2 && <Animated.View style={[styles.successIndicator, { opacity: firstNameOpacity }]}><Text style={styles.successText}>✓ Great! Tap Continue</Text></Animated.View>}
+
+          <View style={styles.onboardingLocationDivider} />
+
+          <Animated.View style={[{ transform: [{ scale: locationScale }], opacity: locationOpacity }]}>
+            <Text
+              style={[
+                styles.focusedTitle,
+                keyboardVisible && styles.focusedTitleSmall,
+                { fontSize: rs.titleSizeSmall, marginBottom: keyboardVisible ? 6 : rs.titleMargin },
+              ]}
+            >
+              Where do you live?
+            </Text>
+            <Text
+              style={[
+                styles.focusedSubtitle,
+                keyboardVisible && styles.focusedSubtitleSmall,
+                {
+                  fontSize: rs.subtitleSizeSmall * 0.92,
+                  marginBottom: keyboardVisible ? 12 : rs.subtitleMargin,
+                  opacity: 0.88,
+                },
+              ]}
+            >
+              Southern Oregon for now — city and state (e.g. Medford, OR).
+            </Text>
+            <Animated.View
+              style={[
+                styles.focusedInputWrapper,
+                {
+                  shadowOpacity: locationGlow.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.6] }),
+                  shadowRadius: locationGlow.interpolate({ inputRange: [0, 1], outputRange: [8, 20] }),
+                },
+              ]}
+            >
+              <TextInput
+                ref={locationInputRef}
+                style={[
+                  styles.focusedLocationInput,
+                  location.length > 28 && styles.focusedLocationInputLong,
+                ]}
+                value={location}
+                onChangeText={(t) => handleLocationChange(t, setLocation)}
+                onBlur={() => setLocation((prev) => compactCityState(prev))}
+                placeholder="City, State"
+                placeholderTextColor="#4a5568"
+                editable={!detectingLocation}
+                returnKeyType="done"
+                multiline
+                numberOfLines={2}
+                textAlign="center"
+                textAlignVertical="center"
+                {...(Platform.OS === 'ios'
+                  ? { adjustsFontSizeToFit: true, minimumFontScale: 0.72 }
+                  : {})}
+              />
+            </Animated.View>
+            <TouchableOpacity
+              style={styles.focusedLocationButton}
+              onPress={detectLocation}
+              disabled={detectingLocation}
+            >
+              {detectingLocation ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.focusedLocationButtonText}>📍 Use My Location</Text>
+              )}
+            </TouchableOpacity>
+          </Animated.View>
+
+          {nameValid && locationValid ? (
+            <Animated.View style={[styles.successIndicator, { opacity: locationOpacity }]}>
+              <Text style={styles.successText}>✓ Ready — tap Complete Profile</Text>
+            </Animated.View>
+          ) : nameValid ? (
+            <Animated.View style={[styles.successIndicator, { opacity: firstNameOpacity }]}>
+              <Text style={styles.successText}>✓ Add your city and state to finish</Text>
+            </Animated.View>
+          ) : null}
+
+          <Text
+            style={[
+              styles.focusedSubtitle,
+              keyboardVisible && styles.focusedSubtitleSmall,
+              { fontSize: rs.subtitleSizeSmall * 0.92, marginTop: 12, marginBottom: 0, opacity: 0.88 },
+            ]}
+          >
+            Add a photo on your Profile tab before you tap Connect to match.
+          </Text>
         </LinearGradient>
       </Animated.View>
     </View>
@@ -2313,9 +2408,8 @@ export default function CreateProfileScreen() {
 
   const nameValid = displayName.trim().length >= 2;
   const locationValid = hasCityAndState(location);
-  const continueDisabled = savingProgress || (step === 1 && !nameValid);
   const completeProfileDisabled =
-    loading || savingProgress || !nameValid || (step === 2 && !locationValid);
+    loading || savingProgress || detectingLocation || !nameValid || !locationValid;
 
   return (
     <KeyboardAvoidingView
@@ -2382,7 +2476,6 @@ export default function CreateProfileScreen() {
           </View>
         )}
         <Text style={styles.title}>Set up your profile</Text>
-        <Text style={styles.subtitle}>Step {step} of {TOTAL_STEPS}</Text>
         {connectSetupComplete && existingProfile && !startFromBeginning ? (
           <TouchableOpacity
             style={styles.emailSupportLink}
@@ -2396,7 +2489,7 @@ export default function CreateProfileScreen() {
         ) : null}
       </LinearGradient>
 
-      {renderStepIndicator()}
+      {TOTAL_STEPS > 1 ? renderStepIndicator() : null}
 
       {error ? (
         <View style={styles.errorContainer}>
@@ -2418,7 +2511,6 @@ export default function CreateProfileScreen() {
       ) : null}
 
       {step === 1 && renderStep1DisplayName()}
-      {step === 2 && renderStep4Location()}
 
       </View>
 
@@ -2428,50 +2520,10 @@ export default function CreateProfileScreen() {
           { paddingBottom: Platform.OS === 'android' ? Math.max(insets.bottom, 8) : Math.max(insets.bottom, 12) },
         ]}
       >
-        {step === 2 && !locationValid ? (
+        {!locationValid ? (
           <Text style={styles.actionsHint}>Enter city and state (e.g. Medford, Oregon) to finish</Text>
         ) : null}
         <View style={styles.actions}>
-          {step > 1 ? (
-            <TouchableOpacity 
-              style={styles.modernBackButton} 
-              onPress={handleBack}
-              activeOpacity={0.7}
-            >
-              <LinearGradient
-                colors={['rgba(255, 255, 255, 0.95)', 'rgba(255, 255, 255, 0.85)']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.modernBackButtonGradient}
-              >
-                <Text style={styles.modernBackButtonText}>← Back</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          ) : null}
-          
-          {step < TOTAL_STEPS ? (
-            <TouchableOpacity
-              style={styles.modernNextButton}
-              onPress={() => void handleNext()}
-              disabled={continueDisabled}
-              activeOpacity={continueDisabled ? 1 : 0.8}
-            >
-              <LinearGradient
-                colors={
-                  continueDisabled
-                    ? ['#ccc', '#bbb']
-                    : ['#667eea', '#764ba2', '#f093fb']
-                }
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.modernNextButtonGradient}
-              >
-                <Text style={styles.modernNextButtonText}>
-                  {savingProgress ? 'Saving…' : 'Continue →'}
-                </Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          ) : (
             <TouchableOpacity
               style={styles.modernNextButton}
               onPress={handleSubmit}
@@ -2494,7 +2546,6 @@ export default function CreateProfileScreen() {
                 )}
               </LinearGradient>
             </TouchableOpacity>
-          )}
         </View>
       </View>
       <ProfileCompleteCelebration
@@ -4189,6 +4240,13 @@ const styles = StyleSheet.create({
   },
   onboardingFieldWrapKeyboard: {
     paddingVertical: 4,
+  },
+  onboardingLocationDivider: {
+    width: '100%',
+    height: 1,
+    marginTop: 18,
+    marginBottom: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
   },
   actionsFooter: {
     flexShrink: 0,

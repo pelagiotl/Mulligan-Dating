@@ -1,6 +1,4 @@
-import { hasCityAndState } from './locationUtils';
-
-export const MOBILE_CREATE_PROFILE_STEPS = 2;
+export const MOBILE_CREATE_PROFILE_STEPS = 1;
 export const MOBILE_CREATE_PROFILE_DRAFT_KEY = 'mulligan:create-profile:mobile';
 
 /** Placeholders for fields completed later in Settings (not shown in onboarding). */
@@ -59,10 +57,9 @@ export type MobileProfileProgressInput = {
   location: string;
 };
 
-export function computeMobileCreateProfileResumeStep(input: MobileProfileProgressInput): number {
-  if (input.displayName.trim().length < 2) return 1;
-  if (!hasCityAndState(input.location)) return 2;
-  return MOBILE_CREATE_PROFILE_STEPS;
+/** Onboarding is a single screen (name + location); always resume on step 1 until Complete Profile. */
+export function computeMobileCreateProfileResumeStep(_input: MobileProfileProgressInput): number {
+  return 1;
 }
 
 export async function readMobileCreateProfileDraft(): Promise<MobileCreateProfileDraft | null> {

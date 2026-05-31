@@ -152,7 +152,7 @@ const INTEREST_EMOJIS: Record<string, string> = {
   Education: "🎓",
 };
 
-const TOTAL_STEPS = 2;
+const TOTAL_STEPS = 1;
 const MAX_PHOTO_SLOTS = 6;
 
 type SlotPhoto = { id: string; url: string };
@@ -687,6 +687,7 @@ export default function CreateProfile() {
 
   useEffect(() => {
     if (step !== TOTAL_STEPS || profileReadyForPhotos) return;
+    if (!nameValid || !locationValid) return;
     setError("");
     let cancelled = false;
     (async () => {
@@ -707,7 +708,7 @@ export default function CreateProfile() {
     return () => {
       cancelled = true;
     };
-  }, [step, profileReadyForPhotos, saveProfileBeforePhotos, syncPhotosFromServer]);
+  }, [step, profileReadyForPhotos, saveProfileBeforePhotos, syncPhotosFromServer, nameValid, locationValid]);
 
   useEffect(() => {
     const load = async () => {
@@ -815,54 +816,6 @@ export default function CreateProfile() {
     };
     void load();
   }, []);
-
-  const handleNext = async () => {
-    if (step === 1) {
-      if (!nameValid) {
-        setError("Please enter at least 2 characters for your name");
-        return;
-      }
-    }
-    if (step === 2) {
-      if (!location?.trim()) {
-        setError("Please enter your location");
-        return;
-      }
-      if (!locationValid) {
-        setError("Please enter both city and state (e.g. Medford, Oregon)");
-        return;
-      }
-    }
-
-    const nextStep = Math.min(step + 1, TOTAL_STEPS);
-    setSavingProgress(true);
-    setError("");
-    try {
-      if (step === 1) {
-        try {
-          await api.put("/profile/basics", { displayName: displayName.trim() });
-        } catch (err) {
-          throw new Error(apiErrorMessage(err, "Failed to save your name"));
-        }
-      } else if (step === 2) {
-        await saveProfileProgress({
-          requireLocation: true,
-          includePreferences: true,
-        });
-      }
-      persistLocalDraft(nextStep);
-      setStep(nextStep);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save progress");
-    } finally {
-      setSavingProgress(false);
-    }
-  };
-
-  const handleBack = () => {
-    setError("");
-    setStep((s) => Math.max(1, s - 1));
-  };
 
   const openPhotoPicker = (slotIndex: number) => {
     if (photoCount >= MAX_PHOTO_SLOTS) return;
@@ -1063,7 +1016,9 @@ export default function CreateProfile() {
     loading ||
     savingProfileDraft ||
     savingProgress ||
-    (step === 2 && (!locationValid || detectingLocation));
+    !nameValid ||
+    !locationValid ||
+    detectingLocation;
 
   const minAgeOptions = Array.from({ length: 103 }, (_, i) => 18 + i);
   const maxAgeOptions = Array.from({ length: 121 - minAge }, (_, i) => minAge + i);
@@ -1108,22 +1063,10 @@ export default function CreateProfile() {
           </button>
         </div>
         <h1 className="create-profile-hero-title">Set up your profile</h1>
-        <p className="create-profile-hero-step">
-          Step {step} of {TOTAL_STEPS}
-        </p>
         <p className="create-profile-hero-hint">
           Add photos on your Profile before you Connect. Age, interests, and match preferences are in Settings.
         </p>
       </header>
-
-      <div className="create-profile-dots" aria-hidden>
-        {Array.from({ length: TOTAL_STEPS }, (_, i) => (
-          <span
-            key={i}
-            className={`create-profile-dot ${step >= i + 1 ? "is-active" : ""} ${step > i + 1 ? "is-done" : ""}`}
-          />
-        ))}
-      </div>
 
       {error ? <div className="auth-error create-profile-error">{error}</div> : null}
 
@@ -1134,82 +1077,66 @@ export default function CreateProfile() {
             "👋",
             "Welcome to Mulligan!",
             "Let's start with your first name",
-            <input
-              type="text"
-              className="create-profile-focus-input"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="Your first name"
-              autoComplete="given-name"
-              maxLength={50}
-            />,
-            nameValid ? <span>✓ Great! Tap Continue</span> : null
-          )}
-
-        {step === 2 &&
-          focusCard(
-            "coral",
-            "📍",
-            "Where are you located?",
-            "We use this to show you people nearby",
             <>
               <input
                 type="text"
-                className="create-profile-focus-input create-profile-focus-input--location"
-                value={location}
-                onChange={(e) => handleLocationChange(e.target.value, setLocation)}
-                onBlur={(e) => setLocation(compactCityState(e.target.value))}
-                placeholder="City, State"
-                disabled={detectingLocation}
-                autoComplete="address-level2"
+                className="create-profile-focus-input"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder="Your first name"
+                autoComplete="given-name"
+                maxLength={50}
               />
-              <button type="button" className="create-profile-loc-btn" onClick={() => void detectLocation()} disabled={detectingLocation}>
-                {detectingLocation ? "Detecting…" : "📍 Use My Location"}
-              </button>
+              <div className="create-profile-focus-location-block">
+                <p className="create-profile-focus-location-label">Where do you live?</p>
+                <p className="create-profile-focus-location-sub">
+                  Southern Oregon for now — use city and state (e.g. Medford, OR).
+                </p>
+                <input
+                  type="text"
+                  className="create-profile-focus-input create-profile-focus-input--location"
+                  value={location}
+                  onChange={(e) => handleLocationChange(e.target.value, setLocation)}
+                  onBlur={(e) => setLocation(compactCityState(e.target.value))}
+                  placeholder="City, State"
+                  disabled={detectingLocation}
+                  autoComplete="address-level2"
+                />
+                <button
+                  type="button"
+                  className="create-profile-loc-btn"
+                  onClick={() => void detectLocation()}
+                  disabled={detectingLocation}
+                >
+                  {detectingLocation ? "Detecting…" : "📍 Use My Location"}
+                </button>
+              </div>
             </>,
-            locationValid ? <span>✓ Location set! Tap Complete Profile</span> : null
+            nameValid && locationValid ? (
+              <span>✓ Ready — tap Complete Profile</span>
+            ) : nameValid ? (
+              <span>✓ Add your city and state to finish</span>
+            ) : null
           )}
-
       </div>
 
       <div className="create-profile-actions">
-        {step > 1 ? (
-          <button type="button" className="create-profile-btn create-profile-btn--back" onClick={handleBack}>
-            ← Back
-          </button>
-        ) : (
-          <span />
-        )}
-        {step < TOTAL_STEPS ? (
-          <button
-            type="button"
-            className="create-profile-btn create-profile-btn--next"
-            disabled={
-              savingProgress ||
-              (step === 1 && !nameValid) ||
-              (step === 2 && (!locationValid || detectingLocation))
-            }
-            title={
-              step === 1 && !nameValid
-                ? "Enter at least 2 characters for your name"
-                : step === 2 && !locationValid
-                  ? "Enter city and state (e.g. Medford, Oregon) or use your location"
-                  : undefined
-            }
-            onClick={() => void handleNext()}
-          >
-            {savingProgress ? "Saving…" : "Continue →"}
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="create-profile-btn create-profile-btn--next"
-            disabled={completeProfileDisabled}
-            onClick={() => void handleCompleteProfile()}
-          >
-            {loading || savingProfileDraft ? "Saving…" : "Complete Profile →"}
-          </button>
-        )}
+        <span />
+        <button
+          type="button"
+          className="create-profile-btn create-profile-btn--next"
+          disabled={completeProfileDisabled}
+          title={
+            !nameValid
+              ? "Enter at least 2 characters for your name"
+              : !locationValid
+                ? "Enter city and state (e.g. Medford, Oregon) or use your location"
+                : undefined
+          }
+          onClick={() => void handleCompleteProfile()}
+        >
+          {loading || savingProfileDraft ? "Saving…" : "Complete Profile →"}
+        </button>
       </div>
 
       {removeConfirmSlot != null && photoSlots[removeConfirmSlot] ? (
