@@ -627,7 +627,7 @@ export default function AppNavigator() {
             <Stack.Screen
               name="PhoneLogin"
               component={PhoneLoginScreen}
-              options={{ contentStyle: { backgroundColor: '#667eea' } }}
+              options={{ contentStyle: { backgroundColor: '#0c0a12' } }}
             />
             <Stack.Screen name="AgeGate" component={AgeGateScreen} />
             <Stack.Screen name="CreateProfile" component={CreateProfileScreen} />
