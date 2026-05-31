@@ -2,6 +2,9 @@ import React, { memo } from 'react';
 import { View, Text, StyleSheet, Platform, type TextStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import ConnectLandingTagline from './ConnectLandingTagline';
+import ProfileCardAnimatedEmoji, {
+  type ProfileCardEmojiVariant,
+} from './ProfileCardAnimatedEmoji';
 
 const INK = '#1a1a2e';
 const BURGUNDY = '#8B1538';
@@ -48,6 +51,49 @@ const featureLabelStyles = StyleSheet.create({
   },
 });
 
+/** Staggered motion — mirrors web `.connect-landing__feature-emoji` keyframes. */
+const LANDING_FEATURE_LABELS: readonly [readonly [string, string], readonly [string, string], readonly [string, string]] = [
+  ['Quality', 'Matches'],
+  ['Shared', 'Interests'],
+  ['Meaningful', 'Connections'],
+];
+
+const LANDING_FEATURE_TILES = [
+  { emoji: '✨', variant: 'shimmer' as ProfileCardEmojiVariant, delay: 0 },
+  { emoji: '🎯', variant: 'bounce' as ProfileCardEmojiVariant, delay: 350 },
+  { emoji: '💝', variant: 'heartbeat' as ProfileCardEmojiVariant, delay: 700 },
+] as const;
+
+export function ConnectLandingFeatureEmoji({
+  emoji,
+  variant,
+  delay = 0,
+  fontSize = 28,
+}: {
+  emoji: string;
+  variant: ProfileCardEmojiVariant;
+  delay?: number;
+  fontSize?: number;
+}) {
+  return (
+    <ProfileCardAnimatedEmoji
+      emoji={emoji}
+      variant={variant}
+      fontSize={fontSize}
+      delay={delay}
+      containerStyle={landingFeatureEmojiStyles.wrap}
+    />
+  );
+}
+
+const landingFeatureEmojiStyles = StyleSheet.create({
+  wrap: {
+    marginBottom: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
+
 interface ConnectLandingValuePropsProps {
   /** When hero title/subtitle are rendered above (Browse landing), show only the three feature tiles. */
   variant?: ConnectLandingValuePropsVariant;
@@ -57,24 +103,16 @@ interface ConnectLandingValuePropsProps {
 function MidnightFeaturesRow() {
   return (
     <View style={midnightStyles.featuresRow} accessibilityRole="summary">
-      <View style={midnightStyles.feature}>
-        <Text style={midnightStyles.featureEmoji} allowFontScaling={false}>
-          ✨
-        </Text>
-        <ConnectFeatureLabel lines={['Quality', 'Matches']} style={midnightStyles.featureText} />
-      </View>
-      <View style={midnightStyles.feature}>
-        <Text style={midnightStyles.featureEmoji} allowFontScaling={false}>
-          🎯
-        </Text>
-        <ConnectFeatureLabel lines={['Shared', 'Interests']} style={midnightStyles.featureText} />
-      </View>
-      <View style={midnightStyles.feature}>
-        <Text style={midnightStyles.featureEmoji} allowFontScaling={false}>
-          💝
-        </Text>
-        <ConnectFeatureLabel lines={['Meaningful', 'Connections']} style={midnightStyles.featureText} />
-      </View>
+      {LANDING_FEATURE_TILES.map((tile, index) => (
+        <View key={tile.emoji} style={midnightStyles.feature}>
+          <ConnectLandingFeatureEmoji
+            emoji={tile.emoji}
+            variant={tile.variant}
+            delay={tile.delay}
+          />
+          <ConnectFeatureLabel lines={LANDING_FEATURE_LABELS[index]} style={midnightStyles.featureText} />
+        </View>
+      ))}
     </View>
   );
 }
@@ -111,24 +149,16 @@ const ConnectLandingValueProps = memo(function ConnectLandingValueProps({
           </>
         ) : null}
         <View style={[styles.row, featuresOnly && styles.rowFeaturesOnly]}>
-          <View style={styles.feature}>
-            <Text style={styles.emoji} accessibilityLabel="Sparkle">
-              ✨
-            </Text>
-            <ConnectFeatureLabel lines={['Quality', 'Matches']} style={styles.featureText} />
-          </View>
-          <View style={styles.feature}>
-            <Text style={styles.emoji} accessibilityLabel="Target">
-              🎯
-            </Text>
-            <ConnectFeatureLabel lines={['Shared', 'Interests']} style={styles.featureText} />
-          </View>
-          <View style={styles.feature}>
-            <Text style={styles.emoji} accessibilityLabel="Heart gift">
-              💝
-            </Text>
-            <ConnectFeatureLabel lines={['Meaningful', 'Connections']} style={styles.featureText} />
-          </View>
+          {LANDING_FEATURE_TILES.map((tile, index) => (
+            <View key={tile.emoji} style={styles.feature}>
+              <ConnectLandingFeatureEmoji
+                emoji={tile.emoji}
+                variant={tile.variant}
+                delay={tile.delay}
+              />
+              <ConnectFeatureLabel lines={LANDING_FEATURE_LABELS[index]} style={styles.featureText} />
+            </View>
+          ))}
         </View>
       </LinearGradient>
     </View>
@@ -198,10 +228,6 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(26, 26, 46, 0.06)',
   },
-  emoji: {
-    fontSize: 28,
-    marginBottom: 6,
-  },
   featureText: {
     fontSize: 11,
     fontWeight: '700',
@@ -234,14 +260,6 @@ const midnightStyles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.04)',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  featureEmoji: {
-    fontSize: 28,
-    lineHeight: 32,
-    marginBottom: 8,
-    textShadowColor: 'rgba(0, 0, 0, 0.45)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 6,
   },
   featureText: {
     fontSize: 11,

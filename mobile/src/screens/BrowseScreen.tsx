@@ -54,7 +54,10 @@ import {
   type ProfileEnhancementSnapshot,
 } from '../utils/profileEnhancementChecklist';
 import { fetchProfileEnhancementSnapshot } from '../utils/fetchProfileEnhancementSnapshot';
-import ConnectLandingValueProps, { ConnectFeatureLabel } from '../components/ConnectLandingValueProps';
+import ConnectLandingValueProps, {
+  ConnectFeatureLabel,
+  ConnectLandingFeatureEmoji,
+} from '../components/ConnectLandingValueProps';
 import ConnectLandingTagline from '../components/ConnectLandingTagline';
 import ConnectLandingMark from '../components/ConnectLandingMark';
 import ConnectButtonShimmerEffect, {
@@ -2153,15 +2156,15 @@ export default function BrowseScreen() {
                     {isAuthenticated ? (
                       <View style={styles.sunnyFeaturesRow} accessibilityRole="summary">
                         <View style={styles.sunnyFeature}>
-                          <Text style={styles.sunnyFeatureEmoji} allowFontScaling={false}>✨</Text>
+                          <ConnectLandingFeatureEmoji emoji="✨" variant="shimmer" delay={0} fontSize={26} />
                           <ConnectFeatureLabel lines={['Quality', 'Matches']} style={styles.sunnyFeatureText} />
                         </View>
                         <View style={styles.sunnyFeature}>
-                          <Text style={styles.sunnyFeatureEmoji} allowFontScaling={false}>🎯</Text>
+                          <ConnectLandingFeatureEmoji emoji="🎯" variant="bounce" delay={350} fontSize={26} />
                           <ConnectFeatureLabel lines={['Shared', 'Interests']} style={styles.sunnyFeatureText} />
                         </View>
                         <View style={styles.sunnyFeature}>
-                          <Text style={styles.sunnyFeatureEmoji} allowFontScaling={false}>💝</Text>
+                          <ConnectLandingFeatureEmoji emoji="💝" variant="heartbeat" delay={700} fontSize={26} />
                           <ConnectFeatureLabel lines={['Meaningful', 'Connections']} style={styles.sunnyFeatureText} />
                         </View>
                       </View>
@@ -2214,15 +2217,15 @@ export default function BrowseScreen() {
                     {isAuthenticated ? (
                       <View style={styles.softFeaturesRow} accessibilityRole="summary">
                         <View style={styles.softFeature}>
-                          <Text style={styles.softFeatureEmoji} allowFontScaling={false}>✨</Text>
+                          <ConnectLandingFeatureEmoji emoji="✨" variant="shimmer" delay={0} fontSize={26} />
                           <ConnectFeatureLabel lines={['Quality', 'Matches']} style={styles.softFeatureText} />
                         </View>
                         <View style={styles.softFeature}>
-                          <Text style={styles.softFeatureEmoji} allowFontScaling={false}>🎯</Text>
+                          <ConnectLandingFeatureEmoji emoji="🎯" variant="bounce" delay={350} fontSize={26} />
                           <ConnectFeatureLabel lines={['Shared', 'Interests']} style={styles.softFeatureText} />
                         </View>
                         <View style={styles.softFeature}>
-                          <Text style={styles.softFeatureEmoji} allowFontScaling={false}>💝</Text>
+                          <ConnectLandingFeatureEmoji emoji="💝" variant="heartbeat" delay={700} fontSize={26} />
                           <ConnectFeatureLabel lines={['Meaningful', 'Connections']} style={styles.softFeatureText} />
                         </View>
                       </View>
@@ -3410,11 +3413,6 @@ const styles = StyleSheet.create({
       },
     }),
   },
-  sunnyFeatureEmoji: {
-    fontSize: 26,
-    lineHeight: 30,
-    marginBottom: 7,
-  },
   sunnyFeatureText: {
     fontSize: 11,
     fontWeight: '700',
@@ -3527,11 +3525,6 @@ const styles = StyleSheet.create({
         elevation: 0,
       },
     }),
-  },
-  softFeatureEmoji: {
-    fontSize: 26,
-    lineHeight: 30,
-    marginBottom: 7,
   },
   softFeatureText: {
     fontSize: 11,

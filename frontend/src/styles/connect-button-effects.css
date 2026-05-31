@@ -271,14 +271,13 @@ a.connect-landing__cta--effects::before {
   /* Visible overflow so heart particles can arc in from above (shimmer clips internally). */
   overflow: visible;
   isolation: isolate;
-  animation: none !important;
-  transition: none !important;
-  transform: none !important;
+  transform-origin: center;
+  /* Perimeter shimmer replaces ::before skew sweep; keep RN-style breathe pulse on the CTA. */
+  animation: connectCtaPulse 3s ease-in-out infinite !important;
 }
 
-.connect-landing__cta--effects:hover,
-.browse-native-connect-btn--effects:hover:not(:disabled) {
-  transform: none !important;
+.browse-native-connect-btn--effects {
+  transition: opacity 0.15s ease;
 }
 
 @media (prefers-reduced-motion: reduce) {

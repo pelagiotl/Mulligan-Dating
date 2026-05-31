@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { ConnectShellMode } from '../lib/connectShellTheme';
+import { launchCountdownTheme } from '../lib/launchCountdownTheme';
 import { MIN_PHOTOS_TO_CONNECT } from '../utils/connectSetup';
 import { pickImagesFromLibrary, MediaLibraryPermissionDenied } from '../utils/pickImagesFromLibrary';
 import { uploadPhotoUris, type UploadedPhotoResult } from '../utils/batchPhotoUpload';
@@ -24,16 +25,101 @@ export interface ConnectPhotosRequiredModalProps {
   connectShell: ConnectShellMode;
 }
 
-function rimGradient(mode: ConnectShellMode): readonly [string, string, ...string[]] {
-  if (mode === 'midnight') return ['#ec4899', '#f97316', '#eab308', '#a855f7'];
-  if (mode === 'sunny') return ['#fbbf24', '#fb923c', '#f472b6', '#38bdf8'];
-  return ['#ec4899', '#f97316', '#eab308', '#a855f7'];
-}
+type PhotosModalChrome = {
+  overlay: string;
+  handleBar: string;
+  rim: readonly [string, string, ...string[]];
+  innerBg: string;
+  header: readonly [string, string, ...string[]];
+  lead: string;
+  leadStrong: string;
+  progress: string;
+  progressStrong: string;
+  secondaryText: string;
+  chipBg: string;
+  chipBorder: string;
+  chipText: string;
+  slotEmptyBorder: string;
+  slotEmptyBg: string;
+  slotPlus: string;
+  slotFilledBorder: string;
+  slotFilledBg: string;
+  uploadError: string;
+  cta: readonly [string, string, ...string[]];
+};
 
-function ctaGradient(mode: ConnectShellMode): readonly [string, string, ...string[]] {
-  if (mode === 'midnight') return ['#db2777', '#ea580c', '#f59e0b'];
-  if (mode === 'sunny') return ['#ea580c', '#f59e0b', '#f472b6'];
-  return ['#db2777', '#ea580c', '#f59e0b'];
+function photosModalChrome(mode: ConnectShellMode): PhotosModalChrome {
+  const t = launchCountdownTheme(mode);
+  if (mode === 'midnight') {
+    return {
+      overlay: 'rgba(6, 8, 18, 0.78)',
+      handleBar: 'rgba(167, 139, 250, 0.55)',
+      rim: ['rgba(167, 139, 250, 0.65)', 'rgba(99, 102, 241, 0.45)', 'rgba(236, 72, 153, 0.5)'],
+      innerBg: '#1e1b2e',
+      header: ['#7c3aed', '#6366f1', '#db2777'],
+      lead: t.sub,
+      leadStrong: '#f9a8d4',
+      progress: '#94a3b8',
+      progressStrong: '#fda4af',
+      secondaryText: '#94a3b8',
+      chipBg: 'rgba(167, 139, 250, 0.18)',
+      chipBorder: 'rgba(167, 139, 250, 0.45)',
+      chipText: '#e9d5ff',
+      slotEmptyBorder: 'rgba(167, 139, 250, 0.5)',
+      slotEmptyBg: 'rgba(38, 32, 58, 0.95)',
+      slotPlus: '#f472b6',
+      slotFilledBorder: 'rgba(52, 211, 153, 0.55)',
+      slotFilledBg: 'rgba(6, 78, 59, 0.35)',
+      uploadError: '#fca5a5',
+      cta: ['#a855f7', '#6366f1', '#ec4899'],
+    };
+  }
+  if (mode === 'sunny') {
+    return {
+      overlay: 'rgba(45, 17, 24, 0.55)',
+      handleBar: 'rgba(255,255,255,0.4)',
+      rim: ['#fbbf24', '#fb923c', '#f472b6', '#38bdf8'],
+      innerBg: '#fffefb',
+      header: ['#ea580c', '#f59e0b', '#d97706'],
+      lead: '#57534e',
+      leadStrong: '#c2410c',
+      progress: '#78716c',
+      progressStrong: '#c2410c',
+      secondaryText: '#a8a29e',
+      chipBg: 'rgba(254, 243, 199, 0.98)',
+      chipBorder: 'rgba(251, 191, 36, 0.45)',
+      chipText: '#9a3412',
+      slotEmptyBorder: 'rgba(234, 88, 12, 0.45)',
+      slotEmptyBg: 'rgba(255, 251, 235, 0.95)',
+      slotPlus: '#fb923c',
+      slotFilledBorder: 'rgba(16, 185, 129, 0.55)',
+      slotFilledBg: '#ecfdf5',
+      uploadError: '#b91c1c',
+      cta: ['#ea580c', '#f59e0b', '#f472b6'],
+    };
+  }
+  return {
+    overlay: 'rgba(45, 17, 24, 0.62)',
+    handleBar: 'rgba(255,255,255,0.4)',
+    rim: ['#ec4899', '#f97316', '#eab308', '#a855f7'],
+    innerBg: '#fffefb',
+    header: ['#be185d', '#ea580c', '#d97706'],
+    lead: '#475569',
+    leadStrong: '#be185d',
+    progress: '#64748b',
+    progressStrong: '#be185d',
+    secondaryText: '#94a3b8',
+    chipBg: 'rgba(253, 242, 248, 0.98)',
+    chipBorder: 'rgba(251, 191, 36, 0.4)',
+    chipText: '#581c87',
+    slotEmptyBorder: 'rgba(244, 63, 94, 0.45)',
+    slotEmptyBg: 'rgba(255, 241, 245, 0.95)',
+    slotPlus: '#f472b6',
+    slotFilledBorder: 'rgba(16, 185, 129, 0.55)',
+    slotFilledBg: '#ecfdf5',
+    uploadError: '#b91c1c',
+    cta: ['#db2777', '#ea580c', '#f59e0b'],
+  };
 }
 
 const ConnectPhotosRequiredModal = memo(function ConnectPhotosRequiredModal({
@@ -44,8 +130,7 @@ const ConnectPhotosRequiredModal = memo(function ConnectPhotosRequiredModal({
   photoCount,
   connectShell,
 }: ConnectPhotosRequiredModalProps) {
-  const rim = useMemo(() => rimGradient(connectShell), [connectShell]);
-  const cta = useMemo(() => ctaGradient(connectShell), [connectShell]);
+  const chrome = useMemo(() => photosModalChrome(connectShell), [connectShell]);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [optimisticCount, setOptimisticCount] = useState(0);
@@ -108,19 +193,32 @@ const ConnectPhotosRequiredModal = memo(function ConnectPhotosRequiredModal({
       statusBarTranslucent
     >
       <TouchableOpacity
-        style={styles.overlay}
+        style={[styles.overlay, { backgroundColor: chrome.overlay }]}
         activeOpacity={1}
         onPress={() => {
           if (!uploading) onClose();
         }}
       >
         <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={styles.sheet}>
-          <View style={styles.handleBar} accessibilityElementsHidden />
+          <View
+            style={[styles.handleBar, { backgroundColor: chrome.handleBar }]}
+            accessibilityElementsHidden
+          />
 
-          <LinearGradient colors={rim} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.rim}>
-            <View style={styles.inner}>
+          <LinearGradient
+            colors={chrome.rim}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[
+              styles.rim,
+              connectShell === 'midnight' && Platform.OS === 'ios'
+                ? { shadowColor: '#7c3aed' }
+                : null,
+            ]}
+          >
+            <View style={[styles.inner, { backgroundColor: chrome.innerBg }]}>
               <LinearGradient
-                colors={['#be185d', '#ea580c', '#d97706']}
+                colors={chrome.header}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.header}
@@ -133,15 +231,24 @@ const ConnectPhotosRequiredModal = memo(function ConnectPhotosRequiredModal({
               </LinearGradient>
 
               <View style={styles.body}>
-                <Text style={styles.lead}>
+                <Text style={[styles.lead, { color: chrome.lead }]}>
                   You&apos;re set up with name and location — add{' '}
-                  <Text style={styles.leadStrong}>one clear photo</Text> on your Profile so you&apos;re ready
-                  to match others when we launch.
+                  <Text style={[styles.leadStrong, { color: chrome.leadStrong }]}>one clear photo</Text> on
+                  your Profile so you&apos;re ready to match others when we launch.
                 </Text>
 
                 <View style={styles.slotRow} accessibilityLabel={`${displayCount} of ${MIN_PHOTOS_TO_CONNECT} photos`}>
                   {displayHasPhoto ? (
-                    <View style={[styles.slot, styles.slotFilled]}>
+                    <View
+                      style={[
+                        styles.slot,
+                        styles.slotFilled,
+                        {
+                          borderColor: chrome.slotFilledBorder,
+                          backgroundColor: chrome.slotFilledBg,
+                        },
+                      ]}
+                    >
                       <Text style={styles.slotEmoji}>📷</Text>
                       <View style={styles.slotCheck}>
                         <Text style={styles.slotCheckText}>✓</Text>
@@ -149,7 +256,15 @@ const ConnectPhotosRequiredModal = memo(function ConnectPhotosRequiredModal({
                     </View>
                   ) : (
                     <TouchableOpacity
-                      style={[styles.slot, styles.slotEmpty, uploading && styles.slotUploading]}
+                      style={[
+                        styles.slot,
+                        styles.slotEmpty,
+                        uploading && styles.slotUploading,
+                        {
+                          borderColor: chrome.slotEmptyBorder,
+                          backgroundColor: chrome.slotEmptyBg,
+                        },
+                      ]}
                       onPress={() => void handleSlotPress()}
                       disabled={uploading}
                       activeOpacity={0.85}
@@ -157,38 +272,54 @@ const ConnectPhotosRequiredModal = memo(function ConnectPhotosRequiredModal({
                       accessibilityLabel={uploading ? 'Uploading photo' : 'Upload a photo'}
                     >
                       {uploading ? (
-                        <ActivityIndicator color="#f472b6" size="small" />
+                        <ActivityIndicator color={chrome.slotPlus} size="small" />
                       ) : (
-                        <Text style={styles.slotPlus}>+</Text>
+                        <Text style={[styles.slotPlus, { color: chrome.slotPlus }]}>+</Text>
                       )}
                     </TouchableOpacity>
                   )}
                 </View>
 
-                <Text style={styles.progress}>
+                <Text style={[styles.progress, { color: chrome.progress }]}>
                   {uploading ? (
                     'Uploading your photo…'
                   ) : displayHasPhoto ? (
                     "Photo added — you're ready for launch day"
                   ) : (
                     <>
-                      <Text style={styles.progressStrong}>Tap + to upload</Text>, or use the button below
+                      <Text style={[styles.progressStrong, { color: chrome.progressStrong }]}>
+                        Tap + to upload
+                      </Text>
+                      , or use the button below
                     </>
                   )}
                 </Text>
 
                 {uploadError ? (
-                  <Text style={styles.uploadError} accessibilityRole="alert">
+                  <Text
+                    style={[styles.uploadError, { color: chrome.uploadError }]}
+                    accessibilityRole="alert"
+                  >
                     {uploadError}
                   </Text>
                 ) : null}
 
                 <View style={styles.chips}>
-                  <View style={styles.chip}>
-                    <Text style={styles.chipText}>😊 Face visible</Text>
+                  <View
+                    style={[
+                      styles.chip,
+                      { backgroundColor: chrome.chipBg, borderColor: chrome.chipBorder },
+                    ]}
+                  >
+                    <Text style={[styles.chipText, { color: chrome.chipText }]}>😊 Face visible</Text>
                   </View>
-                  <View style={styles.chip}>
-                    <Text style={styles.chipText}>☀️ Recent pic</Text>
+                  <View
+                    style={[
+                      styles.chip,
+                      { backgroundColor: chrome.chipBg, borderColor: chrome.chipBorder },
+                    ]}
+                  >
+                    <Text style={[styles.chipText, { color: chrome.chipText }]}>☀️ Recent pic</Text>
                   </View>
                 </View>
               </View>
@@ -202,7 +333,12 @@ const ConnectPhotosRequiredModal = memo(function ConnectPhotosRequiredModal({
                   accessibilityRole="button"
                   accessibilityLabel={displayHasPhoto ? 'View on Profile' : 'Add my photo'}
                 >
-                  <LinearGradient colors={cta} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.primaryGradient}>
+                  <LinearGradient
+                    colors={chrome.cta}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.primaryGradient}
+                  >
                     <Text style={styles.primaryText}>{displayHasPhoto ? 'View on Profile →' : 'Add my photo →'}</Text>
                   </LinearGradient>
                 </TouchableOpacity>
@@ -212,7 +348,7 @@ const ConnectPhotosRequiredModal = memo(function ConnectPhotosRequiredModal({
                   disabled={uploading}
                   accessibilityRole="button"
                 >
-                  <Text style={styles.secondaryText}>Not now</Text>
+                  <Text style={[styles.secondaryText, { color: chrome.secondaryText }]}>Not now</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -228,7 +364,6 @@ export default ConnectPhotosRequiredModal;
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(45, 17, 24, 0.62)',
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
@@ -243,7 +378,6 @@ const styles = StyleSheet.create({
     width: 42,
     height: 4,
     borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.4)',
     marginBottom: 12,
   },
   rim: {
@@ -262,7 +396,6 @@ const styles = StyleSheet.create({
   inner: {
     borderRadius: 19,
     overflow: 'hidden',
-    backgroundColor: '#fffefb',
   },
   header: {
     paddingHorizontal: 22,
@@ -299,12 +432,10 @@ const styles = StyleSheet.create({
   lead: {
     fontSize: 15,
     lineHeight: 22,
-    color: '#475569',
     textAlign: 'center',
   },
   leadStrong: {
     fontWeight: '700',
-    color: '#be185d',
   },
   slotRow: {
     flexDirection: 'row',
@@ -322,8 +453,6 @@ const styles = StyleSheet.create({
   slotEmpty: {
     borderWidth: 2,
     borderStyle: 'dashed',
-    borderColor: 'rgba(244, 63, 94, 0.45)',
-    backgroundColor: 'rgba(255, 241, 245, 0.95)',
   },
   slotUploading: {
     borderStyle: 'solid',
@@ -331,13 +460,10 @@ const styles = StyleSheet.create({
   },
   slotFilled: {
     borderWidth: 2,
-    borderColor: 'rgba(16, 185, 129, 0.55)',
-    backgroundColor: '#ecfdf5',
   },
   slotPlus: {
     fontSize: 32,
     fontWeight: '300',
-    color: '#f472b6',
   },
   slotEmoji: {
     fontSize: 28,
@@ -361,18 +487,15 @@ const styles = StyleSheet.create({
   progress: {
     fontSize: 14,
     lineHeight: 20,
-    color: '#64748b',
     textAlign: 'center',
     marginBottom: 14,
   },
   progressStrong: {
     fontWeight: '700',
-    color: '#be185d',
   },
   uploadError: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#b91c1c',
     textAlign: 'center',
     marginBottom: 10,
   },
@@ -387,14 +510,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 12,
-    backgroundColor: 'rgba(253, 242, 248, 0.98)',
     borderWidth: 1,
-    borderColor: 'rgba(251, 191, 36, 0.4)',
   },
   chipText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#581c87',
   },
   actions: {
     paddingHorizontal: 20,
@@ -432,6 +552,5 @@ const styles = StyleSheet.create({
   secondaryText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#94a3b8',
   },
 });
