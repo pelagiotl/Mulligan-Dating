@@ -991,6 +991,8 @@ function EmptyStateAnimated({
   shellIsMidnightAndroid,
   supportHintColor,
   supportUserId,
+  supportDisplayName,
+  supportPhoneNumber,
   supportAvailableTokens,
   supportActiveMatches,
   supportSlotLimit,
@@ -1000,6 +1002,8 @@ function EmptyStateAnimated({
   shellIsMidnightAndroid?: boolean;
   supportHintColor?: string;
   supportUserId?: string | null;
+  supportDisplayName?: string | null;
+  supportPhoneNumber?: string | null;
   supportAvailableTokens?: number;
   supportActiveMatches?: number;
   supportSlotLimit?: number;
@@ -1141,6 +1145,8 @@ function EmptyStateAnimated({
       </TouchableOpacity>
       <MatchesSupportNote
         userId={supportUserId}
+        displayName={supportDisplayName}
+        phoneNumber={supportPhoneNumber}
         availableTokens={supportAvailableTokens}
         activeMatches={supportActiveMatches}
         slotLimit={supportSlotLimit}
@@ -1288,7 +1294,7 @@ function PhotoUnlockStage1BannerAndroid({
 }
 
 export default function MatchesScreen() {
-  const { user, isAuthenticated, loading: authLoading, registerMatchListRefresh } = useAuth();
+  const { user, profile, isAuthenticated, loading: authLoading, registerMatchListRefresh } = useAuth();
   const navigation = useNavigation();
   const route = useRoute();
   const isFocused = useIsFocused();
@@ -2496,6 +2502,8 @@ export default function MatchesScreen() {
       />
       <MatchesSupportNote
         userId={user?.id}
+        displayName={profile?.display_name ?? profile?.displayName}
+        phoneNumber={user?.phoneNumber}
         availableTokens={availableTokens}
         activeMatches={matchSlotStatus?.count ?? 0}
         slotLimit={matchSlotStatus?.slotLimit ?? 10}
@@ -3258,6 +3266,8 @@ export default function MatchesScreen() {
             shellIsMidnightAndroid={Platform.OS === 'android' && connectShellMode === 'midnight'}
             supportHintColor={matchesSupportHintColor}
             supportUserId={user?.id}
+            supportDisplayName={profile?.display_name ?? profile?.displayName}
+            supportPhoneNumber={user?.phoneNumber}
             supportAvailableTokens={availableTokens}
             supportActiveMatches={matchSlotStatus?.count ?? 0}
             supportSlotLimit={matchSlotStatus?.slotLimit ?? 10}

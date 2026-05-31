@@ -2,13 +2,15 @@ import { getMatchesSupportMailtoUrl, type MatchesSupportContext } from "../const
 
 type Props = Pick<
   MatchesSupportContext,
-  "userId" | "availableTokens" | "activeMatches" | "slotLimit"
+  "userId" | "displayName" | "phoneNumber" | "availableTokens" | "activeMatches" | "slotLimit"
 > & {
   className?: string;
 };
 
 export default function MatchesSupportNote({
   userId,
+  displayName,
+  phoneNumber,
   availableTokens,
   activeMatches,
   slotLimit,
@@ -16,6 +18,8 @@ export default function MatchesSupportNote({
 }: Props) {
   const href = getMatchesSupportMailtoUrl({
     userId,
+    displayName,
+    phoneNumber,
     surface: "web",
     availableTokens,
     activeMatches,

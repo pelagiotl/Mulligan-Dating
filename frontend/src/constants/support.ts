@@ -5,11 +5,18 @@ const MATCHES_SUPPORT_SUBJECT = "Mulligan — question from Matches";
 
 export type MatchesSupportContext = {
   userId?: string | null;
+  displayName?: string | null;
+  phoneNumber?: string | null;
   surface: "web" | "android" | "ios";
   availableTokens?: number;
   activeMatches?: number;
   slotLimit?: number;
 };
+
+function supportFieldLine(label: string, value: string | null | undefined): string {
+  const trimmed = value?.trim();
+  return `${label}: ${trimmed ? trimmed : "—"}`;
+}
 
 /** Per-line encoding avoids `+` for spaces (URLSearchParams / form-style mailto bugs). */
 function encodeMailtoBody(lines: string[]): string {
@@ -22,8 +29,10 @@ function buildMatchesSupportBodyLines(ctx: MatchesSupportContext): string[] {
     "",
     "I have a question about my Matches tab.",
     "",
-    `User ID: ${ctx.userId ?? "unknown"}`,
-    `App: ${ctx.surface}`,
+    supportFieldLine("Name", ctx.displayName),
+    supportFieldLine("Phone", ctx.phoneNumber),
+    supportFieldLine("User ID", ctx.userId ?? undefined),
+    supportFieldLine("App", ctx.surface),
   ];
   if (ctx.availableTokens != null) {
     lines.push(`Mulligans available: ${ctx.availableTokens}`);

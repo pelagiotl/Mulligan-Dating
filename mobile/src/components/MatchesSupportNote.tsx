@@ -4,13 +4,15 @@ import { openMatchesSupportEmail, type MatchesSupportContext } from '../constant
 
 type Props = Pick<
   MatchesSupportContext,
-  'userId' | 'availableTokens' | 'activeMatches' | 'slotLimit'
+  'userId' | 'displayName' | 'phoneNumber' | 'availableTokens' | 'activeMatches' | 'slotLimit'
 > & {
   hintColor?: string;
 };
 
 export default function MatchesSupportNote({
   userId,
+  displayName,
+  phoneNumber,
   availableTokens,
   activeMatches,
   slotLimit,
@@ -19,6 +21,8 @@ export default function MatchesSupportNote({
   const onPress = () => {
     openMatchesSupportEmail({
       userId,
+      displayName,
+      phoneNumber,
       availableTokens,
       activeMatches,
       slotLimit,

@@ -207,7 +207,7 @@ const PULSE_ENGAGEMENT_LABEL: Record<"cold" | "neutral" | "warming" | "hot", str
 };
 
 export default function Matches() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { mode: connectShellMode } = useConnectShellTheme();
   const location = useLocation();
   const navigate = useNavigate();
@@ -2145,6 +2145,8 @@ export default function Matches() {
           />
           <MatchesSupportNote
             userId={user?.id}
+            displayName={profile?.displayName}
+            phoneNumber={user?.phoneNumber}
             availableTokens={connectionLimits.availableTokens}
             activeMatches={connectionLimits.activeMatches}
             slotLimit={connectionLimits.slotLimit}
@@ -2161,6 +2163,8 @@ export default function Matches() {
             <MatchesSupportNote
               className="matches-support-note--empty"
               userId={user?.id}
+              displayName={profile?.displayName}
+              phoneNumber={user?.phoneNumber}
               availableTokens={connectionLimits.availableTokens}
               activeMatches={connectionLimits.activeMatches}
               slotLimit={connectionLimits.slotLimit}
