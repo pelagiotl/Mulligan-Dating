@@ -30,6 +30,7 @@ import {
 } from "../utils/createProfileProgress";
 import { getCreateProfileSupportMailtoUrl } from "../constants/support";
 import { markWebPushPromptAfterProfile } from "../constants/webPushPrompt";
+import { playMatchCelebrationSound, unlockMatchAudio } from "../utils/matchSound";
 
 const GENDER_OPTIONS = ["Man", "Woman", "Other"] as const;
 const GENDER_OPTION_META: Record<(typeof GENDER_OPTIONS)[number], { emoji: string; label: string }> = {
@@ -680,6 +681,11 @@ export default function CreateProfile() {
   }, [profileReadyForPhotos, saveProfileBeforePhotos]);
 
   useEffect(() => {
+    if (!showProfileReadySplash) return;
+    playMatchCelebrationSound();
+  }, [showProfileReadySplash]);
+
+  useEffect(() => {
     if (step < TOTAL_STEPS) {
       setProfileReadyForPhotos(false);
     }
@@ -948,6 +954,7 @@ export default function CreateProfile() {
       return;
     }
 
+    unlockMatchAudio();
     setLoading(true);
     try {
       setSavingProfileDraft(true);
@@ -1141,7 +1148,10 @@ export default function CreateProfile() {
                 ? "Enter city and state (e.g. Medford, Oregon) or use your location"
                 : undefined
           }
-          onClick={() => void handleCompleteProfile()}
+          onClick={() => {
+            unlockMatchAudio();
+            void handleCompleteProfile();
+          }}
         >
           {loading || savingProfileDraft ? "Saving…" : "Complete Profile →"}
         </button>
@@ -1222,7 +1232,7 @@ export default function CreateProfile() {
           </div>
           <div className="create-profile-ready-card">
             <span className="create-profile-ready-emoji" aria-hidden>
-              🎉
+              <span className="create-profile-ready-emoji-mark">✨</span>
             </span>
             <h2 id="profile-ready-title" className="create-profile-ready-title">
               Nice — you&apos;re in.
