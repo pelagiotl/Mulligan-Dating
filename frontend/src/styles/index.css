@@ -12492,14 +12492,26 @@ button.chat-avatar-btn .chat-avatar img {
   font-weight: 600;
 }
 
-.chat-composer-unlock-count {
+.chat-composer-unlock-count,
+.chat-media-lock-hint-count {
+  display: inline-block;
   font-variant-numeric: tabular-nums;
   font-weight: 800;
-  color: rgba(45, 17, 24, 0.5);
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+  color: #431407;
+  padding: 0.14rem 0.5rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(244, 63, 94, 0.32);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.1);
 }
 
-.chat-composer-unlock-count--done {
-  color: #059669;
+.chat-composer-unlock-count--done,
+.chat-media-lock-hint-count--done {
+  color: #047857;
+  background: rgba(209, 250, 229, 0.98);
+  border-color: rgba(16, 185, 129, 0.4);
 }
 
 .chat-composer-unlock-almost {
@@ -12753,16 +12765,6 @@ button.chat-avatar-btn .chat-avatar img {
 .chat-media-lock-hint-counts {
   white-space: nowrap;
   font-weight: 600;
-}
-
-.chat-media-lock-hint-count {
-  font-variant-numeric: tabular-nums;
-  font-weight: 800;
-  color: rgba(45, 17, 24, 0.5);
-}
-
-.chat-media-lock-hint-count--done {
-  color: #059669;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -17510,20 +17512,22 @@ button.match-celebration-photo-btn:disabled:focus-visible {
 }
 
 .chat-media-modal-progress-count {
+  display: inline-block;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
-  font-size: 0.9rem;
-  color: var(--color-wine-900, #431407);
-  padding: 0.1rem 0.45rem;
+  font-size: 0.92rem;
+  color: #431407;
+  padding: 0.14rem 0.5rem;
   border-radius: 8px;
-  background: rgba(244, 63, 94, 0.08);
-  border: 1px solid rgba(244, 63, 94, 0.18);
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(244, 63, 94, 0.35);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
 }
 
 .chat-media-modal-progress-count--done {
   color: #047857 !important;
-  background: rgba(16, 185, 129, 0.12);
-  border-color: rgba(16, 185, 129, 0.28);
+  background: rgba(209, 250, 229, 0.98) !important;
+  border-color: rgba(16, 185, 129, 0.4) !important;
 }
 
 .chat-media-modal-progress-track {

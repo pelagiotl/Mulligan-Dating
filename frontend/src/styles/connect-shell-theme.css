@@ -1609,6 +1609,29 @@ html[data-connect-shell="midnight"] .matches-page .chat-media-lock-hint-text str
   color: #f1f5f9;
 }
 
+html[data-connect-shell="midnight"] .matches-page .chat-composer-unlock-count,
+html[data-connect-shell="midnight"] .matches-page .chat-media-lock-hint-count,
+.app-layout.connect-shell--midnight .matches-page .chat-composer-unlock-count,
+.app-layout.connect-shell--midnight .matches-page .chat-media-lock-hint-count {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(196, 181, 253, 0.5);
+  box-shadow:
+    0 1px 6px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(255, 255, 255, 0.12) inset;
+  -webkit-text-fill-color: #fff;
+}
+
+html[data-connect-shell="midnight"] .matches-page .chat-composer-unlock-count--done,
+html[data-connect-shell="midnight"] .matches-page .chat-media-lock-hint-count--done,
+.app-layout.connect-shell--midnight .matches-page .chat-composer-unlock-count--done,
+.app-layout.connect-shell--midnight .matches-page .chat-media-lock-hint-count--done {
+  color: #a7f3d0;
+  background: rgba(16, 185, 129, 0.28);
+  border-color: rgba(110, 231, 183, 0.55);
+  -webkit-text-fill-color: #a7f3d0;
+}
+
 html[data-connect-shell="midnight"] .matches-page .chat-unlock-banner__icon-ring,
 .app-layout.connect-shell--midnight .matches-page .chat-unlock-banner__icon-ring {
   background: radial-gradient(circle at 35% 30%, rgba(52, 48, 68, 0.98), rgba(30, 27, 46, 0.75));

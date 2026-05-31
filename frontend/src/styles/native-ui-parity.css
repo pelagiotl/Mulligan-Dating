@@ -3229,22 +3229,28 @@ button.connect-landing__cta:disabled::before {
 }
 
 .tod-web-msg-gate-count {
+  display: inline-block;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
-  font-size: 0.9rem;
-  letter-spacing: 0.02em;
+  font-size: 1rem;
+  letter-spacing: 0.03em;
   color: #fff;
-  padding: 0.12rem 0.5rem;
+  padding: 0.18rem 0.55rem;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.16);
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+  background: rgba(255, 255, 255, 0.28);
+  border: 1.5px solid rgba(255, 255, 255, 0.55);
+  box-shadow:
+    0 1px 6px rgba(0, 0, 0, 0.35),
+    0 0 12px rgba(255, 255, 255, 0.08);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  -webkit-text-fill-color: #fff;
 }
 
 .tod-web-msg-gate-count--done {
   color: #ecfdf5;
-  background: rgba(16, 185, 129, 0.22);
-  border-color: rgba(110, 231, 183, 0.45);
+  background: rgba(16, 185, 129, 0.32);
+  border-color: rgba(110, 231, 183, 0.6);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
 }
 
 .tod-web-msg-gate-track {
