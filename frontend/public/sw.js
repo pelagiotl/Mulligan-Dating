@@ -3,6 +3,15 @@
 
 const FALLBACK_PATH = "/matches";
 const NAV_MSG = "MULLIGAN_NOTIFICATION_NAVIGATE";
+const PLAY_MATCH_SOUND = "MULLIGAN_PLAY_MATCH_SOUND";
+const PLAY_MESSAGE_SOUND = "MULLIGAN_PLAY_MESSAGE_SOUND";
+
+const MESSAGE_PUSH_TYPES = new Set([
+  "new_message",
+  "message_liked",
+  "message_laughed",
+  "message_heart_eyes",
+]);
 
 function parseClickUrlFromNotificationData(data) {
   if (data == null) return FALLBACK_PATH;
@@ -62,6 +71,35 @@ function buildPwaLaunchPageUrl(origin, absoluteTargetHref) {
   }
 }
 
+function pushTypeFromData(data) {
+  if (!data || typeof data !== "object") return "";
+  const t = data.type;
+  return typeof t === "string" ? t : "";
+}
+
+async function notifyOpenClients(payload, openUrl, data) {
+  const clientList = await clients.matchAll({ type: "window", includeUncontrolled: true });
+  const origin = self.location.origin;
+  const pushType = pushTypeFromData(data);
+
+  for (const client of clientList) {
+    if (typeof client.url !== "string" || !client.url.startsWith(origin)) continue;
+    try {
+      if (pushType === "new_match") {
+        client.postMessage({
+          type: PLAY_MATCH_SOUND,
+          matchId: typeof data.matchId === "string" ? data.matchId : undefined,
+          pushType,
+        });
+      } else if (MESSAGE_PUSH_TYPES.has(pushType)) {
+        client.postMessage({ type: PLAY_MESSAGE_SOUND, pushType });
+      }
+    } catch (_) {
+      /* ignore */
+    }
+  }
+}
+
 self.addEventListener("push", (event) => {
   let payload = {
     title: "Mulligan",
@@ -89,14 +127,18 @@ self.addEventListener("push", (event) => {
   const data = { url: openUrl, ...payload.data };
 
   event.waitUntil(
-    self.registration.showNotification(payload.title, {
-      body: payload.body,
-      tag: payload.tag,
-      renotify: true,
-      data,
-      icon: "/favicon.ico",
-      badge: "/favicon.ico",
-    })
+    (async () => {
+      await notifyOpenClients(payload, openUrl, data);
+      await self.registration.showNotification(payload.title, {
+        body: payload.body,
+        tag: payload.tag,
+        renotify: true,
+        data,
+        icon: "/favicon.ico",
+        badge: "/favicon.ico",
+        silent: false,
+      });
+    })()
   );
 });
 

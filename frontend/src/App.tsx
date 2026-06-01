@@ -22,8 +22,9 @@ import Layout from './components/Layout'
 import BrandMark from './components/BrandMark'
 import SessionBootstrapScreen from './components/SessionBootstrapScreen'
 import { hasStoredAuthToken } from './lib/authToken'
-import { playMatchSound } from './utils/matchSound'
+import { playMatchCelebrationSound } from './utils/matchSound'
 import WebMessageNotifications from './components/WebMessageNotifications'
+import { isIncomingMatchForConnectInitiator } from './lib/connectInitiator'
 
 const PWA_OPEN_PARAM = 'pwaOpen'
 
@@ -220,11 +221,6 @@ function NewMatchesNotification() {
   const { isAuthenticated, user } = useAuth()
   const socketRef = useRef<Socket | null>(null)
 
-  /** Real-time match only — not login digest / stale localStorage toasts. */
-  const playRealtimeMatchSound = useCallback(() => {
-    playMatchSound(0.45);
-  }, []);
-
   useEffect(() => {
     if (!isAuthenticated || !user) return
 
@@ -251,8 +247,11 @@ function NewMatchesNotification() {
     // Listen for new_match events from socket
     socket.on('new_match', (data: { matchId: string; otherUserId: string; otherUserName: string; message: string; stage: string }) => {
       console.log('✅ NewMatchesNotification: Received new_match event via socket:', data)
+      if (!isIncomingMatchForConnectInitiator(data.matchId)) {
+        playMatchCelebrationSound()
+        navigate('/matches', { state: { openMatchId: data.matchId } })
+      }
       setNotification(data.message)
-      playRealtimeMatchSound()
     })
 
     // Check for new matches notification stored during login (toast only — no sound)
@@ -317,7 +316,7 @@ function NewMatchesNotification() {
         socketRef.current = null
       }
     }
-  }, [isAuthenticated, user, playRealtimeMatchSound]) // Re-run when authentication state changes
+  }, [isAuthenticated, user, navigate])
 
   if (!notification) return null
 

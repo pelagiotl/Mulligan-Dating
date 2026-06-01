@@ -99,6 +99,19 @@ export async function sendWebPushToUser(userId: string, payload: WebPushOsPayloa
   return ok;
 }
 
+/** Whether the user wants match-related push (default on). */
+export async function userWantsMatchPush(userId: string): Promise<boolean> {
+  let rowResult = db.prepare("SELECT push_notify_matches FROM users WHERE id = ?").get([userId]);
+  const row = (rowResult instanceof Promise ? await rowResult : rowResult) as {
+    push_notify_matches: number | null;
+  } | undefined;
+  return (
+    row?.push_notify_matches === undefined ||
+    row?.push_notify_matches === null ||
+    row.push_notify_matches !== 0
+  );
+}
+
 /** Whether the user wants message-related push (default on). */
 export async function userWantsMessagePush(userId: string): Promise<boolean> {
   let rowResult = db.prepare("SELECT push_notify_messages FROM users WHERE id = ?").get([userId]);
@@ -127,6 +140,23 @@ export async function sendMessageWebPush(
   if (n === 0) {
     console.warn(
       `📲 Web Push (message): no delivery for user ${recipientUserId} — no active browser subscription (re-enable in Settings on that device)`
+    );
+  }
+  return n;
+}
+
+/** Match Web Push if VAPID is configured and user prefs allow. */
+export async function sendMatchWebPush(
+  recipientUserId: string,
+  payload: WebPushOsPayload
+): Promise<number> {
+  if (!webPushReady) return 0;
+  const wants = await userWantsMatchPush(recipientUserId);
+  if (!wants) return 0;
+  const n = await sendWebPushToUser(recipientUserId, payload);
+  if (n === 0) {
+    console.warn(
+      `📲 Web Push (match): no delivery for user ${recipientUserId} — no active browser subscription (re-enable in Settings on that device)`
     );
   }
   return n;

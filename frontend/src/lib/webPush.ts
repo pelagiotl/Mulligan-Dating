@@ -28,7 +28,7 @@ export function browserSupportsWebPush(): boolean {
 async function waitForServiceWorkerRegistration(): Promise<ServiceWorkerRegistration> {
   const existing = await navigator.serviceWorker.getRegistration("/");
   if (existing?.active) return existing;
-  const reg = await navigator.serviceWorker.register("/sw.js?v=notification-nav-4", { scope: "/" });
+  const reg = await navigator.serviceWorker.register("/sw.js?v=notification-sounds-1", { scope: "/" });
   await navigator.serviceWorker.ready;
   await reg.update();
   return reg;

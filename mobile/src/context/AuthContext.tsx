@@ -27,6 +27,7 @@ import {
   hasMobileCreateProfileDraft,
 } from '../utils/createProfileProgress';
 import { playMessageSound, playMatchSound } from '../utils/sounds';
+import { initiatorMatchIdRef, connectInitiatorAtRef } from '../utils/currentMatchView';
 import { setPendingGameRequest } from '../utils/pendingGameRequest';
 import { currentMatchIdRef } from '../utils/currentMatchView';
 import Purchases from 'react-native-purchases';
@@ -340,12 +341,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         );
       }
 
-      // New match: go straight to big MatchCelebration (no small alert). Sound plays when MatchCelebration mounts.
+      // New match: celebration sound + navigation (User B). Initiator already has celebration from Connect.
       if (data?.type === 'new_match') {
         console.log('🎉 New match notification:', {
           matchId: data.matchId,
           matchName: data.matchName,
         });
+        const isInitiatorMatch =
+          !!data?.matchId &&
+          (initiatorMatchIdRef.current === data.matchId ||
+            (connectInitiatorAtRef.current != null &&
+              Date.now() - connectInitiatorAtRef.current < 15000));
+        if (!isInitiatorMatch) {
+          playMatchSound().catch(() => {});
+        }
         if (data?.matchId) {
           const attemptNavigation = (attemptNumber: number = 0) => {
             const maxAttempts = 10;

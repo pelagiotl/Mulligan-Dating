@@ -12,26 +12,13 @@ import './styles/connect-shell-theme.css'
 import './styles/connect-button-effects.css'
 import './styles/legal-document.css'
 import { applyConnectShellMode, DEFAULT_CONNECT_SHELL_MODE } from './lib/connectShellTheme'
+import { registerPushSoundBridge } from './lib/pushSoundBridge'
 
 if (typeof document !== 'undefined') {
   applyConnectShellMode(DEFAULT_CONNECT_SHELL_MODE)
 }
 
-// iOS Safari: notification clicks may focus a window without navigating, or deep links can 404 on cold start.
-// Service worker uses /?pwaOpen=... (see public/sw.js); App.tsx applies the route. Main thread also handles
-// postMessage for older SW versions.
-if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
-  navigator.serviceWorker.addEventListener('message', (event: MessageEvent) => {
-    const d = event.data as { type?: string; url?: string } | undefined
-    if (d?.type === 'MULLIGAN_NOTIFICATION_NAVIGATE' && typeof d.url === 'string' && d.url.trim()) {
-      try {
-        window.location.assign(d.url)
-      } catch {
-        /* ignore */
-      }
-    }
-  })
-}
+registerPushSoundBridge()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

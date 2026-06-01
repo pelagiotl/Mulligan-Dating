@@ -4,7 +4,7 @@ import { io, Socket } from "socket.io-client";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { shouldSuppressInAppMessageToast } from "../lib/currentMatchView";
-import { playMessageChime } from "../utils/matchSound";
+import { playMessageNotificationSound } from "../utils/matchSound";
 
 type Toast = {
   id: string;
@@ -40,11 +40,12 @@ export default function WebMessageNotifications() {
   userIdRef.current = user?.id ?? null;
 
   const showToast = useCallback((senderName: string, preview: string, matchId: string) => {
+    const id = `${Date.now()}-${matchId}`;
+    playMessageNotificationSound();
+
     if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
 
-    const id = `${Date.now()}-${matchId}`;
     setToast({ id, senderName, preview, matchId });
-    playMessageChime();
 
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     hideTimerRef.current = setTimeout(() => {
@@ -102,6 +103,7 @@ export default function WebMessageNotifications() {
       }
       if (preview.length > 50) preview = `${preview.slice(0, 50)}...`;
 
+      playMessageNotificationSound();
       showToast(senderName, preview, data.matchId);
     };
 

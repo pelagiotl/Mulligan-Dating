@@ -924,7 +924,7 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
         }
 
         const { sendMatchPushNotification, isPushNotificationConfigured, isExpoPushToken } = await import('../services/pushNotifications.js');
-        const { sendWebPushToUser, isWebPushConfigured } = await import('../services/webPushDelivery.js');
+        const { sendMatchWebPush, isWebPushConfigured } = await import('../services/webPushDelivery.js');
         const userPushRow = (await (db
           .prepare("SELECT push_token, push_notify_matches FROM users WHERE id = ?")
           .get([userId]) as Promise<{ push_token: string | null; push_notify_matches: number | null } | undefined>)) as { push_token: string | null; push_notify_matches: number | null } | undefined;
@@ -955,7 +955,7 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
             console.log(`📲 Match push: no Expo token for ${recipientId} (${label}); Web Push may still deliver.`);
           }
           if (isWebPushConfigured()) {
-            const n = await sendWebPushToUser(recipientId, {
+            const n = await sendMatchWebPush(recipientId, {
               title: "😍 New match!",
               body: `${matchName} matched with you. Say hi!`,
               tag: `match-${matchId}`,

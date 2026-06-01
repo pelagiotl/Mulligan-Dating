@@ -20,6 +20,11 @@ import MatchLimitModalWeb from "../components/MatchLimitModalWeb";
 import ConnectLandingTagline from "../components/ConnectLandingTagline";
 import LandingAddToHomePrompt from "../components/LandingAddToHomePrompt";
 import { unlockMatchAudio } from "../utils/matchSound";
+import {
+  clearConnectInitiator,
+  markConnectInitiator,
+  markConnectInitiatorPending,
+} from "../lib/connectInitiator";
 import WebPushOnboardingPrompt from "../components/WebPushOnboardingPrompt";
 import { shouldShowWebPushPromptAfterProfile } from "../constants/webPushPrompt";
 import ConnectPhotosRequiredModalWeb from "../components/ConnectPhotosRequiredModalWeb";
@@ -569,6 +574,7 @@ export default function Browse() {
       }
 
       unlockMatchAudio();
+      markConnectInitiatorPending();
 
       const hadBrowseSession = browseSessionActiveRef.current;
 
@@ -596,6 +602,7 @@ export default function Browse() {
         setConnecting(false);
 
         if (!result?.matchId) {
+          clearConnectInitiator();
           setShowMatchCelebration(false);
           setMatchedProfile(null);
           setCelebrationMatchId(null);
@@ -606,6 +613,7 @@ export default function Browse() {
         }
 
         if (result.existingMatch) {
+          clearConnectInitiator();
           setShowMatchCelebration(false);
           setMatchedProfile(null);
           setCelebrationMatchId(null);
@@ -613,6 +621,7 @@ export default function Browse() {
           return;
         }
 
+        markConnectInitiator(result.matchId);
         setCelebrationMatchId(result.matchId);
         setBrowseSessionActive(true);
 
@@ -650,6 +659,7 @@ export default function Browse() {
       } catch (err) {
         console.error("❌ Connect error:", err);
 
+        clearConnectInitiator();
         setShowMatchCelebration(false);
         setMatchedProfile(null);
         setCelebrationMatchId(null);

@@ -4,19 +4,30 @@
  */
 
 export function matchSoundPublicUrl(): string {
-  const base = import.meta.env.BASE_URL.endsWith("/")
-    ? import.meta.env.BASE_URL
-    : `${import.meta.env.BASE_URL}/`;
-  return `${base}match-sound.wav`;
+  return assetPublicUrl("match-sound.wav");
+}
+
+export function messageSoundPublicUrl(): string {
+  return assetPublicUrl("message-sound.mp3");
 }
 
 /** Playback instance — primed on unlock, used for celebrations. */
 let celebrationAudio: HTMLAudioElement | null = null;
+let messageAudio: HTMLAudioElement | null = null;
 let audioContext: AudioContext | null = null;
 let suppressMatchSoundUntil = 0;
 let lastCelebrationPlayedAt = 0;
+let lastMessagePlayedAt = 0;
 
 const CELEBRATION_COOLDOWN_MS = 3000;
+const MESSAGE_SOUND_COOLDOWN_MS = 1500;
+
+function assetPublicUrl(filename: string): string {
+  const base = import.meta.env.BASE_URL.endsWith("/")
+    ? import.meta.env.BASE_URL
+    : `${import.meta.env.BASE_URL}/`;
+  return `${base}${filename}`;
+}
 
 /** Skip match audio briefly after login / session restore (not live Connect celebrations). */
 export function suppressMatchSoundFor(ms: number): void {
@@ -160,9 +171,16 @@ export function playMatchCelebrationSound(): void {
   playMatchSound(0.55);
 }
 
-/** Short chime for in-app new message alerts (web). */
-export function playMessageChime(): void {
-  if (typeof window === "undefined") return;
+function getMessageAudio(): HTMLAudioElement {
+  if (!messageAudio) {
+    messageAudio = new Audio(messageSoundPublicUrl());
+    messageAudio.preload = "auto";
+    messageAudio.load();
+  }
+  return messageAudio;
+}
+
+function playSyntheticMessageChime(): void {
   try {
     const ctx = ensureAudioContext();
     void ctx.resume().catch(() => {});
@@ -181,4 +199,31 @@ export function playMessageChime(): void {
   } catch {
     /* autoplay blocked */
   }
+}
+
+/** New message alert — bundled message-sound.mp3 when available (in-app or background tab via SW). */
+export function playMessageNotificationSound(): void {
+  if (typeof window === "undefined") return;
+  const now = Date.now();
+  if (now - lastMessagePlayedAt < MESSAGE_SOUND_COOLDOWN_MS) return;
+  lastMessagePlayedAt = now;
+
+  const audio = getMessageAudio();
+  audio.pause();
+  audio.currentTime = 0;
+  audio.muted = false;
+  audio.volume = 0.5;
+
+  void ensureAudioContext()
+    .resume()
+    .catch(() => {})
+    .then(() => audio.play())
+    .catch(() => {
+      playSyntheticMessageChime();
+    });
+}
+
+/** Short chime for in-app new message toasts (visible tab). */
+export function playMessageChime(): void {
+  playMessageNotificationSound();
 }
