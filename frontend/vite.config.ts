@@ -4,6 +4,10 @@ import { copyFileSync, existsSync } from 'fs'
 import { resolve } from 'path'
 
 export default defineConfig({
+  build: {
+    /** Avoid CSS preload helper that can reject app startup on iOS PWA. */
+    modulePreload: false,
+  },
   plugins: [
     react({
       // Completely disable type checking

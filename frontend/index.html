@@ -110,6 +110,9 @@
     </div>
     <script>
       (function () {
+        window.addEventListener("vite:preloadError", function (e) {
+          if (e && e.preventDefault) e.preventDefault();
+        });
         var RELOAD_KEY = "mulligan:pwa-boot-reload";
         function showBootError(msg) {
           var el = document.getElementById("boot-fallback");
@@ -136,8 +139,11 @@
             showBootError("Update needed — tap Reload to open Mulligan.");
           }
         }, true);
-        window.addEventListener("unhandledrejection", function () {
+        window.addEventListener("unhandledrejection", function (e) {
           try { sessionStorage.removeItem(RELOAD_KEY); } catch (err) { /* ignore */ }
+          if (!document.getElementById("boot-fallback")) return;
+          var msg = (e && e.reason && (e.reason.message || String(e.reason))) || "Unknown error";
+          showBootError("Could not start Mulligan. " + msg);
         });
         setTimeout(function () {
           if (!document.getElementById("boot-fallback")) {
@@ -148,6 +154,6 @@
         }, 12000);
       })();
     </script>
-    <script type="module" src="/src/bootstrap.tsx"></script>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

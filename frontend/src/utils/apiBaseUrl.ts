@@ -29,7 +29,13 @@ async function probeSameOriginApi(): Promise<boolean> {
     clearTimeout(timeout)
     if (!response.ok) return false
     const text = await response.text()
-    return text.includes('"status"') && text.includes('ok')
+    if (!text.trim().startsWith('{')) return false
+    try {
+      const j = JSON.parse(text) as { status?: string; ok?: boolean }
+      return j.status === 'ok' || j.ok === true
+    } catch {
+      return false
+    }
   } catch {
     return false
   }
@@ -55,7 +61,9 @@ export async function resolveApiBaseUrl(): Promise<string> {
         }
       }
 
-      cachedBase = configuredCrossOriginApiBase() || '/api'
+      const fallback =
+        configuredCrossOriginApiBase() || 'https://mulligan-backend.onrender.com/api'
+      cachedBase = fallback
       return cachedBase
     })()
   }
