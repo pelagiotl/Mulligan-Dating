@@ -20,14 +20,14 @@ if (typeof document !== 'undefined') {
 
 registerPushSoundBridge()
 
-if (typeof window !== 'undefined') {
+if (typeof document !== 'undefined') {
+  document.getElementById('boot-fallback')?.remove()
   ;(window as Window & { __MULLIGAN_APP_MOUNTED__?: boolean }).__MULLIGAN_APP_MOUNTED__ = true
   try {
     sessionStorage.removeItem('mulligan:pwa-boot-reload')
   } catch {
     /* ignore */
   }
-  document.getElementById('boot-fallback')?.remove()
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

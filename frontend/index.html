@@ -140,14 +140,14 @@
           try { sessionStorage.removeItem(RELOAD_KEY); } catch (err) { /* ignore */ }
         });
         setTimeout(function () {
-          if (window.__MULLIGAN_APP_MOUNTED__) {
+          if (!document.getElementById("boot-fallback")) {
             try { sessionStorage.removeItem(RELOAD_KEY); } catch (err) { /* ignore */ }
             return;
           }
-          showBootError("Taking longer than usual — tap Reload.");
-        }, 22000);
+          showBootError("Still loading — tap Reload to refresh Mulligan.");
+        }, 12000);
       })();
     </script>
-    <script type="module" src="/src/main.tsx"></script>
+    <script type="module" src="/src/bootstrap.tsx"></script>
   </body>
 </html>

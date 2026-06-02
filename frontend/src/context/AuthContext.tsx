@@ -91,7 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     if (token) {
-      fetchUser()
+      void fetchUser()
         .catch((error) => {
           console.log('Token invalid or expired, clearing:', error)
           localStorage.removeItem('token')
