@@ -11,7 +11,7 @@ export default function BrandMark({
   const radius = Math.max(6, Math.round(size * 0.22))
   return (
     <img
-      src="/app-icon.png?v=20260602"
+      src="/app-icon.png?v=20260603"
       alt={alt}
       width={size}
       height={size}

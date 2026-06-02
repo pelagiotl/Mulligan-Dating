@@ -80,21 +80,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const token = localStorage.getItem('token')
+    let cancelled = false
+    const bootTimeoutId = window.setTimeout(() => {
+      if (!cancelled) setLoading(false)
+    }, 25000)
+
+    const finishBoot = () => {
+      cancelled = true
+      window.clearTimeout(bootTimeoutId)
+    }
+
     if (token) {
-      fetchUser().catch((error) => {
-        // If token is invalid, clear it and show login page
-        console.log('Token invalid or expired, clearing:', error)
-        localStorage.removeItem('token')
-        setUser(null)
-        setProfile(null)
-        setConnectSetupComplete(false)
-        setLoading(false)
-      })
+      fetchUser()
+        .catch((error) => {
+          console.log('Token invalid or expired, clearing:', error)
+          localStorage.removeItem('token')
+          setUser(null)
+          setProfile(null)
+          setConnectSetupComplete(false)
+          setLoading(false)
+        })
+        .finally(finishBoot)
     } else {
       setUser(null)
       setProfile(null)
       setConnectSetupComplete(false)
       setLoading(false)
+      finishBoot()
+    }
+    return () => {
+      finishBoot()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
