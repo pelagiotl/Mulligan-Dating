@@ -16,7 +16,11 @@ import {
 } from "../utils/connectRequirements.js";
 import { checkDealbreakers } from "../utils/dealbreakers.js";
 import { DEFAULT_MATCH_SLOT_LIMIT } from "../config/matchSlots.js";
-import { getActiveMatchCount, getUserSlotLimit } from "../utils/matchSlotLimits.js";
+import {
+  getActiveMatchCount,
+  getUserSlotLimit,
+  isAtWeeklyIncomingMatchLimit,
+} from "../utils/matchSlotLimits.js";
 import { uploadChatImage, uploadChatVideo, uploadChatAudio } from "../middleware/upload.js";
 import { uploadToCloudinary, uploadToCloudinaryMedia, isCloudinaryConfigured } from "../services/cloudinary.js";
 
@@ -765,6 +769,12 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
         theirLimit: targetSlotLimit,
       });
     }
+    if (await isAtWeeklyIncomingMatchLimit(targetUserId)) {
+      return res.status(400).json({
+        error: "This person isn't available to match right now. Try someone else.",
+        code: "TARGET_AT_MATCH_LIMIT",
+      });
+    }
 
     // Photo requirement temporarily removed - will be added back later
     // const targetPhotoCountResult = db
@@ -835,6 +845,12 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
         error: `This person is at their limit of ${targetSlotLimit} active connections right now. Try again later or connect with someone else.`,
         code: "TARGET_AT_MATCH_LIMIT",
         theirLimit: targetSlotLimit,
+      });
+    }
+    if (await isAtWeeklyIncomingMatchLimit(targetUserId)) {
+      return res.status(400).json({
+        error: "This person isn't available to match right now. Try someone else.",
+        code: "TARGET_AT_MATCH_LIMIT",
       });
     }
 

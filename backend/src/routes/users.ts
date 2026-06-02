@@ -18,6 +18,7 @@ import {
   countPartnerQualityInterestHits,
 } from '../utils/interestSimilarity.js';
 import { checkDealbreakers } from '../utils/dealbreakers.js';
+import { isAtWeeklyIncomingMatchLimit } from '../utils/matchSlotLimits.js';
 
 // Check if using PostgreSQL
 const usePostgres = !!process.env.DATABASE_URL;
@@ -378,6 +379,22 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
       if (beforeDeal !== filteredProfiles.length) {
         console.log(
           `📊 After mutual dealbreakers: ${filteredProfiles.length} profiles (${beforeDeal - filteredProfiles.length} excluded)`
+        );
+      }
+    }
+
+    // Hide candidates at weekly incoming cap (no special in-app message; skip in browse)
+    {
+      const beforeIncoming = filteredProfiles.length;
+      const kept: ProfileWithMetadata[] = [];
+      for (const p of filteredProfiles) {
+        if (await isAtWeeklyIncomingMatchLimit(p.user_id)) continue;
+        kept.push(p);
+      }
+      filteredProfiles = kept;
+      if (beforeIncoming !== filteredProfiles.length) {
+        console.log(
+          `📊 After weekly incoming cap: ${filteredProfiles.length} profiles (${beforeIncoming - filteredProfiles.length} excluded)`
         );
       }
     }
