@@ -17,6 +17,14 @@ const assetsDir = path.join(mobileDir, 'assets');
 const iconPath = path.join(assetsDir, 'icon.png');
 const faviconPath = path.join(assetsDir, 'favicon.png');
 const outPath = path.join(assetsDir, 'adaptive-icon.png');
+const iosAppIconPath = path.join(
+  mobileDir,
+  'ios',
+  'Mulligan',
+  'Images.xcassets',
+  'AppIcon.appiconset',
+  'App-Icon-1024x1024@1x.png'
+);
 
 /** Android adaptive icon visible diameter ≈ 66% of 1024px foreground */
 const SIZE = 1024;
@@ -69,6 +77,11 @@ async function main() {
 
   canvas.composite(scaled, x, y);
   await canvas.writeAsync(outPath);
+
+  if (fs.existsSync(path.dirname(iosAppIconPath))) {
+    fs.copyFileSync(iconPath, iosAppIconPath);
+    console.log('✅ Synced assets/icon.png → iOS AppIcon.appiconset');
+  }
 
   console.log(
     `✅ Generated ${path.relative(mobileDir, outPath)}`,

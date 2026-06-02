@@ -202,7 +202,7 @@ function MainTabs() {
   const refs = React.useMemo<ProfileLoadingRefs>(() => ({ profileRef, loadingRef }), []);
   const insets = useSafeAreaInsets();
   const { mode: connectShellMode } = useConnectShellTheme();
-  const androidShellMidnight = Platform.OS === 'android' && connectShellMode === 'midnight';
+  const shellMidnight = connectShellMode === 'midnight';
 
   // Stable tab bar button factory — same reference always so options are stable
   const createTabBarButton = React.useCallback((requiresProfile: boolean) => (buttonProps: any) => (
@@ -213,7 +213,7 @@ function MainTabs() {
   const browseTabOptions = React.useMemo(
     () => ({
       tabBarIcon: ({ focused }: { focused: boolean }) => (
-        <TabIcon focused={focused} shellMidnight={androidShellMidnight}>
+        <TabIcon focused={focused} shellMidnight={shellMidnight}>
           <View style={[styles.iconContainer, focused && styles.iconContainerActive]}>
             <Text style={styles.emojiIcon}>😍</Text>
           </View>
@@ -222,13 +222,13 @@ function MainTabs() {
       tabBarLabel: 'Connect',
       tabBarButton: createTabBarButton(true),
     }),
-    [createTabBarButton, androidShellMidnight]
+    [createTabBarButton, shellMidnight]
   );
 
   const matchesTabOptions = React.useMemo(
     () => ({
       tabBarIcon: ({ focused }: { focused: boolean }) => (
-        <TabIcon focused={focused} shellMidnight={androidShellMidnight}>
+        <TabIcon focused={focused} shellMidnight={shellMidnight}>
           <View style={[styles.iconContainer, focused && styles.iconContainerActive]}>
             <Text style={styles.emojiIcon}>❤️</Text>
           </View>
@@ -237,13 +237,13 @@ function MainTabs() {
       tabBarLabel: 'Matches',
       tabBarButton: createTabBarButton(true),
     }),
-    [createTabBarButton, androidShellMidnight]
+    [createTabBarButton, shellMidnight]
   );
 
   const profileTabOptions = React.useMemo(
     () => ({
       tabBarIcon: ({ focused }: { focused: boolean }) => (
-        <TabIcon focused={focused} shellMidnight={androidShellMidnight}>
+        <TabIcon focused={focused} shellMidnight={shellMidnight}>
           <View style={[styles.iconContainer, focused && styles.iconContainerActive]}>
             <Text style={styles.emojiIcon}>👤</Text>
           </View>
@@ -252,13 +252,13 @@ function MainTabs() {
       tabBarLabel: 'Profile',
       tabBarButton: createTabBarButton(false),
     }),
-    [createTabBarButton, androidShellMidnight]
+    [createTabBarButton, shellMidnight]
   );
 
   const settingsTabOptions = React.useMemo(
     () => ({
       tabBarIcon: ({ focused }: { focused: boolean }) => (
-        <TabIcon focused={focused} shellMidnight={androidShellMidnight}>
+        <TabIcon focused={focused} shellMidnight={shellMidnight}>
           <View style={[styles.iconContainer, focused && styles.iconContainerActive]}>
             <Text style={styles.emojiIcon}>⚙️</Text>
           </View>
@@ -267,13 +267,13 @@ function MainTabs() {
       tabBarLabel: 'Settings',
       tabBarButton: createTabBarButton(false),
     }),
-    [createTabBarButton, androidShellMidnight]
+    [createTabBarButton, shellMidnight]
   );
 
   const adminTabOptions = React.useMemo(
     () => ({
       tabBarIcon: ({ focused }: { focused: boolean }) => (
-        <TabIcon focused={focused} shellMidnight={androidShellMidnight}>
+        <TabIcon focused={focused} shellMidnight={shellMidnight}>
           <View style={[styles.iconContainer, focused && styles.iconContainerActive]}>
             <Text style={styles.emojiIcon}>👑</Text>
           </View>
@@ -282,7 +282,7 @@ function MainTabs() {
       tabBarLabel: 'Admin',
       tabBarButton: createTabBarButton(false),
     }),
-    [createTabBarButton, androidShellMidnight]
+    [createTabBarButton, shellMidnight]
   );
 
   // Memoize screen options — all screens stay mounted, freeze inactive to avoid 5 re-renders on switch
@@ -300,11 +300,11 @@ function MainTabs() {
     lazy: false,
     detachInactiveScreens: false,
     freezeOnBlur: false, // was true: froze screen when keyboard opened (tab blur), blocking typing in bio and chat
-    sceneContainerStyle: { flex: 1, backgroundColor: androidShellMidnight ? '#12101c' : '#f8f9ff' },
-    tabBarActiveTintColor: androidShellMidnight ? '#f472b6' : '#8B1538',
-    tabBarInactiveTintColor: androidShellMidnight ? '#8b93a8' : '#94A3B8',
+    sceneContainerStyle: { flex: 1, backgroundColor: shellMidnight ? '#12101c' : '#f8f9ff' },
+    tabBarActiveTintColor: shellMidnight ? '#f472b6' : '#8B1538',
+    tabBarInactiveTintColor: shellMidnight ? '#8b93a8' : '#94A3B8',
     tabBarStyle: {
-      backgroundColor: androidShellMidnight ? '#12101c' : '#FAFAFA',
+      backgroundColor: shellMidnight ? '#12101c' : '#FAFAFA',
       borderTopWidth: 0,
       // Include bottom safe inset so labels/icons sit above gesture / 3-button nav,
       // but do not add extra fixed bottom gap on Android (looks "floating").
@@ -321,7 +321,7 @@ function MainTabs() {
       paddingHorizontal: Platform.OS === 'android' ? 2 : 4,
       shadowColor: '#000',
       shadowOffset: { width: 0, height: -2 },
-      shadowOpacity: androidShellMidnight ? 0.35 : 0.06,
+      shadowOpacity: shellMidnight ? 0.35 : 0.06,
       shadowRadius: Platform.OS === 'android' ? 10 : 12,
       // Keep iOS rounded aesthetic; Android should look docked to the bottom edge.
       borderTopLeftRadius: Platform.OS === 'ios' ? 24 : 0,
@@ -334,7 +334,7 @@ function MainTabs() {
       bottom: Platform.OS === 'ios' ? 0 : undefined,
       marginBottom: 0,
       zIndex: 1000,
-      elevation: androidShellMidnight ? 14 : 16,
+      elevation: shellMidnight ? 14 : 16,
     },
     tabBarItemStyle: {
       paddingHorizontal: 0,
@@ -359,7 +359,7 @@ function MainTabs() {
     },
     tabBarShowLabel: true,
     tabBarHideOnKeyboard: true,
-  }), [insets.bottom, androidShellMidnight]);
+  }), [insets.bottom, shellMidnight]);
 
   return (
     <View style={{ flex: 1 }}>

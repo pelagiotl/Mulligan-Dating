@@ -13,6 +13,7 @@ import {
   AccessibilityInfo,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { playTokenClaimSound } from '../utils/sounds';
 
 type Props = {
   visible: boolean;
@@ -283,6 +284,7 @@ export default function BetterMatchesCompleteCelebration({ visible, onClose }: P
     if (Platform.OS === 'ios' || Platform.OS === 'android') {
       Vibration.vibrate(35);
     }
+    void playTokenClaimSound();
 
     Animated.parallel([
       Animated.spring(scale, {

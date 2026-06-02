@@ -125,4 +125,4 @@ export function deriveAppRegistrationComplete(params: {
   return profileReady && !params.wizardDraftActive;
 }
 
-export const CONNECT_PHOTOS_REQUIRED_MESSAGE = `Upload at least ${minPhotosToConnectLabel()} on your Profile to start matching with other people.`;
+export { CONNECT_PHOTOS_REQUIRED_MESSAGE } from "../constants/connectPhotoCopy";

@@ -20009,6 +20009,12 @@ button.compatibility-pulse-pill.matches-chat-toolbar-btn--pulse:hover {
   color: var(--color-rose-700);
 }
 
+.connect-photos-modal-lead--sub {
+  margin-top: 0.5rem;
+  font-size: 0.88rem;
+  opacity: 0.9;
+}
+
 .connect-photos-modal-slots {
   display: flex;
   justify-content: center;

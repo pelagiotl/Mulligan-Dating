@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mulligan icon preview — current vs midnight</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: linear-gradient(145deg, #15102a 0%, #221a32 50%, #0f172a 100%);
+      color: #e2e8f0;
+      padding: 2rem 1.25rem 3rem;
+    }
+    h1 { font-size: 1.35rem; font-weight: 600; margin: 0 0 0.35rem; }
+    p.lede { margin: 0 0 1.75rem; color: #94a3b8; max-width: 42rem; line-height: 1.5; }
+    .open-link {
+      display: inline-block;
+      margin-bottom: 1.5rem;
+      padding: 0.55rem 1rem;
+      border-radius: 10px;
+      background: rgba(167, 139, 250, 0.2);
+      border: 1px solid rgba(167, 139, 250, 0.45);
+      color: #e9d5ff;
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+    .open-link:hover { background: rgba(167, 139, 250, 0.32); }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.5rem;
+      max-width: 720px;
+    }
+    figure {
+      margin: 0;
+      text-align: center;
+    }
+    .tile {
+      width: 180px;
+      height: 180px;
+      margin: 0 auto 0.75rem;
+      border-radius: 38px;
+      overflow: hidden;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+    }
+    .tile img { width: 100%; height: 100%; display: block; object-fit: cover; }
+    figcaption { font-size: 0.9rem; font-weight: 600; }
+    .note {
+      margin-top: 2rem;
+      padding: 1rem 1.15rem;
+      border-radius: 12px;
+      background: rgba(28, 24, 38, 0.85);
+      border: 1px solid rgba(167, 139, 250, 0.25);
+      max-width: 42rem;
+      font-size: 0.85rem;
+      line-height: 1.55;
+      color: #cbd5e1;
+    }
+    code { font-size: 0.8em; background: rgba(0,0,0,0.35); padding: 0.12em 0.35em; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>App icon preview</h1>
+  <p class="lede">Production assets unchanged. Preview: black background, white M, heart filled with the original app-icon purple→pink gradient.</p>
+  <a class="open-link" href="http://127.0.0.1:8765/compare.html">Open via local server (recommended)</a>
+  <div class="grid">
+    <figure>
+      <div class="tile"><img src="app-icon-current.png" alt="Current icon" width="180" height="180" /></div>
+      <figcaption>Current (soft gradient)</figcaption>
+    </figure>
+    <figure>
+      <div class="tile"><img src="app-icon-midnight.png" alt="Midnight preview icon" width="180" height="180" /></div>
+      <figcaption>Black + gradient heart</figcaption>
+    </figure>
+  </div>
+  <div class="note">
+    <strong>In Cursor:</strong> Command Palette → <code>Simple Browser: Show</code> → paste
+    <code>http://127.0.0.1:8765/compare.html</code><br />
+    <strong>Terminal:</strong> <code>cd mobile && npm run icons:open-compare</code><br />
+    Suggested adaptive background: <code>#000000</code>
+  </div>
+</body>
+</html>

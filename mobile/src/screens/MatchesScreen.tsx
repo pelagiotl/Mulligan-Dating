@@ -32,7 +32,11 @@ import { useAuth } from '../context/AuthContext';
 import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
 import type { ConnectShellMode } from '../lib/connectShellTheme';
 import { matchListCardColors, type MatchListCardColors } from '../lib/connectShellTheme';
-import { androidShellBackdropColors, androidShellTabBodyBg } from '../utils/androidConnectShellChrome';
+import {
+  androidShellBackdropColors,
+  connectShellTabBodyBg,
+  mainTabScrollBottomPadding,
+} from '../utils/androidConnectShellChrome';
 import { getPhotoUrl } from '../utils/photoUrl';
 import {
   getPendingOpenMatchId,
@@ -990,7 +994,7 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
 function EmptyStateAnimated({
   navigation,
   shellBackdropColors,
-  shellIsMidnightAndroid,
+  shellIsMidnight,
   supportHintColor,
   supportUserId,
   supportDisplayName,
@@ -1001,7 +1005,7 @@ function EmptyStateAnimated({
 }: {
   navigation: any;
   shellBackdropColors: readonly [string, string, ...string[]];
-  shellIsMidnightAndroid?: boolean;
+  shellIsMidnight?: boolean;
   supportHintColor?: string;
   supportUserId?: string | null;
   supportDisplayName?: string | null;
@@ -1100,9 +1104,10 @@ function EmptyStateAnimated({
         end={{ x: 1, y: 1 }}
         style={styles.emptyBackgroundGradient}
       />
-      <Animated.View 
+      <Animated.View
         style={[
           styles.emptyEmojiContainer,
+          shellIsMidnight && styles.emptyEmojiContainerMidnight,
           {
             opacity: fadeAnim,
             transform: [{ scale: scaleAnim }, { rotate }],
@@ -1111,7 +1116,7 @@ function EmptyStateAnimated({
       >
         <Text style={styles.emptyEmoji}>💔</Text>
       </Animated.View>
-      <Animated.Text style={[styles.emptyTitle, { opacity: fadeAnim }, shellIsMidnightAndroid && { color: '#f1f5f9' }]}>
+      <Animated.Text style={[styles.emptyTitle, { opacity: fadeAnim }, shellIsMidnight && { color: '#f1f5f9' }]}>
         No matches yet
       </Animated.Text>
       <TouchableOpacity
@@ -1309,7 +1314,8 @@ export default function MatchesScreen() {
     () => androidShellBackdropColors(connectShellMode),
     [connectShellMode]
   );
-  const tabBodyBg = useMemo(() => androidShellTabBodyBg(connectShellMode), [connectShellMode]);
+  const tabBodyBg = useMemo(() => connectShellTabBodyBg(connectShellMode), [connectShellMode]);
+  const listBottomPad = useMemo(() => mainTabScrollBottomPadding(insets.bottom), [insets.bottom]);
   const matchCardColors = useMemo(
     () => matchListCardColors(connectShellMode),
     [connectShellMode]
@@ -3201,9 +3207,9 @@ export default function MatchesScreen() {
   const openingForCelebration = !!(routeParamsForCelebration?.showMatchCelebration && routeParamsForCelebration?.matchId);
   if (authLoading || (loading && !selectedMatch && !openingForCelebration)) {
     return (
-      <View style={[styles.loadingContainer, tabBodyBg != null && { backgroundColor: tabBodyBg }]}>
-        <ActivityIndicator size="large" color={tabBodyBg != null ? '#f472b6' : '#667eea'} />
-        <Text style={[styles.loadingText, tabBodyBg != null && { color: '#e2e8f0' }]}>
+      <View style={[styles.loadingContainer, { backgroundColor: tabBodyBg }]}>
+        <ActivityIndicator size="large" color={connectShellMode === 'midnight' ? '#f472b6' : '#667eea'} />
+        <Text style={[styles.loadingText, connectShellMode === 'midnight' && { color: '#e2e8f0' }]}>
           {authLoading ? 'Checking authentication...' : 'Loading matches...'}
         </Text>
       </View>
@@ -3213,7 +3219,7 @@ export default function MatchesScreen() {
   // If not authenticated, show message
   if (!isAuthenticated || !user) {
     return (
-      <View style={[styles.container, tabBodyBg != null && { backgroundColor: tabBodyBg }]}>
+      <View style={[styles.container, { backgroundColor: tabBodyBg }]}>
         <LinearGradient
           colors={[...shellBackdropColors]}
           start={{ x: 0, y: 0 }}
@@ -3228,8 +3234,8 @@ export default function MatchesScreen() {
           </View>
         </LinearGradient>
         <View style={styles.emptyContainer}>
-          <Text style={[styles.emptyTitle, tabBodyBg != null && { color: '#f1f5f9' }]}>Please log in</Text>
-          <Text style={[styles.emptyText, tabBodyBg != null && { color: '#94a3b8' }]}>
+          <Text style={[styles.emptyTitle, connectShellMode === 'midnight' && { color: '#f1f5f9' }]}>Please log in</Text>
+          <Text style={[styles.emptyText, connectShellMode === 'midnight' && { color: '#94a3b8' }]}>
             You need to be logged in to view your matches.
           </Text>
         </View>
@@ -3239,7 +3245,7 @@ export default function MatchesScreen() {
 
   if (!selectedMatch) {
     return (
-      <View style={[styles.container, tabBodyBg != null && { backgroundColor: tabBodyBg }]}>
+      <View style={[styles.container, { backgroundColor: tabBodyBg }]}>
         <AnimatedHeaderGradient
           matchesCount={visibleMatches.length}
           gradientPos={headerGradientPos}
@@ -3267,7 +3273,7 @@ export default function MatchesScreen() {
           <EmptyStateAnimated
             navigation={navigation}
             shellBackdropColors={shellBackdropColors}
-            shellIsMidnightAndroid={Platform.OS === 'android' && connectShellMode === 'midnight'}
+            shellIsMidnight={connectShellMode === 'midnight'}
             supportHintColor={matchesSupportHintColor}
             supportUserId={user?.id}
             supportDisplayName={profile?.display_name ?? profile?.displayName}
@@ -3280,7 +3286,8 @@ export default function MatchesScreen() {
           <FlatList
             data={visibleMatches}
             keyExtractor={(item) => item.id}
-            contentContainerStyle={[styles.matchesList, { paddingBottom: 100 }]}
+            contentContainerStyle={[styles.matchesList, { paddingBottom: listBottomPad }]}
+            style={{ backgroundColor: tabBodyBg }}
             ListFooterComponent={<LegalFooter />}
             // Performance optimizations
             removeClippedSubviews={true}
@@ -3330,7 +3337,7 @@ export default function MatchesScreen() {
       style={[
         styles.container,
         { width: windowWidth, maxWidth: windowWidth, overflow: 'hidden', alignSelf: 'center' },
-        tabBodyBg != null && { backgroundColor: tabBodyBg },
+        { backgroundColor: tabBodyBg },
       ]}
     >
       <LinearGradient
@@ -4480,6 +4487,11 @@ const styles = StyleSheet.create({
     elevation: 12,
     borderWidth: 4,
     borderColor: '#fff',
+  },
+  emptyEmojiContainerMidnight: {
+    backgroundColor: 'rgba(28, 24, 38, 0.98)',
+    borderColor: 'rgba(244, 114, 182, 0.35)',
+    shadowColor: '#a78bfa',
   },
   emptyEmoji: {
     fontSize: 80,

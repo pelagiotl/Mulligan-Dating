@@ -34,6 +34,13 @@ import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
 import { connectShellGradientStops } from '../lib/connectShellTheme';
 import TokenDisplay from '../components/TokenDisplay';
 import LaunchCountdownBubble from '../components/LaunchCountdownBubble';
+import LaunchLiveConnectBanner from '../components/LaunchLiveConnectBanner';
+import { computeLaunchRemaining } from '../constants/launchSchedule';
+import {
+  isLaunchLiveConnectPromptSeen,
+  markLaunchLiveConnectPromptSeen,
+} from '../utils/launchLiveConnectPrompt';
+import { iosFloatingTabBarInset } from '../utils/androidConnectShellChrome';
 import MatchmakingPausedModal from '../components/MatchmakingPausedModal';
 import ConnectPhotosRequiredModal from '../components/ConnectPhotosRequiredModal';
 import ConnectProfileEnhancementCard, {
@@ -288,7 +295,7 @@ export default function BrowseScreen() {
   const [enhancementDismissed, setEnhancementDismissed] = useState(false);
   const [showEnhancementCelebration, setShowEnhancementCelebration] = useState(false);
   const [enhancementSnapshot, setEnhancementSnapshot] = useState<ProfileEnhancementSnapshot | null>(null);
-  const profileConnectKey = `${(userProfile as { display_name?: string } | null)?.display_name ?? ''}|${userProfile?.displayName ?? ''}|${userProfile?.location ?? ''}`;
+  const profileConnectKey = `${(userProfile as { display_name?: string; looking_for?: string | null } | null)?.display_name ?? ''}|${userProfile?.displayName ?? ''}|${userProfile?.location ?? ''}|${(userProfile as { looking_for?: string | null; lookingFor?: string | null } | null)?.looking_for ?? ''}|${(userProfile as { lookingFor?: string | null } | null)?.lookingFor ?? ''}`;
   const socketRef = useRef<Socket | null>(null);
   const matchIdFromConnectRef = useRef<string | null>(null);
   const openTokenModalRef = useRef<(() => void) | null>(null);
@@ -1166,9 +1173,7 @@ export default function BrowseScreen() {
     const params =
       item.id === 'photos'
         ? { scrollToPhotos: true as const }
-        : item.id === 'looking-for'
-          ? undefined
-          : { profileSection: item.id };
+        : { profileSection: item.id };
     if (navigationRef.current?.isReady()) {
       navigationRef.current.dispatch(
         CommonActions.navigate({
@@ -1351,6 +1356,50 @@ export default function BrowseScreen() {
     promptPhotosRequired,
     handleUnlockBrowse,
   ]);
+
+  const [launchTick, setLaunchTick] = useState(0);
+  const launchState = useMemo(() => computeLaunchRemaining(), [launchTick]);
+  const [showLaunchLiveBanner, setShowLaunchLiveBanner] = useState(false);
+
+  useEffect(() => {
+    if (!launchState.live) return;
+    const id = setInterval(() => setLaunchTick((t) => t + 1), 30_000);
+    return () => clearInterval(id);
+  }, [launchState.live]);
+
+  useEffect(() => {
+    if (!showLandingPage || !launchState.live) {
+      setShowLaunchLiveBanner(false);
+      return;
+    }
+    let cancelled = false;
+    void isLaunchLiveConnectPromptSeen().then((seen) => {
+      if (!cancelled && !seen) setShowLaunchLiveBanner(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [showLandingPage, launchState.live]);
+
+  const dismissLaunchLiveBanner = useCallback(() => {
+    void markLaunchLiveConnectPromptSeen();
+    setShowLaunchLiveBanner(false);
+  }, []);
+
+  const onLaunchLiveConnectPress = useCallback(() => {
+    dismissLaunchLiveBanner();
+    handleLandingConnectPress();
+  }, [dismissLaunchLiveBanner, handleLandingConnectPress]);
+
+  const renderLaunchLiveConnectBanner = () =>
+    showLaunchLiveBanner && launchState.live ? (
+      <LaunchLiveConnectBanner
+        shell={connectShellMode}
+        onConnect={onLaunchLiveConnectPress}
+        onDismiss={dismissLaunchLiveBanner}
+        connecting={unlocking}
+      />
+    ) : null;
 
   const stopLandingShimmerLoop = useCallback(() => {
     landingShimmerLoopRef.current?.stop();
@@ -2117,6 +2166,7 @@ export default function BrowseScreen() {
 
               {isAuthenticated ? <ConnectLandingValueProps variant="midnightFeatures" /> : null}
 
+              {renderLaunchLiveConnectBanner()}
               {renderLandingConnectButton(
                 ['#667eea', '#764ba2', '#f093fb', '#f5576c'],
                 styles.midnightConnectLabel,
@@ -2180,6 +2230,7 @@ export default function BrowseScreen() {
                       </View>
                     ) : null}
 
+                    {renderLaunchLiveConnectBanner()}
                     {renderLandingConnectButton(
                       ['#0284c7', '#ea580c', '#fb923c', '#fbbf24'],
                       styles.sunnyConnectLabel
@@ -2241,6 +2292,7 @@ export default function BrowseScreen() {
                       </View>
                     ) : null}
 
+                    {renderLaunchLiveConnectBanner()}
                     {renderLandingConnectButton(
                       ['#667eea', '#764ba2', '#f093fb', '#f5576c'],
                       styles.softConnectLabel
@@ -2783,10 +2835,14 @@ export default function BrowseScreen() {
       <LegalFooter />
       </ScrollView>
 
-      {/* Launch bubble after ScrollView so it stacks above and stays draggable/tappable on Android */}
-      {showLandingPage && Platform.OS === 'android' && (
+      {/* Launch countdown bubble — draggable dock (web + Android parity); above ScrollView */}
+      {showLandingPage && (
         <LaunchCountdownBubble
-          bottomTabOccupancy={42 + insets.bottom}
+          bottomTabOccupancy={
+            Platform.OS === 'ios'
+              ? iosFloatingTabBarInset(insets.bottom)
+              : 42 + insets.bottom
+          }
           topInset={insets.top}
           leftInset={insets.left}
           rightInset={insets.right}

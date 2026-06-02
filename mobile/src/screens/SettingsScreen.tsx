@@ -16,6 +16,7 @@ import {
 import Constants from 'expo-constants';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Purchases from 'react-native-purchases';
 import type { PurchasesPackage } from 'react-native-purchases';
 import { api } from '../utils/api';
@@ -39,7 +40,11 @@ import ProfileCardAnimatedEmoji from '../components/ProfileCardAnimatedEmoji';
 /** Android elevation renders as a harsh grey box behind rounded cards — disable it there. */
 const E = (n: number) => (Platform.OS === 'android' ? 0 : n);
 const SO = (n: number) => (Platform.OS === 'android' ? 0 : n);
-import { androidShellBackdropColors } from '../utils/androidConnectShellChrome';
+import {
+  androidShellBackdropColors,
+  iosFloatingTabBarInset,
+  mainTabScrollBottomPadding,
+} from '../utils/androidConnectShellChrome';
 
 interface SettingsData {
   email: string | null;
@@ -56,10 +61,20 @@ const IAP_COMING_SOON_MSG = "In-app purchases are coming soon. We're switching t
 export default function SettingsScreen() {
   const { user, profile, logout, refreshProfile, refreshTokensBalance } = useAuth();
   const { mode: connectShellMode, toggleMode: toggleConnectShellMode } = useConnectShellTheme();
+  const shellMidnight = connectShellMode === 'midnight';
   const shellBackdropColors = useMemo(
     () => androidShellBackdropColors(connectShellMode),
     [connectShellMode]
   );
+  const insets = useSafeAreaInsets();
+  const scrollBottomPad = useMemo(() => mainTabScrollBottomPadding(insets.bottom), [insets.bottom]);
+  const iosTabBarInset = useMemo(
+    () => (Platform.OS === 'ios' ? iosFloatingTabBarInset(insets.bottom) : 0),
+    [insets.bottom]
+  );
+  const glassSectionColors = shellMidnight
+    ? (['rgba(28, 24, 38, 0.94)', 'rgba(18, 16, 28, 0.9)'] as const)
+    : (['rgba(255, 255, 255, 0.34)', 'rgba(255, 255, 255, 0.18)'] as const);
   const navigation = useNavigation();
   const [settings, setSettings] = useState<SettingsData | null>(null);
   const [displayNameDraft, setDisplayNameDraft] = useState('');
@@ -144,7 +159,8 @@ export default function SettingsScreen() {
     ]).start();
 
     for (let i = 0; i < 10; i++) {
-      const skipFade = Platform.OS === 'android' && i >= 4;
+      // Sections 4+ (Danger Zone, Help, Session) must stay visible — iOS fade-in often stuck at opacity 0.
+      const skipFade = i >= 4;
       sectionAnimations[i] = new Animated.Value(skipFade ? 1 : 0);
       if (!skipFade) {
         Animated.timing(sectionAnimations[i], {
@@ -519,24 +535,6 @@ export default function SettingsScreen() {
     });
   }, [logout, navigation]);
 
-  const getSectionEntranceStyle = (index: number) => {
-    const anim = sectionAnimations[index] ?? sectionFallbackAnim;
-    if (Platform.OS === 'android' && index >= 4) {
-      return {};
-    }
-    return {
-      opacity: anim,
-      transform: [
-        {
-          translateY: anim.interpolate({
-            inputRange: [0, 1],
-            outputRange: [30, 0],
-          }),
-        },
-      ],
-    };
-  };
-
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -560,7 +558,14 @@ export default function SettingsScreen() {
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFill}
       />
-      <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={[styles.content, { paddingBottom: scrollBottomPad }]}
+        contentInset={Platform.OS === 'ios' ? { bottom: iosTabBarInset } : undefined}
+        scrollIndicatorInsets={Platform.OS === 'ios' ? { bottom: iosTabBarInset } : undefined}
+        alwaysBounceVertical
+        showsVerticalScrollIndicator
+      >
         <Animated.View
           style={[
             styles.headerGradient,
@@ -1023,8 +1028,8 @@ export default function SettingsScreen() {
         </LinearGradient>
       </Animated.View>
 
-      {/* Delete Account */}
-      <Animated.View style={[styles.section, getSectionEntranceStyle(4)]}>
+      {/* Delete Account — no entrance fade (must stay visible on iOS) */}
+      <View style={styles.section}>
         <LinearGradient
           colors={['rgba(251, 113, 133, 0.52)', 'rgba(185, 28, 28, 0.48)']}
           start={{ x: 0, y: 0 }}
@@ -1061,15 +1066,15 @@ export default function SettingsScreen() {
           </LinearGradient>
         </TouchableOpacity>
         </LinearGradient>
-      </Animated.View>
+      </View>
 
       {/* Help & Support */}
-      <Animated.View style={[styles.section, getSectionEntranceStyle(5)]}>
+      <View style={styles.section}>
         <LinearGradient
-          colors={['rgba(255, 255, 255, 0.32)', 'rgba(255, 255, 255, 0.16)']}
+          colors={[...glassSectionColors]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={styles.helpSupportCard}
+          style={[styles.helpSupportCard, shellMidnight && styles.helpSupportCardMidnight]}
         >
           <View style={styles.sectionTitleContainer}>
             <ProfileCardAnimatedEmoji
@@ -1092,24 +1097,26 @@ export default function SettingsScreen() {
             accessibilityLabel="Contact us"
           >
             <LinearGradient
-              colors={['#ffffff', '#f8f9ff']}
+              colors={shellMidnight ? ['#2a2438', '#1c1828'] : ['#ffffff', '#f8f9ff']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.settingsActionButtonGradient}
             >
-              <Text style={styles.settingsActionButtonText}>Contact us</Text>
+              <Text style={[styles.settingsActionButtonText, shellMidnight && styles.settingsActionButtonTextMidnight]}>
+                Contact us
+              </Text>
             </LinearGradient>
           </TouchableOpacity>
         </LinearGradient>
-      </Animated.View>
+      </View>
 
       {/* Session / Log out */}
-      <Animated.View style={[styles.section, getSectionEntranceStyle(6)]}>
+      <View style={styles.section}>
         <LinearGradient
-          colors={['rgba(255, 255, 255, 0.34)', 'rgba(255, 255, 255, 0.18)']}
+          colors={[...glassSectionColors]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={styles.sessionCard}
+          style={[styles.sessionCard, shellMidnight && styles.sessionCardMidnight]}
         >
           <View style={styles.sectionTitleContainer}>
             <ProfileCardAnimatedEmoji
@@ -1132,16 +1139,18 @@ export default function SettingsScreen() {
             accessibilityLabel="Log out"
           >
             <LinearGradient
-              colors={['#ffffff', '#f0f1ff']}
+              colors={shellMidnight ? ['#2a2438', '#1c1828'] : ['#ffffff', '#f0f1ff']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.settingsActionButtonGradient}
             >
-              <Text style={styles.settingsActionButtonText}>Log out</Text>
+              <Text style={[styles.settingsActionButtonText, shellMidnight && styles.settingsActionButtonTextMidnight]}>
+                Log out
+              </Text>
             </LinearGradient>
           </TouchableOpacity>
         </LinearGradient>
-      </Animated.View>
+      </View>
 
       {/* Legal Footer */}
       <LegalFooter />
@@ -1445,7 +1454,6 @@ const styles = StyleSheet.create({
   content: {
     padding: 20,
     paddingTop: 0,
-    paddingBottom: 40,
   },
   loadingContainer: {
     flex: 1,
@@ -1547,7 +1555,6 @@ const styles = StyleSheet.create({
   },
   section: {
     marginBottom: 32,
-    marginHorizontal: 20,
   },
   sectionTitleContainer: {
     flexDirection: 'row',
@@ -1921,6 +1928,12 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.42)',
   },
+  sessionCardMidnight: {
+    borderColor: 'rgba(244, 114, 182, 0.28)',
+  },
+  helpSupportCardMidnight: {
+    borderColor: 'rgba(167, 139, 250, 0.28)',
+  },
   sessionHint: {
     fontSize: 14,
     lineHeight: 20,
@@ -1947,6 +1960,9 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '800',
     letterSpacing: 0.2,
+  },
+  settingsActionButtonTextMidnight: {
+    color: '#fda4af',
   },
   buttonDisabled: {
     opacity: 0.5,

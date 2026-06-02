@@ -1,3 +1,7 @@
+import {
+  profileEnhancementPhotoHint,
+  profileEnhancementPhotoLabel,
+} from "../constants/connectPhotoCopy";
 import { MIN_PHOTOS_TO_CONNECT } from "./connectProfileEligibility";
 
 /** Encourage more than the connect minimum. */
@@ -25,6 +29,8 @@ export type ProfileEnhancementSectionId =
 export type ProfileEnhancementItem = {
   id: ProfileEnhancementSectionId;
   label: string;
+  /** Optional subtext (e.g. photo recommendation). */
+  hint?: string;
   done: boolean;
   profileHash: string;
 };
@@ -87,10 +93,8 @@ export function buildProfileEnhancementChecklist(
   const items: ProfileEnhancementItem[] = [
     {
       id: "photos",
-      label:
-        snapshot.photoCount < MIN_PHOTOS_TO_CONNECT
-          ? "Add a profile photo"
-          : "Add more photos",
+      label: profileEnhancementPhotoLabel(snapshot.photoCount),
+      hint: profileEnhancementPhotoHint(snapshot.photoCount),
       done: snapshot.photoCount >= PROFILE_ENHANCEMENT_PHOTO_TARGET,
       profileHash: PROFILE_ENHANCEMENT_HASH.photos,
     },
@@ -102,7 +106,7 @@ export function buildProfileEnhancementChecklist(
     },
     {
       id: "looking-for",
-      label: "What I'm looking for",
+      label: "Looking for (relationship)",
       done: isLookingForEnhancementComplete(snapshot.lookingFor),
       profileHash: PROFILE_ENHANCEMENT_HASH["looking-for"],
     },

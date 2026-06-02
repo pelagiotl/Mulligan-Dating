@@ -99,7 +99,12 @@ export default function ConnectProfileEnhancementCard({
               onClick={() => onItemClick(item)}
             >
               <span className="connect-enhancement__dot connect-enhancement__dot--pulse" aria-hidden />
-              <span className="connect-enhancement__label">{item.label}</span>
+              <span className="connect-enhancement__label-wrap">
+                <span className="connect-enhancement__label">{item.label}</span>
+                {item.hint ? (
+                  <span className="connect-enhancement__row-hint">{item.hint}</span>
+                ) : null}
+              </span>
               <span className="connect-enhancement__chev connect-enhancement__chev--nudge" aria-hidden>
                 ›
               </span>

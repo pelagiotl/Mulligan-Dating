@@ -560,9 +560,11 @@ function WebNavbarTokenBadge({
       accessibilityRole="button"
       accessibilityLabel="Mulligan tokens, open details"
     >
+      {/* Shadow pulse uses JS driver; scale uses native driver — must be separate Animated.Views. */}
       <Animated.View
         style={{
           borderRadius: 14,
+          transform: [{ translateY: pressed ? -2 : 0 }],
           ...(Platform.OS === 'android'
             ? {}
             : {
@@ -572,35 +574,37 @@ function WebNavbarTokenBadge({
                 shadowRadius,
                 elevation: pressed ? 8 : 5,
               }),
-          transform: [
-            { translateY: pressed ? -2 : 0 },
-            ...(reduceMotion || loading ? [] : [{ scale: badgeScale }]),
-          ],
         }}
       >
-        {Platform.OS === 'android' ? (
-          <View
-            style={[
-              badgeInnerStyle,
-              {
-                backgroundColor: androidNavbarFillOpaque,
-                borderColor: androidNavbarBorderColor,
-                elevation: pressed ? 7 : 4,
-              },
-            ]}
-          >
-            {badgeInner}
-          </View>
-        ) : (
-          <LinearGradient
-            colors={[...gradientColors]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={badgeInnerStyle}
-          >
-            {badgeInner}
-          </LinearGradient>
-        )}
+        <Animated.View
+          style={{
+            transform: reduceMotion || loading ? [] : [{ scale: badgeScale }],
+          }}
+        >
+          {Platform.OS === 'android' ? (
+            <View
+              style={[
+                badgeInnerStyle,
+                {
+                  backgroundColor: androidNavbarFillOpaque,
+                  borderColor: androidNavbarBorderColor,
+                  elevation: pressed ? 7 : 4,
+                },
+              ]}
+            >
+              {badgeInner}
+            </View>
+          ) : (
+            <LinearGradient
+              colors={[...gradientColors]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={badgeInnerStyle}
+            >
+              {badgeInner}
+            </LinearGradient>
+          )}
+        </Animated.View>
       </Animated.View>
     </TouchableOpacity>
   );

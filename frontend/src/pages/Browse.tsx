@@ -10,6 +10,12 @@ import TokenDisplay from "../components/TokenDisplay";
 import ConnectButtonEffects from "../components/ConnectButtonEffects";
 import ConnectLandingMark from "../components/ConnectLandingMark";
 import LaunchCountdown from "../components/LaunchCountdown";
+import LaunchLiveConnectBanner from "../components/LaunchLiveConnectBanner";
+import { computeLaunchRemaining } from "../constants/launchSchedule";
+import {
+  isLaunchLiveConnectPromptSeen,
+  markLaunchLiveConnectPromptSeen,
+} from "../utils/launchLiveConnectPrompt";
 import { io, Socket } from "socket.io-client";
 import { getSocketUrl } from "../utils/socketUrl";
 import { emitTokenBalanceUpdated } from "../lib/tokenBalanceEvents";
@@ -89,6 +95,7 @@ function BrowseConnectLandingChrome({
   gateError,
   enhancementSlot,
   capacitySlot,
+  launchLiveBanner,
 }: {
   mode: ConnectLandingMode;
   onConnect?: () => void;
@@ -96,6 +103,7 @@ function BrowseConnectLandingChrome({
   gateError?: string;
   enhancementSlot?: ReactNode;
   capacitySlot?: ReactNode;
+  launchLiveBanner?: ReactNode;
 }) {
   const navigate = useNavigate();
   const isGate = mode === "gate";
@@ -168,6 +176,7 @@ function BrowseConnectLandingChrome({
             </div>
           ) : isGate ? (
             <>
+              {launchLiveBanner}
               {gateError ? (
                 <div className="browse-native-error" role="alert" style={{ marginBottom: "1rem" }}>
                   ⚠️ {gateError}
@@ -862,6 +871,43 @@ export default function Browse() {
     !loading &&
     !isAutoMatching;
 
+  const [launchTick, setLaunchTick] = useState(0);
+  const launchRemaining = useMemo(() => computeLaunchRemaining(), [launchTick]);
+  const [showLaunchLiveBanner, setShowLaunchLiveBanner] = useState(false);
+
+  useEffect(() => {
+    if (!launchRemaining.live) return;
+    const id = window.setInterval(() => setLaunchTick((t) => t + 1), 30_000);
+    return () => window.clearInterval(id);
+  }, [launchRemaining.live]);
+
+  useEffect(() => {
+    if (!showConnectGate || !launchRemaining.live) {
+      setShowLaunchLiveBanner(false);
+      return;
+    }
+    if (!isLaunchLiveConnectPromptSeen()) {
+      setShowLaunchLiveBanner(true);
+    }
+  }, [showConnectGate, launchRemaining.live]);
+
+  const dismissLaunchLiveBanner = useCallback(() => {
+    markLaunchLiveConnectPromptSeen();
+    setShowLaunchLiveBanner(false);
+  }, []);
+
+  const launchLiveBannerSlot =
+    showLaunchLiveBanner && launchRemaining.live ? (
+      <LaunchLiveConnectBanner
+        onConnect={() => {
+          dismissLaunchLiveBanner();
+          void handleUnlockBrowse();
+        }}
+        onDismiss={dismissLaunchLiveBanner}
+        connecting={unlockingBrowse}
+      />
+    ) : null;
+
   const profileConnectKey = useMemo(
     () =>
       `${userProfile?.displayName ?? ""}|${(userProfile as { location?: string } | null)?.location ?? ""}`,
@@ -983,6 +1029,7 @@ export default function Browse() {
           gateError={gateError}
           enhancementSlot={enhancementSlot}
           capacitySlot={capacitySlot}
+          launchLiveBanner={launchLiveBannerSlot}
         />
         {connectGateModals}
       </>

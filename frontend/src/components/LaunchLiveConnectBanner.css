@@ -1,0 +1,96 @@
+.launch-live-connect-banner {
+  margin: 0 0 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  border: 1px solid rgba(16, 185, 129, 0.45);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.18), rgba(52, 211, 153, 0.08));
+  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.15);
+}
+
+.launch-live-connect-banner__copy {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  margin-bottom: 0.65rem;
+}
+
+.launch-live-connect-banner__badge {
+  font-size: 1.25rem;
+  line-height: 1.2;
+  flex-shrink: 0;
+}
+
+.launch-live-connect-banner__message {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.4;
+  color: #ecfdf5;
+}
+
+.launch-live-connect-banner__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.launch-live-connect-banner__cta {
+  border: none;
+  border-radius: 999px;
+  padding: 0.45rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #052e16;
+  background: linear-gradient(135deg, #6ee7b7, #34d399);
+  cursor: pointer;
+}
+
+.launch-live-connect-banner__cta:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.launch-live-connect-banner__dismiss {
+  border: none;
+  background: transparent;
+  color: rgba(236, 253, 245, 0.75);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0.25rem 0.35rem;
+}
+
+html[data-connect-shell="sunny"] .launch-live-connect-banner,
+.app-layout.connect-shell--sunny .launch-live-connect-banner {
+  border-color: rgba(234, 88, 12, 0.35);
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.28), rgba(251, 146, 60, 0.12));
+  box-shadow: 0 8px 20px rgba(234, 88, 12, 0.12);
+}
+
+html[data-connect-shell="sunny"] .launch-live-connect-banner__message,
+.app-layout.connect-shell--sunny .launch-live-connect-banner__message {
+  color: #7c2d12;
+}
+
+html[data-connect-shell="sunny"] .launch-live-connect-banner__dismiss,
+.app-layout.connect-shell--sunny .launch-live-connect-banner__dismiss {
+  color: rgba(124, 45, 18, 0.7);
+}
+
+html[data-connect-shell="soft"] .launch-live-connect-banner,
+.app-layout.connect-shell--soft .launch-live-connect-banner {
+  border-color: rgba(244, 114, 182, 0.35);
+  background: linear-gradient(135deg, rgba(244, 114, 182, 0.2), rgba(253, 164, 175, 0.1));
+}
+
+html[data-connect-shell="soft"] .launch-live-connect-banner__message,
+.app-layout.connect-shell--soft .launch-live-connect-banner__message {
+  color: #4c1d34;
+}
+
+html[data-connect-shell="soft"] .launch-live-connect-banner__dismiss,
+.app-layout.connect-shell--soft .launch-live-connect-banner__dismiss {
+  color: rgba(76, 29, 52, 0.65);
+}

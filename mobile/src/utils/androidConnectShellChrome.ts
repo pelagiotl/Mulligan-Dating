@@ -24,10 +24,29 @@ export function androidShellBackdropColors(mode: ConnectShellMode): readonly [st
   return ANDROID_SHELL_SOFT_BACKDROP;
 }
 
-/** Solid body fill below headers / loading screens when midnight shell is on (Android only). */
-export function androidShellTabBodyBg(mode: ConnectShellMode): string | undefined {
-  if (Platform.OS !== 'android') return undefined;
+/** Solid body fill for tab screens (Matches, Settings, etc.) — all platforms. */
+export function connectShellTabBodyBg(mode: ConnectShellMode): string {
   if (mode === 'midnight') return '#12101c';
   if (mode === 'sunny') return '#fff7ed';
   return '#f4f6ff';
+}
+
+/** @deprecated Use {@link connectShellTabBodyBg} */
+export function androidShellTabBodyBg(mode: ConnectShellMode): string {
+  return connectShellTabBodyBg(mode);
+}
+
+/** Height of the floating iOS tab bar overlay (matches AppNavigator tabBarStyle). */
+export function iosFloatingTabBarInset(bottomInset: number): number {
+  const tabBarHeight = 56 + Math.round(bottomInset * 0.5);
+  const tabBarPadding = 8 + Math.round(bottomInset * 0.5);
+  return tabBarHeight + tabBarPadding;
+}
+
+/** Scroll/list padding so content clears the tab bar (floating bar on iOS). */
+export function mainTabScrollBottomPadding(bottomInset: number): number {
+  if (Platform.OS === 'ios') {
+    return iosFloatingTabBarInset(bottomInset) + 48;
+  }
+  return Math.max(bottomInset, 12) + 28;
 }

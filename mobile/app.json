@@ -14,7 +14,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.mulligandating",
-      "buildNumber": "192",
+      "buildNumber": "195",
       "infoPlist": {
         "UISupportedInterfaceOrientations": [
           "UIInterfaceOrientationPortrait"
@@ -32,7 +32,7 @@
     },
     "android": {
       "package": "app.mulligandating",
-      "versionCode": 79,
+      "versionCode": 80,
       "googleServicesFile": "./google-services.json",
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
@@ -59,6 +59,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      "expo-dev-client",
       [
         "expo-build-properties",
         {

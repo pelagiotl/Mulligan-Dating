@@ -190,12 +190,19 @@ function AnimatedRow({
         onPress={onPress}
         activeOpacity={0.75}
         accessibilityRole="button"
-        accessibilityLabel={item.label}
+        accessibilityLabel={item.hint ? `${item.label}. ${item.hint}` : item.label}
       >
         <View style={[styles.dot, { backgroundColor: palette.dot }]} />
-        <Text style={[styles.label, { color: palette.row }]} numberOfLines={1}>
-          {item.label}
-        </Text>
+        <View style={styles.labelCol}>
+          <Text style={[styles.label, { color: palette.row }]} numberOfLines={2}>
+            {item.label}
+          </Text>
+          {item.hint ? (
+            <Text style={[styles.rowHint, { color: palette.chev }]} numberOfLines={2}>
+              {item.hint}
+            </Text>
+          ) : null}
+        </View>
         <Text style={[styles.chev, { color: palette.chev }]}>›</Text>
       </TouchableOpacity>
     </Animated.View>
@@ -441,7 +448,7 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingVertical: 9,
     paddingHorizontal: 10,
     gap: 10,
@@ -453,13 +460,23 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
+    marginTop: 4,
+  },
+  labelCol: {
+    flex: 1,
+    gap: 2,
   },
   label: {
-    flex: 1,
     fontSize: 14,
     fontWeight: '600',
   },
+  rowHint: {
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: '500',
+  },
   chev: {
+    marginTop: 2,
     fontSize: 18,
     fontWeight: '600',
     lineHeight: 20,

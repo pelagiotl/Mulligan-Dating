@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
+import { playTokenClaimSound } from "../utils/tokenClaimSound";
 import "./BetterMatchesCompleteCelebration.css";
 
 type Props = {
@@ -10,6 +11,7 @@ type Props = {
 export default function BetterMatchesCompleteCelebration({ open, onClose }: Props) {
   useEffect(() => {
     if (!open) return;
+    void playTokenClaimSound();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };

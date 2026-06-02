@@ -227,14 +227,15 @@ const ConnectPhotosRequiredModal = memo(function ConnectPhotosRequiredModal({
                   ✨
                 </Text>
                 <Text style={styles.kicker}>One quick step</Text>
-                <Text style={styles.title}>Add a photo to Connect</Text>
+                <Text style={styles.title}>Add 1 photo to Connect</Text>
               </LinearGradient>
 
               <View style={styles.body}>
                 <Text style={[styles.lead, { color: chrome.lead }]}>
-                  You&apos;re set up with name and location — add{' '}
-                  <Text style={[styles.leadStrong, { color: chrome.leadStrong }]}>one clear photo</Text> on
-                  your Profile so you&apos;re ready to match others when we launch.
+                  Upload one clear photo on your Profile to unlock Connect.
+                </Text>
+                <Text style={[styles.leadSub, { color: chrome.lead }]}>
+                  2–3+ photos help you get better matches.
                 </Text>
 
                 <View style={styles.slotRow} accessibilityLabel={`${displayCount} of ${MIN_PHOTOS_TO_CONNECT} photos`}>
@@ -433,6 +434,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     textAlign: 'center',
+  },
+  leadSub: {
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: 'center',
+    marginTop: 8,
+    opacity: 0.9,
   },
   leadStrong: {
     fontWeight: '700',

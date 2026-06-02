@@ -291,6 +291,7 @@ export default function MyProfileScreen() {
   const photoGalleryProgrammaticScrollRef = useRef(false);
   const scrollViewRef = useRef<ScrollView>(null);
   const photosSectionYRef = useRef<number>(0);
+  const lookingForSectionYRef = useRef<number>(0);
   const profileSectionYRef = useRef<
     Partial<Record<'interests' | 'lifestyle' | 'dealbreakers', number>>
   >({});
@@ -678,17 +679,19 @@ export default function MyProfileScreen() {
     if (!section || loading) return;
 
     const scrollToProfileSection = (attempt = 0) => {
-      if (section === 'looking-for') {
-        scrollViewRef.current?.scrollTo({ y: 0, animated: true });
-        (navigation as any).setParams({ scrollToPhotos: undefined, profileSection: undefined });
-        return;
-      }
       const y =
         section === 'photos'
           ? photosSectionYRef.current
-          : profileSectionYRef.current[section];
+          : section === 'looking-for'
+            ? lookingForSectionYRef.current
+            : profileSectionYRef.current[section];
       if (y != null && y > 0 && scrollViewRef.current) {
         scrollViewRef.current.scrollTo({ y: Math.max(0, y - 24), animated: true });
+        if (section === 'looking-for' && data?.profile) {
+          const cur = data.profile.looking_for?.trim() ?? '';
+          setEditLookingFor(cur && isCanonicalLookingFor(cur) ? cur : '');
+          setTimeout(() => setShowLookingForModal(true), 320);
+        }
         (navigation as any).setParams({ scrollToPhotos: undefined, profileSection: undefined });
       } else if (attempt < 10) {
         setTimeout(() => scrollToProfileSection(attempt + 1), 150);
@@ -696,7 +699,7 @@ export default function MyProfileScreen() {
     };
     const t = setTimeout(() => scrollToProfileSection(0), 200);
     return () => clearTimeout(t);
-  }, [route.params, navigation, loading]);
+  }, [route.params, navigation, loading, data?.profile?.looking_for]);
   
   // Initialize and animate sections
   useEffect(() => {
@@ -1121,7 +1124,7 @@ export default function MyProfileScreen() {
       setData((prev) => (prev ? { ...prev, profile: { ...prev.profile, looking_for: lookingFor } } : null));
       setShowLookingForModal(false);
       api.clearCache('/profile');
-      refreshProfile?.();
+      await refreshProfile?.();
       await checkEnhancementCelebration();
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Failed to update.');
@@ -2523,7 +2526,12 @@ export default function MyProfileScreen() {
                 </TouchableOpacity>
               </ProfileEditableCardBorder>
 
-              {/* Relationship goal — same options as web "Looking for" */}
+              {/* Relationship goal — same options as web "Looking for" (Better matches checklist) */}
+              <View
+                onLayout={(e) => {
+                  lookingForSectionYRef.current = e.nativeEvent.layout.y;
+                }}
+              >
               <ProfileEditableCardBorder
                 delay={600}
                 traceColors={[...profileColors.traceLooking]}
@@ -2558,6 +2566,7 @@ export default function MyProfileScreen() {
                   </LinearGradient>
                 </TouchableOpacity>
               </ProfileEditableCardBorder>
+              </View>
 
               {/* About Me - tappable to open edit modal (keyboard won't cover Save/Cancel) */}
               <ProfileEditableCardBorder
@@ -3733,7 +3742,7 @@ export default function MyProfileScreen() {
         <View style={[styles.section, profileUi.section]}>
         <View style={styles.sectionTitleContainer}>
           <AnimatedEmoji emoji="💕" delay={360} />
-          <Text style={[styles.sectionTitle, profileUi.sectionTitle]}> What I'm Looking For</Text>
+          <Text style={[styles.sectionTitle, profileUi.sectionTitle]}> Qualities in a partner</Text>
           <TouchableOpacity
             style={styles.sectionEditTouchable}
             onPress={() => {

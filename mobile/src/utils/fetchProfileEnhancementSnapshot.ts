@@ -20,7 +20,7 @@ export async function fetchProfileEnhancementSnapshot(
       interests: unknown[];
       dealbreakers: unknown[];
       lifestyle: ProfileEnhancementSnapshot['lifestyle'];
-    }>('/profile');
+    }>('/profile', false);
     const profileRow = data.profile;
     return {
       photoCount: resolvedPhotoCount,

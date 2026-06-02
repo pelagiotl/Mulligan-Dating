@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../utils/api";
-import { MIN_PHOTOS_TO_CONNECT, minPhotosToConnectLabel } from "../utils/connectProfileEligibility";
+import {
+  CONNECT_PHOTO_RECOMMENDED_LINE,
+  CONNECT_PHOTO_REQUIRED_LINE,
+} from "../constants/connectPhotoCopy";
+import { MIN_PHOTOS_TO_CONNECT } from "../utils/connectProfileEligibility";
 import { uploadPhotoFiles, type UploadedPhoto } from "../utils/photoBatchUpload";
 
 type SlotPhoto = { id: string; url: string };
@@ -139,7 +143,7 @@ export default function ConnectPhotosRequiredModalWeb({
               <div className="connect-photos-modal-header-copy">
                 <p className="connect-photos-modal-kicker">One quick step</p>
                 <h2 id="connect-photos-modal-title" className="connect-photos-modal-title">
-                  Add {minPhotosToConnectLabel()} to Connect
+                  {CONNECT_PHOTO_REQUIRED_LINE.replace(/\.$/, "")}
                 </h2>
               </div>
             </header>
@@ -148,13 +152,13 @@ export default function ConnectPhotosRequiredModalWeb({
               <p className="connect-photos-modal-lead">
                 {showReturnCta
                   ? "Looking good — your photo is saved. Head back to Connect when you’re ready to match."
-                  : (
-                    <>
-                      You&apos;re set up with name and location — now show people who you are. Upload{" "}
-                      <strong>one clear photo</strong> and you&apos;ll be ready to match.
-                    </>
-                  )}
+                  : "Upload one clear photo on your Profile to unlock Connect."}
               </p>
+              {!showReturnCta ? (
+                <p className="connect-photos-modal-lead connect-photos-modal-lead--sub">
+                  {CONNECT_PHOTO_RECOMMENDED_LINE}
+                </p>
+              ) : null}
 
               <input
                 ref={fileInputRef}

@@ -143,7 +143,7 @@ export function getInterestEmoji(interestName: string): string {
 
 export const LIFESTYLE_FIELD_OPTIONS = {
   smoking: ['', 'Non-smoker', 'Social smoker', 'Smoker', 'Trying to quit', 'Prefer not to say'],
-  drinking: ['', 'Non-drinker', 'Socially', 'Regularly', 'Sober-curious', 'Prefer not to say'],
+  drinking: ['', 'Non-drinker', 'Socially', 'Regularly', 'Prefer not to say'],
   children: ['', 'Want kids', 'Don’t want kids', 'Open to either', 'Have kids', 'Prefer not to say'],
   pets: ['', 'Love pets', 'Allergic', 'No pets', 'Open to pets', 'Prefer not to say'],
   religion: ['', 'Very important', 'Somewhat important', 'Spiritual not religious', 'Not important', 'Prefer not to say'],
@@ -190,7 +190,6 @@ const LIFESTYLE_VALUE_EMOJI: Record<LifestyleFieldKey, Record<string, string>> =
     'Non-drinker': '🚫',
     Socially: '🥂',
     Regularly: '🍻',
-    'Sober-curious': '🌿',
     'Prefer not to say': '🤐',
   },
   children: {
@@ -255,10 +254,9 @@ export function lifestylePickerDropdownLabel(field: LifestyleFieldKey, value: st
       'Prefer not to say': 'Prefer not to say',
     },
     drinking: {
-      'Non-drinker': 'Rarely or never',
+      'Non-drinker': 'Non-drinker',
       Socially: 'Socially / on occasion',
       Regularly: 'Fairly often',
-      'Sober-curious': 'Sober-curious',
       'Prefer not to say': 'Prefer not to say',
     },
     children: {
@@ -308,9 +306,15 @@ export function lifestylePickerDropdownLabel(field: LifestyleFieldKey, value: st
 }
 
 /** Chip / summary labels with emoji for selected lifestyle answers. */
+export function normalizeLifestyleStoredValue(field: LifestyleFieldKey, value: string): string {
+  if (field === 'drinking' && value === 'Sober-curious') return 'Non-drinker';
+  return value;
+}
+
 export function lifestylePickerItemLabel(field: LifestyleFieldKey, value: string): string {
-  const emoji = LIFESTYLE_VALUE_EMOJI[field]?.[value] ?? LIFESTYLE_FIELD_EMOJI[field];
-  if (!value) return `${emoji} Skip for now`;
+  const normalized = normalizeLifestyleStoredValue(field, value);
+  const emoji = LIFESTYLE_VALUE_EMOJI[field]?.[normalized] ?? LIFESTYLE_FIELD_EMOJI[field];
+  if (!normalized) return `${emoji} Skip for now`;
   const byField: Record<LifestyleFieldKey, Record<string, string>> = {
     smoking: {
       'Non-smoker': 'Non-smoker',
@@ -320,10 +324,9 @@ export function lifestylePickerItemLabel(field: LifestyleFieldKey, value: string
       'Prefer not to say': 'Prefer not to say',
     },
     drinking: {
-      'Non-drinker': 'Rarely or never',
+      'Non-drinker': 'Non-drinker',
       Socially: 'Socially / on occasion',
       Regularly: 'Fairly often',
-      'Sober-curious': 'Sober-curious',
       'Prefer not to say': 'Prefer not to say',
     },
     children: {
@@ -369,7 +372,7 @@ export function lifestylePickerItemLabel(field: LifestyleFieldKey, value: string
       'Prefer not to say': 'Prefer not to say',
     },
   };
-  const text = byField[field]?.[value] ?? value;
+  const text = byField[field]?.[normalized] ?? normalized;
   return `${emoji} ${text}`;
 }
 
