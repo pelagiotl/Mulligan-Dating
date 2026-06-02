@@ -54,6 +54,12 @@ export async function resolveApiBaseUrl(): Promise<string> {
         return cachedBase
       }
 
+      const configured = configuredCrossOriginApiBase()
+      if (configured) {
+        cachedBase = configured
+        return cachedBase
+      }
+
       if (typeof window !== 'undefined' && isMulliganWebHost(window.location.hostname)) {
         if (await probeSameOriginApi()) {
           cachedBase = '/api'
@@ -61,9 +67,7 @@ export async function resolveApiBaseUrl(): Promise<string> {
         }
       }
 
-      const fallback =
-        configuredCrossOriginApiBase() || 'https://mulligan-backend.onrender.com/api'
-      cachedBase = fallback
+      cachedBase = 'https://mulligan-backend.onrender.com/api'
       return cachedBase
     })()
   }

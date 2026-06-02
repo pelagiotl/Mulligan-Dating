@@ -126,6 +126,7 @@
           var btn = document.getElementById("boot-reload-btn");
           if (btn) btn.addEventListener("click", function () { window.location.reload(); });
         }
+        window.__MULLIGAN_SHOW_BOOT_ERROR__ = showBootError;
         window.addEventListener("error", function (e) {
           var t = e && e.target;
           if (t && (t.tagName === "SCRIPT" || t.tagName === "LINK")) {
@@ -146,14 +147,22 @@
           showBootError("Could not start Mulligan. " + msg);
         });
         setTimeout(function () {
+          var el = document.getElementById("boot-fallback");
+          if (!el) return;
+          var p = el.querySelector("p");
+          if (p && window.__MULLIGAN_ENTRY_LOADED__) {
+            p.textContent = "Still loading — first open can take up to a minute…";
+          }
+        }, 8000);
+        setTimeout(function () {
           if (!document.getElementById("boot-fallback")) {
             try { sessionStorage.removeItem(RELOAD_KEY); } catch (err) { /* ignore */ }
             return;
           }
           showBootError("Still loading — tap Reload to refresh Mulligan.");
-        }, 12000);
+        }, 60000);
       })();
     </script>
-    <script type="module" src="/src/main.tsx"></script>
+    <script type="module" src="/src/entry.tsx"></script>
   </body>
 </html>

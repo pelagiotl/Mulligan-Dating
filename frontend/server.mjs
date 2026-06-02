@@ -43,7 +43,11 @@ app.use(
   }),
 );
 
-app.get('*', (_req, res) => {
+app.get('*', (req, res) => {
+  if (req.path.startsWith('/assets/') || req.path.startsWith('/api/')) {
+    res.status(404).type('text/plain').send('Not found');
+    return;
+  }
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.sendFile(path.join(dist, 'index.html'));
 });
