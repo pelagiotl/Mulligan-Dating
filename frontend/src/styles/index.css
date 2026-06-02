@@ -20284,6 +20284,18 @@ button.compatibility-pulse-pill.matches-chat-toolbar-btn--pulse:hover {
   }
 }
 
+@keyframes matchmakingPausedGotItPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.35);
+  }
+  50% {
+    transform: scale(1.04);
+    box-shadow: 0 0 0 10px rgba(124, 58, 237, 0);
+  }
+}
+
 .matchmaking-paused-modal-rim {
   position: relative;
   overflow: hidden;
@@ -20439,6 +20451,11 @@ button.compatibility-pulse-pill.matches-chat-toolbar-btn--pulse:hover {
   animation: matchmakingPausedDotPulse 2.4s ease-in-out infinite;
 }
 
+.matchmaking-paused-modal-got-it {
+  animation: matchmakingPausedGotItPulse 2.2s ease-in-out infinite;
+  transform-origin: center;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .matchmaking-paused-modal-rim,
   .matchmaking-paused-modal-header,
@@ -20446,7 +20463,8 @@ button.compatibility-pulse-pill.matches-chat-toolbar-btn--pulse:hover {
   .matchmaking-paused-modal-rim-shimmer,
   .matchmaking-paused-modal-inner-shimmer,
   .matchmaking-paused-modal-header::after,
-  .matchmaking-paused-modal-sub::before {
+  .matchmaking-paused-modal-sub::before,
+  .matchmaking-paused-modal-got-it {
     animation: none;
   }
 

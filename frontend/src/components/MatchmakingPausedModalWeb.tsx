@@ -61,7 +61,11 @@ export default function MatchmakingPausedModalWeb({
               </p>
             </div>
             <footer className="connect-photos-modal-actions">
-              <button type="button" className="connect-photos-modal-primary" onClick={onClose}>
+              <button
+                type="button"
+                className="connect-photos-modal-primary matchmaking-paused-modal-got-it"
+                onClick={onClose}
+              >
                 Got it
               </button>
             </footer>
