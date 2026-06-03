@@ -212,7 +212,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error?.name === 'AbortError' || abortControllerRef.current?.signal.aborted) {
         return { connectSetupComplete: false }
       }
-      
+
+      if (options?.silent) {
+        console.warn('Session refresh failed (silent):', error)
+        return { connectSetupComplete: false }
+      }
+
       // Clear invalid token and reset state
       localStorage.removeItem('token')
       setUser(null)

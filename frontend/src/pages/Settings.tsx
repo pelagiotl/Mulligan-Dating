@@ -43,6 +43,16 @@ type UnblockPending =
   | { variant: "user"; user: BlockedUser; label: string }
   | { variant: "phone"; entry: BlockedPhone; label: string };
 
+const SETTINGS_DISPLAY_EMAIL_KEY = "mulligan:settings-display-email";
+
+function readStoredDisplayEmail(): string {
+  try {
+    return sessionStorage.getItem(SETTINGS_DISPLAY_EMAIL_KEY)?.trim().toLowerCase() || "";
+  } catch {
+    return "";
+  }
+}
+
 export default function Settings() {
   const { logout, profile, refreshProfile, user, refreshSession, updateUserEmail } = useAuth();
   const { mode: connectShellMode, toggleMode: toggleConnectShellMode } = useConnectShellTheme();
@@ -64,17 +74,38 @@ export default function Settings() {
   const [emailNeedsPassword, setEmailNeedsPassword] = useState(false);
   const [changingEmail, setChangingEmail] = useState(false);
   /** Shown in the read-only Email row above Change email — not cleared by background refetches. */
-  const [accountEmail, setAccountEmail] = useState("");
+  const [accountEmail, setAccountEmail] = useState(() => readStoredDisplayEmail());
   const settingsFetchGen = useRef(0);
+  /** Wins over stale /settings responses until the server returns the same address. */
+  const pendingDisplayEmailRef = useRef<string | null>(
+    readStoredDisplayEmail() || null,
+  );
 
-  const displayAccountEmail = useMemo(
-    () =>
+  const persistDisplayEmail = (email: string) => {
+    const normalized = email.trim().toLowerCase();
+    pendingDisplayEmailRef.current = normalized || null;
+    setAccountEmail(normalized);
+    try {
+      if (normalized) {
+        sessionStorage.setItem(SETTINGS_DISPLAY_EMAIL_KEY, normalized);
+      } else {
+        sessionStorage.removeItem(SETTINGS_DISPLAY_EMAIL_KEY);
+      }
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const displayAccountEmail = useMemo(() => {
+    const pending = pendingDisplayEmailRef.current?.trim() || "";
+    return (
+      pending ||
       accountEmail.trim() ||
       settings?.email?.trim() ||
       user?.email?.trim() ||
-      "",
-    [accountEmail, settings?.email, user?.email],
-  );
+      ""
+    );
+  }, [accountEmail, settings?.email, user?.email]);
 
   // Delete account
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
@@ -112,13 +143,22 @@ export default function Settings() {
       const data = await api.get<SettingsData>(`/settings?_=${Date.now()}`);
       if (gen !== settingsFetchGen.current) return;
       const loadedEmail = data.email?.trim() || "";
+      const pending = pendingDisplayEmailRef.current?.trim() || "";
+      const mergedEmail = pending || loadedEmail || "";
       setSettings((prev) => ({
         ...data,
-        email: loadedEmail || prev?.email?.trim() || null,
+        email: mergedEmail || prev?.email?.trim() || null,
       }));
-      setAccountEmail((prev) => loadedEmail || prev);
-      if (loadedEmail) {
-        setNewEmail(loadedEmail);
+      if (pending) {
+        setAccountEmail(pending);
+      } else if (loadedEmail) {
+        setAccountEmail(loadedEmail);
+      }
+      if (loadedEmail && pending && loadedEmail === pending) {
+        pendingDisplayEmailRef.current = null;
+      }
+      if (mergedEmail) {
+        setNewEmail(mergedEmail);
       }
       if (data.requiresPasswordForEmailChange) {
         setEmailNeedsPassword(true);
@@ -164,9 +204,10 @@ export default function Settings() {
   }, [profile]);
 
   useEffect(() => {
-    const fromSession = user?.email?.trim();
-    if (!fromSession) return;
-    setAccountEmail((prev) => prev.trim() || fromSession);
+    const fromSession = user?.email?.trim().toLowerCase();
+    if (!fromSession || pendingDisplayEmailRef.current) return;
+    persistDisplayEmail(fromSession);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only sync when session email arrives
   }, [user?.email]);
 
   useEffect(() => {
@@ -304,8 +345,8 @@ export default function Settings() {
         email: normalizedEmail,
         ...(mustSendPassword && emailPassword.trim() ? { password: emailPassword } : {}),
       });
-      const savedEmail = (res?.email ?? normalizedEmail).trim();
-      setAccountEmail(savedEmail);
+      const savedEmail = (res?.email ?? normalizedEmail).trim().toLowerCase();
+      persistDisplayEmail(savedEmail);
       updateUserEmail(savedEmail);
       setSettings((prev) =>
         prev
@@ -316,7 +357,7 @@ export default function Settings() {
       setNewEmail(savedEmail);
       setEmailNeedsPassword(false);
       setEmailPassword("");
-      void refreshSession({ silent: true });
+      void fetchSettings({ silent: true });
       setTimeout(() => setSuccess(""), 5000);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to change email";
