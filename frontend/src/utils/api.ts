@@ -3,9 +3,12 @@
 import { resolveApiBaseUrl } from './apiBaseUrl'
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  code?: string
+
+  constructor(public status: number, message: string, code?: string) {
     super(message)
     this.name = 'ApiError'
+    this.code = code
   }
 }
 
@@ -67,9 +70,8 @@ async function request<T = any>(endpoint: string, options: RequestInit = {}): Pr
       if (detailStr && data.error && !message.includes(detailStr)) {
         message = `${data.error}: ${detailStr}`;
       }
-      const apiError = new ApiError(response.status, message)
+      const apiError = new ApiError(response.status, message, data.code)
       // Preserve additional error data (AT_MATCH_LIMIT, etc.) for error handling
-      if (data.code) (apiError as any).code = data.code
       if (data.canExpand !== undefined) (apiError as any).canExpand = data.canExpand
       if (data.currentLimit !== undefined) (apiError as any).currentLimit = data.currentLimit
       if (data.newLimit !== undefined) (apiError as any).newLimit = data.newLimit

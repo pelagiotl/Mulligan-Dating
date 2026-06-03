@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef, useMemo, FormEvent } from "react";
+import { useState, useEffect, useRef, FormEvent } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useConnectShellTheme } from "../context/ConnectShellThemeContext";
 import { connectShellDisplayLabel } from "../lib/connectShellTheme";
-import { api } from "../utils/api";
+import { api, ApiError } from "../utils/api";
 import { Link, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import WebTokenPurchase from "../components/WebTokenPurchase";
 import SettingsSectionCard from "../components/SettingsSectionCard";
@@ -73,8 +73,9 @@ export default function Settings() {
   const [emailPassword, setEmailPassword] = useState("");
   const [emailNeedsPassword, setEmailNeedsPassword] = useState(false);
   const [changingEmail, setChangingEmail] = useState(false);
-  /** Shown in the read-only Email row above Change email — not cleared by background refetches. */
-  const [accountEmail, setAccountEmail] = useState(() => readStoredDisplayEmail());
+  /** Read-only Email row — updated immediately on save (not via useMemo + ref). */
+  const [displayEmail, setDisplayEmail] = useState(() => readStoredDisplayEmail());
+  const [emailFieldError, setEmailFieldError] = useState("");
   const settingsFetchGen = useRef(0);
   /** Wins over stale /settings responses until the server returns the same address. */
   const pendingDisplayEmailRef = useRef<string | null>(
@@ -84,7 +85,7 @@ export default function Settings() {
   const persistDisplayEmail = (email: string) => {
     const normalized = email.trim().toLowerCase();
     pendingDisplayEmailRef.current = normalized || null;
-    setAccountEmail(normalized);
+    setDisplayEmail(normalized);
     try {
       if (normalized) {
         sessionStorage.setItem(SETTINGS_DISPLAY_EMAIL_KEY, normalized);
@@ -95,17 +96,6 @@ export default function Settings() {
       /* ignore */
     }
   };
-
-  const displayAccountEmail = useMemo(() => {
-    const pending = pendingDisplayEmailRef.current?.trim() || "";
-    return (
-      pending ||
-      accountEmail.trim() ||
-      settings?.email?.trim() ||
-      user?.email?.trim() ||
-      ""
-    );
-  }, [accountEmail, settings?.email, user?.email]);
 
   // Delete account
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
@@ -150,9 +140,10 @@ export default function Settings() {
         email: mergedEmail || prev?.email?.trim() || null,
       }));
       if (pending) {
-        setAccountEmail(pending);
+        setDisplayEmail(pending);
       } else if (loadedEmail) {
-        setAccountEmail(loadedEmail);
+        setDisplayEmail(loadedEmail);
+        pendingDisplayEmailRef.current = null;
       }
       if (loadedEmail && pending && loadedEmail === pending) {
         pendingDisplayEmailRef.current = null;
@@ -330,9 +321,11 @@ export default function Settings() {
     e.preventDefault();
     setError("");
     setSuccess("");
+    setEmailFieldError("");
 
     const normalizedEmail = newEmail.trim().toLowerCase();
     if (!normalizedEmail) {
+      setEmailFieldError("Email is required");
       setError("Email is required");
       return;
     }
@@ -361,17 +354,22 @@ export default function Settings() {
       setTimeout(() => setSuccess(""), 5000);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to change email";
+      const code = err instanceof ApiError ? err.code : undefined;
       if (msg.toLowerCase().includes("password required")) {
         setEmailNeedsPassword(true);
-        setError("Enter your account password below to change your email.");
+        const passwordMsg = "Enter your account password below to change your email.";
+        setEmailFieldError(passwordMsg);
+        setError(passwordMsg);
       } else if (
+        code === "EMAIL_IN_USE" ||
         msg.toLowerCase().includes("already linked") ||
         msg.toLowerCase().includes("already in use")
       ) {
-        setError(
-          "That email is on another Mulligan account. Sign in with that email or use a different address.",
-        );
+        const inUseMsg = "This email is already in use.";
+        setEmailFieldError(inUseMsg);
+        setError(inUseMsg);
       } else {
+        setEmailFieldError(msg);
         setError(msg);
       }
     } finally {
@@ -580,7 +578,9 @@ export default function Settings() {
           <div className="settings-info" style={{ marginTop: "var(--space-4)" }}>
             <div className="info-item">
               <label data-emoji="📧">📧 Email</label>
-              <span id="settings-account-email">{displayAccountEmail || "—"}</span>
+              <span id="settings-account-email">
+                {displayEmail || settings?.email?.trim() || user?.email?.trim() || "—"}
+              </span>
             </div>
           </div>
 
@@ -596,7 +596,10 @@ export default function Settings() {
                   id="newEmail"
                   className="form-input"
                   value={newEmail}
-                  onChange={(e) => setNewEmail(e.target.value)}
+                  onChange={(e) => {
+                    setNewEmail(e.target.value);
+                    if (emailFieldError) setEmailFieldError("");
+                  }}
                   placeholder="you@example.com"
                   required
                   autoComplete="email"
@@ -617,6 +620,11 @@ export default function Settings() {
                   />
                 </div>
               )}
+              {emailFieldError ? (
+                <p className="auth-error settings-email-field-error" role="alert">
+                  {emailFieldError}
+                </p>
+              ) : null}
               <button type="submit" className="btn btn-primary" disabled={changingEmail}>
                 {changingEmail ? "Changing…" : "Change email"}
               </button>
@@ -733,7 +741,7 @@ export default function Settings() {
           <h2 className="settings-section-title">
             <span>💳</span> Tokens
           </h2>
-          <WebTokenPurchase variant="settings" customerEmail={displayAccountEmail || undefined} />
+          <WebTokenPurchase variant="settings" customerEmail={displayEmail || undefined} />
         </SettingsSectionCard>
 
         <SettingsSectionCard variant="session" delay={700}>
