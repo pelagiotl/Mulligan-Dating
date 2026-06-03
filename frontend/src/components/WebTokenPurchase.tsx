@@ -326,21 +326,16 @@ export default function WebTokenPurchase({ variant, customerEmail }: WebTokenPur
           gap: "var(--space-3)",
         };
 
-  const cardStyle = (pkg: TokenPackage): CSSProperties => ({
-    border:
-      variant === "landing" ? "1px solid rgba(139, 21, 56, 0.12)" : "2px solid var(--border-medium)",
-    borderRadius: variant === "landing" ? "12px" : "var(--radius-lg)",
-    padding: variant === "landing" ? "0.75rem 0.6rem" : "var(--space-4)",
-    textAlign: "center",
-    background:
-      pkg.id === 3 || pkg.id === 4
-        ? variant === "landing"
-          ? "rgba(139, 21, 56, 0.04)"
-          : "rgba(244, 63, 94, 0.05)"
-        : variant === "landing"
-          ? "rgba(255,255,255,0.55)"
-          : "var(--bg-secondary)",
-  });
+  const cardStyle = (): CSSProperties =>
+    variant === "landing"
+      ? {
+          border: "1px solid rgba(139, 21, 56, 0.12)",
+          borderRadius: "12px",
+          padding: "0.75rem 0.6rem",
+          textAlign: "center",
+          background: "rgba(255,255,255,0.55)",
+        }
+      : { textAlign: "center" };
 
   const inner = (
     <>
@@ -437,7 +432,7 @@ export default function WebTokenPurchase({ variant, customerEmail }: WebTokenPur
             <div
               key={pkg.id}
               className={variant === "settings" ? "web-token-purchase__card" : undefined}
-              style={cardStyle(pkg)}
+              style={cardStyle()}
             >
               <div
                 className={variant === "settings" ? "web-token-purchase__quantity" : undefined}
@@ -445,16 +440,16 @@ export default function WebTokenPurchase({ variant, customerEmail }: WebTokenPur
                   fontSize: variant === "landing" ? "1.05rem" : "1.5rem",
                   fontWeight: "bold",
                   marginBottom: variant === "landing" ? "0.25rem" : "var(--space-2)",
-                  ...(variant === "settings" ? { color: "#000" } : {}),
                 }}
               >
                 {pkg.tokens} {pkg.tokens === 1 ? "Token" : "Tokens"}
               </div>
               <div
+                className={variant === "settings" ? "web-token-purchase__price" : undefined}
                 style={{
                   fontSize: variant === "landing" ? "0.95rem" : "1.25rem",
                   fontWeight: 600,
-                  color: "var(--color-rose-600)",
+                  color: variant === "landing" ? "var(--color-rose-600)" : undefined,
                   marginBottom: variant === "landing" ? "0.2rem" : "var(--space-2)",
                 }}
               >
@@ -464,21 +459,14 @@ export default function WebTokenPurchase({ variant, customerEmail }: WebTokenPur
                 className={variant === "settings" ? "web-token-purchase__per-token" : undefined}
                 style={{
                   fontSize: variant === "landing" ? "0.72rem" : "0.85rem",
-                  color: variant === "settings" ? "#000" : "var(--text-secondary)",
+                  color: variant === "landing" ? "var(--text-secondary)" : undefined,
                   marginBottom: variant === "landing" ? "0.45rem" : "var(--space-3)",
                 }}
               >
                 {pkg.pricePerToken && pkg.pricePerToken !== "—" ? `${pkg.pricePerToken} per token` : "—"}
               </div>
               {(pkg.id === 3 || pkg.id === 4) && variant === "settings" && (
-                <div
-                  style={{
-                    fontSize: "0.75rem",
-                    color: "var(--color-rose-600)",
-                    fontWeight: 600,
-                    marginBottom: "var(--space-2)",
-                  }}
-                >
+                <div className="web-token-purchase__badge">
                   ⭐ Best Value
                 </div>
               )}

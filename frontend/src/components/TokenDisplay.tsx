@@ -138,9 +138,35 @@ export default function TokenDisplay({ variant = "default" }: TokenDisplayProps)
   if (!data) {
     return (
       <div
-        className={`token-display token-display-card${compact ? " token-display--modal-compact" : ""}`}
+        className={`token-display token-display-card token-display--pending${compact ? " token-display--modal-compact" : ""}`}
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+        aria-label="Loading Mulligan tokens"
       >
-        <div className="token-display-loading">Loading tokens...</div>
+        <div className="token-display-header-gradient">
+          <div className="token-display-header-inner">
+            <span
+              className={`token-display-header-emoji${compact ? " token-display-header-emoji--compact" : ""}`}
+              aria-hidden
+            >
+              🎟️
+            </span>
+            <div className="token-display-header-count-row">
+              <span className="token-display-header-number token-display-skeleton-bar" aria-hidden />
+              <span className="token-display-header-cap">/ {TOKEN_MAX}</span>
+            </div>
+            {!compact ? (
+              <p className="token-display-header-label">Mulligan Tokens</p>
+            ) : null}
+            <div className="token-display-meter" aria-hidden>
+              <div className="token-display-meter-fill" style={{ width: "0%" }} />
+            </div>
+          </div>
+        </div>
+        <div className="token-display-body">
+          <div className="token-display-skeleton-bar token-display-skeleton-bar--wide" aria-hidden />
+        </div>
       </div>
     );
   }

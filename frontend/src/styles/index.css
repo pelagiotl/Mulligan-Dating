@@ -9758,6 +9758,62 @@ button.my-profile-mini-card:focus-visible {
   color: var(--text-secondary);
 }
 
+.token-display--pending {
+  background: #fff;
+}
+
+.token-display-skeleton-bar {
+  display: inline-block;
+  width: 2.25rem;
+  height: 1.85rem;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.28);
+  vertical-align: middle;
+  animation: tokenDisplaySkeletonPulse 1.4s ease-in-out infinite;
+}
+
+.token-display-skeleton-bar--wide {
+  display: block;
+  width: min(88%, 300px);
+  height: 1rem;
+  margin: var(--space-2) auto 0;
+  background: rgba(148, 163, 184, 0.22);
+}
+
+@keyframes tokenDisplaySkeletonPulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .token-display-skeleton-bar {
+    animation: none;
+    opacity: 0.75;
+  }
+}
+
+.web-token-purchase__card {
+  border: 2px solid var(--border-medium);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+}
+
+.web-token-purchase__price {
+  color: var(--color-rose-600);
+}
+
+.web-token-purchase__badge {
+  font-size: 0.75rem;
+  color: var(--color-rose-600);
+  font-weight: 600;
+  margin-bottom: var(--space-2);
+}
+
 .token-display-header-gradient {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 55%, #f093fb 100%);
   padding: var(--space-5) var(--space-6);
@@ -15581,9 +15637,12 @@ button.chat-avatar-btn .chat-avatar img {
   color: var(--color-wine-900);
 }
 
-.settings-page .web-token-purchase--settings .web-token-purchase__quantity,
-.settings-page .web-token-purchase--settings .web-token-purchase__per-token {
+.settings-page .web-token-purchase--settings .web-token-purchase__quantity {
   color: #000;
+}
+
+.settings-page .web-token-purchase--settings .web-token-purchase__per-token {
+  color: var(--text-secondary);
 }
 
 .settings-page .web-token-purchase--settings .settings-description {

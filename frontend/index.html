@@ -8,33 +8,71 @@
           var v = localStorage.getItem("mulligan-connect-shell");
           if (v === "midnight" || v === "sunny" || v === "soft") mode = v;
           document.documentElement.setAttribute("data-connect-shell", mode);
+          var themeColors = { midnight: "#0f172a", sunny: "#ffedd5", soft: "#faf5ff" };
+          var tc = document.querySelector('meta[name="theme-color"]');
+          if (tc) tc.setAttribute("content", themeColors[mode] || themeColors.midnight);
         } catch (e) {
           document.documentElement.setAttribute("data-connect-shell", "midnight");
         }
       })();
     </script>
     <style id="boot-critical">
-      html, body { margin: 0; min-height: 100dvh; }
-      html[data-connect-shell="midnight"], html[data-connect-shell="midnight"] body {
-        background: linear-gradient(145deg, #15102a 0%, #221a32 50%, #0f172a 100%);
+      html[data-connect-shell="midnight"] {
+        --boot-bg-color: #0f172a;
+        --boot-bg-gradient: linear-gradient(145deg, #15102a 0%, #221a32 50%, #0f172a 100%);
+        --boot-text: #f8fafc;
       }
-      html[data-connect-shell="sunny"], html[data-connect-shell="sunny"] body {
-        background: linear-gradient(160deg, #fff7ed 0%, #fef3c7 45%, #ffedd5 100%);
+      html[data-connect-shell="sunny"] {
+        --boot-bg-color: #ffedd5;
+        --boot-bg-gradient: linear-gradient(160deg, #fff7ed 0%, #fef3c7 45%, #ffedd5 100%);
+        --boot-text: #1c1917;
       }
-      html[data-connect-shell="soft"], html[data-connect-shell="soft"] body {
-        background: linear-gradient(160deg, #f4f6ff 0%, #eef2ff 50%, #faf5ff 100%);
+      html[data-connect-shell="soft"] {
+        --boot-bg-color: #faf5ff;
+        --boot-bg-gradient: linear-gradient(160deg, #f4f6ff 0%, #eef2ff 50%, #faf5ff 100%);
+        --boot-text: #1e1b4b;
       }
-      #root { min-height: 100dvh; }
-      #boot-fallback {
+      html, body {
+        margin: 0;
+        height: 100%;
+        min-height: 100vh;
         min-height: 100dvh;
+        min-height: -webkit-fill-available;
+        background-color: var(--boot-bg-color, #0f172a);
+        background-image: var(--boot-bg-gradient);
+      }
+      #root {
+        min-height: 100vh;
+        min-height: 100dvh;
+        min-height: -webkit-fill-available;
+        background-color: var(--boot-bg-color, #0f172a);
+        background-image: var(--boot-bg-gradient);
+      }
+      #boot-fallback,
+      .app-route-chunk-fallback {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        width: 100%;
+        min-height: 100vh;
+        min-height: 100dvh;
+        min-height: 100svh;
+        min-height: 100lvh;
+        min-height: -webkit-fill-available;
+        background-color: var(--boot-bg-color, #0f172a);
+        background-image: var(--boot-bg-gradient);
+        overscroll-behavior: none;
+      }
+      #boot-fallback {
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        padding: 2rem;
+        padding: max(2rem, env(safe-area-inset-top, 0px)) max(2rem, env(safe-area-inset-right, 0px))
+          max(2rem, env(safe-area-inset-bottom, 0px)) max(2rem, env(safe-area-inset-left, 0px));
         text-align: center;
         font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        color: #f8fafc;
+        color: var(--boot-text, #f8fafc);
       }
       #boot-fallback img {
         width: 72px;
@@ -63,7 +101,6 @@
         animation: bootSpin 0.9s linear infinite;
       }
       .app-route-chunk-fallback {
-        min-height: 100dvh;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -87,7 +124,7 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content"
     />
     <!-- Match app-icon gradient start (#667eea), not burgundy UI accent — Add to Home Screen splash -->
-    <meta name="theme-color" content="#667eea" />
+    <meta name="theme-color" content="#0f172a" />
     <meta name="msapplication-TileColor" content="#667eea" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
