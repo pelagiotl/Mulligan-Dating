@@ -14960,7 +14960,7 @@ button.chat-avatar-btn .chat-avatar img {
 .photo-lightbox-overlay {
   position: fixed;
   inset: 0;
-  z-index: 10060;
+  z-index: 2147483000;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -14974,46 +14974,84 @@ button.chat-avatar-btn .chat-avatar img {
   box-sizing: border-box;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+  isolation: isolate;
 }
 
 .photo-lightbox-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(45, 17, 24, 0.82);
-  backdrop-filter: blur(10px);
+  z-index: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  cursor: pointer;
+}
+
+.photo-lightbox-stage {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  max-width: min(96vw, 1200px);
+  max-height: min(92dvh, 920px);
+  pointer-events: none;
 }
 
 .photo-lightbox-close {
-  position: absolute;
-  top: var(--space-4);
-  right: var(--space-4);
-  z-index: 2;
-  width: 2.75rem;
-  height: 2.75rem;
+  position: fixed;
+  top: max(18px, env(safe-area-inset-top, 0px));
+  right: max(18px, env(safe-area-inset-right, 0px));
+  z-index: 2147483647;
+  width: 3rem;
+  height: 3rem;
   display: flex;
   align-items: center;
   justify-content: center;
   border: none;
   border-radius: var(--radius-full);
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.95);
   color: var(--color-wine-900);
-  font-size: 1.5rem;
+  font-size: 1.65rem;
   line-height: 1;
   cursor: pointer;
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  pointer-events: auto;
+  touch-action: manipulation;
   transition: transform var(--transition-fast), background var(--transition-fast);
+}
+
+.photo-lightbox-close::after {
+  content: "";
+  position: absolute;
+  inset: -12px;
 }
 
 .photo-lightbox-close:hover {
   background: #fff;
-  transform: scale(1.06);
+  transform: scale(1.05);
+}
+
+.photo-lightbox-close:focus-visible {
+  outline: 3px solid var(--color-rose-400);
+  outline-offset: 2px;
+}
+
+.app-layout--native-mobile-shell .photo-lightbox-close {
+  top: calc(max(16px, env(safe-area-inset-top, 0px)) + 56px);
+  right: calc(max(12px, env(safe-area-inset-right, 0px)) + 4px);
 }
 
 .photo-lightbox-nav {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
+  position: relative;
+  flex-shrink: 0;
+  transform: none;
   z-index: 2;
+  pointer-events: auto;
   width: 3rem;
   height: 3rem;
   display: flex;
@@ -15033,37 +15071,25 @@ button.chat-avatar-btn .chat-avatar img {
 
 .photo-lightbox-nav:hover {
   background: #fff;
-  transform: translateY(-50%) scale(1.05);
+  transform: scale(1.05);
 }
 
-.photo-lightbox-nav--prev {
-  left: var(--space-3);
-}
-
+.photo-lightbox-nav--prev,
 .photo-lightbox-nav--next {
-  right: var(--space-3);
-}
-
-@media (min-width: 900px) {
-  .photo-lightbox-nav--prev {
-    left: var(--space-8);
-  }
-
-  .photo-lightbox-nav--next {
-    right: var(--space-8);
-  }
+  left: auto;
+  right: auto;
 }
 
 .photo-lightbox-content {
   position: relative;
   z-index: 1;
-  max-width: min(96vw, 1100px);
+  max-width: min(88vw, 1100px);
   max-height: min(90dvh, 900px);
-  width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--space-3);
+  pointer-events: auto;
 }
 
 .photo-lightbox-img {

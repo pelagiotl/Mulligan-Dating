@@ -436,45 +436,59 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
               aria-modal="true"
               aria-label="Enlarged photos"
             >
-              <div className="photo-lightbox-backdrop" onClick={closeLightbox} aria-hidden />
-              <button type="button" className="photo-lightbox-close" onClick={closeLightbox} aria-label="Close">
+              <button
+                type="button"
+                className="photo-lightbox-backdrop"
+                aria-label="Close enlarged photos"
+                onClick={closeLightbox}
+              />
+              <div className="photo-lightbox-stage">
+                {sortedPhotos.length > 1 && (
+                  <button
+                    type="button"
+                    className="photo-lightbox-nav photo-lightbox-nav--prev"
+                    onClick={() => goLightbox(-1)}
+                    aria-label="Previous photo"
+                  >
+                    ‹
+                  </button>
+                )}
+                <div className="photo-lightbox-content">
+                  <img
+                    src={getPhotoUrl(sortedPhotos[safeLightboxIndex].url) || "#"}
+                    alt={`Photo ${safeLightboxIndex + 1} of ${sortedPhotos.length}`}
+                    className="photo-lightbox-img"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = "none";
+                    }}
+                    draggable={false}
+                  />
+                  <div className="photo-lightbox-caption">
+                    {safeLightboxIndex + 1} / {sortedPhotos.length}
+                    {sortedPhotos[safeLightboxIndex].isPrimary ? (
+                      <span className="photo-lightbox-primary-tag"> · Primary</span>
+                    ) : null}
+                  </div>
+                </div>
+                {sortedPhotos.length > 1 && (
+                  <button
+                    type="button"
+                    className="photo-lightbox-nav photo-lightbox-nav--next"
+                    onClick={() => goLightbox(1)}
+                    aria-label="Next photo"
+                  >
+                    ›
+                  </button>
+                )}
+              </div>
+              <button
+                type="button"
+                className="photo-lightbox-close"
+                onClick={closeLightbox}
+                aria-label="Close"
+              >
                 ×
               </button>
-              {sortedPhotos.length > 1 && (
-                <button
-                  type="button"
-                  className="photo-lightbox-nav photo-lightbox-nav--prev"
-                  onClick={() => goLightbox(-1)}
-                  aria-label="Previous photo"
-                >
-                  ‹
-                </button>
-              )}
-              <div className="photo-lightbox-content" onClick={(e) => e.stopPropagation()}>
-                <img
-                  src={getPhotoUrl(sortedPhotos[safeLightboxIndex].url) || "#"}
-                  alt={`Photo ${safeLightboxIndex + 1} of ${sortedPhotos.length}`}
-                  className="photo-lightbox-img"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = "none";
-                  }}
-                  draggable={false}
-                />
-                <div className="photo-lightbox-caption">
-                  {safeLightboxIndex + 1} / {sortedPhotos.length}
-                  {sortedPhotos[safeLightboxIndex].isPrimary ? <span className="photo-lightbox-primary-tag"> · Primary</span> : null}
-                </div>
-              </div>
-              {sortedPhotos.length > 1 && (
-                <button
-                  type="button"
-                  className="photo-lightbox-nav photo-lightbox-nav--next"
-                  onClick={() => goLightbox(1)}
-                  aria-label="Next photo"
-                >
-                  ›
-                </button>
-              )}
             </div>,
             document.body
           )
