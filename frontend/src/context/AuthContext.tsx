@@ -54,6 +54,8 @@ interface AuthContextType {
   isAuthenticated: boolean
   isAdmin: boolean
   loading: boolean
+  /** True only while validating a stored token on cold start — not during login/signup. */
+  restoringSession: boolean
   login: (email: string, password: string) => Promise<{ connectSetupComplete: boolean }>
   signup: (email: string, password: string, acceptTerms?: boolean, acceptPrivacy?: boolean) => Promise<void>
   phoneLogin: (phoneNumber: string, code: string) => Promise<{ connectSetupComplete: boolean }>
@@ -76,18 +78,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [photoCount, setPhotoCount] = useState(0)
   /** Only block the UI when we need to validate an existing session. */
   const [loading, setLoading] = useState(hasStoredAuthToken)
+  const [restoringSession, setRestoringSession] = useState(hasStoredAuthToken)
   const abortControllerRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     const token = localStorage.getItem('token')
     let cancelled = false
     const bootTimeoutId = window.setTimeout(() => {
-      if (!cancelled) setLoading(false)
+      if (!cancelled) {
+        setLoading(false)
+        setRestoringSession(false)
+      }
     }, 25000)
 
     const finishBoot = () => {
       cancelled = true
       window.clearTimeout(bootTimeoutId)
+      setRestoringSession(false)
     }
 
     if (token) {
@@ -266,7 +273,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem('token', data.token)
       
       // Fetch user data - it handles loading state itself
-      const { connectSetupComplete: ready } = await fetchUser()
+      const { connectSetupComplete: ready } = await fetchUser({ silent: true })
       
       // Check for new matches created since last login
       // Do this immediately after login to show notification right away
@@ -371,7 +378,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    const { connectSetupComplete: ready } = await fetchUser()
+    const { connectSetupComplete: ready } = await fetchUser({ silent: true })
     return { connectSetupComplete: ready }
   }
 
@@ -447,7 +454,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       photoCount,
       isAuthenticated: !!user,
       isAdmin,
-      loading, 
+      loading,
+      restoringSession,
       login, 
       signup,
       phoneLogin,

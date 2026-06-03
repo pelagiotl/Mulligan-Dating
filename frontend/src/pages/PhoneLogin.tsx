@@ -1,4 +1,4 @@
-import { useState, FormEvent, useCallback } from 'react'
+import { useState, FormEvent, useCallback, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../utils/api'
 import { useAuth } from '../context/AuthContext'
@@ -6,6 +6,7 @@ import BrandMark from '../components/BrandMark'
 import LandingAddToHomePrompt from '../components/LandingAddToHomePrompt'
 import { isAgeGateAccepted } from '../lib/ageGate'
 import LoginSupportNote from '../components/LoginSupportNote'
+import { preloadConnectShell } from '../utils/preloadConnectShell'
 
 export default function PhoneLogin() {
   const [phoneNumber, setPhoneNumber] = useState('')
@@ -18,6 +19,10 @@ export default function PhoneLogin() {
   const [shake, setShake] = useState(false)
   const navigate = useNavigate()
   const { phoneLogin } = useAuth()
+
+  useEffect(() => {
+    if (step === 'verify') preloadConnectShell()
+  }, [step])
 
   // Create floating particles
   const [particles] = useState(() => {
@@ -159,6 +164,7 @@ export default function PhoneLogin() {
     e.preventDefault()
     setError('')
     setLoading(true)
+    preloadConnectShell()
 
     try {
       // Use phoneLogin from AuthContext which handles token storage and user fetching

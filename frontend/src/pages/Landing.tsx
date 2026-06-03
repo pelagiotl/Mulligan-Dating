@@ -7,6 +7,7 @@ import LaunchCountdown from "../components/LaunchCountdown";
 import WebTokenPurchase from "../components/WebTokenPurchase";
 import ConnectLandingTagline from "../components/ConnectLandingTagline";
 import LandingAddToHomePrompt from "../components/LandingAddToHomePrompt";
+import { preloadConnectShell } from "../utils/preloadConnectShell";
 
 /**
  * Public home — same Connect landing card as iOS BrowseScreen (Connect tab).
@@ -18,6 +19,7 @@ export default function Landing() {
   useEffect(() => {
     void import("./PhoneLogin");
     void import("./AgeGate");
+    preloadConnectShell();
   }, []);
 
   return (

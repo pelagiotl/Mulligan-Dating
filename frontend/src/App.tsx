@@ -9,9 +9,8 @@ import { lazyRoute } from './lazyRoute'
 import PhoneLogin from './pages/PhoneLogin'
 import AgeGate from './pages/AgeGate'
 import TabRouteSuspense from './components/TabRouteSuspense'
-import BrandMark from './components/BrandMark'
 import SessionBootstrapScreen from './components/SessionBootstrapScreen'
-import { hasStoredAuthToken } from './lib/authToken'
+import RouteChunkFallback from './components/RouteChunkFallback'
 import { playMatchCelebrationSound } from './utils/matchSound'
 import WebMessageNotifications from './components/WebMessageNotifications'
 import { isIncomingMatchForConnectInitiator } from './lib/connectInitiator'
@@ -26,10 +25,6 @@ const Settings = lazyRoute(() => import('./pages/Settings'))
 const Admin = lazyRoute(() => import('./pages/Admin'))
 const Terms = lazyRoute(() => import('./pages/Terms'))
 const Privacy = lazyRoute(() => import('./pages/Privacy'))
-
-function RouteFallback() {
-  return <SessionBootstrapScreen />
-}
 
 const PWA_OPEN_PARAM = 'pwaOpen'
 
@@ -54,48 +49,12 @@ function PwaPushLaunchRedirect() {
 }
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
-  // Always call hooks at the top level, before any conditional returns
-  const { isAuthenticated, loading, user } = useAuth()
-  
-  if (loading) {
-    return (
-      <div className="loading-screen-immersive">
-        <div className="loading-bg-gradient"></div>
-        <div className="loading-particles">
-          {Array.from({ length: 30 }).map((_, i) => (
-            <div
-              key={i}
-              className="loading-particle"
-              style={{
-                left: `${Math.random() * 100}%`,
-                top: `${Math.random() * 100}%`,
-                animationDelay: `${Math.random() * 3}s`,
-                animationDuration: `${10 + Math.random() * 10}s`
-              }}
-            />
-          ))}
-        </div>
-        <div className="loading-orbs">
-          <div className="loading-orb loading-orb-1"></div>
-          <div className="loading-orb loading-orb-2"></div>
-          <div className="loading-orb loading-orb-3"></div>
-        </div>
-        <div className="loading-content">
-          <div className="loading-logo-container">
-            <BrandMark size={80} className="loading-logo" alt="" />
-          </div>
-          <h1 className="loading-title">Welcome Back</h1>
-          <div className="loading-dots">
-            <span className="loading-dot"></span>
-            <span className="loading-dot"></span>
-            <span className="loading-dot"></span>
-          </div>
-          <p className="loading-subtitle">Preparing your experience</p>
-        </div>
-      </div>
-    )
+  const { isAuthenticated, restoringSession } = useAuth()
+
+  if (restoringSession) {
+    return <SessionBootstrapScreen title="Welcome back" />
   }
-  
+
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />
   }
@@ -108,47 +67,12 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 }
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
-  // Always call hooks at the top level, before any conditional returns
-  const { isAuthenticated, isAdmin, loading } = useAuth()
-  
-  if (loading) {
-    return (
-      <div className="loading-screen-immersive">
-        <div className="loading-bg-gradient"></div>
-        <div className="loading-particles">
-          {Array.from({ length: 30 }).map((_, i) => (
-            <div
-              key={i}
-              className="loading-particle"
-              style={{
-                left: `${Math.random() * 100}%`,
-                top: `${Math.random() * 100}%`,
-                animationDelay: `${Math.random() * 3}s`,
-                animationDuration: `${10 + Math.random() * 10}s`
-              }}
-            />
-          ))}
-        </div>
-        <div className="loading-orbs">
-          <div className="loading-orb loading-orb-1"></div>
-          <div className="loading-orb loading-orb-2"></div>
-          <div className="loading-orb loading-orb-3"></div>
-        </div>
-        <div className="loading-content">
-          <div className="loading-logo-container">
-            <BrandMark size={80} className="loading-logo" alt="" />
-          </div>
-          <h1 className="loading-title">Loading Admin</h1>
-          <div className="loading-dots">
-            <span className="loading-dot"></span>
-            <span className="loading-dot"></span>
-            <span className="loading-dot"></span>
-          </div>
-        </div>
-      </div>
-    )
+  const { isAuthenticated, isAdmin, restoringSession } = useAuth()
+
+  if (restoringSession) {
+    return <SessionBootstrapScreen title="Welcome back" />
   }
-  
+
   if (!isAuthenticated) {
     return <Navigate to="/login" />
   }
@@ -161,9 +85,9 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { loading } = useAuth()
+  const { restoringSession } = useAuth()
 
-  if (loading && hasStoredAuthToken()) {
+  if (restoringSession) {
     return <SessionBootstrapScreen />
   }
 
@@ -171,9 +95,9 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 }
 
 function AuthRedirectRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, loading, connectSetupComplete } = useAuth()
-  
-  if (loading && hasStoredAuthToken()) {
+  const { isAuthenticated, restoringSession, connectSetupComplete } = useAuth()
+
+  if (restoringSession) {
     return <SessionBootstrapScreen />
   }
   
@@ -189,9 +113,9 @@ function AuthRedirectRoute({ children }: { children: React.ReactNode }) {
 
 /** Logged-in users only; used for age gate (before 18+ confirmation). */
 function AgeGateRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, loading, connectSetupComplete } = useAuth()
+  const { isAuthenticated, restoringSession, connectSetupComplete } = useAuth()
 
-  if (loading && hasStoredAuthToken()) {
+  if (restoringSession) {
     return <SessionBootstrapScreen title="Welcome back" />
   }
 
@@ -436,7 +360,7 @@ export default function App() {
         <Route
           path="/"
           element={
-            <Suspense fallback={<RouteFallback />}>
+            <Suspense fallback={<RouteChunkFallback />}>
               <PublicRoute>
                 <Landing />
               </PublicRoute>
@@ -446,47 +370,39 @@ export default function App() {
         <Route
           path="/login"
           element={
-            <Suspense fallback={<RouteFallback />}>
-              <AuthRedirectRoute>
-                <PhoneLogin />
-              </AuthRedirectRoute>
-            </Suspense>
+            <AuthRedirectRoute>
+              <PhoneLogin />
+            </AuthRedirectRoute>
           }
         />
         <Route
           path="/signup"
           element={
-            <Suspense fallback={<RouteFallback />}>
-              <AuthRedirectRoute>
-                <PhoneLogin />
-              </AuthRedirectRoute>
-            </Suspense>
+            <AuthRedirectRoute>
+              <PhoneLogin />
+            </AuthRedirectRoute>
           }
         />
         <Route
           path="/phone-login"
           element={
-            <Suspense fallback={<RouteFallback />}>
-              <AuthRedirectRoute>
-                <PhoneLogin />
-              </AuthRedirectRoute>
-            </Suspense>
+            <AuthRedirectRoute>
+              <PhoneLogin />
+            </AuthRedirectRoute>
           }
         />
         <Route
           path="/age-gate"
           element={
-            <Suspense fallback={<RouteFallback />}>
-              <AgeGateRoute>
-                <AgeGate />
-              </AgeGateRoute>
-            </Suspense>
+            <AgeGateRoute>
+              <AgeGate />
+            </AgeGateRoute>
           }
         />
         <Route
           path="/terms"
           element={
-            <Suspense fallback={<RouteFallback />}>
+            <Suspense fallback={<RouteChunkFallback />}>
               <Terms />
             </Suspense>
           }
@@ -494,14 +410,14 @@ export default function App() {
         <Route
           path="/privacy"
           element={
-            <Suspense fallback={<RouteFallback />}>
+            <Suspense fallback={<RouteChunkFallback />}>
               <Privacy />
             </Suspense>
           }
         />
         <Route
           element={
-            <Suspense fallback={<RouteFallback />}>
+            <Suspense fallback={<RouteChunkFallback />}>
               <Layout />
             </Suspense>
           }
