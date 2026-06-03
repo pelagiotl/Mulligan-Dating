@@ -13,29 +13,10 @@ import './styles/connect-button-effects.css'
 import './styles/legal-document.css'
 import { applyConnectShellMode, DEFAULT_CONNECT_SHELL_MODE } from './lib/connectShellTheme'
 import { registerPushSoundBridge } from './lib/pushSoundBridge'
-
-const CHUNK_RELOAD_KEY = 'mulligan:chunk-reload'
-
-function isStaleChunkLoadError(reason: unknown): boolean {
-  const msg = reason instanceof Error ? reason.message : String(reason ?? '')
-  return (
-    msg.includes('_result.default') ||
-    msg.includes('Failed to fetch dynamically imported module') ||
-    msg.includes('Importing a module script failed') ||
-    msg.includes('error loading dynamically imported module')
-  )
-}
-
-function maybeReloadForStaleChunks(reason: unknown) {
-  if (typeof window === 'undefined' || !isStaleChunkLoadError(reason)) return
-  try {
-    if (sessionStorage.getItem(CHUNK_RELOAD_KEY) === '1') return
-    sessionStorage.setItem(CHUNK_RELOAD_KEY, '1')
-    window.location.reload()
-  } catch {
-    /* ignore */
-  }
-}
+import {
+  CHUNK_RELOAD_KEY,
+  maybeReloadForStaleChunks,
+} from './utils/staleChunk'
 
 if (typeof window !== 'undefined') {
   window.addEventListener('unhandledrejection', (event) => {

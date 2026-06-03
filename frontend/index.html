@@ -143,8 +143,11 @@
         function isStaleChunkMsg(msg) {
           return msg && (
             msg.indexOf("_result.default") !== -1 ||
+            msg.indexOf("Route chunk failed to load") !== -1 ||
+            msg.indexOf("missing default export") !== -1 ||
             msg.indexOf("dynamically imported module") !== -1 ||
-            msg.indexOf("Importing a module script failed") !== -1
+            msg.indexOf("Importing a module script failed") !== -1 ||
+            msg.indexOf("error loading dynamically imported module") !== -1
           );
         }
         window.addEventListener("unhandledrejection", function (e) {

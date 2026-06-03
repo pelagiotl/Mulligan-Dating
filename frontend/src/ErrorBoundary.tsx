@@ -1,4 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { isStaleChunkLoadError, maybeReloadForStaleChunks } from './utils/staleChunk';
 
 interface Props {
   children: ReactNode;
@@ -20,6 +21,7 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    if (maybeReloadForStaleChunks(error)) return;
     console.error('Uncaught error:', error, errorInfo);
     console.error('Error stack:', error.stack);
     console.error('Component stack:', errorInfo.componentStack);
@@ -27,9 +29,10 @@ class ErrorBoundary extends Component<Props, State> {
 
   public render() {
     if (this.state.hasError) {
-      const staleChunk =
-        this.state.error?.message?.includes('_result.default') ||
-        this.state.error?.message?.includes('dynamically imported module')
+      if (maybeReloadForStaleChunks(this.state.error)) {
+        return null
+      }
+      const staleChunk = isStaleChunkLoadError(this.state.error)
       const friendlyMessage = staleChunk
         ? 'Mulligan was updated in the background. Reload once to load the latest version.'
         : this.state.error?.message || 'An unexpected error occurred'
