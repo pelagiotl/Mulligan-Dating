@@ -90,6 +90,16 @@ export default function Layout() {
     releaseAllBodyScrollLocks()
   }, [location.pathname])
 
+  // Preload main-tab chunks so tab bar switches do not flash the boot splash.
+  useEffect(() => {
+    if (!isAuthenticated) return
+    void import('../pages/Browse')
+    void import('../pages/Matches')
+    void import('../pages/MyProfile')
+    void import('../pages/Settings')
+    if (isAdmin) void import('../pages/Admin')
+  }, [isAuthenticated, isAdmin])
+
   return (
     <div
       className={`app-layout connect-shell--${connectShellMode}${nativeMobileShell ? ' app-layout--native-mobile-shell' : ''}`}

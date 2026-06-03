@@ -6,6 +6,7 @@ import { io, Socket } from 'socket.io-client'
 import { getSocketUrl } from './utils/socketUrl'
 import { isAgeGateAccepted } from './lib/ageGate'
 import { lazyRoute } from './lazyRoute'
+import TabRouteSuspense from './components/TabRouteSuspense'
 import BrandMark from './components/BrandMark'
 import SessionBootstrapScreen from './components/SessionBootstrapScreen'
 import { hasStoredAuthToken } from './lib/authToken'
@@ -431,25 +432,146 @@ export default function App() {
       <PwaPushLaunchRedirect />
       <NewMatchesNotification />
       <WebMessageNotifications />
-      <Suspense fallback={<RouteFallback />}>
-        <Routes>
-          <Route path="/" element={<PublicRoute><Landing /></PublicRoute>} />
-          <Route path="/login" element={<AuthRedirectRoute><PhoneLogin /></AuthRedirectRoute>} />
-          <Route path="/signup" element={<AuthRedirectRoute><PhoneLogin /></AuthRedirectRoute>} />
-          <Route path="/phone-login" element={<AuthRedirectRoute><PhoneLogin /></AuthRedirectRoute>} />
-          <Route path="/age-gate" element={<AgeGateRoute><AgeGate /></AgeGateRoute>} />
-          <Route path="/terms" element={<Terms />} />
-          <Route path="/privacy" element={<Privacy />} />
-          <Route element={<Layout />}>
-            <Route path="/create-profile" element={<PrivateRoute><CreateProfile /></PrivateRoute>} />
-            <Route path="/browse" element={<PrivateRoute><RequireConnectSetup><Browse /></RequireConnectSetup></PrivateRoute>} />
-            <Route path="/matches" element={<PrivateRoute><RequireConnectSetup><Matches /></RequireConnectSetup></PrivateRoute>} />
-            <Route path="/profile" element={<PrivateRoute><MyProfile /></PrivateRoute>} />
-            <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
-            <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
-          </Route>
-        </Routes>
-      </Suspense>
+      <Routes>
+        <Route
+          path="/"
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <PublicRoute>
+                <Landing />
+              </PublicRoute>
+            </Suspense>
+          }
+        />
+        <Route
+          path="/login"
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <AuthRedirectRoute>
+                <PhoneLogin />
+              </AuthRedirectRoute>
+            </Suspense>
+          }
+        />
+        <Route
+          path="/signup"
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <AuthRedirectRoute>
+                <PhoneLogin />
+              </AuthRedirectRoute>
+            </Suspense>
+          }
+        />
+        <Route
+          path="/phone-login"
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <AuthRedirectRoute>
+                <PhoneLogin />
+              </AuthRedirectRoute>
+            </Suspense>
+          }
+        />
+        <Route
+          path="/age-gate"
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <AgeGateRoute>
+                <AgeGate />
+              </AgeGateRoute>
+            </Suspense>
+          }
+        />
+        <Route
+          path="/terms"
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <Terms />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/privacy"
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <Privacy />
+            </Suspense>
+          }
+        />
+        <Route
+          element={
+            <Suspense fallback={<RouteFallback />}>
+              <Layout />
+            </Suspense>
+          }
+        >
+          <Route
+            path="/create-profile"
+            element={
+              <TabRouteSuspense>
+                <PrivateRoute>
+                  <CreateProfile />
+                </PrivateRoute>
+              </TabRouteSuspense>
+            }
+          />
+          <Route
+            path="/browse"
+            element={
+              <TabRouteSuspense>
+                <PrivateRoute>
+                  <RequireConnectSetup>
+                    <Browse />
+                  </RequireConnectSetup>
+                </PrivateRoute>
+              </TabRouteSuspense>
+            }
+          />
+          <Route
+            path="/matches"
+            element={
+              <TabRouteSuspense>
+                <PrivateRoute>
+                  <RequireConnectSetup>
+                    <Matches />
+                  </RequireConnectSetup>
+                </PrivateRoute>
+              </TabRouteSuspense>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <TabRouteSuspense>
+                <PrivateRoute>
+                  <MyProfile />
+                </PrivateRoute>
+              </TabRouteSuspense>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <TabRouteSuspense>
+                <PrivateRoute>
+                  <Settings />
+                </PrivateRoute>
+              </TabRouteSuspense>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <TabRouteSuspense>
+                <AdminRoute>
+                  <Admin />
+                </AdminRoute>
+              </TabRouteSuspense>
+            }
+          />
+        </Route>
+      </Routes>
     </>
   )
 }
