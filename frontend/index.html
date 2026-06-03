@@ -140,11 +140,28 @@
             showBootError("Update needed — tap Reload to open Mulligan.");
           }
         }, true);
+        function isStaleChunkMsg(msg) {
+          return msg && (
+            msg.indexOf("_result.default") !== -1 ||
+            msg.indexOf("dynamically imported module") !== -1 ||
+            msg.indexOf("Importing a module script failed") !== -1
+          );
+        }
         window.addEventListener("unhandledrejection", function (e) {
           try { sessionStorage.removeItem(RELOAD_KEY); } catch (err) { /* ignore */ }
+          var msg = (e && e.reason && (e.reason.message || String(e.reason))) || "";
+          if (isStaleChunkMsg(msg)) {
+            try {
+              var chunkKey = "mulligan:chunk-reload";
+              if (sessionStorage.getItem(chunkKey) !== "1") {
+                sessionStorage.setItem(chunkKey, "1");
+                window.location.reload();
+                return;
+              }
+            } catch (err) { /* ignore */ }
+          }
           if (!document.getElementById("boot-fallback")) return;
-          var msg = (e && e.reason && (e.reason.message || String(e.reason))) || "Unknown error";
-          showBootError("Could not start Mulligan. " + msg);
+          showBootError("Could not start Mulligan. " + (msg || "Unknown error"));
         });
         setTimeout(function () {
           var el = document.getElementById("boot-fallback");

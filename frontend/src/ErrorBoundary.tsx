@@ -27,6 +27,13 @@ class ErrorBoundary extends Component<Props, State> {
 
   public render() {
     if (this.state.hasError) {
+      const staleChunk =
+        this.state.error?.message?.includes('_result.default') ||
+        this.state.error?.message?.includes('dynamically imported module')
+      const friendlyMessage = staleChunk
+        ? 'Mulligan was updated in the background. Reload once to load the latest version.'
+        : this.state.error?.message || 'An unexpected error occurred'
+
       return (
         <div style={{
           display: 'flex',
@@ -42,7 +49,7 @@ class ErrorBoundary extends Component<Props, State> {
             Something went wrong
           </h1>
           <p style={{ marginBottom: '1rem', color: '#666' }}>
-            {this.state.error?.message || 'An unexpected error occurred'}
+            {friendlyMessage}
           </p>
           <button
             onClick={() => {
