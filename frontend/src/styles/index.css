@@ -6265,18 +6265,19 @@ button.my-profile-avatar:focus-visible {
 .my-profile-hero-row {
   display: flex;
   flex-wrap: wrap;
-  align-items: stretch;
-  gap: var(--space-4);
+  align-items: flex-start;
+  gap: var(--space-2);
 }
 
 .my-profile-hero-row .my-profile-stats-row {
-  flex: 1 1 220px;
+  flex: 0 1 220px;
   margin-bottom: 0;
 }
 
 .my-profile-hero-row .my-profile-preview-btn {
-  flex: 1 1 200px;
-  margin-bottom: 0;
+  flex: 0 1 200px;
+  margin: 0;
+  max-width: 100%;
 }
 
 .my-profile-preview-btn--solo {
@@ -6512,6 +6513,13 @@ button.my-profile-avatar:focus-visible {
 
   .my-profile-hero-row {
     flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .my-profile-hero-row .my-profile-stats-row,
+  .my-profile-hero-row .my-profile-preview-btn {
+    flex: 0 0 auto;
+    width: 100%;
   }
 }
 
