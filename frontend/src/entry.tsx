@@ -21,7 +21,6 @@ void import('./main.tsx')
     document.getElementById('boot-fallback')?.remove()
     try {
       sessionStorage.removeItem('mulligan:pwa-boot-reload')
-      sessionStorage.removeItem('mulligan:chunk-reload')
     } catch {
       /* ignore */
     }

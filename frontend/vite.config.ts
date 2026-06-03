@@ -3,7 +3,15 @@ import react from '@vitejs/plugin-react'
 import { copyFileSync, existsSync } from 'fs'
 import { resolve } from 'path'
 
+const appBuildId =
+  process.env.RENDER_GIT_COMMIT?.slice(0, 12) ||
+  process.env.GITHUB_SHA?.slice(0, 12) ||
+  String(Date.now())
+
 export default defineConfig({
+  define: {
+    __APP_BUILD_ID__: JSON.stringify(appBuildId),
+  },
   build: {
     /** Avoid CSS preload helper that can reject app startup on iOS PWA. */
     modulePreload: false,

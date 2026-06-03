@@ -155,10 +155,14 @@
           var msg = (e && e.reason && (e.reason.message || String(e.reason))) || "";
           if (isStaleChunkMsg(msg)) {
             try {
-              var chunkKey = "mulligan:chunk-reload";
-              if (sessionStorage.getItem(chunkKey) !== "1") {
-                sessionStorage.setItem(chunkKey, "1");
-                window.location.reload();
+              var attemptsKey = "mulligan:chunk-reload-attempts";
+              var attempts = parseInt(sessionStorage.getItem(attemptsKey) || "0", 10);
+              if (attempts < 2) {
+                sessionStorage.setItem(attemptsKey, String(attempts + 1));
+                sessionStorage.setItem("mulligan:chunk-reload", "1");
+                var freshUrl = new URL(window.location.href);
+                freshUrl.searchParams.set("_fresh", String(Date.now()));
+                window.location.replace(freshUrl.toString());
                 return;
               }
             } catch (err) { /* ignore */ }

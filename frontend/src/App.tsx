@@ -6,6 +6,8 @@ import { io, Socket } from 'socket.io-client'
 import { getSocketUrl } from './utils/socketUrl'
 import { isAgeGateAccepted } from './lib/ageGate'
 import { lazyRoute } from './lazyRoute'
+import PhoneLogin from './pages/PhoneLogin'
+import AgeGate from './pages/AgeGate'
 import TabRouteSuspense from './components/TabRouteSuspense'
 import BrandMark from './components/BrandMark'
 import SessionBootstrapScreen from './components/SessionBootstrapScreen'
@@ -16,8 +18,6 @@ import { isIncomingMatchForConnectInitiator } from './lib/connectInitiator'
 
 const Layout = lazyRoute(() => import('./components/Layout'))
 const Landing = lazyRoute(() => import('./pages/Landing'))
-const PhoneLogin = lazyRoute(() => import('./pages/PhoneLogin'))
-const AgeGate = lazyRoute(() => import('./pages/AgeGate'))
 const CreateProfile = lazyRoute(() => import('./pages/CreateProfile'))
 const Browse = lazyRoute(() => import('./pages/Browse'))
 const Matches = lazyRoute(() => import('./pages/Matches'))

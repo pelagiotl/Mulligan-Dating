@@ -13,10 +13,9 @@ import './styles/connect-button-effects.css'
 import './styles/legal-document.css'
 import { applyConnectShellMode, DEFAULT_CONNECT_SHELL_MODE } from './lib/connectShellTheme'
 import { registerPushSoundBridge } from './lib/pushSoundBridge'
-import {
-  CHUNK_RELOAD_KEY,
-  maybeReloadForStaleChunks,
-} from './utils/staleChunk'
+import { maybeReloadForStaleChunks, syncAppBuildReloadGuards } from './utils/staleChunk'
+
+declare const __APP_BUILD_ID__: string
 
 if (typeof window !== 'undefined') {
   window.addEventListener('unhandledrejection', (event) => {
@@ -31,11 +30,11 @@ if (typeof document !== 'undefined') {
 registerPushSoundBridge()
 
 if (typeof document !== 'undefined') {
+  syncAppBuildReloadGuards(typeof __APP_BUILD_ID__ !== 'undefined' ? __APP_BUILD_ID__ : '')
   document.getElementById('boot-fallback')?.remove()
   ;(window as Window & { __MULLIGAN_APP_MOUNTED__?: boolean }).__MULLIGAN_APP_MOUNTED__ = true
   try {
     sessionStorage.removeItem('mulligan:pwa-boot-reload')
-    sessionStorage.removeItem(CHUNK_RELOAD_KEY)
   } catch {
     /* ignore */
   }

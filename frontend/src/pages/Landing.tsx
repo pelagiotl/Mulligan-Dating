@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import ConnectButtonEffects from "../components/ConnectButtonEffects";
 import ConnectLandingMark from "../components/ConnectLandingMark";
@@ -13,6 +14,11 @@ import LandingAddToHomePrompt from "../components/LandingAddToHomePrompt";
  */
 export default function Landing() {
   const { isAuthenticated, loading: authLoading } = useAuth();
+
+  useEffect(() => {
+    void import("./PhoneLogin");
+    void import("./AgeGate");
+  }, []);
 
   return (
     <div className="landing-public-root native-app-screen">

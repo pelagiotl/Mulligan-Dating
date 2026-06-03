@@ -1,5 +1,9 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { isStaleChunkLoadError, maybeReloadForStaleChunks } from './utils/staleChunk';
+import {
+  forceReloadForStaleChunks,
+  isStaleChunkLoadError,
+  maybeReloadForStaleChunks,
+} from './utils/staleChunk';
 
 interface Props {
   children: ReactNode;
@@ -56,6 +60,10 @@ class ErrorBoundary extends Component<Props, State> {
           </p>
           <button
             onClick={() => {
+              if (staleChunk) {
+                forceReloadForStaleChunks();
+                return;
+              }
               this.setState({ hasError: false, error: null });
               window.location.reload();
             }}
@@ -71,36 +79,38 @@ class ErrorBoundary extends Component<Props, State> {
           >
             Reload Page
           </button>
-          <details style={{ marginTop: '2rem', textAlign: 'left', maxWidth: '800px' }} open>
-            <summary style={{ cursor: 'pointer', marginBottom: '1rem', fontWeight: 'bold' }}>Error Details (Click to expand)</summary>
-            <div style={{ marginBottom: '1rem' }}>
-              <strong>Error Message:</strong>
-              <pre style={{
-                background: '#f3f4f6',
-                padding: '1rem',
-                borderRadius: '0.5rem',
-                overflow: 'auto',
-                fontSize: '0.875rem',
-                marginTop: '0.5rem'
-              }}>
-                {this.state.error?.message}
-              </pre>
-            </div>
-            <div>
-              <strong>Stack Trace:</strong>
-              <pre style={{
-                background: '#f3f4f6',
-                padding: '1rem',
-                borderRadius: '0.5rem',
-                overflow: 'auto',
-                fontSize: '0.875rem',
-                marginTop: '0.5rem',
-                maxHeight: '400px'
-              }}>
-                {this.state.error?.stack}
-              </pre>
-            </div>
-          </details>
+          {!staleChunk ? (
+            <details style={{ marginTop: '2rem', textAlign: 'left', maxWidth: '800px' }} open>
+              <summary style={{ cursor: 'pointer', marginBottom: '1rem', fontWeight: 'bold' }}>Error Details (Click to expand)</summary>
+              <div style={{ marginBottom: '1rem' }}>
+                <strong>Error Message:</strong>
+                <pre style={{
+                  background: '#f3f4f6',
+                  padding: '1rem',
+                  borderRadius: '0.5rem',
+                  overflow: 'auto',
+                  fontSize: '0.875rem',
+                  marginTop: '0.5rem'
+                }}>
+                  {this.state.error?.message}
+                </pre>
+              </div>
+              <div>
+                <strong>Stack Trace:</strong>
+                <pre style={{
+                  background: '#f3f4f6',
+                  padding: '1rem',
+                  borderRadius: '0.5rem',
+                  overflow: 'auto',
+                  fontSize: '0.875rem',
+                  marginTop: '0.5rem',
+                  maxHeight: '400px'
+                }}>
+                  {this.state.error?.stack}
+                </pre>
+              </div>
+            </details>
+          ) : null}
         </div>
       );
     }
