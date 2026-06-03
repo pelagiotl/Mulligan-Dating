@@ -248,6 +248,8 @@ export default function Matches() {
   const composerTextRef = useRef("");
   const userIdRef = useRef<string | null>(null);
   const matchesRef = useRef<Match[]>([]);
+  /** Per-thread message cache — applied synchronously when switching chats (avoids flash of prior thread). */
+  const messagesByMatchIdRef = useRef<Record<string, Message[]>>({});
   const lightboxTouchX = useRef<number | null>(null);
   const [gameRequestToShow, setGameRequestToShow] = useState<PendingGameRequestWeb | null>(null);
   const [openGameForAccept, setOpenGameForAccept] = useState<{
@@ -390,19 +392,54 @@ export default function Matches() {
     };
   }, [partnerDrawerOpen, user]);
 
-  const openMatchThread = useCallback((match: Match) => {
-    const clearedMatch = { ...match, unreadCount: 0 };
-    setSelectedMatch(clearedMatch);
-    setMatches((prev) =>
-      prev.map((m) => (m.id === match.id ? { ...m, unreadCount: 0 } : m))
-    );
-    if (socketRef.current && match.stage !== "pending") {
-      socketRef.current.emit("mark_read", { matchId: match.id });
-    }
-    if (typeof window !== "undefined" && window.innerWidth <= 900) {
-      setMobileShowMatchList(false);
+  const replaceThreadMessages = useCallback((matchId: string, next: Message[]) => {
+    messagesByMatchIdRef.current[matchId] = next;
+    if (selectedMatchIdRef.current === matchId) {
+      setMessages(next);
     }
   }, []);
+
+  const patchThreadMessages = useCallback(
+    (matchId: string, updater: (prev: Message[]) => Message[]) => {
+      const prev = messagesByMatchIdRef.current[matchId] ?? [];
+      const next = updater(prev);
+      messagesByMatchIdRef.current[matchId] = next;
+      if (selectedMatchIdRef.current === matchId) {
+        setMessages(next);
+      }
+    },
+    []
+  );
+
+  const applyCachedMessagesForThread = useCallback((matchId: string | null, stage: Match["stage"] | null) => {
+    if (!matchId || stage === "pending") {
+      setMessages([]);
+      return;
+    }
+    setMessages(messagesByMatchIdRef.current[matchId] ?? []);
+  }, []);
+
+  const openMatchThread = useCallback(
+    (match: Match) => {
+      const prevId = selectedMatchIdRef.current;
+      if (prevId !== match.id) {
+        applyCachedMessagesForThread(match.id, match.stage);
+        setTypingUsers(new Set());
+      }
+      const clearedMatch = { ...match, unreadCount: 0 };
+      setSelectedMatch(clearedMatch);
+      setMatches((prev) =>
+        prev.map((m) => (m.id === match.id ? { ...m, unreadCount: 0 } : m))
+      );
+      if (socketRef.current && match.stage !== "pending") {
+        socketRef.current.emit("mark_read", { matchId: match.id });
+      }
+      if (typeof window !== "undefined" && window.innerWidth <= 900) {
+        setMobileShowMatchList(false);
+      }
+    },
+    [applyCachedMessagesForThread]
+  );
 
   useEffect(() => {
     setPartnerDrawerOpen(false);
@@ -474,6 +511,10 @@ export default function Matches() {
   useEffect(() => {
     selectedMatchStageRef.current = selectedMatch?.stage ?? null;
   }, [selectedMatch?.stage]);
+
+  useLayoutEffect(() => {
+    applyCachedMessagesForThread(selectedMatch?.id ?? null, selectedMatch?.stage ?? null);
+  }, [selectedMatch?.id, selectedMatch?.stage, applyCachedMessagesForThread]);
 
   useEffect(() => {
     userIdRef.current = user?.id ?? null;
@@ -558,14 +599,13 @@ export default function Matches() {
       if (message.matchId && openId && message.matchId !== openId) {
         return;
       }
-      setMessages((prev) => {
-        // Check if message already exists (avoid duplicates)
+      const threadId = message.matchId ?? openId;
+      if (!threadId) return;
+      patchThreadMessages(threadId, (prev) => {
         if (prev.some((m) => m.id === message.id)) {
           return prev;
         }
-        const updated = [...prev, { ...message, isOwn: message.senderId === user.id }];
-
-        return updated;
+        return [...prev, { ...message, isOwn: message.senderId === user.id }];
       });
     });
 
@@ -624,8 +664,7 @@ export default function Matches() {
     // Handle read receipts
     socket.on('messages_read', (data: { matchId: string }) => {
       if (selectedMatchIdRef.current === data.matchId) {
-        // Update read status for messages sent by current user
-        setMessages((prev) =>
+        patchThreadMessages(data.matchId, (prev) =>
           prev.map((msg) =>
             msg.isOwn && !msg.readAt ? { ...msg, readAt: new Date().toISOString() } : msg
           )
@@ -643,7 +682,7 @@ export default function Matches() {
         senderId?: string;
       }) => {
         if (data.matchId !== selectedMatchIdRef.current) return;
-        setMessages((prev) =>
+        patchThreadMessages(data.matchId, (prev) =>
           prev.map((m) =>
             m.id === data.messageId
               ? { ...m, likedBy: data.likedBy, laughedBy: null, heartEyesBy: null }
@@ -661,7 +700,7 @@ export default function Matches() {
 
     socket.on("message_unliked", (data: { matchId: string; messageId: string }) => {
       if (data.matchId !== selectedMatchIdRef.current) return;
-      setMessages((prev) =>
+      patchThreadMessages(data.matchId, (prev) =>
         prev.map((m) => (m.id === data.messageId ? { ...m, likedBy: null } : m))
       );
     });
@@ -676,7 +715,7 @@ export default function Matches() {
         senderId?: string;
       }) => {
         if (data.matchId !== selectedMatchIdRef.current) return;
-        setMessages((prev) =>
+        patchThreadMessages(data.matchId, (prev) =>
           prev.map((m) =>
             m.id === data.messageId
               ? { ...m, laughedBy: data.laughedBy, likedBy: null, heartEyesBy: null }
@@ -694,7 +733,7 @@ export default function Matches() {
 
     socket.on("message_unlaughed", (data: { matchId: string; messageId: string }) => {
       if (data.matchId !== selectedMatchIdRef.current) return;
-      setMessages((prev) =>
+      patchThreadMessages(data.matchId, (prev) =>
         prev.map((m) => (m.id === data.messageId ? { ...m, laughedBy: null } : m))
       );
     });
@@ -709,7 +748,7 @@ export default function Matches() {
         senderId?: string;
       }) => {
         if (data.matchId !== selectedMatchIdRef.current) return;
-        setMessages((prev) =>
+        patchThreadMessages(data.matchId, (prev) =>
           prev.map((m) =>
             m.id === data.messageId
               ? { ...m, heartEyesBy: data.heartEyesBy, likedBy: null, laughedBy: null }
@@ -727,7 +766,7 @@ export default function Matches() {
 
     socket.on("message_unheart_eyes", (data: { matchId: string; messageId: string }) => {
       if (data.matchId !== selectedMatchIdRef.current) return;
-      setMessages((prev) =>
+      patchThreadMessages(data.matchId, (prev) =>
         prev.map((m) => (m.id === data.messageId ? { ...m, heartEyesBy: null } : m))
       );
     });
@@ -871,7 +910,7 @@ export default function Matches() {
     return () => {
       socket.disconnect();
     };
-  }, [user, triggerGalleryUnlockCelebration]);
+  }, [user, triggerGalleryUnlockCelebration, patchThreadMessages, openMatchThread]);
 
   // Fetch matches on component mount
   useEffect(() => {
@@ -1138,7 +1177,7 @@ export default function Matches() {
       );
       if (selectedMatchIdRef.current !== matchId) return;
 
-      setMessages(data.messages);
+      replaceThreadMessages(matchId, data.messages);
     } catch (err) {
       console.error("Failed to fetch messages:", err);
     }
@@ -1227,12 +1266,12 @@ export default function Matches() {
     try {
       if (currentlyLiked) {
         await api.delete(`/matches/${matchId}/messages/${messageId}/like`);
-        setMessages((prev) =>
+        patchThreadMessages(matchId, (prev) =>
           prev.map((m) => (m.id === messageId ? { ...m, likedBy: null } : m))
         );
       } else {
         await api.post(`/matches/${matchId}/messages/${messageId}/like`, {});
-        setMessages((prev) =>
+        patchThreadMessages(matchId, (prev) =>
           prev.map((m) =>
             m.id === messageId ? { ...m, likedBy: uid, laughedBy: null, heartEyesBy: null } : m
           )
@@ -1255,12 +1294,12 @@ export default function Matches() {
     try {
       if (currentlyLaughed) {
         await api.delete(`/matches/${matchId}/messages/${messageId}/laugh`);
-        setMessages((prev) =>
+        patchThreadMessages(matchId, (prev) =>
           prev.map((m) => (m.id === messageId ? { ...m, laughedBy: null } : m))
         );
       } else {
         await api.post(`/matches/${matchId}/messages/${messageId}/laugh`, {});
-        setMessages((prev) =>
+        patchThreadMessages(matchId, (prev) =>
           prev.map((m) =>
             m.id === messageId ? { ...m, laughedBy: uid, likedBy: null, heartEyesBy: null } : m
           )
@@ -1283,12 +1322,12 @@ export default function Matches() {
     try {
       if (currentlyHeartEyes) {
         await api.delete(`/matches/${matchId}/messages/${messageId}/heart-eyes`);
-        setMessages((prev) =>
+        patchThreadMessages(matchId, (prev) =>
           prev.map((m) => (m.id === messageId ? { ...m, heartEyesBy: null } : m))
         );
       } else {
         await api.post(`/matches/${matchId}/messages/${messageId}/heart-eyes`, {});
-        setMessages((prev) =>
+        patchThreadMessages(matchId, (prev) =>
           prev.map((m) =>
             m.id === messageId ? { ...m, heartEyesBy: uid, likedBy: null, laughedBy: null } : m
           )
@@ -1317,7 +1356,7 @@ export default function Matches() {
     matchId: string,
     snap: Match | null
   ) => {
-    setMessages((prev) => {
+    patchThreadMessages(matchId, (prev) => {
       const m = data.message;
       if (prev.some((x) => x.id === m.id)) return prev;
       return [...prev, { ...m, isOwn: true }];
@@ -2727,7 +2766,7 @@ export default function Matches() {
                       </div>
                     </div>
                   ) : (
-                    <div className="messages-list">
+                    <div className="messages-list" key={selectedMatch.id}>
                       {messages.map((msg) => {
                         const hasMedia = !!(msg.imageUrl || msg.videoUrl || msg.audioUrl);
                         return (

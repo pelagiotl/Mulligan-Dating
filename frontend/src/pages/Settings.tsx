@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, FormEvent } from "react";
+import { useState, useEffect, useRef, useMemo, FormEvent } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useConnectShellTheme } from "../context/ConnectShellThemeContext";
 import { connectShellDisplayLabel } from "../lib/connectShellTheme";
@@ -67,6 +67,15 @@ export default function Settings() {
   const [accountEmail, setAccountEmail] = useState("");
   const settingsFetchGen = useRef(0);
 
+  const displayAccountEmail = useMemo(
+    () =>
+      accountEmail.trim() ||
+      settings?.email?.trim() ||
+      user?.email?.trim() ||
+      "",
+    [accountEmail, settings?.email, user?.email],
+  );
+
   // Delete account
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
@@ -107,8 +116,8 @@ export default function Settings() {
         ...data,
         email: loadedEmail || prev?.email?.trim() || null,
       }));
+      setAccountEmail((prev) => loadedEmail || prev);
       if (loadedEmail) {
-        setAccountEmail(loadedEmail);
         setNewEmail(loadedEmail);
       }
       if (data.requiresPasswordForEmailChange) {
@@ -153,6 +162,12 @@ export default function Settings() {
     }
     setDisplayNameDraft((profile.displayName ?? "").trim());
   }, [profile]);
+
+  useEffect(() => {
+    const fromSession = user?.email?.trim();
+    if (!fromSession) return;
+    setAccountEmail((prev) => prev.trim() || fromSession);
+  }, [user?.email]);
 
   useEffect(() => {
     if (!user?.webPushConfigured || !getVapidPublicKey() || !browserSupportsWebPush()) return;
@@ -301,6 +316,7 @@ export default function Settings() {
       setNewEmail(savedEmail);
       setEmailNeedsPassword(false);
       setEmailPassword("");
+      void refreshSession({ silent: true });
       setTimeout(() => setSuccess(""), 5000);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to change email";
@@ -516,7 +532,7 @@ export default function Settings() {
           <div className="settings-info" style={{ marginTop: "var(--space-4)" }}>
             <div className="info-item">
               <label data-emoji="📧">📧 Email</label>
-              <span id="settings-account-email">{accountEmail || "—"}</span>
+              <span id="settings-account-email">{displayAccountEmail || "—"}</span>
             </div>
           </div>
 
@@ -584,15 +600,6 @@ export default function Settings() {
             >
               {displayNameSaving ? "Saving…" : "Save name"}
             </button>
-          </div>
-
-          <div className="settings-quick-links">
-            <Link className="settings-quick-link" to="/profile">
-              <span>📍</span> Location, bio &amp; preferences
-            </Link>
-            <Link className="settings-quick-link" to="/profile#my-photos">
-              <span>📷</span> Photos (need 3 to Connect)
-            </Link>
           </div>
         </SettingsSectionCard>
 
@@ -678,7 +685,7 @@ export default function Settings() {
           <h2 className="settings-section-title">
             <span>💳</span> Tokens
           </h2>
-          <WebTokenPurchase variant="settings" customerEmail={accountEmail || undefined} />
+          <WebTokenPurchase variant="settings" customerEmail={displayAccountEmail || undefined} />
         </SettingsSectionCard>
 
         <SettingsSectionCard variant="session" delay={700}>
