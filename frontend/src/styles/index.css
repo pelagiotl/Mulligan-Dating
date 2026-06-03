@@ -15716,6 +15716,10 @@ button.chat-avatar-btn .chat-avatar img {
   font-size: 1rem;
 }
 
+.settings-email-field-error {
+  margin: 0;
+}
+
 .gender-options {
   display: flex;
   flex-direction: column;
