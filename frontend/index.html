@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-connect-shell="midnight">
+<html lang="en" data-connect-shell="midnight" style="background-color:#0f172a;color-scheme:dark">
   <head>
     <script>
       (function () {
@@ -9,8 +9,22 @@
           if (v === "midnight" || v === "sunny" || v === "soft") mode = v;
           document.documentElement.setAttribute("data-connect-shell", mode);
           var themeColors = { midnight: "#0f172a", sunny: "#ffedd5", soft: "#faf5ff" };
+          var bg = themeColors[mode] || themeColors.midnight;
+          document.documentElement.style.backgroundColor = bg;
+          if (mode === "midnight") document.documentElement.style.colorScheme = "dark";
+          else document.documentElement.style.colorScheme = "light";
           var tc = document.querySelector('meta[name="theme-color"]');
-          if (tc) tc.setAttribute("content", themeColors[mode] || themeColors.midnight);
+          if (tc) tc.setAttribute("content", bg);
+          var isPwa =
+            window.matchMedia("(display-mode: standalone)").matches ||
+            window.matchMedia("(display-mode: fullscreen)").matches ||
+            (window.navigator && window.navigator.standalone === true);
+          if (isPwa) document.documentElement.classList.add("pwa-standalone");
+          function paintBootChrome() {
+            if (document.body) document.body.style.backgroundColor = bg;
+          }
+          paintBootChrome();
+          document.addEventListener("DOMContentLoaded", paintBootChrome);
         } catch (e) {
           document.documentElement.setAttribute("data-connect-shell", "midnight");
         }
@@ -21,6 +35,7 @@
         --boot-bg-color: #0f172a;
         --boot-bg-gradient: linear-gradient(145deg, #15102a 0%, #221a32 50%, #0f172a 100%);
         --boot-text: #f8fafc;
+        color-scheme: dark;
       }
       html[data-connect-shell="sunny"] {
         --boot-bg-color: #ffedd5;
@@ -34,42 +49,83 @@
       }
       html, body {
         margin: 0;
+        width: 100%;
         height: 100%;
         min-height: 100vh;
         min-height: 100dvh;
-        min-height: -webkit-fill-available;
-        background-color: var(--boot-bg-color, #0f172a);
-        background-image: var(--boot-bg-gradient);
-      }
-      #root {
-        min-height: 100vh;
-        min-height: 100dvh;
-        min-height: -webkit-fill-available;
-        background-color: var(--boot-bg-color, #0f172a);
-        background-image: var(--boot-bg-gradient);
-      }
-      #boot-fallback,
-      .app-route-chunk-fallback {
-        position: fixed;
-        inset: 0;
-        z-index: 9999;
-        width: 100%;
-        min-height: 100vh;
-        min-height: 100dvh;
-        min-height: 100svh;
         min-height: 100lvh;
         min-height: -webkit-fill-available;
         background-color: var(--boot-bg-color, #0f172a);
         background-image: var(--boot-bg-gradient);
+        background-repeat: no-repeat;
+        background-size: cover;
+        background-attachment: fixed;
+      }
+      html:has(#boot-fallback),
+      html:has(#boot-fallback) body {
+        overflow: hidden;
+        height: 100lvh;
+        min-height: 100lvh;
+      }
+      #root {
+        min-height: 100vh;
+        min-height: 100dvh;
+        min-height: 100lvh;
+        min-height: -webkit-fill-available;
+        background-color: var(--boot-bg-color, #0f172a);
+      }
+      #boot-fallback,
+      .app-route-chunk-fallback {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 9999;
+        width: 100%;
+        height: 100%;
+        height: 100lvh;
+        min-height: 100vh;
+        min-height: 100dvh;
+        min-height: 100lvh;
+        min-height: -webkit-fill-available;
+        /* iOS home-screen PWA: layout viewport can be shorter than the painted screen */
+        min-height: calc(100lvh + env(safe-area-inset-bottom, 0px));
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+        box-sizing: border-box;
+        background-color: var(--boot-bg-color, #0f172a);
+        background-image: var(--boot-bg-gradient);
+        background-repeat: no-repeat;
+        background-size: cover;
+        background-attachment: fixed;
         overscroll-behavior: none;
+        -webkit-overflow-scrolling: touch;
+      }
+      html.pwa-standalone #boot-fallback,
+      html.pwa-standalone .app-route-chunk-fallback {
+        bottom: calc(-1 * env(safe-area-inset-bottom, 0px));
+        min-height: calc(100lvh + env(safe-area-inset-bottom, 0px) + 24px);
+        padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 24px);
+      }
+      html.pwa-standalone:has(#boot-fallback)::after {
+        content: "";
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: calc(env(safe-area-inset-bottom, 0px) + 48px);
+        background: var(--boot-bg-color, #0f172a);
+        z-index: 9998;
+        pointer-events: none;
       }
       #boot-fallback {
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        padding: max(2rem, env(safe-area-inset-top, 0px)) max(2rem, env(safe-area-inset-right, 0px))
-          max(2rem, env(safe-area-inset-bottom, 0px)) max(2rem, env(safe-area-inset-left, 0px));
+        padding-top: max(2rem, env(safe-area-inset-top, 0px));
+        padding-left: max(2rem, env(safe-area-inset-left, 0px));
+        padding-right: max(2rem, env(safe-area-inset-right, 0px));
         text-align: center;
         font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         color: var(--boot-text, #f8fafc);
@@ -121,14 +177,14 @@
     <link rel="preload" href="/app-icon.png?v=20260603" as="image" type="image/png" />
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
     />
     <!-- Match app-icon gradient start (#667eea), not burgundy UI accent — Add to Home Screen splash -->
     <meta name="theme-color" content="#0f172a" />
-    <meta name="msapplication-TileColor" content="#667eea" />
+    <meta name="msapplication-TileColor" content="#0f172a" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <link rel="manifest" href="/manifest.webmanifest?v=20260603" />
+    <link rel="manifest" href="/manifest.webmanifest?v=20260604" />
     <meta name="description" content="Mulligan — Meet cool people. Actually hangout." />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -146,15 +202,18 @@
     </noscript>
     <title>Mulligan</title>
   </head>
-  <body>
-    <div id="root">
-      <div id="boot-fallback" aria-live="polite" aria-busy="true">
-        <img src="/app-icon.png?v=20260603" width="72" height="72" alt="" />
-        <h1>Mulligan</h1>
-        <p>Starting Mulligan…</p>
-        <div class="boot-spinner" aria-hidden="true"></div>
-      </div>
+  <body style="background-color:#0f172a">
+    <div
+      id="boot-fallback"
+      aria-live="polite"
+      aria-busy="true"
+    >
+      <img src="/app-icon.png?v=20260603" width="72" height="72" alt="" />
+      <h1>Mulligan</h1>
+      <p>Starting Mulligan…</p>
+      <div class="boot-spinner" aria-hidden="true"></div>
     </div>
+    <div id="root"></div>
     <script>
       (function () {
         window.addEventListener("vite:preloadError", function (e) {
