@@ -215,6 +215,8 @@ export default function Matches() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  /** Hide empty-state until first fetch for this thread (avoids "No messages yet" flash). */
+  const [messagesLoading, setMessagesLoading] = useState(false);
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [sendingMessage, setSendingMessage] = useState(false);
@@ -414,16 +416,23 @@ export default function Matches() {
   const applyCachedMessagesForThread = useCallback((matchId: string | null, stage: Match["stage"] | null) => {
     if (!matchId || stage === "pending") {
       setMessages([]);
+      setMessagesLoading(false);
       return;
     }
-    setMessages(messagesByMatchIdRef.current[matchId] ?? []);
+    const cached = messagesByMatchIdRef.current[matchId] ?? [];
+    setMessages(cached);
+    if (cached.length > 0) {
+      setMessagesLoading(false);
+    }
   }, []);
 
   const openMatchThread = useCallback(
     (match: Match) => {
       const prevId = selectedMatchIdRef.current;
       if (prevId !== match.id) {
+        const cached = messagesByMatchIdRef.current[match.id] ?? [];
         applyCachedMessagesForThread(match.id, match.stage);
+        setMessagesLoading(match.stage !== "pending" && cached.length === 0);
         setTypingUsers(new Set());
       }
       const clearedMatch = { ...match, unreadCount: 0 };
@@ -1171,6 +1180,10 @@ export default function Matches() {
   }, [matches, selectedMatch?.id]);
 
   const fetchMessages = async (matchId: string) => {
+    const hadCached = (messagesByMatchIdRef.current[matchId]?.length ?? 0) > 0;
+    if (!hadCached && selectedMatchIdRef.current === matchId) {
+      setMessagesLoading(true);
+    }
     try {
       const data = await api.get<{ messages: Message[] }>(
         `/matches/${matchId}/messages`
@@ -1180,6 +1193,10 @@ export default function Matches() {
       replaceThreadMessages(matchId, data.messages);
     } catch (err) {
       console.error("Failed to fetch messages:", err);
+    } finally {
+      if (selectedMatchIdRef.current === matchId) {
+        setMessagesLoading(false);
+      }
     }
   };
 
@@ -2753,7 +2770,7 @@ export default function Matches() {
             ) : (
               <div className="matches-chat-column">
                 <div className="messages-container" ref={messagesContainerRef}>
-                  {messages.length === 0 ? (
+                  {!messagesLoading && messages.length === 0 ? (
                     <div className="no-messages">
                       <div className="no-messages__inner">
                         <span className="no-messages__wave" aria-hidden>

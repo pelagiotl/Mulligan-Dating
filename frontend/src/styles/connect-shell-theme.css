@@ -668,6 +668,101 @@ html[data-connect-shell="sunny"] .navbar-token-badge--pulse,
   animation: navbarTokenQuantityPulseSunny 3s ease-in-out infinite;
 }
 
+/* Midnight: navbar token modal + purchase Mulligan tokens block */
+html[data-connect-shell="midnight"] .navbar-token-modal-card,
+.app-layout.connect-shell--midnight .navbar-token-modal-card {
+  background: linear-gradient(
+    165deg,
+    rgba(24, 20, 36, 0.98) 0%,
+    rgba(30, 27, 46, 0.96) 48%,
+    rgba(18, 16, 28, 0.98) 100%
+  );
+  border: 1px solid rgba(167, 139, 250, 0.28);
+  box-shadow:
+    0 24px 48px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(99, 102, 241, 0.14) inset;
+}
+
+html[data-connect-shell="midnight"] .navbar-token-modal-head h2,
+.app-layout.connect-shell--midnight .navbar-token-modal-head h2 {
+  color: #f1f5f9;
+}
+
+html[data-connect-shell="midnight"] .navbar-token-modal-tagline,
+.app-layout.connect-shell--midnight .navbar-token-modal-tagline {
+  color: #94a3b8;
+}
+
+html[data-connect-shell="midnight"] .navbar-token-modal-close,
+.app-layout.connect-shell--midnight .navbar-token-modal-close {
+  background: rgba(52, 48, 68, 0.9);
+  color: #e2e8f0;
+  border: 1px solid rgba(167, 139, 250, 0.22);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+html[data-connect-shell="midnight"] .navbar-token-modal-close:hover,
+.app-layout.connect-shell--midnight .navbar-token-modal-close:hover {
+  background: rgba(67, 56, 96, 0.95);
+  border-color: rgba(196, 181, 253, 0.35);
+}
+
+html[data-connect-shell="midnight"] .navbar-token-modal-purchase,
+.app-layout.connect-shell--midnight .navbar-token-modal-purchase {
+  border-top-color: rgba(167, 139, 250, 0.22);
+}
+
+html[data-connect-shell="midnight"] .navbar-token-modal-purchase-label,
+.app-layout.connect-shell--midnight .navbar-token-modal-purchase-label {
+  color: #c4b5fd;
+}
+
+html[data-connect-shell="midnight"] .navbar-token-modal .web-token-purchase--settings .settings-description,
+html[data-connect-shell="midnight"] .settings-page.native-app-screen .web-token-purchase--settings .settings-description,
+.app-layout.connect-shell--midnight .navbar-token-modal .web-token-purchase--settings .settings-description,
+.app-layout.connect-shell--midnight .settings-page.native-app-screen .web-token-purchase--settings .settings-description {
+  color: #cbd5e1 !important;
+}
+
+html[data-connect-shell="midnight"] .navbar-token-modal .web-token-purchase__card,
+html[data-connect-shell="midnight"] .settings-page.native-app-screen .web-token-purchase__card,
+.app-layout.connect-shell--midnight .navbar-token-modal .web-token-purchase__card,
+.app-layout.connect-shell--midnight .settings-page.native-app-screen .web-token-purchase__card {
+  background: rgba(30, 27, 46, 0.92) !important;
+  border: 1px solid rgba(167, 139, 250, 0.24) !important;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
+}
+
+html[data-connect-shell="midnight"] .navbar-token-modal .web-token-purchase__quantity,
+html[data-connect-shell="midnight"] .settings-page.native-app-screen .web-token-purchase__quantity,
+.app-layout.connect-shell--midnight .navbar-token-modal .web-token-purchase__quantity,
+.app-layout.connect-shell--midnight .settings-page.native-app-screen .web-token-purchase__quantity {
+  color: #f8fafc !important;
+}
+
+html[data-connect-shell="midnight"] .navbar-token-modal .web-token-purchase__per-token,
+html[data-connect-shell="midnight"] .settings-page.native-app-screen .web-token-purchase__per-token,
+.app-layout.connect-shell--midnight .navbar-token-modal .web-token-purchase__per-token,
+.app-layout.connect-shell--midnight .settings-page.native-app-screen .web-token-purchase__per-token {
+  color: #94a3b8 !important;
+}
+
+html[data-connect-shell="midnight"] .navbar-token-modal .auth-error,
+html[data-connect-shell="midnight"] .navbar-token-modal .auth-success,
+html[data-connect-shell="midnight"] .settings-page.native-app-screen .web-token-purchase--settings .auth-error,
+html[data-connect-shell="midnight"] .settings-page.native-app-screen .web-token-purchase--settings .auth-success,
+.app-layout.connect-shell--midnight .navbar-token-modal .auth-error,
+.app-layout.connect-shell--midnight .navbar-token-modal .auth-success,
+.app-layout.connect-shell--midnight .settings-page.native-app-screen .web-token-purchase--settings .auth-error,
+.app-layout.connect-shell--midnight .settings-page.native-app-screen .web-token-purchase--settings .auth-success {
+  border-radius: var(--radius-lg);
+}
+
+html[data-connect-shell="midnight"] .settings-page.native-app-screen .settings-perimeter-border--tokens .settings-section,
+.app-layout.connect-shell--midnight .settings-page.native-app-screen .settings-perimeter-border--tokens .settings-section {
+  color: #e2e8f0;
+}
+
 /* Soft: Connect landing token card — airy purple shadow */
 html[data-connect-shell="soft"] .browse-connect-landing-token .token-display.token-display-card,
 .app-layout.connect-shell--soft .browse-connect-landing-token .token-display.token-display-card {
