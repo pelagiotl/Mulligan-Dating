@@ -168,16 +168,16 @@
           if (!el) return;
           var p = el.querySelector("p");
           if (p && window.__MULLIGAN_ENTRY_LOADED__) {
-            p.textContent = "Still loading — first open can take up to a minute…";
+            p.textContent = "Downloading Mulligan…";
           }
-        }, 8000);
+        }, 5000);
         setTimeout(function () {
           if (!document.getElementById("boot-fallback")) {
             try { sessionStorage.removeItem(RELOAD_KEY); } catch (err) { /* ignore */ }
             return;
           }
-          showBootError("Still loading — tap Reload to refresh Mulligan.");
-        }, 60000);
+          showBootError("Taking longer than usual — tap Reload to try again.");
+        }, 90000);
       })();
     </script>
     <script type="module" src="/src/entry.tsx"></script>

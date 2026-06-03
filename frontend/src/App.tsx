@@ -1,28 +1,34 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react'
+import React, { Suspense, useEffect, useState, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import { io, Socket } from 'socket.io-client'
 import { getSocketUrl } from './utils/socketUrl'
 import { isAgeGateAccepted } from './lib/ageGate'
-import Layout from './components/Layout'
+import { lazyRoute } from './lazyRoute'
 import BrandMark from './components/BrandMark'
 import SessionBootstrapScreen from './components/SessionBootstrapScreen'
 import { hasStoredAuthToken } from './lib/authToken'
 import { playMatchCelebrationSound } from './utils/matchSound'
 import WebMessageNotifications from './components/WebMessageNotifications'
 import { isIncomingMatchForConnectInitiator } from './lib/connectInitiator'
-import Landing from './pages/Landing'
-import PhoneLogin from './pages/PhoneLogin'
-import AgeGate from './pages/AgeGate'
-import CreateProfile from './pages/CreateProfile'
-import Browse from './pages/Browse'
-import Matches from './pages/Matches'
-import MyProfile from './pages/MyProfile'
-import Settings from './pages/Settings'
-import Admin from './pages/Admin'
-import Terms from './pages/Terms'
-import Privacy from './pages/Privacy'
+
+const Layout = lazyRoute(() => import('./components/Layout'))
+const Landing = lazyRoute(() => import('./pages/Landing'))
+const PhoneLogin = lazyRoute(() => import('./pages/PhoneLogin'))
+const AgeGate = lazyRoute(() => import('./pages/AgeGate'))
+const CreateProfile = lazyRoute(() => import('./pages/CreateProfile'))
+const Browse = lazyRoute(() => import('./pages/Browse'))
+const Matches = lazyRoute(() => import('./pages/Matches'))
+const MyProfile = lazyRoute(() => import('./pages/MyProfile'))
+const Settings = lazyRoute(() => import('./pages/Settings'))
+const Admin = lazyRoute(() => import('./pages/Admin'))
+const Terms = lazyRoute(() => import('./pages/Terms'))
+const Privacy = lazyRoute(() => import('./pages/Privacy'))
+
+function RouteFallback() {
+  return <SessionBootstrapScreen />
+}
 
 const PWA_OPEN_PARAM = 'pwaOpen'
 
@@ -425,23 +431,25 @@ export default function App() {
       <PwaPushLaunchRedirect />
       <NewMatchesNotification />
       <WebMessageNotifications />
-      <Routes>
-        <Route path="/" element={<PublicRoute><Landing /></PublicRoute>} />
-        <Route path="/login" element={<AuthRedirectRoute><PhoneLogin /></AuthRedirectRoute>} />
-        <Route path="/signup" element={<AuthRedirectRoute><PhoneLogin /></AuthRedirectRoute>} />
-        <Route path="/phone-login" element={<AuthRedirectRoute><PhoneLogin /></AuthRedirectRoute>} />
-        <Route path="/age-gate" element={<AgeGateRoute><AgeGate /></AgeGateRoute>} />
-        <Route path="/terms" element={<Terms />} />
-        <Route path="/privacy" element={<Privacy />} />
-        <Route element={<Layout />}>
-          <Route path="/create-profile" element={<PrivateRoute><CreateProfile /></PrivateRoute>} />
-          <Route path="/browse" element={<PrivateRoute><RequireConnectSetup><Browse /></RequireConnectSetup></PrivateRoute>} />
-          <Route path="/matches" element={<PrivateRoute><RequireConnectSetup><Matches /></RequireConnectSetup></PrivateRoute>} />
-          <Route path="/profile" element={<PrivateRoute><MyProfile /></PrivateRoute>} />
-          <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
-          <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
-        </Route>
-      </Routes>
+      <Suspense fallback={<RouteFallback />}>
+        <Routes>
+          <Route path="/" element={<PublicRoute><Landing /></PublicRoute>} />
+          <Route path="/login" element={<AuthRedirectRoute><PhoneLogin /></AuthRedirectRoute>} />
+          <Route path="/signup" element={<AuthRedirectRoute><PhoneLogin /></AuthRedirectRoute>} />
+          <Route path="/phone-login" element={<AuthRedirectRoute><PhoneLogin /></AuthRedirectRoute>} />
+          <Route path="/age-gate" element={<AgeGateRoute><AgeGate /></AgeGateRoute>} />
+          <Route path="/terms" element={<Terms />} />
+          <Route path="/privacy" element={<Privacy />} />
+          <Route element={<Layout />}>
+            <Route path="/create-profile" element={<PrivateRoute><CreateProfile /></PrivateRoute>} />
+            <Route path="/browse" element={<PrivateRoute><RequireConnectSetup><Browse /></RequireConnectSetup></PrivateRoute>} />
+            <Route path="/matches" element={<PrivateRoute><RequireConnectSetup><Matches /></RequireConnectSetup></PrivateRoute>} />
+            <Route path="/profile" element={<PrivateRoute><MyProfile /></PrivateRoute>} />
+            <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
+            <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
+          </Route>
+        </Routes>
+      </Suspense>
     </>
   )
 }

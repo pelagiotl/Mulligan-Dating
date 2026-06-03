@@ -7,6 +7,13 @@ export default defineConfig({
   build: {
     /** Avoid CSS preload helper that can reject app startup on iOS PWA. */
     modulePreload: false,
+    /** Keep hashed filenames unique per build so stale lazy chunks are obvious after deploy. */
+    rollupOptions: {
+      output: {
+        chunkFileNames: 'assets/[name]-[hash].js',
+        entryFileNames: 'assets/[name]-[hash].js',
+      },
+    },
   },
   plugins: [
     react({
