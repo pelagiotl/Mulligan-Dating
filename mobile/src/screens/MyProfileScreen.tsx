@@ -43,8 +43,12 @@ import LegalFooter from '../components/LegalFooter';
 import ProfileEditableCardBorder from '../components/ProfileEditableCardBorder';
 import ProfileCardAnimatedEmoji from '../components/ProfileCardAnimatedEmoji';
 import ConnectionQualityScore from '../components/ConnectionQualityScore';
-import MyProfilePreviewModal, {
+import {
+  clampMaxDistanceMiles,
   formatMaxDistanceLabel,
+  MAX_DISTANCE_SELECT_OPTIONS,
+} from '../constants/matchingDistance';
+import MyProfilePreviewModal, {
   formatPreferredGendersLabel,
   parseProfileValues,
   type MyProfilePreviewData,
@@ -192,17 +196,8 @@ const MAX_DISTANCE_META: Record<string, { tag: string }> = {
   '10': { tag: 'Around town' },
   '25': { tag: 'City & nearby' },
   '50': { tag: 'Metro area' },
-  '100': { tag: 'Regional' },
-  '250': { tag: 'Wide net' },
-  '500': { tag: 'Far & wide' },
-  any: { tag: 'Everywhere' },
+  '100': { tag: 'Regional max' },
 };
-
-function distanceOptionKey(opt: number | null): string {
-  return opt === null ? 'any' : String(opt);
-}
-
-const MAX_DISTANCE_OPTIONS: (number | null)[] = [10, 25, 50, 100, 250, 500, null]; // null = Any
 
 const LIFESTYLE_FIELD_GRADIENTS: Record<LifestyleFieldKey, readonly [string, string, string]> = {
   smoking: ['#6ee7b7', '#34d399', '#10b981'],
@@ -311,7 +306,7 @@ export default function MyProfileScreen() {
   const [editDisplayName, setEditDisplayName] = useState('');
   const [editGender, setEditGender] = useState('');
   const [editLocation, setEditLocation] = useState('');
-  const [editMaxDistance, setEditMaxDistance] = useState<number | null>(50);
+  const [editMaxDistance, setEditMaxDistance] = useState(50);
   const [editPreferredGenders, setEditPreferredGenders] = useState<string[]>([]);
   const [showBioModal, setShowBioModal] = useState(false);
   const [editBio, setEditBio] = useState('');
@@ -999,14 +994,15 @@ export default function MyProfileScreen() {
           preferredGenders = null;
         }
       }
+      const savedDistance = clampMaxDistanceMiles(editMaxDistance);
       await api.put('/profile/preferences', {
         minAge: prefs?.min_age ?? null,
         maxAge: prefs?.max_age ?? null,
         preferredGenders: preferredGenders ?? null,
-        maxDistance: editMaxDistance,
+        maxDistance: savedDistance,
       });
       setData((prev) => prev && prev.preferences
-        ? { ...prev, preferences: { ...prev.preferences, max_distance: editMaxDistance } }
+        ? { ...prev, preferences: { ...prev.preferences, max_distance: savedDistance } }
         : prev);
       setShowDistanceModal(false);
       api.clearCache('/profile');
@@ -2439,7 +2435,7 @@ export default function MyProfileScreen() {
                 <TouchableOpacity
                   activeOpacity={0.9}
                   onPress={() => {
-                    setEditMaxDistance(data?.preferences?.max_distance ?? 50);
+                    setEditMaxDistance(clampMaxDistanceMiles(data?.preferences?.max_distance ?? 50));
                     setShowDistanceModal(true);
                     Vibration.vibrate(50);
                   }}
@@ -2459,9 +2455,7 @@ export default function MyProfileScreen() {
                     />
                     <Text style={styles.infoCardLabel}>Max distance</Text>
                     <Text style={styles.infoCardValueFull}>
-                      {data?.preferences?.max_distance == null
-                        ? 'Any distance'
-                        : `${data.preferences.max_distance} mi`}
+                      {formatMaxDistanceLabel(data?.preferences?.max_distance)}
                     </Text>
                   </LinearGradient>
                 </TouchableOpacity>
@@ -3084,14 +3078,14 @@ export default function MyProfileScreen() {
               <Text style={styles.editModalEmoji}>📏</Text>
               <Text style={styles.editModalTitleLight}>Max distance</Text>
               <Text style={styles.editModalSubtitleLight}>
-                People outside this radius won't show when you browse — pick what feels right
+                People outside this radius won't show when you browse. Maximum is 100 miles in Southern Oregon.
               </Text>
               <ScrollView style={styles.distanceModalScroll} keyboardShouldPersistTaps="handled">
                 <View style={styles.distanceGrid}>
-                  {MAX_DISTANCE_OPTIONS.map((value) => {
-                    const key = distanceOptionKey(value);
+                  {MAX_DISTANCE_SELECT_OPTIONS.map((value) => {
+                    const key = String(value);
                     const meta = MAX_DISTANCE_META[key];
-                    const selected = editMaxDistance === value;
+                    const selected = clampMaxDistanceMiles(editMaxDistance) === value;
                     return (
                       <TouchableOpacity
                         key={key}
@@ -3101,17 +3095,10 @@ export default function MyProfileScreen() {
                       >
                         <View style={[styles.distanceOptionRing, selected && styles.distanceOptionRingSelected]} />
                         <View style={styles.distanceOptionPrimary}>
-                          {value == null ? (
-                            <>
-                              <Text style={styles.distanceOptionNum}>∞</Text>
-                              <Text style={styles.distanceOptionMi}>Any</Text>
-                            </>
-                          ) : (
-                            <>
-                              <Text style={styles.distanceOptionNum}>{value}</Text>
-                              <Text style={styles.distanceOptionMi}>mi</Text>
-                            </>
-                          )}
+                          <>
+                            <Text style={styles.distanceOptionNum}>{value}</Text>
+                            <Text style={styles.distanceOptionMi}>mi</Text>
+                          </>
                         </View>
                         <Text style={styles.distanceOptionTag}>{meta?.tag ?? ''}</Text>
                         {selected ? (

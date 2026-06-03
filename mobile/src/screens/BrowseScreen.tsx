@@ -91,10 +91,12 @@ import {
   isMatchCelebrationDemoSession,
   subscribeMatchCelebrationDemo,
 } from '../utils/matchCelebrationDemo';
+import {
+  clampMaxDistanceMiles,
+  MAX_DISTANCE_SELECT_OPTIONS,
+} from '../constants/matchingDistance';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
-const MAX_DISTANCE_OPTIONS: (number | null)[] = [10, 25, 50, 100, 250, 500, null]; // null = Any distance
 
 // Helper function to render location with proper formatting
 function renderLocation(location: string | null | undefined) {
@@ -268,7 +270,7 @@ export default function BrowseScreen() {
   const [matchLimitProfile, setMatchLimitProfile] = useState<Profile | null>(null);
   const [showNoProfilesModal, setShowNoProfilesModal] = useState(false);
   const [noProfilesDistanceMode, setNoProfilesDistanceMode] = useState(false);
-  const [noProfilesSelectedDistance, setNoProfilesSelectedDistance] = useState<number | null>(50);
+  const [noProfilesSelectedDistance, setNoProfilesSelectedDistance] = useState(50);
   const [noProfilesCurrentPrefs, setNoProfilesCurrentPrefs] = useState<{ min_age: number; max_age: number | null; preferred_genders: string | string[] | null } | null>(null);
   const [noProfilesUpdating, setNoProfilesUpdating] = useState(false);
   const [matchedProfile, setMatchedProfile] = useState<Profile | null>(null);
@@ -1545,7 +1547,7 @@ export default function BrowseScreen() {
       const prefs = data?.preferences;
       if (prefs) {
         setNoProfilesCurrentPrefs({ min_age: prefs.min_age, max_age: prefs.max_age, preferred_genders: prefs.preferred_genders });
-        setNoProfilesSelectedDistance(prefs.max_distance ?? 50);
+        setNoProfilesSelectedDistance(clampMaxDistanceMiles(prefs.max_distance ?? 50));
       } else {
         setNoProfilesSelectedDistance(50);
       }
@@ -1572,7 +1574,7 @@ export default function BrowseScreen() {
         minAge: prefs?.min_age ?? null,
         maxAge: prefs?.max_age ?? null,
         preferredGenders: preferredGenders ?? null,
-        maxDistance: noProfilesSelectedDistance,
+        maxDistance: clampMaxDistanceMiles(noProfilesSelectedDistance),
       });
       setShowNoProfilesModal(false);
       setNoProfilesDistanceMode(false);
@@ -2781,9 +2783,9 @@ export default function BrowseScreen() {
                     Show me people within this distance. Try increasing it to see more profiles.
                   </Text>
                   <View style={styles.noProfilesDistanceOptionsRow}>
-                    {MAX_DISTANCE_OPTIONS.map((value) => (
+                    {MAX_DISTANCE_SELECT_OPTIONS.map((value) => (
                       <TouchableOpacity
-                        key={value ?? 'any'}
+                        key={String(value)}
                         style={[
                           styles.noProfilesDistanceOptionButton,
                           noProfilesSelectedDistance === value && styles.noProfilesDistanceOptionButtonActive,
@@ -2795,7 +2797,7 @@ export default function BrowseScreen() {
                           styles.noProfilesDistanceOptionText,
                           noProfilesSelectedDistance === value && styles.noProfilesDistanceOptionTextActive,
                         ]}>
-                          {value == null ? 'Any' : `${value} mi`}
+                          {`${value} mi`}
                         </Text>
                       </TouchableOpacity>
                     ))}

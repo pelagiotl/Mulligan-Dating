@@ -55,6 +55,10 @@ import {
   resolveOnboardingPreferredGenders,
   writeMobileCreateProfileDraft,
 } from '../utils/createProfileProgress';
+import {
+  clampMaxDistanceMiles,
+  MATCHING_MAX_DISTANCE_MILES,
+} from '../constants/matchingDistance';
 import { CONNECT_PHOTOS_REQUIRED_MESSAGE, computeConnectSetupComplete } from '../utils/connectSetup';
 import ProfileCompleteCelebration from '../components/ProfileCompleteCelebration';
 import {
@@ -359,7 +363,7 @@ export default function CreateProfileScreen() {
   const [minAge, setMinAge] = useState(18);
   const [maxAge, setMaxAge] = useState(100);
   const [preferredGenders, setPreferredGenders] = useState<string[]>([]);
-  const [maxDistance, setMaxDistance] = useState<number | null>(50);
+  const [maxDistance, setMaxDistance] = useState(50);
   const [maxAgeCardY, setMaxAgeCardY] = useState<number | null>(null);
   const [preferredGendersCardY, setPreferredGendersCardY] = useState<number | null>(null);
 
@@ -534,8 +538,9 @@ export default function CreateProfileScreen() {
     const minAgeVal = minAge >= 18 ? minAge : ONBOARDING_DEFAULT_MIN_AGE;
     const maxAgeVal =
       maxAge >= minAgeVal && maxAge <= 120 ? maxAge : ONBOARDING_DEFAULT_MAX_AGE;
-    const maxDist =
-      maxDistance != null && maxDistance >= 1 ? maxDistance : ONBOARDING_DEFAULT_MAX_DISTANCE;
+    const maxDist = clampMaxDistanceMiles(
+      maxDistance != null && maxDistance >= 1 ? maxDistance : ONBOARDING_DEFAULT_MAX_DISTANCE,
+    );
 
     await api.post('/profile', {
       displayName,
@@ -785,7 +790,7 @@ export default function CreateProfileScreen() {
     setPreferredGenders(prefGenders.length > 0 ? prefGenders : []);
     setMinAge(minAgeVal);
     setMaxAge(maxAgeVal);
-    setMaxDistance(maxDist);
+    setMaxDistance(clampMaxDistanceMiles(maxDist));
 
     const profileForConnect = { display_name: dn, displayName: dn, location: loc };
     const wizardDraftActive = await hasMobileCreateProfileDraft();
@@ -1288,8 +1293,9 @@ export default function CreateProfileScreen() {
       const minAgeVal = minAge != null && minAge >= 18 ? minAge : ONBOARDING_DEFAULT_MIN_AGE;
       const maxAgeVal =
         maxAge != null && maxAge >= minAgeVal && maxAge <= 120 ? maxAge : ONBOARDING_DEFAULT_MAX_AGE;
-      const maxDist =
-        maxDistance != null && maxDistance >= 1 ? maxDistance : ONBOARDING_DEFAULT_MAX_DISTANCE;
+      const maxDist = clampMaxDistanceMiles(
+        maxDistance != null && maxDistance >= 1 ? maxDistance : ONBOARDING_DEFAULT_MAX_DISTANCE,
+      );
 
       await api.post('/profile', {
         displayName,
@@ -2319,14 +2325,38 @@ export default function CreateProfileScreen() {
         <LinearGradient colors={['#4facfe', '#00f2fe', '#667eea']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.focusedFieldCard, keyboardVisible && styles.focusedCardWithKeyboard, { padding: keyboardVisible ? rs.cardPaddingKeyboard : rs.cardPadding }]}>
           <Text style={[styles.focusedEmoji, keyboardVisible && styles.focusedEmojiSmall, { fontSize: keyboardVisible ? rs.emojiSizeSmall : rs.emojiSize, marginBottom: keyboardVisible ? 8 : 20 }]}>📍</Text>
           <Text style={[styles.focusedTitle, keyboardVisible && styles.focusedTitleSmall, { fontSize: rs.titleSizeSmall, marginBottom: keyboardVisible ? 6 : rs.titleMargin }]}>Maximum Distance</Text>
-          <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleSmall, { fontSize: rs.subtitleSizeSmall, marginBottom: keyboardVisible ? 16 : rs.subtitleMargin }]}>How far to search for matches</Text>
+          <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleSmall, { fontSize: rs.subtitleSizeSmall, marginBottom: keyboardVisible ? 16 : rs.subtitleMargin }]}>
+            How far to search for matches (max {MATCHING_MAX_DISTANCE_MILES} miles)
+          </Text>
           <View style={styles.preferenceInputWrapper}>
             <View style={styles.preferenceInputContainer}>
-              <TextInput ref={maxDistanceInputRef} style={styles.preferenceNumberInputLarge} value={maxDistance === null ? '' : maxDistance.toString()} onChangeText={(t) => { if (t === '' || t === '0') setMaxDistance(1); else { const v = parseInt(t); if (!isNaN(v) && v >= 1) setMaxDistance(v); } }} keyboardType="number-pad" returnKeyType="done" placeholder="50" placeholderTextColor="rgba(255, 255, 255, 0.7)" />
+              <TextInput
+                ref={maxDistanceInputRef}
+                style={styles.preferenceNumberInputLarge}
+                value={maxDistance.toString()}
+                onChangeText={(t) => {
+                  if (t === '' || t === '0') {
+                    setMaxDistance(1);
+                    return;
+                  }
+                  const v = parseInt(t, 10);
+                  if (!isNaN(v) && v >= 1) {
+                    setMaxDistance(clampMaxDistanceMiles(v));
+                  }
+                }}
+                keyboardType="number-pad"
+                returnKeyType="done"
+                placeholder="50"
+                placeholderTextColor="rgba(255, 255, 255, 0.7)"
+              />
               <Text style={styles.preferenceInputLabelLarge}>miles</Text>
             </View>
           </View>
-          {maxDistance !== null && maxDistance > 0 && <Animated.View style={[styles.successIndicator, { opacity: maxDistanceOpacity }]}><Text style={styles.successText}>✓ {maxDistance} miles</Text></Animated.View>}
+          {maxDistance > 0 && (
+            <Animated.View style={[styles.successIndicator, { opacity: maxDistanceOpacity }]}>
+              <Text style={styles.successText}>✓ {maxDistance} miles</Text>
+            </Animated.View>
+          )}
         </LinearGradient>
       </Animated.View>
     </View>

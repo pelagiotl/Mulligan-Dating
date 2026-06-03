@@ -28,6 +28,7 @@ import {
   resolveOnboardingPreferredGenders,
   writeWebCreateProfileDraft,
 } from "../utils/createProfileProgress";
+import { clampMaxDistanceMiles } from "../constants/matchingDistance";
 import { getCreateProfileSupportMailtoUrl } from "../constants/support";
 import { markWebPushPromptAfterProfile } from "../constants/webPushPrompt";
 import { playMatchCelebrationSound, unlockMatchAudio } from "../utils/matchSound";
@@ -525,10 +526,11 @@ export default function CreateProfile() {
       };
 
       const includePreferences = options.includePreferences !== false;
-      const maxDist =
+      const maxDist = clampMaxDistanceMiles(
         maxDistance != null && !Number.isNaN(Number(maxDistance))
           ? Number(maxDistance)
-          : ONBOARDING_DEFAULT_MAX_DISTANCE;
+          : ONBOARDING_DEFAULT_MAX_DISTANCE,
+      );
 
       const executeSave = async () => {
         try {
@@ -554,7 +556,7 @@ export default function CreateProfile() {
               minAge: minAgeVal,
               maxAge: maxAgeVal,
               preferredGenders: preferredGendersPayload(prefGenders),
-              maxDistance: maxDist >= 1 ? maxDist : ONBOARDING_DEFAULT_MAX_DISTANCE,
+              maxDistance: maxDist,
               relationshipType: null,
             });
           } catch (err) {
@@ -622,10 +624,11 @@ export default function CreateProfile() {
       lookingFor: null,
     };
 
-    const maxDist =
+    const maxDist = clampMaxDistanceMiles(
       maxDistance != null && !Number.isNaN(Number(maxDistance))
         ? Number(maxDistance)
-        : ONBOARDING_DEFAULT_MAX_DISTANCE;
+        : ONBOARDING_DEFAULT_MAX_DISTANCE,
+    );
 
     const executeSave = async () => {
       try {
@@ -652,7 +655,7 @@ export default function CreateProfile() {
           minAge: minAgeVal,
           maxAge: maxAgeVal,
           preferredGenders: preferredGendersPayload(prefGenders),
-          maxDistance: maxDist >= 1 ? maxDist : ONBOARDING_DEFAULT_MAX_DISTANCE,
+          maxDistance: maxDist,
           relationshipType: null,
         });
       } catch (err) {
@@ -813,7 +816,7 @@ export default function CreateProfile() {
       setPreferredGenders(prefGenders.length > 0 ? prefGenders : []);
       setMinAge(minAgeVal);
       setMaxAge(maxAgeVal);
-      setMaxDistance(maxDist);
+      setMaxDistance(clampMaxDistanceMiles(maxDist));
 
       const resumeStep = computeWebCreateProfileResumeStep({
         displayName: dn,

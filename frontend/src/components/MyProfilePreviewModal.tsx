@@ -22,6 +22,7 @@ import {
   type LifestyleFieldKey,
 } from "../constants/profileMySections";
 import { getPhotoUrl } from "../utils/photoUrl";
+import { formatMaxDistanceLabel } from "../constants/matchingDistance";
 import { formatPreferredMatchesFromGenders } from "../utils/preferredMatchesLabel";
 import { useBodyScrollLock } from "../utils/bodyScrollLock";
 
@@ -185,8 +186,7 @@ export default function MyProfilePreviewModal({
     return primary ? getPhotoUrl(primary.url) : null;
   }, [sortedPhotos]);
 
-  const distanceLabel =
-    data.maxDistance == null ? "Any distance" : `Within ${data.maxDistance} mi`;
+  const distanceLabel = formatMaxDistanceLabel(data.maxDistance);
 
   const preferredLabel = formatPreferredMatchesFromGenders(data.preferredGenders);
 

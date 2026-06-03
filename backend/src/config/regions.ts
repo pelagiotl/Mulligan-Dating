@@ -53,6 +53,16 @@ export function isInRegion(
 /** When a region is active, matches are capped at this distance (miles) within the region. */
 export const REGION_MAX_DISTANCE_MILES = 100;
 
+/** Clamp user max-distance preference to the regional cap. */
+export function normalizeMaxDistanceMiles(value: number | null | undefined): number {
+  if (value == null || typeof value !== 'number' || !Number.isFinite(value)) {
+    return REGION_MAX_DISTANCE_MILES;
+  }
+  const rounded = Math.round(value);
+  if (rounded < 1) return 1;
+  return Math.min(rounded, REGION_MAX_DISTANCE_MILES);
+}
+
 /**
  * Get the active matching region from env. When set, only users in this region can match.
  * Set ACTIVE_MATCHING_REGION=southern_oregon to geo-lock to Southern Oregon.

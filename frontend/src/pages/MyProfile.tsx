@@ -15,6 +15,11 @@ import { dispatchProfileEnhancementRefresh } from "../constants/profileEnhanceme
 import { LIFESTYLE_FIELD_LABEL, getInterestEmoji } from "../constants/profileMySections";
 import { displayProfileGender } from "../utils/createProfileProgress";
 import { useAuth } from "../context/AuthContext";
+import {
+  clampMaxDistanceMiles,
+  formatMaxDistanceLabel,
+  MAX_DISTANCE_SELECT_OPTIONS,
+} from "../constants/matchingDistance";
 
 const PREFERRED_GENDER_LABELS: Record<string, string> = {
   Man: "Men",
@@ -30,22 +35,14 @@ const GENDER_OPTION_META: Record<(typeof GENDER_OPTIONS)[number], { emoji: strin
 };
 
 const AGE_QUICK_PICKS = [18, 21, 24, 25, 28, 30, 32, 35, 38, 40, 45, 50, 55, 60] as const;
-const MAX_DISTANCE_OPTIONS: (number | null)[] = [10, 25, 50, 100, 250, 500, null];
 
 /** Short labels under each mileage chip (max distance modal). */
 const MAX_DISTANCE_META: Record<string, { tag: string }> = {
   "10": { tag: "Around town" },
   "25": { tag: "City & nearby" },
   "50": { tag: "Metro area" },
-  "100": { tag: "Regional" },
-  "250": { tag: "Wide net" },
-  "500": { tag: "Far & wide" },
-  any: { tag: "Everywhere" },
+  "100": { tag: "Regional max" },
 };
-
-function distanceOptionKey(opt: number | null): string {
-  return opt === null ? "any" : String(opt);
-}
 
 /** Canonical values stored in `looking_for` (profile API). */
 const LOOKING_FOR_OPTIONS = [
@@ -755,13 +752,14 @@ export default function MyProfile() {
     setError("");
     try {
       const base = mergePrefsForPut();
+      const savedDistance = clampMaxDistanceMiles(editMaxDistance);
       await api.put("/profile/preferences", {
         ...base,
-        maxDistance: editMaxDistance,
+        maxDistance: savedDistance,
       });
       setData((prev) =>
         prev?.preferences
-          ? { ...prev, preferences: { ...prev.preferences, max_distance: editMaxDistance } }
+          ? { ...prev, preferences: { ...prev.preferences, max_distance: savedDistance } }
           : prev
       );
       setShowDistanceModal(false);
@@ -1219,7 +1217,7 @@ export default function MyProfile() {
                 className="my-profile-pref-field my-profile-pref-field--distance"
                 onClick={() => {
                   captureProfileScrollAnchor("my-profile-max-distance");
-                  setEditMaxDistance(data.preferences?.max_distance ?? 50);
+                  setEditMaxDistance(clampMaxDistanceMiles(data.preferences?.max_distance ?? 50));
                   setShowDistanceModal(true);
                 }}
               >
@@ -1232,9 +1230,7 @@ export default function MyProfile() {
                 <span className="my-profile-pref-field-body">
                   <span className="my-profile-pref-field-label">Max distance</span>
                   <span className="my-profile-pref-field-value">
-                    {data.preferences?.max_distance == null
-                      ? "Any distance"
-                      : `${data.preferences.max_distance} mi`}
+                    {formatMaxDistanceLabel(data.preferences?.max_distance)}
                   </span>
                 </span>
                 <span className="my-profile-pref-field-chevron" aria-hidden>
@@ -1875,33 +1871,24 @@ export default function MyProfile() {
               <div className="my-profile-distance-modal-hero-text">
                 <h3 id="dist-title">Max distance</h3>
                 <p className="my-profile-modal-sub my-profile-distance-modal-tagline">
-                  People outside this radius won&apos;t show when you browse — pick what feels right for you.
+                  People outside this radius won&apos;t show when you browse. Maximum is 100 miles in
+                  Southern Oregon.
                 </p>
               </div>
             </div>
             <div className="my-profile-modal-body my-profile-modal-body--distance">
               <div className="my-profile-distance-grid" role="radiogroup" aria-labelledby="dist-title">
-                {MAX_DISTANCE_OPTIONS.map((opt) => {
-                  const key = distanceOptionKey(opt);
+                {MAX_DISTANCE_SELECT_OPTIONS.map((opt) => {
+                  const key = String(opt);
                   const meta = MAX_DISTANCE_META[key];
-                  const selected =
-                    opt === null ? editMaxDistance === null : editMaxDistance !== null && editMaxDistance === opt;
-                  const primary =
-                    opt === null ? (
-                      <>
-                        <span className="my-profile-distance-option-num">∞</span>
-                        <span className="my-profile-distance-option-mi">Any</span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="my-profile-distance-option-num">{opt}</span>
-                        <span className="my-profile-distance-option-mi">mi</span>
-                      </>
-                    );
-                  const ariaLabel =
-                    opt === null
-                      ? "Any distance, no limit"
-                      : `${opt} miles, ${meta?.tag ?? "miles"}`;
+                  const selected = clampMaxDistanceMiles(editMaxDistance) === opt;
+                  const primary = (
+                    <>
+                      <span className="my-profile-distance-option-num">{opt}</span>
+                      <span className="my-profile-distance-option-mi">mi</span>
+                    </>
+                  );
+                  const ariaLabel = `${opt} miles, ${meta?.tag ?? "miles"}`;
                   return (
                     <button
                       key={key}

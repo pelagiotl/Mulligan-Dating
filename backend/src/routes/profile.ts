@@ -9,6 +9,7 @@ import { rateLimitAPI } from '../middleware/security.js';
 import { notifyPartnersProfileChanged } from '../services/partnerProfileBroadcast.js';
 import { ensureStubProfile, isUniqueViolation } from '../utils/ensureStubProfile.js';
 import { activateUserAccount } from '../utils/accountStatus.js';
+import { normalizeMaxDistanceMiles, REGION_MAX_DISTANCE_MILES } from '../config/regions.js';
 
 export const profileRouter = Router();
 
@@ -70,7 +71,7 @@ const preferencesSchema = z.object({
   minAge: z.union([z.number().min(18).max(120), z.null()]).optional(),
   maxAge: z.union([z.number().min(18).max(120), z.null()]).optional(),
   preferredGenders: z.union([z.array(z.string()), z.null()]).optional(),
-  maxDistance: z.union([z.number().min(1).max(10000), z.null()]).optional(),
+  maxDistance: z.union([z.number().min(1).max(REGION_MAX_DISTANCE_MILES), z.null()]).optional(),
   relationshipType: z.union([z.string(), z.null()]).optional(),
   intent: z.union([z.number().min(1).max(10), z.null()]).optional(),
   values: z.array(z.string()).optional(),
@@ -568,7 +569,12 @@ profileRouter.put('/preferences', authenticateToken, rateLimitAPI, async (req: A
 
     const minAge = preferencesData.minAge !== undefined ? preferencesData.minAge : (existingPrefs?.min_age ?? null);
     const maxAge = preferencesData.maxAge !== undefined ? preferencesData.maxAge : (existingPrefs?.max_age ?? null);
-    const maxDistance = preferencesData.maxDistance !== undefined ? preferencesData.maxDistance : (existingPrefs?.max_distance ?? null);
+    const maxDistance =
+      preferencesData.maxDistance !== undefined
+        ? normalizeMaxDistanceMiles(preferencesData.maxDistance)
+        : existingPrefs?.max_distance != null
+          ? normalizeMaxDistanceMiles(existingPrefs.max_distance)
+          : null;
     const relationshipType = preferencesData.relationshipType !== undefined ? preferencesData.relationshipType : (existingPrefs?.relationship_type ?? null);
     const intent = preferencesData.intent !== undefined ? preferencesData.intent : (existingPrefs?.intent ?? null);
 

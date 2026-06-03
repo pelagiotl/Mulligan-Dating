@@ -123,9 +123,7 @@ export function formatPreferredGendersLabel(raw: string | null | undefined): str
   }
 }
 
-export function formatMaxDistanceLabel(maxDistance: number | null | undefined): string {
-  return maxDistance == null ? 'Any distance' : `Within ${maxDistance} mi`;
-}
+export { formatMaxDistanceLabel } from '../constants/matchingDistance';
 
 function preferredMatchesEmoji(label: string): string {
   if (label === 'Everyone') return '🌍';
