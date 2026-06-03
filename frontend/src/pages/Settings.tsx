@@ -364,6 +364,13 @@ export default function Settings() {
       if (msg.toLowerCase().includes("password required")) {
         setEmailNeedsPassword(true);
         setError("Enter your account password below to change your email.");
+      } else if (
+        msg.toLowerCase().includes("already linked") ||
+        msg.toLowerCase().includes("already in use")
+      ) {
+        setError(
+          "That email is on another Mulligan account. Sign in with that email or use a different address.",
+        );
       } else {
         setError(msg);
       }

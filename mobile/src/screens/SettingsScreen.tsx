@@ -17,6 +17,7 @@ import Constants from 'expo-constants';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Purchases from 'react-native-purchases';
 import type { PurchasesPackage } from 'react-native-purchases';
 import { api } from '../utils/api';
@@ -51,9 +52,33 @@ interface SettingsData {
   createdAt: string;
   lastActiveAt: string | null;
   showActiveStatus?: boolean;
+  requiresPasswordForEmailChange?: boolean;
 }
 
 const DEBUG_TAP_COUNT = 7;
+const SETTINGS_DISPLAY_EMAIL_KEY = 'mulligan:settings-display-email';
+
+async function readStoredDisplayEmail(): Promise<string> {
+  try {
+    const v = await AsyncStorage.getItem(SETTINGS_DISPLAY_EMAIL_KEY);
+    return v?.trim().toLowerCase() || '';
+  } catch {
+    return '';
+  }
+}
+
+async function writeStoredDisplayEmail(email: string): Promise<void> {
+  try {
+    const normalized = email.trim().toLowerCase();
+    if (normalized) {
+      await AsyncStorage.setItem(SETTINGS_DISPLAY_EMAIL_KEY, normalized);
+    } else {
+      await AsyncStorage.removeItem(SETTINGS_DISPLAY_EMAIL_KEY);
+    }
+  } catch {
+    /* ignore */
+  }
+}
 
 const isExpoGo = Constants.appOwnership === 'expo';
 const IAP_COMING_SOON_MSG = "In-app purchases are coming soon. We're switching to a new provider—stay tuned!";
@@ -80,9 +105,11 @@ export default function SettingsScreen() {
   const [displayNameDraft, setDisplayNameDraft] = useState('');
   const [displayNameSaving, setDisplayNameSaving] = useState(false);
   const [emailDraft, setEmailDraft] = useState('');
+  const [displayEmail, setDisplayEmail] = useState('');
   const [emailSaving, setEmailSaving] = useState(false);
   const [emailPassword, setEmailPassword] = useState('');
   const [emailNeedsPassword, setEmailNeedsPassword] = useState(false);
+  const pendingDisplayEmailRef = React.useRef<string | null>(null);
   const debugTapCountRef = React.useRef(0);
   const debugTapTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -129,6 +156,16 @@ export default function SettingsScreen() {
   const gradientLoopRef = useRef<Animated.CompositeAnimation | null>(null);
   const isFocused = useIsFocused();
   const entrancePlayedRef = useRef(false);
+
+  useEffect(() => {
+    void (async () => {
+      const stored = await readStoredDisplayEmail();
+      if (!stored) return;
+      pendingDisplayEmailRef.current = stored;
+      setDisplayEmail(stored);
+      setEmailDraft((prev) => (prev.trim() ? prev : stored));
+    })();
+  }, []);
 
   useEffect(() => {
     if (user) {
@@ -240,6 +277,13 @@ export default function SettingsScreen() {
     setDisplayNameDraft((p.display_name ?? p.displayName ?? '').trim());
   }, [profile]);
 
+  const persistDisplayEmail = useCallback(async (email: string) => {
+    const normalized = email.trim().toLowerCase();
+    pendingDisplayEmailRef.current = normalized || null;
+    setDisplayEmail(normalized);
+    await writeStoredDisplayEmail(normalized);
+  }, []);
+
   const fetchSettings = async (opts?: { silent?: boolean }) => {
     const gen = ++settingsFetchGen.current;
     try {
@@ -247,10 +291,30 @@ export default function SettingsScreen() {
       // Don't use GET cache — stale /settings would clear the email field after save
       const data = await api.get<SettingsData>('/settings', false);
       if (gen !== settingsFetchGen.current) return;
-      setSettings(data);
-      setEmailDraft((data.email || '').trim());
-      setEmailNeedsPassword(false);
-      setEmailPassword('');
+      const loadedEmail = (data.email || '').trim().toLowerCase();
+      const pending = pendingDisplayEmailRef.current?.trim() || '';
+      const mergedEmail = pending || loadedEmail;
+      setSettings({
+        ...data,
+        email: mergedEmail || data.email,
+      });
+      if (pending) {
+        setDisplayEmail(pending);
+      } else if (loadedEmail) {
+        setDisplayEmail(loadedEmail);
+        pendingDisplayEmailRef.current = null;
+      }
+      if (loadedEmail && pending && loadedEmail === pending) {
+        pendingDisplayEmailRef.current = null;
+      }
+      if (mergedEmail) {
+        setEmailDraft(mergedEmail);
+      } else if (!pending) {
+        setEmailDraft('');
+      }
+      if (data.requiresPasswordForEmailChange) {
+        setEmailNeedsPassword(true);
+      }
     } catch (err: any) {
       if (gen !== settingsFetchGen.current) return;
       setError(err?.message || 'Failed to load settings');
@@ -290,12 +354,28 @@ export default function SettingsScreen() {
     }
     setEmailSaving(true);
     const normalizedEmail = email.toLowerCase();
+    const currentSaved = (
+      displayEmail ||
+      settings?.email ||
+      user?.email ||
+      pendingDisplayEmailRef.current ||
+      ''
+    )
+      .trim()
+      .toLowerCase();
+    if (normalizedEmail === currentSaved) {
+      await persistDisplayEmail(normalizedEmail);
+      setSuccess('Email already saved on your account.');
+      setEmailSaving(false);
+      return;
+    }
     try {
       const res = await api.put<{ message?: string; email?: string }>('/settings/email', {
         email: normalizedEmail,
         ...(emailNeedsPassword && emailPassword.trim() ? { password: emailPassword } : {}),
       });
-      const savedEmail = (res?.email ?? normalizedEmail).trim();
+      const savedEmail = (res?.email ?? normalizedEmail).trim().toLowerCase();
+      await persistDisplayEmail(savedEmail);
       setSettings((prev) =>
         prev
           ? { ...prev, email: savedEmail }
@@ -305,13 +385,23 @@ export default function SettingsScreen() {
       setEmailNeedsPassword(false);
       setEmailPassword('');
       setEmailDraft(savedEmail);
+      api.clearCache('/settings');
+      api.clearCache('/auth/me');
+      await refreshProfile();
       void fetchSettings({ silent: true });
     } catch (err: any) {
       const msg = err?.message || 'Failed to update email';
-      // If the server requires password, reveal the password field and keep user on this section
-      if (String(msg).toLowerCase().includes('password required')) {
+      const msgLower = String(msg).toLowerCase();
+      if (msgLower.includes('password required')) {
         setEmailNeedsPassword(true);
         setError('Please enter your password to update your email.');
+      } else if (
+        msgLower.includes('already linked') ||
+        msgLower.includes('already in use')
+      ) {
+        setError(
+          'That email is on another Mulligan account. Sign in with that email or use a different address.',
+        );
       } else {
         setError(msg);
       }
@@ -893,7 +983,11 @@ export default function SettingsScreen() {
             </LinearGradient>
           </TouchableOpacity>
           <Text style={styles.emailCardHint}>
-            Current: {settings?.email?.trim() || 'none'}
+            Current:{' '}
+            {displayEmail ||
+              settings?.email?.trim() ||
+              user?.email?.trim() ||
+              'none'}
           </Text>
         </View>
 

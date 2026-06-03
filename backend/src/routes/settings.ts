@@ -130,6 +130,17 @@ settingsRouter.put("/email", authenticateToken, async (req: AuthRequest, res) =>
     const normalizedEmail = email.toLowerCase().trim();
     const hasPassword = userHasPasswordHash(user.password);
 
+    const currentRow = (await db
+      .prepare("SELECT email FROM users WHERE id = ?")
+      .get([userId])) as Record<string, unknown> | null;
+    const currentEmail = readUserEmail(currentRow);
+    if (currentEmail && currentEmail.toLowerCase() === normalizedEmail) {
+      return res.json({
+        message: "Email already set on your account",
+        email: currentEmail,
+      });
+    }
+
     // Email/password accounts must confirm password; phone-only accounts may skip
     if (hasPassword) {
       if (!password?.trim()) {
@@ -148,7 +159,11 @@ settingsRouter.put("/email", authenticateToken, async (req: AuthRequest, res) =>
       .get([normalizedEmail, userId]) as Promise<{ id: string } | undefined>);
 
     if (existingUser) {
-      return res.status(400).json({ error: "Email already in use" });
+      return res.status(400).json({
+        error:
+          "That email is already linked to another Mulligan account. Sign in with that email or use a different address.",
+        code: "EMAIL_IN_USE",
+      });
     }
 
     const updateResult = (await db

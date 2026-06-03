@@ -772,9 +772,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error('Invalid response from server');
       }
 
-      const nextUser: User = {
+      const serverEmail =
+        typeof data.user.email === 'string' ? data.user.email.trim() : '';
+      const nextUserBase: User = {
         id: data.user.id,
-        email: data.user.email,
+        email: serverEmail || null,
         phoneNumber: data.user.phoneNumber,
         isAdmin: data.user.isAdmin || false,
         hasPushToken: data.user.hasPushToken ?? false,
@@ -858,7 +860,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // Apply session atomically so post-login navigation never flashes CreateProfile for ready accounts.
-      setUser(nextUser);
+      setUser((prev) => ({
+        ...nextUserBase,
+        email: serverEmail || prev?.email || null,
+      }));
       setProfile(nextProfile);
       setConnectSetupComplete(nextConnectSetupComplete);
 
