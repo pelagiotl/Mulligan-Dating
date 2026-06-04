@@ -26,12 +26,37 @@ function clampForDb(value: string | null | undefined, max: number): string | nul
   return t.slice(0, max);
 }
 
+/** Avoid z.coerce.number() turning a missing/empty age into NaN ("Expected number, received nan"). */
+function parseProfileAgeField(val: unknown): number | null | undefined {
+  if (val === undefined) return undefined;
+  if (val === null) return null;
+  if (val === '') return undefined;
+  const n = typeof val === 'number' ? val : Number(val);
+  if (!Number.isFinite(n)) return undefined;
+  return n;
+}
+
+const profileAgeSchema = z.preprocess(
+  parseProfileAgeField,
+  z.union([z.number().min(18, 'Must be at least 18').max(120), z.null()]).optional(),
+);
+
+const preferenceAgeSchema = z.preprocess(
+  (val) => {
+    if (val === undefined || val === null || val === '') return val === null ? null : undefined;
+    const n = typeof val === 'number' ? val : Number(val);
+    if (!Number.isFinite(n)) return undefined;
+    return n;
+  },
+  z.union([z.number().min(18).max(120), z.null()]).optional(),
+);
+
 const profileSchema = z.object({
   displayName: z.string()
     .min(2, 'Name must be at least 2 characters')
     .max(50, 'Name must be at most 50 characters')
     .refine(val => val.trim().length >= 2, 'Name cannot be only whitespace'),
-  age: z.union([z.coerce.number().min(18, 'Must be at least 18').max(120), z.null()]).optional(),
+  age: profileAgeSchema,
   gender: z.string()
     .min(1, 'Gender is required')
     .max(50, 'Gender must be at most 50 characters'),
@@ -68,8 +93,8 @@ const profileSchema = z.object({
 });
 
 const preferencesSchema = z.object({
-  minAge: z.union([z.number().min(18).max(120), z.null()]).optional(),
-  maxAge: z.union([z.number().min(18).max(120), z.null()]).optional(),
+  minAge: preferenceAgeSchema,
+  maxAge: preferenceAgeSchema,
   preferredGenders: z.union([z.array(z.string()), z.null()]).optional(),
   maxDistance: z.union([z.number().min(1).max(REGION_MAX_DISTANCE_MILES), z.null()]).optional(),
   relationshipType: z.union([z.string(), z.null()]).optional(),

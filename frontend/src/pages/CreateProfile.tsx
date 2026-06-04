@@ -23,6 +23,7 @@ import {
   ONBOARDING_DEFAULT_MAX_DISTANCE,
   ONBOARDING_DEFAULT_MIN_AGE,
   readWebCreateProfileDraft,
+  finitePreferenceAge,
   parseOnboardingAgeOrNull,
   shouldClearLoadedProfileAge,
   resolveOnboardingGender,
@@ -524,7 +525,7 @@ export default function CreateProfile() {
         bio: bio?.trim() || null,
         lookingFor: null,
       };
-      if (ageNum != null) profileBody.age = ageNum;
+      if (ageNum != null && Number.isFinite(ageNum)) profileBody.age = ageNum;
 
       const includePreferences = options.includePreferences !== false;
       const maxDist = clampMaxDistanceMiles(
@@ -549,9 +550,11 @@ export default function CreateProfile() {
           }
         }
         if (includePreferences) {
-          const minAgeVal = minAge >= 18 ? minAge : ONBOARDING_DEFAULT_MIN_AGE;
-          const maxAgeVal =
-            maxAge >= minAgeVal && maxAge <= 120 ? maxAge : ONBOARDING_DEFAULT_MAX_AGE;
+          const minAgeVal = finitePreferenceAge(minAge, ONBOARDING_DEFAULT_MIN_AGE);
+          const maxAgeVal = finitePreferenceAge(
+            maxAge >= minAgeVal && maxAge <= 120 ? maxAge : null,
+            ONBOARDING_DEFAULT_MAX_AGE
+          );
           try {
             await api.put("/profile/preferences", {
               minAge: minAgeVal,
@@ -623,7 +626,7 @@ export default function CreateProfile() {
       bio: bio?.trim() || null,
       lookingFor: null,
     };
-    if (ageNum != null) profileBody.age = ageNum;
+    if (ageNum != null && Number.isFinite(ageNum)) profileBody.age = ageNum;
 
     const maxDist = clampMaxDistanceMiles(
       maxDistance != null && !Number.isNaN(Number(maxDistance))
@@ -648,9 +651,11 @@ export default function CreateProfile() {
           }
         }
       }
-      const minAgeVal = minAge >= 18 ? minAge : ONBOARDING_DEFAULT_MIN_AGE;
-      const maxAgeVal =
-        maxAge >= minAgeVal && maxAge <= 120 ? maxAge : ONBOARDING_DEFAULT_MAX_AGE;
+      const minAgeVal = finitePreferenceAge(minAge, ONBOARDING_DEFAULT_MIN_AGE);
+      const maxAgeVal = finitePreferenceAge(
+        maxAge >= minAgeVal && maxAge <= 120 ? maxAge : null,
+        ONBOARDING_DEFAULT_MAX_AGE
+      );
       try {
         await api.put("/profile/preferences", {
           minAge: minAgeVal,

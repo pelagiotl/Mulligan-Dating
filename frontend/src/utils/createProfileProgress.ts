@@ -35,6 +35,17 @@ export function parseOnboardingAgeOrNull(age: string): number | null {
   return null;
 }
 
+/** Guard preference payloads — React state can briefly hold null/NaN from API rows. */
+export function finitePreferenceAge(
+  value: number | null | undefined,
+  fallback: number
+): number {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 18 && value <= 120) {
+    return Math.round(value);
+  }
+  return fallback;
+}
+
 /** @deprecated Use {@link parseOnboardingAgeOrNull}; do not default age during onboarding. */
 export function resolveOnboardingAge(age: string): number {
   return parseOnboardingAgeOrNull(age) ?? ONBOARDING_LEGACY_AUTO_AGE;
