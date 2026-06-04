@@ -13,7 +13,12 @@ import { getPhotoUrl } from "../utils/photoUrl";
 import { hasCityAndState } from "../utils/locationUtils";
 import { dispatchProfileEnhancementRefresh } from "../constants/profileEnhancementEvents";
 import { LIFESTYLE_FIELD_LABEL, getInterestEmoji } from "../constants/profileMySections";
-import { displayProfileGender } from "../utils/createProfileProgress";
+import {
+  displayProfileAge,
+  displayProfileGender,
+  isProfileAgeUnset,
+  shouldClearLoadedProfileAge,
+} from "../utils/createProfileProgress";
 import { useAuth } from "../context/AuthContext";
 import {
   clampMaxDistanceMiles,
@@ -644,15 +649,20 @@ export default function MyProfile() {
     lookingFor?: string | null;
   }) => {
     if (!data?.profile) return;
-    await api.post("/profile", {
+    const body: Record<string, unknown> = {
       displayName: data.profile.display_name,
-      age: fields.age ?? data.profile.age,
       gender: fields.gender ?? data.profile.gender,
       location: fields.location !== undefined ? fields.location : data.profile.location ?? null,
       bio: fields.bio !== undefined ? fields.bio : data.profile.bio ?? null,
       lookingFor:
         fields.lookingFor !== undefined ? fields.lookingFor : data.profile.looking_for ?? null,
-    });
+    };
+    if (fields.age !== undefined) {
+      body.age = fields.age;
+    } else if (!isProfileAgeUnset(data.profile.age)) {
+      body.age = data.profile.age;
+    }
+    await api.post("/profile", body);
   };
 
   const saveDisplayName = async () => {
@@ -1143,7 +1153,7 @@ export default function MyProfile() {
                 className="my-profile-mini-card my-profile-mini-card--age"
                 onClick={() => {
                   captureProfileScrollAnchor("my-profile-age");
-                  setEditAge(String(profile.age));
+                  setEditAge(isProfileAgeUnset(profile.age) ? "" : String(profile.age));
                   setShowAgeModal(true);
                 }}
               >
@@ -1151,7 +1161,11 @@ export default function MyProfile() {
                   🎂
                 </span>
                 <span className="my-profile-mini-label">Age</span>
-                <span className="my-profile-mini-value">{profile.age}</span>
+                <span className="my-profile-mini-value">
+                  {shouldClearLoadedProfileAge(profile.age, profile.gender)
+                    ? "Not set"
+                    : displayProfileAge(profile.age)}
+                </span>
                 <span className="my-profile-mini-hint">Tap to update</span>
               </button>
               <button

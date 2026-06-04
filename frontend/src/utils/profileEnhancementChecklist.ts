@@ -2,6 +2,7 @@ import {
   profileEnhancementPhotoHint,
   profileEnhancementPhotoLabel,
 } from "../constants/connectPhotoCopy";
+import { isProfileAgeUnset, shouldClearLoadedProfileAge } from "./createProfileProgress";
 import { MIN_PHOTOS_TO_CONNECT } from "./connectProfileEligibility";
 
 /** Encourage more than the connect minimum. */
@@ -88,8 +89,12 @@ export function isLookingForEnhancementComplete(
   return typeof lookingFor === "string" && lookingFor.trim().length > 0;
 }
 
-export function isAgeEnhancementComplete(age: number | null | undefined): boolean {
-  return typeof age === "number" && !Number.isNaN(age) && age >= 18 && age <= 120;
+export function isAgeEnhancementComplete(
+  age: number | null | undefined,
+  gender?: string | null | undefined
+): boolean {
+  if (shouldClearLoadedProfileAge(age, gender)) return false;
+  return !isProfileAgeUnset(age);
 }
 
 export function isGenderEnhancementComplete(gender: string | null | undefined): boolean {
@@ -126,7 +131,7 @@ export function buildProfileEnhancementChecklist(
       id: "age",
       label: "Age",
       hint: "Confirm your age for matching",
-      done: isAgeEnhancementComplete(snapshot.age),
+      done: isAgeEnhancementComplete(snapshot.age, snapshot.gender),
       profileHash: PROFILE_ENHANCEMENT_HASH.age,
     },
     {

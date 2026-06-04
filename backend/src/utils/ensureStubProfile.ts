@@ -31,7 +31,7 @@ export async function ensureStubProfile(
   try {
     const insertProfile = db.prepare(`
       INSERT INTO profiles (id, user_id, display_name, age, gender, location, bio, photo_url, looking_for)
-      VALUES (?, ?, ?, 18, '', ?, NULL, NULL, NULL)
+      VALUES (?, ?, ?, NULL, '', ?, NULL, NULL, NULL)
     `);
     await (insertProfile.run([profileId, userId, displayName, location]) as Promise<unknown>);
     const insertPref = db.prepare(`INSERT INTO preferences (id, profile_id) VALUES (?, ?)`);

@@ -23,7 +23,8 @@ import {
   ONBOARDING_DEFAULT_MAX_DISTANCE,
   ONBOARDING_DEFAULT_MIN_AGE,
   readWebCreateProfileDraft,
-  resolveOnboardingAge,
+  parseOnboardingAgeOrNull,
+  shouldClearLoadedProfileAge,
   resolveOnboardingGender,
   resolveOnboardingPreferredGenders,
   writeWebCreateProfileDraft,
@@ -512,18 +513,18 @@ export default function CreateProfile() {
         throw new Error("Please enter both city and state (e.g. Medford, Oregon)");
       }
 
-      const ageNum = resolveOnboardingAge(age);
+      const ageNum = parseOnboardingAgeOrNull(age);
       const genderVal = resolveOnboardingGender(gender);
       const prefGenders = resolveOnboardingPreferredGenders(preferredGenders);
 
-      const profileBody = {
+      const profileBody: Record<string, unknown> = {
         displayName: displayName.trim(),
-        age: ageNum,
         gender: genderVal,
         location: hasCityAndState(normalizedLocation) ? normalizedLocation : null,
         bio: bio?.trim() || null,
         lookingFor: null,
       };
+      if (ageNum != null) profileBody.age = ageNum;
 
       const includePreferences = options.includePreferences !== false;
       const maxDist = clampMaxDistanceMiles(
@@ -611,18 +612,18 @@ export default function CreateProfile() {
     }
 
     const normalizedLocation = normalizeLocationInput(location);
-    const ageNum = resolveOnboardingAge(age);
+    const ageNum = parseOnboardingAgeOrNull(age);
     const genderVal = resolveOnboardingGender(gender);
     const prefGenders = resolveOnboardingPreferredGenders(preferredGenders);
 
-    const profileBody = {
+    const profileBody: Record<string, unknown> = {
       displayName: displayName.trim(),
-      age: ageNum,
       gender: genderVal,
       location: normalizedLocation,
       bio: bio?.trim() || null,
       lookingFor: null,
     };
+    if (ageNum != null) profileBody.age = ageNum;
 
     const maxDist = clampMaxDistanceMiles(
       maxDistance != null && !Number.isNaN(Number(maxDistance))
@@ -758,17 +759,18 @@ export default function CreateProfile() {
         if (data.profile) {
           const stubName = !(data.profile.display_name ?? "").trim();
           if (!stubName) dn = data.profile.display_name;
-          if (data.profile.age) ageStr = String(data.profile.age);
+          if (
+            !shouldClearLoadedProfileAge(data.profile.age, data.profile.gender) &&
+            data.profile.age != null
+          ) {
+            ageStr = String(data.profile.age);
+          } else if (!draft?.age) {
+            ageStr = "";
+          }
           if (data.profile.gender && data.profile.gender !== "Other") genderVal = data.profile.gender;
           else if (data.profile.gender && !genderVal) genderVal = data.profile.gender;
           if (data.profile.location) loc = data.profile.location;
           if (data.profile.bio) bioVal = data.profile.bio;
-          const isStubLike =
-            dn.trim().length >= 2 &&
-            data.profile.gender === "Other" &&
-            !data.profile.location &&
-            (data.interests?.length ?? 0) === 0;
-          if (isStubLike && !draft?.age) ageStr = "";
         }
         if (data.interests?.length) {
           interestList = data.interests.map((i) => i.name);

@@ -1,17 +1,47 @@
 export const WEB_CREATE_PROFILE_STEPS = 1;
 export const WEB_CREATE_PROFILE_DRAFT_KEY = "mulligan:create-profile:web";
 
-/** Placeholders for fields completed later in Settings (not shown in onboarding). */
-export const ONBOARDING_DEFAULT_AGE = 18;
-export const ONBOARDING_DEFAULT_GENDER = "Not specified";
+/** Preference defaults — not written as the member's profile age. */
 export const ONBOARDING_DEFAULT_MIN_AGE = 18;
 export const ONBOARDING_DEFAULT_MAX_AGE = 100;
 export const ONBOARDING_DEFAULT_MAX_DISTANCE = 50;
 
-export function resolveOnboardingAge(age: string): number {
+/** Legacy placeholder gender from onboarding saves before Profile is completed. */
+export const ONBOARDING_DEFAULT_GENDER = "Not specified";
+
+/** @deprecated Server used to auto-insert 18; treat as unset when gender is still a stub. */
+export const ONBOARDING_LEGACY_AUTO_AGE = 18;
+
+export function isProfileAgeUnset(age: number | null | undefined): boolean {
+  return age == null || typeof age !== "number" || Number.isNaN(age) || age < 18 || age > 120;
+}
+
+/** Hide legacy auto-filled age (18 + stub gender) so Connect/Profile do not show a fake age. */
+export function shouldClearLoadedProfileAge(
+  age: number | null | undefined,
+  gender: string | null | undefined
+): boolean {
+  if (isProfileAgeUnset(age)) return true;
+  const g = (gender ?? "").trim();
+  return (
+    age === ONBOARDING_LEGACY_AUTO_AGE &&
+    (!g || g === ONBOARDING_DEFAULT_GENDER || g === "Other")
+  );
+}
+
+export function parseOnboardingAgeOrNull(age: string): number | null {
   const n = parseInt(age, 10);
   if (age.trim() && !Number.isNaN(n) && n >= 18 && n <= 120) return n;
-  return ONBOARDING_DEFAULT_AGE;
+  return null;
+}
+
+/** @deprecated Use {@link parseOnboardingAgeOrNull}; do not default age during onboarding. */
+export function resolveOnboardingAge(age: string): number {
+  return parseOnboardingAgeOrNull(age) ?? ONBOARDING_LEGACY_AUTO_AGE;
+}
+
+export function displayProfileAge(age: number | null | undefined): string {
+  return isProfileAgeUnset(age) ? "Not set" : String(age);
 }
 
 export function resolveOnboardingGender(gender: string): string {

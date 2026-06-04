@@ -31,7 +31,7 @@ const profileSchema = z.object({
     .min(2, 'Name must be at least 2 characters')
     .max(50, 'Name must be at most 50 characters')
     .refine(val => val.trim().length >= 2, 'Name cannot be only whitespace'),
-  age: z.coerce.number().min(18, 'Must be at least 18').max(120),
+  age: z.union([z.coerce.number().min(18, 'Must be at least 18').max(120), z.null()]).optional(),
   gender: z.string()
     .min(1, 'Gender is required')
     .max(50, 'Gender must be at most 50 characters'),
@@ -85,9 +85,17 @@ profileRouter.post('/', authenticateToken, rateLimitAPI, async (req: AuthRequest
     const userId = req.userId!;
     
     // Sanitize all text inputs to prevent XSS
-    const sanitizedData = {
+    const sanitizedData: {
+      displayName: string;
+      age: number | null;
+      gender: string;
+      location: string | null;
+      bio: string | null;
+      photoUrl: string | null;
+      lookingFor: string | null;
+    } = {
       displayName: sanitizeText(profileData.displayName, 50),
-      age: profileData.age,
+      age: profileData.age ?? null,
       gender: sanitizeText(profileData.gender, 50),
       location: profileData.location ? sanitizeText(profileData.location, 100) : null,
       bio: profileData.bio ? sanitizeText(profileData.bio, 500) : null,
@@ -123,13 +131,26 @@ profileRouter.post('/', authenticateToken, rateLimitAPI, async (req: AuthRequest
     };
 
     const existingProfileStmt = db.prepare(
-      'SELECT id, photo_url, looking_for FROM profiles WHERE user_id = ?'
+      'SELECT id, photo_url, looking_for, age, gender FROM profiles WHERE user_id = ?'
     );
     let existingProfile = await (existingProfileStmt.get([userId]) as Promise<
-      { id: string; photo_url: string | null; looking_for: string | null } | undefined
+      {
+        id: string;
+        photo_url: string | null;
+        looking_for: string | null;
+        age: number | null;
+        gender: string | null;
+      } | undefined
     >);
 
     if (existingProfile) {
+      // Wizard POST omits age until the member sets it on Profile
+      if (profileData.age === undefined) {
+        sanitizedData.age = existingProfile.age ?? null;
+      }
+      if (profileData.gender === undefined || profileData.gender === '') {
+        sanitizedData.gender = sanitizeText(existingProfile.gender ?? '', 50);
+      }
       // Wizard POST omits photoUrl — preserve uploaded gallery primary URL on update
       if (profileData.photoUrl === undefined && existingProfile.photo_url) {
         sanitizedData.photoUrl = clampForDb(existingProfile.photo_url, DB_PHOTO_URL_MAX);
@@ -174,9 +195,21 @@ profileRouter.post('/', authenticateToken, rateLimitAPI, async (req: AuthRequest
     } catch (insertErr: unknown) {
       if (!isUniqueViolation(insertErr)) throw insertErr;
       existingProfile = await (existingProfileStmt.get([userId]) as Promise<
-        { id: string; photo_url: string | null; looking_for: string | null } | undefined
+        {
+          id: string;
+          photo_url: string | null;
+          looking_for: string | null;
+          age: number | null;
+          gender: string | null;
+        } | undefined
       >);
       if (!existingProfile) throw insertErr;
+      if (profileData.age === undefined) {
+        sanitizedData.age = existingProfile.age ?? null;
+      }
+      if (profileData.gender === undefined || profileData.gender === '') {
+        sanitizedData.gender = sanitizeText(existingProfile.gender ?? '', 50);
+      }
       if (profileData.photoUrl === undefined && existingProfile.photo_url) {
         sanitizedData.photoUrl = clampForDb(existingProfile.photo_url, DB_PHOTO_URL_MAX);
       }
