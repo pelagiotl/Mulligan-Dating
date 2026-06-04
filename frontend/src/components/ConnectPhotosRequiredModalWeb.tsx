@@ -21,21 +21,21 @@ export default function ConnectPhotosRequiredModalWeb({
   onPhotoUploaded?: (uploaded: UploadedPhoto[]) => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadingRef = useRef(false);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [slotPhotos, setSlotPhotos] = useState<(SlotPhoto | null)[]>(
     Array.from({ length: MIN_PHOTOS_TO_CONNECT }, () => null)
   );
 
+  uploadingRef.current = uploading;
+
+  /** Reset slot state when the modal opens — depend only on `open` so parent re-renders do not clear upload UI. */
   useEffect(() => {
     if (!open) return;
     setUploadError("");
     setUploading(false);
-
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !uploading) onClose();
-    };
-    window.addEventListener("keydown", onKey);
+    uploadingRef.current = false;
 
     let cancelled = false;
     void (async () => {
@@ -61,8 +61,16 @@ export default function ConnectPhotosRequiredModalWeb({
 
     return () => {
       cancelled = true;
-      window.removeEventListener("keydown", onKey);
     };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !uploadingRef.current) onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
   if (!open) return null;
@@ -89,6 +97,7 @@ export default function ConnectPhotosRequiredModalWeb({
       return;
     }
 
+    uploadingRef.current = true;
     setUploading(true);
     setUploadError("");
     try {
@@ -109,6 +118,7 @@ export default function ConnectPhotosRequiredModalWeb({
       setUploadError(err instanceof Error ? err.message : "Upload failed. Try again.");
       e.target.value = "";
     } finally {
+      uploadingRef.current = false;
       setUploading(false);
     }
   };
