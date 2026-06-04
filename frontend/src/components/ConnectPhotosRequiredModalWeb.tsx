@@ -63,7 +63,7 @@ export default function ConnectPhotosRequiredModalWeb({
       cancelled = true;
       window.removeEventListener("keydown", onKey);
     };
-  }, [open, onClose, uploading]);
+  }, [open, onClose]);
 
   if (!open) return null;
 

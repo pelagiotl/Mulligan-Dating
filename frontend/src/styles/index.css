@@ -20257,6 +20257,11 @@ button.compatibility-pulse-pill.matches-chat-toolbar-btn--pulse:hover {
 
 .connect-photos-modal-slot.is-uploading {
   border-style: solid;
+  pointer-events: none;
+}
+
+.connect-photos-modal-slot.is-uploading .connect-photos-modal-slot-spinner {
+  flex-shrink: 0;
 }
 
 .connect-photos-modal-file-input {
@@ -20272,9 +20277,9 @@ button.compatibility-pulse-pill.matches-chat-toolbar-btn--pulse:hover {
 }
 
 .connect-photos-modal-slot-spinner {
-  width: 1.35rem;
-  height: 1.35rem;
-  border: 2px solid rgba(244, 63, 94, 0.25);
+  width: 2rem;
+  height: 2rem;
+  border: 3px solid rgba(244, 63, 94, 0.22);
   border-top-color: var(--color-rose-500);
   border-radius: 50%;
   animation: connect-photos-modal-spin 0.75s linear infinite;
