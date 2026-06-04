@@ -6110,6 +6110,103 @@ button.my-profile-avatar:focus-visible {
   margin-top: 0.85rem;
 }
 
+/* Messaging profile quick view — slimmer hero so gallery/details read sooner */
+.match-partner-preview-root .my-profile-preview-header {
+  padding-bottom: 0.85rem;
+}
+
+.match-partner-preview-root .my-profile-preview-header__top {
+  padding: 1rem 1rem 0.35rem;
+}
+
+.match-partner-preview-root .my-profile-preview-badge {
+  padding: 0.28rem 0.62rem;
+  font-size: 0.62rem;
+}
+
+.match-partner-preview-root .my-profile-preview-close {
+  width: 2.25rem;
+  height: 2.25rem;
+  font-size: 1.1rem;
+}
+
+.match-partner-preview-root .my-profile-preview-hero {
+  padding: 0.15rem 1rem 0;
+}
+
+.match-partner-preview-root .my-profile-preview-avatar-btn {
+  margin-bottom: 0.5rem;
+}
+
+.match-partner-preview-root .my-profile-preview-avatar-ring--placeholder {
+  margin-bottom: 0.5rem;
+}
+
+.match-partner-preview-root .my-profile-preview-avatar-img,
+.match-partner-preview-root .my-profile-preview-avatar-placeholder {
+  width: 5rem;
+  height: 5rem;
+}
+
+.match-partner-preview-root .my-profile-preview-avatar-placeholder {
+  font-size: 1.85rem;
+}
+
+.match-partner-preview-root .my-profile-preview-name {
+  font-size: 1.25rem;
+}
+
+.match-partner-preview-root .my-profile-preview-meta {
+  margin-top: 0.45rem;
+  gap: 0.35rem;
+}
+
+.match-partner-preview-root .my-profile-preview-meta-chip {
+  padding: 0.28rem 0.62rem;
+  font-size: 0.7rem;
+}
+
+.match-partner-preview-root .match-partner-preview-hero-about {
+  margin-top: 0.55rem;
+}
+
+.match-partner-preview-root .match-partner-preview-hero-about-inner {
+  padding: 0.6rem 0.85rem 0.7rem;
+}
+
+.match-partner-preview-root .match-partner-preview-hero-about-head {
+  margin-bottom: 0.4rem;
+  gap: 0.5rem;
+}
+
+.match-partner-preview-root .match-partner-preview-hero-about-icon {
+  width: 1.85rem;
+  height: 1.85rem;
+  font-size: 0.9rem;
+}
+
+.match-partner-preview-root .match-partner-preview-hero-about-label {
+  font-size: 0.92rem;
+}
+
+.match-partner-preview-root .match-partner-preview-hero-about-text {
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.match-partner-preview-root .my-profile-preview-hero:has(.match-partner-preview-hero-about) .my-profile-preview-tagline {
+  margin-top: 0.55rem;
+  font-size: 0.75rem;
+}
+
+.match-partner-preview-root .my-profile-preview-tagline {
+  margin-top: 0.5rem;
+}
+
+.match-partner-preview-root .match-partner-preview-report {
+  margin-top: 0.45rem;
+}
+
 .my-profile-preview-card--common {
   padding-bottom: 1.1rem;
 }
