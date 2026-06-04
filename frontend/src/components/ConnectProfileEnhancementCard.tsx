@@ -1,5 +1,8 @@
 import type { CSSProperties } from "react";
-import type { ProfileEnhancementItem } from "../utils/profileEnhancementChecklist";
+import {
+  PROFILE_ENHANCEMENT_CHECKLIST_SIZE,
+  type ProfileEnhancementItem,
+} from "../utils/profileEnhancementChecklist";
 import "./ConnectProfileEnhancementCard.css";
 
 type Props = {
@@ -51,7 +54,7 @@ export default function ConnectProfileEnhancementCard({
 }: Props) {
   if (items.length === 0) return null;
 
-  const total = 5;
+  const total = PROFILE_ENHANCEMENT_CHECKLIST_SIZE;
   const done = total - items.length;
   const progressPct = Math.round((done / total) * 100);
 

@@ -1139,8 +1139,10 @@ export default function MyProfile() {
             <div className="my-profile-info-grid">
               <button
                 type="button"
+                id="my-profile-age"
                 className="my-profile-mini-card my-profile-mini-card--age"
                 onClick={() => {
+                  captureProfileScrollAnchor("my-profile-age");
                   setEditAge(String(profile.age));
                   setShowAgeModal(true);
                 }}
@@ -1154,8 +1156,10 @@ export default function MyProfile() {
               </button>
               <button
                 type="button"
+                id="my-profile-gender"
                 className="my-profile-mini-card my-profile-mini-card--gender"
                 onClick={() => {
+                  captureProfileScrollAnchor("my-profile-gender");
                   setEditGender(profile.gender || "");
                   setShowGenderModal(true);
                 }}

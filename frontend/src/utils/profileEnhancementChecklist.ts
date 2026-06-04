@@ -19,12 +19,19 @@ export const PROFILE_ENHANCEMENT_CELEBRATION_KEY =
 
 export const PROFILE_ENHANCEMENT_DISMISS_DAYS = 7;
 
+export const PROFILE_ENHANCEMENT_VALID_GENDERS = ["Man", "Woman", "Other"] as const;
+
 export type ProfileEnhancementSectionId =
   | "photos"
+  | "age"
+  | "gender"
   | "interests"
   | "looking-for"
   | "lifestyle"
   | "dealbreakers";
+
+/** Total checklist items shown in Connect “Better matches” progress (e.g. 4/7). */
+export const PROFILE_ENHANCEMENT_CHECKLIST_SIZE = 7;
 
 export type ProfileEnhancementItem = {
   id: ProfileEnhancementSectionId;
@@ -37,6 +44,8 @@ export type ProfileEnhancementItem = {
 
 export type ProfileEnhancementSnapshot = {
   photoCount: number;
+  age: number | null | undefined;
+  gender: string | null | undefined;
   interestsCount: number;
   lookingFor: string | null | undefined;
   lifestyle: {
@@ -79,8 +88,23 @@ export function isLookingForEnhancementComplete(
   return typeof lookingFor === "string" && lookingFor.trim().length > 0;
 }
 
+export function isAgeEnhancementComplete(age: number | null | undefined): boolean {
+  return typeof age === "number" && !Number.isNaN(age) && age >= 18 && age <= 120;
+}
+
+export function isGenderEnhancementComplete(gender: string | null | undefined): boolean {
+  return (
+    typeof gender === "string" &&
+    PROFILE_ENHANCEMENT_VALID_GENDERS.includes(
+      gender.trim() as (typeof PROFILE_ENHANCEMENT_VALID_GENDERS)[number]
+    )
+  );
+}
+
 export const PROFILE_ENHANCEMENT_HASH: Record<ProfileEnhancementSectionId, string> = {
   photos: "my-photos",
+  age: "my-profile-age",
+  gender: "my-profile-gender",
   interests: "my-interests",
   "looking-for": "my-profile-looking-for",
   lifestyle: "my-lifestyle",
@@ -97,6 +121,20 @@ export function buildProfileEnhancementChecklist(
       hint: profileEnhancementPhotoHint(snapshot.photoCount),
       done: snapshot.photoCount >= PROFILE_ENHANCEMENT_PHOTO_TARGET,
       profileHash: PROFILE_ENHANCEMENT_HASH.photos,
+    },
+    {
+      id: "age",
+      label: "Age",
+      hint: "Confirm your age for matching",
+      done: isAgeEnhancementComplete(snapshot.age),
+      profileHash: PROFILE_ENHANCEMENT_HASH.age,
+    },
+    {
+      id: "gender",
+      label: "Gender",
+      hint: "Helps us show you relevant matches",
+      done: isGenderEnhancementComplete(snapshot.gender),
+      profileHash: PROFILE_ENHANCEMENT_HASH.gender,
     },
     {
       id: "interests",

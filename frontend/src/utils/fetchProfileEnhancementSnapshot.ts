@@ -17,7 +17,12 @@ export async function fetchProfileEnhancementSnapshot(
 
   try {
     const data = await api.get<{
-      profile: { looking_for?: string | null; lookingFor?: string | null };
+      profile: {
+        age?: number | null;
+        gender?: string | null;
+        looking_for?: string | null;
+        lookingFor?: string | null;
+      };
       interests: unknown[];
       dealbreakers: unknown[];
       lifestyle: ProfileEnhancementSnapshot["lifestyle"];
@@ -25,6 +30,8 @@ export async function fetchProfileEnhancementSnapshot(
     const profileRow = data.profile;
     return {
       photoCount: resolvedPhotoCount,
+      age: profileRow?.age ?? null,
+      gender: profileRow?.gender ?? null,
       interestsCount: data.interests?.length ?? 0,
       lookingFor: profileRow?.looking_for ?? profileRow?.lookingFor ?? null,
       lifestyle: data.lifestyle ?? null,
@@ -33,6 +40,8 @@ export async function fetchProfileEnhancementSnapshot(
   } catch {
     return {
       photoCount: resolvedPhotoCount,
+      age: null,
+      gender: null,
       interestsCount: 0,
       lookingFor: null,
       lifestyle: null,
