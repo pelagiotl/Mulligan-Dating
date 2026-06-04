@@ -2358,7 +2358,14 @@ button.connect-landing__cta:disabled::before {
 }
 
 .matches-page.native-app-screen .message-input {
+  color: var(--color-wine-900, #2d1118);
+  caret-color: var(--color-rose-600, #e11d48);
   border-color: rgba(102, 126, 234, 0.22);
+}
+
+.matches-page.native-app-screen .message-input::placeholder {
+  color: var(--text-muted, #6b5a5e);
+  opacity: 0.85;
 }
 
 .matches-page.native-app-screen .message-input:focus {

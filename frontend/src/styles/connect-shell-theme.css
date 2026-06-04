@@ -1960,6 +1960,53 @@ html[data-connect-shell="midnight"] .matches-page .no-messages__cta,
   background-clip: text;
 }
 
+/* Matches chat composer — do not inherit --native-ink onto a light textarea */
+html[data-connect-shell="midnight"] .matches-page .message-input-container,
+.app-layout.connect-shell--midnight .matches-page .message-input-container {
+  background: linear-gradient(
+    180deg,
+    rgba(18, 16, 28, 0.94) 0%,
+    rgba(22, 18, 34, 0.98) 100%
+  );
+  border-top-color: rgba(167, 139, 250, 0.22);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.28);
+}
+
+html[data-connect-shell="midnight"] .matches-page .message-input-container::before,
+.app-layout.connect-shell--midnight .matches-page .message-input-container::before {
+  background: linear-gradient(90deg, transparent, rgba(167, 139, 250, 0.28), transparent);
+}
+
+html[data-connect-shell="midnight"] .matches-page .message-input,
+.app-layout.connect-shell--midnight .matches-page .message-input {
+  color: #f1f5f9;
+  caret-color: #f472b6;
+  background: rgba(30, 27, 46, 0.92);
+  border-color: rgba(167, 139, 250, 0.32);
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.2),
+    0 0 0 1px rgba(167, 139, 250, 0.08) inset;
+}
+
+html[data-connect-shell="midnight"] .matches-page .message-input:focus,
+.app-layout.connect-shell--midnight .matches-page .message-input:focus {
+  border-color: rgba(196, 181, 253, 0.55);
+  box-shadow:
+    0 4px 16px rgba(124, 58, 237, 0.28),
+    0 0 0 3px rgba(167, 139, 250, 0.14);
+}
+
+html[data-connect-shell="midnight"] .matches-page .message-input::placeholder,
+.app-layout.connect-shell--midnight .matches-page .message-input::placeholder {
+  color: #94a3b8;
+  opacity: 1;
+}
+
+html[data-connect-shell="midnight"] .matches-page .typing-indicator,
+.app-layout.connect-shell--midnight .matches-page .typing-indicator {
+  color: #c4b5fd;
+}
+
 /* Sunny — warm cream / amber (hero sunny card) */
 html[data-connect-shell="sunny"] .launch-countdown-bubble__perimeter-glow::before {
   background: conic-gradient(

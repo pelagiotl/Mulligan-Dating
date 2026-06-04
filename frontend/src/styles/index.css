@@ -13487,6 +13487,8 @@ button.chat-avatar-btn .chat-avatar img {
   border-radius: var(--radius-full);
   font-family: var(--font-body);
   font-size: 1rem;
+  color: var(--color-wine-900, #2d1118);
+  caret-color: var(--color-rose-600, #e11d48);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(10px);
@@ -13511,8 +13513,8 @@ button.chat-avatar-btn .chat-avatar img {
 }
 
 .message-input::placeholder {
-  color: var(--text-muted);
-  opacity: 0.6;
+  color: var(--text-muted, #6b5a5e);
+  opacity: 0.85;
 }
 
 .send-btn {
