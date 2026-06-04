@@ -727,11 +727,27 @@ html[data-connect-shell="midnight"] .navbar-token-modal-purchase-label,
   color: #c4b5fd;
 }
 
+/* Navbar modal: dark surface — light helper copy */
 html[data-connect-shell="midnight"] .navbar-token-modal-overlay .web-token-purchase--settings .settings-description,
-html[data-connect-shell="midnight"] .settings-page.native-app-screen .web-token-purchase--settings .settings-description,
-.app-layout.connect-shell--midnight .navbar-token-modal-overlay .web-token-purchase--settings .settings-description,
-.app-layout.connect-shell--midnight .settings-page.native-app-screen .web-token-purchase--settings .settings-description {
+.app-layout.connect-shell--midnight .navbar-token-modal-overlay .web-token-purchase--settings .settings-description {
   color: #cbd5e1 !important;
+}
+
+/* Settings → Tokens keeps a light card in midnight — dark body copy (not --native-ink) */
+html[data-connect-shell="midnight"] .settings-page.native-app-screen .web-token-purchase--settings .settings-description,
+.app-layout.connect-shell--midnight .settings-page.native-app-screen .web-token-purchase--settings .settings-description {
+  color: var(--color-wine-900, #3f1020) !important;
+}
+
+html[data-connect-shell="midnight"] .settings-page.native-app-screen .web-token-purchase--settings .settings-description code,
+.app-layout.connect-shell--midnight .settings-page.native-app-screen .web-token-purchase--settings .settings-description code {
+  color: #4c1d95;
+  background: rgba(237, 233, 254, 0.72);
+}
+
+html[data-connect-shell="midnight"] .settings-page.native-app-screen .web-token-purchase--settings .settings-description strong,
+.app-layout.connect-shell--midnight .settings-page.native-app-screen .web-token-purchase--settings .settings-description strong {
+  color: var(--color-wine-900, #3f1020);
 }
 
 html[data-connect-shell="midnight"] .navbar-token-modal-overlay .web-token-purchase__card,
@@ -784,7 +800,7 @@ html[data-connect-shell="midnight"] .settings-page.native-app-screen .web-token-
 
 html[data-connect-shell="midnight"] .settings-page.native-app-screen .settings-perimeter-border--tokens .settings-section,
 .app-layout.connect-shell--midnight .settings-page.native-app-screen .settings-perimeter-border--tokens .settings-section {
-  color: #e2e8f0;
+  color: var(--color-wine-900, #3f1020);
 }
 
 /* Soft: Connect landing token card — airy purple shadow */
