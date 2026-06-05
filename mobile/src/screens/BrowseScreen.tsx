@@ -84,7 +84,6 @@ import {
   connectSetupGapNavigationTarget,
   connectSetupGapPrimaryActionLabel,
   getConnectSetupMissing,
-  getProfileActivationMissing,
 } from '../utils/connectSetup';
 import {
   endMatchCelebrationDemoSession,
@@ -520,18 +519,12 @@ export default function BrowseScreen() {
   );
 
   const ensureReadyToConnect = useCallback(async (): Promise<boolean> => {
-    const activationMissing = getProfileActivationMissing(userProfile);
-    if (activationMissing.length > 0) {
-      showConnectSetupAlert(activationMissing[0]);
-      return false;
-    }
     const count = await resolvePhotoCountForConnect();
-    if (count < MIN_PHOTOS_TO_CONNECT) {
-      promptPhotosRequired(count);
-      return false;
-    }
-    return true;
-  }, [resolvePhotoCountForConnect, userProfile, showConnectSetupAlert, promptPhotosRequired]);
+    const missing = getConnectSetupMissing(userProfile, count);
+    if (missing.length === 0) return true;
+    showConnectSetupAlert(missing[0]);
+    return false;
+  }, [resolvePhotoCountForConnect, userProfile, showConnectSetupAlert]);
 
   const handleUnlockBrowse = useCallback(async () => {
     if (unlocking) return;
@@ -1332,16 +1325,7 @@ export default function BrowseScreen() {
   const handleLandingConnectPress = useCallback(() => {
     if (unlocking) return;
     void (async () => {
-      const activationMissing = getProfileActivationMissing(userProfile);
-      if (activationMissing.length > 0) {
-        showConnectSetupAlert(activationMissing[0]);
-        return;
-      }
-      const count = await resolvePhotoCountForConnect();
-      if (count < MIN_PHOTOS_TO_CONNECT) {
-        promptPhotosRequired(count);
-        return;
-      }
+      if (!(await ensureReadyToConnect())) return;
       if (matchmakingPaused) {
         openMatchmakingPausedModal();
         return;
@@ -1352,10 +1336,7 @@ export default function BrowseScreen() {
     unlocking,
     matchmakingPaused,
     openMatchmakingPausedModal,
-    resolvePhotoCountForConnect,
-    userProfile,
-    showConnectSetupAlert,
-    promptPhotosRequired,
+    ensureReadyToConnect,
     handleUnlockBrowse,
   ]);
 

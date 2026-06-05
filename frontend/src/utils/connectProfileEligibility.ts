@@ -1,5 +1,7 @@
 /** Mirrors backend `connectRequirements.ts` for routing and post-login redirects. */
 
+import { CONNECT_PHOTOS_REQUIRED_MESSAGE } from "../constants/connectPhotoCopy";
+
 export const MIN_PHOTOS_TO_CONNECT = 1;
 
 export function minPhotosToConnectLabel(count = MIN_PHOTOS_TO_CONNECT): string {
@@ -153,3 +155,61 @@ export function deriveAppRegistrationComplete(params: {
 }
 
 export { CONNECT_PHOTOS_REQUIRED_MESSAGE } from "../constants/connectPhotoCopy";
+
+/** Friendly copy when the user taps Connect before profile setup is complete. */
+export function connectSetupGapUserMessage(gap: ConnectSetupGap): string {
+  switch (gap) {
+    case "name":
+      return "Add your name in Settings (at least 2 characters) before you can Connect.";
+    case "location":
+      return "Add your city and state on your Profile (e.g. Medford, Oregon) before you can Connect.";
+    case "age":
+      return "Add your age on your Profile before you can Connect.";
+    case "gender":
+      return "Add your gender on your Profile before you can Connect.";
+    case "photos":
+      return CONNECT_PHOTOS_REQUIRED_MESSAGE;
+    default:
+      return "Complete your profile before you can Connect.";
+  }
+}
+
+export function connectSetupGapPrimaryLabel(gap: ConnectSetupGap): string {
+  return gap === "name" ? "Open Settings" : "Open Profile";
+}
+
+export function connectSetupGapPath(gap: ConnectSetupGap): string {
+  if (gap === "name") return "/settings";
+  if (gap === "age") return "/profile#my-profile-age";
+  return "/profile";
+}
+
+export function connectSetupGapModalTitle(gap: ConnectSetupGap): string {
+  switch (gap) {
+    case "age":
+      return "Add your age";
+    case "gender":
+      return "Add your gender";
+    case "location":
+      return "Add your location";
+    case "name":
+      return "Add your name";
+    default:
+      return "Finish your profile";
+  }
+}
+
+export function connectSetupGapModalEmoji(gap: ConnectSetupGap): string {
+  switch (gap) {
+    case "age":
+      return "🎂";
+    case "gender":
+      return "⚧️";
+    case "location":
+      return "📍";
+    case "name":
+      return "👋";
+    default:
+      return "✨";
+  }
+}

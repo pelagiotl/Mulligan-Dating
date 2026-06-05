@@ -3,7 +3,11 @@ import { createPortal } from "react-dom";
 import { useNavigate, Navigate, useLocation } from "react-router-dom";
 import { api } from "../utils/api";
 import { useAuth } from "../context/AuthContext";
-import { MIN_PHOTOS_TO_CONNECT } from "../utils/connectProfileEligibility";
+import {
+  getConnectSetupGaps,
+  MIN_PHOTOS_TO_CONNECT,
+  type ConnectSetupGap,
+} from "../utils/connectProfileEligibility";
 import { getPhotoUrl } from "../utils/photoUrl";
 import MatchCelebration, { type CelebrationPartnerProfile } from "../components/MatchCelebration";
 import TokenDisplay from "../components/TokenDisplay";
@@ -34,6 +38,7 @@ import {
 import WebPushOnboardingPrompt from "../components/WebPushOnboardingPrompt";
 import { shouldShowWebPushPromptAfterProfile } from "../constants/webPushPrompt";
 import ConnectPhotosRequiredModalWeb from "../components/ConnectPhotosRequiredModalWeb";
+import ConnectSetupGapModalWeb from "../components/ConnectSetupGapModalWeb";
 import MatchmakingPausedModalWeb from "../components/MatchmakingPausedModalWeb";
 import ConnectProfileEnhancementCard, {
   ConnectProfileEnhancementRestoreLink,
@@ -249,6 +254,7 @@ export default function Browse() {
   const [gateError, setGateError] = useState("");
   const [showConnectPhotosModal, setShowConnectPhotosModal] = useState(false);
   const [connectPhotosModalCount, setConnectPhotosModalCount] = useState(0);
+  const [connectSetupGap, setConnectSetupGap] = useState<ConnectSetupGap | null>(null);
   const [showMatchmakingPausedModal, setShowMatchmakingPausedModal] = useState(false);
   const [showMatchLimitModal, setShowMatchLimitModal] = useState(false);
   const { status: matchSlotStatus, isAtCapacity, refresh: refreshMatchSlots } = useMatchSlotStatus(
@@ -736,16 +742,26 @@ export default function Browse() {
     }
   }, [photoCount]);
 
-  const handleUnlockBrowse = useCallback(async () => {
-    if (unlockingBrowse || !userProfile || isAutoMatching) return;
-
+  const ensureReadyToConnect = useCallback(async (): Promise<boolean> => {
     const readyPhotoCount = await resolveReadyPhotoCount();
-    if (readyPhotoCount < MIN_PHOTOS_TO_CONNECT) {
+    const gaps = getConnectSetupGaps(userProfile, readyPhotoCount);
+    if (gaps.length === 0) return true;
+    const first = gaps[0];
+    if (first === "photos") {
       setConnectPhotosModalCount(readyPhotoCount);
       setShowConnectPhotosModal(true);
       setGateError("");
-      return;
+      return false;
     }
+    setConnectSetupGap(first);
+    setGateError("");
+    return false;
+  }, [resolveReadyPhotoCount, userProfile]);
+
+  const handleUnlockBrowse = useCallback(async () => {
+    if (unlockingBrowse || !userProfile || isAutoMatching) return;
+
+    if (!(await ensureReadyToConnect())) return;
 
     if (user?.matchmakingEnabled === false) {
       setShowMatchmakingPausedModal(true);
@@ -809,14 +825,17 @@ export default function Browse() {
       const code = apiErr.code;
       const missing = apiErr.missing ?? [];
 
-      if (
-        code === "CONNECT_SETUP_INCOMPLETE" &&
-        (missing.includes("photos") || msg.toLowerCase().includes("photo"))
-      ) {
-        const count = await resolveReadyPhotoCount();
-        setConnectPhotosModalCount(count);
-        setShowConnectPhotosModal(true);
-        setGateError("");
+      if (code === "CONNECT_SETUP_INCOMPLETE") {
+        const gap = (missing[0] as ConnectSetupGap | undefined) ?? "photos";
+        if (gap === "photos" || msg.toLowerCase().includes("photo")) {
+          const count = await resolveReadyPhotoCount();
+          setConnectPhotosModalCount(count);
+          setShowConnectPhotosModal(true);
+          setGateError("");
+        } else {
+          setConnectSetupGap(gap);
+          setGateError("");
+        }
       } else if (code === "MATCHMAKING_DISABLED") {
         setShowMatchmakingPausedModal(true);
         setGateError("");
@@ -835,6 +854,7 @@ export default function Browse() {
     isAutoMatching,
     user,
     resolveReadyPhotoCount,
+    ensureReadyToConnect,
   ]);
 
   /** After “Keep Browsing”: return to Connect landing (user taps Connect again for a new match). */
@@ -996,6 +1016,10 @@ export default function Browse() {
         photoCount={connectPhotosModalCount}
         onClose={() => setShowConnectPhotosModal(false)}
         onPhotoUploaded={(uploaded) => handleConnectPhotoUploaded(uploaded)}
+      />
+      <ConnectSetupGapModalWeb
+        gap={connectSetupGap}
+        onClose={() => setConnectSetupGap(null)}
       />
       <MatchmakingPausedModalWeb
         open={showMatchmakingPausedModal}
