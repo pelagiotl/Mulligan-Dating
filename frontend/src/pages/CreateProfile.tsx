@@ -25,7 +25,6 @@ import {
   readWebCreateProfileDraft,
   finitePreferenceAge,
   isOnboardingGenderComplete,
-  isProfileAgeUnset,
   parseOnboardingAgeOrNull,
   shouldClearLoadedProfileAge,
   resolveOnboardingPreferredGenders,
@@ -328,7 +327,6 @@ export default function CreateProfile() {
 
   const nameValid = displayName.trim().length >= 2;
   const locationValid = hasCityAndState(location);
-  const ageValid = !isProfileAgeUnset(parseOnboardingAgeOrNull(age));
   const genderValid = isOnboardingGenderComplete(gender);
 
   const togglePreferredGender = (g: string) => {
@@ -585,7 +583,7 @@ export default function CreateProfile() {
     await saveProfileProgress({ requireLocation: true });
   }, [saveProfileProgress]);
 
-  /** Activation: name, location, age, and gender (photos required later on Connect). */
+  /** Activation: name, location, and gender (age + photos required later on Connect). */
   const readActivationReadyOnServer = useCallback(async (): Promise<{
     ready: boolean;
     gaps: ProfileActivationGap[];
@@ -595,13 +593,16 @@ export default function CreateProfile() {
       const gaps = getProfileActivationGaps(profileRes.profile);
       return { ready: gaps.length === 0, gaps };
     } catch {
-      return { ready: false, gaps: ["name", "location", "age", "gender"] };
+      return { ready: false, gaps: ["name", "location", "gender"] };
     }
   }, []);
 
   /** Complete Profile: POST must succeed; interests/prefs are best-effort. */
   const saveProfileForComplete = useCallback(async () => {
-    const validationError = validateOnboardingBasics({ displayName, location, age, gender });
+    const validationError = validateOnboardingBasics(
+      { displayName, location, age, gender },
+      { requireAge: false }
+    );
     if (validationError) {
       throw new Error(validationError);
     }
@@ -612,12 +613,12 @@ export default function CreateProfile() {
 
     const profileBody: Record<string, unknown> = {
       displayName: displayName.trim(),
-      age: ageNum,
       gender: gender.trim(),
       location: normalizedLocation,
       bio: bio?.trim() || null,
       lookingFor: null,
     };
+    if (ageNum != null && Number.isFinite(ageNum)) profileBody.age = ageNum;
 
     const maxDist = clampMaxDistanceMiles(
       maxDistance != null && !Number.isNaN(Number(maxDistance))
@@ -694,7 +695,7 @@ export default function CreateProfile() {
 
   useEffect(() => {
     if (step !== TOTAL_STEPS || profileReadyForPhotos) return;
-    if (!nameValid || !locationValid || !ageValid || !genderValid) return;
+    if (!nameValid || !locationValid || !genderValid) return;
     setError("");
     let cancelled = false;
     (async () => {
@@ -715,7 +716,7 @@ export default function CreateProfile() {
     return () => {
       cancelled = true;
     };
-  }, [step, profileReadyForPhotos, saveProfileBeforePhotos, syncPhotosFromServer, nameValid, locationValid, ageValid, genderValid]);
+  }, [step, profileReadyForPhotos, saveProfileBeforePhotos, syncPhotosFromServer, nameValid, locationValid, genderValid]);
 
   useEffect(() => {
     const load = async () => {
@@ -950,7 +951,10 @@ export default function CreateProfile() {
   const handleCompleteProfile = async () => {
     setError("");
 
-    const validationError = validateOnboardingBasics({ displayName, location, age, gender });
+    const validationError = validateOnboardingBasics(
+      { displayName, location, age, gender },
+      { requireAge: false }
+    );
     if (validationError) {
       setError(validationError);
       return;
@@ -1027,7 +1031,6 @@ export default function CreateProfile() {
     savingProgress ||
     !nameValid ||
     !locationValid ||
-    !ageValid ||
     !genderValid ||
     detectingLocation;
 
@@ -1079,7 +1082,7 @@ export default function CreateProfile() {
           </button>
         </div>
         <h1 className="create-profile-hero-title">Set up your profile</h1>
-        <p className="create-profile-hero-hint">Four quick steps below — then you&apos;re ready to browse.</p>
+        <p className="create-profile-hero-hint">Three quick steps below — then you&apos;re ready to browse.</p>
       </header>
 
       {error ? <div className="auth-error create-profile-error">{error}</div> : null}
@@ -1133,27 +1136,8 @@ export default function CreateProfile() {
               locationValid ? <span>✓ Location set</span> : null
             )}
             {focusCard(
-              "rose",
-              "Step 3 · Your age",
-              "🎂",
-              "How old are you?",
-              "You must be 18 or older to use Mulligan.",
-              <input
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                className="create-profile-focus-input create-profile-focus-input--center"
-                value={age}
-                onChange={(e) => setAge(e.target.value.replace(/[^0-9]/g, ""))}
-                placeholder="Your age"
-                autoComplete="off"
-                maxLength={3}
-              />,
-              ageValid ? <span>✓ Age set</span> : null
-            )}
-            {focusCard(
               "plum",
-              "Step 4 · Your gender",
+              "Step 3 · Your gender",
               "⚧️",
               "What's your gender?",
               "This is how you show up on your profile.",
@@ -1202,11 +1186,9 @@ export default function CreateProfile() {
               ? "Enter at least 2 characters for your name"
               : !locationValid
                 ? "Enter city and state (e.g. Medford, Oregon) or use your location"
-                : !ageValid
-                  ? "Enter your age (18 or older)"
-                  : !genderValid
-                    ? "Select your gender"
-                    : undefined
+                : !genderValid
+                  ? "Select your gender"
+                  : undefined
           }
           onClick={() => {
             unlockMatchAudio();

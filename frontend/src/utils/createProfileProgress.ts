@@ -80,8 +80,12 @@ export type OnboardingBasicsInput = {
   gender: string;
 };
 
-/** Client-side gate for Complete Profile — name, location, age, and gender required. */
-export function validateOnboardingBasics(input: OnboardingBasicsInput): string | null {
+/** Client-side gate for Complete Profile — name, location, gender; age optional during onboarding. */
+export function validateOnboardingBasics(
+  input: OnboardingBasicsInput,
+  options?: { requireAge?: boolean }
+): string | null {
+  const requireAge = options?.requireAge === true;
   if (input.displayName.trim().length < 2) {
     return "Please enter at least 2 characters for your name";
   }
@@ -90,7 +94,7 @@ export function validateOnboardingBasics(input: OnboardingBasicsInput): string |
   if (comma === -1 || loc.slice(0, comma).trim().length === 0 || loc.slice(comma + 1).trim().length === 0) {
     return "Please enter both city and state (e.g. Medford, Oregon)";
   }
-  if (isProfileAgeUnset(parseOnboardingAgeOrNull(input.age))) {
+  if (requireAge && isProfileAgeUnset(parseOnboardingAgeOrNull(input.age))) {
     return "Enter your age (18 or older).";
   }
   if (!isOnboardingGenderComplete(input.gender)) {
