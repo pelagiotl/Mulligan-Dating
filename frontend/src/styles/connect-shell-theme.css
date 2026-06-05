@@ -64,8 +64,8 @@ html[data-connect-shell="midnight"],
   --create-profile-tips-bg: rgba(22, 18, 34, 0.9);
   --create-profile-tips-border: rgba(167, 139, 250, 0.28);
   --create-profile-content-bg: var(--native-gradient-screen);
-  --create-profile-actions-bg: rgba(22, 18, 34, 0.98);
-  --create-profile-actions-border: rgba(167, 139, 250, 0.2);
+  --create-profile-actions-bg: transparent;
+  --create-profile-actions-border: transparent;
   --create-profile-footnote-text: #94a3b8;
   --token-cannot-claim-text: #e2e8f0;
   --limits-panel-bg: linear-gradient(
@@ -270,8 +270,8 @@ html[data-connect-shell="sunny"],
   --create-profile-tips-bg: rgba(255, 253, 245, 0.94);
   --create-profile-tips-border: rgba(251, 146, 60, 0.32);
   --create-profile-content-bg: var(--native-gradient-screen);
-  --create-profile-actions-bg: rgba(255, 253, 245, 0.98);
-  --create-profile-actions-border: rgba(251, 146, 60, 0.22);
+  --create-profile-actions-bg: transparent;
+  --create-profile-actions-border: transparent;
   --create-profile-footnote-text: #9a3412;
   --token-cannot-claim-text: #9a3412;
   --limits-panel-bg: linear-gradient(
@@ -414,8 +414,8 @@ html[data-connect-shell="soft"],
   --create-profile-tips-bg: rgba(255, 255, 255, 0.9);
   --create-profile-tips-border: rgba(102, 126, 234, 0.22);
   --create-profile-content-bg: var(--native-gradient-screen);
-  --create-profile-actions-bg: rgba(252, 248, 255, 0.98);
-  --create-profile-actions-border: rgba(102, 126, 234, 0.18);
+  --create-profile-actions-bg: transparent;
+  --create-profile-actions-border: transparent;
   --create-profile-footnote-text: #64748b;
   --token-cannot-claim-text: #4c1d95;
   --limits-panel-bg: linear-gradient(

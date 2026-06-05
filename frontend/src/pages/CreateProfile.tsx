@@ -1176,7 +1176,6 @@ export default function CreateProfile() {
       </div>
 
       <div className="create-profile-actions">
-        <span />
         <button
           type="button"
           className="create-profile-btn create-profile-btn--next"

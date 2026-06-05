@@ -3698,19 +3698,16 @@ img {
 
 .create-profile-actions {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
   gap: var(--space-3);
   flex-shrink: 0;
   padding: var(--space-4);
   padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
   margin-top: auto;
-  border-top: 1px solid var(--create-profile-actions-border, transparent);
-  background: var(--create-profile-actions-bg, transparent);
+  border-top: none;
+  background: transparent;
   box-shadow: none;
-  position: sticky;
-  bottom: 0;
-  z-index: 2;
 }
 
 .create-profile-btn {
