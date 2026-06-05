@@ -1,4 +1,4 @@
-import { MIN_PHOTOS_TO_CONNECT } from "../utils/connectProfileEligibility";
+import { MIN_PHOTOS_TO_CONNECT } from "./minPhotosToConnect";
 import { PROFILE_ENHANCEMENT_PHOTO_TARGET } from "../utils/profileEnhancementChecklist";
 
 /** Minimum to unlock Connect (gate + modals). */

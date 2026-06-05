@@ -1,8 +1,9 @@
 /** Mirrors backend `connectRequirements.ts` for routing and post-login redirects. */
 
 import { CONNECT_PHOTOS_REQUIRED_MESSAGE } from "../constants/connectPhotoCopy";
+import { MIN_PHOTOS_TO_CONNECT } from "../constants/minPhotosToConnect";
 
-export const MIN_PHOTOS_TO_CONNECT = 1;
+export { MIN_PHOTOS_TO_CONNECT };
 
 export function minPhotosToConnectLabel(count = MIN_PHOTOS_TO_CONNECT): string {
   return count === 1 ? "1 photo" : `${count} photos`;
